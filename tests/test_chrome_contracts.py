@@ -1327,8 +1327,9 @@ def test_live_revision_retains_the_runtime_favicon(browser, serve):
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
+@pytest.mark.parametrize("touch", [False, True], ids=["desktop", "touch"])
 def test_a_conversation_keeps_its_face_and_sends_from_margin_and_panel(
-    browser, serve, scheme
+    browser, serve, scheme, touch
 ):
     """One conversation has the same typography and reply field in both places.
 
@@ -1352,8 +1353,9 @@ def test_a_conversation_keeps_its_face_and_sends_from_margin_and_panel(
             + "Explain how the result was measured. " * 40,
         },
     )
-    page = open_page(browser, url, color_scheme=scheme)
-    resized(page, 1440, 900)
+    context = browser.new_context(has_touch=touch, is_mobile=touch, color_scheme=scheme)
+    page = open_page(browser, url, context=context)
+    resized(page, 390 if touch else 1440, 900)
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
     margin = page.locator(".lf-margin-preview .lf-page-thread")
     expect(margin.get_by_role("textbox", name="Reply", exact=True)).to_be_visible()
@@ -2227,7 +2229,7 @@ def test_a_refused_approval_says_why_to_the_keyboard_and_the_finger(browser, ser
     page = open_page(browser, url)
     resized(page, 1440, 900)
     approval = page.locator(".lf-signoff")
-    reason = "Answer every Ask before approving this work"
+    reason = "Answer every Question before approving this work"
     expect(approval).to_have_attribute("aria-disabled", "true")
     expect(approval).to_have_attribute("aria-description", reason)
     expect(approval).to_be_disabled()
@@ -2256,7 +2258,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
     expect(page.locator(".lf-others")).to_have_text("All pages (2)")
     expect(page.locator(".lf-signoff")).to_be_disabled()
     expect(page.locator(".lf-signoff")).to_have_attribute(
-        "title", "Answer every Ask before approving this work"
+        "title", "Answer every Question before approving this work"
     )
     banner_control(page, ".lf-answer-all")
 
@@ -2265,7 +2267,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
         resized(page, width, 900)
         orders[width] = page.evaluate(BANNER_ORDER)
     phone = orders.pop(390)
-    moved = ["Approve version", "Comment on the page", "Questions: 4 waiting on you"]
+    moved = ["Approve version", "Comment on the page", "Questions"]
     assert phone[: len(moved)] == moved, phone
     rest = phone[len(moved) :]
     assert rest[:-1] + moved + rest[-1:] == orders[800], (phone, orders[800])

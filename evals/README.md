@@ -72,7 +72,9 @@ prompt asking for its tool calls with their JSON input. The leading comment reco
 where the case came from and what it measured, `metadata.purpose` the behavior it
 pins, and `metadata.tags` its area.
 
-Internal instruction cases declare `metadata.instructions`, a source path in
+Internal instruction cases exercise developing Leaf itself; `/developing-leaf`,
+"Score an instruction change", owns when to use one. They declare
+`metadata.instructions`, a source path in
 that arm. The native provider receives its contents and source file location as
 system/developer context, retaining the origin of its linked references;
 the case grades the resulting behavior. These columns end in `/instructions`.

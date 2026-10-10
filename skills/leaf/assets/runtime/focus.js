@@ -53,6 +53,11 @@
    and a group's one Tab stop (`rove`).
 
    The selector vocabulary lives in control-selectors.js, which imports nothing.
+   In a sample, only the document already holding input may place focus. A trusted
+   pointer or keyboard entry gives the child that ownership before Leaf handles the
+   gesture; remote commands and delayed work cannot borrow it from the parent. This
+   is a rule for Leaf placements, not a restriction on authored browser scripts.
+
    This module imports only that vocabulary, rendering.js and keeps.js: importing a
    gesture owner would cycle through its focus dependency. */
 import { nextRender } from "./rendering.js";
@@ -111,17 +116,23 @@ export const tabStops = (root) =>
 // that the focus and the place inside it land in one act rather than in two. Passing no
 // caret leaves the platform's, which is what a first arrival wants.
 //
-// The placement keeps the page still unless `scroll` asks the browser to bring the
-// element into view, as a list whose rows run past its box does for the row it lands on.
+// Placements never ask the browser to reveal their target: native focus scrolling
+// crosses browsing contexts. A caller needing reveal uses document-local scrolling.
+export const canPlaceFocus = () =>
+  !document.documentElement.lfSample || document.hasFocus();
 const CAUSES = new Set(["move", "step", "return", "press"]);
 export function focusDestination(
   destination,
   cause,
-  { caret = null, scroll = false } = {},
+  { caret = null, ...unknown } = {},
 ) {
   if (!CAUSES.has(cause)) throw new TypeError(`focusDestination: no cause ${cause}`);
+  const unexpected = Object.keys(unknown);
+  if (unexpected.length)
+    throw new TypeError(`focusDestination: unknown options ${unexpected.join(", ")}`);
+  if (!canPlaceFocus()) return;
   placed(cause, () => {
-    destination.focus({ preventScroll: !scroll });
+    destination.focus({ preventScroll: true });
     if (!landedOn(destination) && lendable(destination)) lendStop(destination);
   });
   if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
@@ -131,6 +142,7 @@ export function focusDestination(
 // arrival is the one that gave the node its focus, so the node it lands on takes that
 // arrival's cause, whether a placement or the user's own Tab or press gave it.
 export function forwardFocus(destination) {
+  if (!canPlaceFocus()) return;
   placed(placing ?? cause(destination), () =>
     destination.focus({ preventScroll: true }),
   );
@@ -998,10 +1010,10 @@ export function controlNavigationKeys(node) {
 
 // Landing the user in the document. One act at both ends of the ladder, and for every
 // step that would otherwise leave them on Leaf's own apparatus, because standing on an
-// Ask out on the page and standing on a banner button are the same state — the user
+// Question out on the page and standing on a banner button are the same state — the user
 // holding something — reached from either side of the chrome. What those rungs do not
 // share is the word, and neither word is the other's: leaving the chrome names where the
-// user lands, since that is the whole of what the rung is for, and letting go of an Ask
+// user lands, since that is the whole of what the rung is for, and letting go of a Question
 // names the act, since they were on the page all along.
 //
 // Where they land is the block they are reading in the page region they last acted in

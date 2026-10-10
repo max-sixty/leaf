@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-from .asks import quoted_in
 from .files import latest_revision
 from .passages import page_passages
 from .projection import (
@@ -11,6 +10,7 @@ from .projection import (
     retirement_outcomes,
     rewritten_bodies,
 )
+from .questions import quoted_in
 from .registry.storage import require_registry
 from .revision_artifact import read_revision
 from .thread_context import id_subject

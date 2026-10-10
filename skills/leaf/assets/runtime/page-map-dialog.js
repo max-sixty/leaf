@@ -24,6 +24,8 @@
    mount attaches the dialog and binds controls; importing the module does not
    install application callbacks or activate the map. */
 
+import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
+import { scrollIntoView } from "./landing-scroll.js";
 import { nextRender } from "./rendering.js";
 import { blockAt, says } from "./passages.js";
 import {
@@ -40,7 +42,7 @@ import { iconTemplate } from "./icons.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { coarsePointer } from "./pointer.js";
 import { rowWalk } from "./walk-position.js";
-import { closeControl, el, offer } from "./widget-elements.js";
+import { closeControl, el, searchField } from "./widget-elements.js";
 import { keepsHidden, keepsText } from "./keeps.js";
 import { placeKeeper } from "./user-place.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -84,12 +86,11 @@ const dialogClose = closeControl({
   title: "Close Page Map (Esc)",
 });
 dialogHead.append(dialogClose);
-const dialogSearch = offer("wa-input", "lf-page-map-search lf-label-hidden");
-dialogSearch.type = "search";
-dialogSearch.name = "page-map-search";
-dialogSearch.placeholder = "Find an action, status, or location";
-dialogSearch.label = "Find an action, status, or location in Page Map";
-dialogSearch.size = "s";
+const dialogSearch = searchField("lf-page-map-search", {
+  name: "page-map-search",
+  label: "Find an action, status, or location in Page Map",
+  placeholder: "Find an action, status, or location",
+});
 const dialogList = el("div", "lf-page-map-list");
 // A state update or a search re-renders the open sheet; the row the user was on holds
 // their place in it (user-place.js), under the map key each row is rendered with.
@@ -131,7 +132,7 @@ export function createPageMapDialog({
     releaseAnnotations?.(entry);
     const destination = annotationFocus?.(entry);
     // A location without a presented annotation lands on its exact authored target.
-    // Commands that open a Thread or Ask retain their own navigation capability.
+    // Commands that open a Thread or Question retain their own navigation capability.
     closeLayer(leavePageMap, () =>
       !destination && targetFor(entry)?.isConnected
         ? focusDestination(targetFor(entry), "move")
@@ -185,7 +186,7 @@ export function createPageMapDialog({
     }
     const returnTo = openerOf(dialog);
     closeLayer(
-      () => dialog.close(),
+      () => closeNativeLayer(dialog),
       () => handBack(returnTo),
     );
     contributionSource(offered).registration.activate(record.key, {
@@ -373,7 +374,7 @@ export function createPageMapDialog({
       dialogSearch.value = "";
     }
     renderSheet();
-    if (!dialog.open) dialog.showModal();
+    if (!dialog.open) showNativeLayer(dialog);
     const index = entry
       ? entries.findIndex((candidate) => candidate.key === entry.key)
       : -1;
@@ -415,7 +416,7 @@ export function createPageMapDialog({
   // its disclosure can use the registration's surface reading to return here.
   function leavePageMap() {
     if (!dialog.open) return;
-    dialog.close();
+    closeLayer(() => closeNativeLayer(dialog));
   }
 
   function cancelPageMap() {
@@ -471,7 +472,11 @@ export function createPageMapDialog({
           description: "Go from the search to the first entry",
           title: "to the entries",
           when: hasRows,
-          run: () => focusDestination(mapRows()[0], "move", { scroll: true }),
+          run: () => {
+            const row = mapRows()[0];
+            focusDestination(row, "move");
+            scrollIntoView(row, { block: "nearest" });
+          },
         },
         {
           id: "map.search.open",

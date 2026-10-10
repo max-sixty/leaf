@@ -22,7 +22,6 @@ from interact_support import (
     COMMAND_HUB_PACKAGE,
     COMMENT,
     PAGE,
-    PAGE_PACKAGES,
     PILOT_PURGE,
     SHELVED,
     STATED_TIMEOUT,
@@ -50,7 +49,6 @@ from interact_support import (
     assert_revendor_serializes_writer,
     check,
     comment,
-    consume_pending_input,
     decide,
     declare_data_input,
     element_declaration,
@@ -59,6 +57,7 @@ from interact_support import (
     live_versions,
     lock_contention,
     model_layer,
+    page_packages,
     publish,
     published,
     queue_board_registry,
@@ -464,7 +463,10 @@ def test_admission_decides_from_the_markup_and_the_standing_log_alone():
     `ModelPage` is. Each verdict below comes from a different gate, so a gate
     that went back to opening a file of its own fails here.
     """
-    page = ModelPage(STATED_KIT)
+    captured = deepcopy(model_layer())
+    # Ownership belongs to the running transport, not the captured vocabulary.
+    del captured["$events"]["ownership"]
+    page = ModelPage(STATED_KIT, registry=captured)
 
     def admit(event):
         return event_contracts_model.admitted_event(page, STATED_LOG, dict(event))
@@ -489,6 +491,10 @@ def test_admission_decides_from_the_markup_and_the_standing_log_alone():
     answer = {"kind": "reply", "author": "agent", "revision": 1, "text": "The GPS."}
     assert refusal({**answer, "parent": "c9"}) == "unknown parent 'c9'"
     assert admit({**answer, "parent": "c1"})["parent"] == "c1"
+    for version in ([1], {"version": 1}, True):
+        assert "done event is invalid" in refusal(
+            {"kind": "done", "author": "user", "version": version}
+        )
 
 
 def test_a_created_child_is_its_actions_unit_and_its_words_stay_payload():
@@ -701,7 +707,10 @@ def test_server_takes_back_only_a_standing_gesture_of_the_users_own(server, page
     # Once, and never the undo itself: repeated presses walk back through the
     # user's history rather than toggling the last gesture on and off.
     status, body = fetch(f"{server}/api/event", data=json.dumps(undone).encode())
-    assert status == 400 and "already been taken back" in json.loads(body)["error"]
+    refusal = json.loads(body)
+    assert status == 400 and "already been taken back" in refusal["error"]
+    assert took_back in refusal["state"]["events"]
+    assert refusal["state"]["browser"]["basis"]["through_seq"] >= took_back["seq"]
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps({"kind": "undo", "undoes": took_back["id"]}).encode(),
@@ -916,7 +925,7 @@ def test_init_allows_a_log_holding_a_token_the_incoming_layer_dropped(
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -995,7 +1004,7 @@ def test_init_allows_retiring_a_logged_widgets_verb(page_dir):
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -1084,7 +1093,7 @@ def test_init_allows_changed_generated_child_semantics(page_dir, mutation):
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -1127,7 +1136,7 @@ def test_init_allows_a_logged_report_the_incoming_layer_no_longer_speaks(page_di
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -1170,7 +1179,7 @@ def test_init_allows_to_orphan_a_logged_visual_anchor(page_dir):
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -1303,7 +1312,7 @@ def test_revendoring_serializes_with_thread_markup_entering_the_log(
     overlay.mkdir(parents=True)
     local = element_declaration("lf-local-thread")
     (overlay / "registry.json").write_text(json.dumps({"lf-local-thread": local}))
-    vendoring_model.cmd_init(page_dir, selected=(*PAGE_PACKAGES, "./.leaf"))
+    vendoring_model.cmd_init(page_dir, selected=(*page_packages(), "./.leaf"))
     publish(page_dir)
     append_carried_log_record(
         page_dir,
@@ -1365,7 +1374,7 @@ def test_revendoring_can_change_frozen_thread_widget_vocabulary(
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -1734,6 +1743,58 @@ def test_candidate_vocabulary_changes_leave_old_actions_in_captured_history(page
 
     assert refused.error is None and refused.created
     assert refused.revision == revision + 1
+
+
+def test_an_action_an_earlier_runtime_logged_is_left_out_of_the_fold(page_dir):
+    """A pick logged before admission recorded its state operation, in the payload
+    shape of its day, folds as absent: `leaf page state` reads on with the current
+    pick standing instead of failing on the old record."""
+    source = PAGE.replace(
+        "</section>",
+        '<lf-options id="picks" choose><lf-option id="first">First</lf-option>'
+        '<lf-option id="second">Second</lf-option></lf-options></section>',
+    )
+    (page_dir / "index.html").write_text(source)
+    publish(page_dir)
+    revision = files_model.latest_revision(page_dir)
+    current = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": revision,
+            "widget": "picks",
+            "action": "choose",
+            "detail": {"value": ["first"]},
+        },
+    )
+    # The shape a runtime before recorded state operations logged a pick in.
+    earlier = {
+        "kind": "action",
+        "revision": revision,
+        "widget": "picks",
+        "action": "choose",
+        "detail": {"options": ["second"]},
+        "author": "user",
+        "id": "earlier-pick",
+        "meaning": {
+            "scope": "page",
+            "unit": "picks",
+            "depends": ["picks", "second"],
+            "answer": None,
+        },
+        "attention": True,
+        "ts": "2026-10-06T20:14:37.092-07:00",
+    }
+    with (page_dir / schema_model.EVENTS_FILE).open("a") as log:
+        log.write(json.dumps(earlier) + "\n")
+
+    out = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
+
+    assert out.exit_code == 0, out.output
+    assert [(s["widget"], s["detail"]) for s in json.loads(out.stdout)["state"]] == [
+        ("picks", current["detail"])
+    ]
 
 
 def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(page_dir):
@@ -2908,6 +2969,11 @@ def test_recorded_effect_payloads_are_validated_at_admission(page_dir):
         admitted = event_contracts_model.admitted_event(
             page, [], {**command, "detail": valid}
         )
+        for required in ("widget", "action", "detail", "revision"):
+            malformed = {**command, "detail": valid}
+            del malformed[required]
+            with pytest.raises(events_model.EventRefused, match="required property"):
+                event_contracts_model.admitted_event(page, [], malformed)
         assert admitted["detail"] == valid
         assert admitted["meaning"]["unit"] == (
             valid["unit"] if widget == "board" else widget
@@ -3410,6 +3476,12 @@ def test_check_refuses_a_predicate_no_page_could_carry(
     Same for an answering verb the widget does not declare, which would hold its
     Ask open for a state no gesture writes."""
     registry = json.loads((page_dir / "registry.json").read_text())
+    if key == "x-awaits":
+        declaration = {
+            "value": next(iter(registry[tag]["x-state"])),
+            "answered": {"choose": {}},
+            **declaration,
+        }
     registry[tag][key] = declaration
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
@@ -3421,10 +3493,12 @@ def test_check_refuses_a_predicate_no_page_could_carry(
 @pytest.mark.parametrize(
     ("declaration", "message"),
     [
-        ({}, "local Ask declares no `answered` condition"),
+        ({"value": "answer"}, "answered"),
     ],
 )
-def test_a_local_ask_declares_its_answered_condition(page_dir, declaration, message):
+def test_a_local_question_declares_its_answered_condition(
+    page_dir, declaration, message
+):
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-test-task"]["x-awaits"] = declaration
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -3611,7 +3685,7 @@ def test_init_inherits_contract_members_a_layer_does_not_state(
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -3644,7 +3718,7 @@ def test_a_layer_restates_one_kind_s_handling_and_inherits_the_rest(page_dir, tm
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -3688,7 +3762,7 @@ def test_init_refuses_handling_that_a_batch_could_not_carry(
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -3706,9 +3780,9 @@ What the agent is told when a user acts on a page
 A test records this file; nobody writes it by hand. The lines starting with `#`
 explain it, and everything else is the recorded data. The walkthrough below is
 one real run: the test serves a page, posts a comment to it the way the browser
-does, runs `leaf wait` in a Claude Code session, and takes the delivery the way
-Leaf's prompt hook does. Only the id, the times and the page's path are pinned,
-so the file stays the same from run to run.
+does, runs `leaf wait` in a Claude Code session, and acknowledges its complete
+delivery. Only the id, the times and the page's path are pinned, so the file
+stays the same from run to run.
 
 How this text reaches the agent, by example
 -------------------------------------------
@@ -3726,14 +3800,13 @@ How this text reaches the agent, by example
 
 @LOGGED@
 
-3. Earlier, the agent ended its turn and Leaf's Stop hook went on watching.
-   The watch notices the new input and wakes the session. Leaf's prompt hook
-   runs as that turn begins and builds a delivery for the comment. This test
-   drives the same watch and complete reader delivery through `leaf wait`.
+3. The agent runs `leaf wait`, which notices the new input and prints a complete
+   delivery for the comment. The explicit wait carries the input even if the
+   session's hooks no longer run.
    The comment is owed a reply, which the delivery records as its `answer` (step
-   4): a `reply` for `leaf thread reply` here, where the Codex App Server route
+   4): a `reply` for `leaf response reply <answer.ref>` here; the Codex App Server route
    would record a `turn`, which the turn's own messages write. For the
-   instructions, the hook reads the clauses under
+   instructions, `leaf wait` reads the clauses under
    `$events.handling.comment` in the page's copy of registry.json, then those
    under `$events.answering.reply`, the answer it owes. Each clause has a `text`
    and may have a `when`, a JSON Schema that must hold for the clause to apply.
@@ -3743,21 +3816,21 @@ How this text reaches the agent, by example
 
 @CLAUSES@
 
-4. The hook adds the delivery as JSON to the turn's context, after one line
-   saying so. The delivery's event is the log line from step 2 less @DROPPED@, the
-   browser's retry key, and with these fields added:
+4. The wait prints the delivery as JSON. The delivery's event is the log line
+   from step 2 less @DROPPED@, the browser's retry key, and with these fields added:
    @ADDED@.
    The batch's `handling` maps clause ids to their text, each distinct text
    appearing once. The event's `handling` names its applicable clauses in order.
-   Once it has published that context, the hook confirms the delivery itself,
-   so the envelope's `acknowledge` is null and the comment reads Picked up. The
-   whole delivery, indented here (the hook writes it on one line):
+   The envelope's `acknowledge` tells the agent to confirm receipt before work;
+   printing alone does not mark the comment Picked up. Large readings expose
+   numbered parts and a `next` command; read all parts before acknowledging.
+   This comment fits in one reading, shown here as the wait prints it:
 
 @DELIVERY@
 
-5. The agent follows `handling`: it names any work the comment asks for with
-   `leaf task start`, does it, and replies in the thread with
-   `leaf thread reply`.
+5. The agent acknowledges the delivery, then follows `handling`. For requested
+   work it opens with `leaf response reply <answer.ref> --ephemeral --text "<plan>"`,
+   does the work, and answers with `leaf response reply <answer.ref>`.
 
 What this file records
 ----------------------
@@ -3816,7 +3889,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     in. A wording or condition change shows up as a diff per case. The assertions
     keep the table whole: every declared kind has a case, and every clause reaches
     at least one case, so no `when` is dead. Its header walks one real comment from
-    the HTTP route through `leaf wait` and the prompt hook's delivery, and holds that
+    the HTTP route through `leaf wait` and its acknowledged delivery, and holds that
     the clauses it lists as applying are exactly the `handling` the delivery
     carries."""
     registry = json.loads((schema_model.ASSETS / "registry.json").read_text())
@@ -3944,10 +4017,11 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         for clause in clauses:
             assert any(clause in matched for matched in reached), (kind, clause)
 
-    # The walkthrough: one comment through the real HTTP route, `leaf wait`, and the
-    # delivery Claude Code's prompt hook takes.
+    # The walkthrough: one comment through the real HTTP route and the explicit
+    # wait's complete delivery, acknowledged by its reader.
     (page_dir / "index.html").write_text(WALKTHROUGH_PAGE)
     publish(page_dir)
+    service_model.claim_page(page_dir)
     session_model.cmd_waiting(page_dir, "")
     posted = {
         "kind": "comment",
@@ -3961,8 +4035,9 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     logged = (page_dir / "events.jsonl").read_text().splitlines()[-1]
     capsys.readouterr()
     assert session_model.cmd_wait(page_dir) == 0
-    assert "has new input" in capsys.readouterr().out
-    envelope = consume_pending_input(harness_model.session_harness().session)
+    envelope = json.loads(capsys.readouterr().out)
+    assert envelope["acknowledge"] is not None
+    assert delivery_model.receive_delivery(envelope["id"]) == [page_dir]
     record = json.loads(logged)
     [batch] = envelope["batches"]
     [delivered] = batch["events"]
@@ -4069,21 +4144,21 @@ A route is how new user input reaches the agent's task:
                      output to the agent as the command's result, which wakes
                      it. The agent acknowledges the delivery itself, with
                      `leaf wait --ack <delivery-id>`, and answers with
-                     `leaf thread reply`. A Codex task running without Leaf's
+                     `leaf response reply <answer.ref>`. A Codex task without Leaf's
                      adapter uses this route, and so does a bare shell.
-  Claude Code hook   The agent keeps `leaf wait` running in the background, and
-                     under Claude Code it prints one line naming the page and
-                     exits, which opens a turn. Leaf's prompt hook runs as that
+  Claude Code hook   Leaf's native hook watcher runs between turns. When input
+                     arrives it wakes the session with one line naming the page,
+                     which opens a turn. Leaf's prompt hook runs as that
                      turn begins, and its Stop hook as a turn ends; either
                      freezes the delivery, acknowledges it, and adds it to the
                      turn's context after one line saying so. The agent answers
-                     with `leaf thread reply`.
+                     with `leaf response reply <answer.ref>`.
   Codex queue        Leaf's adapter freezes the delivery and runs `codex queue`
                      with a pointer to it as the task's next user message. The
                      agent reads the delivery with `leaf delivery read <id>`,
-                     which prints it as indented JSON, and answers with
-                     `leaf thread reply`. The adapter acknowledges the delivery once
-                     Codex's queue accepts it.
+                     follows every `next` command, and confirms complete receipt
+                     with `leaf delivery ack <id>` before answering with
+                     `leaf response reply <answer.ref>`.
   Codex App Server   Leaf starts a turn with `turn/start`, carrying the
                      delivery as a `leaf_delivery` tool output, and binds the
                      turn's opening and final messages as the reply. Leaf
@@ -4091,10 +4166,15 @@ A route is how new user input reaches the agent's task:
                      leaf.page's hosted agent and a `leaf codex launch`
                      terminal use this route.
 
+CLI readings print bounded, indented JSON. Large deliveries expose numbered
+parts and a `next` command; read all parts before acknowledging. A CLI reading
+requires explicit receipt even when the original envelope's transport could
+confirm it. This comment fits in one reading on every route.
+
 Each route freezes a delivery of its own. The envelope's shape is the same on
 all four. Two things differ, each stated once: `acknowledge` says how the agent
 confirms the delivery, or is null where the route confirmed it; and the
-comment's `answer` is a `reply`, for `leaf thread reply`, except on App Server,
+comment's `answer` is a `reply`, for `leaf response reply`, except on App Server,
 where it is a `turn` the turn's own messages write. The `handling` follows from
 the answer, so each agent is told only its own route.
 The agent's standing instructions (its harness contract, and on leaf.page the
@@ -4107,7 +4187,7 @@ What this file records
 One top-level key per route, holding exactly what reaches the agent's task:
 
   leaf wait:         its output, from a bare shell.
-  Claude Code hook:  the line the wait prints, and the prompt hook's
+  Claude Code hook:  the native watch's notification, and the prompt hook's
                      `additionalContext`, split into its instruction line, the
                      delivery on the next line, and what Leaf asks of the turn
                      after it.
@@ -4131,8 +4211,9 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     """The snapshot is the page a developer reads to compare what one comment puts
     in front of the agent on each route: `leaf wait`, Claude Code's hooks, the
     Codex queue's pointer and the delivery it names, and the Codex App Server
-    turn. These captures confirm nothing, so each sees the same pending input. Each
-    is taken from the code that route runs, after one real POST, so a change to
+    turn. The explicit and Codex captures leave input unconfirmed; the final hook
+    capture confirms it. Each is taken from the code that route runs, after one
+    real POST, so a change to
     any route's framing or to a delivery's contents shows up as a diff under the
     route it reaches."""
     (page_dir / "index.html").write_text(WALKTHROUGH_PAGE)
@@ -4167,7 +4248,7 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
             service_model.unacknowledged(transaction.events, transaction.cursor),
         )
     queued = codex_model.offer_delivery(
-        path, files_model.read_json(path), turn_replies=False
+        path, codex_model.read_record(path), transport="queue"
     )
     delivery_model.cmd_delivery_read(queued.payload["id"])
     read = capsys.readouterr().out
@@ -4178,14 +4259,18 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     )
     started = codex_model.app_server_turn_start_params(thread, prepared.payload)
     delivery_model.cmd_delivery_read(prepared.payload["id"])
-    assert json.loads(started["toolOutput"]["output"]) == json.loads(
-        capsys.readouterr().out
-    )
+    reader = json.loads(capsys.readouterr().out)
+    assert json.loads(started["toolOutput"]["output"]) == prepared.payload
+    assert reader["batches"] == prepared.payload["batches"]
+    assert f"leaf delivery ack {prepared.payload['id']}" in reader["acknowledge"]
 
-    # Claude Code: the wait claims the page and wakes the session, and the prompt
-    # hook of the turn it opens hands the delivery over.
-    assert session_model.cmd_wait(page_dir) == 0
-    woke = capsys.readouterr().out
+    # Claude Code: the native watcher wakes the session after its turn closes,
+    # and the next prompt hook hands the delivery over.
+    assert service_model.claim_page(page_dir)
+    with service_model.PageTransaction(page_dir) as transaction:
+        transaction.close_turn(session)
+    woke = session_model.watch_between_turns(harness_model.session_harness())
+    assert woke is not None
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": session}
     )
@@ -4233,7 +4318,7 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
             {
                 "leaf wait": {"output": readable(waited)},
                 "Claude Code hook": {
-                    "leaf wait output": pin(woke.rstrip("\n")),
+                    "watch notification": pin(woke),
                     "UserPromptSubmit additionalContext": {
                         "instruction": Prose(instruction),
                         "delivery": readable(hooked),
@@ -4280,7 +4365,7 @@ def test_init_requires_tones_to_be_a_list_membership_can_be_tested_against(
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -4303,7 +4388,7 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -4318,7 +4403,7 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -4328,11 +4413,17 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
     assert keys["x-says"]  # the rest of the shipped members stand
 
 
-def test_event_kinds_are_the_kernel_contract_not_a_layer_extension(page_dir, tmp_path):
+@pytest.mark.parametrize("key", ["kinds", "ownership"])
+def test_event_kinds_and_ownership_are_the_kernel_contract_not_a_layer_extension(
+    page_dir, tmp_path, key
+):
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["$events"]["kinds"]["signal"] = registry["$events"]["kinds"]["error"]
+    if key == "kinds":
+        registry["$events"][key]["signal"] = registry["$events"][key]["error"]
+    else:
+        registry["$events"][key]["browser_discard"] = []
     (overlay / "registry.json").write_text(json.dumps(registry))
 
     result = CliRunner().invoke(
@@ -4340,30 +4431,30 @@ def test_event_kinds_are_the_kernel_contract_not_a_layer_extension(page_dir, tmp
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
 
     assert result.exit_code != 0
-    assert "$events.kinds is Leaf's fixed transport contract" in result.output
+    assert f"$events.{key} is Leaf's fixed transport contract" in result.output
 
-    (overlay / "registry.json").write_text(json.dumps({"$events": {"kinds": None}}))
+    (overlay / "registry.json").write_text(json.dumps({"$events": {key: None}}))
     result = CliRunner().invoke(
         cli_model.cli,
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
     assert result.exit_code != 0
-    assert "$events.kinds is Leaf's fixed transport contract" in result.output
+    assert f"$events.{key} is Leaf's fixed transport contract" in result.output
 
     with pytest.raises(
         registry_contract.RegistryError,
-        match=r"\$events.kinds must equal Leaf's fixed transport contract",
+        match=rf"\$events.{key} must equal Leaf's fixed transport contract",
     ):
         registry_validation.validate_registry(registry, "incoming")
 
@@ -4899,9 +4990,7 @@ def test_sample_checks_available_history_beside_forward_thread_references(
     )
     result = check(page_dir)
     assert result.exit_code != 0
-    assert (
-        'ids already taken by widget markup in a reply: ["duplicate"]' in result.output
-    )
+    assert 'ids already taken by message markup: ["duplicate"]' in result.output
 
 
 def test_check_tokenizes_only_the_page_stylesheet(page_dir, monkeypatch):
@@ -4961,7 +5050,11 @@ def test_an_ask_role_declares_an_addressable_instance(page_dir):
         "properties": {"open": {"type": "boolean"}},
         "additionalProperties": False,
         "x-content": "markup",
-        "x-awaits": {"when": {"open": [True]}, "answered": {"answer": {}}},
+        "x-awaits": {
+            "when": {"open": [True]},
+            "value": "answer",
+            "answered": {"answer": {}},
+        },
         "x-state": {
             "answer": {
                 "detail": {"type": "object", "additionalProperties": False},
@@ -5568,7 +5661,6 @@ def test_sample_fixture_refusals_reach_page_check(
             '<lf-code id="child" language="python"><pre>1</pre></lf-code>',
             "already taken",
         ),
-        ("<p>Just prose</p>", "carries no widget"),
         (
             '<lf-code id="code" language="python"><pre>1</pre></lf-code><style>p {color:red}</style>',
             "stylesheet of the whole document",
@@ -5591,6 +5683,35 @@ def test_sample_fixture_message_markup_uses_the_message_gate(
     assert result.exit_code != 0, result.output
     assert "sample 'practice'" in result.output
     assert complaint in result.output
+
+
+def test_sample_fixture_accepts_native_message_markup(page_dir):
+    history = json.dumps(
+        [
+            {
+                "kind": "comment",
+                "id": "aabb0011",
+                "author": "agent",
+                "text": "Results:",
+                "markup": '<table id="results"><tr><td>Passed</td></tr></table>',
+            },
+            {
+                "kind": "reply",
+                "parent": "aabb0011",
+                "author": "agent",
+                "text": "Log:",
+                "markup": '<pre id="log">Ready\nDone</pre>',
+            },
+        ]
+    )
+    source = (
+        f'<script id="fixture" type="application/json">{history}</script>'
+        '<template id="practice" data-sample data-sample-events="fixture">'
+        '<h1 id="child">Child</h1></template>'
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", source + "</main>"))
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
 
 
 @pytest.mark.parametrize(

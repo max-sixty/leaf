@@ -28,6 +28,7 @@ import {
   bodyText,
   cancelRender,
   failSoft,
+  inBaseLayer,
   measure,
   nextRender,
   once,
@@ -189,17 +190,11 @@ customElements.define(
         named.removeAttribute("aria-label");
       }
       drawing.setAttribute("role", "img");
-      // Plot styles its legends and its paper from a <style> of its own, unlayered, and
-      // every theme rule sits in a cascade layer, which loses to any unlayered rule however
-      // specific. So the page's face and paper are set on those elements directly, where
-      // the author's own `style` has not set them: Plot's legends would stay in its system
-      // face, and its halos and tips would be filled white on a dark page.
-      for (const legend of built.querySelectorAll(
-        '[class$="-swatches"], [class*="-swatches "]',
-      ))
-        legend.style.fontFamily ||= "inherit";
-      if (!drawing.style.getPropertyValue("--plot-background"))
-        drawing.style.setProperty("--plot-background", "var(--paper)");
+      // Dependency defaults join the same tier as widget defaults. Leaf's chart
+      // face and paper remain stylesheet-owned; authored Plot style options keep
+      // their inline priority, including legend styles.
+      for (const style of built.querySelectorAll("style"))
+        style.textContent = inBaseLayer(style.textContent);
       return built;
     }
   },

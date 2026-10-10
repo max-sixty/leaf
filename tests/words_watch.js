@@ -46,7 +46,7 @@
 // and another input cannot claim it.
 // The watch keeps its own frame function, so its observation never owns page work.
 (() => {
-  const { frame, later: task } = window.lfWatchPlatform;
+  const { frame, later: task, listen } = window.lfWatchPlatform;
   const text = (field) =>
     typeof field.value === "string" ? field.value : (field.textContent ?? "");
   const drawn = (node) => node.isConnected && node.checkVisibility();
@@ -92,7 +92,8 @@
     /^(Shift|Control|Alt|Meta|CapsLock|Tab|Arrow\w+|Home|End|PageUp|PageDown| )$/;
   const editingKeys = new WeakSet();
   let key = null;
-  addEventListener(
+  listen(
+    window,
     "keydown",
     (event) => {
       if (!event.isTrusted) return;
@@ -102,14 +103,15 @@
     },
     true,
   );
-  addEventListener(
+  listen(
+    window,
     "keyup",
     (event) => {
       if (event.isTrusted && key?.event.code === event.code) key = null;
     },
     true,
   );
-  addEventListener("blur", (event) => {
+  listen(window, "blur", (event) => {
     if (event.isTrusted) key = null;
   });
   // beforeinput identifies the trusted native attempt; input confirms its edit.
@@ -173,7 +175,7 @@
       edit.ready = field.localName !== "leaf-text" || !event.isTrusted;
     }
   };
-  addEventListener("input", readInput, true);
+  listen(window, "input", readInput, true);
 
   // Each field holding words: the words, and when the user last edited them.
   const holding = new Map();

@@ -2,7 +2,7 @@
 
    Deferral is mechanical: a user's drag holds the document-wide projection pass while
    their own controller owns the value. It publishes no semantic epoch, so readings that
-   change with it — the approval gate's Ask selection, every projection watcher — hear
+   change with it — the approval gate's Question selection, every projection watcher — hear
    about it here instead. */
 import { readApplication } from "../semantic-state.js";
 

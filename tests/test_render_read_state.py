@@ -12,12 +12,13 @@ from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import http as http_model
 from leaf import thread as thread_model
-from leaf.render_checks import SERVED_TIMEOUT_MS, rendered
+from leaf.render_checks import PROBE_POLL_MS, SERVED_TIMEOUT_MS, rendered
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_cases_navigation import source_revision
 from render_cases_widgets import LONG_LINE_DIFF_PAGE, MULTI_HUNK_PATCH
 from render_harness import (
+    CutOff,
     Traffic,
     _traffic,
     heard_back,
@@ -492,6 +493,7 @@ def test_automatic_read_refusal_keeps_message_unread(browser, serve):
         "</lf-options></lf-ask>",
     )["id"]
     page = open_page(browser, url)
+    cut = CutOff().hold(page)
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.locator(".lf-threads-toggle").click()
@@ -499,17 +501,28 @@ def test_automatic_read_refusal_keeps_message_unread(browser, serve):
     card = page.locator(f'.lf-thread[data-id="{root}"]')
     holding(page, held, 1, "automatic read")
     request = held.pop()
-    request.fulfill(
-        status=400,
-        json={"ok": False, "final": True, "error": "refused before append"},
+    response = request.fetch(
+        post_data=json.dumps(
+            {"kind": "read", "messages": [{"message": "missing", "version": "missing"}]}
+        )
     )
+    assert response.status == 400 and response.json()["final"] is True
+    request.fulfill(response=response)
     expect(card.locator(f'.lf-msg[data-mid="{root}"]')).to_have_class(
         re.compile(r"(^|\s)lf-unread(\s|$)")
     )
     expect(card.locator(".lf-mark-read")).to_have_count(0)
     assert _read_events(serve.page_dir) == []
+    assert (
+        page.evaluate("""async () => {
+      const {readApplication} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+      return readApplication().authoritative.taken;
+    }""")
+        == response.json()["state"]["taken"]
+    )
     assert take_browser_errors(page) == [f"400 {request.request.url}"]
     page.unroute("**/api/event")
+    cut.restore()
     with sending(page, "read on a new visit"):
         page.evaluate("""() => {
           window.dispatchEvent(new Event('blur'));
@@ -771,11 +784,19 @@ def _open_first_unread(page, child):
     }"""), "the message is not whole in the child's own viewport"
 
 
-def _still_unread(child):
-    """Read once, after the reading pass the last move scheduled has run (`rendered`).
-    The page draws a version read in the pass that sends it, so a pass that read the
-    message would have hidden Next unread and counted a send."""
-    rendered(child)
+def _still_unread(page, child):
+    """Deliver the owner's viewport, then wait for the child's renderable work.
+
+    An offscreen child has no paint to wait for. Its rendering owner declares such
+    work settled until it becomes visible; a visible child drains its reading pass.
+    A pass that read the message hides Next unread and counts a send.
+    """
+    rendered(page)
+    child.wait_for_function(
+        "() => document.querySelector('script[data-lf-entry]').lfRenderingSettled()",
+        polling=PROBE_POLL_MS,
+        timeout=SERVED_TIMEOUT_MS,
+    )
     assert child.locator(".lf-first-unread").is_visible()
     assert _traffic(child).sends == 0
 
@@ -801,7 +822,7 @@ def test_clipped_sample_cannot_acknowledge_child_viewport(browser, serve):
     )
     child.locator(".lf-threads-toggle").focus()
     _open_first_unread(page, child)
-    _still_unread(child)
+    _still_unread(page, child)
 
     # Scrolling the box until the message stands 20px below its top shows it, and the
     # same message is read.
@@ -827,7 +848,7 @@ def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
     page.evaluate("scrollTo(0, 0)")
     _open_first_unread(page, child)
     assert frame.bounding_box()["y"] > page.viewport_size["height"]
-    _still_unread(child)
+    _still_unread(page, child)
 
     # Taller than the window, the sample is read through the band the containing page
     # shows as it scrolls: its edge coming into view shows nothing, and a later scroll of
@@ -837,7 +858,7 @@ def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
             .getBoundingClientRect().top;
         scrollBy(0, top - innerHeight + 20);
     }""")
-    _still_unread(child)
+    _still_unread(page, child)
     page.evaluate("scrollBy(0, 700)")
     _read_by_the_sample(page, child)
 

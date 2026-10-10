@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook --harness claude-code 2>/dev/null || true",
+            "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook --harness claude-code || exit 1",
             "timeout": 20
           }
         ]
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook --harness claude-code 2>/dev/null || true",
+            "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook --harness claude-code || exit 1",
             "timeout": 20
           },
           {
@@ -36,7 +36,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook --harness claude-code 2>/dev/null || true",
+            "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook --harness claude-code || exit 1",
             "timeout": 20
           }
         ]
@@ -47,7 +47,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" session-end 2>/dev/null || true",
+            "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" session-end || exit 1",
             "timeout": 3
           }
         ]

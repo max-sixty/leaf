@@ -119,7 +119,7 @@ import {
 import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
 import { shadowHost, under, upFrom } from "../shadow.js";
 import { nativeLayers } from "../keyboard/layer-stack.js";
-import { heldAsk } from "../standing-target.js";
+import { heldQuestion } from "../standing-target.js";
 
 import { coarsePointer, pointerAt } from "../pointer.js";
 import { anchorLabel } from "../thread/messages.js";
@@ -346,9 +346,9 @@ export function createResponseSurface({
       scrollToRange,
     }) ?? null;
   // An element response exits to its subject, or the declared proxy representing it.
-  // Resolve that structural parent from the current anchor, so c from an Ask and an
-  // aimed press on the same Ask unwind alike. There is no saved pre-command focus:
-  // standing on an option comments on its Ask, and closing returns to the Ask itself.
+  // Resolve that structural parent from the current anchor, so c from a Question and an
+  // aimed press on the same Question unwind alike. There is no saved pre-command focus:
+  // standing on an option comments on its Question, and closing returns to the Question itself.
   // A quoted selection clears to the page; a removed subject has no parent to land on.
   const returnPlaces = (anchor) =>
     anchor && !anchor.quote ? [visualActionAnchor(anchor), anchorTargetAt(anchor)] : [];
@@ -578,8 +578,9 @@ export function createResponseSurface({
   // carries the same trusted notification for a script's endpoint write. It can offer
   // the current passage, but cannot authorize replacing a composer or its draft.
   // That menu can stand on either side of the words; never compete with it by raising
-  // a second adjacent surface. Capture the passage for the banner's explicit action.
-  let offeredSelectionAnchor = null;
+  // a second adjacent surface. The banner offers the current selection; its explicit
+  // press captures it, after any source refresh that preserved those native endpoints.
+  let selectionOffered = false;
   const selectionComment = document.createElement("button");
   selectionComment.className = "lf-btn primary";
   selectionComment.type = "button";
@@ -592,16 +593,17 @@ export function createResponseSurface({
     present: false,
   });
   const offerSelection = (anchor) => {
-    offeredSelectionAnchor = anchor;
-    showBannerControl(selectionComment, Boolean(anchor));
+    selectionOffered = Boolean(anchor);
+    showBannerControl(selectionComment, selectionOffered);
   };
   const commentOnOfferedSelection = () => {
-    const anchor = offeredSelectionAnchor;
-    if (!anchor) return;
+    const selection = anchoringIsReady() ? pageSelection() : null;
+    const anchor = selection ? selectionAnchor(selection) : null;
+    offerSelection(null);
+    if (!hasQuote(anchor)) return;
     dismissBannerControls();
     cancelRender(selectionUpdate);
     selectionUpdate = null;
-    offerSelection(null);
     openComment(anchor, "");
   };
 
@@ -837,9 +839,9 @@ export function createResponseSurface({
         actionPress = false;
       });
     // Opening or acting in chrome is a route away from the page, not a new selection
-    // gesture. Keep the already-captured touch passage verbatim while focus moves
+    // gesture. Keep the native touch passage verbatim while focus moves
     // through the banner, its sibling popovers, and their controls.
-    if (offeredSelectionAnchor && inChrome(ev.composedPath()[0])) {
+    if (selectionOffered && inChrome(ev.composedPath()[0])) {
       primaryPointerPressed = false;
       pointerSelecting = false;
       selectionGestureClaimed = false;
@@ -967,7 +969,7 @@ export function createResponseSurface({
         if (selection && pageRange(selection).intersectsNode(target))
           rememberPointerSelection();
         actionPress =
-          (offeredSelectionAnchor && inChrome(target)) ||
+          (selectionOffered && inChrome(target)) ||
           target === selectionComment ||
           Boolean(target.closest?.(".lf-react-surface, .lf-composer"));
       },
@@ -1015,6 +1017,16 @@ export function createResponseSurface({
       if (coarsePointer.matches && selection && !automatic)
         rememberSelection(selection);
       observeSelection();
+      // A bare selected passage only stands while the browser still holds it.
+      // Focusing Comment captures that passage, and a written draft keeps it even
+      // after focus moves elsewhere; neither belongs to the native selection now.
+      if (
+        !selection &&
+        fabAnchor?.quote &&
+        !fabHoldsCapturedPassage() &&
+        !composerHolds()
+      )
+        putAwayFab();
       reflectSelectionStanding();
     });
     document.addEventListener("mouseup", (ev) => {
@@ -1153,7 +1165,7 @@ export function createResponseSurface({
       const threadId = markAt?.(point.x, point.y);
       if (threadId)
         return void openPageThread(threadId, {
-          focus: panel.classList.contains("open") ? "reply" : "thread",
+          part: panel.classList.contains("open") ? "reply" : "thread",
           travel: false,
         });
     });
@@ -1185,7 +1197,7 @@ export function createResponseSurface({
     title: `comment on the ${word}`,
   });
   function commentDestination() {
-    if (offeredSelectionAnchor)
+    if (selectionOffered)
       return {
         ...commenting("selection"),
         box: selectionComment,
@@ -1194,10 +1206,10 @@ export function createResponseSurface({
     const here = standingTarget();
     const anchor = fabAnchorAt();
     // The thread the user is at continues where it is about what they stand on: they
-    // are in it, or its target lies within the element they stand at — the Ask holding
-    // focus, answered or not, else the element itself — as an Ask's options group does
+    // are in it, or its target lies within the element they stand at — the Question holding
+    // focus, answered or not, else the element itself — as a Question's options group does
     // when the user holds one of its marks. A card showing an enclosing block's thread is
-    // about that block, so an element inside it, such as an Ask in a commented task,
+    // about that block, so an element inside it, such as a Question in a commented task,
     // takes a thread of its own, and a selection still starts one on its words.
 
     const inline = threadHere();
@@ -1209,12 +1221,12 @@ export function createResponseSurface({
       (inline.dataset.thread ?? inline.dataset.id) === threadId &&
       (!here ||
         inline.contains(focused()) ||
-        (target && under(target, heldAsk() ?? here.element))) &&
+        (target && under(target, heldQuestion() ?? here.element))) &&
       threadInput(inline);
     const said =
       standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
     const subject =
-      threadId && (!here || (target && under(target, heldAsk() ?? here.element)));
+      threadId && (!here || (target && under(target, heldQuestion() ?? here.element)));
     const replySubject = subject && replyId;
     // A captured passage outranks the focus it preceded, but a kept draft is not a
     // standing target. Read both page and thread standing before choosing the aim.
@@ -1251,7 +1263,7 @@ export function createResponseSurface({
         box: null,
         go: async () => {
           const destination = await openPageThread(threadId, {
-            focus: "reply",
+            part: "reply",
             travel: false,
           });
           if (!destination) return;

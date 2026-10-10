@@ -5,25 +5,21 @@ description: Develops Leaf itself from the current checkout, including its runti
 
 # Develop Leaf from this checkout
 
-Resolve the repository root three directories above this `SKILL.md`, then resolve
-`<root>/bin/leaf` to an absolute path. Run that launcher with `--root` and
-continue only when it prints the same repository root. Use the absolute launcher
-throughout; a bare `leaf` may resolve to the installed plugin instead.
+Resolve the repository root three directories above this `SKILL.md`, check that
+`<root>/bin/leaf --root` prints that root, and run every `leaf` command through that
+absolute launcher; a bare `leaf` may run the installed plugin instead.
 
-Read `references/glossary.md` before naming or revising user-facing elements,
-interaction contexts, navigation, chrome, view state, or an identifier governed by
-those concepts. It is Leaf's canonical implementation vocabulary.
+Read `references/glossary.md` before naming or revising a user-facing element,
+interaction, navigation, chrome, view state, or an identifier for one of them. It is
+Leaf's canonical implementation vocabulary.
 
 ## Read the owning contract
 
-For a contract shared across modules or runtimes, read the sidecar beside the
-Python code that owns the boundary;
-`<root>/skills/leaf/scripts/AGENTS.md` lists them under "Protocol references".
-
-To check what the code does, call it: the checkout's environment installs `leaf`
-and `leaf_dev` editable, so `uv run python -c 'from leaf... import ...'` imports
-either without a `sys.path` edit. A tag's schema is in the registry of the package
-that ships it:
+A contract shared across modules or runtimes lives in the sidecar beside the Python
+code that owns the boundary; `<root>/skills/leaf/scripts/AGENTS.md` lists them under
+"Protocol references". To check what the code does, call it: `leaf` and `leaf_dev` are
+installed editable, so `uv run python -c 'from leaf... import ...'` needs no
+`sys.path` edit. A tag's schema is in the registry of the package that ships it:
 
 ```bash
 jq 'select(has("lf-shot"))."lf-shot"' \
@@ -41,6 +37,9 @@ forms or layout, read and follow `/ui-sweep` at `../ui-sweep/SKILL.md` on
 the changed surface and its dependent interactions. Its "External review"
 section owns selection and use of the tools below.
 
+For theme or reusable-control changes, its "Review a design system" section owns
+the review of foundations, component states, and their composition in a user task.
+
 ### External UI skills
 
 These are optional external installs, separate from Leaf's plugin. Check the
@@ -57,19 +56,11 @@ installation instructions and complete references.
 
 Code enforces only what Leaf needs to work: a contract between modules, or a guarantee
 the user relies on, such as a gesture being recorded or nothing moving under the
-pointer. Taste, formatting and aesthetics go in the shipped instructions, as a goal and
-its reason, so the authoring agent weighs them against the page in front of it. How
-many tiles share a row, where a heading breaks, which column is wider: a rule in CSS,
-a validator or a Layout that fixes one of these for every page overrides the agent
-where its page needs something else, and breaks on the next case it wasn't written
-for. A check may report what it sees, as the render check names where a tile row
-wraps, and leave the call to the agent.
-
-## Leave old state out of the handoff
-
-Leaf owes nothing to state an earlier version wrote (`AGENTS.md`, "Stage"). A
-handoff doesn't say that an existing page, log, or claim predates the change or
-needs re-vendoring, and doesn't list reviving it as follow-up work.
+pointer. Taste goes in the shipped instructions as a goal and its reason, so the authoring
+agent weighs it against its own page. A CSS rule, validator, or Layout that fixes how
+many tiles share a row overrides every page that needs another number. A check may
+report what it sees, as the render check names where a tile row wraps, and leave the
+call to the agent.
 
 ## Explore an open design
 
@@ -102,7 +93,9 @@ the user's question and the baseline and candidate views, and ask first whether
 those views are enough to make that choice; ask for a preference only once they
 are. Operate an interactive comparison's baseline and candidates through the
 same journey before handoff. For a live Leaf interface, embed them as
-`lf-sample window` children.
+`lf-sample window` children. Their standard Full view control lets the user try each
+candidate at viewport size and return with its practice state intact ("Live samples"
+in `skills/leaf/references/page-authoring.md`).
 The outer page carries the configuration and feedback; the children carry practice
 interactions. Start their fictional histories with `data-sample-events`, sharing
 one parent-local JSON fixture when the candidates need the same conversation
@@ -243,16 +236,17 @@ in the foreground, like a dev server, so run it as a long-running command
 detaches its watcher and returns its URL: the page and feedback stay available
 when Codex unloads the chat's idle instance. `--source <file>` serves any authored HTML
 file in place of a shipped example. It follows source and runtime edits at one
-URL; each start rebuilds the page from the fixture, and `--slot <name>` runs another copy.
+URL. A user preview resumes its existing page after a restart, preserving feedback,
+decisions, data and revisions; a plain preview rebuilds from the fixture.
+`--slot <name>` starts another copy, with its own initial fixture history and data.
 
 A plain preview takes no task claim, so its presses reach only the page's log;
 use it for screenshots and browser checks. `--user` claims the page at
 the directory printed at startup (`.tmp/previews/<example>-user` by default;
 `--slot` chooses the directory name) so the user's comments reach the harness, which
 also makes every click this session drives there read as an unanswered user
-move. So drive only claimless previews, start any `--user` preview from the
-session the user talks to, and answer the user's feedback before restarting
-their preview, since a restart discards the claim and the moves it held. Don't
+move. So drive only claimless previews and start any `--user` preview from the
+session the user talks to. Don't
 idle a preview to quiet the loop; `idle` closes the page in the browser.
 
 ### In Codex
@@ -260,7 +254,7 @@ idle a preview to quiet the loop; `idle` closes the page in the browser.
 1. Start the preview with `--user` from the current
    chat. It connects Leaf feedback to this Codex chat before printing the URL;
    desktop Codex returns after the detached watcher subscribes to source edits.
-   Each restart reconnects the rebuilt page automatically.
+   Each restart reconnects the existing page automatically.
 2. Call `mcp__codex_app__open_in_codex` with the printed keyed URL and the semantic
    block's fragment, as a browser target with `placement: "right"`.
 3. Tell the user to comment on the surrounding review page to steer this chat.
@@ -332,34 +326,15 @@ journey against the deployed release is the only production reading.
 
 ## Compare checkout versions
 
-Build the baseline in a detached worktree at the merge base:
+Serve the merge-base runtime beside this checkout:
 
 ```bash
-candidate_root=$(git rev-parse --show-toplevel)
-baseline_commit=$(git merge-base HEAD main)
-baseline_parent=$(mktemp -d "${TMPDIR:-/tmp}/leaf-baseline.XXXXXX")
-baseline_parent=$(cd "$baseline_parent" && pwd -P)
-baseline_root="$baseline_parent/checkout"
-git worktree add --detach "$baseline_root" "$baseline_commit"
+uv run leaf-dev compare <example> --user
 ```
 
-Choose sources that isolate the change: one shared source for a runtime change,
-or each checkout's copy when the authored content changed. Run the two previews
-as separate commands, adding `--user` to both when their URLs go to the user.
-Keep foreground previews running; desktop Codex user previews return after
-startup:
-
-```bash
-uv run --project "$candidate_root" leaf-dev preview --source <baseline-source.html> \
-  --runtime "$baseline_root" \
-  --slot <slot>-baseline
-```
-
-```bash
-uv run --project "$candidate_root" leaf-dev preview --source <candidate-source.html> \
-  --runtime "$candidate_root" \
-  --slot <slot>-candidate
-```
+Use one shared source for a runtime change (the default), or `--authored` when
+the authored content changed. `--base REF` selects another baseline. Omit `--user`
+for claimless tests; keep that foreground command running.
 
 ## Author or revise a page
 
@@ -381,8 +356,11 @@ Score an instruction change when an agent could read it more than one way, so wh
 it will do under the new text is uncertain: a new or reworded rule, a goal that
 competes with another, a cut that may have carried a behavior. A change whose reading
 is plain needs no score, such as deleting the description of an input that can no
-longer arrive or correcting a fact. Run the cases that bear on it on both the merge
-base and the working tree:
+longer arrive or correcting a fact. Prefer personal-skill evals for general agent
+behavior (`/improving-instructions`, "Validate with evals") and the standard Leaf
+evals for consuming its shipped workflows. An internal maintainer case is justified
+only for a Leaf-specific development contract that neither can exercise. For cases
+in Leaf's suite, run both the merge base and the working tree:
 
 ```bash
 npm ci --prefix evals
@@ -402,8 +380,7 @@ the behavior. What the suite holds then scores later edits, whether fixes or cut
 against the behaviors earlier edits had to produce. Keep a case small: one prompt
 carrying only the context the behavior needs, and a few assertions. Explore whatever
 scenarios the change needs, then retain only cases that cover distinct failures or
-necessary controls. Internal maintainer evals stay small and
-sparse; exploratory variants and their evidence stay in the run directory. Remove
+necessary controls. Exploratory variants and their evidence stay in the run directory. Remove
 contexts another retained case already covers. The leading comment records the
 case's origin and whether it distinguished the instructions.
 

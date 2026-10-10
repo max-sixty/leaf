@@ -7,7 +7,7 @@ import { iconElement } from "./icons.js";
 import { offer } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
 import { focusDestination } from "./focus.js";
-import { reducedMotion } from "./motion.js";
+import { agentArrivalDuration, reducedMotion } from "./motion.js";
 import { isCommandScope, projectCommandScope } from "./keyboard/scopes.js";
 import {
   commandAvailable,
@@ -174,7 +174,7 @@ function syncAgentArrival(control, claim, stage) {
   const elapsed = performance.now() - claimArrivals.get(claim);
   if (controlArrivals.get(control) === claim) return;
   controlArrivals.set(control, claim);
-  if (elapsed >= 520 || reducedMotion()) return;
+  if (elapsed >= agentArrivalDuration() || reducedMotion()) return;
   control.style.setProperty("--lf-agent-arrival-delay", `${-elapsed}ms`);
   keeps(control, "data-lf-agent-arrival", "1");
   control.addEventListener(

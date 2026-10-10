@@ -111,8 +111,13 @@ export function holdReplyCompositions(threads, realize) {
   };
 }
 
-export const hasReplyDraft = () =>
-  [...compositions.keys()].some((context) => loadDraft(context) !== null);
+// Revision admission asks the owner about every native editing session, including
+// one the user left by Tab. Persisted words alone do not create a session.
+export const replyDraftsHold = (retains) =>
+  [...compositions].some(
+    ([context, session]) =>
+      loadDraft(context) !== null && !retains(session.owner?.controls.input),
+  );
 
 // A composition is the row's mechanical session, not the saved draft and not focus.
 // Native Tab walks its controls and the surrounding page without dismissing it.
@@ -172,6 +177,7 @@ export function wireReply(
   send,
   { actions, wireInput, landSent, onChange },
 ) {
+  row.classList.add("lf-comment-box");
   const draftCtx = replyContext(key);
   const composition = {
     context: draftCtx,

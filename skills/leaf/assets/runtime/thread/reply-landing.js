@@ -34,7 +34,7 @@ import { scrollerFor, scrollersOf } from "../reading-regions.js";
 import { renderedParent, under } from "../shadow.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { retainUserIntent } from "../user-intent.js";
-import { scrollIntoReadingBand } from "../landing-scroll.js";
+import { scrollIntoReadingBand, scrollIntoView } from "../landing-scroll.js";
 import { atScrollEnd, moveScrollerBy, scrollToEnd } from "../scrolling.js";
 import { SAYS_IN, SAY_ROW } from "./selectors.js";
 
@@ -129,11 +129,11 @@ function landThread(held, control, behavior, block) {
     return;
   }
   if (transcript?.contains(control)) {
-    control.scrollIntoView({ behavior, block });
+    scrollIntoView(control, { behavior, block });
     return;
   }
   const target = landingTarget(held, control);
-  target.node?.scrollIntoView({ behavior, block: target.block ?? block });
+  scrollIntoView(target.node, { behavior, block: target.block ?? block });
 }
 
 // A geometry owner can fit a thread after its landing has already scrolled. Keep the

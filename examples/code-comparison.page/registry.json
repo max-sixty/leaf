@@ -13,7 +13,7 @@
     "x-content": "members",
     "x-instructions": "Both candidates are built lf-code widgets. Shared controls drive both, while the page-owned contributor keeps and copies explicit candidate settings.",
     "x-upgrade": true,
-    "x-awaits": {"answered": {"choose": {}}},
+    "x-awaits": {"value": "choose", "answered": {"choose": {}}},
     "x-state": {
       "choose": {
         "detail": {

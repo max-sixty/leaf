@@ -5,6 +5,7 @@ from pathlib import Path
 
 from leaf.activity import answer_command
 from leaf.data_contracts import data_binding_errors
+from leaf.events import build_threads
 from leaf.files import list_revisions
 from leaf.registry.schema import json_value
 from leaf.registry.storage import require_registry
@@ -105,6 +106,14 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
     if owed is None and kind in MESSAGE_KINDS:
         owed = thread_obligation(events, responses, value)
         if owed is None:
+            thread = build_threads(events, {}).get(thread_names(events)[value])
+            resolution = thread["resolved"] if thread else None
+            if resolution is not None and resolution["kind"] == "resolve":
+                actor = "the user" if resolution["author"] == "user" else "the agent"
+                return (
+                    f"{held}; {actor} resolved the thread at {resolution['ts']}, "
+                    "so no reply is owed"
+                )
             return (
                 f"{held}, and nothing is owed for it — "
                 f"`leaf thread reply <page> {value}` replies to it"
@@ -158,7 +167,7 @@ def check_markup(
     *,
     page: SourceDocument | None = None,
 ) -> SourceDocument:
-    """A message's widget markup, validated against the vendored registry at post
+    """A message's HTML fragment, validated against the vendored registry at post
     time — the discussion-side `page check`, and the field's one gate: the browser
     door refuses `markup` outright, so nothing reaches the log under that name
     unvalidated. Text needs no vocabulary gate — the runtime renders it with every tag
@@ -167,14 +176,9 @@ def check_markup(
     wrong."""
     registry = require_registry(page_dir)
     frag = SourceDocument(markup)
-    # Two gates beside the vocabulary contract rather than inside it. That contract is
-    # what re-vendoring asks of every fragment already in the log — can this layer still
-    # speak it — and neither a presentation rule nor the presence of a file is any part
-    # of the answer. Put there, a page whose log held a <style> from before the rule
-    # existed could never be re-vendored again: the log is append-only, so it would have
-    # failed `page init` for good, with a message about replay that had nothing to do
-    # with what was wrong. Here they are asked of what is arriving, at the one moment
-    # anything can still be done about it.
+    # Frozen markup also renders in historical documents. Validate their captured
+    # vocabularies before admission; message_markup_error owns the fragment checks
+    # shared with sample histories, alongside each caller's data bindings and ids.
     pinned_errors = pinned_thread_markup_errors(page_dir, frag)
     revisions = list_revisions(page_dir)
     if page is None:
@@ -244,14 +248,12 @@ def message_markup_error(
         return f"{kind} markup doesn't validate:\n" + "\n".join(
             f"  - {error}" for error in errs
         )
-    if not frag.lf_elements:
-        return "--markup carries no widget; put prose in --text"
     if names := id_errors(frag):
-        return f"{kind} widget markup: " + "; ".join(names)
+        return f"{kind} markup: " + "; ".join(names)
     thread = thread_structure(events)
     clash = sorted(frag.ids & (prior_ids | page.ids | thread.ids))
     if clash:
-        return f"{kind} widget ids already taken by the page or an earlier message: {json_value(clash)}"
+        return f"{kind} markup ids already taken by the page or an earlier message: {json_value(clash)}"
     if reference_errs := reference_errors(
         frag.lf_elements,
         registry,

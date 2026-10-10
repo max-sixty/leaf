@@ -119,7 +119,7 @@ def scroll_settled(page, scroller=None, axis="y", frames=SCROLL_STILL_FRAMES):
     outer scroller's smooth movement, rather than a machine-dependent time window.
 
     Each call resets its observation. Timeout reports the selected scroller and
-    its last reading. `tests/AGENTS.md`, "A wait consumes a fact the system states",
+    its last reading. `tests/AGENTS.md`, "Waits",
     owns the caller policy."""
     page.evaluate("() => { delete globalThis.__lfScrollStill; }")
     try:

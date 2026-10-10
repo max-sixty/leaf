@@ -661,10 +661,9 @@ ASK_IN_A_CARD_PAGE = leaf_page(
 # hangs it on the boxes its contents make — so what says the walk is in one place is
 # the outermost page element wearing it, never the count of elements that do. Scoped to
 # main because the Questions panel's row mirrors the same fact in the chrome.
-STANDING_ASK = "main [data-lf-ask]:not([data-lf-ask] [data-lf-ask])"
-# Every widget that measures a number off a live box, authored into the page and sent in
-# a reply, so the two readings of each can be compared instead of pinned to a number. The
-# words are the same in both, which is what makes the room they need the same.
+STANDING_ASK = "main [data-lf-question]:not([data-lf-question] [data-lf-question])"
+# The shipped board measures its grip from a live box. Author it into the page and
+# send it in a reply with the same words, so the two readings can be compared.
 ROOM_WIDGETS = """<lf-board id="{id}-b">
   <lf-column id="{id}-todo" label="To do">
     <lf-card id="{id}-brackets"><strong>Steel brackets</strong> For the north pair.</lf-card>
@@ -672,15 +671,10 @@ ROOM_WIDGETS = """<lf-board id="{id}-b">
   <lf-column id="{id}-done" label="Done">
     <lf-card id="{id}-mounts"><strong>South mounts</strong></lf-card>
   </lf-column>
-</lf-board>
-<lf-test-roster id="{id}-r">
-  <lf-test-worker id="{id}-wren" state="working">
-    <strong>wren</strong> Fitting the brackets.
-  </lf-test-worker>
-</lf-test-roster>"""
+</lf-board>"""
 
 # Which element holds each room, and the custom property the theme spends it through.
-ROOMS = [("-b", "--lf-grip-room"), ("-r", "--lf-state-room")]
+ROOMS = [("-b", "--lf-grip-room")]
 
 # What the theme is given, asked of the element that states it.
 ROOM_HELD = """([id, prop]) => {
@@ -1146,7 +1140,6 @@ STANDING_ACTIONS = [
     ("ab-sug-logs", "decide", {"outcome": "reject"}),
     ("ab-triage", "choose", {"value": ["ab-capacity"]}),
     ("ab-triage", "answer", {}),
-    ("ab-patch", "review", {"file": "ab/bracket.py", "reviewed": True}),
     (
         "ab-visual",
         "review",
@@ -1384,7 +1377,11 @@ SEATED_ASK_ENTRY = {
             "unit": "widget",
         }
     },
-    "x-awaits": {"when": {"asks": [True]}, "answered": {"settle": {}}},
+    "x-awaits": {
+        "value": "settle",
+        "when": {"asks": [True]},
+        "answered": {"settle": {}},
+    },
     "x-thread-seat": {"when": {"asks": [True]}},
     "x-example": '<lf-verdict id="verdict-example" asks>Ship it?</lf-verdict>',
 }

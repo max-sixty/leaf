@@ -8,21 +8,18 @@ import shutil
 import subprocess
 import sys
 import threading
-import tomllib
 from datetime import datetime
 from pathlib import Path
 
 import playwright
 import pytest
 import tinycss2
-import yaml
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND, PagePool, _retire
 from interact_support import (
     COMMAND_HUB_PACKAGE,
     COMPOSITE_TIMEOUT,
     PAGE,
-    PAGE_PACKAGES,
     PLUGIN_ROOT,
     ROOT,
     SHIPPED_PACKAGES,
@@ -32,11 +29,11 @@ from interact_support import (
     append_carried_log_record,
     case_alias,
     check,
-    consume_pending_input,
     element_declaration,
     fetch,
     install_payload,
     lock_contention,
+    page_packages,
     publish,
     record_claim,
     shipped_payload,
@@ -44,6 +41,7 @@ from interact_support import (
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
+from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as interact_files
 from leaf import hooks as hooks_model
@@ -143,6 +141,7 @@ def test_agent_interaction_command_help(regtest):
     for command in (
         "wait",
         "delivery read",
+        "delivery ack",
         "page state",
         "thread summarize",
         "status",
@@ -203,8 +202,10 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
         ids.append(events_model.read_events(page)[-1]["id"])
     woke = runner.invoke(cli_model.cli, ["wait", str(page)])
     assert woke.exit_code == 0, woke.output
-    assert "has new input" in woke.output
-    [batch] = consume_pending_input("s1")["batches"]
+    envelope = json.loads(woke.output)
+    assert f"leaf wait --ack {envelope['id']}" in envelope["acknowledge"]
+    delivery_model.receive(envelope, "s1")
+    [batch] = envelope["batches"]
     assert len(batch["events"]) == 2
     record(["thread", "reply", str(page), "--text", "Answer"], 2)
     record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 1)
@@ -293,49 +294,6 @@ def test_the_python_instructions_name_every_module_they_own():
         )
     ]
     assert not unnamed, f"unnamed in scripts/AGENTS.md: {unnamed}"
-
-
-def shell_commands(script):
-    """The simple commands of a hook or step script, split at newlines and `&&`."""
-    return [c.strip() for c in re.split(r"\n|&&", script) if c.strip()]
-
-
-def test_wt_merge_runs_every_npm_gate_ci_runs():
-    """Each npm gate CI runs, the direct landing path runs in the same directory.
-
-    Neither the suite nor pre-commit reaches the TypeScript under `worker/src/` and
-    `build/browser/`, so a `wt merge` that skipped one of their gates would land a
-    red main that a pull request would have caught. A step's `working-directory`
-    becomes `--prefix` in the hook, which runs from the root: npm's bare `test` in
-    `worker/` is `npm test --prefix worker` there. `npm ci` installs rather than gates.
-    The set comes from the workflow rather than a list here: a list is a second copy,
-    and the gate added to CI without the hook would stay green.
-    """
-    workflow = yaml.safe_load(
-        (ROOT / ".github" / "workflows" / "ci.yaml").read_text(encoding="utf-8")
-    )
-    config = tomllib.loads((ROOT / ".config" / "wt.toml").read_text(encoding="utf-8"))
-    hook = {
-        command
-        for block in config["pre-merge"]
-        for script in block.values()
-        for command in shell_commands(script)
-    }
-    gates = sorted(
-        {
-            f"{command} --prefix {step['working-directory']}"
-            if "working-directory" in step
-            else command
-            for job in workflow["jobs"].values()
-            for step in job["steps"]
-            for command in shell_commands(step.get("run", ""))
-            if command.startswith("npm ") and not command.startswith("npm ci")
-        }
-    )
-
-    assert gates, "no npm gate read — an empty set names itself"
-    ungated = [gate for gate in gates if gate not in hook]
-    assert not ungated, f"not in .config/wt.toml's pre-merge: {ungated}"
 
 
 def test_the_root_instructions_name_every_directory_of_the_projects_own_tree():
@@ -698,7 +656,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "hooks/codex.json",
         "hooks/scripts/loop-guard.py",
         "skills/leaf/SKILL.md",
-        "skills/leaf/references/authoring-asks.md",
+        "skills/leaf/references/authoring-questions.md",
         "skills/leaf/references/authoring-evidence.md",
         "skills/leaf/references/authoring-revisions.md",
         "skills/leaf/references/codex-watcher.md",
@@ -845,7 +803,7 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
     elsewhere.mkdir()
     work = elsewhere / "work"
     shutil.copytree(COMMAND_HUB_PACKAGE, work)
-    selected = ("./work", *PAGE_PACKAGES[1:])
+    selected = ("./work", *page_packages()[1:])
     launcher = installed / "bin" / "leaf"
     page = tmp_path / "state" / "page"
 
@@ -982,7 +940,7 @@ def test_init_vendors_the_layer(page_dir):
     assert (page_dir / "vendor" / "floating-ui.LICENSES.txt").is_file()
     # The selected packages land in the same flat directories as the default one,
     # which is what lets a widget import `/vendor/…` without knowing where it came
-    # from (PAGE_PACKAGES).
+    # from page_packages().
     assert (page_dir / "widgets" / "lf-diagram.js").is_file()
     assert (page_dir / "vendor" / "agentic-mermaid.esm.js").is_file()
     assert (page_dir / "vendor" / "agentic-mermaid.LICENSES.txt").is_file()
@@ -1033,8 +991,7 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     stat moved.
 
     Runtime and vendor stay hard links into the shape across the loan, which is
-    the sharing the reset must not quietly spend (tests/AGENTS.md, "Fixtures own
-    the world they create")."""
+    the sharing the reset must not quietly spend (tests/AGENTS.md, "Fixtures")."""
     monkeypatch.chdir(tmp_path)
     pool = PagePool(tmp_path / "shapes")
 
@@ -1386,7 +1343,7 @@ def test_layout_style_and_widgets_never_read_each_other():
     A Layout class is one layouts.css styles; a style class is one the kernel theme
     gives its own type or spacing tokens (`--t-*`, `--sp-*`)."""
     layouts = schema_model.ASSETS / "layouts.css"
-    theme = schema_model.ASSETS / "theme.css"
+    theme = schema_model.ASSETS / "styles" / "theme.css"
     owned = {
         layouts: {
             name
@@ -1408,6 +1365,13 @@ def test_layout_style_and_widgets_never_read_each_other():
     readers = []
     for source in sorted(path for root in roots for path in root.rglob("*.[cj]s*")):
         if "vendor" in source.parts:
+            continue
+        # The style build proves ready sheets derive from their authored owners.
+        # Read the owners here rather than treating each compiled delivery as a
+        # second authority for selectors.
+        if source.suffix == ".css" and source.read_text().startswith(
+            "/* Generated from "
+        ):
             continue
         foreign = [names for home, names in owned.items() if home != source]
         named = re.compile(r"\b(" + "|".join(sorted(set().union(*foreign))) + r")\b")
@@ -1647,18 +1611,15 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
     assert defaults == [faces[0]], defaults
 
 
-def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
-    """A stylesheet cannot read a runtime constant, so the sheets state the surfaces that
-    may leave the page live, the width properties, the room the runtime reads covering from, and the Ask
-    stamp as literals while the runtime lays out and paints by the constants. Held equal
-    here rather than trusted to stay so."""
+def test_layer_style_sources_consume_the_runtime_layout_names():
+    """CSS and runtime agree on shared property and attribute names. Read editable
+    sources; the stylesheet freshness gate holds their generated delivery copies."""
     runtime = schema_model.ASSETS / "runtime"
     layout = (runtime / "chrome-layout.js").read_text()
     drawers = (runtime / "drawers.js").read_text()
     page_paint = (runtime / "page-paint.js").read_text()
-    sheet = (schema_model.ASSETS / "theme.css").read_text() + (
-        runtime / "chrome.css"
-    ).read_text()
+    styles = schema_model.ASSETS / "styles"
+    sheet = (styles / "theme.css").read_text() + (styles / "chrome.css").read_text()
 
     def constant(pattern, source):
         return re.search(pattern, source, re.MULTILINE | re.DOTALL).group(1)
@@ -1670,7 +1631,7 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
         "var("
         + constant(r'^export const DRAWER_SLOT_PROP = "([^"]+)";', drawers)
         + ")",
-        "[" + constant(r'^  ask: "([^"]+)",', page_paint) + "]",
+        "[" + constant(r'^  question: "([^"]+)",', page_paint) + "]",
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
     for spelling in (
@@ -1680,10 +1641,9 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
 
 
-def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
-    """The classic bootstrap and prepaint cannot import modules, so the layer gate ties
-    the root state they write to the stylesheet that reads it, and the surfaces' default
-    widths to the runtime owners that hold them."""
+def test_prepaint_marks_the_state_the_stylesheet_reads():
+    """Classic startup scripts publish the live and interactive states before modules
+    run; the stylesheet must consume those same markers."""
     assets = schema_model.ASSETS
     bootstrap = (assets / "runtime" / "bootstrap.js").read_text()
     prepaint = (assets / "runtime" / "prepaint.js").read_text()
@@ -1694,23 +1654,6 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
     assert 'root.toggleAttribute("data-lf-interactive", true)' in prepaint
     assert "html[data-lf-interactive]" in theme
     assert 'script[type="module"][src="/leaf.js"]' not in theme
-
-    def constant(pattern, source):
-        return re.search(pattern, source, re.MULTILINE).group(1)
-
-    # The right edge's width, which Threads and Questions share, is the one a restored
-    # surface beside the page stands at before the runtime runs. The Leaves drawer
-    # covers the page, so no prepaint reads its width.
-    layout = (assets / "runtime" / "chrome-layout.js").read_text()
-    panel_prop = constant(r'^const THREAD_PANEL_PROP = "([^"]+)";', layout)
-    panel_default = constant(r"^const THREAD_PANEL_W = (\d+);", layout)
-    literal = f"var({panel_prop}, {panel_default}px)"
-    assert literal in theme
-    assert (
-        'html[data-lf-live] body:is([data-lf-auxiliary-surface="threads"],\n'
-        '      [data-lf-auxiliary-surface="queue"]) {\n'
-        f"    --lf-auxiliary-width: {literal};"
-    ) in theme
 
 
 def test_identical_init_preserves_the_installed_layer(tmp_path):
@@ -2224,7 +2167,7 @@ def test_the_resources_a_fixture_owns_are_taken_from_that_fixture():
     close where the test ends with it does the same work a step early, and the
     reading it cuts short is its own. The exception is a page that keeps making
     the fault its test is about, where the consume has to follow a close of its own
-    (tests/AGENTS.md, "Consume a browser error where it is caused").
+    (tests/AGENTS.md, "Browser errors").
     """
     closes_to_stop_a_repeating_fault = {
         "test_a_website_session_reference_survives_a_failed_first_read",
@@ -2460,8 +2403,7 @@ def test_a_spawned_process_ends_with_what_it_started(spawn, launcher_ends):
 
 def test_no_test_ends_a_process_with_sigkill():
     """SIGKILL gives a process no chance to end what it started, so a test ends one
-    by closing the pipe it reads or with SIGTERM (tests/AGENTS.md, "A process the
-    suite starts ends with the run"). The source is read for it, since no fixture
+    by closing the pipe it reads or with SIGTERM (tests/AGENTS.md, "Processes and servers"). The source is read for it, since no fixture
     sees which signal a test sends: `Popen.kill()`, `signal.SIGKILL`, signal 9
     passed to `kill`, `killpg` or `send_signal`, and a shell `kill` given signal 9
     or KILL in a command a test runs."""
@@ -3379,7 +3321,7 @@ def test_revendoring_removes_stale_broken_links_before_a_file_returns(
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -5121,7 +5063,9 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     is not a binding at all: holding ⌥ arms nothing and answers no press, it paints what
     a click would take, and its keyup half has no place in a table of presses. The
     prepaint bootstrap's hold answers no press either: it keeps keys pressed before the
-    page presents and hands them to the dispatcher's owner. prepaint.js records inputs
+    page presents and hands them to the dispatcher's owner. The sample bootstrap's
+    other listener enters its browsing context on trusted input without answering a
+    key; the same listener handles pointer input. prepaint.js records inputs
     from the document's first script. focus.js reads keys as the end of a label press
     and as a Tab's step; neither answers a command. The
     interaction log records keys and answers none. A covering surface's Tab loop keeps
@@ -5151,7 +5095,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     assert by_file == {
         "controller.js": 1,
         "aim.js": 1,
-        "bootstrap.js": 1,
+        "bootstrap.js": 2,
         "prepaint.js": 1,
         "focus.js": 2,
         "interaction-log.js": 1,

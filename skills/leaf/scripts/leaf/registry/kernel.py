@@ -1,6 +1,6 @@
 """Leaf's fixed kernel event contract, read off the kernel's own registry.
 
-`$events.kinds` is the transport contract no layer can change
+`$events.kinds` and `$events.ownership` are the transport contract no layer can change
 (`layer.validate_event_contracts`), so its facts are read from the shipped
 `registry.json` rather than from a page's composed vocabulary. Reading them needs
 no schema validator, and this module imports none: the page service sorts every
@@ -12,9 +12,19 @@ from leaf.files import read_json
 from leaf.schema import ASSETS
 
 
+@cache
+def _kernel_events() -> dict:
+    return read_json(ASSETS / "registry.json")["$events"]
+
+
 def kernel_event_kinds() -> dict:
     """The fixed event records produced and consumed by Leaf's kernel."""
-    return read_json(ASSETS / "registry.json")["$events"]["kinds"]
+    return _kernel_events()["kinds"]
+
+
+def kernel_event_ownership() -> dict:
+    """Fields derived at admission or discarded at browser ingress."""
+    return _kernel_events()["ownership"]
 
 
 @cache

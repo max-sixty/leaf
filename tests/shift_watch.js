@@ -2339,9 +2339,14 @@
   checkpoint();
   const drawing = () => {
     if (document.hidden) return false;
-    // Frame-owner visibility belongs to the driver, which can read across
-    // origins and refreshes this fact while draining. A document's ancestor
-    // window walk can lose access when a same-origin blank frame is sandboxed.
+    // Read accessible owners in the same task as the pose. The driver supplies
+    // visibility across opaque boundaries while draining, but its last reading
+    // can lag a same-origin owner's display change by a frame.
+    for (let view = window; view !== view.parent; view = view.parent) {
+      const owner = view.frameElement;
+      if (!owner) break;
+      if (!owner.checkVisibility()) return false;
+    }
     if (window.lfWatchJudgement?.ancestorsDrawn === false) return false;
     return true;
   };

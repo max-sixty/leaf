@@ -1219,8 +1219,8 @@ def test_a_hidden_frame_judges_existing_records_without_awaiting_paint(browser, 
         window.lfWatchPlatform.frame = nativeFrame;
         for (const callback of held.splice(0)) nativeFrame(callback);
       };
-      // The driver publishes owner visibility; this sensor-level fixture supplies
-      // the same fact while holding paint. Opaque-frame integration is above.
+      // The driver supplies owner visibility for opaque frames. This same-origin
+      // frame can read its owner while paint is held, without a driver update.
       window.lfWatchJudgement = {
         ancestorsDrawn: window.frameElement.checkVisibility(),
       };
@@ -1238,9 +1238,6 @@ def test_a_hidden_frame_judges_existing_records_without_awaiting_paint(browser, 
                 )
             else:
                 page.evaluate("document.querySelector('iframe').style.display = 'none'")
-        frame.evaluate(
-            "lfWatchJudgement.ancestorsDrawn = frameElement.checkVisibility()"
-        )
         frame.wait_for_function("window.hiddenJudged === true", polling=100)
         assert frame.evaluate("window.frameElement.checkVisibility()") is False
     finally:

@@ -9,6 +9,7 @@ from leaf.registry.schema import json_value
 from leaf.schema import MEDIA_DIR, SERVED_PATH
 from leaf.structure import (
     PAGE_ALLOCATIONS,
+    POINTABLE_TAGS,
     SECTIONING_TAGS,
     SourceDocument,
     allocation_expects,
@@ -80,7 +81,7 @@ def at(rec: dict, named: str = "") -> str:
 
 
 def unpointable_blocks(parser: SourceDocument) -> list:
-    """Blocks a user will aim at whole that no anchor can name. Advice, never a
+    """Blocks whose element-selection target is missing or too broad. Advice, never a
     gate:
     references/page-authoring.md's "Stable anchors" states the id rule, and this
     is its feedback loop. The page that introduced addressable-element anchoring hit this
@@ -88,10 +89,11 @@ def unpointable_blocks(parser: SourceDocument) -> list:
     through to the enclosing section and read as the gesture being broken rather
     than the page being bare, and nothing anywhere said so.
 
-    A section or article is named outright; a block below one only where its aim
-    escapes to a sectioning element. The ancestor's tag stands in for tightness —
-    a figure around a table, a card around a pre — which no static read can
-    measure, so a page-wide <div id> also passes for aim enough and the advice
+    Prose and headings are named only when no enclosing id can receive the aim.
+    A section or article is named outright; other whole-block targets below one
+    only where their aim escapes to a sectioning element. The ancestor's tag
+    stands in for tightness — a figure around a table, a card around a pre — which
+    no static read can measure, so a page-wide <div id> also passes for aim enough and the advice
     stays quiet. Undercounting is the right error for advice: a miss costs one
     aim landing wide, noise costs the register its authority."""
     lines = []
@@ -106,9 +108,9 @@ def unpointable_blocks(parser: SourceDocument) -> list:
         elif under is None:
             lines.append(
                 f"unpointable — {where} has no id, nor anything enclosing it, "
-                f"so no comment can name it"
+                f"so element selection has no target"
             )
-        elif under[0] in SECTIONING_TAGS:
+        elif block["tag"] in POINTABLE_TAGS and under[0] in SECTIONING_TAGS:
             lines.append(
                 f"unpointable — {where} has no id, so a comment aimed at it "
                 f"lands on the whole of #{under[1]}"

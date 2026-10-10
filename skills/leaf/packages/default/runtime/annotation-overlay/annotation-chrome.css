@@ -191,7 +191,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body {
     display: flex; flex-direction: column; min-height: 0;
     box-sizing: border-box; width: min(100%, calc(var(--lf-comment-message-measure) + var(--lf-comment-text-pad-end)));
-    margin-top: var(--lf-comment-body-gap);
   }
   /* Only the submitted words inherit the editor's viewport. Message metadata,
      such as the drawing reference, is added after Send and keeps its own room.
@@ -200,17 +199,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     flex: none;
   }
   .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text {
-    display: block; box-sizing: border-box; min-height: 0;
+    box-sizing: border-box; min-height: 0;
     max-height: var(--lf-comment-message-height); overflow-y: auto;
-    padding-block: var(--lf-comment-text-pad-block);
     padding-inline: 0 var(--lf-comment-text-pad-end);
   }
-  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text > p {
-    font: inherit; white-space: break-spaces; overflow-wrap: anywhere;
-    margin-block: 1lh;
-  }
-  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text > p:first-child { margin-top: 0; }
-  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text > p:last-child { margin-bottom: 0; }
   /* The editor's room for Send, held where the editor held it when the words were sent
      (text-field.js, `endRoom`): on every line, after the last words only — the last
      paragraph of words, before any pasted images, or a suggestion's text — or, where
@@ -294,7 +286,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
      head. The card draws no reactions, so an agent's head keeps no room for their
      trigger under a finger. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-body {
-    --lf-top: var(--lf-comment-head); }
+    --lf-top: var(--lf-msg-head-height); }
   .lf-margin-thread .lf-thread-transcript .lf-msg-body * {
     scroll-margin-top: calc(var(--lf-top) + var(--focus-ring-room)); }
   .lf-margin-thread .lf-thread-transcript .lf-msg-meta { overflow: hidden; }
@@ -302,7 +294,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     overflow: hidden; text-overflow: ellipsis; }
   .lf-margin-thread-controls { position: absolute; inset-block-start: 0;
     inset-inline-end: 0; z-index: 2; display: flex; align-items: center; gap: 4px;
-    min-height: var(--lf-comment-head); padding-inline-start: var(--sp-2);
+    min-height: var(--lf-msg-head-height); padding-inline-start: var(--sp-2);
     background: var(--paper); }
   /* A sticky head and its words paint the message's one animated ground.
      Shared message rules own wrapping, including progress disclosures below the

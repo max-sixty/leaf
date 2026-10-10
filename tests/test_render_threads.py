@@ -9661,7 +9661,8 @@ THIRTY_LINES = "\n".join(f"Pasted line {n}" for n in range(30))
 
 def bounded_seat_page(steps, bound):
     """A talk seat at the foot of a command that bounds its own height with
-    `data-bound`, after `steps` plain tasks, between screens of filler."""
+    `data-bound`, after `steps` plain tasks, between screens of filler. Its
+    stated height leaves ample overflow even when typography changes."""
     tasks = "".join(
         f'<lf-test-task id="step-{n}" status="planned"><strong>Step {n}</strong> '
         f"{SEAT_WORDS}</lf-test-task>"
@@ -9673,6 +9674,7 @@ def bounded_seat_page(steps, bound):
         f'label="Before the frost" data-bound="{bound}">{tasks}<lf-test-task id="jobs" '
         'status="active" talk><strong>Which jobs are worth starting?</strong> The '
         f"mounts came down in January.</lf-test-task></lf-test-plan>{SEAT_FILLER}",
+        head="<style>#hub { --lf-bound: 18rem; }</style>",
     )
 
 

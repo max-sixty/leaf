@@ -126,3 +126,7 @@ export function eventSpec(entry, event) {
   const writer = { action: "user", report: "agent" }[event.kind];
   return spec && (spec.writer ?? "user") === writer ? spec : null;
 }
+
+// Registry keys share schema.WIDGET_NAME with Python. Exact custom-element names
+// declare widgets; CSS selectors (including lf-options.selected) declare idioms.
+export const isElementName = (name) => /^lf-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name);

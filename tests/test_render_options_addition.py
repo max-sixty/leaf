@@ -202,7 +202,7 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
     assert hint.locator("kbd").evaluate(
         "key => getComputedStyle(key).fontFamily"
     ) == page.evaluate(
-        "() => getComputedStyle(document.body).getPropertyValue('--mono').trim()"
+        r"() => getComputedStyle(document.body).getPropertyValue('--mono').trim().replace(/\s+/g, ' ')"
     )
     assert hint.locator("span").evaluate(
         "label => getComputedStyle(label).fontFamily"

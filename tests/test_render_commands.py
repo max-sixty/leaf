@@ -646,24 +646,18 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
     )
     page.keyboard.press("Escape")
 
-    # Parent-owned inspectors hide the same complete rail and keep the checkbox.
-    shot.evaluate("""node => {
-      node.dataset.lfShotControls = 'off';
-      node.querySelector('.lf-shotrail').style.display = 'none';
-    }""")
+    # Parent-owned inspectors select a mode through the widget's inspection API.
+    shot.evaluate("node => node.inspect({mode: 'compare'})")
     expect(comparison).to_have_count(0)
     expect(links.first).not_to_be_visible()
     box = shot.locator("input.lf-shotflip")
-    box.focus()
-    box.press("Space")
-    expect(box).not_to_be_checked()
-    assert shown_frames(page) == ["before"]
-    shot.evaluate("""node => {
-      node.removeAttribute('data-lf-shot-controls');
-      node.querySelector('.lf-shotrail').style.removeProperty('display');
-    }""")
+    expect(box).to_be_checked()
+    assert shown_frames(page) == ["before", "after"]
+    shot.evaluate("node => node.inspect({mode: 'flip'})")
     expect(comparison).to_have_count(1)
+    expect(comparison).to_have_attribute("position", "0")
     expect(links.first).to_be_visible()
+    expect(box).to_be_checked()
     page.emulate_media(media="print")
     expect(links.first).not_to_be_visible()
     assert shown_frames(page) == ["before", "after"]
@@ -1688,7 +1682,8 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
     assert broken.returncode == 1, broken.stdout + broken.stderr
     assert "Error: page code reported 2 errors" in broken.stderr
     assert "map is not a function" in broken.stderr
-    assert "/page/film.js:2)" in broken.stderr
+    assert "at paint (" in broken.stderr
+    assert "/page/film.js:2:" in broken.stderr
     assert "Error: the trace never loaded" in broken.stderr
     assert "/page/widgets/lf-loader.js:3" in broken.stderr
 

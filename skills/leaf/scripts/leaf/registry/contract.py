@@ -1,14 +1,32 @@
 """Readings and derived declarations from a supplied registry vocabulary."""
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
 import click
 
 from leaf.files import read_json
+from leaf.schema import WIDGET_NAME
 
 from .schema import json_value
+
+
+def is_element_name(name: str) -> bool:
+    """Whether a vocabulary key names one Leaf custom element rather than a selector.
+
+    Non-dollar keys are authored vocabulary: exact ``WIDGET_NAME`` keys declare
+    elements; every other key is a CSS selector idiom, including native tags and
+    selectors such as ``lf-options.selected``. Validation admits selectors once
+    at composition; consumers share this classification without parsing CSS.
+    """
+    return re.fullmatch(WIDGET_NAME, name) is not None
+
+
+def element_declarations(registry: dict) -> dict:
+    """The element schemas from one registry's authored vocabulary."""
+    return {name: entry for name, entry in registry.items() if is_element_name(name)}
 
 
 def prepaint_markup(registry, tag: str) -> str | None:
@@ -392,7 +410,7 @@ def retirement_slots(registry: dict) -> dict:
     fact about this page's vocabulary and never a list in the code."""
     slots = {}
     for tag, entry in registry.items():
-        if not tag.startswith("lf-") or not entry.get("x-retired-when"):
+        if not is_element_name(tag) or not entry.get("x-retired-when"):
             continue
         outcome = entry["x-retired-when"]
         for owner in entry["x-owners"]:
@@ -414,6 +432,6 @@ def stamp_decisions(registry: dict) -> dict:
     registry["$decisions"] = {
         tag: {"verb": verb, "retires": slots.get(tag, {})}
         for tag, entry in registry.items()
-        if tag.startswith("lf-") and (verb := deciding_verb(entry)) is not None
+        if is_element_name(tag) and (verb := deciding_verb(entry)) is not None
     }
     return registry

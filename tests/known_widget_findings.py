@@ -17,4 +17,13 @@ KNOWN = {
         # margin-layout.js), made from the room it measures after the first paint.
         ("lf-toc", "keeps-first-box"),
     },
+    "file-editor": {
+        # The problem panel caps itself at `min(50%, 20rem)` in an auto grid row, where
+        # the percentage resolves against the panel's own content, so a two-line problem
+        # is cut to 78px and scrolls inside it. Capping it from
+        # `--lf-file-editor-height` instead shows the problem whole, but its height then
+        # follows the problem's text, and test_render_files.py's in-flight save journey
+        # reads a 17px shift without input in the editor's shadow tree.
+        ("lf-file-editor", "grows-with-content"),
+    },
 }

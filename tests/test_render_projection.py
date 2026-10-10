@@ -13,7 +13,6 @@ from click.testing import CliRunner
 from interact_support import (
     COMMAND_HUB_PACKAGE,
     ROOT,
-    SHIPPED_PACKAGES,
     add_test_widget,
     append_carried_log_record,
     append_command,
@@ -31,11 +30,11 @@ from leaf import http as http_model
 from leaf import render_checks as render_checks_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
+from leaf.registry import storage as registry_storage
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
 from leaf.render_gate.readings import DevtoolsIssues
-from leaf.validation import compatibility as validation_model
 from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -6749,8 +6748,8 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
     """Absoluteness is what makes a fold a fold, and it is the one thing about a widget
     module no reading of a rendered page can see: a relative implementation renders
     perfectly and costs the user their gesture later, on the poll that replays it. So
-    the gate applies each standing action again and asks what moved, and the shipped
-    vocabulary has nothing to do — a card placed where it already is, a pick set to
+    the gate applies each standing action again and asks what moved, and the page's
+    composed vocabulary has nothing to do — a card placed where it already is, a pick set to
     what it already holds, a body assigned the words it already reads.
 
     The corpus cannot say this on its own: `test_page_fixture_renders` serves every page
@@ -6806,7 +6805,7 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
         standing_ids,
     )
     page.close()
-    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
+    registry = registry_storage.load_registry(serve.page_dir)
     declared = {
         (tag, verb)
         for tag, entry in registry.items()

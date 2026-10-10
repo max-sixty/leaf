@@ -322,7 +322,8 @@ summary {
 .lf-thread-checkpoint[data-expanded=true]::before {
   content: "";
   position: absolute;
-  inset: -7px -12px;
+  inset-block: -7px;
+  inset-inline: -12px -6px;
   border: 1px solid var(--rule);
   border-radius: 5px;
   pointer-events: none;

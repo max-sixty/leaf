@@ -8663,6 +8663,15 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     close = page.get_by_role("button", name="Back to more shortcuts")
     expect(close).to_be_visible()
     expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
+    search = page.get_by_role("combobox", name="Search commands")
+    expect(search).to_be_focused()
+    # The editor's native focus is inside the shared control's shadow tree. Closing
+    # directly from it must return to the same Help door as closing from a result.
+    page.keyboard.press("Escape")
+    expect(help_el).to_be_hidden()
+    expect(opener).to_be_focused()
+    opener.click()
+    expect(search).to_be_focused()
     for command in [
         "test.projected-only",
         "response.reaction.choose",
@@ -8712,6 +8721,18 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     expect(help_el).to_be_hidden()
     expect(opener).to_be_focused()
 
+    # A keyboard opening from an ordinary page control owes that control back too,
+    # including when light dismissal closes the focused native search editor.
+    page.keyboard.press("Escape")
+    page_control = page.locator("#projected-only-command")
+    page_control.click()
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    expect(search).to_be_focused()
+    page.mouse.click(2, 2)
+    expect(help_el).to_be_hidden()
+    expect(page_control).to_be_focused()
+
 
 def test_the_reference_runs_available_commands_and_explains_the_rest(browser, serve):
     """The reference is the command register made usable, not a second list of prose.
@@ -8744,9 +8765,9 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
         re.compile(r" · ⏎ activate$")
     )
     first_row = commands.first.locator("xpath=ancestor::tr")
-    expect(search).to_have_attribute(
-        "aria-activedescendant", first_row.get_attribute("id")
-    )
+    assert search.evaluate(
+        "input => input.ariaActiveDescendantElement?.id"
+    ) == first_row.get_attribute("id")
     page.keyboard.press("ArrowUp")
     expect(commands.first).to_have_attribute("data-lf-selected", "true")
     expect(page.locator(".lf-walk-position")).to_have_attribute("data-lf-boundary", "")
@@ -8758,9 +8779,9 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     expect(search).to_be_focused()
     expect(commands.last).to_have_attribute("data-lf-selected", "true")
     last_row = commands.last.locator("xpath=ancestor::tr")
-    expect(search).to_have_attribute(
-        "aria-activedescendant", last_row.get_attribute("id")
-    )
+    assert search.evaluate(
+        "input => input.ariaActiveDescendantElement?.id"
+    ) == last_row.get_attribute("id")
     page.keyboard.press("ArrowDown")
     expect(commands.last).to_have_attribute("data-lf-selected", "true")
 
@@ -9017,10 +9038,18 @@ def test_the_reference_keeps_its_top_and_search_still_when_filtering(
     search = page.get_by_role("combobox", name="Search commands")
     expect(search).to_be_focused()
     initial_dialog = reference.bounding_box()
-    initial_search = search.bounding_box()
+    search_field = reference.locator(".lf-command-reference-search")
+    initial_search = search_field.bounding_box()
+    commands = reference.locator(".lf-command-reference-command:visible")
+    initial_count = commands.count()
 
     for query in ("page.search.open", "no command has these words", ""):
-        search.fill(query)
+        if query:
+            search.fill(query)
+        else:
+            search_field.get_by_role("button", name="Clear entry").click()
+            expect(search).to_have_value("")
+            expect(commands).to_have_count(initial_count)
         if query == "page.search.open":
             expect(
                 reference.locator(".lf-command-reference-command:visible")
@@ -9033,7 +9062,7 @@ def test_the_reference_keeps_its_top_and_search_still_when_filtering(
                 assert reference.bounding_box()["height"] < initial_dialog["height"]
         expect(search).to_be_focused()
         dialog = reference.bounding_box()
-        field = search.bounding_box()
+        field = search_field.bounding_box()
         assert dialog["y"] == pytest.approx(initial_dialog["y"], abs=0.5)
         for axis in ("x", "y", "width", "height"):
             assert field[axis] == pytest.approx(initial_search[axis], abs=0.5)
@@ -9082,7 +9111,9 @@ def test_the_reference_keeps_local_search_state_on_one_lit_surface(browser, serv
     expect(result).to_have_attribute("tabindex", "0")
     row = result.locator("xpath=ancestor::tr")
     expect(row).to_have_attribute("aria-selected", "true")
-    expect(search).to_have_attribute("aria-activedescendant", row.get_attribute("id"))
+    assert search.evaluate(
+        "input => input.ariaActiveDescendantElement?.id"
+    ) == row.get_attribute("id")
     assert page.evaluate(
         """() =>
           window.__commandReferenceSearch === document.querySelector(
@@ -9097,7 +9128,7 @@ def test_the_reference_keeps_local_search_state_on_one_lit_surface(browser, serv
 
     search.fill("no command has these words")
     expect(reference.locator(".lf-command-reference-empty")).to_be_visible()
-    expect(search).not_to_have_attribute("aria-activedescendant", re.compile(r".+"))
+    assert search.evaluate("input => input.ariaActiveDescendantElement") is None
     search.fill("resolve it")
     expect(result).to_have_attribute("data-lf-selected", "false")
     assert page.evaluate(
@@ -10050,14 +10081,14 @@ def test_reference_accepts_native_popover_dismissal_across_modal_entry(browser, 
     page.keyboard.press("?")
     expect(reference).to_be_visible()
 
-    search = reference.locator(".lf-command-reference-search")
+    search = reference.get_by_role("combobox", name="Search commands")
     search.fill("thread")
     page.keyboard.press("ArrowDown")
     search.evaluate(
         "node => { node.setSelectionRange(1, 3); window.heldReferenceSearch = node; }"
     )
     held_search = search.evaluate(
-        "node => [node.value, node.selectionStart, node.selectionEnd, node.getAttribute('aria-activedescendant')]"
+        "node => [node.value, node.selectionStart, node.selectionEnd, node.ariaActiveDescendantElement?.id]"
     )
     resized(page, 400, 800)
     panel_settled(page)
@@ -10066,12 +10097,12 @@ def test_reference_accepts_native_popover_dismissal_across_modal_entry(browser, 
     assert search.evaluate("node => node === window.heldReferenceSearch")
     assert (
         search.evaluate(
-            "node => [node.value, node.selectionStart, node.selectionEnd, node.getAttribute('aria-activedescendant')]"
+            "node => [node.value, node.selectionStart, node.selectionEnd, node.ariaActiveDescendantElement?.id]"
         )
         == held_search
     )
     assert search.evaluate(
-        "node => { const box = node.getBoundingClientRect(); return document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2) === node; }"
+        "node => { const box = node.getBoundingClientRect(); return node.getRootNode().elementFromPoint(box.x + box.width / 2, box.y + box.height / 2) === node; }"
     )
     # Every Escape from here lands the user while the panel covers the page, which is
     # inert under it, so the panel is what can take them. The platform also hands a

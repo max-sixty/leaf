@@ -159,6 +159,21 @@ def threads_panel(page: Page) -> None:
     )
 
 
+def page_search(page: Page) -> None:
+    """A focused page query and its match count inside the search frame."""
+    page.keyboard.press("Tab")
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill("review")
+
+
+def command_reference_search(page: Page) -> None:
+    """Help's focused query above its filtered command results."""
+    page.keyboard.press("Tab")
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    page.get_by_role("combobox", name="Search commands").fill("comment")
+
+
 def retained_quote(page: Page) -> None:
     """A detached passage's compact reading inside its native sample thread."""
     page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
@@ -843,6 +858,15 @@ STATES = (
     ),
     State("gallery-multiline-passage", "developer/feature-gallery", multiline_passage),
     State("plan", "review-a-plan", at_rest),
+    State("page-search", "review-a-plan", page_search),
+    State("page-search-phone", "review-a-plan", page_search, viewport=(390, 844)),
+    State("command-reference-search", "review-a-plan", command_reference_search),
+    State(
+        "command-reference-search-dark",
+        "review-a-plan",
+        command_reference_search,
+        scheme="dark",
+    ),
     State("plan-dark", "review-a-plan", at_rest, scheme="dark"),
     State("plan-beside", "review-a-plan", at_rest, viewport=BESIDE),
     State("plan-card", "review-a-plan", card_by_pointer),

@@ -2934,8 +2934,8 @@ def test_color_cues_fade_to_the_live_surface(request, serve, engine, target):
         write(box, "Review both choices.")
         page.keyboard.press("Enter")
         card = page.locator(".lf-page-comment-card")
-        expect(card).to_be_visible()
-        expect(card).to_be_focused()
+        expect(card).to_be_hidden()
+        expect(page.locator(".lf-page-comment")).to_be_focused()
         cue_target = page.locator(".lf-threads-toggle")
     colours = cue_target.evaluate(
         """async node => {
@@ -16311,15 +16311,13 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     expect(field).to_be_focused()
     page.keyboard.type("Sent with quick shortcuts off")
     page.keyboard.press("ControlOrMeta+Enter")
-    expect(page.locator(".lf-page-comment-card")).to_be_focused()
-    expect(field).to_be_visible()
+    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
+    expect(page.locator(".lf-page-comment")).to_be_focused()
     told(page)
     assert any(
         event.get("text") == "Sent with quick shortcuts off"
         for event in events_model.read_events(serve.page_dir)
     )
-    page.keyboard.press("Escape")
-    expect(field).to_be_hidden()
     rendered(page)
 
     sample.focus()

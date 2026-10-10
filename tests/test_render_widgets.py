@@ -3265,7 +3265,7 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
         verify_geometry
     )
 
-    details = page.locator("details")
+    details = page.locator("main details")
     expect(details).not_to_have_attribute("open", "")
     toc.get_by_role("link", name="Move the readers").click()
     expect(details).to_have_attribute("open", "")
@@ -3289,7 +3289,7 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     # On first parse this id does not exist yet. The shared arrival pass runs after every
     # widget settles, so a copied link still reveals and reaches the heading it names.
     direct = open_page(browser, url + hrefs[1])
-    expect(direct.locator("details")).to_have_attribute("open", "")
+    expect(direct.locator("main details")).to_have_attribute("open", "")
     expect(direct).to_have_url(re.compile(f"{re.escape(hrefs[1])}$"))
     direct.wait_for_function(
         "heading => { const box = heading.getBoundingClientRect(); "

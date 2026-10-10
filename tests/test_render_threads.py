@@ -9388,6 +9388,86 @@ def test_leaving_a_long_threads_reply_keeps_the_list_where_it_was(browser, serve
     assert card.locator(".lf-msg").last.evaluate(IN_LANDING_BAND)["inside"]
 
 
+def test_leaving_a_long_threads_reply_scrolled_out_of_view_lands_it(browser, serve):
+    """Escape out of the reply of a thread taller than the list, once the user has
+    scrolled the list past all of it, lands the thread's latest turn. Only a thread
+    already shown stands around the box; this one left focus on a title nothing
+    showed."""
+    url = serve(PANEL_PAGE)
+    # Closed threads are short, so it takes a run of them to fill the list above it.
+    root = seed_panel_threads(serve.page_dir, 30, long_index=29)[29]
+    page = open_page(browser, url)
+    open_threads_list(page, 1200, 900)
+    card = reply_by_keyboard(page, root)
+    page.locator(".lf-threads").evaluate("list => { list.scrollTop = 0; }")
+    scroll_settled(page, ".lf-threads")
+    assert card.evaluate(
+        "card => card.getBoundingClientRect().top"
+        " >= card.closest('.lf-threads').getBoundingClientRect().bottom"
+    ), "the list still shows the thread, so this proves nothing"
+    page.keyboard.press("Escape")
+    expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
+    rendered(page)
+    scroll_settled(page, ".lf-threads")
+    landed = card.locator(".lf-msg").last.evaluate(IN_LANDING_BAND)
+    assert landed["inside"], f"the thread was left out of the list's band: {landed}"
+
+
+def test_standing_again_on_a_long_threads_target_keeps_the_list(browser, serve):
+    """With Threads open, arriving by keyboard at a target whose thread the list
+    already has expanded, and partly in view, leaves the list where the user put it.
+    The thread is taller than the list, so it can show no more of itself; the arrival
+    took the list to its title, away from the turn the user had scrolled to."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Thread opening. " + LANDING_WORDS, {"section": "how-cap"}
+    )
+    for turn in range(1, 12):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent" if turn % 2 else "user",
+                **({"agent": "Codex"} if turn % 2 else {}),
+                "parent": root,
+                "text": f"Turn {turn}. " + LANDING_WORDS,
+            },
+        )
+    page = open_page(browser, url)
+    open_threads_list(page, 1200, 900)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    listing = page.locator(".lf-threads")
+
+    # Keyboard modality without Tab, whose own landing in the list would scroll it.
+    def arrive(selector):
+        page.keyboard.press("Shift")
+        page.locator(selector).evaluate(
+            "node => { if (node.getAttribute('tabindex') !== '-1') node.tabIndex = -1;"
+            " node.focus(); }"
+        )
+        expect(page.locator(selector)).to_be_focused()
+        rendered(page)
+        scroll_settled(page, ".lf-threads")
+
+    arrive("#how-cap")
+    expect(card).to_have_attribute("open", "")
+    listing.evaluate("list => { list.scrollTop += list.clientHeight / 2; }")
+    scroll_settled(page, ".lf-threads")
+    before = listing.evaluate("list => list.scrollTop")
+    shown = card.evaluate(
+        """card => {
+          const list = card.closest('.lf-threads').getBoundingClientRect();
+          const box = card.getBoundingClientRect();
+          return box.top < list.top && box.bottom > list.top && box.height > list.height;
+        }"""
+    )
+    assert shown, "the thread is not a tall one partly in view, so this proves nothing"
+    arrive("#how-store")
+    arrive("#how-cap")
+    expect(card).to_have_attribute("open", "")
+    assert listing.evaluate("list => list.scrollTop") == before
+
+
 def test_reopening_a_touch_panel_keeps_its_reading_position_and_draft(browser, serve):
     """A modal panel returns to the turn being read; an explicit thread walk lands.
 

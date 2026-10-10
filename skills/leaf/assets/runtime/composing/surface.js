@@ -1017,6 +1017,16 @@ export function createResponseSurface({
       if (coarsePointer.matches && selection && !automatic)
         rememberSelection(selection);
       observeSelection();
+      // A bare selected passage only stands while the browser still holds it.
+      // Focusing Comment captures that passage, and a written draft keeps it even
+      // after focus moves elsewhere; neither belongs to the native selection now.
+      if (
+        !selection &&
+        fabAnchor?.quote &&
+        !fabHoldsCapturedPassage() &&
+        !composerHolds()
+      )
+        putAwayFab();
       reflectSelectionStanding();
     });
     document.addEventListener("mouseup", (ev) => {

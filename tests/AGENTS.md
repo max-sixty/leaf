@@ -7,12 +7,14 @@ not constrain new code: rewriting or deleting an overfit test is an ordinary par
 change, and the commit says which behavior moved.
 
 Prove each contract at the lowest boundary that preserves it, and keep a browser test
-only where it proves boundaries working together. Every run of the suite pays for each
-test's compute, so weigh that cost against how much the protected behavior matters
-before adding or keeping an expensive test: a long browser journey, a sweep across
-pages or widths, or a wide parametrization needs a contract important enough to pay
-for it. When a high-level browser test is slow, or fails on timing or geometry outside
-its contract, repair its arrangement or move its contract to the lower boundary.
+only where it proves boundaries working together. Before adding cases or steps, choose
+the smallest set that exposes distinct plausible failures beyond existing coverage.
+Retain a broad sweep only when its extra samples catch a failure that representative
+states or transitions miss; an investigation's sampling grid is not itself a regression
+requirement. Every run pays for the test's compute, so weigh the additional cost against
+the additional coverage. When a high-level browser test is slow, or fails on timing or
+geometry outside its contract, repair its arrangement or move its contract to the lower
+boundary.
 
 Each helper's docstring owns its contract, and code cites sections here by heading.
 

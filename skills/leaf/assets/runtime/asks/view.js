@@ -166,6 +166,7 @@ export function createAskView({
     await openPageThread(ask.thread, {
       focus: false,
       travel: false,
+      reader: "complete",
       ...(intent && { intent }),
     });
     return askNodes(ask);

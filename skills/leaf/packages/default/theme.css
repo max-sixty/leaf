@@ -1623,9 +1623,6 @@
     z-index: 2;
     block-size: var(--lf-tabstrip-h);
   }
-  :scope:is(lf-tabs)[data-lf-tabs-flow=page] > lf-tab {
-    --lf-landing-room: var(--lf-landing-gap);
-  }
   :scope:is(lf-tabs)[data-lf-tabs-flow=page] > .lf-tabstrip {
     border-radius: 0;
     --lf-tabstrip-pad: 0px;

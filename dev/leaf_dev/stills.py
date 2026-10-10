@@ -336,6 +336,14 @@ def composer(page: Page) -> None:
     page.keyboard.insert_text("A comment being drafted on the selected words")
 
 
+def composer_space(page: Page) -> None:
+    """A narrow comment whose trailing space still fits beside Send."""
+    composer(page)
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.insert_text("this is a nice feature; is it in leaf, or you")
+    page.keyboard.press("Space")
+
+
 # A draft of two paragraphs whose lines run past the composer's width, so every field
 # shows how its words wrap beside the action in its corner, on the lines above the last
 # as well as the last.
@@ -1144,6 +1152,7 @@ STATES = (
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
     State("triage", "triage-board", at_rest),
     State("triage-composer", "triage-board", composer),
+    State("triage-composer-space", "triage-board", composer_space, viewport=(362, 900)),
     State("triage-composer-long", "triage-board", composer_long),
     State("triage-composer-long-dark", "triage-board", composer_long, scheme="dark"),
     State(

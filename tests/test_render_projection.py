@@ -2570,6 +2570,54 @@ def test_live_revision_keeps_the_visible_semantic_reading(browser, serve, width)
     assert after == pytest.approx(before, abs=4), (before, after)
 
 
+def test_a_revision_keeps_the_paragraph_under_a_focused_stuck_tab(browser, serve):
+    """A stuck tab strip rides over every paragraph, so it names none of them.
+
+    The reader focused a tab and scrolled the page with no other input, so focus is
+    still their last word on where they are. The strip stays in view, stuck over the
+    panel's paragraphs, and a revision adding paragraphs above keeps that paragraph
+    where it stood rather than the strip, which stays in view by itself.
+    """
+
+    def source(added):
+        paragraphs = "".join(
+            f'<p id="{name}">{name}, long enough to stand as a landmark of its own.</p>'
+            for name in [f"added-{n}" for n in range(added)]
+            + [f"passage-{n}" for n in range(80)]
+        )
+        return leaf_page(
+            f"Stuck tab {added}",
+            "<style>html { overflow-anchor: none; }</style>"
+            f'<lf-tabs id="views"><lf-tab id="first" label="First view">{paragraphs}'
+            '</lf-tab><lf-tab id="second" label="Second view"><p>Other.</p></lf-tab>'
+            "</lf-tabs>",
+        )
+
+    page = open_page(browser, live_url(serve(source(0))))
+    resized(page, 1200, 700)
+    tab = page.get_by_role("tab", name="First view")
+    tab.focus()
+    rendered(page)
+    page.evaluate("document.scrollingElement.scrollTop = 2500")
+    scroll_settled(page)
+    rendered(page)
+    expect(tab).to_be_focused()
+    assert tab.evaluate("""async tab => {
+        const {stuckBox, seenRect} = await window.__lfRuntimeImport('/runtime/geometry.js');
+        return Boolean(stuckBox(tab) && seenRect(tab, new Map()));
+    }"""), "the tab strip did not stick over the panel"
+    landmark = page.evaluate("""() => [...document.querySelectorAll('#first p')].find(
+        p => p.getBoundingClientRect().top >= 200).id""")
+    reading = page.locator(f"#{landmark}")
+    before = reading.evaluate("node => node.getBoundingClientRect().top")
+    (serve.page_dir / "index.html").write_text(source(5))
+    told(page)
+    expect(page).to_have_title("Stuck tab 5")
+    rendered(page)
+    after = reading.evaluate("node => node.getBoundingClientRect().top")
+    assert after == pytest.approx(before, abs=4), (before, after)
+
+
 def test_a_revision_leaves_root_attributes_it_does_not_change_untouched(browser, serve):
     """Authored `html` and `body` attributes both revisions write stay where they are.
 

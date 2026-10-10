@@ -4572,7 +4572,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
     ), "successful retry replaced the retained card"
     expect(page.locator(".lf-thread-view-summary")).to_have_text("0 open threads")
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
-    assert take_browser_errors(page) == [
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: injected thread-card failure"
     ]
     holding(page, held_events, 2, "the gesture and the page's report of its failure")
@@ -4613,7 +4613,7 @@ def test_a_failed_narrowing_restore_has_one_owned_presentation_error(browser, se
             "deliberate narrowing failure; deliberate narrowing failure"
         )
     ]
-    assert take_browser_errors(page) == expected
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == expected
 
     page.get_by_role("searchbox", name="Find in threads").fill("")
     page.wait_for_function(
@@ -4692,7 +4692,7 @@ def test_a_failed_narrowing_view_restores_its_committed_list_and_keeps_the_input
             before.open === view.querySelector('[data-filter-value="open"]');
         }"""
     )
-    assert take_browser_errors(page) == [
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
         (
             "leaf: Presentation failed: Thread list presentation retry failed: "
             "injected narrowing-view failure; injected narrowing-view failure"
@@ -4766,7 +4766,7 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
             "deliberate reveal failure; deliberate retry retention failure"
         )
     ]
-    assert take_browser_errors(page) == expected
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == expected
 
     routes = {route.request.post_data_json["kind"]: route for route in held}
     held.clear()
@@ -9569,17 +9569,25 @@ def test_walking_the_list_lands_each_thread_on_its_latest_message(browser, serve
     )
 
 
-# Who wrote the words just under the card's top row, and whose name that row shows.
+# Whose name the card's top row shows, and who wrote the words just under it. The row
+# is the first name painted in the card: where the top falls in the gap before a
+# message, a pushed-off head leaves only its blank foot above that message's name.
 CARD_TOP_AUTHORS = """transcript => {
   const box = transcript.getBoundingClientRect();
   const x = box.left + 30;
-  const row = transcript.querySelector('.lf-msg-head').getBoundingClientRect();
-  const at = y => document.elementFromPoint(x, y)?.closest('.lf-msg');
-  const named = document.elementFromPoint(x, box.top + row.height / 2)
-    ?.closest('.lf-msg-head')?.closest('.lf-msg');
-  const under = at(box.top + row.height + 6);
   const messages = [...transcript.querySelectorAll('.lf-msg')];
+  const shown = message => {
+    const name = message.querySelector(':scope > .lf-msg-head b').getBoundingClientRect();
+    const y = name.top + name.height / 2;
+    return y > box.top && y < box.bottom
+      && document.elementFromPoint(name.left + 1, y)?.closest('.lf-msg') === message;
+  };
+  const named = messages.find(shown);
+  const head = named?.querySelector(':scope > .lf-msg-head').getBoundingClientRect();
+  const under = document.elementFromPoint(x, (head?.bottom ?? box.top) + 6)
+    ?.closest('.lf-msg');
   return {named: messages.indexOf(named), under: messages.indexOf(under),
+          row: head ? head.top - box.top < head.height : false,
           scrolled: transcript.scrollTop > 0};
 }"""
 
@@ -9619,9 +9627,8 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
     shown = transcript.bounding_box()
     assert latest["y"] + latest["height"] <= shown["y"] + shown["height"] + 1
     landed = transcript.evaluate(CARD_TOP_AUTHORS)
-    # Just under the row may fall between two messages; the row names a later one.
-    assert landed["scrolled"] and landed["named"] > 0, landed
-    assert landed["under"] in (landed["named"], -1), landed
+    assert landed["scrolled"] and landed["named"] > 0 and landed["row"], landed
+    assert landed["under"] == landed["named"], landed
     # Reading back up, the row names each message whose words stand under it.
     for index in (3, 2, 1, 0):
         transcript.evaluate(
@@ -9638,7 +9645,7 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
         )
         rendered(page)
         reading = transcript.evaluate(CARD_TOP_AUTHORS)
-        assert reading["named"] == reading["under"] == index, reading
+        assert reading["named"] == reading["under"] == index and reading["row"], reading
 
 
 SEAT_FILLER = "".join(
@@ -11258,12 +11265,24 @@ def test_a_short_thread_panel_keeps_its_list_and_grip_reachable(browser, serve, 
     )
 
 
+@pytest.mark.parametrize("scaled", [False, True])
 def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
-    browser, serve
+    browser, serve, scaled
 ):
     """A whole-frame cap reserves the image, choices and Send before text scrolls."""
-    page = open_page(browser, serve(LONG_PAGE))
-    resized(page, 390, 300)
+    source = LONG_PAGE
+    if scaled:
+        source = source.replace(
+            "</head>",
+            """<style>
+              div.lf-chrome { position:fixed; inset:0; pointer-events:none;
+                transform:scale(1.2); transform-origin:0 0; }
+              .lf-fab-bar, .lf-margin-preview { zoom:1.2; }
+            </style></head>""",
+        )
+    page = open_page(browser, serve(source))
+    width, height = (315, 450) if scaled else (390, 300)
+    resized(page, width, height)
     page.locator("#p1").click(click_count=3)
     bar = page.locator(".lf-fab-bar")
     field = bar.locator(".lf-fab-input")
@@ -11287,7 +11306,7 @@ def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
         "el => el.getBoundingClientRect().bottom"
     )
     assert bounds["top"] >= banner_bottom + 6
-    assert bounds["bottom"] <= 292
+    assert bounds["bottom"] <= height - 8
     parts = bar.locator(
         ".lf-compose-field, .lf-fab-input, .lf-compose-submit, .lf-composer-media, "
         ".lf-response-options, .lf-response-action:visible"
@@ -11301,9 +11320,9 @@ def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
             bounds,
             parts,
         )
-    resized(page, 390, 200)
+    resized(page, width, 200)
     expect(bar).to_be_hidden()
-    resized(page, 390, 300)
+    resized(page, width, height)
     expect(field).to_be_visible()
     expect(field).to_have_js_property("value", content)
     expect(bar.locator(".lf-composer-media img")).to_be_visible()
@@ -11311,7 +11330,7 @@ def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
 
 
 def test_a_zoomed_window_places_floating_surfaces_by_their_held_edges(browser, serve):
-    """Right/bottom insets align with the solver in root and nested CSS zoom."""
+    """Held insets use the surface's units in both window and element blocks."""
     page = open_page(browser, serve(leaf_page("Placement", "<p>Reference</p>")))
     resized(page, 605, 898)
     readings = page.evaluate(
@@ -11319,28 +11338,41 @@ def test_a_zoomed_window_places_floating_surfaces_by_their_held_edges(browser, s
           document.documentElement.style.zoom = '1.25';
           const {floatingPlacement, floatingUi} = await window.__lfRuntimeImport(
             '/runtime/annotation-overlay/floating.js');
-          const {computePosition} = await floatingUi();
-          const reference = document.createElement('div');
-          reference.style.cssText = 'position:fixed;left:200px;top:200px;width:20px;height:20px';
-          document.body.append(reference);
+          const {computePosition, shift} = await floatingUi();
           const readings = [];
-          for (const zoom of [1, 1.2]) {
-            const floating = document.createElement('div');
-            floating.style.cssText = `position:fixed;width:100px;height:50px;zoom:${zoom}`;
-            document.body.append(floating);
-            const driver = floatingPlacement({floating, update() {}});
-            const answer = await driver.position(computePosition, reference,
-              {placement:'top-end', middleware:[]}, () => 'window', reference);
-            driver.stand(answer);
-            await new Promise(requestAnimationFrame);
-            const target = reference.getBoundingClientRect();
-            const actual = floating.getBoundingClientRect();
-            readings.push({zoom, right:actual.right, bottom:actual.bottom,
-              targetRight:target.right, targetTop:target.top});
-            driver.stop();
-            floating.remove();
+          for (const [transform, border] of [
+            ['none', 0], ['scale(1.2,0.8)', 0], ['scale(1.2,0.8)', 8],
+          ]) {
+            const holder = document.createElement('div');
+            holder.style.cssText = 'position:fixed;left:10px;top:20px;width:500px;height:600px;'
+              + `transform:${transform};transform-origin:0 0;border:${border}px solid transparent`;
+            document.body.append(holder);
+            for (const left of [200, 440]) {
+              const reference = document.createElement('div');
+              reference.style.cssText = `position:fixed;left:${left}px;top:200px;width:20px;height:20px`;
+              holder.append(reference);
+              for (const zoom of [1, 1.2]) {
+                const floating = document.createElement('div');
+                floating.style.cssText = `position:fixed;width:100px;height:50px;zoom:${zoom}`;
+                holder.append(floating);
+                const driver = floatingPlacement({floating, update() {}});
+                const answer = await driver.position(computePosition, reference,
+                  {placement:'top-end', middleware:[shift({
+                    boundary:[], rootBoundary:new DOMRect(8,8,589,882), padding:0,
+                  })]}, () => 'window', reference);
+                driver.stand(answer);
+                await new Promise(requestAnimationFrame);
+                const target = reference.getBoundingClientRect();
+                const actual = floating.getBoundingClientRect();
+                readings.push({transform, border, left, zoom, right:actual.right, bottom:actual.bottom,
+                  targetRight:Math.min(target.right,597), targetTop:target.top});
+                driver.stop();
+                floating.remove();
+              }
+              reference.remove();
+            }
+            holder.remove();
           }
-          reference.remove();
           return readings;
         }"""
     )
@@ -11353,11 +11385,33 @@ def test_a_zoomed_window_places_floating_surfaces_by_their_held_edges(browser, s
         )
 
 
-def test_a_zoomed_floating_draft_and_sent_comment_fit_a_narrow_window(browser, serve):
-    """A usable narrow window keeps the zoomed draft visible through typing and send."""
-    page = open_page(browser, serve(LONG_PAGE))
-    resized(page, 605, 898)
-    page.evaluate("document.documentElement.style.zoom = '1.25'")
+@pytest.mark.parametrize(
+    ("zoom_home", "width"),
+    [("root", 605), ("transformed-holder", 605), ("transformed-holder", 315)],
+)
+def test_a_zoomed_floating_draft_and_sent_comment_fit_a_narrow_window(
+    browser, serve, zoom_home, width
+):
+    """Root and local zoom keep the draft and sent card in their available room."""
+    source = (
+        LONG_PAGE
+        if zoom_home == "root"
+        else leaf_page(
+            "Zoomed comments",
+            """<style>
+              div.lf-chrome { position:fixed; inset:0; pointer-events:none;
+                transform:scale(1.2); transform-origin:0 0; }
+              .lf-fab-bar, .lf-margin-preview { zoom:1.2; }
+            </style>
+            <h1>Fictional planning note</h1>
+            <p id="p1">We will combine the setup steps into one operation, then
+              check the result before continuing.</p>""",
+        )
+    )
+    page = open_page(browser, serve(source))
+    resized(page, width, 898)
+    if zoom_home == "root":
+        page.evaluate("document.documentElement.style.zoom = '1.25'")
     one_frame(page)
     page.locator("#p1").click(click_count=3)
     page.keyboard.press("c")
@@ -11371,7 +11425,14 @@ def test_a_zoomed_floating_draft_and_sent_comment_fit_a_narrow_window(browser, s
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", content)
     bounds = bar.bounding_box()
-    assert 0 <= bounds["x"] and bounds["x"] + bounds["width"] <= 605.1, bounds
+    assert 0 <= bounds["x"] and bounds["x"] + bounds["width"] <= width + 0.1, bounds
+    for part in bar.locator(
+        ".lf-compose-field, .lf-fab-input, .lf-compose-submit"
+    ).all():
+        box = part.bounding_box()
+        assert bounds["x"] <= box["x"] and box["x"] + box["width"] <= (
+            bounds["x"] + bounds["width"] + 0.1
+        ), (bounds, box)
     with sending(page, "the zoomed narrow-window comment"):
         page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
@@ -11379,7 +11440,11 @@ def test_a_zoomed_floating_draft_and_sent_comment_fit_a_narrow_window(browser, s
     expect(card).to_be_visible()
     expect(card.locator(".lf-msg-text").first).to_contain_text(content)
     bounds = card.bounding_box()
-    assert 0 <= bounds["x"] and bounds["x"] + bounds["width"] <= 605.1, bounds
+    assert 0 <= bounds["x"] and bounds["x"] + bounds["width"] <= width + 0.1, bounds
+    resized(page, 1440, 900)
+    rendered(page)
+    text = card.locator(".lf-msg-text").first
+    assert text.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
 
 
 def test_a_scaled_floating_draft_keeps_its_room_when_its_passage_scrolls_away(

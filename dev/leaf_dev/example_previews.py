@@ -23,6 +23,7 @@ import click
 import leaf_website
 from leaf.hosting import LeafHTTPServer
 from leaf.render_checks import wait_until_ready
+from leaf.render_gate.scheme import collect_page_exceptions
 from PIL import Image
 from playwright.sync_api import Page, sync_playwright
 
@@ -56,8 +57,8 @@ def serve_examples(site: Path) -> Iterator[str]:
                 yield f"http://127.0.0.1:{server.server_address[1]}"
             finally:
                 server.shutdown()
-                server.server_close()
                 thread.join()
+                server.server_close()
         finally:
             if previous_state_home is None:
                 os.environ.pop("XDG_STATE_HOME")
@@ -129,7 +130,7 @@ def refresh_previews() -> None:
             with serve_examples(site) as origin:
                 page = browser.new_page(viewport=VIEWPORT, color_scheme="light")
                 errors = []
-                page.on("pageerror", lambda error: errors.append(str(error)))
+                collect_page_exceptions(page, errors)
                 for source in catalog_sources():
                     errors.clear()
                     page.goto(f"{origin}/examples/{source.stem}/", wait_until="load")

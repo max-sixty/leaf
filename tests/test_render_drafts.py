@@ -1212,10 +1212,10 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "3")
 
 
-def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, serve):
+def test_an_empty_draft_survives_reload_and_a_live_revision(browser, serve):
     """Empty text is a real replacement, not the absence of a saved draft. Deleting
-    the whole body must hold a live editor on its version, survive reload, and arrive
-    in the log as an ordinary absolute edit."""
+    the whole body must survive a live revision and reload, then arrive in the log
+    as an ordinary absolute edit."""
     url = serve(JOURNEY_V1)
     page = open_page(browser, live_url(url))
     draft = page.locator("#draft-ops")
@@ -1226,7 +1226,9 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     d = serve.page_dir
     stamp_page(d, JOURNEY_V2, "v2")
     told(page)
-    expect_banner_control_offered(page.locator(".lf-latest-chip"))
+    wait_for_revision(page, 2)
+    expect(draft.locator("leaf-text")).to_be_focused()
+    expect(draft.locator("leaf-text")).to_have_js_property("value", "")
     assert "/versions/" not in page.url
 
     page.reload(wait_until="load")

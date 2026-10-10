@@ -458,7 +458,10 @@ async function showThreadNow(
   const revealDestination = bindQueuedWork(() => {
     const node = listNode(id, threadsBox, part === "message");
     const going = node?.closest(".lf-going");
-    if (node && !going) return { node };
+    // A card the view keeps only for the user's own words on their way is drawn but out
+    // of the view, so arriving at it chooses the view that holds it, as for one hidden.
+    // A card held for news stands where it stood until the user changes the view.
+    if (node && !going && !threadsBox.keepsForWords(id)) return { node };
     if (!mayArrive()) return null;
     if (going) finishFold(going);
     const ready = revealThread(threadNames(allThreads()).get(id)?.id ?? id);

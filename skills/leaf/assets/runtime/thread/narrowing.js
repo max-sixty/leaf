@@ -360,6 +360,12 @@ export function createThreadNarrowing({ view, listRoot, readThreads, ready, repa
     return changed;
   }
 
+  const findThread = (id) =>
+    readThreads().find(
+      (candidate) =>
+        candidate.id === id || candidate.msgs.some((message) => message.id === id),
+    ) ?? null;
+
   // A fallible optimistic arrival can put back the exact view the user was using.
   function retainNarrowing() {
     const retained = intent;
@@ -405,10 +411,7 @@ export function createThreadNarrowing({ view, listRoot, readThreads, ready, repa
 
   // A direct destination selects the lifecycle that contains the requested thread.
   function revealThread(id) {
-    const thread = readThreads().find(
-      (candidate) =>
-        candidate.id === id || candidate.msgs.some((message) => message.id === id),
-    );
+    const thread = findThread(id);
     if (!thread) return false;
     clearNarrowing(thread.resolved ? "resolved" : "open");
     return renarrow();

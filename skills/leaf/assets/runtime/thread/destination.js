@@ -38,8 +38,11 @@ import { heldThread } from "./focus.js";
 import { showHeld, showHeldThread } from "./held-news.js";
 import { revealHeld, surfaceFocusTarget } from "./surfaces.js";
 import { reveal } from "../widget-elements.js";
+import { closestAcross } from "../passages.js";
 import { renderedUnder } from "../shadow.js";
-import { threadNames } from "./model.js";
+import { threadKey, threadNames } from "./model.js";
+import { openMessageEditIn } from "./message-edit.js";
+import { THREAD } from "./selectors.js";
 
 export function createThreadDestinations({
   placedAt,
@@ -261,9 +264,29 @@ export function createThreadDestinations({
     }
     return showThread(id, { part: part ?? "reply", focus, flash, intent });
   }
+
+  // Where a thread holds the user's draft `context`, with its box ready for the caret:
+  // the thread's reply box, or the rewrite of one of its messages, which opens on that
+  // message where the Threads panel lands on it (`message-edit.js`). Landed on the
+  // thread instead, a long one's landing on its latest turn took the view away from a
+  // rewrite it had just opened higher up.
+  async function openThreadDraft(context, intent) {
+    const name = context.slice(context.indexOf(":") + 1);
+    if (context.startsWith("reply:")) {
+      const thread = allThreads().find((each) => threadKey(each) === name);
+      return thread ? openPageThread(thread.id, { part: "reply", intent }) : null;
+    }
+    if (!allThreads().some((each) => each.msgs.some(({ id }) => id === name)))
+      return null;
+    const landed = await showThread(name, { part: "message", intent });
+    const card = landed && closestAcross(landed, THREAD);
+    return card ? openMessageEditIn(card, name) : null;
+  }
+
   return {
     register,
     openPageThread,
+    openThreadDraft,
     threadFocusTarget,
     threadHere,
     threadAtStanding,

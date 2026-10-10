@@ -481,6 +481,19 @@ def diff_path_by_keyboard(page: Page) -> None:
     head.focus()
 
 
+def diff_file_reply(page: Page) -> None:
+    """A reply to the first of two conversations under a collapsed diff file."""
+    threads = page.frame_locator("#dfg-sample iframe").locator(
+        "#dfg-patch .lf-page-thread"
+    )
+    expect(threads).to_have_count(2)
+    field = threads.first.get_by_role("textbox", name="Reply", exact=True)
+    field.click()
+    page.keyboard.insert_text(
+        "Keep the file conversations clear while this reply is drafted."
+    )
+
+
 def diff_line_composer(page: Page) -> None:
     """A line's thread control, number and shared composer in one reading."""
     diff = page.locator("#pr-exact-patch")
@@ -622,6 +635,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         code_copy_by_pointer,
         code_copy_by_keyboard,
         diff_path_by_keyboard,
+        diff_file_reply,
         code_source_by_touch,
         pane_focused,
         aim_cut_by_pane,
@@ -750,6 +764,16 @@ STATES = (
         touch=True,
     ),
     State("visual-review-menu", "developer/visual-review-gallery", visual_review_menu),
+    State("diff-file-threads", "diff-thread-gallery", at_rest),
+    State("diff-file-reply", "diff-thread-gallery", diff_file_reply),
+    State(
+        "diff-file-reply-dark-touch",
+        "diff-thread-gallery",
+        diff_file_reply,
+        viewport=(390, 844),
+        scheme="dark",
+        touch=True,
+    ),
     State("code-reader-feedback", "code-comparison", code_reader_feedback),
     State(
         "visual-review-menu-dark",

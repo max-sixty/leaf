@@ -335,14 +335,11 @@
                           max-inline-size: var(--lf-diff-thread-width); }
 .lf-diff-file-thread-outlet { margin-top: 8px; border: 1px solid var(--rule);
                               border-radius: var(--r); }
+/* The outlet owns the review row's boundary. Shared conversation separators and
+   focus treatment distinguish its threads without another card around each one. */
 .lf-diff-thread-outlet > .lf-page-thread {
-                          max-width: 760px; border: 1px solid var(--border-2);
-                          border-radius: 7px; padding: 10px 12px; background: var(--card); }
-.lf-diff-thread-outlet > .lf-page-thread + .lf-page-thread {
-                          margin-top: 8px; }
+                          max-width: 760px; padding: var(--sp-2) 0; }
 .lf-diff-thread-outlet > details.lf-page-thread:not([open]) { padding: 0; }
-.lf-diff-thread-outlet > details.lf-page-thread:not([open]) > summary {
-                          border-radius: inherit; }
 /* Paper has no sideways scroll; wrap evidence within the printed sheet. */
 @media print {
   .lf-diff-tools, .lf-diff-file-actions, .lf-diff-comment { display: none !important; }

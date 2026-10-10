@@ -1721,6 +1721,11 @@ export function createVersionController({
   // left to keep: its reading goes when the next reading is taken, so a page whose
   // blocks come and go carries only the regions it has.
   const regionViews = new Map();
+  // A native clamp may emit scroll after a region reports its new geometry but
+  // before the deferred restore. Keep the intact reading through that handover.
+  let pendingShiftRestores = 0;
+  const canRecordRegions = () =>
+    !compositionChanges.size && !pendingShiftRestores && regionsSettled();
   const dropGoneRegions = () => {
     const standing = new Set(readingRegions().map(({ id }) => id));
     for (const id of regionViews.keys()) if (!standing.has(id)) regionViews.delete(id);
@@ -1755,7 +1760,7 @@ export function createVersionController({
       recordQueued = false;
       const moved = scrolled.has(undefined) ? null : new Set(scrolled);
       scrolled.clear();
-      if (!compositionChanges.size && regionsSettled()) recordRegions(moved);
+      if (canRecordRegions()) recordRegions(moved);
     });
   };
 
@@ -1816,7 +1821,6 @@ export function createVersionController({
       .map(({ region }) => region)
       .filter((region) => shownRegionBounds(region));
     restoreRegions(candidates, currentIntent);
-    recordRegions();
   }
 
   function readingRegionTransition({
@@ -1831,7 +1835,12 @@ export function createVersionController({
     // region and resize what the observer watches, so it waits for the next frame.
     if (phase === "shift") {
       const currentIntent = retainUserIntent();
-      nextRender(() => restoreShifted(shifted, currentIntent));
+      pendingShiftRestores += 1;
+      nextRender(() => {
+        pendingShiftRestores -= 1;
+        restoreShifted(shifted, currentIntent);
+        if (canRecordRegions()) recordRegions();
+      });
       return;
     }
     // A composition change captures the intact view before hiding any region, and its
@@ -1885,7 +1894,7 @@ export function createVersionController({
     const recordStanding = () => {
       const at = focused();
       if (at && under(at, document.querySelector("body > main"))) {
-        if (!compositionChanges.size && regionsSettled()) recordRegions();
+        if (canRecordRegions()) recordRegions();
         queueRecord();
       }
     };

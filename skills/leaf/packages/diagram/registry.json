@@ -27,6 +27,6 @@
     },
     "x-space": "available",
     "x-height": true,
-    "x-example": "<lf-diagram id=\"checkout-flow\" data-height=\"364\" parts=\"all\"><pre>\nflowchart TD\n  accTitle: Checkout from cart to receipt\n  accDescr: The cart reaches a payment decision; a paid order produces a receipt.\n  Cart([Cart]) --> Pay{Paid?}\n  Pay --> Receipt[(Receipt)]\n</pre></lf-diagram>"
+    "x-example": "<lf-diagram id=\"checkout-flow\" data-height=\"368\" parts=\"all\"><pre>\nflowchart TD\n  accTitle: Checkout from cart to receipt\n  accDescr: The cart reaches a payment decision; a paid order produces a receipt.\n  Cart([Cart]) --> Pay{Paid?}\n  Pay --> Receipt[(Receipt)]\n</pre></lf-diagram>"
   }
 }

@@ -307,6 +307,10 @@ export function createReplyView(
   input.name = "reply";
   const send = offer("button", "lf-btn lf-thread-send", "Send");
   row.append(input, send);
-  const lifetime = wireReply(key, row, input, send, { ...commands, onChange, editLast });
+  const lifetime = wireReply(key, row, input, send, {
+    ...commands,
+    onChange,
+    editLast,
+  });
   return { node: row, input, dispose: lifetime.dispose };
 }

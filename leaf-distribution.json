@@ -1,7 +1,7 @@
 {
   "producer": {
-    "commit": "150dc1a99607",
-    "committed": "2026-10-10T03:05:46-07:00",
+    "commit": "f365fac99605",
+    "committed": "2026-10-10T03:22:31-07:00",
     "dirty": false
   },
   "runtime_paths": [
@@ -57,6 +57,8 @@
     "composing/drawing.js",
     "composing/engagement.js",
     "composing/input.js",
+    "composing/region-capture.js",
+    "composing/region-selector.js",
     "composing/selection.js",
     "composing/standing.js",
     "composing/surface.js",

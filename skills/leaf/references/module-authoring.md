@@ -1244,5 +1244,5 @@ holding layout never authorizes old actions. Both handles provide `read()`,
 `update()` and `unregister()`. Unregister on disconnect. Retain keyed rows and
 hold visible size changes with the shared `HeldReading` mechanism. Hold only layout
 identities and allocations, while updating surviving records and controls immediately;
-retired slots retain space with no interactive descendants. The bundled `lf-annotation-rail` is the worked
-implementation. Omitting either consumer retains the core Threads and Questions routes.
+retired slots retain space with no interactive descendants. Omitting either consumer
+retains the core Threads and Questions routes.

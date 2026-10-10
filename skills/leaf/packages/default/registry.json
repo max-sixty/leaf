@@ -133,20 +133,6 @@
     "x-upgrade": true,
     "x-example": "<lf-text-document id=\"leaf-skill\" source=\"leaf-skill\" language=\"markdown\"></lf-text-document>"
   },
-  "lf-annotation-rail": {
-    "description": "An authored-flow rail for Threads, Questions, action and status contributions, updates, and the active comment editor.",
-    "x-instructions": "Select data-annotations=page on body. When the task needs conversations and actions in an independent reading region, place one empty rail with a stable id; page-authoring.md, Bounds and widths, guides that choice. It grows with its rows; where page CSS bounds its height, as a workspace region does, it scrolls within that box. Omit it to use the core Threads panel. Native disclosures retain their open state and the shared Thread renderer owns conversations and replies.",
-    "type": "object",
-    "properties": {
-      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
-    },
-    "required": ["id"],
-    "additionalProperties": false,
-    "x-content": "empty",
-    "x-upgrade": true,
-    "x-prepaint": "<section class=\"lf-ar-region lf-ui lf-ui-face\" aria-label=\"Page annotations\"><h2 class=\"lf-ar-heading lf-ui lf-ui-face\">Annotations</h2><button class=\"lf-ar-notice lf-btn lf-ui lf-ui-face\" type=\"button\">Annotations current</button><section class=\"lf-ar-composer lf-ui lf-ui-face\" hidden=\"\"><h3 class=\"lf-ar-source lf-ui lf-ui-face\"></h3><div class=\"lf-ar-outlet lf-ui lf-ui-face\"></div></section><p class=\"lf-ar-empty lf-ui lf-ui-face\">No threads yet.</p><div class=\"lf-ar-list lf-ui lf-ui-face\"></div><div class=\"lf-ar-actions lf-ui lf-ui-face\"></div></section>",
-    "x-example": "<lf-annotation-rail id=\"page-annotations\"></lf-annotation-rail>"
-  },
   "lf-toc": {
     "description": "An outline of the document’s h2–h6 headings for navigating its sections and showing the reader’s position.",
     "x-instructions": "Set max-level when deeper headings are local detail rather than navigation destinations; omit it to include h2–h6. Use stable authored section, title-group, or heading ids for links that must keep their target across versions; generated heading ids are not addresses for comments or page state. Write the element empty with a stable id.",

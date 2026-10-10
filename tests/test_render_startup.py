@@ -6317,6 +6317,64 @@ def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser,
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
 
 
+def test_page_annotation_view_seats_questions_and_contributed_controls(browser, serve):
+    """A page that owns its annotations shows Questions and contributed actions in its
+    own box: Leaf hands the consumer each entry's items and native controls, and the
+    page only arranges them. Activating an item reaches its Question, and a seated
+    control still runs its contribution's action."""
+    url = serve(
+        leaf_page(
+            "Page annotation view",
+            """
+      <h1 id="title">Review</h1>
+      <lf-ask id="choice-question"><h2>Which route?</h2>
+        <lf-options id="routes" choose><lf-option id="route-a">Route A</lf-option>
+        <lf-option id="route-b">Route B</lf-option></lf-options>
+      </lf-ask>
+      <p id="subject">The export keeps one file per tenant.</p>
+      <aside id="review" aria-label="Review"></aside>
+    """,
+        ).replace("<body>", '<body data-annotations="page">')
+    )
+    page = open_page(browser, url)
+    page.evaluate("""async () => {
+      const {contributionEntry, registerContribution} =
+        await __lfRuntimeImport('/runtime/widget-api.js');
+      registerContribution({key: 'review', target: document.getElementById('subject'),
+        read: () => ({entries: [contributionEntry({key: 'reviewed', behavior: 'action',
+          icon: 'dot', label: 'Mark reviewed'})]}),
+        activate: (key) => { window.activated = key; }});
+      const {consumeAnnotations} = await __lfRuntimeImport('/runtime/application.js');
+      const box = document.querySelector('#review');
+      consumeAnnotations(box, (entries, view) => {
+        box.replaceChildren();
+        for (const entry of entries) {
+          const row = document.createElement('div');
+          row.dataset.lfGen = '1';
+          box.append(row);
+          for (const item of view.items(entry)) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = [item.label, item.text].filter(Boolean).join(' · ');
+            button.addEventListener('click', () => view.activate(item));
+            row.append(button);
+          }
+          row.append(...view.controls(entry));
+          view.place(entry, row);
+        }
+      });
+    }""")
+    review = page.locator("#review")
+    question = review.get_by_role("button", name=re.compile("Which route"))
+    expect(question).to_be_visible()
+    question.click()
+    page.wait_for_function("!!document.activeElement?.closest('#choice-question')")
+    contributed = review.get_by_role("button", name="Mark reviewed", exact=True)
+    expect(contributed).to_be_visible()
+    contributed.click()
+    page.wait_for_function("window.activated === 'reviewed'")
+
+
 def test_page_thread_surface_owns_exact_source_elsewhere_in_main(browser, serve):
     url = serve(
         leaf_page(

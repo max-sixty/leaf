@@ -1785,14 +1785,19 @@ export function createVersionController({
   // that a box two regions share lands where that one left it. Inside a composition,
   // only the composition's own scrollers are restored: document travel belongs to the
   // navigation that changed it, including native history.
-  function restoreRegions(candidates, currentIntent, owner = null) {
+  function restoreRegions(
+    candidates,
+    currentIntent,
+    owner = null,
+    views = regionViews,
+  ) {
     const active = activeReadingRegion(candidates);
     const ordered = active
       ? [active, ...candidates.filter(({ id }) => id !== active.id)]
       : candidates;
     const restored = new Set();
     for (const region of ordered) {
-      const reading = regionViews.get(region.id);
+      const reading = views.get(region.id);
       const box = effectiveScroller(region);
       if (owner && !under(box, owner)) continue;
       if (!reading || restored.has(box)) continue;
@@ -1807,13 +1812,13 @@ export function createVersionController({
   // restores that reading. A visible focused element is itself a live reading landmark;
   // focus retained on an element the reader scrolled past is not.
   // A composition change in progress owns any shift inside it.
-  function restoreShifted(shifted, currentIntent) {
+  function restoreShifted(shifted, currentIntent, views) {
     if (compositionChanges.size) return;
     if (!currentIntent()) return;
     const candidates = shifted
       .map(({ region }) => region)
       .filter((region) => shownRegionBounds(region));
-    restoreRegions(candidates, currentIntent);
+    restoreRegions(candidates, currentIntent, null, views);
     recordRegions();
   }
 
@@ -1829,7 +1834,10 @@ export function createVersionController({
     // region and resize what the observer watches, so it waits for the next frame.
     if (phase === "shift") {
       const currentIntent = retainUserIntent();
-      nextRender(() => restoreShifted(shifted, currentIntent));
+      // A resize can cause a scroll event before this frame. Keep the pre-shift
+      // reading now, so that event cannot replace it with the moved geometry.
+      const views = new Map(regionViews);
+      nextRender(() => restoreShifted(shifted, currentIntent, views));
       return;
     }
     // A composition change captures the intact view before hiding any region, and its

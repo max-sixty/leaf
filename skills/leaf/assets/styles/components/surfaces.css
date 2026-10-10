@@ -401,10 +401,14 @@ summary { align-content: center; }
    it covers. One disclosure beside that context controls the entire range. */
 .lf-thread-checkpoint { margin-block: 16px; }
 .lf-thread-checkpoint[hidden] { display: none; }
-/* An inset border groups the retained messages without changing their headers
-   or giving progress a separate background. Collapsed disclosures stay inline. */
-.lf-thread-checkpoint[data-expanded="true"] { margin-block: 12px;
-  border: 1px solid var(--rule); border-radius: 5px; padding: 6px 12px; }
+/* A border groups the retained messages without changing their headers or giving
+   progress a separate background. It is drawn around them rather than taking room,
+   so opening a group moves none of their words: an answer folding the progress a
+   reader is on keeps it open in place (held-news.js). Collapsed disclosures stay inline. */
+.lf-thread-checkpoint[data-expanded="true"] { position: relative; }
+.lf-thread-checkpoint[data-expanded="true"]::before { content: ""; position: absolute;
+  inset: -7px -12px; border: 1px solid var(--rule); border-radius: 5px;
+  pointer-events: none; }
 .lf-summary-checkpoint { padding-block: 4px; }
 /* Keep the context label readable when the disclosure needs another line. */
 .lf-summary-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }

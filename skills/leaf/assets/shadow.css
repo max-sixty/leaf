@@ -317,10 +317,15 @@ summary {
   display: none;
 }
 .lf-thread-checkpoint[data-expanded=true] {
-  margin-block: 12px;
+  position: relative;
+}
+.lf-thread-checkpoint[data-expanded=true]::before {
+  content: "";
+  position: absolute;
+  inset: -7px -12px;
   border: 1px solid var(--rule);
   border-radius: 5px;
-  padding: 6px 12px;
+  pointer-events: none;
 }
 .lf-summary-checkpoint {
   padding-block: 4px;

@@ -320,14 +320,18 @@ def test_target_picker_takes_a_margin_press_as_the_target_it_stands_by(browser, 
 
 
 def test_select_element_obeys_covering_surfaces_and_pointer_modes(browser, serve):
+    """The picker shares Design targets, while Draw mode and covering panels own input."""
     context = browser.new_context(has_touch=True)
     page = open_page(browser, serve(TARGETS_PAGE), context=context)
     select = page.get_by_role(
         "button", name="Select element", exact=True, include_hidden=True
     )
-    for key in ("l", "w"):
+    for key, available in (("l", True), ("w", False)):
         page.keyboard.press(key)
-        expect(select).to_be_disabled()
+        if available:
+            expect(select).to_be_enabled()
+        else:
+            expect(select).to_be_disabled()
         # Text search remains available inside these pointer modes.
         page.keyboard.press("/")
         page.get_by_role("searchbox", name="Search page text").fill("paragraph")

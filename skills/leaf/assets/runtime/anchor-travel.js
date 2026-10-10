@@ -63,13 +63,15 @@ import { PRESSES } from "./control-selectors.js";
 import { typesText } from "./focus.js";
 import { openingPassage, passageBlock } from "./reading-place.js";
 
+const scrollingBoxFor = (element) => scrollersOf(element).next().value ?? null;
+
 // The browser's rule for landing the element a fragment names: its start at its
 // scroller's landing edge, which a sticky header's stated height keeps clear. Travel
 // applies it where the browser's own landing does not reach the element: at an arrival
 // the page reshapes after the browser landed it (version.js, `aimArrival`), and at a
 // traversal, where the browser restores an offset instead (`returnToFragment`).
 export function scrollToFragment(element) {
-  scrollIntoView(element, { block: "start", behavior: "auto" });
+  scrollIntoView(element, { behavior: "auto", block: "start" });
 }
 
 export function createAnchorTravel({
@@ -409,7 +411,6 @@ export function createAnchorTravel({
   // Reading-region membership also covers fixed chrome, but its viewport position does
   // not move with that region, so a fixed boundary ends the scrollers that move it
   // (`scrollersOf`); a scroller inside that boundary still owns its ordinary descendants.
-  const scrollingBoxFor = (element) => scrollersOf(element).next().value ?? null;
 
   function placeScroll(
     { at, align = at, block = "center", behavior = scrollBehavior(), when },

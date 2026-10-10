@@ -98,9 +98,9 @@ change a session service to standing, stop it and start with `--standing`;
 starting a stopped service from the user's shell also selects standing.
 
 A session page retires when no live session holds it. Desktop Codex keeps the
-chat's ownership and delivery across an idle instance unloading; its pages retire
-after four hours without page use, renewed by a visible page or agent revision.
-Terminal sessions release ownership when their harness ends.
+chat's ownership and delivery across idle instance unloading and long absences.
+Archiving or deleting the chat ends that lifetime. Terminal sessions release
+ownership when their harness ends.
 
 `server start --standing`, or serving from the user's shell, makes a page stay
 live between sessions and prepares no agent delivery. Tell the user when starting

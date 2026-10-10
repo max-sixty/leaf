@@ -7,5 +7,5 @@
   {"source": "first  \nsecond", "words": "first second"},
   {"source": "A _b_<code>c</code>", "words": "A b c"},
   {"source": "X<em>Y</em>", "words": "X Y"},
-  {"source": "<lf-chip>effort: low</lf-chip><lf-chip>risk: med</lf-chip>", "words": "effort: low risk: med"}
+  {"source": "<small class=\"tag\">effort: low</small><small class=\"tag\">risk: med</small>", "words": "effort: low risk: med"}
 ]

@@ -69,6 +69,65 @@ def test_an_empty_quote_neighbour_is_an_exact_boundary():
     assert resolve_quote(revised, anchor) is None
 
 
+def test_detached_capture_remains_detached_when_an_identical_copy_survives(page_dir):
+    """Admission/revision preserve uncertainty; unique file capture stays ordinary."""
+    from leaf.anchor_capture import resolve_quote
+
+    repeated = "<p>Repeated passed text.</p>"
+    unique = "<p>Unique passed text.</p>"
+    original = PAGE.replace(
+        "<h2>Plan</h2>",
+        '<h2>Plan</h2><section id="runs">' + repeated * 2 + unique + "</section>",
+    )
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    refused = comment(
+        page_dir, "--section", "runs", "--quote", "passed", "--text", "Which?"
+    )
+    assert refused.exit_code != 0 and "3 times" in refused.output
+    anchor = {
+        "section": "runs",
+        "quote": "passed",
+        "prefix": "Repeated",
+        "suffix": "text.",
+        "detached": True,
+    }
+    detached = append_command(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": anchor,
+            "text": "The selected second occurrence.",
+        },
+    )
+    exact = json.loads(
+        comment(
+            page_dir,
+            "--section",
+            "runs",
+            "--quote",
+            "Unique passed text.",
+            "--text",
+            "Unique.",
+        ).output
+    )
+    revised = original.replace(repeated * 2 + unique, repeated + unique)
+    (page_dir / "index.html").write_text(revised)
+    publish(page_dir, version=2)
+    threads = build_threads(events_model.read_events(page_dir), {})
+    assert threads[detached["id"]]["anchor"] == anchor
+    assert threads[exact["id"]]["anchor"] == exact["anchor"]
+    passages = passages_model.page_passages(structure_model.SourceDocument(revised))
+    assert resolve_quote(passages, anchor) is None
+    assert resolve_quote(passages, exact["anchor"]) is not None
+    from leaf.transcript import _thread_heading
+
+    assert "passage not identified" in _thread_heading(threads[detached["id"]])
+    assert "passage not identified" not in _thread_heading(threads[exact["id"]])
+
+
 def test_comment_anchors_on_a_quote_and_posts_as_agent(page_dir, sessionless):
     result = comment(
         published(page_dir), "--quote", "Ship dark", "--text", "dark for how long?"
@@ -1097,7 +1156,7 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
     )
     assert refused.exit_code != 0
     assert (
-        "reply widget ids already taken" in refused.output and "flow" in refused.output
+        "reply markup ids already taken" in refused.output and "flow" in refused.output
     )
     assert files_model.latest_revision(page_dir) == 1
     assert all(event["kind"] != "reply" for event in events_model.read_events(page_dir))
@@ -1235,8 +1294,8 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
     merely the thread's placement, so a later reply cannot silently retarget it."""
     v1 = PAGE.replace(
         "</section>",
-        '<lf-tasks id="work"><lf-task id="held-goal" status="active" talk>'
-        "<strong>Held goal</strong></lf-task></lf-tasks></section>",
+        '<lf-test-tasks id="work"><lf-test-task id="held-goal" status="active" talk>'
+        "<strong>Held goal</strong></lf-test-task></lf-test-tasks></section>",
     )
     (page_dir / "index.html").write_text(v1)
     published(page_dir)
@@ -1315,7 +1374,7 @@ def test_a_moving_reply_validates_markup_against_the_prospective_revision(page_d
     )
 
     assert moved.exit_code != 0
-    assert "reply widget ids already taken" in moved.output and "answer" in moved.output
+    assert "reply markup ids already taken" in moved.output and "answer" in moved.output
     assert all(event["kind"] != "reply" for event in events_model.read_events(page_dir))
     assert files_model.latest_revision(page_dir) == 1
     checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
@@ -1531,7 +1590,7 @@ def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):
         "x",
     )
     assert across.exit_code != 0
-    assert "across a widget's parts" in across.output
+    assert "across separate reading regions" in across.output
     assert (
         comment(page_dir, "--quote", "Before the diagram.", "--text", "x").exit_code
         == 0
@@ -1740,21 +1799,20 @@ def test_an_unhonored_edit_outlives_a_republish(page_dir):
 
 def test_a_widgets_x_says_attribute_is_quotable_like_any_other_passage(page_dir):
     """renderSaid puts these words in the DOM, so the anchor pass can find them and this
-    has to offer them — otherwise a metric's own number is the one thing on the page
+    has to offer them — otherwise an attribute's own words are the one thing on the page
     Claude can't point at. Both edges the registry can give one are here: the option's
-    chip band opens the element, and the metric's delta closes it."""
+    chip band opens the element, and the gloss's tip closes it."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             '  <lf-diagram id="flow">',
-            '  <lf-metric id="k-visits" value="312" delta="+41"'
-            ' direction="up-good">daily visits</lf-metric>\n'
+            '  <lf-gloss id="k-visits" tip="312 daily visits">Traffic</lf-gloss>\n'
             '  <lf-diagram id="flow">',
         )
     )
     published(page_dir)
     for quote, section in (
         ("risk: low Backfill first", "backfill-first"),
-        ("daily visits +41", "k-visits"),
+        ("Traffic 312 daily visits", "k-visits"),
     ):
         result = comment(page_dir, "--quote", quote, "--text", "x")
         assert result.exit_code == 0, result.output
@@ -2164,7 +2222,67 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
     ]
 
 
-def test_message_markup_may_not_dress_the_document_it_is_put_into(page_dir):
+def test_native_message_markup_shares_admission_and_id_ownership(page_dir):
+    """Native evidence posts through every agent writer and reserves its ids."""
+    published(page_dir)
+    table = (
+        '<table id="run-results"><caption>Deploy checks</caption>'
+        '<tr><th scope="col">Check</th><th scope="col">Result</th></tr>'
+        "<tr><td>Smoke test</td><td>Passed</td></tr></table>"
+    )
+    opened = comment(page_dir, "--text", "Results:", "--markup", table)
+    assert opened.exit_code == 0, opened.output
+    root = events_model.read_events(page_dir)[-1]["id"]
+    log = '<details id="deploy-log"><summary>Deploy log</summary><pre>Ready\nDone</pre></details>'
+    proactive = CliRunner().invoke(
+        cli_model.cli,
+        ["thread", "reply", str(page_dir), root, "--text", "Log:", "--markup", log],
+    )
+    assert proactive.exit_code == 0, proactive.output
+    append_command(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": root, "text": "And now?"},
+    )
+    user = events_model.read_events(page_dir)[-1]["id"]
+    answered = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "response",
+            "reply",
+            response_reference(page_dir, user),
+            "--text",
+            "Ready.",
+            "--markup",
+            '<p id="deploy-status">All checks passed.</p>',
+        ],
+    )
+    assert answered.exit_code == 0, answered.output
+    assert [
+        e["markup"] for e in events_model.read_events(page_dir) if "markup" in e
+    ] == [table, log, '<p id="deploy-status">All checks passed.</p>']
+    for identifier in ("run-results", "deploy-log", "deploy-status", "plan"):
+        refused = comment(
+            page_dir,
+            "--text",
+            "Again:",
+            "--markup",
+            f'<p id="{identifier}">Duplicate</p>',
+        )
+        assert refused.exit_code != 0, refused.output
+        assert "already taken" in refused.output, refused.output
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace(
+            "</main>", '<p id="run-results">New result</p></main>'
+        )
+    )
+    refused = check(page_dir)
+    assert refused.exit_code != 0, refused.output
+    assert "ids already taken by message markup" in refused.output, refused.output
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_message_markup_may_not_dress_the_document_it_is_put_into(page_dir, native):
     """A fragment has no page of its own, so it gets no stylesheet of its own.
 
     The runtime parses an agent's markup into a template and moves those nodes into the
@@ -2175,13 +2293,14 @@ def test_message_markup_may_not_dress_the_document_it_is_put_into(page_dir):
     !important on a protected presentation property outranks the theme's first
     important layer, which is exactly what a version is refused for.
 
-    The widget beside them is what makes each refusal specific — a fragment carrying
-    nothing but a widget still posts."""
+    Native evidence and widgets pass through the same presentation gate."""
     published(page_dir)
     widget = (
         '<lf-ask id="d1-decision"><h3>Choose one</h3><lf-options id="d1" choose>'
         '<lf-option id="d1-a">A</lf-option></lf-options></lf-ask>'
     )
+    if native:
+        widget = '<pre id="native-log">Ready</pre>'
 
     sheet = comment(
         page_dir,
@@ -2259,7 +2378,8 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
     ] == [("ps-q", "choose", {"value": ["ps-cookie"]}, thread)]
 
 
-def test_message_markup_may_not_declare_the_document(page_dir):
+@pytest.mark.parametrize("native", [False, True])
+def test_message_markup_may_not_declare_the_document(page_dir, native):
     """A message renders in every revision of its page, so a base, header, or import
     map in one would redirect, navigate, or break that page for good. Handlers are the
     author's to write, as in the page itself."""
@@ -2268,6 +2388,8 @@ def test_message_markup_may_not_declare_the_document(page_dir):
         '<lf-ask id="d1-decision"><h3>Choose one</h3><lf-options id="d1" choose>'
         '<lf-option id="d1-a">A</lf-option></lf-options></lf-ask>'
     )
+    if native:
+        widget = '<table id="native-checks"><tr><td>Passed</td></tr></table>'
     for declaration in (
         '<base href="https://outside.example/">',
         '<meta http-equiv="refresh" content="0;url=https://outside.example/">',

@@ -168,6 +168,7 @@ def page_delivery(
     release_id: str | None = None,
     page_root: str = "",
     asset_root: str | None = None,
+    share_url: str | None = None,
 ) -> Delivery:
     """How an HTTP host delivers a page's document: supervised before anything loads.
 
@@ -175,7 +176,9 @@ def page_delivery(
     and starts under the import map its layer modules resolve through and the runtime
     bootstrap with its server incarnation probe, so historical
     sources inherit the current delivery boundary without carrying delivery markup
-    themselves. `write_live_shell` delivers published documents the same way.
+    themselves. A keyed top-level page declares its share address here, including
+    on a bare-URL reload. Disposable samples and public website documents have no
+    such address. `write_live_shell` delivers published documents the same way.
     """
     assets = asset_root if asset_root is not None else page_root
     address = DeliveryAddress(page_root, assets)
@@ -185,10 +188,15 @@ def page_delivery(
         if release_id is not None
         else ""
     )
+    share = (
+        f' data-lf-share-url="{html.escape(share_url, quote=True)}"'
+        if share_url is not None
+        else ""
+    )
 
     runtime = (
         f'<script data-lf-runtime data-lf-server="{server_id}" '
-        f'data-lf-layer="{layer_id}"{release} '
+        f'data-lf-layer="{layer_id}"{release}{share} '
         f'data-lf-page-root="{html.escape(page_root, quote=True)}" '
         f'data-lf-entry="{html.escape(address("/leaf.js"), quote=True)}" '
         f'data-lf-probe="{html.escape(address("/registry.json"), quote=True)}">'
@@ -466,8 +474,8 @@ class PageEndpoint:
         set out of it. One arrival is enough: the runtime's own fetches are
         relative and carry no query, and the bootstrap leaves only the bare
         address in the tab, which the cookie authorizes on reload or from a
-        bookmark. So nothing has to thread the key through the page, and
-        `leaf.js` never learns there is one."""
+        bookmark. Delivery also declares the key for the explicit Share control;
+        ordinary page requests continue to use the cookie."""
         if secrets.compare_digest(self.query.get("t", [""])[0], self.token):
             self.set_cookie = True
         else:
@@ -822,6 +830,15 @@ class PageEndpoint:
             release_id=self.release,
             page_root=self.page_root,
             asset_root=self._document_asset_root(revision),
+            share_url=(
+                str(
+                    self.request.url.replace(
+                        path=f"{self.page_root}/", query=""
+                    ).include_query_params(t=self.token)
+                )
+                if self.token is not None
+                else None
+            ),
         )
 
     def _serve_artifact_resource(self) -> Response | None:

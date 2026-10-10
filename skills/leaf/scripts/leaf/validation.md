@@ -1,11 +1,16 @@
 # Validation contract
 
-## Event admission
+Each input is validated once, where it enters, and code past that point reads it
+directly:
 
-Every writer uses the shared append transaction described in
-[events.md, "Admission"](events.md#admission). `page init` also checks the
-standing log against the replacement layer's stored-record contracts before
-re-vendoring.
+- an event, whether a browser posted it or a command wrote it, at the append door
+  ([events.md, "Admission"](events.md#admission));
+- a page's authored source at `check_source` (`validation/source.py`), which `page
+  check`, activation, `page stamp`, and `page init` all run ("Static validation");
+- message markup an agent hands in at `admission.check_markup`, which applies the same
+  structure and vocabulary checks to an HTML fragment, with or without widgets;
+- a layer `page init` would vendor at `compatibility.incoming_registry`;
+- what only a browser can see at `page check --render` ("Browser validation").
 
 ## Static validation
 

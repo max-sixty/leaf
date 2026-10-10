@@ -406,8 +406,9 @@ def cmd_export(page_dir: Path, out: Path, version) -> int:
             "cannot be exported."
         )
     artifact = read_artifact(page_dir, revision)
-    active = {"revision": revision, "version": version, "url": f"/versions/{name}"}
-    snapshot = capture_page_snapshot(page_dir, document, active, artifact=artifact)
+    snapshot = capture_page_snapshot(
+        page_dir, document, revision, url=f"/versions/{name}", artifact=artifact
+    )
     state = PageStateService(
         page_dir,
         page_snapshot=snapshot,

@@ -1,7 +1,8 @@
 /* Core Thread destinations and held identity.
 
-   The open Threads panel wins; otherwise the current exact outlet wins, then an
-   available page preview, then a deliberately revealed widget seat, then Threads.
+   A registered primary reader supplies its retained destination first. Without
+   that destination, the open Threads panel wins; otherwise the exact outlet wins,
+   then a page preview, then a deliberately revealed widget seat, then Threads.
    A compact preview keeps held widget arrivals held until its own release gesture.
    The optional preview supplies physical
    opening, placement proof, current focus node and target accompaniment; it owns
@@ -23,11 +24,13 @@ import { focusDestination, focused } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
 import { retainUserIntent } from "../user-intent.js";
 import { replyAvailable } from "./replies.js";
-import { allThreads } from "./state.js";
+import { allThreads, readThreads } from "./state.js";
 import { heldThread } from "./focus.js";
 import { showHeldThread } from "./held-news.js";
 import { revealHeld, surfaceFocusTarget } from "./surfaces.js";
 import { reveal } from "../widget-elements.js";
+import { renderedUnder } from "../shadow.js";
+import { threadNames } from "./model.js";
 
 export function createThreadDestinations({
   placedAt,
@@ -37,6 +40,23 @@ export function createThreadDestinations({
   scrollToThread,
   preview = null,
 }) {
+  let presentation = null;
+  let opening = null;
+  function register(owner, open, reader) {
+    if (!(owner instanceof Element) || typeof open !== "function")
+      throw new TypeError(
+        "A Thread presentation needs an Element owner and an open callback",
+      );
+    if (presentation) throw new Error("The page already has a Thread presentation");
+    const registration = { owner, open, reader };
+    presentation = registration;
+    return () => {
+      if (presentation === registration) {
+        presentation = null;
+        opening?.abort();
+      }
+    };
+  }
   const threadTarget = (id) => placedAt(id)?.place ?? null;
   const threadHere = () => heldThread() ?? preview?.accompanied() ?? null;
   // Discussion identity precedes the view that realizes it. Reply availability
@@ -76,6 +96,64 @@ export function createThreadDestinations({
     } = {},
   ) {
     if (!intent()) return null;
+    const selected = presentation;
+    if (selected?.owner.isConnected) {
+      const thread = threadNames(readThreads().threads).get(id);
+      if (!thread) return null;
+      opening?.abort();
+      const abort = new AbortController();
+      opening = abort;
+      const request = {
+        message: focus === "message" ? id : null,
+        focus,
+        signal: abort.signal,
+        current: () =>
+          !abort.signal.aborted &&
+          presentation === selected &&
+          selected.owner.isConnected &&
+          (focus === false ? intent.available() : intent()),
+      };
+      const result = selected.open(thread.key, request);
+      const destination = result?.then
+        ? await Promise.race([
+            result,
+            new Promise((resolve) =>
+              abort.signal.addEventListener("abort", () => resolve(null), {
+                once: true,
+              }),
+            ),
+          ])
+        : result;
+      const mayPresent = () =>
+        !abort.signal.aborted &&
+        presentation === selected &&
+        selected.owner.isConnected &&
+        (focus === false ? intent.available() : intent());
+      if (!mayPresent()) return null;
+      if (destination !== null) {
+        if (
+          !(destination instanceof Element) ||
+          !destination.isConnected ||
+          !renderedUnder(destination, selected.owner) ||
+          !selected.reader.ownsDestination(destination)
+        )
+          throw new TypeError(
+            "A Thread destination must be a retained part of its registered presentation",
+          );
+        await reveal(destination, intent).ready;
+        if (!mayPresent()) return null;
+        if (focus !== false)
+          intent.handoff(() => {
+            focusDestination(destination, "move");
+            if (travel)
+              scrollIntoView(destination, {
+                behavior: scrollBehavior(),
+                block: "nearest",
+              });
+          });
+        return destination;
+      }
+    }
     const mayPresent = () => (focus === false ? intent.available() : intent());
     if (!panelIsOpen() && focus !== "message") {
       const localFocus = focus ?? "reply";
@@ -147,6 +225,7 @@ export function createThreadDestinations({
     return showThread(id, { focus: focus ?? "reply", flash, intent });
   }
   return {
+    register,
     openPageThread,
     threadFocusTarget,
     threadHere,

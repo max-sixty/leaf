@@ -80,7 +80,6 @@ test("two Thread panels own separate controls and list state", () => {
   assert.notEqual(second.findInput.value, first.findInput.value);
   assert.equal(second.threadsBox.scrollTop, 0);
   assert.notEqual(first.panel, second.panel);
-  assert.notEqual(first.generalInput, second.generalInput);
   first.dispose();
   second.dispose();
 });
@@ -113,7 +112,6 @@ test("two mounted panel controllers keep independent visibility and keyboard run
       refreshThread: () => {},
       closeReactionMode: () => {},
       closePreview: () => {},
-      syncGeneral: () => {},
     });
   const firstController = make(first, "test-first");
   const secondController = make(second, "test-second");
@@ -433,9 +431,22 @@ test("panel narrowing controllers keep independent intent over shared threads", 
   assert.equal(first.listRoot.scrollTop, 0);
   assert.equal(second.listRoot.scrollTop, 10);
 
+  // Revealing a destination already in this view keeps the intent that retained
+  // arrivals use to distinguish repainting from a deliberate change of view.
+  const standing = second.narrowing.model(threads, places).intent;
+  await second.narrowing.revealThread("open");
+  assert.equal(second.narrowing.model(threads, places).intent, standing);
+  assert.equal(second.narrowing.widen(), false);
+  assert.equal(second.narrowing.model(threads, places).intent, standing);
+
   await second.narrowing.revealThread("resolved");
+  assert.notEqual(second.narrowing.model(threads, places).intent, standing);
   assert.deepEqual(second.narrowing.model(threads, places).shown, [resolved]);
   first.narrowing.widen();
   assert.deepEqual(first.narrowing.model(threads, places).shown, [open]);
   assert.deepEqual(second.narrowing.model(threads, places).shown, [resolved]);
+  // An empty normalized search can still carry raw editing to clear on Reset.
+  first.view.controls.changeWords(" ");
+  assert.equal(first.narrowing.widen(), true);
+  assert.equal(first.view.words, "");
 });

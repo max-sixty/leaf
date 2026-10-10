@@ -1,7 +1,7 @@
 # The focus overhaul gave widgets the runtime's own focus primitives through
 # widget-api.js: a keyed hold for a list a render replaces, closeLayer for a layer the
-# widget opens, and focusDestination with a cause. lf-targeting had dropped the user to
-# the body whenever a row's Remove re-rendered its list; this asks for the same shape
+# widget opens, and focusDestination with a cause. A row removal had dropped the user
+# to the body whenever Remove re-rendered its list; this asks for the same shape
 # from the shipped references alone. Added with module-authoring.md's paragraph on
 # those exports; whether it tells two wordings apart is recorded in that commit.
 description: widget-list-keeps-focus

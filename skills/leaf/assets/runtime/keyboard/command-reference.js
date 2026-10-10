@@ -60,8 +60,9 @@ import {
   openLayer,
   openerOf,
   rove,
+  standingIn,
 } from "../focus.js";
-import { closeControl } from "../widget-elements.js";
+import { closeControl, searchField } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
 import { ELEMENTS, pageScope, pageScopes } from "./register.js";
 import { EVERYTHING } from "./text-entry.js";
@@ -88,6 +89,15 @@ commandReferenceDialog.setAttribute("aria-modal", "true");
 // Focused on open, so the dialog is not silent to a screen reader.
 commandReferenceDialog.tabIndex = -1;
 let stopReferenceReading = null;
+const commandReferenceSearch = searchField("lf-command-reference-search", {
+  name: "shortcut-search",
+  label: "Search commands",
+  placeholder: "Find a key or action",
+});
+commandReferenceSearch.addEventListener("input", readCommandReferenceSearch);
+// Like Page Map's search, this retained control connects with its closed dialog at
+// boot. Its native editor is ready before the first opening and survives local renders.
+commandReferenceDialog.append(commandReferenceSearch);
 
 // Page-key presentation owns this retained native control's changing name and shortcut
 // metadata. The reference template only seats it.
@@ -716,9 +726,6 @@ function commandReferenceItemTemplate(item) {
 }
 
 function commandReferenceTemplate() {
-  const selected = commandReferenceView.visibleCommands.find(
-    ({ entry }) => entry.id === commandReferenceView.selectedCommandId,
-  );
   const items = commandReferenceItems();
   return html`
     <div class="lf-command-reference-head">
@@ -745,22 +752,7 @@ function commandReferenceTemplate() {
         >Use letters, numbers and symbols for Leaf actions.</small
       >
     </label>
-    <input
-      type="search"
-      name="shortcut-search"
-      class="lf-command-reference-search"
-      placeholder="Find a key or action"
-      aria-label="Search commands"
-      role="combobox"
-      aria-autocomplete="list"
-      aria-expanded="true"
-      aria-haspopup="grid"
-      aria-controls="lf-command-reference-results"
-      aria-activedescendant=${selected?.entry.rowId ?? nothing}
-      autocomplete="off"
-      spellcheck="false"
-      @input=${readCommandReferenceSearch}
-    />
+    ${commandReferenceSearch}
     <div
       class="lf-command-reference-meta"
       aria-live="polite"
@@ -792,6 +784,24 @@ function presentCommandReference() {
   updateCommandReferenceView();
   presentCommandReferenceClose();
   render(commandReferenceTemplate(), commandReferenceDialog);
+  // The combobox belongs to the native editor, not its component host. Element
+  // references keep its result relationships valid across the editor's shadow root.
+  const search = commandReferenceSearch.input;
+  keeps(search, "role", "combobox");
+  keeps(search, "aria-autocomplete", "list");
+  keeps(search, "aria-expanded", "true");
+  keeps(search, "aria-haspopup", "grid");
+  const results = commandReferenceDialog.querySelector(".lf-command-reference-results");
+  if (search.ariaControlsElements?.[0] !== results)
+    search.ariaControlsElements = [results];
+  const selected = commandReferenceView.visibleCommands.find(
+    ({ entry }) => entry.id === commandReferenceView.selectedCommandId,
+  );
+  const row = selected
+    ? commandReferenceDialog.querySelector(`#${selected.entry.rowId}`)
+    : null;
+  if (search.ariaActiveDescendantElement !== row)
+    search.ariaActiveDescendantElement = row;
   // The results are one roving group: Tab reaches the selected command, or the first,
   // and the arrows walk the rest (focus.js, `rove`).
   rove(
@@ -820,8 +830,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   // Focusing a text input replaces the document selection. Keep a passage the user has
   // in hand and focus Close instead; an ordinary opening lands directly in search.
   const preserveSelection = fresh && Boolean(pageSelection());
-  const handingBack =
-    !open && restoreFocus && commandReferenceDialog.contains(focused());
+  const handingBack = !open && restoreFocus && standingIn(commandReferenceDialog);
   const restore = handingBack ? openerOf(commandReferenceDialog) : null;
   if (fresh) {
     commandReferenceInvoke = invokeCommand;
@@ -903,7 +912,10 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
 export function moveCommandReferenceFocus(dir) {
   const stops = tabStops(commandReferenceDialog);
   if (!stops.length) return focusDestination(commandReferenceDialog, "step");
-  const at = stops.indexOf(focused());
+  const standing = focused();
+  const at = stops.indexOf(
+    standing === commandReferenceSearch.input ? commandReferenceSearch : standing,
+  );
   const next =
     at < 0
       ? dir > 0
@@ -925,10 +937,7 @@ const focusedCommandId = () =>
 
 export const commandReferenceCommandActive = () =>
   commandReferenceView.visibleCommands.length > 0 &&
-  (focused()?.matches?.(
-    ".lf-command-reference-search, .lf-command-reference-command",
-  ) ??
-    false);
+  (focused() === commandReferenceSearch.input || focusedCommandId() !== null);
 
 export function moveCommandReferenceSelection(dir) {
   const ids = commandReferenceView.visibleCommands.map(({ entry }) => entry.id);

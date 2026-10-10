@@ -8,6 +8,34 @@ import { readThreads } from "./state.js";
 import { reactionReading } from "./reaction-model.js";
 
 export function createThreadActions({ post, withdraw, sendReaction, currentRevision }) {
+  const create = (command) => {
+    const {
+      text,
+      anchor,
+      attempt = crypto.randomUUID(),
+      holds,
+      about,
+      drawing,
+      suggestion,
+    } = command;
+    if (text !== undefined && typeof text !== "string")
+      throw new TypeError("A Thread comment needs text");
+    if (typeof attempt !== "string" || !attempt)
+      throw new TypeError("A Thread comment attempt must be a non-empty string");
+    if (!text && !drawing) return null;
+    const delivery = post({
+      kind: "comment",
+      revision: currentRevision(),
+      ...(text !== undefined && { text }),
+      ...(anchor !== undefined && { anchor: structuredClone(anchor) }),
+      ...(attempt !== undefined && { attempt }),
+      ...(holds !== undefined && { holds }),
+      ...(about !== undefined && { about }),
+      ...(drawing !== undefined && { drawing: structuredClone(drawing) }),
+      ...(suggestion !== undefined && { suggestion }),
+    });
+    return delivery ? Object.freeze({ key: attempt, delivery }) : null;
+  };
   const find = (key) => {
     const collection = readThreads();
     return collection.phase === "ready"
@@ -74,6 +102,7 @@ export function createThreadActions({ post, withdraw, sendReaction, currentRevis
   };
 
   return Object.freeze({
+    create,
     reply,
     resolve: (key, options) => settle(key, true, options),
     reopen: (key, options) => settle(key, false, options),

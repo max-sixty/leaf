@@ -601,7 +601,7 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     registry = {
         "lf-zone": {"x-reading-role": "pane"},
         "lf-board": {"x-space": "wide"},
-        "lf-chip": {"x-inline": True},
+        "lf-label": {"x-inline": True},
         "lf-feed": {"x-bound": "end"},
         "lf-plot": {"x-height": 400},
         "lf-meter": {"x-prepaint": '<span class="lf-meter-face">0 left</span>'},
@@ -612,7 +612,7 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         "<!doctype html><html><head><title>T</title></head><body><main>"
         '<aside class="callout warn" id="note">Paused.</aside>'
         '<aside class="callout" id="chart-note" data-width="wide">Chart.</aside>'
-        '<lf-zone id="queue" label="Queue"><div><lf-chip>new</lf-chip></div></lf-zone>'
+        '<lf-zone id="queue" label="Queue"><div><lf-label>new</lf-label></div></lf-zone>'
         '<lf-board id="board" data-width="column"></lf-board>'
         '<lf-feed id="feed"></lf-feed><section id="wide" data-width="wide"></section>'
         '<pre data-bound="start">log</pre>'
@@ -645,7 +645,7 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         for element in served.tree.find("main").find_all(True)
     }
     assert marks[("lf-zone", "queue")] == {"data-lf-reading-role": "pane"}
-    assert marks[("lf-chip", None)] == {"data-lf-inline": ""}
+    assert marks[("lf-label", None)] == {"data-lf-inline": ""}
     assert marks[("lf-board", "board")] == {"data-lf-space": "column"}
     assert marks[("aside", "note")] == {"data-lf-space": "column"}
     assert marks[("aside", "chart-note")] == {"data-lf-space": "wide"}

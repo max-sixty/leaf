@@ -14,7 +14,7 @@ before editing. `data_bindings` names each external source and the widgets that 
 it, and `data/<source>.json` holds its value; change one with `leaf data set` or by
 rewriting that file. `leaf page state <page> <id>` narrows the reading to what the id
 names: a page widget's element, standing moves, Asks and workflows, or a thread's
-messages with their frozen widget content, which changes only through that thread.
+messages with their frozen HTML content, which changes only through that thread.
 
 ## Publish several authored files together
 
@@ -67,8 +67,8 @@ the decision's meaning in the record. The page directory and export retain
 state without copying it into markup. To withdraw a decision, follow the
 registry's `$restated`.
 
-When changing cards in a board column or swipe pile, place each moved card
-in the column or pile and rank that `state` names. The registry's `$state`
+When changing cards in a board column, place each moved card
+in the column and rank that `state` names. The registry's `$state`
 defines ranks. That placement becomes authored markup; later versions can
 revise it.
 

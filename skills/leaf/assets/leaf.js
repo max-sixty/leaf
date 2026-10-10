@@ -68,6 +68,7 @@ import { createAnchorControls } from "./runtime/anchor-controls.js";
 import { createAnchorTravel } from "./runtime/anchor-travel.js";
 import {
   aimTargetAt,
+  aimTargets,
   resolveAnchor,
   setAnchoringReady,
 } from "./runtime/anchor-resolution.js";
@@ -207,7 +208,7 @@ import { retainUserIntent, restrictUserIntent } from "./runtime/user-intent.js";
 
 // Automatic recovery belongs to this arrival. A press made while its presentation
 // waits owns the page; recovery must not capture a fresh focus intent after that wait.
-const recoverComposer = retainUserIntent();
+const recoverComposer = retainUserIntent({ since: 0 });
 
 // This declaration belongs to the executable document lifetime. The revision capture
 // includes it in executable identity, so selecting another presentation retires this
@@ -258,6 +259,7 @@ const replaceDrawing = (anchor, drawn) => {
 // A composer's own controls for the drawing its draft holds, which the drawing
 // controller answers, and its history's way of putting one back.
 const drawingEdits = {
+  target: (anchor) => drawing.target(anchor),
   undoStroke: (anchor) => drawing.undoStroke(anchor),
   remove: (anchor) => drawing.removeDrawing(anchor),
   replace: replaceDrawing,
@@ -414,7 +416,7 @@ const version = createVersionController({
   openThread: (id, options) =>
     app.threadDestinations.openPageThread(id, { ...options, travel: false }),
   refreshThread: () => app.refreshThread(),
-  midComposition: () => app.midComposition(),
+  midComposition: (...args) => app.midComposition(...args),
   hasPending: () => app.hasPending(),
   readAndApply: (...args) => app.readAndApply(...args),
   retireProjectionCoverage: () => app.retireProjectionCoverage(),
@@ -432,6 +434,7 @@ const inputs = createCompositionInputs({
 });
 
 app = mountApplication({
+  arriveAtQueueItem: (item) => queueWalk.arriveAtItem(item),
   panel,
   firstUnreadBtn: panelElements.firstUnreadBtn,
   accompaniedThread: (...args) => landing.accompaniedThread(...args),
@@ -561,18 +564,16 @@ pageMapDialog = createPageMapDialog({
 
 // Ask view is constructed below by its owner factory; all accesses above are inert closures.
 asks = createAskView({
-  panelIsOpen,
   focusForNavigation,
   presentedControl: app.overlay?.presentedControl,
-  setPanel: (...args) => threadPanelController.setPanel(...args),
   prepareTrip: anchorTravel.prepareTrip,
   arrive: anchorTravel.arrive,
-  refreshThread: () => app.refreshThread(),
-  revealThread: (id) => narrowing.revealThread(id),
+  openPageThread: app.threadDestinations.openPageThread,
   announce,
   repaint,
 });
 const queueWalk = createQueueWalk({
+  actions: app.queueActions,
   arriveAtAsk: asks.arriveAtAsk,
   arriveAtThread: navigation.arriveAtThread,
   threadHere: () => app.threadDestinations.threadHere(),
@@ -581,11 +582,9 @@ const queueWalk = createQueueWalk({
   arrive: anchorTravel.arrive,
   readableDestination: anchorTravel.readableDestination,
   announce,
-  post: (event) => app.post(event),
 });
 const queue = createQueuePanel({
-  arriveAtItem: queueWalk.arriveAtItem,
-  endTask: queueWalk.endTask,
+  actions: app.queueActions,
   next: queueWalk.next,
   announce,
 });
@@ -609,12 +608,9 @@ panelKeys = createThreadPanelKeys({
 });
 pageComment = createPageComment({
   wireInput: inputs.wireInput,
-  createPageComment: app.createPageComment,
+  createPageComment: (command) => app.threadActions.create(command)?.delivery ?? null,
   designModeActive: designMode.active,
   panelIsOpen,
-  setPanel: (...args) => threadPanelController.setPanel(...args),
-  panelBox: panelElements.generalInput,
-  panelSend: panelElements.generalSend,
   showThread: landing.showThread,
   threadsToggle: toggleBtn,
 });
@@ -625,7 +621,6 @@ selectionComposer = createSelectionComposer({
   designModeActive: designMode.active,
   openPageThread: app.threadDestinations.openPageThread,
   threadTransitionOrigin: app.overlay?.threadTransitionOrigin,
-  anchorStands: (...args) => responseSurface.anchorStands(...args),
   anchorTravelAt: (...args) => responseSurface.anchorTravelAt(...args),
   bringForward: (...args) => responseSurface.bringForward(...args),
   fabAnchorAt: (...args) => responseSurface.fabAnchorAt(...args),
@@ -637,7 +632,7 @@ selectionComposer = createSelectionComposer({
   landFabFocus: (...args) => responseSurface.landFabFocus(...args),
   showFab: (...args) => responseSurface.showFab(...args),
   letGoOfFab: () => responseSurface.letGoOfFab(),
-  createComment: app.createComment,
+  createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
   landSent: landing.landSent,
   refreshThread: app.refreshThread,
   wireInput: inputs.wireInput,
@@ -715,7 +710,8 @@ targets = createTargetPicker({
   commentOnTarget: responseSurface.commentOnTarget,
   updateFab: responseSurface.updateFab,
   fabAnchorAt: responseSurface.fabAnchorAt,
-  pointerModeActive: () => designMode.active() || drawing.drawModeActive(),
+  drawModeActive: () => drawing.drawModeActive(),
+  readTargets: () => (designMode.active() ? designMode.targets() : aimTargets()),
   armChanged: () => aim.armChanged(),
 });
 drawing = createDrawingController({
@@ -773,7 +769,6 @@ threadPanelController = createThreadPanelController({
     pageComment.close();
     app.overlay?.closePreview(...args);
   },
-  syncGeneral: pageComment.sync,
 });
 // The sample host binds to this child's owners, rather than importing another
 // window's runtime. This capability is ready before the child presents.
@@ -1031,10 +1026,9 @@ if (!passiveSample && !offlineInteractive) {
     setDesignMode: designMode.setActive,
   });
   annotationRenderer?.restoreAnnotations();
-  // The page has just arrived, so nothing holds focus and the first Tab starts at the
-  // skip link. Not the reading landing: a user who has read nothing has no position
-  // for the browser to carry on from.
-  releaseFocus();
+  // A page nobody has used starts Tab at the skip link. Inputs before the
+  // module graph arrived already gave this document a place to keep.
+  recoverComposer.handoff(releaseFocus);
 }
 mountHistory({
   followFragment: anchorTravel.followFragment,

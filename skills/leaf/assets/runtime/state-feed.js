@@ -3,8 +3,8 @@
 
    `statePhase` distinguishes `waiting`, `ready`, and `offline`. An empty `events` array
    while waiting means the log has not been read; it does not mean there are no comments.
-   A restored or newly opened panel keeps its general composer usable and shows a loading
-   state until that distinction resolves.
+   A restored or newly opened panel shows a loading state until that distinction
+   resolves, and the page's general box stays usable throughout.
 
    A failed fetch is a complete offline answer for interaction: the authored page is the
    best state available when no log can be reached, so fixed status chrome reports the

@@ -33,6 +33,8 @@
  * the clipboard's text, including text carried beside a picture.
  * `naturalBlockSize` reads the field's intrinsic border-box block size in CSS pixels,
  * before the host's block size or its minimum and maximum constrain the writing room.
+ * `writingInlineSize` reads the editor's allocated writing measure, including room
+ * reserved for its trailing action, in CSS pixels.
  *
  * The placeholder is a layer under the words, shown while the field is empty. It reads
  * the `placeholder` attribute, and a child in slot `placeholder` stands in its place when
@@ -650,6 +652,11 @@ class LeafText extends HTMLElement {
       parseFloat(host.borderBlockStartWidth) +
       parseFloat(host.borderBlockEndWidth)
     );
+  }
+
+  get writingInlineSize() {
+    const frame = getComputedStyle(this.#frame);
+    return parseFloat(frame.inlineSize) + parseFloat(frame.paddingInlineEnd);
   }
 
   set value(text) {

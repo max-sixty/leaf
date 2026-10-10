@@ -947,7 +947,7 @@ def preview(
                     )
             else:
                 harness = session_harness() if user else None
-                if harness and harness.lifetime() == {"activity": "multiplexed"}:
+                if harness and harness.lifetime() == {"chat": True}:
                     start_desktop_preview(source, page, runtime, harness)
                 else:
                     run_preview(source, page, runtime / "bin" / "leaf", runtime, user)

@@ -9,13 +9,14 @@ putting one in the claim.
 """
 
 import model_folds as model
+from interact_support import PAGE_PACKAGES
 
 HUB = model.leaf_page(
     "command hub",
     """<h1 id="h">Atlas</h1>
-<lf-command id="atlas" label="Replace the parser">
-  <lf-task id="goal-parser" status="active" talk><strong>Replace the XML parser</strong></lf-task>
-</lf-command>""",
+<lf-test-plan id="atlas" label="Replace the parser">
+  <lf-test-task id="goal-parser" status="active" talk><strong>Replace the XML parser</strong></lf-test-task>
+</lf-test-plan>""",
 )
 # A request held against a goal and the agent's answer to it. `holds` names the
 # work the thread is about, which is what a command page reads it back through.
@@ -28,14 +29,6 @@ HELD_REQUEST = (
     },
     {"kind": "reply", "author": "agent", "parent": "e1", "text": "The hunk is ready."},
 )
-
-# One draft, three revisions of it. The user rewrote the authored words in r1;
-# r2 rewrote them again and said so; r3 is an unrelated edit on r2's words.
-DRAFT = """<h1 id="t">Journey</h1>
-<lf-draft id="draft-ops"{attrs}><pre>{text}</pre></lf-draft>"""
-AUTHORED = "Run the migration before deploying."
-USER_EDIT = "Run the migration before deploying. It takes about a minute."
-CORRECTED = "Run the migration after deploying — it needs the new column."
 
 
 def test_summaries_replace_overlaps_and_edits_do_not_resurrect_them():
@@ -277,7 +270,7 @@ def test_a_decision_on_any_message_settles_the_thread_it_belongs_to():
     and a command page reading the thread's `holds` would go on calling settled
     work outstanding.
     """
-    registry = model.model_layer("command-hub")
+    registry = model.model_layer(PAGE_PACKAGES[0])
     open_thread = model.threads(model.reading(HUB, HELD_REQUEST, registry=registry))
     # The contrast: without it a fold that resolved every thread would pass below.
     assert open_thread["e1"]["resolved"] is None
@@ -290,56 +283,6 @@ def test_a_decision_on_any_message_settles_the_thread_it_belongs_to():
     assert resolved["resolved"] is not None, "a resolve on the reply left it open"
     assert resolved["resolved"]["parent"] == "e2"
     assert resolved["attention"] is None
-
-
-def test_a_retraction_outlives_the_version_that_made_it():
-    """`restated` belongs to the version that rewrote the words, and to no other.
-
-    v3 has nothing to declare, because it is not the one taking anything back. So
-    the retraction cannot live in the markup, or v3's silence would read as "carry
-    the decision" and hand the user's edit straight back — the same resurrection
-    one version later and just as quiet. The note records it in the log instead,
-    where it is a fact with a revision on it that every later revision inherits.
-    """
-    revisions = {
-        1: model.leaf_page("draft", DRAFT.format(text=AUTHORED, attrs="")),
-        2: model.leaf_page("draft", DRAFT.format(text=CORRECTED, attrs=" restated")),
-        3: model.leaf_page("draft", DRAFT.format(text=CORRECTED, attrs="")),
-    }
-    log = (
-        {
-            "kind": "action",
-            "widget": "draft-ops",
-            "action": "edit",
-            "detail": {"value": USER_EDIT},
-        },
-        {
-            "kind": "note",
-            "author": "agent",
-            "version": 2,
-            "revision": 2,
-            "text": "rewrote the draft",
-            "restated": ["draft-ops"],
-        },
-        {
-            "kind": "note",
-            "author": "agent",
-            "version": 3,
-            "revision": 3,
-            "text": "unrelated copy edits",
-        },
-    )
-
-    def standing(revision):
-        state = model.reading(revisions, log, revision=revision)
-        return model.projected(state, revision)["desired"]
-
-    # r1 is the anchor: the edit is a standing decision on the words it was made
-    # against, or the two readings below say nothing about retraction.
-    assert standing(1) == ["e1"]
-    assert standing(2) == []
-    # The version that says nothing inherits it.
-    assert standing(3) == []
 
 
 def test_every_served_agent_record_carries_the_name_it_is_shown_under():
@@ -426,37 +369,46 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
     }
 
 
-def test_the_runtime_tests_build_on_the_records_the_server_serves():
-    """`served_records.json` is this fold's output, so a Node test built on it carries
-    every field the server sends; a change to the served shape fails here until the
-    file is rewritten."""
-    import served_records
+def test_gesture_sequence_keeps_surviving_edits_and_durable_retractions():
+    from served_records import gesture_sequence
 
-    assert served_records.RECORDS.read_text() == served_records.serialized(), (
-        "the served thread or workflow changed — rerun `uv run tests/served_records.py`"
-    )
-
-
-def test_each_served_action_says_whether_it_still_stands():
-    """The browser withdraws the action on top of a coordinate before the log does,
-    and shows the next one that stands. Whether an older action stands is this fold's
-    reading, so the wire carries it: an undo ends one, and the one beneath survives."""
-    page = model.leaf_page("draft", DRAFT.format(text=AUTHORED, attrs=""))
-    edit = {"kind": "action", "widget": "draft-ops", "action": "edit"}
-    state = model.reading(
-        page,
-        (
-            {**edit, "detail": {"value": USER_EDIT}},
-            {**edit, "detail": {"value": CORRECTED}},
-            {**edit, "detail": {"value": AUTHORED}},
-            {"kind": "undo", "undoes": "e3"},
-        ),
-    )
-    projection = model.projected(state, 1)
+    sequence = gesture_sequence()
+    assert sequence["states"][4]["revision_labels"] == {"1": "Draft"}
+    assert sequence["states"][5]["revision_labels"] == {"1": "Draft", "2": "v1"}
+    assert sequence["states"][6]["revision_labels"] == {
+        "1": "Draft",
+        "2": "v1",
+        "3": "v2",
+    }
+    projections = [
+        model.projected(
+            state["browser"], 1 if index == 7 else state["active"]["revision"]
+        )
+        for index, state in enumerate(sequence["states"])
+    ]
+    assert [projection["desired"] for projection in projections] == [
+        [],
+        ["e1"],
+        ["e2"],
+        ["e3"],
+        ["e2"],
+        [],
+        [],
+        ["e2"],
+    ]
     assert {
-        entry["event"]["id"]: entry["stands"] for entry in projection["entries"]
+        entry["event"]["id"]: entry["stands"] for entry in projections[4]["entries"]
     } == {"e1": True, "e2": True, "e3": False}
-    assert projection["actions"] == ["e2"]
+    assert [projection["actions"] for projection in projections] == [
+        [],
+        ["e1"],
+        ["e2"],
+        ["e3"],
+        ["e2"],
+        [],
+        [],
+        ["e2"],
+    ]
 
 
 def test_question_lifecycle_selects_current_prompt_and_preserves_first_settlement():

@@ -79,9 +79,9 @@ function jsonSnapshot(value, path = "configuration") {
 customElements.define(
   "lf-playground",
   class extends HTMLElement {
-    // What the Ask was answered with: the instruction the chosen configuration sent.
-    static answerWords(state) {
-      return state.choose.detail.instruction;
+    // What the Question was answered with: the instruction the chosen configuration sent.
+    static answerWords(value) {
+      return value.instruction;
     }
 
     #controller = widgetController(this);

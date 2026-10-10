@@ -55,8 +55,8 @@
    - `paintSettlements` (projection/presentation.js) paints every holder's
      authoritative settlement, whether or not its module renders anything.
    - `renderRetired` marks slots retired by the declared holder relation.
-   - The Ask model (asks/model.js) reads `x-awaits`, while the Ask drawer
-     projects a declared `x-ask-surface` region around that source where one exists;
+   - The Question model (questions/model.js) reads `x-awaits`, while the Question drawer
+     projects a declared `x-question-context` region around that source where one exists;
      neither names a tag.
    - the internal validation adapter exposes replay winners to the render gate,
      the panel's own folds included: a widget an agent sent folds the way a page widget

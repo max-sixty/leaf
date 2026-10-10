@@ -3,7 +3,7 @@
  * owns progress, assignments, report age and stopped-work meaning independently
  * of how a dashboard composes those facts. */
 import { declarationFor, elementsDeclaring, layerFact } from "./registry.js";
-import { readAsks } from "./asks/model.js";
+import { readQuestions } from "./questions/model.js";
 import { quietSince } from "./presence.js";
 import { quoted } from "./widget-elements.js";
 import { saidAt, updateSequence } from "./updates.js";
@@ -177,7 +177,11 @@ export function readWork(scope) {
     if (!readings.has(element)) readings.set(element, widgetController(element).read());
     return readings.get(element);
   };
-  const open = new Set(readAsks().user.map((ask) => ask.sourceId));
+  const open = new Set(
+    readQuestions()
+      .user.filter((question) => question.source.kind === "widget")
+      .map((question) => question.source.id),
+  );
   const goals = workElements(scope, "goal").map((goal) => goalView(goal, open, read));
   const byElement = new Map(goals.map((goal) => [goal.element, goal]));
   const workers = workElements(scope, "worker").map((worker) =>

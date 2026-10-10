@@ -15,7 +15,7 @@ import {
   readingRegionFor,
   scrollersOf,
 } from "./reading-regions.js";
-import { walkOrigin, heldAsk, placeOf } from "./standing-target.js";
+import { walkOrigin, heldQuestion, placeOf } from "./standing-target.js";
 import { focused } from "./focus.js";
 import { bannerStanding } from "./banner-toolbar.js";
 import { pageSelection } from "./composing/capture.js";
@@ -99,7 +99,7 @@ function threadFrom(threads, place, dir, threadTarget) {
 async function arriveAtThread(next, destinations, panelIsOpen, threadsBox, intent) {
   const { openPageThread, scrollToThread } = destinations;
   if (!panelIsOpen())
-    return Boolean(await openPageThread(next.dataset.id, { focus: "thread", intent }));
+    return Boolean(await openPageThread(next.dataset.id, { part: "thread", intent }));
   if (!intent()) return false;
   threadsBox.revealNavigation(next.dataset.id);
   const standing = next.contains(document.activeElement);
@@ -317,8 +317,8 @@ export function createNavigation({
     const at = bannerStanding()?.node ?? focused();
     // More's retained node is the same browser standing, read without moving focus
     // merely to paint whether its control is available.
-    const ask = heldAsk(at);
-    if (ask && under(at, ask)) return ask;
+    const question = heldQuestion(at);
+    if (question && under(at, question)) return question;
     const thread = closestAcross(at, THREAD);
     if (thread) return thread;
     const region = readingRegionFor(at) ?? userReadingRegion();
@@ -452,7 +452,7 @@ export function createNavigation({
 
   // The queue walk's way onto one thread it names by id: the t/T walk's own arrival, at
   // the thread's list card. A narrowing that hides the card is cleared first, as it is
-  // for an Ask seated in a thread (asks/view.js, `materializeAsk`), since the queue
+  // for a Question seated in a thread (questions/view.js, `materializeQuestion`), since the queue
   // walk goes to what is on the user whatever the list shows.
   async function arriveAtThreadById(id) {
     const intent = retainUserIntent();

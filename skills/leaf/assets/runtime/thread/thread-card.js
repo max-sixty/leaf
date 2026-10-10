@@ -1198,7 +1198,7 @@ export class ThreadView {
     // The trip promises to show the passage, so it clears the panel where the panel
     // stands over most of it and leaves the panel open beside one seen where it stands.
     travel.scrollToThread(model.id, {
-      focus: "reply",
+      part: "reply",
     });
   };
 
@@ -1301,8 +1301,7 @@ export class ThreadView {
         if (!mayLand.available() || (may && !may())) return;
         const restoreFocus = (may ?? mayRestore)();
         await narrowing.restore(async () => {
-          if (restoreFocus)
-            await travel.showThread(this.#model.id, { focus: "thread" });
+          if (restoreFocus) await travel.showThread(this.#model.id, { part: "thread" });
         });
       },
     };

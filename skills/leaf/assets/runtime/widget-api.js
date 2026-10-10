@@ -31,7 +31,7 @@ export {
 // The name Threads, the margin, and reactions give a comment's anchor.
 export { anchorLabel } from "./thread/messages.js";
 // The page's `main`, or the body of the message whose markup a node stands in.
-export { authoredScope } from "./passages.js";
+export { authoredScope, elementById } from "./passages.js";
 export { navigateToDatum } from "./application.js";
 // Experimental: one widget marking part of another (indication.js).
 export { indicate } from "./indication.js";
@@ -44,7 +44,7 @@ export {
 } from "./geometry.js";
 // Holding the user's place in a scroller whose contents a widget re-renders.
 export { placeKeeper } from "./user-place.js";
-export { inUi, uiInside, upFrom, renderedParent } from "./shadow.js";
+export { inUi, uiInside, upFrom, under, renderedParent } from "./shadow.js";
 // Putting the user on an element, saying what moved them there; holding their place,
 // caret included, across a move or re-render of the node they stand on, by key in a
 // list; where they stand and whether it is in a scope; recording where a layer opened
@@ -68,7 +68,8 @@ export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place and keeping the
 // user standing in a node it moves.
 export { render, setChildren, setRenderedChildren } from "./dom-children.js";
-export { readAsks, watchAsks } from "./asks/model.js";
+export { readQuestions, watchQuestions } from "./questions/model.js";
+export { questionWords } from "./questions/answer.js";
 export {
   readWork,
   workRole,
@@ -76,7 +77,7 @@ export {
   directWorkElements,
   workAncestor,
 } from "./work.js";
-export { answersWithin, askAnswers } from "./asks/answer.js";
+export { questionActions } from "./application.js";
 export { readQueues, watchQueues, queueItemKey } from "./queue-api.js";
 export { queueTitle } from "./queue-title.js";
 export { queueActions } from "./application.js";

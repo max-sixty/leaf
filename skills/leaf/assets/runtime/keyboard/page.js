@@ -16,7 +16,7 @@ import { inChrome, pageQueryAll } from "../passages.js";
 import { inUi } from "../shadow.js";
 import { pageSelection } from "../composing/capture.js";
 import { heldThread } from "../thread/focus.js";
-import { heldAsk } from "../standing-target.js";
+import { heldQuestion } from "../standing-target.js";
 import { leavesBox } from "../thread/landing.js";
 import { claimsEsc, documentFocused } from "./scopes.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed } from "./disclosure.js";
@@ -126,7 +126,7 @@ export function declareStanding({ pageState }) {
     if (inChrome(documentFocused())) return null;
     const thread = heldThread();
     if (pageSelection() || pageState()) return null;
-    return thread || heldAsk() || !inUi(focused()) ? document.body : null;
+    return thread || heldQuestion() || !inUi(focused()) ? document.body : null;
   };
   pageScope("standing", {
     title: "Standing on something",

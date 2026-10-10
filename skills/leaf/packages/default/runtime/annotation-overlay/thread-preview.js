@@ -732,7 +732,7 @@ export function createThreadPreview({
               return (
                 may() &&
                 mayLand.available() &&
-                Boolean(await openPageThread(thread, { focus: "thread", intent: may }))
+                Boolean(await openPageThread(thread, { part: "thread", intent: may }))
               );
             },
           };
@@ -837,12 +837,12 @@ export function createThreadPreview({
     });
   }
 
-  function focusTarget(id, { focus = null } = {}) {
+  function focusTarget(id, { part = null } = {}) {
     id = threadNames(allThreads()).get(id)?.id ?? id;
     const thread = [...previewList.querySelectorAll(".lf-page-thread")].find(
       (candidate) => candidate.dataset.thread === id,
     );
-    return thread ? threadFocusDestination(thread, { focus: focus ?? "thread" }) : null;
+    return thread ? threadFocusDestination(thread, { part: part ?? "thread" }) : null;
   }
 
   function mount(onDismiss) {

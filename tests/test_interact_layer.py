@@ -656,7 +656,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "hooks/codex.json",
         "hooks/scripts/loop-guard.py",
         "skills/leaf/SKILL.md",
-        "skills/leaf/references/authoring-asks.md",
+        "skills/leaf/references/authoring-questions.md",
         "skills/leaf/references/authoring-evidence.md",
         "skills/leaf/references/authoring-revisions.md",
         "skills/leaf/references/codex-watcher.md",
@@ -1606,7 +1606,7 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
 
 def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     """A stylesheet cannot read a runtime constant, so the sheets state the surfaces that
-    may leave the page live, the width properties, the room the runtime reads covering from, and the Ask
+    may leave the page live, the width properties, the room the runtime reads covering from, and the Question
     stamp as literals while the runtime lays out and paints by the constants. Held equal
     here rather than trusted to stay so."""
     runtime = schema_model.ASSETS / "runtime"
@@ -1627,7 +1627,7 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
         "var("
         + constant(r'^export const DRAWER_SLOT_PROP = "([^"]+)";', drawers)
         + ")",
-        "[" + constant(r'^  ask: "([^"]+)",', page_paint) + "]",
+        "[" + constant(r'^  question: "([^"]+)",', page_paint) + "]",
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
     for spelling in (

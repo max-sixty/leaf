@@ -28,7 +28,7 @@
  * chip explicitly releases that hold. The chip remains available while activation waits.
  *
  * Retained nodes keep their mechanical state. Replaced nodes use `carry.js`'s authored-id
- * contract, and the Ask view restores the selected Ask by id. Both installs restore these
+ * contract, and the Question view restores the selected Question by id. Both installs restore these
  * readings; the patch passes its retained nodes so restoration skips them. Unnamed
  * replaced controls receive no guessed focus. Authored controls and registered draft
  * editors carry native editing under their existing replacement identity; arbitrary
@@ -36,10 +36,10 @@
  * use their own stores.
  *
  * A fresh-document install stores a page-scoped, one-use handoff: reading position,
- * comparison, pointer, margin standing, mechanical carry, and Ask standing. A newer
+ * comparison, pointer, margin standing, mechanical carry, and Question standing. A newer
  * revision may consume it, but ordinary reloads and history travel cannot replay it.
  * Explicit historical travel carries reading position and the decision landmark, without
- * mechanical carry or Ask standing. State application serializes responses and remains
+ * mechanical carry or Question standing. State application serializes responses and remains
  * pending after navigation starts until the old document is discarded.
  *
  * `captureView` records a place (reading-place.js) for the page and each reading
@@ -48,8 +48,9 @@
  * `landArrival` runs after presentation: a valid revision handoff restores continuity;
  * unexpected mechanical failures report without blocking proved state or deferred
  * arrivals. Otherwise a fresh navigation aimed nowhere restores a saved view from a
- * different revision. Ordinary reloads and history travel keep the browser's restored offset
- * (history.js). Comparison is restored after activation because its base must be
+ * different revision. Ordinary reloads and full-document history travel keep the browser's
+ * restored offset; history.js owns same-document working-place checkpoints.
+ * Comparison is restored after activation because its base must be
  * fetched again. Reading position is restored even after a patch because content above
  * it may have changed height.
  *
@@ -260,8 +261,8 @@ export function createVersionController({
   syncLayout,
   captureRetainedStanding = () => null,
   restoreRetainedStanding = () => false,
-  captureAskStanding = () => null,
-  restoreAskStanding = () => {},
+  captureQuestionStanding = () => null,
+  restoreQuestionStanding = () => {},
 }) {
   let { authoredBodyAttributes, authoredHeadNodes, authoredHtmlAttributes } =
     initialDocument;
@@ -1314,15 +1315,15 @@ export function createVersionController({
   }
 
   // Patch against the authored baselines. Retained nodes keep their live state;
-  // replacement nodes recover eligible state through carry and Ask restoration.
+  // replacement nodes recover eligible state through carry and Question restoration.
   function captureEditingContinuity() {
     const draftEditing = captureDraftEditing();
     return {
       draftEditing,
       replyThread: draftEditing?.mirrored ? heldThreadId() : null,
-      // Ask standing is the fallback for unnamed controls. An exact editor already
-      // has a replacement identity, so its parent Ask does not also own focus.
-      askStanding: draftEditing ? null : captureAskStanding(),
+      // Question standing is the fallback for unnamed controls. An exact editor already
+      // has a replacement identity, so its parent Question does not also own focus.
+      questionStanding: draftEditing ? null : captureQuestionStanding(),
     };
   }
 
@@ -1339,8 +1340,8 @@ export function createVersionController({
 
   async function restoreEditingContinuity(continuity, currentIntent) {
     if (!currentIntent()) return;
-    const { draftEditing, replyThread, askStanding } = continuity;
-    restoreAskStanding(askStanding);
+    const { draftEditing, replyThread, questionStanding } = continuity;
+    restoreQuestionStanding(questionStanding);
     const mayRestore = restrictUserIntent(currentIntent, () =>
       draftEditingStands(draftEditing),
     );
@@ -1900,8 +1901,9 @@ export function createVersionController({
 
   function installArrival() {
     installReadingContinuity();
-    // Ordinary reload and history travel keep the offset the browser restores
-    // (history.js). The root is its document scrollport, so native restoration is both
+    // Ordinary reload and full-document history travel keep the browser's restored
+    // offset; history.js owns same-document working-place checkpoints. The root is
+    // its document scrollport, so native restoration is both
     // more complete and less surprising than a parallel session-store reading. Leaf
     // intervenes for two semantic cases the platform cannot know: a fresh URL aimed at a
     // target a widget generates, hides, or moves (`aimArrival`), and travel to a

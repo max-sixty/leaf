@@ -152,15 +152,14 @@ result, or after cancellation has restored the prior local DOM. Resume reconcile
 newest publisher reading. Optional recorded scalar attributes have a null initial
 value and must be removed when that value returns.
 
-A widget that declares `x-awaits` says what its answered Ask was answered with: its class
-declares `static answerWords(state, element)`, returning concise words for its row
-under Done in the Questions panel and a queue's row. The Questions panel is experimental and
-expected to change a lot. `state` is the same complete state `renderState`
-receives, and `element` is the widget, for authored markup such as an option's name;
-read nothing the module renders. Leaf calls it only while the Ask is answered, with the
-state of the publication that carries the Ask inventory, so the words never wait on a
-render; it normalizes their whitespace and bounds what it displays. A widget without one
-names no answer.
+A widget's `x-awaits.value` selects its typed answer from canonical state
+("Reading Questions and obligation queues"). For presentation, its class may
+declare `static answerWords(value, element)`, returning concise words for the
+Questions panel and list rows. `value` is the Question's typed `answer.value`;
+`element` supplies authored markup such as option labels. Read nothing the module
+renders. Leaf normalizes whitespace and bounds the displayed words. A widget
+without this formatter supplies no answer wording; its typed answer remains
+available through the Questions API.
 
 ## The widget controller
 
@@ -354,13 +353,18 @@ after upgrade. Authored inputs retain focus immediately so typing continues duri
 startup. The widget owns its drawing and values. An initial renderer keeps retained
 view geometry from the first frame. Keys are unique within their named owner.
 
-A module that takes the user to a thread calls `threadActions.open(key, {focus})`
+A module that takes the user to a thread calls `threadActions.open(key, {part, focus})`
 with the Thread's stable `key`. It opens the thread where the page shows it, inline beside
 its passage or widget, and in Threads when it has no place on the page, the same choice a
-mark and `t` make. `focus: "thread"` lands on the card or native summary;
-`focus: "reply"` reveals its available reply editor. Omitting `focus` follows the
+mark and `t` make. `part: "thread"` lands on the card or native summary;
+`part: "reply"` reveals its available reply editor. `part: "message"` requests the
+reader that renders native authored message content: the registered primary reader,
+then Threads. Omitting `part` follows the
 surface's ordinary route: a compact passage card starts at the card, while a widget
-conversation or Threads starts at its reply. The call returns a `Promise<Element|null>`:
+conversation or Threads starts at its reply. A focused jump that moves the page records
+a return place for Back. `travel: false` keeps the page in place and adds no return
+checkpoint. `focus` is a boolean, true by default;
+`focus: false` reveals the addressed part without taking focus. The call returns a `Promise<Element|null>`:
 the actual destination after reveal and placement, or `null` when the Thread no longer
 stands or newer input has superseded the move. Leaf owns the original gesture's
 continuity inside this route. The returned, still-focused destination is the capability
@@ -369,7 +373,7 @@ route's own move to that editor. A continuation uses the returned element only w
 it still holds focus:
 
 ```js
-const editor = await threadActions.open(thread.key, {focus: "reply"});
+const editor = await threadActions.open(thread.key, {part: "reply"});
 if (editor?.matches(":focus") && editor.setSelectionRange) {
   editor.setSelectionRange(0, editor.value.length);
 }
@@ -439,7 +443,7 @@ can decline; adoption alone does not report that the move ran. Leaf's navigation
 primitives own that retention already; `threadActions.open` returns its completed destination
 as described above.
 
-When Leaf travels to a target, such as a comment anchor or an Ask, it first dispatches
+When Leaf travels to a target, such as a comment anchor or a Question, it first dispatches
 `lf-reveal` on each ancestor of the target and the target itself, outermost first, with
 `detail: {target, mayReveal, present, replacedView}`. A widget that folds content listens
 for it and opens whatever holds `target`. `mayReveal` is the traveller's retained intent:
@@ -456,7 +460,7 @@ including immutable `contributionEntry({...})` records; it never returns control
 those same records independently in the target's Margin cluster and in Page Map.
 Reading items in `readings` have nonempty `id` strings, unique within that contribution;
 other contributions may reuse an ID. `kind` names what the contribution is, as one of the
-margin's reading kinds (`change`, `comment`, `ask`, `action`, …; `action` where it
+margin's reading kinds (`change`, `comment`, `question`, `action`, …; `action` where it
 declares none): where a pin with a primary and one more control finds no room for both,
 it stands folded to one control wearing that kind's face and name, which opens to them. Leaf retains each projected control by the opaque
 contribution key and entry key while its native kind remains compatible. Actions and disclosures are buttons; statuses are spans,
@@ -587,11 +591,11 @@ action name. A keyless command still has its title in the reference.
 
 Declare ordinary local bindings in `keys` and explicitly forwardable aliases in
 `contextKeys`. Both arrays work inside the widget. Only context aliases are exposed at
-the enclosing Ask's opening and its associated margin controls and threads. A route can
+the enclosing Question's opening and its associated margin controls and threads. A route can
 declare its own `contextKeys`; an ordinary key on another route is never forwarded.
-Numbers are widget choices, not an Ask allocation: options own their stable numeric
+Numbers are widget choices, not a Question allocation: options own their stable numeric
 assignments, and a classifier declares Pass as `1` and Keep as `2`. The page owns `q`
-and `Shift+q` navigation between Asks. Do not assign numbers based on currently available
+and `Shift+q` navigation between Questions. Do not assign numbers based on currently available
 actions: disabling `1` must not turn `2` into a different action.
 
 ```javascript
@@ -622,7 +626,7 @@ contribution controls use the same callback through their surface-aware registra
 ("Focus, motion, and travel" above).
 
 Set `decision: true` and provide `control` when a command starts, advances, answers, or
-revises the Ask containing `source`. This semantic role neither assigns a binding nor
+revises the Question containing `source`. This semantic role neither assigns a binding nor
 makes ordinary keys forwardable. A numeric command need not be a Decision. Forwarding
 retains the original source, scope, row, and route identity, rechecks their current
 availability, and invokes the original callback or native control. On a native button
@@ -653,14 +657,14 @@ face the persistent `lf-binding-seat` class, whose shared style keeps it absolut
 positioned even when empty or restored. Position that seat beside its control using
 its holder and offsets; filling it must not move the control. `null` requests a badge
 at the control's corner. Each supplied face belongs to one action. The shared keyboard presenter writes its first reachable binding while the
-whole face is connected, visible, and uncovered; a reachable Ask alias takes precedence
+whole face is connected, visible, and uncovered; a reachable Question alias takes precedence
 over an intrinsic binding for the same command. Otherwise it paints a corner badge at
 the visible control. Commands without `bindingBadge` do not request an inline hint.
 The presenter reads the dispatcher's effective bindings, so hints withdraw outside the
 scope, during native text entry, or when the command is unavailable. A widget owns the
 face's placement, not its text or active state. Routes let one parameterized row
 contribute distinct controls and intrinsic bindings. Do not maintain a second
-Ask-control list or paint binding text in the package.
+Question-control list or paint binding text in the package.
 
 Command scopes compose by focused ancestry. The exact control scope is nearest, followed
 by containing widget scopes and Leaf's outer page scopes. A scope owns only the bindings
@@ -692,12 +696,12 @@ contract passes `true` as `offer()`'s fifth `pressable` argument; its tag then s
 same addressable marker as a native control.
 
 Register the command once, not every nearby button. Evidence nested inside an
-option is not an answer, and a shared-margin entry may sit outside the Ask source. When
+option is not an answer, and a shared-margin entry may sit outside the Question source. When
 controls or availability change, keep the row fields computed and call `paintKeys()`;
 every command projection then updates together. A package that needs the page-wide open
-Ask collection calls `watchAsks(owner, callback)`. It invokes `callback(readAsks())`
+Question collection calls `watchQuestions(owner, callback)`. It invokes `callback(readQuestions())`
 on the microtask after subscribing and after application publications, at most once
-per microtask. Register it once under "Projection subscriptions". See "Reading Asks
+per microtask. Register it once under "Projection subscriptions". See "Reading Questions
 and obligation queues" for the complete collection and activation contract.
 Package semantic behavior subscribes only through its controller.
 
@@ -757,7 +761,7 @@ omitting the attribute keeps the visual as one target.
 
 ## Projection subscriptions
 
-Register `watchAsks`, `watchUpdates`, `watchHistory`, and `watchThreads` once for each
+Register `watchQuestions`, `watchUpdates`, `watchHistory`, and `watchThreads` once for each
 owner. They coalesce reads at the script's microtask checkpoint, pause while the owner
 is absent, and read the latest projection when it returns, even when unchanged.
 Moving the owner within one mutation batch retains its subscription. Their returned
@@ -934,7 +938,7 @@ and Leaf's optimistic event path:
 
 ```js
 threadActions.create({text, anchor, attempt});
-threadActions.open(thread.key, {focus: "thread"});
+threadActions.open(thread.key, {part: "thread"});
 threadActions.reply(thread.key, text);
 threadActions.resolve(thread.key);
 threadActions.reopen(thread.key);
@@ -971,7 +975,7 @@ Thread collection as `readThreads()` on its initial presentation and on later
 publications. A Thread waiting on the user has unresolved
 `attention.kind === "needs_user"`, which
 includes recovery after a failed response; `"waiting"` means it is with the agent.
-A Thread's `id` is the name Asks and workflows give it; its `root` is the first
+A Thread's `id` is the name Questions and workflows give it; its `root` is the first
 message it still holds, whose id differs where the log lost the opening message.
 Each Thread's `key` survives admission of a pending gesture, and its `anchor`
 names the `section` (the widget's id) and `datum` it rests on. A returned promise
@@ -986,7 +990,8 @@ containers, filters, and order. Several widgets may render the same Thread, and
 removing one does not remove another's view. These are mirrors: they do not take the
 Thread away from its page or margin position. Leaf renders the messages, reply editor,
 reactions, resolution controls, and receipts. An authored message's interactive
-widgets open in the Threads panel, as they do from other inline Thread views.
+widgets open in the registered primary reader or the fallback Threads panel, as
+they do from other inline Thread views.
 
 ```js
 this.threads = mountThreadViews(this, (collection, surfaces) => {
@@ -1036,15 +1041,20 @@ The handle supplies `update()` and `unregister()`. Await `update()` after local 
 changes; ordinary updates preserve held news. A deliberate view change calls
 `update({release: true})` to show the current reading. `reveal(key, request)` selects
 and reveals the package's layout, returning its asynchronous layout work when needed.
-Return `false` to use core fallback. The request carries `message`, `focus`, `signal`,
-and `current()`; asynchronous work checks cancellation before changing layout.
+Return `false` to use core fallback. The reveal request carries `part` (message,
+thread, reply, or null for the surface default), `message` (the addressed stable
+message key, or null), boolean `focus`, `signal`, and `current()`. Addressed part
+and focus are independent: a message can be materialized without taking focus.
+Asynchronous work checks cancellation before changing layout.
 Leaf releases held news, awaits presentation, resolves the retained destination, and
-owns intent, focus, scrolling, first-unread navigation, and Ask arrival.
+owns intent, focus, scrolling, first-unread navigation, and Question arrival.
+Focused arrivals clear a Leaf panel that covers the native reader before taking
+focus. Materializing a message without focus leaves clearance to its later arrival.
 Whole conversations include settlement controls; a fragment feed supplies
 Resolve/Reopen through `threadActions`. Unregister on disconnect. The worked `lf-conversation-workspace` in the
 feature gallery switches Conversation, Shelf and Feed with these APIs.
 
-## Reading Asks and obligation queues
+## Reading Questions and obligation queues
 
 `readWork(scope)` projects a page-owned work hierarchy from the current application
 publication. Declare `$work.widgets` roles: `scope` bounds one hierarchy; `goal`
@@ -1059,32 +1069,86 @@ respect the closest scope and goal's remit. No dashboard stores another copy.
 role declaration for page-owned adapters. Atlas demonstrates native composition
 in `examples/command-hub.page/`; these domain tags are owned by that page.
 
-`readAsks()` returns the publisher's immutable `{phase, all, user, unanswered}`.
-`all` is the complete standing Ask inventory, `user` is the set currently on the
-user, and `unanswered` retains every standing unanswered Ask, including those held
-with the agent. Each entry has `{id, tag, sourceId, sourceTag, thread}`.
-`watchAsks(owner, callback)` receives that same collection. Membership changes when
-an authoritative reading is adopted: a pending widget press cannot independently
-decide whether the whole log still holds an Ask. `askAnswers(entries)` selects
-current answers through their canonical widgets.
+`readQuestions()` returns the publisher's immutable `{phase, all, user, unanswered}`.
+`all` contains widget, prose and stamped-version approval Questions, including answered and withdrawn
+Questions whose sources remain. `user` selects open Questions currently awaiting
+the user; `unanswered` includes every open Question, even one held with the agent
+or hidden behind a later prompt. Each record contains:
 
-`readQueues()` and `watchQueues(owner, callback)` supply the same immutable
-`{phase, onYou, onAgent, done}` that Questions and `q` navigation use. Each row
-carries its canonical subject and obligation fields; live rows also carry their
-workflow or `null`, plus `offers: {open, done}` for current command availability. Keep local filters and ordering separate from these lists.
+```js
+{
+  id: "widget:release-disposition", // or "reply:<agent-message-id>"
+  source: {kind: "widget", id: "release-disposition", tag: "lf-options"},
+  thread: null,
+  message: null,
+  prompt: {text: "When should this ship?", target: "release-context"},
+  answer: {value: ["release-later"], event: null},
+  status: "answered", // open | answered | withdrawn
+  next_actor: null,   // user | agent | null
+}
+```
+
+An approval Question has `source.kind === "approval"`, `source.version` naming the
+stamped version and id `approval:v<version>`. Its answer is `null` until that
+version's approval settles it with typed `answer.value === true`; undo reopens it. Its arrival reaches the banner's Approve control.
+
+`thread` and `message` identify a frozen widget Question's owning Thread and exact
+message. A prose Question names its Thread and source message. Both are null for
+page-widget and approval Questions. Message provenance lets the native reader
+reveal the turn containing the Question, including one inside a hidden summary.
+
+A prose Question has `source.kind === "reply"` and its agent message's id as
+`source.id`. Its answer contains the settling user message or reaction and its
+event reference. A message carrying a widget Question does not also pose a prose
+Question. `prompt.text` can be `null` when a widget has no context heading;
+`prompt.target` identifies the DOM context or source the user can visit.
+An optional `x-question-context` wrapper contributes that context without
+changing the Question's identity or answer owner. `lf-ask` is one such adapter.
+
+The widget's `x-awaits.value` selects the state verb containing its typed answer;
+`x-awaits.answered` independently determines completion. `answer` is `null` before
+answer content exists. Partial values can appear while `status` is `open`, and a
+completed empty selection has `answer.value === []`. `answer.event` identifies the
+admitted answering action, or is `null` for authored or carried state. Formatting
+belongs to the widget family; display words are not canonical answer data.
+`questionWords(question)` formats the answer of one widget, prose or approval
+Question, using the widget family's formatter where declared. It may return empty
+display wording and owns no answer state or lifecycle.
+
+`watchQuestions(owner, callback)` receives this same collection. Widget membership
+and completion change when an authoritative reading is adopted; pending widget
+input supplies its typed value immediately. A pending prose reply changes
+`next_actor` without inventing an admitted answer. A required-version approval and
+its undo update that Question immediately, including its typed `true` answer; refusal
+restores the admitted record. Page-widget Questions follow
+the shown document version; frozen-thread Questions are page-wide.
+
+`questionActions.open(id)` resolves the current Question and follows its canonical
+arrival, including earlier prose prompts and completed Questions. It resolves to
+`false` when that Question is unavailable. Answering uses the source's declared
+command; Questions expose no separate answer collection or answer CRUD API.
+
+`readQueues()` and `watchQueues(owner, callback)` supply the immutable
+`{phase, onYou, onAgent, done}` that the Questions panel and `q` navigation use.
+Question rows have `kind === "question"`, their canonical `question` record and
+`ends` of `widget`, `reply` or `approval`. Explicit work rows have
+`kind === "task"`; response
+obligations and delivery retries retain their own kinds. A Question is not also
+a task. Live rows carry their workflow or `null`, plus `offers: {open, done}`
+for current command availability. Keep local filters and ordering separate.
 `queueItemKey(row)` names a row across a move between lists.
-`queueTitle(row)` names its subject using the same conversation or Ask title as
+`queueTitle(row)` names its subject using the same conversation or Question title as
 Questions, including rows whose obligation record carries no explicit title.
 
-`queueActions.open(key)` resolves the current row and follows Leaf's canonical
-arrival, including completed Asks and tasks. It resolves to `false` for an unavailable
-row. `queueActions.done(key)` returns an admission promise only for a current
-`onYou` task with `ends === "done"`; otherwise it returns `null`. An Ask ends through
-its widget, a conversational question through a reply, and required sign-off through
-its version's banner approval. Done removes its task optimistically,
-a duplicate cannot send again, and refusal restores the authoritative reading.
-The server remains final for all actions. Collections retain their shape while
-`phase` is `waiting`, `ready`, or `offline`; activate only a ready collection.
+`queueActions.open(key)` resolves the current row and follows Leaf's arrival.
+It resolves to `false` for an unavailable row. `queueActions.done(key)` returns
+an admission promise only for a current `onYou` work task with `ends === "done"`;
+otherwise it returns `null`. A widget Question ends through its widget and a
+prose Question through a reply or settling reaction. An approval Question ends
+through its stamped version's banner approval. Done removes its work task
+optimistically, a duplicate cannot send again, and refusal restores the admitted
+reading. The server remains final for all actions. Collections retain their shape
+while `phase` is `waiting`, `ready`, or `offline`; activate only a ready collection.
 
 ## Widget-local Thread placement
 
@@ -1157,7 +1221,7 @@ but the outlet must stay inside its registered owner. Core validates both again
 at the sole conversation/composer commit. Failure of this selected page callback
 fails presentation instead of claiming an empty successful view.
 
-The same owner can register `consumeAnnotations(owner, render)` for Asks,
+The same owner can register `consumeAnnotations(owner, render)` for Questions,
 updates, status and contributed actions. It receives the current immutable
 inventory after the conversation cohort commits, plus these capabilities:
 
@@ -1183,4 +1247,4 @@ holding layout never authorizes old actions. Both handles provide `read()`,
 hold visible size changes with the shared `HeldReading` mechanism. Hold only layout
 identities and allocations, while updating surviving records and controls immediately;
 retired slots retain space with no interactive descendants. The bundled `lf-annotation-rail` is the worked
-implementation. Omitting either consumer retains the core Threads and Asks routes.
+implementation. Omitting either consumer retains the core Threads and Questions routes.

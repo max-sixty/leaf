@@ -747,7 +747,8 @@ export function createSelectionComposer({
         // settling.
         if (shouldReveal || panelIsOpen()) {
           const destination = await revealSent({
-            focus: shouldReveal ? "thread" : false,
+            part: shouldReveal ? "thread" : "reply",
+            focus: shouldReveal,
             travel: false,
             flash: false,
             intent: shouldReveal

@@ -2859,6 +2859,37 @@ def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
         )
 
 
+def test_the_gallery_overflow_tabs_reveal_and_open_review_sections(browser, serve):
+    """The gallery offers overflowing tabs at desktop, with working pointer and key routes."""
+    page = open_page(browser, live_url(serve(FEATURE_GALLERY)) + "#bg-tab-set")
+    resized(page, 1200, 900)
+    tabs = page.locator("#bg-rollout-tabs")
+    strip = tabs.locator(":scope > .lf-tabstrip")
+    tabs.scroll_into_view_if_needed()
+    choices = tabs.get_by_role("tab")
+    expect(choices).to_have_count(6)
+    expect(choices.first).to_have_attribute("aria-selected", "true")
+    assert strip.evaluate("el => el.scrollWidth > el.clientWidth")
+
+    strip.locator('.lf-tabstrip-scroll[data-to="end"] > span').click()
+    page.wait_for_function(
+        "document.querySelector('#bg-rollout-tabs > .lf-tabstrip').scrollLeft > 0"
+    )
+    expect(choices.first).to_have_attribute("aria-selected", "true")
+    # The keyboard reaches a tab from the pointer control without requiring that
+    # control to take a separate stop; End then brings the last section into view.
+    choices.first.click()
+    page.keyboard.press("End")
+    expect(choices.last).to_be_focused()
+    expect(choices.last).to_have_attribute("aria-selected", "true")
+    expect(page.locator("#bg-rollout-handoff-text")).to_be_visible()
+    page.keyboard.press("Home")
+    page.keyboard.press("ArrowRight")
+    expect(choices.nth(1)).to_be_focused()
+    expect(choices.nth(1)).to_have_attribute("aria-selected", "true")
+    expect(page.locator("#bg-rollout-scope-text")).to_be_visible()
+
+
 def color_cue_markup():
     return leaf_page(
         "Color cue surfaces",
@@ -5019,7 +5050,7 @@ def test_a_walked_thread_leaves_through_what_holds_it(browser, serve):
     # From the page: the walk is lateral, and its way out is the thread's element.
     page.keyboard.press("t")
     expect(threads[0]).to_be_focused()
-    expect(line).to_contain_text("back to page")
+    expect(line).to_contain_text("back to element")
     page.keyboard.press("t")
     expect(threads[1]).to_be_focused()
     page.keyboard.press("Escape")
@@ -5477,7 +5508,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     expect(threads[0]).to_be_focused()
     page.keyboard.press("t")
     expect(threads[1]).to_be_focused()
-    expect(line).to_contain_text("back to page")
+    expect(line).to_contain_text("back to element")
     out_through("#p2")
 
     # The mark on the page is the same door and the same way out.
@@ -6027,7 +6058,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     expect(thread).to_be_focused()
     expect(reply).to_be_visible()
     wait_standing(page, "bold text")
-    assert "back to page" in shortcut_bar_text(page)
+    assert "back to element" in shortcut_bar_text(page)
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()
     expect(reply).to_be_visible()
@@ -10229,7 +10260,7 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     card_thread = page.locator(".lf-margin-preview .lf-page-thread")
     page.keyboard.press("t")
     expect(card_thread).to_be_focused()
-    expect(line).to_contain_text("back to page")
+    expect(line).to_contain_text("back to element")
     # The global reference is a modal over everything; the card is where the user
     # stands rather than a layer of its own, so it waits under the modal, the reference
     # names its way out among the scene's, and the user comes back to it.
@@ -13520,6 +13551,48 @@ def test_align_current_tall_block_reveals_its_opening_through_outer_scrollers(
     assert page.evaluate("[history.length,navigation.currentEntry.key]") == history
 
 
+def test_end_landing_reveals_a_tall_items_closing_edge_through_outer_scrollers(
+    browser, serve
+):
+    """A tall item's closing edge travels through both its pane and the outer pane."""
+    source = leaf_page(
+        "Read the closing edge",
+        "<h1>Nested reading</h1>"
+        '<div id="outer-reading" data-bound="start" style="height:300px;overflow:auto">'
+        '<div style="height:300px"></div>'
+        '<div id="inner-reading" data-bound="start" style="height:250px;overflow:auto">'
+        '<pre id="tall-ending" style="margin:0">'
+        + "A line in the current item.\n"
+        * 80
+        + '</pre><div style="height:400px"></div></div>'
+        '<div style="height:500px"></div></div>'
+        '<div style="height:1000px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    reading = page.evaluate("""async () => {
+      const {scrollIntoView} = await window.__lfRuntimeImport('/runtime/landing-scroll.js');
+      const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+      const target = document.querySelector('#tall-ending');
+      const inner = document.querySelector('#inner-reading');
+      const outer = document.querySelector('#outer-reading');
+      scrollIntoView(target, {block:'end', behavior:'instant'});
+      return {
+        ending: target.getBoundingClientRect().bottom,
+        height: target.getBoundingClientRect().height,
+        bands: [inner, outer, document.scrollingElement].map(landingBand),
+        offsets: [inner.scrollTop, outer.scrollTop],
+      };
+    }""")
+    assert reading["height"] > 2 * 300, (
+        "the destination must span its outer reading band"
+    )
+    assert all(offset > 0 for offset in reading["offsets"]), reading
+    assert all(
+        band["top"] <= reading["ending"] <= band["bottom"] + 1
+        for band in reading["bands"]
+    ), reading
+
+
 @pytest.mark.parametrize("quarter_turn", ["owning", "enclosing"])
 @pytest.mark.parametrize("alignment", ["nearest", "start"])
 def test_vertical_landing_crosses_a_quarter_turn_without_changing_horizontal_reading(
@@ -16173,6 +16246,34 @@ def test_the_reference_keeps_its_count_line_whole_above_the_results(browser, ser
     assert reading["scrolls"], "the results fit, so nothing had to give up height"
     assert reading["meta"]["height"] >= reading["line"] - 0.5, reading
     assert reading["results"]["top"] - reading["meta"]["bottom"] >= 4, reading
+
+    # Walking keeps the search field focused, so only the results' own scroll
+    # region can make the selected command visible. The document stays put.
+    search = page.get_by_role("combobox", name="Search commands")
+    expect(search).to_be_focused()
+    buttons = page.locator(".lf-command-reference-command")
+    count = buttons.count()
+    assert count > 10, "the command walk must extend beyond the visible results"
+    last_command = buttons.last.evaluate(
+        "button => button.closest('tr').dataset.lfCommand"
+    )
+    before = page.evaluate("scrollY")
+    search.press("ArrowUp")
+    rendered(page)
+    selected = page.locator('.lf-command-reference tr[aria-selected="true"]')
+    expect(selected).to_have_attribute("data-lf-command", last_command)
+    expect(search).to_be_focused()
+    bounds = selected.evaluate("""row => {
+      const results = row.closest('.lf-command-reference-results');
+      const selected = row.getBoundingClientRect();
+      const band = results.getBoundingClientRect();
+      return {top:selected.top, bottom:selected.bottom, low:band.top,
+        high:band.bottom, offset:results.scrollTop};
+    }""")
+    assert bounds["offset"] > 0, bounds
+    assert bounds["top"] >= bounds["low"] - 1, bounds
+    assert bounds["bottom"] <= bounds["high"] + 1, bounds
+    assert page.evaluate("scrollY") == before
 
 
 ASK_IN_A_PANE_PAGE = leaf_page(

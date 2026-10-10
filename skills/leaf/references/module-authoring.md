@@ -30,11 +30,19 @@ published pages while the source retains its canonical path.
 For a vertical navigation that must retain sideways reading, use
 `scrollIntoReadingBand(target, holder, block, behavior)`: `target` is an element or
 Range, and `holder` is the element whose reading regions contain it. Element targets
-support `start`, `center`, or `nearest` for `block`; a Range is always centered. It places the
+support `start`, `center`, `end`, or `nearest` for `block`; `nearest` centers a Range. It places the
 target in the innermost reading band and reveals it in enclosing regions, across
 shadow roots, without changing horizontal offsets.
 Use it for an explicit arrival; entering visible controls and ordinary repainting
 preserve their current reading position.
+
+For an arrival that also reveals inner overflow, use
+`scrollIntoView(target, {block, behavior})`. Horizontal inspection is nearest;
+`block` defaults to `start` and accepts `center`, `end`, and `nearest`.
+It prepares inner scrollports, then places the destination through its enclosing
+reading regions. Both scrolling helpers stop at the current document, including
+inside a live sample. Native `Element.scrollIntoView` can scroll containing pages
+through same-origin iframes, so modules use these helpers instead.
 
 Registry `x-text-format: inline-markdown` formats direct authored text nodes;
 `markdown` renders a data body's exact source as safe block Markdown. The latter
@@ -220,6 +228,8 @@ words the render gate pairs with the file.
 the body that scrolls it whenever the theme makes it scroll. The host makes focus in a
 pane's header or footer select that pane. Register from `connectedCallback` and call
 the returned cleanup from `disconnectedCallback`, so a reconnect can claim the same id.
+Containment follows rendered slots, so native conversation parts nominated into a
+shadow reader belong to the region registered around their outlets.
 `readingPosture(node)` is `bounded` exactly while the region's body is its own
 scroller, and `watchReadingRegionTransitions(listener)` receives a `shift` when a
 shown region's scroller or width changes without a gesture; the continuity owner records the user's
@@ -337,8 +347,8 @@ after upgrade. Authored inputs retain focus immediately so typing continues duri
 startup. The widget owns its drawing and values. An initial renderer keeps retained
 view geometry from the first frame. Keys are unique within their named owner.
 
-A module that takes the user to a thread calls `openThread(id, {focus})`
-with the Thread's `id`. It opens the thread where the page shows it, inline beside
+A module that takes the user to a thread calls `threadActions.open(key, {focus})`
+with the Thread's stable `key`. It opens the thread where the page shows it, inline beside
 its passage or widget, and in Threads when it has no place on the page, the same choice a
 mark and `t` make. `focus: "thread"` lands on the card or native summary;
 `focus: "reply"` reveals its available reply editor. Omitting `focus` follows the
@@ -352,7 +362,7 @@ route's own move to that editor. A continuation uses the returned element only w
 it still holds focus:
 
 ```js
-const editor = await openThread(thread.id, {focus: "reply"});
+const editor = await threadActions.open(thread.key, {focus: "reply"});
 if (editor?.matches(":focus") && editor.setSelectionRange) {
   editor.setSelectionRange(0, editor.value.length);
 }
@@ -419,7 +429,7 @@ predicate before starting that synchronous handoff. If the synchronous work alre
 moved focus, the handoff keeps and adopts that destination instead of running the old
 focus move. A skipped move returns false, so a caller that requires the surface change
 can decline; adoption alone does not report that the move ran. Leaf's navigation
-primitives own that retention already; `openThread` returns its completed destination
+primitives own that retention already; `threadActions.open` returns its completed destination
 as described above.
 
 When Leaf travels to a target, such as a comment anchor or an Ask, it first dispatches
@@ -890,7 +900,7 @@ widget with that collection initially and after relevant application updates, un
 order state and derives its displayed rows from the collection. `threadTurns(thread)`
 selects a Thread's displayed turns, and `threadSummary(thread)` gives its topic and
 latest activity. An agent-authored message or closing event carries `agent`, the
-name it is shown under. `openThread(thread.id)` takes the user to Leaf's canonical
+name it is shown under. `threadActions.open(thread.key)` takes the user to Leaf's canonical
 conversation surface for that Thread. The widget does not need to render or own the
 conversation to provide that route.
 
@@ -899,10 +909,11 @@ and Leaf's optimistic event path:
 
 ```js
 threadActions.create({text, anchor, attempt});
+threadActions.open(thread.key, {focus: "thread"});
 threadActions.reply(thread.key, text);
 threadActions.resolve(thread.key);
 threadActions.reopen(thread.key);
-threadActions.toggleReaction(thread.key, agentMessage.id, token);
+threadActions.setReaction(thread.key, agentMessage.key, token, true);
 ```
 
 Reply, settlement, and reaction methods return `null` when the current reading does not offer that action,
@@ -914,8 +925,15 @@ Thread appears immediately; creation returns `{key, delivery}` synchronously,
 where `key` is its minted or supplied attempt and `delivery` is the admission promise.
 Creation does not require an existing Thread reading; its returned key selects the
 Thread when the collection becomes ready. A reaction requires an addressable agent message and a token
-in the current layer's vocabulary; pressing an already standing token takes it back.
+in the current layer's vocabulary; passing `false` withdraws a standing reaction.
 Use the Thread's stable `key`, which survives admission of a locally opened Thread.
+Every Thread carries `offers: {open, reply, resolve, reopen}` for current command
+availability. Reply is admissible on a resolved Thread and reopens it; native editor
+visibility also depends on the user's active composition. Each message's `reactions`
+is `null` or its current vocabulary and `choices`, including labels, glyphs and standing
+reactions. `setReaction` names the desired boolean state: a stale control cannot invert
+a concurrent change. Message keys survive admission too. To open one message, use
+`threadActions.open(thread.key, {message: message.key})`.
 Leaf's reply editors keep one durable draft per Thread; a package input retains its
 own draft.
 
@@ -923,7 +941,7 @@ own draft.
 
 `mountThreadViews(owner, render)` lets a package supply containers for Leaf's core
 conversation view. It registers one consumer per Element and returns a handle with
-`read()`, `update()`, and `unregister()`. The callback receives the same immutable
+`update()` and `unregister()`. The callback receives the same immutable
 Thread collection as `readThreads()` on its initial presentation and on later
 publications. A Thread waiting on the user has unresolved
 `attention.kind === "needs_user"`, which
@@ -937,7 +955,7 @@ read presentation. The second argument's `signal` is aborted when a newer render
 supersedes it or the consumer unregisters. Asynchronous callbacks check it before
 changing their UI. The owner unregisters on disconnect.
 
-For a Thread list or dashboard, `surfaces.render(thread.key, outlet)` shows a
+For a Thread list or dashboard, `surfaces.thread(thread.key, outlet)` shows a
 conversation in an Element inside the widget. Each widget chooses its own Threads,
 containers, filters, and order. Several widgets may render the same Thread, and
 removing one does not remove another's view. These are mirrors: they do not take the
@@ -949,7 +967,7 @@ widgets open in the Threads panel, as they do from other inline Thread views.
 this.threads = mountThreadViews(this, (collection, surfaces) => {
   for (const thread of collection.threads) {
     const outlet = this.outletFor(thread.key);
-    if (outlet) surfaces.render(thread.key, outlet);
+    if (outlet) surfaces.thread(thread.key, outlet);
   }
 });
 ```
@@ -960,23 +978,27 @@ The handle's `update()` requests a new render after a local layout change.
 
 ## Owning the primary conversation presentation
 
-`registerThreadPresentation(owner, {render, open})` selects one primary package
+`registerThreadPresentation(owner, {render, reveal})` selects one primary package
 reader per page. It joins Leaf's required presentation: interactive message widgets
 have one native instance, in the nominated reader or the fallback Threads panel.
 Use this when a package supplies the page's conversation reader, including a shelf
 of conversations or a feed of individual turns. `mountThreadViews` remains useful
 for optional mirrors of that reader.
 
-`render(collection, parts)` nominates connected Elements inside the owner:
+`render(shownCollection, parts)` nominates connected Elements inside the owner.
+This immutable presentation reading holds updates that would move visible content,
+before the package allocates outlets. Leaf shows a native notice that releases them.
+`readThreads()` remains the current semantic reading for counts and action availability.
 
 ```js
-parts.render(thread.key, conversationOutlet);
+parts.thread(thread.key, conversationOutlet);
 // Or nominate individual parts of that Thread:
-parts.message(thread.key, message.id, messageOutlet);
+parts.message(thread.key, message.key, messageOutlet);
 parts.reply(thread.key, replyOutlet);
 ```
 
-A pass can nominate a whole conversation or its individual parts, each once.
+A pass can nominate a whole conversation or its individual parts, each once. Several
+parts can share an outlet; Leaf retains their nodes and reconciles nomination order.
 A shadow outlet displays retained parts through native slots: core nodes stay in
 document light DOM, forwarding through nested shadow boundaries to retain the complete
 layer stylesheet semantics. Leaf retains the generated nodes, message rendering, reactions,
@@ -985,13 +1007,15 @@ layout, ordering, selection, scroll and disclosure. A returned promise delays th
 required presentation; check `parts.signal` before asynchronous layout changes,
 since a newer pass or unregister aborts it.
 
-The handle supplies `update()`, `destination(key, {message, focus})`, and
-`unregister()`. Await `update()` after local layout changes. `open(key, request)`
-selects and reveals its layout, awaits that update, and returns the retained node
-from `destination` while `request.current()` holds, or `null` to use core fallback.
-The request carries `message`, `focus`, `signal`, and `current()`. Leaf validates the
-returned node and owns intent, focus, scrolling, first-unread navigation, and Ask
-arrival. Whole conversations include settlement controls; a fragment feed supplies
+The handle supplies `update()` and `unregister()`. Await `update()` after local layout
+changes; ordinary updates preserve held news. A deliberate view change calls
+`update({release: true})` to show the current reading. `reveal(key, request)` selects
+and reveals the package's layout, returning its asynchronous layout work when needed.
+Return `false` to use core fallback. The request carries `message`, `focus`, `signal`,
+and `current()`; asynchronous work checks cancellation before changing layout.
+Leaf releases held news, awaits presentation, resolves the retained destination, and
+owns intent, focus, scrolling, first-unread navigation, and Ask arrival.
+Whole conversations include settlement controls; a fragment feed supplies
 Resolve/Reopen through `threadActions`. Unregister on disconnect. The worked `lf-conversation-workspace` in the
 feature gallery switches Conversation, Shelf and Feed with these APIs.
 
@@ -1024,6 +1048,8 @@ current answers through their canonical widgets.
 carries its canonical subject and obligation fields; live rows also carry their
 workflow or `null`, plus `offers: {open, done}` for current command availability. Keep local filters and ordering separate from these lists.
 `queueItemKey(row)` names a row across a move between lists.
+`queueTitle(row)` names its subject using the same conversation or Ask title as
+Questions, including rows whose obligation record carries no explicit title.
 
 `queueActions.open(key)` resolves the current row and follows Leaf's canonical
 arrival, including completed Asks and tasks. It resolves to `false` for an unavailable

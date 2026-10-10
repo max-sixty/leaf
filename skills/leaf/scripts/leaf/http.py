@@ -1089,7 +1089,11 @@ class PageEndpoint:
             owner = getattr(self, "parent", None)
             directory = owner.page_dir if owner is not None else self.page_dir
             page = self.page_root[len(owner.page_root) :] if owner is not None else "/"
-            append_interactions(directory, client_records(session, page, entries))
+            try:
+                records = client_records(session, page, entries)
+            except (TypeError, ValueError) as error:
+                return self._refuse(str(error))
+            append_interactions(directory, records)
             return self._content(204, "text/plain", b"")
         # Preview requests have passed authentication and body preparation. An event
         # refusal can therefore name its attempt; media uses the route's generic shape.

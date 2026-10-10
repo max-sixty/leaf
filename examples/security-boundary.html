@@ -707,10 +707,11 @@ stateDiagram-v2
             </tbody>
           </table>
           <p id="security-not-proven">
-            The adapter probe and hosted integration tests subsequently exercised
-            current Claude, Codex, and SRT behavior on GitHub-hosted Ubuntu 24.04,
-            including the nested UID, TLS-intercepting proxy, headless command lines,
-            Unix-socket denial, runner-checkout isolation, and complete teardown.
+            The Ubuntu 24.04 <code>test-sandbox</code> job exercised SRT and Tend’s
+            Claude and Codex adapters with stub harness executables. It checked
+            Unix-socket denial, runner-checkout isolation, broker routing, sandbox-local
+            loopback, reap, and bounded export. The separate
+            <code>test-codex-surface</code> job checked the pinned Codex CLI interface.
           </p>
         </section>
 

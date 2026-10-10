@@ -22,6 +22,7 @@
    The catalog is deliberately frozen while open. A command that becomes live waits until
    the next opening; one that becomes unavailable is rejected by fresh dispatch and causes
    the reference to reopen with an explanation. */
+import { scrollIntoView } from "../landing-scroll.js";
 import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
 
 import {
@@ -75,6 +76,7 @@ import { repaint } from "../repaint.js";
 import { pageSelection } from "../composing/capture.js";
 import { availableCommandRoutes, userIn } from "./dispatch.js";
 import { reachScrollers } from "../reach.js";
+import { registerReadingRegion } from "../reading-regions.js";
 import { openPopovers } from "./layer-stack.js";
 
 export const commandReferenceDialog = document.createElement("dialog");
@@ -85,6 +87,7 @@ commandReferenceDialog.setAttribute("closedby", "any");
 commandReferenceDialog.setAttribute("aria-modal", "true");
 // Focused on open, so the dialog is not silent to a screen reader.
 commandReferenceDialog.tabIndex = -1;
+let stopReferenceReading = null;
 
 // Page-key presentation owns this retained native control's changing name and shortcut
 // metadata. The reference template only seats it.
@@ -853,6 +856,11 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     // renders.
     search.value = "";
     results.scrollTop = 0;
+    stopReferenceReading = registerReadingRegion({
+      id: "lf-region:command-reference",
+      host: commandReferenceDialog,
+      body: results,
+    });
   }
   commandReferenceDialog.classList.toggle("open", open);
   if (open && !commandReferenceDialog.open) commandReferenceDialog.showModal();
@@ -866,6 +874,8 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   // standing down: the close releases it with the dialog, and hands the user back once
   // its repaint has drawn that More again.
   if (!open) {
+    stopReferenceReading?.();
+    stopReferenceReading = null;
     closeLayer(
       () => {
         if (commandReferenceDialog.open) commandReferenceDialog.close();
@@ -942,7 +952,7 @@ export function moveCommandReferenceSelection(dir) {
   presentCommandReference();
   const next = commandButton(nextId);
   if (focusedId) focusDestination(next, "move");
-  next.closest("tr").scrollIntoView({ block: "nearest" });
+  scrollIntoView(next.closest("tr"), { block: "nearest" });
   beginWalk("shortcut-command", "Command", () => {
     const current = focusedCommandId() ?? commandReferenceState.selectedCommandId;
     return listWalkPosition(

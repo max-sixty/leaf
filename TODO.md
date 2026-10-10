@@ -26,6 +26,12 @@ has tried; settle that before building it.
 
 ### User experience
 
+- **Verify cancellation when a browser document departs.** Reproduce navigation
+  away during registry loading, state response decoding, and presentation, plus
+  removal of a loading sample iframe. Confirm which work survives departure and
+  whether it produces errors before changing shared startup or presentation
+  lifetimes. Include real back/forward-cache restoration so cancellation cannot
+  break a returning page.
 - **#25 — Answer one decision beside its evidence and on a board.** A section's
   picker and its board card currently record independent facts. Choose the owner
   and test both views against one decision, including ordering, write-ins and

@@ -18,6 +18,7 @@
    a visible accompanying preview remains the current conversation. Canonical page
    targets always come from anchor placement, independently of whichever view draws a
    Thread. */
+import { scrollIntoView } from "../landing-scroll.js";
 import { focusDestination, focused } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -91,7 +92,7 @@ export function createThreadDestinations({
             (focus !== false &&
               !intent.handoff(() => {
                 focusDestination(current, "move");
-                current.scrollIntoView({ block: "nearest" });
+                scrollIntoView(current, { block: "nearest" });
               }))
           )
             return null;
@@ -126,7 +127,7 @@ export function createThreadDestinations({
             (focus !== false &&
               !intent.handoff(() => {
                 focusDestination(current, "move");
-                current.scrollIntoView({
+                scrollIntoView(current, {
                   behavior: scrollBehavior(),
                   block: "nearest",
                 });

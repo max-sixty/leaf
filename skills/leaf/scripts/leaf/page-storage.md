@@ -67,8 +67,13 @@ other page files and the external state listed below.
 
 - `interactions.jsonl` — diagnostic JSON-lines trace of server requests and browser
   interactions, including refused requests. It is separate from `events.jsonl` and
-  never enters page state or acknowledgement, and no command reads it: a reader
-  follows the file itself (`tail -F`). The server appends request method, path without query, status, and
+  never enters page state or acknowledgement. `leaf page interactions` reads it
+  chronologically, deduplicates retries, reconstructs complete split records, and
+  reports missing sequences and incomplete records before applying time or type
+  filters. No final gap can be inferred from an unsent tail. Server requests have
+  no browser session association, so a session filter excludes them. Human output
+  uses the reader's local timezone and shortens long values; `--json` preserves
+  complete reconstructed values. The server appends request method, path without query, status, and
   duration for every request except a successful `/api/news` look or delivery of a
   resource's bytes (a module, stylesheet, or media file); `/api/interaction` appends browser batches with a session id, scoped
   page address, and server receipt time. Sample activity remains in its parent
@@ -84,6 +89,13 @@ other page files and the external state listed below.
   `interaction_omitted`. This is a best-effort diagnostic trace, not an audit
   guarantee: an offline tab closed with unsent data may lose it. The semantic
   event log remains the durable record of accepted decisions.
+  Browser admission validates the diagnostic transport fields (timestamps,
+  sequences, target paths, node identities, and split-record coordinates), while
+  observation types and other payload fields remain open. The reader reports
+  damaged stored rows and conflicting duplicates as `interaction_invalid`, with
+  their line, reason, and original record. Rows without a usable timestamp remain
+  visible under time filters as `unknown-time`; those without a usable session
+  remain visible under session filters.
 
 - `user-views.json` — replaceable per-document browser
   observations (`user_views.py`). These are author

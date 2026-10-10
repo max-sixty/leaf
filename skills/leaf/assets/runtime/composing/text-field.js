@@ -75,6 +75,7 @@
  * This reveal belongs to the host alone: resizing a focused field does not move a
  * reading pane the user scrolled away from it.
  */
+import { scrollIntoView } from "../landing-scroll.js";
 import {
   EditorView,
   EditorState,
@@ -559,7 +560,7 @@ class LeafText extends HTMLElement {
     // A shadow root answers for its own selection only in Chromium, as CodeMirror reads it.
     const selection = this.#root.getSelection?.() ?? document.getSelection();
     selection.setBaseAndExtent(from.node, from.offset, to.node, to.offset);
-    if (!options?.preventScroll) this.scrollIntoView({ block: "nearest" });
+    if (!options?.preventScroll) scrollIntoView(this, { block: "nearest" });
   }
 
   blur() {

@@ -50,6 +50,7 @@
  * inactive panels. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
+import { scrollIntoView } from "/runtime/widget-api.js";
 import {
   HIDDEN,
   PRESS,
@@ -713,7 +714,7 @@ customElements.define(
     // where it is.
     #land() {
       if (this.getBoundingClientRect().top < 0)
-        this.scrollIntoView({ block: "start", behavior: "instant" });
+        scrollIntoView(this, { block: "start", behavior: "instant" });
     }
 
     #placeKey(panel) {

@@ -30,6 +30,7 @@
  * controls and evidence with their owners; command, goal and worker ancestry keeps
  * that gesture within its own row. Only a drag ending on the clicked words suppresses
  * it, so a standing selection elsewhere does not deaden the row. */
+import { scrollIntoView } from "/runtime/widget-api.js";
 import {
   PRESS,
   threadBox,
@@ -329,7 +330,7 @@ function showView(box) {
   const title = box?.querySelector(":scope > h2");
   if (!title) return;
   focusDestination(title, "move");
-  box.scrollIntoView({ block: "nearest" });
+  scrollIntoView(box, { block: "nearest" });
 }
 
 // A count opens its list: the lists show as they stand now, whatever they move, since

@@ -121,6 +121,18 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
         fetch(f"{server}/api/interaction", data=b'{"session":"tab-1","entries":[]}')[0]
         == 400
     )
+    for entry in (
+        {"type": "interaction_part", "sequence": 1},
+        {"type": "keydown", "ts": 42},
+        {"type": "focusin", "target": [{}]},
+    ):
+        assert (
+            fetch(
+                f"{server}/api/interaction",
+                data=json.dumps({"session": "malformed", "entries": [entry]}).encode(),
+            )[0]
+            == 400
+        )
     assert (
         fetch(
             f"{server}/api/interaction", data=json.dumps(payload).encode(), token=None

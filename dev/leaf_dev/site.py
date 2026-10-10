@@ -92,6 +92,7 @@ PRODUCT_ROUTES = {
     "registry.html": "/registry/",
     "event-log.html": "/event-log/",
     "threads.html": "/threads/",
+    "website.html": "/website/",
 }
 # The card a link to a product page unfurls into, shot at the 1.91:1 an unfurler draws
 # by `leaf_dev.record_demo`, relative to the asset tree. An example names its own

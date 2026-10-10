@@ -2,7 +2,8 @@
    goes.
 
    `showThread` addresses a thread, reply or message with `part`; boolean `focus`
-   independently controls taking focus. It clears a narrowing
+   independently controls taking focus, and `scroll: false` leaves the list where it
+   stands. It clears a narrowing
    that hides the destination and finishes an outgoing resolution fold before choosing
    its lifecycle state. A thread reached in the complete panel opens in its reply box;
    the compact margin view opens on its card and reveals that box only when the user
@@ -449,6 +450,7 @@ async function showThreadNow(
   revealThread,
   threadsBox,
   mayArrive,
+  scroll,
 ) {
   // A native continuation owns its presented row even after Tab moves standing.
   // The original gesture still gates focus, scrolling, and any later reveal action.
@@ -514,7 +516,7 @@ async function showThreadNow(
   const target = aim.node ?? thread;
   const long = directThread && (target !== thread || aim.block === "end");
   const start = long ? threadLandingStart(thread, target, threadsBox) : null;
-  if (mayArrive())
+  if (scroll && mayArrive())
     scrollIntoView(start ?? target, {
       behavior: scrollBehavior(),
       // A long thread begins at the clean content boundary chosen above. A short card
@@ -603,6 +605,7 @@ export function createThreadLanding({ setPanel, revealThread, threadsBox }) {
       part = "reply",
       focus = true,
       flash = true,
+      scroll = true,
       intent = retainUserIntent({
         source: focused(),
         available: () => threadsBox.isConnected,
@@ -626,6 +629,7 @@ export function createThreadLanding({ setPanel, revealThread, threadsBox }) {
       revealThread,
       threadsBox,
       intent,
+      scroll,
     );
     // Pointer and keyboard routes deliberately discard this ticket. The thread
     // coordinator reports its one failure; the landing result keeps that rejection out

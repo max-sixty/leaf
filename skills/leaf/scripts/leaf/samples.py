@@ -2,10 +2,10 @@
 
 A sample owns an ordinary source, revision, data store, and event log. Its parent
 supplies immutable resources and optional selected thread history, never a live
-state projection. Its browser dependency URLs retain the creating parent's exact
-immutable resource namespace, including through nested children; only the document
-and API identity are new. Browser gestures enter the ordinary page event door. The
-HTTP server owns these directories until explicit release or server shutdown.
+state projection. Each unguessable child path is a capability for that child's
+ordinary document, captured dependencies, and APIs. It grants no parent routes.
+Browser gestures enter the ordinary page event door. The HTTP server owns these
+directories until explicit release or server shutdown.
 """
 
 import json
@@ -32,7 +32,7 @@ class Sample:
     parent: Path
     layer: dict
     passive: bool
-    asset_root: str
+    asset_root: str | None
     # Held for the sample's life, so the sample keeps its readings however many
     # sibling samples push it out of the process's recent pages (`page_memory`).
     memory: PageMemory
@@ -65,7 +65,7 @@ class Samples:
         data: dict,
         template_id: str,
         passive: bool,
-        asset_root: str,
+        asset_root: str | None,
     ) -> str:
         template = next(
             (

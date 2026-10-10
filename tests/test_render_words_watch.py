@@ -771,6 +771,136 @@ def test_words_a_press_in_the_page_holding_their_frame_puts_away_are_put_away(br
     judge_watches()
 
 
+@pytest.mark.parametrize("cause", ["press", "passive", "unrelated", "older-press"])
+def test_words_message_ports_keep_their_scheduling_source(browser, cause):
+    """Opaque IPC owns only the effect sent by a press, including asynchronous work.
+
+    An earlier input message cannot credit the passive clear queued behind it.
+    Native transfer and listener identity remain visible to the application.
+    """
+    child = """<textarea id=field></textarea><script>
+      const script = document.currentScript;
+      addEventListener('message', event => {
+        const port = event.ports[0];
+        script.lfDocumentPort = port;
+        const receive = event => {
+          const {command, buffer} = event.data;
+          if (command !== 'clear') return;
+          Promise.resolve().then(() => setTimeout(() => {
+            field.value = '';
+            port.postMessage({bytes: [...new Uint8Array(buffer)]});
+          }, 0));
+        };
+        const unused = () => { throw new Error('removed listener ran'); };
+        port.addEventListener('message', unused);
+        port.removeEventListener('message', unused);
+        port.onmessage = receive;
+        if (port.onmessage !== receive) throw new Error('listener identity changed');
+        port.postMessage({ready: true});
+      });
+    </script>"""
+    parent = """<button id=clear>Clear</button><script>
+      const channel = new MessageChannel();
+      const port = channel.port1;
+      document.currentScript.lfDocumentPort = port;
+      const send = command => {
+        const buffer = new Uint8Array([3, 1, 4]).buffer;
+        port.postMessage({command, buffer}, {transfer: [buffer]});
+        if (buffer.byteLength !== 0) throw new Error('buffer was not transferred');
+      };
+      window.passive = lfInputWork.capture(() => send('clear'));
+      port.addEventListener('message', event => {
+        if (event.data.ready) window.connected = true;
+        else window.answer = event.data.bytes;
+      });
+      port.start();
+      frame.onload = () => frame.contentWindow.postMessage(null, '*', [channel.port2]);
+      clear.onclick = () => Promise.resolve().then(() => {
+        if (MODE === 'older-press') {
+          window.deliver = lfInputWork.capture(() => send('clear'));
+        } else if (MODE === 'unrelated') {
+          send('idle');
+          passive();
+        } else send('clear');
+      });
+    </script>""".replace("MODE", repr(cause))
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            f'<iframe id=frame sandbox="allow-scripts" srcdoc="{escape(child, quote=True)}"></iframe>'
+            + parent
+        )
+    )
+    page.wait_for_function("window.connected === true")
+    field = page.frame_locator("iframe").locator("#field")
+    field.fill("Keep my words")
+    if cause == "passive":
+        page.evaluate("passive()")
+    else:
+        page.locator("#clear").click()
+    if cause == "older-press":
+        page.wait_for_function("typeof window.deliver === 'function'")
+        field.fill("My newer words")
+        judge_watches()
+        page.evaluate("deliver()")
+    expect(field).to_have_value("")
+    page.wait_for_function("window.answer !== undefined")
+    assert page.evaluate("answer") == [3, 1, 4]
+    judge_watches()
+    if cause != "press":
+        consume_browser_errors(
+            page, "typed words left the screen without a key or press"
+        )
+
+
+def test_unclassified_worker_ports_keep_native_message_values(browser):
+    """Document tracing must leave an authored worker's uninstrumented peer native."""
+    worker = """onmessage = event => {
+      const port = event.ports[0];
+      port.onmessage = ({data}) => {
+        if (typeof data === 'string') port.postMessage(data);
+        else {
+          if (Object.keys(data).join(',') !== 'command,buffer')
+            throw new Error('application payload changed');
+          port.postMessage(data, [data.buffer]);
+          if (data.buffer.byteLength !== 0) throw new Error('worker transfer failed');
+        }
+      };
+      port.postMessage('ready');
+    };"""
+    source = f"""<button id=send>Send</button><script>
+      const worker = new Worker(URL.createObjectURL(new Blob([{worker!r}],
+        {{type: 'text/javascript'}})));
+      worker.onerror = event => {{ window.workerFailed = event.message; }};
+      const channel = new MessageChannel();
+      const port = channel.port1;
+      window.answers = [];
+      port.onmessage = ({{data}}) => {{
+        if (data === 'ready') window.connected = true;
+        else answers.push(typeof data === 'string' ? data :
+          {{command: data.command, bytes: [...new Uint8Array(data.buffer)]}});
+      }};
+      worker.postMessage(null, [channel.port2]);
+      send.onclick = () => {{
+        port.postMessage('native message');
+        const buffer = new Uint8Array([2, 7]).buffer;
+        port.postMessage({{command: 'native object', buffer}}, [buffer]);
+        if (buffer.byteLength !== 0) throw new Error('document transfer failed');
+      }};
+    </script>"""
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(source))
+    page.wait_for_function("window.connected === true")
+    page.locator("#send").click()
+    page.wait_for_function("window.workerFailed || answers.length === 2")
+    assert page.evaluate("window.workerFailed") is None
+    assert page.evaluate("answers") == [
+        "native message",
+        {"command": "native object", "bytes": [2, 7]},
+    ]
+
+
 @pytest.mark.parametrize("continuation", ["captured", "native-await", "passive"])
 def test_words_child_work_reads_its_executing_parent_owner(browser, continuation):
     child = """<textarea id=field></textarea><script>

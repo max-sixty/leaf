@@ -36,6 +36,8 @@
  * face is the window's, the stylesheet-owned --lf-banner-face that also dresses
  * the banner, so the partition changes only when the window crosses that width.
  */
+import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
+import { scrollIntoView } from "./landing-scroll.js";
 import { html, render, repeat } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
 import { iconTemplate } from "./icons.js";
@@ -248,7 +250,10 @@ overflowMenu.addEventListener("toggle", (event) => {
   const open = event.newState === "open";
   render(rowTemplate(), bannerActions);
   const first = open && document.activeElement === overflowBtn && menu.find(focusable);
-  if (first) focusDestination(first.focusTarget, "move", { scroll: true });
+  if (first) {
+    focusDestination(first.focusTarget, "move");
+    scrollIntoView(first.focusTarget, { block: "nearest" });
+  }
   if (!open) opener = null;
   repaint();
 });
@@ -416,7 +421,7 @@ function focusAfterRemoval(entry, wasInMenu) {
 // caller means to show, and this is the only one that can open for a menu control.
 function revealMenuControl(control) {
   if (!overflowMenu.matches(":popover-open")) {
-    overflowMenu.showPopover();
+    showNativeLayer(overflowMenu);
     return;
   }
   const entry = menu.find(
@@ -459,5 +464,5 @@ export function returnToBannerControl(control) {
 }
 
 export function dismissBannerControls() {
-  if (overflowMenu.matches(":popover-open")) overflowMenu.hidePopover();
+  if (overflowMenu.matches(":popover-open")) closeNativeLayer(overflowMenu);
 }

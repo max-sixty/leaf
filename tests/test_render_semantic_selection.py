@@ -320,14 +320,18 @@ def test_target_picker_takes_a_margin_press_as_the_target_it_stands_by(browser, 
 
 
 def test_select_element_obeys_covering_surfaces_and_pointer_modes(browser, serve):
+    """The picker shares Design targets, while Draw mode and covering panels own input."""
     context = browser.new_context(has_touch=True)
     page = open_page(browser, serve(TARGETS_PAGE), context=context)
     select = page.get_by_role(
         "button", name="Select element", exact=True, include_hidden=True
     )
-    for key in ("l", "w"):
+    for key, available in (("l", True), ("w", False)):
         page.keyboard.press(key)
-        expect(select).to_be_disabled()
+        if available:
+            expect(select).to_be_enabled()
+        else:
+            expect(select).to_be_disabled()
         # Text search remains available inside these pointer modes.
         page.keyboard.press("/")
         page.get_by_role("searchbox", name="Search page text").fill("paragraph")
@@ -651,7 +655,7 @@ def test_nested_target_hints_show_containment_without_covering_each_other(
     browser, serve
 ):
     """A container and its first child may paint the same box corner. Both remain
-    reachable, while the enclosed target steps right to show which hint names it."""
+    reachable, with separate chips outside their targets and each other."""
     html = leaf_page(
         "nested targets",
         '<section id="outer"><p id="inner">The child fills its parent.</p></section>',
@@ -674,7 +678,7 @@ def test_nested_target_hints_show_containment_without_covering_each_other(
     )
     boxes = geometry["hints"]
     assert abs(geometry["targetLefts"][0] - geometry["targetLefts"][1]) < 0.5
-    assert boxes[1]["centre"] - boxes[0]["centre"] >= 9, geometry
+    assert all(box["right"] <= geometry["targetLefts"][0] for box in boxes), geometry
     assert not (
         boxes[0]["left"] < boxes[1]["right"]
         and boxes[1]["left"] < boxes[0]["right"]
@@ -743,7 +747,7 @@ def test_target_hints_name_only_addressable_elements_shown_by_a_disclosure(
     expect(hints).to_have_count(2)  # heading and disclosure
 
     page.keyboard.press("Escape")
-    page.locator("summary").click()
+    page.locator("#evidence > summary").click()
     page.keyboard.press("s")
     expect(hints).to_have_count(32)
 
@@ -758,7 +762,7 @@ def test_target_hints_name_only_addressable_elements_shown_by_a_disclosure(
         "keys => keys.map(key => [key.textContent, key.dataset.lfSequenceStepState])"
     ) == [[tail[0], "pressed"], [tail[1], "neutral"]]
     expect(continued).to_have_css("gap", "1px")
-    page.locator("summary").click()
+    page.locator("#evidence > summary").click()
     expect(hints).to_have_count(0)
 
 
@@ -1289,10 +1293,8 @@ def test_an_open_search_mark_follows_the_page_it_marks(browser, serve):
     page.wait_for_function(f"() => Math.abs(({gap})() - {seated}) < 6")
 
 
-def test_a_nested_target_restates_its_indent_when_the_nesting_changes(browser, serve):
-    """A chip enclosed by another steps right once per box around it. That step and the
-    box it starts from are one measurement: read a paint apart, they put the chip where
-    neither reading said."""
+def test_a_nested_target_hint_follows_when_the_nesting_changes(browser, serve):
+    """A nested target's chip keeps its offset outside the target when layout moves it."""
     html = leaf_page(
         "nested targets",
         '<section id="outer"><p id="inner">The child fills its parent.</p></section>',
@@ -1311,6 +1313,9 @@ def test_a_nested_target_restates_its_indent_when_the_nesting_changes(browser, s
     page.keyboard.press("s")
     expect(page.locator(".lf-target-picker-hint")).to_have_count(2)
     indented = page.evaluate(step)
+    chip_left = page.locator('.lf-target-picker-hint[data-lf-hint-code="s"]').evaluate(
+        "chip => Math.round(chip.getBoundingClientRect().left)"
+    )
 
     # Break the containment and ask for a frame, without scrolling or resizing the window.
     page.evaluate(
@@ -1319,8 +1324,12 @@ def test_a_nested_target_restates_its_indent_when_the_nesting_changes(browser, s
           document.querySelector('.lf-shortcut-bar').style.height = '80px';
         }"""
     )
-
-    page.wait_for_function(f"() => ({step})() === {indented - 10}")
+    page.wait_for_function(
+        "left => Math.round(document.querySelector('[data-lf-hint-code=\"s\"]')"
+        ".getBoundingClientRect().left) === left - 60",
+        arg=chip_left,
+    )
+    assert page.evaluate(step) == indented
 
 
 def test_a_letter_naming_no_target_leaves_the_hints_standing(browser, serve):

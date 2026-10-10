@@ -3,6 +3,7 @@
 import itertools
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -3734,17 +3735,20 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
         url = origin + child["url"]
         document, headers = get(url)
         assert b"A private child page." in document
-        asset_root = (
-            manifest["pages"]["/examples/decision"]["assets"]
-            if published_revision
-            else "/examples/decision"
-        )
-        expected = f"{asset_root}/revisions/{revision_path(published, 1).stem}"
-        assert f'data-lf-entry="{expected}/leaf.js"'.encode() in document
+        if published_revision:
+            asset_root = manifest["pages"]["/examples/decision"]["assets"]
+            expected = f"{asset_root}/revisions/{revision_path(published, 1).stem}"
+            assert f'data-lf-entry="{expected}/leaf.js"'.encode() in document
+        else:
+            entry = re.search(rb'data-lf-entry="([^"]+)"', document)[1].decode()
+            assert entry.startswith(child["url"] + "revisions/")
+            assert get(origin + entry)[0]
         assert f'data-lf-page-root="{child["url"].rstrip("/")}"'.encode() in document
         assert b"sitenote.js" not in document
         assert b"data-lf-release=" not in document
-        assert headers["Content-Security-Policy"] == "frame-ancestors 'self'"
+        assert headers.get("Content-Security-Policy") is None
+        assert headers["Access-Control-Allow-Origin"] == "*"
+        assert headers["Referrer-Policy"] == "no-referrer"
         assert headers["Leaf-Layer"] == state["layer"]["generation"]
         accepted, _ = post(
             url + "api/event",

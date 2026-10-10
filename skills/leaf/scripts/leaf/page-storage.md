@@ -79,6 +79,9 @@ other page files and the external state listed below.
   page address, and server receipt time. Sample activity remains in its parent
   page's trace. The diagnostic file changes neither page/source reading nor
   presence cache keys. It is private page data and is never served as an asset.
+  Command records capture the selected command's title and description before
+  it runs, together with current focus and document scroll. Following focus and
+  scroll observations show its effect, including commands that change no page event.
   A tab retries failed batches and may resend an in-flight batch on page hide;
   `(session, sequence)` identifies duplicates. Large browser records arrive as
   `interaction_part` rows whose `json` fields concatenate in `part` order.

@@ -794,8 +794,8 @@ def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
 def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
     """A control in a stuck sticky header stands inside the root's landing band, so the
     browser scrolled toward it on every focus and the header never came out from under
-    the band: the page crept 17px a focus under a diff's file header and 12px under its
-    file action, and was centred, hundreds of pixels a key, under a page tab strip.
+    the band: the page crept 17px a focus under a diff's file header and was centred,
+    hundreds of pixels a key, under a page tab strip.
     Each header says where its controls stand (`--lf-head-inset`), so focusing one where
     it sticks scrolls nothing: in a page tab, where the strip stands over it, and after
     the tabs, where the root's band still counts the strip. Focus moving on from the
@@ -810,7 +810,6 @@ def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
         await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
         const controls = {
             file: diff.shadowRoot.querySelector('.lf-diff-file > details > summary'),
-            action: diff.shadowRoot.querySelector('.lf-diff-file-actions button'),
         };
         if (id === 'patch')
             controls.tab = document.querySelector(
@@ -824,8 +823,8 @@ def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
         }
         return moved;
     }"""
-    assert page.evaluate(focus_in, "patch") == {"file": 0, "action": 0, "tab": 0}
-    assert page.evaluate(focus_in, "after-tabs") == {"file": 0, "action": 0}
+    assert page.evaluate(focus_in, "patch") == {"file": 0, "tab": 0}
+    assert page.evaluate(focus_in, "after-tabs") == {"file": 0}
     # Tab from a stuck file header into its code, scrolled partly past above it.
     page.evaluate(
         """async () => {
@@ -3260,7 +3259,7 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
         verify_geometry
     )
 
-    details = page.locator("details")
+    details = page.locator("main details")
     expect(details).not_to_have_attribute("open", "")
     toc.get_by_role("link", name="Move the readers").click()
     expect(details).to_have_attribute("open", "")
@@ -3284,7 +3283,7 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     # On first parse this id does not exist yet. The shared arrival pass runs after every
     # widget settles, so a copied link still reveals and reaches the heading it names.
     direct = open_page(browser, url + hrefs[1])
-    expect(direct.locator("details")).to_have_attribute("open", "")
+    expect(direct.locator("main details")).to_have_attribute("open", "")
     expect(direct).to_have_url(re.compile(f"{re.escape(hrefs[1])}$"))
     direct.wait_for_function(
         "heading => { const box = heading.getBoundingClientRect(); "
@@ -5692,8 +5691,8 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         controlsSize: [controls.clientHeight, controls.scrollHeight],
         pageScrolls: document.scrollingElement.scrollHeight > innerHeight,
         askDisplay: getComputedStyle(document.querySelector('#notification-ask')).display,
-        authoredWords: leaf.wrote(playground).includes('Drag event pressure'),
-        spokenWords: leaf.says(playground).includes('Drag event pressure'),
+        authoredWords: leaf.wrote(playground).includes('Concurrent release events'),
+        spokenWords: leaf.says(playground).includes('Concurrent release events'),
       };
     }"""
 

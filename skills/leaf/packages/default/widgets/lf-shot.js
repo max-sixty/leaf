@@ -377,6 +377,7 @@ customElements.define(
         frame.querySelector("img").alt = alt;
         const open = this.#openers.get(state);
         open.dataset.lfMediaAlt = alt;
+        open.dataset.lfMediaCaption = alt;
         keeps(open, "aria-label", `Open ${state} image — ${this.#alt}`);
       }
       keeps(this.#box, "aria-label", `Compare before and after — ${this.#alt}`);

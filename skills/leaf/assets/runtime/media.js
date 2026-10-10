@@ -8,7 +8,8 @@
    Draft, sent-message, and authored links to their own image open one native modal
    viewer. PhotoSwipe supplies image zoom, pan, and touch gestures on demand; native
    modality, retained controls, and focus return remain Leaf's. An authored figure
-   caption stays outside the image in a readable footer; alt text stays with the image.
+   caption or an inspection link's explicit caption stays outside the image in a readable
+   footer; alt text stays with the image.
    Links to other destinations and modified link presses keep their authored meaning. The document
    declares its public page root because a website module may live under an immutable
    release URL shared with a sample. All three resolve
@@ -28,7 +29,11 @@ import {
 } from "./focus.js";
 import { closeControl, offered } from "./widget-elements.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
-import { nativeLayers } from "./keyboard/layer-stack.js";
+import {
+  nativeLayers,
+  showNativeLayer,
+  closeNativeLayer,
+} from "./keyboard/layer-stack.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
 import { reducedMotion, foldDuration } from "./motion.js";
 
@@ -104,7 +109,17 @@ function presentViewer(model) {
       <div class="lf-media-viewer-head">
         <strong id="lf-media-viewer-title">Image preview</strong>
         <div class="lf-media-viewer-actions">
-          ${model ? html`<a ${offered("lf-media-viewer-original", true)} href=${model.url} target="_blank" rel="noopener">Original</a>` : null}
+          ${
+            model
+              ? html`<a
+                  ${offered("lf-media-viewer-original", true)}
+                  href=${model.url}
+                  target="_blank"
+                  rel="noopener"
+                  >Original</a
+                >`
+              : null
+          }
           ${viewerZoom}${viewerClose}
         </div>
       </div>
@@ -132,7 +147,7 @@ keys(
       title: "close image",
       description: "Close image preview",
       control: viewerClose,
-      run: () => mediaViewer.close(),
+      run: () => closeLayer(() => closeNativeLayer(mediaViewer)),
     },
     {
       id: "image.zoom",
@@ -173,11 +188,13 @@ const open = (url, alt, from) => {
   presentViewer({ url, alt });
   render(html`<img src=${url} alt=${alt} />`, stage);
   const description =
-    from.closest("figure")?.querySelector("figcaption")?.textContent.trim() || "";
+    from.dataset.lfMediaCaption ||
+    from.closest("figure")?.querySelector("figcaption")?.textContent.trim() ||
+    "";
   keepsText(caption, description);
   keepsHidden(caption, !description);
   keepsText(viewerZoom, "100%");
-  if (!mediaViewer.open) mediaViewer.showModal();
+  if (!mediaViewer.open) showNativeLayer(mediaViewer);
   focusDestination(viewerClose, "move");
   const image = stage.querySelector("img");
   Promise.all([imageTools(), image.decode()]).then(
@@ -227,7 +244,7 @@ const open = (url, alt, from) => {
           event.preventDefault();
       });
       current.on("close", () => {
-        if (mediaViewer.open) mediaViewer.close();
+        if (mediaViewer.open) closeLayer(() => closeNativeLayer(mediaViewer));
       });
       current.on("zoomPanUpdate", () => {
         const slide = current.currSlide;

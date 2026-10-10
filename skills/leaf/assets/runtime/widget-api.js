@@ -101,6 +101,7 @@ export { HeldReading } from "./thread/held-news.js";
 export { landInThread } from "./application.js";
 export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
+export { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
 export { HOLDS_WORD } from "./held-word.js";
 export { PRESS, labelOf, submitBindings, submitLabel } from "./keyboard/bindings.js";
 export {
@@ -245,3 +246,5 @@ export {
   worksInside,
 } from "./widget-elements.js";
 export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
+
+export { LeafEditorView } from "./editor-view.js";

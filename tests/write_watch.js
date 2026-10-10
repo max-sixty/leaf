@@ -19,12 +19,6 @@
 // While `window.lfWrites` is an array, every write is also appended to it, numbered by
 // `window.lfWriteStep`, for a test that reads what a gesture wrote (scroll_writes).
 (() => {
-  // An isolated preview is an external document, outside Leaf's DOM-write contract.
-  // Its opaque origin also hides its sandbox flags from this injected script; a
-  // scripting-disabled frame refuses MutationObserver callbacks with console errors.
-  // Keep watching the parent that owns the frame, and leave opaque child DOM alone.
-  if (window !== window.top && globalThis.origin === "null") return;
-
   // An element by its tag, id and classes, one with neither by where it stands, and one
   // in a shadow tree by the tree's host too.
   const place = (node) => {
@@ -40,6 +34,15 @@
       ? `${named} in shadow of ${place(root.host)}`
       : named;
   };
+  // Naming is shared with the shift sensor, including in opaque child frames.
+  window.lfPlace = place;
+
+  // Server-allocated samples run Leaf and share its DOM-write contract. Other
+  // opaque previews may disable scripts, which refuses observer callbacks with
+  // console errors; their containing page remains watched.
+  const leafSample = /\/api\/samples\/[a-f0-9]{32}(?:\/|$)/.test(location.pathname);
+  if (window !== window.top && globalThis.origin === "null" && !leafSample) return;
+
   // Nodes put back as the ones taken out: the same count, each equal to its twin.
   const restored = ({ removedNodes, addedNodes }) =>
     removedNodes.length > 0 &&
@@ -107,37 +110,59 @@
   // its pane shows (margin-layout.js, `layoutMarginRows`).
   const tokens = (value) => new Set([...(value ?? "").split(" "), "lf-withheld"]);
   const sameTokens = (a, b) => a.size === b.size && [...a].every((t) => b.has(t));
-  // Native dialog posture and its focusing steps are browser state, not the reflected
-  // `open` attribute. close→showModal changes a nonmodal dialog to modal while `open`
-  // returns to the same value; lending inertness during an opening suppresses the
-  // platform's focus transfer. Track those actual operations until their mutations
-  // arrive, so plain attribute restatements still have no exemption.
-  let dialogTransitions = new WeakMap();
+  // Native layer posture and focus eligibility are browser state, not reflected
+  // attributes. close→showModal changes a nonmodal dialog to modal while `open`
+  // returns to the same value. A temporary inert layer suppresses opening focus;
+  // inerting the document and its modal roots suppresses native return focus on
+  // close. Modals escape ancestor inertness, including inside closed shadow roots.
+  // Credit only roots inhibited during an actual native transition and only inert
+  // roundtrips that changed eligibility; unrelated restatements remain failures.
+  const trees = new Set([document]);
+  let dialogTransitions = new WeakSet();
+  let focusGuards = new WeakSet();
   const posture = (dialog) =>
     dialog.matches(":modal") ? "modal" : dialog.open ? "nonmodal" : "closed";
-  for (const method of ["show", "showModal", "close"]) {
-    const native = HTMLDialogElement.prototype[method];
-    HTMLDialogElement.prototype[method] = function (...args) {
-      const before = posture(this);
-      const inert = this.inert;
-      const result = native.apply(this, args);
-      const after = posture(this);
-      if (after !== before) {
-        const transition = dialogTransitions.get(this) ?? { focusedInert: false };
-        transition.focusedInert ||= inert && method !== "close";
-        dialogTransitions.set(this, transition);
-      }
-      return result;
-    };
-  }
-  const nativeTransition = (record) => {
-    const transition = dialogTransitions.get(record.target);
-    return (
-      transition &&
-      (record.attributeName === "open" ||
-        (record.attributeName === "inert" && transition.focusedInert))
-    );
+  const watchNativeTransitions = (prototype, methods, read) => {
+    for (const method of methods) {
+      const native = prototype[method];
+      prototype[method] = function (...args) {
+        const before = read(this);
+        const inhibited = (
+          before === "closed"
+            ? [this]
+            : [
+                document.documentElement,
+                ...[...trees].flatMap((tree) => [
+                  ...tree.querySelectorAll("dialog:modal"),
+                ]),
+              ]
+        ).filter((node) => node.isConnected && node.inert);
+        const result = native.apply(this, args);
+        if (read(this) !== before) {
+          if (prototype === HTMLDialogElement.prototype) dialogTransitions.add(this);
+          for (const node of inhibited) focusGuards.add(node);
+        }
+        return result;
+      };
+    }
   };
+  watchNativeTransitions(
+    HTMLDialogElement.prototype,
+    ["show", "showModal", "close"],
+    posture,
+  );
+  watchNativeTransitions(
+    HTMLElement.prototype,
+    ["showPopover", "hidePopover", "togglePopover"],
+    (popover) => (popover.matches(":popover-open") ? "popover" : "closed"),
+  );
+  const nativeTransition = (record) =>
+    record.attributeName === "open" && dialogTransitions.has(record.target);
+  const nativeFocusGuard = ({ record, through }) =>
+    record.attributeName === "inert" &&
+    record.oldValue === null &&
+    through.some((value) => value !== null) &&
+    focusGuards.has(record.target);
   // Residency verifies that authored CSS actually supplies a requested grid shift.
   // An ignored request is withdrawn in the same reading; every other style member
   // must remain unchanged. A settled failed placement must not probe again (the
@@ -164,7 +189,8 @@
     (record.attributeName === "class" &&
       record.target.matches(".lf-margin-cluster") &&
       through.every((value) => sameTokens(tokens(value), tokens(record.oldValue)))) ||
-    columnProbe({ record, through });
+    columnProbe({ record, through }) ||
+    nativeFocusGuard({ record, through });
   // An element reference set through reflection (`ariaDetailsElements`, and the rest of
   // the aria-*Elements family) writes an empty attribute whatever the elements are, so
   // an empty value that stays empty says nothing about whether the relation changed.
@@ -185,7 +211,8 @@
         report(`${record.attributeName ?? "text"} on ${place(record.target)}`);
     }
     started.clear();
-    dialogTransitions = new WeakMap();
+    dialogTransitions = new WeakSet();
+    focusGuards = new WeakSet();
   };
   const watch = (records) => {
     for (const record of records) {
@@ -233,8 +260,6 @@
     }
   };
   window.lfUnwatched = unwatched;
-  // shift_watch.js names what moved the same way.
-  window.lfPlace = place;
   const probing = (driver) =>
     driver &&
     Object.freeze({
@@ -253,6 +278,7 @@
   const attachShadow = Element.prototype.attachShadow;
   Element.prototype.attachShadow = function (init) {
     const root = attachShadow.call(this, init);
+    trees.add(root);
     observer.observe(root, options);
     return root;
   };

@@ -5542,8 +5542,8 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         controlsSize: [controls.clientHeight, controls.scrollHeight],
         pageScrolls: document.scrollingElement.scrollHeight > innerHeight,
         askDisplay: getComputedStyle(document.querySelector('#notification-ask')).display,
-        authoredWords: leaf.wrote(playground).includes('Drag event pressure'),
-        spokenWords: leaf.says(playground).includes('Drag event pressure'),
+        authoredWords: leaf.wrote(playground).includes('Concurrent release events'),
+        spokenWords: leaf.says(playground).includes('Concurrent release events'),
       };
     }"""
 

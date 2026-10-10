@@ -254,10 +254,8 @@ def test_product_pages_vendor_the_composed_theme(site, monkeypatch):
         inputs = layer_model.layer_inputs(tuple(source_packages(page)))
         expected_theme = layer_model.composed_sheets(inputs)["theme.css"]
         target = site_build.product_page(site, page.name)
-        published = (target / "index.html").read_text()
         source_markup = page.read_text()
         assert 'href="/theme.css"' not in source_markup, page.name
-        assert published == source_markup, page.name
         assert (target / "theme.css").read_bytes() == expected_theme, page.name
 
 
@@ -307,7 +305,10 @@ def test_product_pages_are_published_as_complete_page_records(site):
     assert {source.name for source in sources} == set(site_build.PRODUCT_ROUTES)
     for source in sources:
         page = site_build.product_page(site, source.name)
-        assert (page / "index.html").read_bytes() == source.read_bytes()
+        expected = source.read_text()
+        if source.name == "examples.html":
+            expected = site_build.catalog_markup(expected)
+        assert (page / "index.html").read_text() == expected, source.name
         for name in (
             *schema_model.VENDORED_FILES,
             "events.jsonl",

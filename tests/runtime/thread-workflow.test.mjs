@@ -32,6 +32,7 @@ const workflow = (id, stage, changes = {}) =>
 // The document a thread's frozen board is captured into: the reply `e2` in thread
 // `e1` holds the board `feeder-board`.
 const FROZEN_BOARD = {
+  registry: {},
   revision: 1,
   descriptors: new Map([
     [
@@ -174,7 +175,7 @@ test("a thread the user is still sending waits on that send", () => {
   const [thread] = foldThreads([], [root], [], [], new Set());
   const [record] = readThreadRecords(
     [{ ...thread, unread: [] }],
-    { revision: 1, descriptors: new Map(), messageBodies: new Map() },
+    { revision: 1, registry: {}, descriptors: new Map(), messageBodies: new Map() },
     new Map(),
     [sending],
   );
@@ -203,7 +204,7 @@ test("a local prose answer clears accepted user attention until refusal", () => 
 
   const [record] = readThreadRecords(
     [folded],
-    { revision: 1, descriptors: new Map(), messageBodies: new Map() },
+    { revision: 1, registry: {}, descriptors: new Map(), messageBodies: new Map() },
     new Map(),
     [
       workflow("failed", "answered", {

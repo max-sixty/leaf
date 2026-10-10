@@ -1826,10 +1826,15 @@ def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
     ]
 
 
-def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(browser, serve):
+@pytest.mark.parametrize(
+    "refusal_first", [True, False], ids=["refusal-first", "poll-first"]
+)
+def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(
+    browser, serve, refusal_first
+):
     """Optimistic withdrawal re-folds the coordinate instead of deleting its current
-    value. A prior durable action therefore appears immediately and stays through the
-    accepted undo response.
+    value. Another tab can withdraw that same action before this send reaches the
+    server: the refusal must carry its truth, even while all polls remain held.
     """
     page = open_page(browser, serve(UNDO_PAGE))
     page.locator("#opt-a").click()
@@ -1840,15 +1845,47 @@ def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(browser, serv
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
+    cut = CutOff().hold(page)
     with page.expect_request("**/api/event"):
         page.keyboard.press("z")
     expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-a")
     holding(page, held, 1, "the optimistic withdrawal")
-    held[0].continue_()
+    other_undo = append_command(
+        serve.page_dir,
+        {"kind": "undo", "author": "user", "undoes": actions(serve.page_dir)[-1]["id"]},
+    )
+    response = held[0].fetch()
+    refusal = response.json()
+    assert response.status == 400 and "already been taken back" in refusal["error"]
+    assert other_undo in refusal["state"]["events"]
+    if not refusal_first:
+        cut.restore()
+        told(page)
+        cut.cut()
+        assert (
+            page.evaluate("""async () => {
+          const {readApplication} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+          return readApplication().authoritative.taken;
+        }""")
+            > refusal["state"]["taken"]
+        )
+    page.evaluate("""async () => {
+      const {applicationState} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+      const widget = document.querySelector('#opt-a').closest('lf-options').id;
+      window.refusalValues = [];
+      applicationState.select(root => root).subscribe(root => {
+        window.refusalValues.push(root.effective.widgets.get(widget).state.choose.value);
+      });
+    }""")
+    held[0].fulfill(response=response)
     page.unroute("**/api/event")
     round_trip(page)
 
     expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-a")
+    values = page.evaluate("window.refusalValues")
+    assert len(values) > 1 and all(value == ["opt-a"] for value in values), values
+    consume_browser_errors(page, "400")
+    cut.restore()
 
 
 def test_z_returns_a_recordless_decision_to_undecided(browser, serve):

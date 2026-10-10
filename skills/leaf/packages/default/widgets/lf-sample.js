@@ -175,7 +175,6 @@ customElements.define(
       });
       const select = async () => {
         if (signal.aborted || ready !== this.#ready || !this.isConnected) return false;
-        const invoker = this.ownerDocument.activeElement;
         const shown = await this.#host.showThread(id, {
           surface,
           status,
@@ -183,13 +182,6 @@ customElements.define(
           signal,
         });
         if (signal.aborted || ready !== this.#ready || !this.isConnected) return false;
-        if (
-          shown &&
-          invoker &&
-          this.ownerDocument.activeElement === this.#frame &&
-          invoker !== this.#frame
-        )
-          focusDestination(invoker, "return");
         return shown;
       };
       try {

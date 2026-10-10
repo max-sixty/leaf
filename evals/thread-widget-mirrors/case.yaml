@@ -27,17 +27,17 @@ assert:
   value: mountThreadViews\s*\(
 - type: regex
   metric: renders-mirrors
-  value: surfaces\.render\s*\(
+  value: surfaces\.thread\s*\(
 - type: llm-rubric
   metric: judgment
   value: |
     Read the JavaScript. Pass only if each element instance owns its own filter and
     outlets, uses `mountThreadViews` to receive the shared Thread collection and calls
-    `surfaces.render(thread.key, outlet)` for matching Threads. It must unregister on
+    `surfaces.thread(thread.key, outlet)` for matching Threads. It must unregister on
     disconnect, and must not create another Leaf instance, post raw Thread events, or
     use `placeThreads` (which would take a Thread away from its margin position).
-    The continuation must await `openThread(thread.id, {focus: "reply"})`, use its
+    The continuation must await `threadActions.open(thread.key, {focus: "reply"})`, use its
     actual returned element for selection, and check that it still holds focus.
     It must not search for any visible mirrored editor or focus again after awaiting.
-    A separate button-source intent predicate checked after `openThread` rejects the
+    A separate button-source intent predicate checked after `threadActions.open` rejects the
     route's own editor focus and incorrectly skips selection; that response fails.

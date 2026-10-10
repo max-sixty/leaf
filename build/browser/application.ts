@@ -284,7 +284,9 @@ export interface SemanticDocument {
       "x-state"?: Record<string, ActionSpec>;
       [name: string]: unknown;
     }
-  >;
+  > & {
+    $reactions?: { tokens: Record<string, {glyph: string; means?: string}> };
+  };
   authored: AuthoredMap;
   descriptors: ReadonlyMap<string, WidgetDescriptor>;
   messageBodies?: ReadonlyMap<
@@ -310,6 +312,7 @@ export interface AuthoritativeState {
   layer: { generation: string };
   active: { revision: number; version?: number | null; label?: string | null };
   versions?: { revision: number; version: number; url: string }[];
+  revision_labels: Record<string, string>;
   events: Event[];
   workflows: WireWorkflow[];
   browser: {
@@ -814,6 +817,7 @@ export function createSemanticApplication({
       widgets,
       workflows,
       markingRead,
+      ready,
     );
     const selectedQueues = selectQueues({ threads, workflows, tasks: tasks.open });
     const workflowById = new Map(workflows.map((workflow) => [workflow.id, workflow]));

@@ -347,6 +347,9 @@ function advance(
 
 
 
+
+
+
 /** A server view with its basis, the transport identity, left off. */
 
 
@@ -814,6 +817,7 @@ export function createSemanticApplication({
       widgets,
       workflows,
       markingRead,
+      ready,
     );
     const selectedQueues = selectQueues({ threads, workflows, tasks: tasks.open });
     const workflowById = new Map(workflows.map((workflow) => [workflow.id, workflow]));

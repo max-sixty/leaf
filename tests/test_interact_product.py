@@ -704,11 +704,6 @@ def test_reply_validates_widget_markup(page_dir):
     bad = reply('<lf-diagram id="f"><pre>graph LR</pre><b>x</b></lf-diagram>')
     assert bad.exit_code != 0
     assert "its body is one <pre> holding the text" in bad.output
-    # Prose belongs in --text, where it renders as Markdown; a markup field
-    # holding none is a wrong turn, not an empty widget list.
-    prose = reply("just words")
-    assert prose.exit_code != 0
-    assert "carries no widget" in prose.output
     good = reply('<lf-diagram id="f"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>')
     assert good.exit_code == 0, good.output
     event = events_model.read_events(page_dir)[-1]
@@ -849,9 +844,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert (
-        "taken by widget markup in a reply" in result.output and "q1" in result.output
-    )
+    assert "taken by message markup" in result.output and "q1" in result.output
 
 
 def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):

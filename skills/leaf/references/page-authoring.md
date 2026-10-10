@@ -595,6 +595,8 @@ Child decisions and comments do not change the parent's log or Ask inventory.
 Set a page-wide body declaration, such as `data-annotations="page"`, on the sample
 template when the child needs it. Leaf carries that declaration onto the child's
 body; the surrounding page keeps its own choice.
+Host-driven view changes preserve focus. Programmatic navigation inside a sample
+scrolls only that child document.
 The child is temporary: use an ordinary Leaf page when its history must outlive
 the sample. A live sample needs a server, so a page declaring one cannot be
 exported (`references/serving-pages.md`, "Exported files").

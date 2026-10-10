@@ -8,7 +8,10 @@
    `read` repaints it when the displayed value changes. An optional synchronous proof
    predicate withholds every paint, including clock paints; completion wakes only a
    reading that was withheld, so repainting cannot create a presentation feedback loop. The returned function permanently
-   ends the subscription, including queued paints. `watchAsks`, `watchUpdates`, and `watchHistory` are this watcher
+   ends the subscription, including queued paints. Its `refresh()` reruns the same
+   clock-tracked reading synchronously for mechanical changes such as revealing held
+   news, while retaining the owner's lifetime and readiness proof.
+   `watchAsks`, `watchUpdates`, and `watchHistory` are this watcher
    with a reading of their own, so none of them states these rules again. */
 import { clocked } from "./presence.js";
 import { watchSemantic, watchPresentation } from "./semantic-state.js";
@@ -23,7 +26,7 @@ export function watchProjection(owner, read, ready = null) {
     throw new TypeError("A projection watcher needs a reading function");
   let active = null;
   let disconnect;
-  return watchOwner(owner, {
+  const stop = watchOwner(owner, {
     connect() {
       let blocked = false;
       const paint = clocked(owner, () => {
@@ -64,4 +67,8 @@ export function watchProjection(owner, read, ready = null) {
     },
     disconnect: () => disconnect(),
   });
+  stop.refresh = () => {
+    if (owner.isConnected) active?.();
+  };
+  return stop;
 }

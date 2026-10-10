@@ -572,11 +572,7 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-share-panel { display: grid; gap: 8px; padding: 8px;
     width: 280px; max-width: 100%; box-sizing: border-box; }
   .lf-share-panel label { display: grid; gap: 4px; }
-  .lf-share-link { width: 100%; min-width: 0; box-sizing: border-box;
-    padding: 8px; border: 1px solid var(--border-2); border-radius: 4px;
-    background: var(--paper); color: var(--ink); font: inherit; }
-  .lf-share-link:focus-visible { outline: var(--focus-ring); outline-offset: 2px;
-    --lf-focus-ring: share-link; }
+  .lf-share-link { width: 100%; min-width: 0; }
   .lf-share-panel p { margin: 0; white-space: normal; color: var(--muted);
     font-size: var(--t-6); }
   .lf-banner-menu .lf-btn:where(:not(.primary)) { border-color: transparent;
@@ -1289,25 +1285,17 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
      so it cannot rely on a hairline to separate it from whatever it happens to cover. */
   :is(.lf-fab-bar, .lf-margin-preview) {
     --lf-comment-inset: 12px;
-    --lf-comment-text-size: var(--t-5);
-    --lf-comment-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
+    --lf-thread-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
     --lf-comment-text-pad-end: var(--lf-thread-text-inset);
-    --lf-comment-send-room: max(28px, var(--aim-floor));
-    --lf-comment-head: max(28px, var(--aim-floor));
-    --lf-comment-body-gap: 4px;
+    --lf-comment-send-room: var(--lf-icon-action-hit);
     --lf-comment-foot-gap: var(--sp-3);
-    --lf-comment-frame-top: calc(1px + var(--lf-comment-inset) + var(--lf-comment-head) + var(--lf-comment-body-gap));
+    --lf-comment-frame-top: calc(1px + var(--lf-comment-inset) + var(--lf-msg-head-height) + var(--lf-msg-body-gap));
     /* The card's reply row at rest, which the editor's frame reserves beneath the words,
        so a box that fills the window becomes a card of the same height. */
     --lf-comment-reply-row: calc(var(--lf-comment-foot-gap) + var(--lf-compose-h) + 2px);
     --lf-comment-frame-bottom: calc(var(--lf-comment-reply-row) + var(--lf-comment-inset) + 1px);
   }
   :is(.lf-fab-bar, .lf-margin-preview, .lf-response-control) { --lf-response-height: 32px; }
-  /* The editor and its sent message share text metrics. The borderless message uses
-     the full inset; the field subtracts its border. */
-  leaf-text.lf-fab-input,
-  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body {
-    font: var(--lf-comment-text-size)/1.5 var(--sans); color: var(--ink-2); }
   .lf-fab-bar { display: none; }
   /* The field and its choices are one anchored response control. This primitive owns
      their height, vertical padding, type, border, corners, and elevation. Tab extends
@@ -1338,7 +1326,7 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
     --lf-field-end-room: var(--lf-comment-send-room);
     overflow-y: auto; }
   .lf-fab-bar .lf-compose-field {
-    --lf-compose-pad-block: calc(var(--lf-comment-text-pad-block) - 1px);
+    --lf-compose-pad-block: calc(var(--lf-thread-text-pad-block) - 1px);
     --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px); }
   .lf-fab-bar .lf-compose-placeholder { line-height: 1.5; }
   .lf-fab-bar .lf-compose-submit {
@@ -1438,11 +1426,11 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-media-viewer { position: fixed; inset: 0; z-index: var(--lf-z-media-viewer);
     width: 100%; max-width: none; height: 100dvh; max-height: none;
     box-sizing: border-box; margin: 0; padding: 0;
-    overflow: hidden; color: var(--ink); background: var(--card);
+    overflow: hidden; color: var(--ink); background: transparent;
     border: 0; border-radius: 0; }
   .lf-media-viewer[open] { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
   .lf-media-viewer::backdrop {
-    background: color-mix(in srgb, var(--ink) 38%, transparent); }
+    background: transparent; }
   .lf-media-viewer-head { position: relative; z-index: 1501; background: var(--card);
     display: flex; align-items: center;
     justify-content: space-between; gap: 12px;
@@ -1452,13 +1440,19 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-media-viewer-original { display: inline-flex; align-items: center; justify-content: center; }
   .lf-media-viewer-zoom { min-width: 4em; }
   .lf-media-viewer-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden;
-    display: grid; place-items: center; background: var(--paper); }
+    display: grid; place-items: center; padding: 16px; box-sizing: border-box; background: transparent; }
+  /* Match PhotoSwipe's default backdrop while its manipulation module loads.
+     Once it takes over, its backdrop alone dims the page. */
+  .lf-media-viewer-stage:has(> img) {
+    background: color-mix(in srgb, var(--paper) 80%, transparent); }
   .lf-media-viewer-stage > img { display: block; max-width: 100%; max-height: 100%;
     object-fit: contain; }
+  .lf-media-viewer-stage > img, .lf-media-viewer .pswp__img {
+    outline: 1px solid var(--border-2); box-shadow: 0 8px 24px var(--shade); }
   .lf-media-viewer .pswp { position: absolute; --pswp-bg: var(--paper); --pswp-root-z-index: 0; }
   .lf-media-viewer-caption { position: relative; z-index: 1501; background: var(--card);
-    max-width: none;
-    margin: 0; padding: 10px max(12px, var(--lf-safe-right)) max(10px, var(--lf-safe-bottom)) max(12px, var(--lf-safe-left));
+    max-width: none; text-align: center;
+    margin: 0; padding: 10px max(12px, var(--lf-safe-right), calc((100% - 70ch) / 2)) max(10px, var(--lf-safe-bottom)) max(12px, var(--lf-safe-left), calc((100% - 70ch) / 2));
     font-size: var(--t-sm); color: var(--muted); border-top: 1px solid var(--rule);
     max-height: 20dvh; overflow: auto; }
   .lf-command-reference-head { display: flex; align-items: center; justify-content: space-between;
@@ -1470,10 +1464,7 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-command-reference-preference input { margin: 0; }
   .lf-command-reference-preference small { grid-column: 2; color: var(--muted);
     font-size: var(--t-6); }
-  .lf-command-reference-search { width: 100%; box-sizing: border-box; font: inherit; padding: 7px 9px;
-    border: 1px solid var(--border-2); border-radius: var(--r); background: var(--paper);
-    color: var(--ink); }
-  .lf-command-reference-search:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: help-search; outline-offset: 1px; }
+  .lf-search-field { width: 100%; min-width: 0; }
   /* The results are the one part of the column that gives up height when the window is
      short; the head, the search and this line keep their own. As a shrinkable flex item
      the line was squeezed to its 1.2em floor, 13.8px under a 16.7px line, and the results
@@ -1792,16 +1783,9 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-page-search { position: fixed; z-index: var(--lf-z-page-search); pointer-events: auto;
     top: calc(var(--lf-banner-h) + 10px); left: 50%; transform: translateX(-50%);
     width: min(390px, calc(100vw - 28px)); box-sizing: border-box;
-    display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
-    gap: 10px; padding: 7px; border: 1px solid var(--border-2);
-    border-radius: var(--r); background: var(--card);
+    border-radius: var(--r);
     box-shadow: 0 8px 24px var(--shade); }
   .lf-page-search[hidden] { display: none; }
-  .lf-page-search-box { min-width: 0; box-sizing: border-box; font: inherit;
-    padding: 6px 8px; border: 1px solid var(--border-2); border-radius: 5px;
-    background: var(--paper); color: var(--ink); }
-  .lf-page-search-box:focus-visible { outline: var(--focus-ring);
-    --lf-focus-ring: target-search; outline-offset: 1px; }
   .lf-page-search-status { min-width: 0; min-height: 1lh; width: var(--lf-reserved-width, 0px); color: var(--muted);
     font-size: var(--t-6); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
   .lf-legend-box { position: absolute; pointer-events: none;
@@ -1898,8 +1882,6 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
     /* What is left here is what a finger changes besides the floor, which reads
        --aim-floor (shadow.css) and so needs no rule here. */
     :is(.lf-fab-bar, .lf-margin-preview, .lf-response-control) { --lf-response-height: 44px; }
-    :is(.lf-fab-bar, .lf-margin-preview) {
-      --lf-comment-text-size: max(var(--entry-floor), var(--t-5)); }
     .lf-shortcut-more { min-width: 44px; min-height: 44px; align-items: center; }
     .lf-edge { width: 44px; }
     .lf-edge[data-lf-side="right"] { left: var(--focus-ring-w); }

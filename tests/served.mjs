@@ -1,13 +1,17 @@
 /* Served threads and workflows, as `/api/state` sends them.
 
-   Each record starts from the one `tests/served_records.py` folds through the server,
-   so it carries every field the server sends, and a test changes only the fields its
-   case is about. Naming a field the server does not send throws: a test cannot state
+   Each importing process reads what `tests/served_records.py` folds through the
+   server, so it carries every field the server sends. A test changes only the
+   fields its case is about. Naming a field the server does not send throws: a test cannot state
    a record the runtime would never be handed. */
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 const RECORDS = JSON.parse(
-  readFileSync(new URL("./served_records.json", import.meta.url), "utf8"),
+  execFileSync("uv", ["run", "tests/served_records.py"], {
+    cwd: fileURLToPath(new URL("..", import.meta.url)),
+    encoding: "utf8",
+  }),
 );
 
 function served(kind, changes) {
@@ -32,3 +36,6 @@ export function servedReading(name) {
     throw new Error(`served_records.py folds no reading named ${name}`);
   return structuredClone(RECORDS.readings[name]);
 }
+
+// The same admitted undo/refusal/revision sequence used by the Python fold test.
+export const servedGestureSequence = () => structuredClone(RECORDS.gestures);

@@ -42,7 +42,7 @@
    scrollport lets a turn joining the thread's end grow up into the room scrolled past
    (thread-list.js, `followThreadEnd`), though nothing that changes above that end. A
    held change leaves the controls it touches drawn as they were, and a press on one
-   means what it drew (actions.js, `toggleReaction` and `settle`) and shows what the
+   means what it drew (actions.js, `setReaction` and `settle`) and shows what the
    thread holds.
 
    `HeldNews` is that one owner for a seat, and `HeldArrivals` for the seats a widget has
@@ -238,16 +238,16 @@ function withheld(was, now) {
   const msgs = was.msgs.flatMap((prior) => {
     const message = standing.get(key(prior));
     if (!message) return isReaction(prior) ? [prior] : [];
-    const { text, body, edited } = prior;
-    return [{ ...message, text, body, edited }];
+    const { text, body, edited, reactions } = prior;
+    return [Object.freeze({ ...message, text, body, edited, reactions })];
   });
-  return {
+  return Object.freeze({
     ...now,
     root: msgs.find((message) => key(message) === key(now.root)) ?? now.root,
     resolved: was.resolved,
-    msgs,
+    msgs: Object.freeze(msgs),
     summaries: was.summaries,
-  };
+  });
 }
 
 // Whether growth after `node` would move what the user sees: the node's foot stands
@@ -401,7 +401,7 @@ export class HeldNews {
   #shown = null;
   #known = new Set();
   #holds = new Set();
-  #released = new Set();
+  #released = new Map();
   #threads = new Set();
   #keys = new Map();
   #stopWatching = null;
@@ -421,6 +421,14 @@ export class HeldNews {
   // either. `row` says whether the seat draws a first-message row the user is not in, in
   // whose place a new thread's notice can stand.
   hold(reading, { row }) {
+    const candidate = this.prepare(reading, { row });
+    candidate.commit();
+    return candidate.reading;
+  }
+
+  // Required presenters prepare before yielding to package layout. Only the
+  // candidate actually painted becomes the baseline for the next comparison.
+  prepare(reading, { row }) {
     const read = readApplication().phase === "ready";
     if (!read || !readingIsContinuous()) this.#forget();
     const prior = read ? this.#shown : null;
@@ -428,15 +436,23 @@ export class HeldNews {
     for (const key of this.#threads) if (!keys.has(key)) this.#threads.delete(key);
     this.#keys = new Map(reading.threads.map(({ id, key }) => [id, key]));
     if (prior) this.#arrive(prior, reading, row);
-    this.#known = keys;
     const shown = this.#draw(prior, reading);
-    this.#released.clear();
-    this.#shown = read ? shown : null;
+    const released = new Map(this.#released);
     // Waiting for all of the seat to go keeps news held a little longer than it needs,
     // never shorter.
     if (this.#holding()) this.#stopWatching ??= whenOffScreen([this.#seat], this.#all);
     else this.#stop();
-    return shown;
+    return {
+      reading: shown,
+      commit: () => {
+        // A release issued while this candidate awaited paint belongs to the next
+        // reading. Consume only the intents this candidate actually drew.
+        for (const [key, token] of released)
+          if (this.#released.get(key) === token) this.#released.delete(key);
+        this.#known = keys;
+        this.#shown = read ? shown : null;
+      },
+    };
   }
 
   // Which of the threads new to the seat it holds back.
@@ -532,7 +548,7 @@ export class HeldNews {
     const first = threads && [...this.#threads][0];
     let changed = false;
     if (key && this.#holds.has(key) && !this.#released.has(key)) {
-      this.#released.add(key);
+      this.#released.set(key, Symbol("release"));
       // A thread held while the user acts in it has a newer reading on its way, which
       // draws it as it stands; drawing the one held now would show a state that reading
       // replaces in the same task.
@@ -562,7 +578,8 @@ export class HeldNews {
 
   // Every thread the seat holds shows on the next reading.
   #forget() {
-    for (const thread of this.#shown?.threads ?? []) this.#released.add(thread.key);
+    for (const thread of this.#shown?.threads ?? [])
+      this.#released.set(thread.key, Symbol("release"));
     this.#threads.clear();
   }
 

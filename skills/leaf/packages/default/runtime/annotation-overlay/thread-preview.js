@@ -43,7 +43,7 @@ import { setChildren } from "/runtime/dom-children.js";
 import { effectiveScroller, registerReadingRegion } from "/runtime/reading-regions.js";
 import { declareOffFlowSurface } from "/runtime/off-flow.js";
 import { chromeRoot, chromeForeground } from "/runtime/chrome.js";
-import { motion, scrollBehavior } from "/runtime/motion.js";
+import { motion } from "/runtime/motion.js";
 import { closestAcross } from "/runtime/passages.js";
 import { allThreads } from "/runtime/thread/state.js";
 import { threadNames, turns } from "/runtime/thread/model.js";
@@ -154,7 +154,7 @@ export function createThreadPreview({
       top: box.top,
       width: box.width,
       height: box.height,
-      messageWidth: parseFloat(style.width),
+      messageMeasure: element.writingInlineSize,
       messageHeight: parseFloat(style.height),
       endRoom: element.endRoom ?? "none",
       scroll: element.scrollTop,
@@ -213,8 +213,8 @@ export function createThreadPreview({
     );
     const properties = {
       "--lf-comment-width": previewSession.messageViewport && `${origin.frame.width}px`,
-      "--lf-comment-message-width":
-        previewSession.messageViewport && `${origin.messageWidth}px`,
+      "--lf-comment-message-measure":
+        previewSession.messageViewport && `${origin.messageMeasure}px`,
       "--lf-comment-message-height":
         previewSession.messageViewport && `${origin.messageHeight}px`,
     };
@@ -782,10 +782,6 @@ export function createThreadPreview({
     }
     keepsHidden(preview, false);
     buildThreadCard(entry, selected.id);
-    previewList.firstElementChild?.scrollIntoView({
-      behavior: scrollBehavior(),
-      block: "nearest",
-    });
     const positioned = placedThreadPreview();
     return origin ? revealThread(origin, positioned) : positioned;
   }

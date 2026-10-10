@@ -478,15 +478,22 @@ class CodexHarness(EnvironmentHarness):
         `~/.codex/thread-writer-locks` for its own lifetime rather than the
         thread's, so those are pinned the same way.
 
-        With no process to name, such a session's lifetime is its activity.
-        `activity` says the claim carries no liveness of its own and why — the
-        session is multiplexed into a process it does not own — and
-        `claim_is_active` judges it from when the page was last touched. The
-        value is a note for whoever reads the record; the key is the whole of
-        what anything acts on."""
+        Such a session belongs to a persisted chat, whose native transcript the
+        hooks validate and publish in the session record. That file survives an
+        idle instance unloading and an unattended night. Archival moves it and
+        deletion removes it, ending ownership without an inactivity timeout.
+        Missing native evidence cannot establish a new desktop lifetime."""
         if (pid := self.process_pid()) is not None:
             if "app-server" in (process_argv(pid) or []):
-                return {"activity": "multiplexed"}
+                from .state import chat_exists, session_record
+
+                if not chat_exists(session_record(self.session)):
+                    sys.exit(
+                        "Leaf cannot establish this desktop Codex chat's lifetime: "
+                        "its validated native transcript is unavailable. Run a new "
+                        "prompt with Leaf's Codex hooks enabled, then retry."
+                    )
+                return {"chat": True}
             return {"pid": pid}
         # Nothing to fall back to: any pid guessed here is a claim that expires
         # on its own, and the states that follow from one are silent.

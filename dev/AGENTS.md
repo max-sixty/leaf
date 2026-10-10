@@ -90,6 +90,8 @@ reaches a module by importing it from this package, never through `sys.path`,
   page, or exports it with `--export`. `/developing-leaf` says when to pass `--user`.
 - `leaf-dev corpus` generates `examples/corpus.html` and its companions.
 - `leaf-dev keydocs` writes the `x-` key index in `docs/registry.html`.
+- `leaf-dev catalog` refreshes `docs/examples.html` descriptions from example metadata;
+  the site build derives them again before publication.
 
 ## Website and demo
 

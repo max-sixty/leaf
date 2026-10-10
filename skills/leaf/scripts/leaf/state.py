@@ -20,6 +20,7 @@ import hashlib
 import json
 import os
 import secrets
+import stat
 import sys
 import time
 from datetime import datetime
@@ -163,6 +164,8 @@ def replace_bytes(writes: list) -> None:
     Each write is (target, bytes, preserve_mode). The higher file boundary validates
     target identity before a multi-file replacement; a single JSON write needs no
     comparison. A caller resolving a symlink decides its target before entering.
+    Preserved modes include special permission bits. Apply them after flushing all
+    data, since writing can clear set-user-ID and set-group-ID bits on POSIX files.
     """
     staged = []
     try:
@@ -186,12 +189,12 @@ def replace_bytes(writes: list) -> None:
             staged.append((tmp, target))
             with os.fdopen(fd, "wb") as stream:
                 stream.write(data)
+                stream.flush()
                 if preserve_mode:
                     try:
-                        os.fchmod(stream.fileno(), target.stat().st_mode & 0o777)
+                        os.fchmod(stream.fileno(), stat.S_IMODE(target.stat().st_mode))
                     except FileNotFoundError:
                         pass  # no target to preserve a mode from
-                stream.flush()
                 os.fsync(stream.fileno())
         for tmp, target in staged:
             os.replace(tmp, target)
@@ -248,6 +251,21 @@ def write_session(record: dict) -> dict:
     return record
 
 
+def chat_exists(record: dict | None) -> bool:
+    """Whether the native chat source validated by its hooks still exists.
+
+    The canonical session record owns the source path; lifetime stores only the
+    kind of owner. Codex preserves that source across instance unloads, moves it
+    on archive and removes it on delete. Missing source evidence owns nothing.
+    """
+    source = record.get("transcript_path") if record else None
+    return (
+        isinstance(source, str)
+        and Path(source).is_absolute()
+        and Path(source).is_file()
+    )
+
+
 def new_session(session_id: str, lifetime: dict) -> dict:
     return {
         "id": session_id,
@@ -265,8 +283,8 @@ def new_session(session_id: str, lifetime: dict) -> dict:
 def ensure_session(session_id: str, lifetime: dict) -> dict:
     """Claim into the active generation, or create a new lifetime after ending.
 
-    Lifetime provenance is shared, while an activity-backed page's freshness is
-    its own claim timestamp and files. No page read occurs under this lock.
+    Lifetime provenance is shared; native transcript evidence already published
+    by a prompt is retained when the first page establishes its lifetime.
     """
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
@@ -456,14 +474,14 @@ def end_harness_instance(session_id: str) -> None:
     """End a process-backed session, or suspend a multiplexed desktop instance.
 
     Desktop unloads an idle Codex instance while its chat remains available to
-    resume or receive queued input. Its activity-backed claims keep their generation
-    and expire from page use; unloading closes only turn and hook observations.
+    resume or receive queued input. Its persisted-chat claims keep their generation
+    while the native source exists; unloading closes only turn and hook observations.
     """
     if not session_id:
         return
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
-        if record and record["lifetime"] == {"activity": "multiplexed"}:
+        if record and record["lifetime"] == {"chat": True}:
             if record["ended"] is None and record["turn_closed"] is None:
                 advance_turn(session_id, record["turn"], running=False)
             for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX):

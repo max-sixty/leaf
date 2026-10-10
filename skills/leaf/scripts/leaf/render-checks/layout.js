@@ -11,6 +11,7 @@ import {
 import { laidOutItems } from "./framing.js";
 import { at as element, place } from "./locate.js";
 import { openRoots } from "./open-roots.js";
+import { scrollbarClearance } from "./scrollbars.js";
 import { shrunkLabelReading } from "./words.js";
 
 export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
@@ -42,6 +43,7 @@ export function geometryReading(open) {
   return {
     overflow: rootOverflow(),
     misplaced: misplacedBoxes(),
+    scrollbars: scrollbarClearance(),
     margin: marginResidents(),
     arrangement: arrangedBoxes(open),
     panes: heldPanes(),

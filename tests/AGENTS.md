@@ -7,12 +7,14 @@ not constrain new code: rewriting or deleting an overfit test is an ordinary par
 change, and the commit says which behavior moved.
 
 Prove each contract at the lowest boundary that preserves it, and keep a browser test
-only where it proves boundaries working together. Every run of the suite pays for each
-test's compute, so weigh that cost against how much the protected behavior matters
-before adding or keeping an expensive test: a long browser journey, a sweep across
-pages or widths, or a wide parametrization needs a contract important enough to pay
-for it. When a high-level browser test is slow, or fails on timing or geometry outside
-its contract, repair its arrangement or move its contract to the lower boundary.
+only where it proves boundaries working together. Before adding cases or steps, choose
+the smallest set that exposes distinct plausible failures beyond existing coverage.
+Retain a broad sweep only when its extra samples catch a failure that representative
+states or transitions miss; an investigation's sampling grid is not itself a regression
+requirement. Every run pays for the test's compute, so weigh the additional cost against
+the additional coverage. When a high-level browser test is slow, or fails on timing or
+geometry outside its contract, repair its arrangement or move its contract to the lower
+boundary.
 
 Each helper's docstring owns its contract, and code cites sections here by heading.
 
@@ -45,8 +47,9 @@ races are arrangements, not probabilities**), and fix that cause.
 
 The host supplies `wt`, `uv`, `jq` 1.6 or newer, and Node 22 or newer.
 `wt setup` installs Playwright's Chromium headless
-shell, WebKit, Firefox, and Chrome, the example assets, and the npm trees; `uv run` syncs
-Python.
+shell, WebKit, Firefox, and Chrome, their Linux system dependencies, the example assets,
+and the npm trees; `uv run` syncs Python. Cloud environments supply the host tools and
+fonts; checkout setup follows the same commands below.
 
 ```sh
 wt setup
@@ -101,9 +104,11 @@ File-side fixtures live in `interact_support.py`, browser fixtures in
 `tests/runtime/*.test.mjs` holds what one runtime module decides on its own, in the
 document `tests/runtime/dom.mjs` puts up; `build/browser/application.test.mjs` owns
 the publisher's composition of those folds. Both build served threads and workflows
-with `served.mjs` from what `served_records.py` folds through the server: a record
-that carries every field the server sends, with only the fields a case is about
-changed, or a whole reading where the case rests on how the server relates them.
+with `served.mjs` from what `served_records.py` folds through the server. The helper
+invokes that producer directly, including the shared admitted gesture sequence;
+there is no generated output to keep in sync. Each fixture carries every field the
+server sends, with only the fields a case is about changed, or a whole reading
+where the case rests on how the server relates them.
 `fixtures/pages/` holds full-page regressions under `examples/AGENTS.md`'s rules.
 
 A fold whose result rests on a platform primitive that differs between Node and

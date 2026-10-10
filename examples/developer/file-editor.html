@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="A local text file, edited directly with quiet automatic saving and explicit conflict recovery."
+    />
+    <title>Quiet file editing</title>
+  </head>
+  <body>
+    <main class="layout-wide">
+      <header id="file-editing">
+        <h1>Edit the file</h1>
+        <p>
+          Changes save automatically. The editor follows changes made elsewhere and asks
+          which version to keep when edits overlap.
+        </p>
+      </header>
+      <lf-file id="research-file" binding="research-notes" data-height="480"></lf-file>
+      <details id="file-editing-setup">
+        <summary>Connect a local file</summary>
+        <p>
+          This example needs a file on the machine serving the page. Bind it explicitly
+          before opening the editor:
+        </p>
+        <pre><code>leaf file bind "$PAGE" research-notes /absolute/path/research-notes.md</code></pre>
+        <p>
+          On a live page, edit a line and inspect the file on disk. A normal save leaves
+          the header still. Hold a write request open to inspect delayed saving
+          feedback; change the file externally during an unsaved edit to inspect
+          conflict recovery. Without a binding, the editor explains what is missing.
+        </p>
+      </details>
+    </main>
+  </body>
+</html>

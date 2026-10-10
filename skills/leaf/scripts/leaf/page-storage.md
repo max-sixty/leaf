@@ -67,8 +67,13 @@ other page files and the external state listed below.
 
 - `interactions.jsonl` — diagnostic JSON-lines trace of server requests and browser
   interactions, including refused requests. It is separate from `events.jsonl` and
-  never enters page state or acknowledgement, and no command reads it: a reader
-  follows the file itself (`tail -F`). The server appends request method, path without query, status, and
+  never enters page state or acknowledgement. `leaf page interactions` reads it
+  chronologically, deduplicates retries, reconstructs complete split records, and
+  reports missing sequences and incomplete records before applying time or type
+  filters. No final gap can be inferred from an unsent tail. Server requests have
+  no browser session association, so a session filter excludes them. Human output
+  uses the reader's local timezone and shortens long values; `--json` preserves
+  complete reconstructed values. The server appends request method, path without query, status, and
   duration for every request except a successful `/api/news` look or delivery of a
   resource's bytes (a module, stylesheet, or media file); `/api/interaction` appends browser batches with a session id, scoped
   page address, and server receipt time. Sample activity remains in its parent
@@ -84,6 +89,13 @@ other page files and the external state listed below.
   `interaction_omitted`. This is a best-effort diagnostic trace, not an audit
   guarantee: an offline tab closed with unsent data may lose it. The semantic
   event log remains the durable record of accepted decisions.
+  Browser admission validates the diagnostic transport fields (timestamps,
+  sequences, target paths, node identities, and split-record coordinates), while
+  observation types and other payload fields remain open. The reader reports
+  damaged stored rows and conflicting duplicates as `interaction_invalid`, with
+  their line, reason, and original record. Rows without a usable timestamp remain
+  visible under time filters as `unknown-time`; those without a usable session
+  remain visible under session filters.
 
 - `user-views.json` — replaceable per-document browser
   observations (`user_views.py`). These are author
@@ -95,6 +107,20 @@ other page files and the external state listed below.
 
 - `data.json` — the current contract each external-data source id was set under.
   `data.py` owns storage and updates.
+
+- `files.json` — explicit local text-file grants, written by `leaf file bind PAGE
+  ID PATH` as `{ "bindings": { "ID": "/absolute/canonical/path" } }`.
+  `file_bindings.py` owns the grants and current-file reads and writes. Browser
+  requests name only a binding, never a path. These files remain their own authority:
+  editing is mechanical browser state, outside document revisions and event history.
+  The API reads current UTF-8 text up to 256 KiB and saves against a revision of its
+  path and exact bytes, preserving LF or CRLF and file permission bits. Mixed line endings,
+  binary controls, and later symlink substitutions are refused. Captured previews
+  cannot read or save live files; immutable views offer no editor access. Target locks
+  under `<state-home>/files/` serialize file-editor saves, including different pages
+  bound to the same path. An unrelated
+  writer which does not use those locks can still race the last comparison and atomic
+  replacement; this is not an operating-system compare-and-swap guarantee.
 
 - `data/` — one JSON file per source, `<source>.json`, holding its current value.
   Any process may rewrite one; readings validate it against the recorded contract.

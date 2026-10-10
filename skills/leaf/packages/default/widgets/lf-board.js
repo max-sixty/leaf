@@ -21,6 +21,7 @@
  * walk. The theme's column heading is CSS generated content with empty alt
  * text, so the label reaches the tree once, as the list's name, rather than
  * twice. */
+import { scrollIntoView } from "/runtime/widget-api.js";
 import Sortable from "/vendor/sortable.esm.js";
 import {
   once,
@@ -467,10 +468,9 @@ customElements.define(
       col.moveBefore(card, rest[index] ?? null);
       if (grip) {
         focusDestination(grip, "return");
-        card.scrollIntoView({
+        scrollIntoView(card, {
           behavior: scrollBehavior(),
           block: "nearest",
-          inline: "nearest",
         });
       }
       const last = card.getBoundingClientRect();

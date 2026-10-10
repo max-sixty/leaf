@@ -164,6 +164,16 @@ product decisions its module embodies and the alternatives they rejected; a chan
 that reverses one rewrites that record and says so in its commit. A workflow for one
 kind of task goes in `/developing-leaf`.
 
+### Use dependencies
+
+Use maintained dependencies for established capabilities, including prototypes.
+Leaf code owns product-specific behavior and integration. Native platform and
+standard-library implementations count as reuse. Implement a mechanism ourselves
+only when existing implementations cannot meet a concrete requirement.
+
+Build browser dependencies in Leaf's development and release pipeline and ship
+ready assets. Consumers run no browser build.
+
 ### The install runs this tree
 
 Consumer installers follow the CI-built `prepared` Git branch. The browser kernel

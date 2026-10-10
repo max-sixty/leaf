@@ -18,6 +18,7 @@ from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_cases_navigation import source_revision
 from render_cases_widgets import LONG_LINE_DIFF_PAGE, MULTI_HUNK_PATCH
 from render_harness import (
+    CutOff,
     Traffic,
     _traffic,
     heard_back,
@@ -492,6 +493,7 @@ def test_automatic_read_refusal_keeps_message_unread(browser, serve):
         "</lf-options></lf-ask>",
     )["id"]
     page = open_page(browser, url)
+    cut = CutOff().hold(page)
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.locator(".lf-threads-toggle").click()
@@ -499,17 +501,28 @@ def test_automatic_read_refusal_keeps_message_unread(browser, serve):
     card = page.locator(f'.lf-thread[data-id="{root}"]')
     holding(page, held, 1, "automatic read")
     request = held.pop()
-    request.fulfill(
-        status=400,
-        json={"ok": False, "final": True, "error": "refused before append"},
+    response = request.fetch(
+        post_data=json.dumps(
+            {"kind": "read", "messages": [{"message": "missing", "version": "missing"}]}
+        )
     )
+    assert response.status == 400 and response.json()["final"] is True
+    request.fulfill(response=response)
     expect(card.locator(f'.lf-msg[data-mid="{root}"]')).to_have_class(
         re.compile(r"(^|\s)lf-unread(\s|$)")
     )
     expect(card.locator(".lf-mark-read")).to_have_count(0)
     assert _read_events(serve.page_dir) == []
+    assert (
+        page.evaluate("""async () => {
+      const {readApplication} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+      return readApplication().authoritative.taken;
+    }""")
+        == response.json()["state"]["taken"]
+    )
     assert take_browser_errors(page) == [f"400 {request.request.url}"]
     page.unroute("**/api/event")
+    cut.restore()
     with sending(page, "read on a new visit"):
         page.evaluate("""() => {
           window.dispatchEvent(new Event('blur'));

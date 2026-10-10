@@ -90,7 +90,7 @@ Options:
   --section ID   element ID to anchor or scope --quote
   --part ID      declared visual part within --section
   --text TEXT    comment text (default: stdin)
-  --markup TEXT  widget markup to render after the text, validated here
+  --markup TEXT  HTML fragment after the text, validated here
   --title TEXT   name the thread for the panel unless it has a name: a few
                  words, at most 80 characters
   --help         Show this message and exit.
@@ -109,7 +109,7 @@ Options:
                  words, at most 80 characters
   --ephemeral    one-line progress, without answering
   --awaits       the reply asks the user a question
-  --markup TEXT  frozen widget markup after the text
+  --markup TEXT  frozen HTML fragment after the text
   --text TEXT    reply text (default: stdin)
   --detach       remove the thread's page target
   --part ID      new declared visual part within --section
@@ -122,7 +122,7 @@ Usage: leaf response reply [OPTIONS] REFERENCE
 
   Answer the exact REFERENCE printed in a delivery's answer.ref.
 
-  Text, frozen widgets, prose questions, titles and anchor moves share this
+  Text, frozen HTML, prose questions, titles and anchor moves share this
   command. It validates and activates saved page edits, then commits the reply
   immediately. A provider's later final yields to the recorded answer; failure
   receipts are refused while that provider still owns the answer. Repeating a
@@ -136,7 +136,7 @@ Options:
                   words, at most 80 characters
   --ephemeral     one-line progress, without answering
   --awaits        the reply asks the user a question
-  --markup TEXT   frozen widget markup after the text
+  --markup TEXT   frozen HTML fragment after the text
   --text TEXT     reply text (default: stdin)
   --detach        remove the thread's page target
   --part ID       new declared visual part within --section
@@ -151,7 +151,7 @@ Usage: leaf thread edit [OPTIONS] PAGE MESSAGE
   with --title rename the thread MESSAGE is in, whoever opened it.
 
   The original and every revision remain in the append-only event log. Frozen
-  widget markup is not editable. Keep a title stable unless the thread's subject
+  markup is not editable. Keep a title stable unless the thread's subject
   changes.
 
 Options:

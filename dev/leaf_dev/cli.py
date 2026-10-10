@@ -13,6 +13,7 @@ COMMANDS = {
     "bench-check": "bench_check",
     "bench-latency": "bench_latency",
     "bugback": "bugback",
+    "catalog": "site",
     "corpus": "corpus",
     "fetch-assets": "leaf_assets",
     "journey": "journey",

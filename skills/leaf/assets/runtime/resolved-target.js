@@ -50,8 +50,9 @@ export const targetRange = (resolved) => {
   // publication resolves the anchor again.
   if (
     !segments.length ||
-    segments.some(({ node, start, end }) =>
-      !node.isConnected || start > node.length || end > node.length,
+    segments.some(
+      ({ node, start, end }) =>
+        !node.isConnected || start > node.length || end > node.length,
     )
   )
     return null;

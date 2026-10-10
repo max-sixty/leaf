@@ -1455,6 +1455,84 @@ LIVE_SAMPLES_PAGE = leaf_page(
 )
 
 
+def test_live_sample_full_view_keeps_the_child_and_returns_after_inner_escape(
+    browser, serve
+):
+    """Viewport inspection retains practice state and contains focus until return."""
+    page = open_page(browser, serve(LIVE_SAMPLES_PAGE))
+    sample = page.locator("#first-practice")
+    child = sample.locator("iframe").element_handle().content_frame()
+    child.lf_traffic = Traffic(child)
+    child_url = child.url
+    parent_before = events_model.read_events(serve.page_dir)
+    full = sample.get_by_role("button", name="Full view", exact=True)
+    sample.get_by_role("button", name="Reset", exact=True).focus()
+    page.keyboard.press("Tab")
+    expect(full).to_be_focused()
+    next_top = page.locator("#second-practice").bounding_box()["y"]
+    parent_scroll = page.evaluate("scrollY")
+    page.keyboard.press("Enter")
+    back = sample.get_by_role("button", name="Return to page", exact=True)
+    expect(back).to_be_focused()
+    expect(sample.get_by_role("dialog", name="First practice")).to_be_visible()
+    assert abs(page.locator("#second-practice").bounding_box()["y"] - next_top) <= 1
+    assert page.evaluate("scrollY") == parent_scroll
+    assert (
+        sample.locator("iframe").bounding_box()["height"]
+        > page.viewport_size["height"] * 0.8
+    )
+    with sending(child, "the full view choice"):
+        child.locator("#child-a .lf-pick").click()
+    draft = page_comment(child)
+    write(draft, "Keep this draft through Full view.")
+    back.click()
+    expect(full).to_be_focused()
+    assert child.url == child_url
+    expect(child.locator("#child-a .lf-pick")).to_have_attribute("aria-checked", "true")
+    expect(draft).to_have_js_property("value", "Keep this draft through Full view.")
+
+    full.click()
+    resized(page, 390, 720)
+    expect(back).to_be_in_viewport()
+    assert root_overflow(page) <= 1
+    child.locator(".lf-threads-toggle").click()
+    page.keyboard.press("Escape")
+    expect(child.locator(".lf-threads-toggle")).to_have_attribute(
+        "aria-expanded", "false"
+    )
+    expect(back).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(full).to_be_focused()
+    assert child.url == child_url
+    expect(draft).to_have_js_property("value", "Keep this draft through Full view.")
+    assert events_model.read_events(serve.page_dir) == parent_before
+    expect(
+        page.locator("#second-practice")
+        .frame_locator("iframe")
+        .locator("#child-a .lf-pick")
+    ).to_have_attribute("aria-checked", "false")
+
+    full.click()
+    sample.get_by_role("button", name="Reset", exact=True).click()
+    sample.evaluate("sample => sample.ready")
+    expect(back).to_be_visible()
+    expect(
+        sample.frame_locator("iframe").locator("#child-a .lf-pick")
+    ).to_have_attribute("aria-checked", "false")
+    back.press("Escape")
+    expect(full).to_be_focused()
+
+    full.click()
+    sample.evaluate("""sample => {
+      const parent = sample.parentNode;
+      const next = sample.nextSibling;
+      sample.remove();
+      parent.insertBefore(sample, next);
+    }""")
+    expect(full).to_be_visible()
+    assert sample.locator("dialog").evaluate("view => !view.matches(':modal')")
+
+
 def test_a_live_revision_mounts_and_resets_its_new_sample(browser, serve):
     """An arriving sample allocates from its own revision before that revision paints."""
     page = open_page(browser, live_url(serve(LIVE_SAMPLES_PAGE)))
@@ -2266,6 +2344,12 @@ def test_a_window_sample_is_a_whole_leaf_window_that_scrolls_inside(browser, ser
     expect(content).to_have_js_property("scrollTop", scroll_before + 300)
     assert frame.bounding_box()["height"] == box["height"]
 
+    sample.get_by_role("button", name="Full view", exact=True).click()
+    assert frame.bounding_box()["height"] > page.viewport_size["height"] * 0.8
+    sample.get_by_role("button", name="Return to page", exact=True).click()
+    assert child_frame.evaluate("scrollY") == scroll_before + 300
+    assert frame.bounding_box()["height"] == box["height"]
+
     # A fragment set during startup must not prevent Reset or reload from presenting.
     reset = sample.get_by_role("button", name="Reset", exact=True)
     old_url = child_frame.url
@@ -2364,6 +2448,7 @@ def test_live_samples_release_pending_allocations_and_can_reconnect(browser, ser
     sample = page.locator("#first-practice")
     reset = sample.get_by_role("button", name="Reset", exact=True)
     expect(reset).to_be_enabled()
+    sample.get_by_role("button", name="Full view", exact=True).click()
     previous = sample.locator("iframe").get_attribute("src")
     page.evaluate("""() => {
         window.detachedPractice = document.querySelector('#first-practice');
@@ -2374,6 +2459,7 @@ def test_live_samples_release_pending_allocations_and_can_reconnect(browser, ser
     )
     page.evaluate("document.querySelector('main').append(detachedPractice)")
     expect(reset).to_be_enabled()
+    expect(sample.get_by_role("button", name="Full view", exact=True)).to_be_visible()
     assert sample.locator("iframe").get_attribute("src") != previous
     assert page.request.get(previous + "api/state").status == 404
 

@@ -1327,8 +1327,9 @@ def test_live_revision_retains_the_runtime_favicon(browser, serve):
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
+@pytest.mark.parametrize("touch", [False, True], ids=["desktop", "touch"])
 def test_a_conversation_keeps_its_face_and_sends_from_margin_and_panel(
-    browser, serve, scheme
+    browser, serve, scheme, touch
 ):
     """One conversation has the same typography and reply field in both places.
 
@@ -1352,8 +1353,9 @@ def test_a_conversation_keeps_its_face_and_sends_from_margin_and_panel(
             + "Explain how the result was measured. " * 40,
         },
     )
-    page = open_page(browser, url, color_scheme=scheme)
-    resized(page, 1440, 900)
+    context = browser.new_context(has_touch=touch, is_mobile=touch, color_scheme=scheme)
+    page = open_page(browser, url, context=context)
+    resized(page, 390 if touch else 1440, 900)
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
     margin = page.locator(".lf-margin-preview .lf-page-thread")
     expect(margin.get_by_role("textbox", name="Reply", exact=True)).to_be_visible()

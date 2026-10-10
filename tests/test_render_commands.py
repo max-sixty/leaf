@@ -834,6 +834,20 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     # A selectable caption owns Space even at its current endpoint so it cannot
     # fall through to browser scrolling (the widget's existing command contract).
     assert "show after" in shortcut_bar_text(page)
+    after_caption.focus()
+    page.evaluate("() => { document.scrollingElement.scrollTop -= 120; }")
+    expect(after_caption).to_be_in_viewport()
+    selected_scroll = page.evaluate("() => document.scrollingElement.scrollTop")
+    assert (
+        page.evaluate(
+            "() => document.scrollingElement.scrollHeight - innerHeight - "
+            "document.scrollingElement.scrollTop"
+        )
+        >= 100
+    )
+    page.keyboard.press("Space")
+    expect(comparison).to_have_attribute("position", "0")
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == selected_scroll
     after_caption.click()
     expect(comparison).to_have_attribute("position", "0")
     before_caption.click()

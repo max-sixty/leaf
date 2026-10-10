@@ -21,15 +21,22 @@ export const renderMarkdown = (text) => render(text);
 export function renderedWords(html, imageAlt = false) {
   const parsed = document.createElement("template");
   parsed.innerHTML = html;
+  return fragmentWords(parsed.content, imageAlt);
+}
+
+// Read a disposable fragment so excerpts and caret coordinates count the same
+// semantic breaks, including a break with no formatting text node after it.
+function fragmentWords(fragment, imageAlt = false) {
+  for (const br of fragment.querySelectorAll("br"))
+    br.replaceWith(document.createTextNode("\n"));
   if (imageAlt)
-    for (const image of parsed.content.querySelectorAll("img"))
+    for (const image of fragment.querySelectorAll("img"))
       image.replaceWith(document.createTextNode(image.alt));
-  return parsed.content.textContent;
+  return fragment.textContent;
 }
 export const markdownWords = (text) => renderedWords(render(text));
 export const renderInlineMarkdown = (text, breaks = true) => renderInline(text, breaks);
-// A hard break is visible separation in passage readings, too. Text-node based
-// capture cannot otherwise see a <br> between two words.
+// Passage readings recognize the fragment's semantic <br> as visible separation.
 export function inlineMarkdownFragment(text, breaks = true) {
   const parsed = document.createElement("template");
   parsed.innerHTML = renderInlineMarkdown(text, breaks);
@@ -211,9 +218,9 @@ export function markdownSourceOffset(body, node, offset) {
   const range = document.createRange();
   range.selectNodeContents(body);
   range.setEnd(node, offset);
-  const aim = range.toString().length;
+  const aim = fragmentWords(range.cloneContents()).length;
   const source = body.dataset.lfSourceWords;
-  const shown = body.textContent;
+  const shown = fragmentWords(body.cloneNode(true));
   let shownAt = 0;
   let sourceEnd = 0;
   for (const placed of placedMarkdownTokens(source)) {
@@ -501,6 +508,11 @@ function makeMarkdown(module, breaks) {
     module.taskLists,
     { enabled: false },
   );
+  // Message paragraphs preserve typed spaces. A break has one visible carrier:
+  // MarkdownIt's formatting newline after <br> would become a second line there.
+  markdown.renderer.rules.softbreak = (_tokens, _at, options) =>
+    options.breaks ? "<br>" : "\n";
+  markdown.renderer.rules.hardbreak = () => "<br>";
   // Parse unsafe destinations to retain their visible labels. This owner strips the
   // destinations before HTML exists; there is no active unsafe intermediate markup.
   markdown.validateLink = () => true;

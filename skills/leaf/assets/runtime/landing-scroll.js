@@ -21,16 +21,8 @@ import {
 } from "./geometry.js";
 import { scrollersOf } from "./reading-regions.js";
 import { moveScrollerBy, reachable } from "./scrolling.js";
+import { nearestScrollBy } from "./rect.js";
 import { renderedParent } from "./shadow.js";
-
-const nearestBy = ({ top, bottom }, band) =>
-  top < band.top && bottom > band.bottom
-    ? 0
-    : top < band.top
-      ? top - band.top
-      : bottom > band.bottom
-        ? Math.min(bottom - band.bottom, top - band.top)
-        : 0;
 
 const scrollMargin = (where, side = "Top") =>
   where instanceof Range
@@ -66,12 +58,11 @@ function placementBy(where, block, box, margin) {
   const place = block === "start" ? margin : Math.max((room - rect.height) / 2, margin);
   const movement =
     block === "nearest" && !(where instanceof Range)
-      ? nearestBy(
-          {
-            top: rect.top - margin,
-            bottom: rect.bottom + scrollMargin(where, "Bottom"),
-          },
-          band,
+      ? nearestScrollBy(
+          rect.top - margin,
+          rect.bottom + scrollMargin(where, "Bottom"),
+          band.top,
+          band.bottom,
         )
       : rect.top - band.top - place;
   return movement;
@@ -106,7 +97,10 @@ export function scrollIntoReadingBand(where, holder, block, behavior) {
     // Preserve a short destination's full extent. A tall one promises its opening
     // and as much as this region can show, rather than demanding its whole height.
     if (block === "start") bottom = Math.min(bottom, top + band.bottom - band.top);
-    ({ local, moved } = verticalTravel(outer, nearestBy({ top, bottom }, band)));
+    ({ local, moved } = verticalTravel(
+      outer,
+      nearestScrollBy(top, bottom, band.top, band.bottom),
+    ));
     if (Math.abs(moved) >= 1) moveScrollerBy(outer, local, behavior);
     inner = outer;
   }

@@ -4470,14 +4470,21 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
         '<figure id="fig"><table><tr><td>1</td></tr></table></figure>'
     )
     (page_dir / "index.html").write_text(
-        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + blocks).replace(
-            "</main>", "<section><p>Unnamed aside.</p></section>\n</main>"
-        )
+        PAGE.replace("<main>", "<main><h1>Report</h1><p>The standalone summary.</p>")
+        .replace("<h2>Plan</h2>", "<h2>Plan</h2>" + blocks)
+        .replace("</main>", "<section><p>Unnamed aside.</p></section>\n</main>")
     )
     result = check(page_dir)
     assert result.exit_code == 0, result.output
     advice = [line for line in result.output.splitlines() if "unpointable" in line]
-    assert len(advice) == 3, result.output
+    assert len(advice) == 6, result.output
+    assert any(
+        "<h1>" in line and "nor anything enclosing it" in line for line in advice
+    )
+    assert (
+        sum("<p>" in line and "nor anything enclosing it" in line for line in advice)
+        == 2
+    )
     assert any("<pre>" in line and "#plan" in line for line in advice)
     assert any("<aside>" in line and "#plan" in line for line in advice)
     assert any("<section>" in line for line in advice)
@@ -4485,9 +4492,14 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
         "<table>" in line for line in advice
     )  # the figure's id is aim enough
 
-    # Ids minted, debt gone.
+    # Prose inside an identified section needs no id of its own. Standalone
+    # prose can be named directly or through a wrapper.
     (page_dir / "index.html").write_text(
         PAGE.replace(
+            "<main>",
+            '<main><h1 id="title">Report</h1>'
+            '<div id="summary"><p>The standalone summary.</p></div>',
+        ).replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><pre id="cmd"><code>uv run backfill --check</code></pre>'
             '<aside class="sidenote" id="retry-note">The retry path is deliberately '

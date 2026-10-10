@@ -164,6 +164,8 @@ const held = {
     if (Math.abs(shifted.y ?? 0) >= 0.5) edges.y = shifted.y < 0 ? "bottom" : "top";
     const parent = await platform.getOffsetParent(elements.floating);
     const block = parent === window ? document.documentElement : parent;
+    // In standards mode the root's client dimensions are already viewport pixels;
+    // only the floating box's scale converts them to its positioning pixels.
     const scale = parent === window ? await positioningScale(state) : { x: 1, y: 1 };
     return {
       data: {

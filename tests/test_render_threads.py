@@ -11241,6 +11241,49 @@ def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
     expect(bar.locator(".lf-react:visible")).to_have_count(6)
 
 
+def test_a_zoomed_window_places_floating_surfaces_by_their_held_edges(browser, serve):
+    """Right/bottom insets align with the solver in root and nested CSS zoom."""
+    page = open_page(browser, serve(leaf_page("Placement", "<p>Reference</p>")))
+    resized(page, 605, 898)
+    readings = page.evaluate(
+        """async () => {
+          document.documentElement.style.zoom = '1.25';
+          const {floatingPlacement, floatingUi} = await window.__lfRuntimeImport(
+            '/runtime/annotation-overlay/floating.js');
+          const {computePosition} = await floatingUi();
+          const reference = document.createElement('div');
+          reference.style.cssText = 'position:fixed;left:200px;top:200px;width:20px;height:20px';
+          document.body.append(reference);
+          const readings = [];
+          for (const zoom of [1, 1.2]) {
+            const floating = document.createElement('div');
+            floating.style.cssText = `position:fixed;width:100px;height:50px;zoom:${zoom}`;
+            document.body.append(floating);
+            const driver = floatingPlacement({floating, update() {}});
+            const answer = await driver.position(computePosition, reference,
+              {placement:'top-end', middleware:[]}, () => 'window', reference);
+            driver.stand(answer);
+            await new Promise(requestAnimationFrame);
+            const target = reference.getBoundingClientRect();
+            const actual = floating.getBoundingClientRect();
+            readings.push({zoom, right:actual.right, bottom:actual.bottom,
+              targetRight:target.right, targetTop:target.top});
+            driver.stop();
+            floating.remove();
+          }
+          reference.remove();
+          return readings;
+        }"""
+    )
+    for reading in readings:
+        assert reading["right"] == pytest.approx(reading["targetRight"], abs=0.5), (
+            reading
+        )
+        assert reading["bottom"] == pytest.approx(reading["targetTop"], abs=0.5), (
+            reading
+        )
+
+
 def test_a_zoomed_floating_draft_and_sent_comment_fit_a_narrow_window(browser, serve):
     """A usable narrow window keeps the zoomed draft visible through typing and send."""
     page = open_page(browser, serve(LONG_PAGE))

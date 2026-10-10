@@ -2805,11 +2805,37 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     expect(button).to_have_attribute(
         "title", "Approve this work; the page stays open for follow-up"
     )
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    history = page.locator(".lf-threads > .lf-system")
+    questions = page.get_by_role(
+        "button", name="Questions: 1 waiting on you", exact=True, include_hidden=True
+    )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     button.click()
-    holding(page, held, 1, "the approval")
+    holding(page, held, 1, "the refused approval")
     expect(button).to_have_text("✓ Version approved")
+    expect(questions).to_have_count(0)
+    expect(history).to_contain_text("Approved")
+    held[0].fulfill(
+        json={
+            "ok": False,
+            "attempt": held[0].request.post_data_json["attempt"],
+            "error": "This approval was refused.",
+            "final": True,
+        }
+    )
+    round_trip(page)
+    expect(button).to_have_text("Approve version")
+    expect(questions).to_be_attached()
+    expect(history).to_have_count(0)
+    held.clear()
+    button.click()
+    holding(page, held, 1, "the accepted approval")
+    expect(button).to_have_text("✓ Version approved")
+    expect(questions).to_have_count(0)
+    expect(history).to_contain_text("Approved")
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
@@ -2818,13 +2844,7 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
         "title", "Approved. Press z to undo while approval is still your latest update"
     )
 
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    history = page.locator(".lf-threads > .lf-system")
     expect(history).to_contain_text("Approved")
-    questions = page.get_by_role(
-        "button", name="Questions: 1 waiting on you", exact=True, include_hidden=True
-    )
     expect(questions).to_have_count(0)
     held.clear()
     page.route("**/api/event", lambda route: held.append(route))
@@ -2871,9 +2891,17 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
 
     # And the press is available again, which is what makes this a correction rather than
     # a page the user has spent.
-    with sending(page, "the second approval"):
-        button.click()
+    held.clear()
+    page.route("**/api/event", lambda route: held.append(route))
+    button.click()
+    holding(page, held, 1, "the second approval")
     expect(button).to_have_text("✓ Version approved")
+    expect(questions).to_have_count(0)
+    expect(history).to_contain_text("Approved")
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(history).to_contain_text("Approved")
     assert [e["kind"] for e in events_model.read_events(serve.page_dir)][-1] == "done"
 
 

@@ -1480,11 +1480,25 @@ test("approval leaves Questions in its sending turn and undo restores the exact 
   assert.equal(questions()[0].offers.done, false);
   app.enqueue({ kind: "done", version: 2, attempt: "other-version" }, "now");
   assert.equal(questions().length, 1);
-  app.enqueue({ kind: "done", version: 1, attempt: "approve" }, "now");
+  app.refuse("other-version");
+  const pending = app.enqueue(
+    { kind: "done", version: 1, attempt: "approve" },
+    "queued-at",
+  );
   assert.equal(questions().length, 0);
   assert.deepEqual(record().answer, { value: true, event: null });
   assert.equal(record().status, "answered");
+  assert.deepEqual(app.read().effective.thread.approvalHistory, [
+    {
+      kind: "done",
+      version: 1,
+      attempt: "approve",
+      id: pending.localId,
+      ts: "queued-at",
+    },
+  ]);
   app.refuse("approve");
+  assert.deepEqual(app.read().effective.thread.approvalHistory, []);
   assert.equal(questions().length, 1);
   assert.equal(record().answer, null);
   const accepted = state(3);

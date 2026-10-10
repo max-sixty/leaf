@@ -119,6 +119,7 @@ const UNPRESENTED = new Set<GestureState>(["sending:logged", "accepted:logged"])
 interface LedgerEntry {
   event: Command;
   localId: string;
+  timestamp: string;
   order: number;
   projection: PendingProjection | null;
   thread: LocalMessage | null;
@@ -858,8 +859,12 @@ export function createSemanticApplication({
       thread: {
         all: threads,
         // Historical system rows are event narration, never current approval state.
-        approvalHistory: (state?.browser.thread.approval_history ?? []).filter((event) =>
-          !local.some(({ event: gesture }) => gesture.kind === "undo" && gesture.undoes === event.id)),
+        approvalHistory: [
+          ...(state?.browser.thread.approval_history ?? []),
+          ...local.flatMap(({ event, localId, timestamp }) => event.kind === "done"
+            ? [{ ...event, id: localId, ts: timestamp }] : []),
+        ].filter((event) => !local.some(({ event: gesture }) =>
+          gesture.kind === "undo" && gesture.undoes === event.id)),
         collection: {
           phase,
           threads: threads.filter(discussed),
@@ -1216,6 +1221,7 @@ export function createSemanticApplication({
           {
             event: structuredClone(event),
             localId,
+            timestamp,
             order: localOrder,
             projection,
             thread,

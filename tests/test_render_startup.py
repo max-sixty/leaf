@@ -992,6 +992,9 @@ def test_upgrade_relinquishes_the_bootstrap_timeout_for_held_keys(browser, serve
     """The runtime owns the queue after upgrade, even across bootstrap's deadline."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.clock.install(time=0)
+    # Pause the empty page before product timers start. A time sampled from a
+    # running page can already be in the past when the driver delivers pause_at.
+    page.clock.pause_at("2025-01-01T00:00:00Z")
     page.add_init_script("""window.navigationTime = Date.now();
       document.addEventListener('lf-page-interface', event =>
         event.detail.present(new Promise(resolve => window.releaseInterface = resolve)));
@@ -999,7 +1002,6 @@ def test_upgrade_relinquishes_the_bootstrap_timeout_for_held_keys(browser, serve
     held, release = _hold_startup(page, "state")
     page.goto(serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD]), wait_until="load")
     page.wait_for_function("() => Boolean(window.releaseInterface)")
-    page.clock.pause_at(page.evaluate("() => (Date.now() + 10) / 1000"))
     page.clock.run_for(3000)
     page.evaluate("() => window.releaseInterface()")
     page.clock.run_for(100)

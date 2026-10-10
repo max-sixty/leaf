@@ -876,46 +876,95 @@ def test_a_probe_in_flight_leaves_a_page_that_started_alone(served_example, brow
 
 
 def test_session_activation_reaches_other_tabs(served_example, browser):
-    """One tab's first private request wakes its already-open peers."""
-    _, url = served_example("triage-board")
+    """Activation reaches this page's tabs, including a pinned revision, only."""
+    page_dir, url = served_example("triage-board")
+    _, other_url = served_example("heat-loss")
     context = browser.new_context()
-    leader = context.new_page()
-    follower = context.new_page()
+    leader, follower, other_page, other_release = [context.new_page() for _ in range(4)]
+    pages = (leader, follower, other_page, other_release)
+    # Capture the native channel to send an ordered delivery barrier after activation.
+    # Each recipient handles that marker after the runtime handles the earlier message.
+    context.add_init_script(
+        """window.BroadcastChannel = class extends BroadcastChannel {
+          constructor(name) {
+            super(name);
+            if (name.startsWith('leaf-session') && !window.__sessionChannel)
+              window.__sessionChannel = this;
+          }
+        };"""
+    )
     try:
+        different_release = "f" * 64
 
         def passive_session(route):
             response = route.fetch()
-            headers = response.headers
-            headers["leaf-session"] = "passive"
+            headers = {**response.headers, "leaf-session": "passive"}
+            if route.request.frame.page == other_release:
+                headers["leaf-release"] = different_release
             route.fulfill(response=response, headers=headers)
 
-        servers = []
-        for page in (leader, follower):
+        def different_document(route):
+            response = route.fetch()
+            body = re.sub(
+                r'data-lf-release="[^"]+"',
+                f'data-lf-release="{different_release}"',
+                response.text(),
+            )
+            assert body != response.text(), "the release control changed no declaration"
+            route.fulfill(response=response, body=body)
+
+        other_release.route(f"{url}?other-release", different_document)
+        revision = files_model.latest_revision(page_dir)
+        assert revision is not None
+        version_url = f"{url}versions/v{revision}.html"
+        for page, address in zip(
+            pages, (url, version_url, other_url, f"{url}?other-release")
+        ):
             page.route("**/api/state*", passive_session)
             page.route("**/registry.json", passive_session)
-            response = page.goto(url, wait_until="load")
-            assert response
-            servers.append(response.header_value("Leaf-Server"))
+            page.route("**/api/news", passive_session)
+            page.goto(address, wait_until="load")
             wait_until_ready(page)
-        assert servers[0] and servers[0] == servers[1]
-        follower.evaluate(
-            """() => {
-              window.__leafActivated = 0;
-              document.addEventListener("lf-session-active", () => window.__leafActivated++);
-            }"""
-        )
+            page.evaluate(
+                """() => {
+                  window.__leafActivated = 0;
+                  window.__activationBarrier = false;
+                  document.addEventListener('lf-session-active', () => window.__leafActivated++);
+                  window.__sessionChannel.addEventListener('message', event => {
+                    if (event.data.activationBarrier) window.__activationBarrier = true;
+                  });
+                }"""
+            )
+        names = [page.evaluate("window.__sessionChannel.name") for page in pages[1:]]
         leader.evaluate(
-            """async server => {
-              const client = await window.__lfRuntimeImport("/runtime/layer-client.js");
-              client.admitResponse(new Response(null, {headers: {
-                "Leaf-Session": "active", "Leaf-Server": server
-              }}));
+            """async names => {
+              const client = await window.__lfRuntimeImport('/runtime/layer-client.js');
+              client.admitResponse(new Response(null, {headers: {'Leaf-Session': 'active'}}));
+              for (const name of new Set(names)) {
+                const sender = window.__sessionChannel.name === name
+                  ? window.__sessionChannel : new BroadcastChannel(name);
+                sender.postMessage({activationBarrier: true});
+                if (sender !== window.__sessionChannel) sender.close();
+              }
             }""",
-            servers[0],
+            names,
         )
-        follower.wait_for_function("() => window.__leafActivated === 1")
+        for page in pages[1:]:
+            page.wait_for_function("window.__activationBarrier")
+        assert [page.evaluate("window.__leafActivated") for page in pages] == [
+            1,
+            1,
+            0,
+            0,
+        ]
+        assert [
+            page.evaluate(
+                "async () => (await window.__lfRuntimeImport('/runtime/layer-client.js')).sessionIsActive()"
+            )
+            for page in pages
+        ] == [True, True, False, False]
     finally:
-        for page in (leader, follower):
+        for page in pages:
             page.unroute_all(behavior="ignoreErrors")
 
 
@@ -929,7 +978,7 @@ def test_freshness_checks_share_session_identity_without_rebroadcasting(
         """const post = BroadcastChannel.prototype.postMessage;
         window.__sessionBroadcasts = [];
         BroadcastChannel.prototype.postMessage = function(value) {
-          if (this.name === 'leaf-session') window.__sessionBroadcasts.push(value);
+          if (this.name.startsWith('leaf-session:')) window.__sessionBroadcasts.push(value);
           return post.call(this,value);
         };"""
     )

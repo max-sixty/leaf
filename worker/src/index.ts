@@ -1089,6 +1089,10 @@ export default {
       }
       return recordInteractions(request, route, reference, manifest.release);
     }
+    // Geometry is disposable observation, not a gesture that opens private state.
+    if (!active && request.method === "POST" && route.inside === "api/user-view") {
+      return new Response(null, { status: 204 });
+    }
     if (
       !active &&
       request.method === "GET" &&

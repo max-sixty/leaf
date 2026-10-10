@@ -153,10 +153,12 @@ export function admitResponse(response) {
   return true;
 }
 
+// Activation belongs to one private page in one release. A pinned revision shares
+// its canonical root; another page or deployment has a separate saved record.
 let sessionMode = release ? "unknown" : "active";
 const sessionChannel =
   release && typeof window.BroadcastChannel !== "undefined"
-    ? new window.BroadcastChannel("leaf-session")
+    ? new window.BroadcastChannel(`leaf-session:${release}:${pageUrl("")}`)
     : null;
 
 function activateSession(broadcast) {

@@ -993,6 +993,46 @@ describe("product-site delivery", () => {
     expect(getContainer).not.toHaveBeenCalled();
   });
 
+  it("keeps optional geometry reports passive until their page is active", async () => {
+    const sessionId = "1d".repeat(16);
+    const env = environment();
+    const containerFetch = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.mocked(getContainer).mockReturnValue({ fetch: containerFetch } as never);
+    const report = (cookie?: string) => worker.fetch(
+      new Request("https://leaf.page/examples/triage-board/api/user-view", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(cookie ? { Cookie: cookie } : {}),
+        },
+        body: "{}",
+      }),
+      env,
+    );
+    for (const cookie of [
+      undefined,
+      `__Host-leaf-page=${sessionId}`,
+      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board", "b".repeat(64))}`,
+      `__Host-leaf-page=${sessionId}; ${activeMarker("/")}`,
+    ]) {
+      const response = await report(cookie);
+      expect(response.status).toBe(204);
+      expect(response.headers.get("Leaf-Session")).not.toBe("active");
+      expect(response.headers.get("Set-Cookie")).toBeNull();
+    }
+    expect(getContainer).not.toHaveBeenCalled();
+    expect(containerFetch).not.toHaveBeenCalled();
+
+    const active = await report(
+      `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
+    );
+    expect(active.status).toBe(204);
+    expect(active.headers.get("Leaf-Session")).toBe("active");
+    expect(active.headers.get("Set-Cookie")).toBeNull();
+    expect(getContainer).toHaveBeenCalledWith(env.PAGES, containerId(sessionId));
+    expect(containerFetch).toHaveBeenCalledOnce();
+  });
+
   it("activates a container for a private read the edge cannot answer", async () => {
     const sessionId = "1b".repeat(16);
     const containerFetch = vi.fn(async () =>

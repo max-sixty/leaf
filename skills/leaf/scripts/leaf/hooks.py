@@ -128,14 +128,29 @@ def cmd_hook(harness: str, payload: dict) -> None:
             from .codex import offer_hook_delivery
             from .harness import HOOK_HARNESSES
 
-            if prompt := offer_hook_delivery(sid, turn_id):
-                import json
+            offering = True
+            if event == "Stop":
+                from .hook_transport import read_plans, stop_continues
 
-                print(json.dumps(HOOK_HARNESSES[harness].hook_context(event, prompt)))
-                return
-            # Offering renews the observed turn even on a quiet page. Carry the
-            # resulting revision into Stop's independent response-debt check.
-            expected = session_record(sid)
+                plans = read_plans(sid)
+                if session_record(sid) != expected or any(
+                    plan.lifecycle != expected for plan in plans
+                ):
+                    return
+                offering = stop_continues(
+                    plans,
+                    [plan.batch for plan in plans if plan.batch],
+                    repeated=bool(payload.get("stop_hook_active")),
+                )
+            if offering:
+                prompt, expected = offer_hook_delivery(sid, expected)
+                if prompt:
+                    import json
+
+                    print(
+                        json.dumps(HOOK_HARNESSES[harness].hook_context(event, prompt))
+                    )
+                    return
     if event == "PostToolUse":
         return
     # Retained claims may need reconnecting after active ownership expired.

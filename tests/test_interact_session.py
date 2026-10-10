@@ -3112,8 +3112,8 @@ def test_stream_work_is_scoped_to_the_live_session_and_freshness(claimed):
 
 
 def test_app_server_delivery_id_reads_only_canonical_delivery_inputs():
-    pointer = codex_model.delivery_pointer_prompt("aaaaaaaa")
-    invalid_pointer = codex_model.delivery_pointer_prompt("../status")
+    pointer = delivery_model.delivery_pointer_prompt("aaaaaaaa")
+    invalid_pointer = delivery_model.delivery_pointer_prompt("../status")
     payload = {
         "format": delivery_model.DELIVERY_FORMAT,
         "id": "bbbbbbbb",
@@ -11010,7 +11010,7 @@ def test_codex_tool_hook_delivers_into_the_running_turn_once(
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
     assert context["hookEventName"] == "PostToolUse"
     [(path, record)] = codex_records("codex-thread")
-    assert context["additionalContext"] == codex_model.delivery_pointer_prompt(
+    assert context["additionalContext"] == delivery_model.delivery_pointer_prompt(
         path.stem
     )
     assert (record["state"], record["turn"]) == ("hook", "user-turn")
@@ -11207,7 +11207,7 @@ def test_codex_resume_without_input_delivers_in_its_first_hook(
     )
     offer = json.loads(capsys.readouterr().out)
     [(path, _)] = codex_records("codex-thread")
-    pointer = codex_model.delivery_pointer_prompt(path.stem)
+    pointer = delivery_model.delivery_pointer_prompt(path.stem)
     if delivery_hook == "Stop":
         assert offer == {"decision": "block", "reason": pointer}
     else:
@@ -11340,7 +11340,7 @@ def test_a_page_claimed_mid_turn_keeps_its_first_comment_for_the_tool_hook(
     [(path, record)] = codex_records("codex-thread")
     assert json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
-    ] == codex_model.delivery_pointer_prompt(path.stem)
+    ] == delivery_model.delivery_pointer_prompt(path.stem)
     assert (record["state"], record["turn"]) == ("hook", "user-turn")
     delivery_model.cmd_delivery_read(path.stem)
     capsys.readouterr()
@@ -11576,7 +11576,7 @@ def test_a_late_codex_tool_hook_cannot_replace_a_newer_turn(page_dir, codex_loop
     """An old async callback neither captures input nor reopens its ended turn."""
     codex_loop(page_dir)
     cleanup_model.prompt_turn("codex-thread", "old-turn")
-    cleanup_model.open_session_turn("codex-thread", "old-turn")
+    old = cleanup_model.open_session_turn("codex-thread", "old-turn")
     cleanup_model.close_session_turn("codex-thread", "old-turn")
     cleanup_model.close_session_turn("codex-thread", "old-turn")
     cleanup_model.prompt_turn("codex-thread", "new-turn")
@@ -11584,7 +11584,7 @@ def test_a_late_codex_tool_hook_cannot_replace_a_newer_turn(page_dir, codex_loop
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "For the new turn"}
     )
-    assert codex_model.offer_hook_delivery("codex-thread", "old-turn") is None
+    assert codex_model.offer_hook_delivery("codex-thread", old) == (None, old)
     cleanup_model.close_session_turn("codex-thread", "old-turn")
     assert service_model.page_claim(page_dir)["turn"] == "new-turn"
     assert codex_state_model.hook_turn("codex-thread")["running"]
@@ -11609,7 +11609,10 @@ def test_a_codex_tool_step_wins_a_queue_offer_based_on_stale_activity(
     prompts = []
 
     def stale_activity(session_id):
-        prompts.append(codex_model.offer_hook_delivery(session_id, "user-turn"))
+        prompt, _ = codex_model.offer_hook_delivery(
+            session_id, cleanup_model.session_record(session_id)
+        )
+        prompts.append(prompt)
 
     monkeypatch.setattr(codex_adapter_model, "delivery_turn", stale_activity)
     queued = []
@@ -11653,7 +11656,9 @@ def test_a_codex_hook_read_survives_page_loss_after_offer(
         sibling, {"kind": "resolve", "author": "user", "parent": settled["id"]}
     )
     cleanup_model.write_json(sibling / "cursor.json", {"seq": settled["seq"]})
-    codex_model.offer_hook_delivery("codex-thread", "user-turn")
+    codex_model.offer_hook_delivery(
+        "codex-thread", cleanup_model.session_record("codex-thread")
+    )
     [(path, record)] = codex_records("codex-thread")
     assert len(record["batches"]) == 2
     if loss == "transfer":
@@ -11693,7 +11698,9 @@ def test_an_unread_codex_hook_pointer_falls_back_to_the_idle_queue(
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "One more question"}
     )
-    prompt = codex_model.offer_hook_delivery("codex-thread", "user-turn")
+    prompt, _ = codex_model.offer_hook_delivery(
+        "codex-thread", cleanup_model.session_record("codex-thread")
+    )
     [(path, _)] = codex_records("codex-thread")
     lease = leases_model.take_lease(leases_model.adapter_lease_path("codex-thread"))
     assert lease
@@ -11792,7 +11799,10 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
     leases_model.mark_step_hook("codex-thread")
     cleanup_model.open_session_turn("codex-thread", "user-turn")
     cleanup_model.prompt_turn("codex-thread", "user-turn")
-    assert codex_model.offer_hook_delivery("codex-thread", "user-turn") is None
+    prompt, _ = codex_model.offer_hook_delivery(
+        "codex-thread", cleanup_model.session_record("codex-thread")
+    )
+    assert prompt is None
     assert len(codex_records("codex-thread")) == 1
 
     append_carried_log_record(
@@ -11846,7 +11856,9 @@ def test_codex_acceptance_survives_interruption_before_page_receipt(
     )
     if transport == "hook":
         leases_model.mark_step_hook("codex-thread")
-    codex_model.offer_hook_delivery("codex-thread", "user-turn")
+    codex_model.offer_hook_delivery(
+        "codex-thread", cleanup_model.session_record("codex-thread")
+    )
     [(path, _)] = codex_records("codex-thread")
     if transport == "queue":
         cleanup_model.close_session_turn("codex-thread", "user-turn")
@@ -14201,6 +14213,89 @@ def test_a_repeated_stop_is_held_open_only_by_the_users_input(claimed, capsys):
     assert files_model.read_json(claimed / "cursor.json") == {
         "seq": last_deliverable_seq(claimed)
     }
+
+
+@pytest.mark.parametrize("repeated", [False, True])
+def test_codex_stop_leaves_quiet_input_but_delivers_the_whole_batch_with_owed_input(
+    page_dir, codex_loop, capsys, repeated
+):
+    """A live adapter handles quiet updates after Stop. An owed user message keeps
+    that turn open and brings all earlier pending updates into its one delivery.
+    """
+    codex_loop(page_dir)
+    cleanup_model.prompt_turn("codex-thread", "quiet")
+    waiter = _watched(page_dir)
+    adapter = leases_model.take_lease(leases_model.adapter_lease_path("codex-thread"))
+    assert adapter
+    try:
+        asked = append_carried_log_record(
+            page_dir, {"kind": "comment", "author": "user", "text": "why?"}
+        )
+        receive_through(page_dir, last_deliverable_seq(page_dir))
+        thread_model.post_reply(
+            page_dir, asked["id"], "Because.", None, for_event=asked["id"]
+        )
+        cursor = events_model.read_cursor(page_dir)
+        quiet = [
+            append_carried_log_record(
+                page_dir, {"kind": "resolve", "author": "user", "parent": asked["id"]}
+            ),
+            append_carried_log_record(
+                page_dir,
+                {"kind": "error", "author": "page", "message": "a widget threw"},
+            ),
+        ]
+        cleanup_model.prompt_turn("codex-thread", "quiet")
+        hooks_model.cmd_hook(
+            "codex",
+            {
+                "hook_event_name": "Stop",
+                "session_id": "codex-thread",
+                "turn_id": "quiet",
+                "stop_hook_active": repeated,
+            },
+        )
+        assert capsys.readouterr().out == ""
+        assert cleanup_model.session_record("codex-thread")["turn_closed"]
+        assert events_model.read_cursor(page_dir) == cursor
+        assert not codex_records("codex-thread")
+        assert [
+            event["id"]
+            for event in service_model.unacknowledged(
+                events_model.read_events(page_dir), cursor
+            )
+        ] == [event["id"] for event in quiet]
+
+        cleanup_model.prompt_turn("codex-thread", "owed")
+        comment = append_carried_log_record(
+            page_dir, {"kind": "comment", "author": "user", "text": "is it broken?"}
+        )
+        hooks_model.cmd_hook(
+            "codex",
+            {
+                "hook_event_name": "Stop",
+                "session_id": "codex-thread",
+                "turn_id": "owed",
+                "stop_hook_active": repeated,
+            },
+        )
+        answer = json.loads(capsys.readouterr().out)
+        assert answer["decision"] == "block"
+        [pointer_xml] = re.findall(r"<leaf-delivery\b[^>]*?/>", answer["reason"])
+        pointer = ElementTree.fromstring(pointer_xml)
+        read = CliRunner().invoke(
+            cli_model.cli, ["delivery", "read", pointer.attrib["id"]]
+        )
+        assert read.exit_code == 0, read.output
+        [batch] = json.loads(read.output)["batches"]
+        assert [event["id"] for event in batch["events"]] == [
+            *(event["id"] for event in quiet),
+            comment["id"],
+        ]
+        assert cleanup_model.session_record("codex-thread")["turn_closed"] is None
+    finally:
+        adapter.close()
+        leases_model.release_lease(waiter)
 
 
 def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
@@ -17162,6 +17257,11 @@ def _interaction_prompt_evidence(page, value):
             return [stable(child) for child in item]
         if isinstance(item, str):
             item = item.replace(str(page), "<page>")
+            item = re.sub(
+                r'(<leaf-delivery id=")[0-9a-f]{8}(" operation="delivery read" />)',
+                r"\1<delivery>\2",
+                item,
+            )
             for source, replacement in identities.items():
                 item = item.replace(source, replacement)
             return Prose(item) if " " in item or "\n" in item else item
@@ -17625,40 +17725,82 @@ def test_a_stop_keeps_the_turn_going_only_for_owed_input(claimed, capsys):
     leases_model.release_lease(lease)
 
 
-def test_the_stop_remedy_names_the_id_its_writer_takes(claimed, capsys):
-    """Two consecutive user turns in one thread owe one answer, addressed to the
-    newest. The Stop hook names the command that writes it, and that exact command
-    is accepted: the thread's id, which is the first message's, is not what
-    the captured response address takes."""
-    lease = _watched(claimed)
-    first = append_carried_log_record(
-        claimed, {"kind": "comment", "author": "user", "text": "why here?"}
-    )
-    second = append_carried_log_record(
-        claimed,
-        {"kind": "reply", "author": "user", "parent": first["id"], "text": "and when?"},
-    )
-    original_reference = response_reference(claimed, second)
-    receive_through(claimed, last_deliverable_seq(claimed))
+@pytest.mark.parametrize("history", ["no-delivery", "lost-pointer", "newest-in-thread"])
+def test_a_stop_reminder_recovers_the_exact_reply_address(
+    page_dir, codex_loop, capsys, history
+):
+    """The reminder alone recovers a usable response address, even when no original
+    delivery exists. Consecutive user messages owe the newest input one answer.
+    """
+    codex_loop(page_dir)
+    cleanup_model.prompt_turn("codex-thread", "active")
+    waiter = _watched(page_dir)
+    adapter = leases_model.take_lease(leases_model.adapter_lease_path("codex-thread"))
+    assert adapter
+    try:
+        latest = append_carried_log_record(
+            page_dir, {"kind": "comment", "author": "user", "text": "why here?"}
+        )
+        if history != "no-delivery":
+            receive_through(page_dir, last_deliverable_seq(page_dir))
+        if history == "newest-in-thread":
+            latest = append_carried_log_record(
+                page_dir,
+                {
+                    "kind": "reply",
+                    "author": "user",
+                    "parent": latest["id"],
+                    "text": "and when?",
+                },
+            )
+        if history != "lost-pointer":
+            # The motivating preview advanced its cursor over seeded history
+            # without ever making an envelope for that input.
+            (page_dir / "cursor.json").write_text(json.dumps({"seq": latest["seq"]}))
+        cursor = events_model.read_cursor(page_dir)
 
-    reason = _stop(capsys)
-    [named] = re.findall(
-        r"`leaf response reply <answer.ref>` for ([A-Za-z0-9_-]+)", reason
-    )
-    assert named == second["id"]
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "response",
-            "reply",
-            original_reference,
-            "--text",
-            "Here, next week.",
-        ],
-    )
-    assert result.exit_code == 0, result.output
-    assert _stop(capsys) is None
-    leases_model.release_lease(lease)
+        cleanup_model.prompt_turn("codex-thread", "active")
+        hooks_model.cmd_hook(
+            "codex",
+            {
+                "hook_event_name": "Stop",
+                "session_id": "codex-thread",
+                "turn_id": "active",
+            },
+        )
+        reason = json.loads(capsys.readouterr().out)["reason"]
+        [pointer_xml] = re.findall(r"<leaf-delivery\b[^>]*?/>", reason)
+        pointer = ElementTree.fromstring(pointer_xml)
+        assert pointer.attrib["operation"] == "delivery read"
+        read = CliRunner().invoke(
+            cli_model.cli, ["delivery", "read", pointer.attrib["id"]]
+        )
+        assert read.exit_code == 0, read.output
+        envelope = json.loads(read.output)
+        assert events_model.read_cursor(page_dir) == cursor
+        assert not codex_records("codex-thread")
+        [batch] = envelope["batches"]
+        [event] = batch["events"]
+        assert event["id"] == latest["id"]
+        reply = CliRunner().invoke(
+            cli_model.cli,
+            ["response", "reply", event["answer"]["ref"], "--text", "Here, next week."],
+        )
+        assert reply.exit_code == 0, reply.output
+        assert not page_state(page_dir)["activity"]["obligations"]
+        cleanup_model.prompt_turn("codex-thread", "active")
+        hooks_model.cmd_hook(
+            "codex",
+            {
+                "hook_event_name": "Stop",
+                "session_id": "codex-thread",
+                "turn_id": "active",
+            },
+        )
+        assert capsys.readouterr().out == ""
+    finally:
+        adapter.close()
+        leases_model.release_lease(waiter)
 
 
 def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys):
@@ -18996,9 +19138,9 @@ def test_newer_prompt_supersedes_hook_policy_before_effects(
     policy = hook_transport_model.stop_continues
     newer = []
 
-    def supersede(plans, *, repeated):
+    def supersede(plans, handing, *, repeated):
         newer.append(cleanup_model.prompt_turn("s1", turn))
-        return policy(plans, repeated=repeated)
+        return policy(plans, handing, repeated=repeated)
 
     monkeypatch.setattr(hook_transport_model, "stop_continues", supersede)
     hooks_model.cmd_hook(
@@ -19015,6 +19157,89 @@ def test_newer_prompt_supersedes_hook_policy_before_effects(
         event["kind"] == "pickup" for event in events_model.read_events(claimed)
     )
     assert events_model.read_cursor(claimed) == 0
+
+
+@pytest.mark.parametrize("pending", [False, True])
+def test_a_codex_stop_cannot_adopt_a_prompt_renewed_during_its_policy(
+    page_dir, codex_loop, monkeypatch, capsys, pending
+):
+    codex_loop(page_dir)
+    cleanup_model.prompt_turn("codex-thread", "provider")
+    waiter = _watched(page_dir)
+    adapter = leases_model.take_lease(leases_model.adapter_lease_path("codex-thread"))
+    assert adapter
+    if pending:
+        append_carried_log_record(
+            page_dir,
+            {"kind": "comment", "author": "user", "text": "For the new prompt"},
+        )
+    policy = hook_transport_model.stop_continues
+    newer = []
+
+    def supersede(plans, handing, *, repeated):
+        newer.append(cleanup_model.prompt_turn("codex-thread", "provider"))
+        return policy(plans, handing, repeated=repeated)
+
+    monkeypatch.setattr(hook_transport_model, "stop_continues", supersede)
+    try:
+        hooks_model.cmd_hook(
+            "codex",
+            {
+                "hook_event_name": "Stop",
+                "session_id": "codex-thread",
+                "turn_id": "provider",
+            },
+        )
+        assert capsys.readouterr().out == ""
+        assert cleanup_model.session_record("codex-thread") == newer[0]
+        assert not codex_records("codex-thread")
+        assert events_model.read_cursor(page_dir) == 0
+    finally:
+        adapter.close()
+        leases_model.release_lease(waiter)
+
+
+def test_a_codex_stop_keeps_the_revision_returned_by_its_offer(
+    page_dir, codex_loop, monkeypatch, capsys
+):
+    """A prompt can renew the same provider id after an offer returns no pointer.
+    That Stop still belongs to the offer's exact revision, never the newest one.
+    """
+    codex_loop(page_dir)
+    cleanup_model.prompt_turn("codex-thread", "provider")
+    waiter = _watched(page_dir)
+    adapter = leases_model.take_lease(leases_model.adapter_lease_path("codex-thread"))
+    assert adapter
+    append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "An old unanswered move"},
+    )
+    receive_through(page_dir, last_deliverable_seq(page_dir))
+    cleanup_model.prompt_turn("codex-thread", "provider")
+    offering = codex_model.offer_hook_delivery
+    newer = []
+
+    def renew_after_offer(*args):
+        result = offering(*args)
+        newer.append(cleanup_model.prompt_turn("codex-thread", "provider"))
+        return result
+
+    monkeypatch.setattr(codex_model, "offer_hook_delivery", renew_after_offer)
+    try:
+        hooks_model.cmd_hook(
+            "codex",
+            {
+                "hook_event_name": "Stop",
+                "session_id": "codex-thread",
+                "turn_id": "provider",
+            },
+        )
+        assert capsys.readouterr().out == ""
+        assert cleanup_model.session_record("codex-thread") == newer[0]
+        assert not codex_records("codex-thread")
+    finally:
+        adapter.close()
+        leases_model.release_lease(waiter)
 
 
 def test_claim_rollback_tracks_acquisition_independently_of_turn(claimed):

@@ -1,7 +1,15 @@
-"""The prompt and Stop hooks as a session's transport, under Claude Code or Pi: they
-carry the page input pending on the session's pages into its turn and enforce the
-agent conversation loop. `hooks` reaches this module for active ownership or a
-reconnect notice about a page the session previously served.
+"""The prompt and Stop hooks as a session's transport and response reminder.
+
+Claude Code and Pi carry pending page input here; Codex reserves its new-input
+pointers through `codex`. All three use this module's continuation policy and
+reminders for already-receipted work. A reminder freezes the currently owed inputs
+with the ordinary delivery producer, recovering their exact response references
+even when the original pointer is lost. It does not make those inputs pending
+again or reserve another Codex transport offer. Repeated Stop skips old debt;
+only newly owed input warrants another continuation.
+
+`hooks` reaches this module for active ownership or a reconnect notice about a
+page the session previously served.
 
 Claude Code runs the prompt hook as every turn begins, including a turn the end
 of a background task opens, idle or between two tool calls, and adds what the
@@ -37,6 +45,7 @@ from pathlib import Path
 from .activity import acknowledged_obligations, turn_obligations, unanswered
 from .delivery import (
     batch_data,
+    delivery_pointer_prompt,
     freeze_delivery,
     receive_held,
     record_pickup,
@@ -80,8 +89,9 @@ def restart(obligations: list[dict]) -> str:
 class PagePlan:
     """A session-owned page read once under its transaction.
 
-    Selected input, response debt and watcher readiness come from one log,
-    cursor, status and ownership snapshot. Planning never records a pickup.
+    Pending and recovery batches, response debt and watcher readiness come from
+    one log, cursor, status and ownership snapshot. Planning never records a
+    pickup. The caller selects which pending batches its transport can hand over.
     """
 
     page: Path
@@ -91,6 +101,7 @@ class PagePlan:
     state: dict
     pending: list[dict]
     batch: dict | None
+    recovery: dict | None
     owed: list[dict]
     acknowledged: list[dict]
     watched: bool
@@ -120,6 +131,9 @@ def read_plans(session_id: str) -> list[PagePlan]:
                     continue
                 pending = unacknowledged(page.events, state["cursor"])
                 watched = harness.watcher_live(listening=state["listening"])
+                owed = turn_obligations(state, watched=watched)
+                owed_ids = {item["input"] for item in owed}
+                responses = {item["input"]: item["answer"] for item in work.obligations}
                 plans.append(
                     PagePlan(
                         page_dir,
@@ -128,10 +142,18 @@ def read_plans(session_id: str) -> list[PagePlan]:
                         harness,
                         state,
                         pending,
-                        batch_data(page_dir, page, pending)
-                        if pending and harness.hooks_carry()
+                        batch_data(page_dir, page, pending, responses=responses)
+                        if pending
                         else None,
-                        turn_obligations(state, watched=watched),
+                        batch_data(
+                            page_dir,
+                            page,
+                            [event for event in page.events if event["id"] in owed_ids],
+                            responses=responses,
+                        )
+                        if owed
+                        else None,
+                        owed,
                         acknowledged_obligations(state),
                         watched,
                         (page_dir / PREVIEW_FILE).exists(),
@@ -142,17 +164,18 @@ def read_plans(session_id: str) -> list[PagePlan]:
     return plans
 
 
-def stop_continues(plans: list[PagePlan], *, repeated: bool) -> bool:
+def stop_continues(
+    plans: list[PagePlan], handing: list[dict], *, repeated: bool
+) -> bool:
     """Continue for newly owed input, or first-report debt/watcher housekeeping.
 
     Repeated Stop ignores already reported housekeeping and response debt, but
     genuinely new input still enters the current turn and owes an answer.
+    `handing` contains the complete pending batches this transport proposes to
+    offer; acknowledged recovery snapshots never count as new input.
     """
     newly_owed = any(
-        "answer" in event
-        for plan in plans
-        if plan.batch
-        for event in plan.batch["events"]
+        "answer" in event for batch in handing for event in batch["events"]
     )
     needs_attention = any(
         plan.owed
@@ -341,14 +364,14 @@ def carry_turn(
     ):
         return
     batches = (
-        [plan.batch for plan in plans if plan.batch]
+        [plan.batch for plan in plans if plan.batch and plan.harness.hooks_carry()]
         if event in {"UserPromptSubmit", "Stop"}
         else []
     )
     if event == "UserPromptSubmit":
         pick_up_acknowledged(sid, plans)
     elif event == "Stop" and not stop_continues(
-        plans, repeated=bool(payload.get("stop_hook_active"))
+        plans, batches, repeated=bool(payload.get("stop_hook_active"))
     ):
         return True
     reasons = remedies(plans, batches)
@@ -368,6 +391,19 @@ def carry_turn(
         if reasons
         else []
     )
+    recovery = [plan.recovery for plan in plans if plan.recovery]
+    if recovery:
+        # Already-receipted debt is absent from the next pending delivery. Capture
+        # its current inputs again so a lost pointer (or seeded history with no
+        # original delivery) still has exact, ownership-checked response addresses.
+        # This snapshot is not a new transport offer and advances no cursor.
+        reminder = freeze_delivery(recovery)
+        attention.extend(
+            [
+                "Read these unanswered updates and their exact answer references:",
+                delivery_pointer_prompt(reminder["id"]),
+            ]
+        )
     delivery = freeze_delivery(batches) if batches else None
     deadline = started + CONFIRM_WITHIN
     from .reconnect import publishing_notices

@@ -37,6 +37,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from typing import Literal
+from xml.etree import ElementTree
 
 from .files import read_json
 from .harness import claim_harness, session_harness
@@ -69,6 +70,15 @@ class DeliveryIdConflict(RuntimeError):
 def new_delivery_id() -> str:
     """Mint one candidate in the agent-facing delivery-id vocabulary."""
     return secrets.token_hex(4)
+
+
+def delivery_pointer_prompt(delivery_id: str) -> str:
+    """The immutable input pointer shared by queued input and hook reminders."""
+    delivery = ElementTree.Element(
+        "leaf-delivery", {"id": delivery_id, "operation": "delivery read"}
+    )
+    pointer = ElementTree.tostring(delivery, encoding="unicode")
+    return f"```xml\n{pointer}\n```"
 
 
 def validate_delivery_id(delivery_id: str) -> str:

@@ -56,6 +56,7 @@ from .delivery import (
     batch_data,
     current_responses,
     delivery_path,
+    delivery_pointer_prompt,
     freeze_delivery,
     new_delivery_id,
     pages_gone,
@@ -1649,14 +1650,6 @@ def _collecting_record(session_id: str) -> tuple[Path, Collecting] | None:
     return current[0] if current else None
 
 
-def delivery_pointer_prompt(delivery_id: str) -> str:
-    delivery = ElementTree.Element(
-        "leaf-delivery", {"id": delivery_id, "operation": "delivery read"}
-    )
-    pointer = ElementTree.tostring(delivery, encoding="unicode")
-    return f"```xml\n{pointer}\n```"
-
-
 @dataclass(frozen=True)
 class PreparedDelivery:
     """One immutable delivery and its claim transition for rollback."""
@@ -1820,37 +1813,45 @@ def append_batch(
     return path, len(record.batches) - 1, entry
 
 
-def offer_hook_delivery(session_id: str, turn_id: str) -> str | None:
+def offer_hook_delivery(
+    session_id: str, expected: dict | None
+) -> tuple[str | None, dict | None]:
     """Offer one plain-reply pointer through a tool or Stop hook, without receipt.
 
     The agent's actual `delivery read` proves this pointer entered a turn. If the
     hook output arrives after the turn ends, the adapter queues the same frozen
     pointer instead. An offering already owned by another transport is left alone.
+
+    The caller's exact lifecycle owns every renewal and reservation. Return the
+    supplied lifecycle or this operation's last renewal, even without a pointer,
+    so the caller cannot adopt a prompt that arrives during or after the offer.
     """
     lock = delivery_lock_path(session_id)
-    expected = hook_turn(session_id)
-    if not expected or expected["turn"] != turn_id or not expected["running"]:
-        return None
+    if not expected or (
+        expected["turn"] is None
+        or expected["ended"] is not None
+        or expected["turn_closed"] is not None
+    ):
+        return None, expected
     for page_dir in owned_pages(session_id):
         try:
             with PageTransaction(page_dir) as page:
                 if page.active_claim is None or page.active_claim["id"] != session_id:
                     continue
                 with flocked(lock):
-                    if hook_turn(session_id) != expected:
-                        return None
-                    renew_turn(session_record(session_id))
-                    expected = hook_turn(session_id)
+                    if session_record(session_id) != expected:
+                        return None, expected
+                    expected = renew_turn(expected)
                     if batch := unacknowledged(page.events, page.cursor):
                         append_batch(session_id, page_dir, page, batch)
         except FileNotFoundError:
             continue
     with flocked(lock):
         records = delivery_records(session_id)
-        if hook_turn(session_id) != expected:
-            return None
+        if session_record(session_id) != expected:
+            return None, expected
         if any(not isinstance(record, Collecting) for _, record in records):
-            return None
+            return None, expected
         pending = next(
             (
                 (path, record)
@@ -1860,10 +1861,10 @@ def offer_hook_delivery(session_id: str, turn_id: str) -> str | None:
             None,
         )
         if pending is None:
-            return None
+            return None, expected
         path, record = pending
-        prepared = offer_delivery(path, record, transport=HookTurn(turn_id))
-        return prepared.prompt
+        prepared = offer_delivery(path, record, transport=HookTurn(expected["turn"]))
+        return prepared.prompt, expected
 
 
 def finish_codex_batch(

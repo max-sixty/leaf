@@ -11437,14 +11437,13 @@ def test_capture_leaves_selected_content_visible_through_the_drag(
     for dx, dy in ((4, 4), (88, 44), (180, 90), (-88, -44)):
         page.mouse.move(left + dx, top + dy, steps=3)
         selected = surface.locator(".lf-region-selection").bounding_box()
-        inset = 3  # Leave the selection border out of the content comparison.
         crop = tuple(
             round(value * 2)
             for value in (
-                selected["x"] + inset,
-                selected["y"] + inset,
-                selected["x"] + selected["width"] - inset,
-                selected["y"] + selected["height"] - inset,
+                selected["x"],
+                selected["y"],
+                selected["x"] + selected["width"],
+                selected["y"] + selected["height"],
             )
         )
         actual = Image.open(io.BytesIO(page.screenshot())).convert("RGB")

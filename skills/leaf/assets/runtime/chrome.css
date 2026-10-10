@@ -280,8 +280,8 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   /* Capture paint leaves page hit tests intact; the controller owns its input. */
   .lf-region-capture { position: fixed; inset: 0; z-index: var(--lf-z-page-hints);
     pointer-events: none; overflow: hidden; color: var(--ink); }
-  .lf-region-selection { position: absolute; box-sizing: border-box;
-    border: 2px solid var(--accent); outline: 1px solid var(--paper);
+  /* The box is the exact crop; its outline paints outside those pixels. */
+  .lf-region-selection { position: absolute; outline: 1px solid var(--accent);
     box-shadow: 0 0 0 100vmax rgb(0 0 0 / 40%); }
 
   /* The layer is the runtime's, not the document's, so it never prints — one rule

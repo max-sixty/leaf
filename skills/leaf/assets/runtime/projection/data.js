@@ -18,10 +18,12 @@
    it a source-backed datum belongs to the observed revision. `label` supplies the
    human coordinate thread chrome reads; core never interprets the opaque key.
 
-   The watcher constructs `snapshot.origin` from the accepted source binding. Passing
-   that snapshot stamps the seat and every datum with the source id and revision,
-   including across asynchronous rendering. A datum's `origin` may add the exact
-   source-value path its producer knows, or explicitly be null for no provenance.
+   A seat whose declared source attribute is absent may project its inline authored
+   value without a snapshot. The watcher constructs `snapshot.origin` from an
+   accepted source binding. Passing that snapshot stamps the seat and every datum
+   with the source id and revision, including across asynchronous rendering. A
+   datum's `origin` may add the exact source-value path its producer knows, or
+   explicitly be null for no provenance.
    No reader infers a source path from a key or displayed words.
    The renderer commits visible words and their snapshot labels synchronously
    together, before awaiting any later resource settlement. Accepted data alone
@@ -97,7 +99,10 @@ export function createDataProjection({ invalidateDom }) {
     if (!datums?.[Symbol.iterator])
       throw new TypeError("projectData datums must be iterable");
     const declaredInputs = registry[root.localName]?.["x-data"] ?? {};
-    if (snapshot === undefined && Object.keys(declaredInputs).length)
+    if (
+      snapshot === undefined &&
+      Object.values(declaredInputs).some(({ source }) => root.hasAttribute(source))
+    )
       throw new Error(
         `projectData(${root.id}) must receive the snapshot that supplied its records`,
       );

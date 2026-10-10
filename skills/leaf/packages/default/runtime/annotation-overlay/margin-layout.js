@@ -61,7 +61,14 @@ import {
   shownWindow,
   skipped,
 } from "/runtime/geometry.js";
-import { renderedParent, shadowHost, under, upFrom } from "/runtime/shadow.js";
+import {
+  renderedChildren,
+  renderedParent,
+  renderedUnder,
+  shadowHost,
+  under,
+  upFrom,
+} from "/runtime/shadow.js";
 import { scrollerFor } from "/runtime/reading-regions.js";
 import { boundedBlockOf } from "/runtime/bounds.js";
 import { pageScroller } from "/runtime/scrolling.js";
@@ -628,7 +635,7 @@ function coverIn(root, band, target, block, bands, stop) {
   const meets = (box) => box.bottom > band.top && box.top < band.bottom;
   const edges = ({ left, top, right, bottom }) => ({ left, top, right, bottom });
   const visit = (el) => {
-    for (const node of el.childNodes) {
+    for (const node of renderedChildren(el)) {
       if (node.nodeType === Node.TEXT_NODE) {
         if (!node.data.trim()) continue;
         const words = document.createRange();
@@ -645,7 +652,7 @@ function coverIn(root, band, target, block, bands, stop) {
       const box = node.getBoundingClientRect();
       const boxless = !box.width && !box.height;
       if (!boxless && !meets(box)) continue;
-      const holds = node !== target && under(target, node);
+      const holds = node !== target && renderedUnder(target, node);
       const control = node.matches(TAB_STOP);
       if (
         !boxless &&
@@ -667,7 +674,7 @@ function coverIn(root, band, target, block, bands, stop) {
           continue;
         }
         if (
-          !under(node, block) &&
+          !renderedUnder(node, block) &&
           !style.display.startsWith("inline") &&
           style.display !== "contents"
         )
@@ -680,7 +687,7 @@ function coverIn(root, band, target, block, bands, stop) {
         if (summary) visit({ childNodes: [summary] });
         continue;
       }
-      visit(node.shadowRoot ?? node);
+      visit(node);
     }
   };
   visit(root);

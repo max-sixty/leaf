@@ -10533,6 +10533,55 @@ def test_a_pin_keeps_clear_only_of_controls_the_user_can_see(browser, serve):
     assert tops["marker"] == pytest.approx(tops["heading"], abs=1), tops
 
 
+def test_a_pin_keeps_clear_of_controls_slotted_into_its_reading_region(browser, serve):
+    """A native control in a slotted Ask takes presses before the Ask's overlay pin."""
+    source = leaf_page(
+        "A slotted Ask",
+        '<h1>Reading region</h1><div id="reader-host">'
+        '<lf-ask id="slotted-ask">'
+        "<h3>Which channel?</h3>"
+        '<button id="ask-help" style="position:absolute; top:0; right:0; '
+        'width:120px; height:44px">Explain channels</button>'
+        '<lf-options id="channel" choose><lf-option id="email">Email</lf-option>'
+        '<lf-option id="chat">Chat</lf-option></lf-options></lf-ask></div>',
+        head="<style>#slotted-ask { position:relative; height:180px; margin:0; }</style>",
+        layout="wide",
+    )
+    page = open_page(browser, serve(source))
+    page.evaluate("""async () => {
+      const { registerReadingRegion } =
+        await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const host = document.getElementById('reader-host');
+      const root = host.attachShadow({mode:'open'});
+      root.innerHTML = '<section style="height:240px; overflow:auto">'
+        + '<slot></slot><div style="height:400px"></div></section>';
+      const body = root.querySelector('section');
+      window.stopSlottedRegion = registerReadingRegion({id:'slotted-reader', host, body});
+      document.getElementById('ask-help').addEventListener('click', event => {
+        event.currentTarget.textContent = 'Channel explanation';
+      });
+    }""")
+    margins_laid_out(page)
+    row = page.locator('[data-lf-margin-for="slotted-ask"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
+    expect(row).to_be_visible()
+    reading = page.evaluate("""() => {
+      const edges = ({left, top, right, bottom}) => ({left, top, right, bottom});
+      const row = document.querySelector('[data-lf-margin-for="slotted-ask"]');
+      return {
+        controls: [...row.querySelectorAll('.lf-margin-entry')]
+          .filter(node => node.checkVisibility()).map(node => edges(node.getBoundingClientRect())),
+        help: edges(document.getElementById('ask-help').getBoundingClientRect()),
+      };
+    }""")
+    assert reading["controls"], reading
+    assert not any(
+        _meets(control, reading["help"]) for control in reading["controls"]
+    ), reading
+    page.get_by_role("button", name="Explain channels", exact=True).click()
+    expect(page.locator("#ask-help")).to_have_text("Channel explanation")
+
+
 @pytest.mark.parametrize("target_tree", ["shadow", "slotted"])
 @pytest.mark.parametrize("native_scroll", [True, False])
 def test_a_row_follows_its_target_through_a_scroller_inside_a_shadow_tree(

@@ -2,6 +2,7 @@
    Local selection and ordering never change the log or decide obligation membership. */
 import {
   askAnswers,
+  compoundReadingRegionId,
   HeldReading,
   keepsHidden,
   keeps,
@@ -14,6 +15,7 @@ import {
   readQueues,
   readThreads,
   registerThreadPresentation,
+  registerReadingRegion,
   setChildren,
   shadowStage,
   threadActions,
@@ -28,6 +30,13 @@ customElements.define(
   class extends HTMLElement {
     connectedCallback() {
       if (!this.layout) this.build();
+      this.stopRegions = this.regionBodies.map(([name, body]) =>
+        registerReadingRegion({
+          id: compoundReadingRegionId(this, name),
+          host: body,
+          body,
+        }),
+      );
       this.presentation = registerThreadPresentation(this, {
         render: (collection, parts) => this.present(collection, parts),
         reveal: (key) => {
@@ -39,6 +48,7 @@ customElements.define(
       this.stopQueues = watchQueues(this, () => this.paintObligations());
     }
     disconnectedCallback() {
+      for (const stop of this.stopRegions) stop();
       this.presentation.unregister();
       this.stopAsks();
       this.stopQueues();
@@ -111,6 +121,15 @@ customElements.define(
       index.prepend(conversations);
       this.reader = offer("section", "reader");
       this.reader.setAttribute("aria-label", "Conversation reader");
+      this.regionBodies = [
+        ["reader", this.reader],
+        ["index", index],
+        ["conversations", this.list],
+        ...Object.entries(this.queues).map(([name, body]) => [
+          name.toLowerCase(),
+          body,
+        ]),
+      ];
       body.append(index, this.reader);
       const compose = offer("form", "compose");
       this.input = offer("input");

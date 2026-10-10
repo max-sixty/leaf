@@ -2762,6 +2762,11 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
         workspace.get_by_role("button", name=mode, exact=True).click()
     editor = workspace.get_by_role("textbox", name="Reply", exact=True)
     write(editor, "Keep this draft while updates wait.")
+    assert editor.evaluate("""async editor => {
+      const {scrollerFor, readingRegionFor} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const reader = document.querySelector('#workspace').reader;
+      return scrollerFor(editor) === reader && readingRegionFor(editor).body === reader;
+    }""")
     editor.evaluate("node => node.setSelectionRange(2, 8, 'backward')")
     page.evaluate("""() => {
       const workspace = document.querySelector('#workspace');
@@ -2770,6 +2775,7 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
       window.heldEditor = workspace.querySelector('leaf-text');
     }""")
     before = editor.bounding_box()
+    page.wait_for_timeout(600)  # Let Chrome's recent-input grace expire before news.
     append_carried_log_record(
         serve.page_dir,
         {
@@ -2828,6 +2834,7 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
         workspace.get_by_role("button", name="2 new replies", exact=True)
     ).to_have_count(0)
     expect(editor).to_have_js_property("value", "Keep this draft while updates wait.")
+    rendered(page)
 
 
 def test_primary_navigation_cancels_while_waiting_for_presentation(browser, serve):

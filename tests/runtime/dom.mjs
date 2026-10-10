@@ -25,6 +25,29 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 
 GlobalRegistrator.register({ url: "https://leaf.test/" });
+// Nothing is laid out here, so every box is whatever a test states. The window is the
+// one box this world states itself, as a browser does: the root reports its size, and
+// the visual viewport, which happy-dom lacks, covers it unzoomed.
+for (const [name, size] of [
+  ["clientWidth", () => innerWidth],
+  ["clientHeight", () => innerHeight],
+])
+  Object.defineProperty(document.documentElement, name, {
+    configurable: true,
+    get: size,
+  });
+const viewport = new window.EventTarget();
+for (const [name, read] of Object.entries({
+  offsetLeft: () => 0,
+  offsetTop: () => 0,
+  pageLeft: () => scrollX,
+  pageTop: () => scrollY,
+  width: () => innerWidth,
+  height: () => innerHeight,
+  scale: () => 1,
+}))
+  Object.defineProperty(viewport, name, { get: read });
+window.visualViewport ??= viewport;
 // What a delivered document's prepaint declares before any module runs
 // (`runtime/prepaint.js`): the page's storage scope, "" for a page at the origin's root.
 document.documentElement.dataset.lfPageScope = "";
@@ -43,8 +66,13 @@ const ROOTS = [
 const composed = (specifier) =>
   ROOTS.map((root) => root + specifier).findLast(existsSync);
 
+// A test's comparisons go through `assert.mjs`, which writes a node as its opening tag.
+const ASSERT = pathToFileURL(at("./assert.mjs")).href;
+
 registerHooks({
   resolve(specifier, context, next) {
+    if (specifier === "node:assert/strict" && context.parentURL !== ASSERT)
+      return { url: ASSERT, shortCircuit: true };
     if (/^\/(runtime|vendor|widgets)\//.test(specifier)) {
       // An unanswered one falls through, so it reads as the module Node could not find
       // rather than as a missing file at a path the layer would never have served it at.

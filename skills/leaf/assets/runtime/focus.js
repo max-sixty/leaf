@@ -72,7 +72,7 @@ export const tabStops = (root) =>
       node.tabIndex >= 0 &&
       !node.matches(":disabled") &&
       !node.inert &&
-      node.checkVisibility(),
+      node.checkVisibility({ visibilityProperty: true }),
   );
 
 // Put the user on an element, saying what moved them there. Every focus the runtime and

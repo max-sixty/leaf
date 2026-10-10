@@ -13,6 +13,7 @@
  * travel or the render gate asks for it, rather than detaching. A label reader can
  * name an absent part in Threads without changing the visual's state. */
 
+import { exceptionText } from "./layer-client.js";
 import { under, upFrom } from "./shadow.js";
 import { layoutChanged } from "./widget-elements.js";
 
@@ -122,7 +123,7 @@ export function visualPartProblems(source, declaration) {
         : []),
     ];
   } catch (error) {
-    return [String(error?.message ?? error)];
+    return [exceptionText(error, "could not read visual parts")];
   }
 }
 
@@ -136,7 +137,7 @@ export function unrevealedVisualParts(source, declaration) {
       ? [`did not reveal declared parts ${missing.join(", ")}`]
       : [];
   } catch (error) {
-    return [String(error?.message ?? error)];
+    return [exceptionText(error, "could not reveal visual parts")];
   }
 }
 

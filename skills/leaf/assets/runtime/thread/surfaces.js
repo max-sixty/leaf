@@ -153,9 +153,7 @@ function clearOutlets(outlets) {
 }
 
 function reportFailure({ owner }, error) {
-  reportPageError(
-    `thread surface ${owner.localName}#${owner.id} failed: ${error?.message ?? error}`,
-  );
+  reportPageError(error, `thread surface ${owner.localName}#${owner.id} failed`);
 }
 
 function clearRegistration(registration) {

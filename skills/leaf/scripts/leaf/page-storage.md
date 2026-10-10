@@ -76,9 +76,10 @@ other page files and the external state listed below.
   complete reconstructed values. The server appends request method, path without query, status, and
   duration for every request except a successful `/api/news` look or delivery of a
   resource's bytes (a module, stylesheet, or media file); `/api/interaction` appends browser batches with a session id, scoped
-  page address, and server receipt time. Sample activity remains in its parent
-  page's trace. The diagnostic file changes neither page/source reading nor
-  presence cache keys. It is private page data and is never served as an asset.
+  page address, and server receipt time. All descendant sample activity remains
+  in the containing authored page's trace, with complete root-relative sample
+  addresses; releasing any sample leaves its recorded activity intact. The diagnostic
+  file changes neither page/source reading nor presence cache keys. It is private page data and is never served as an asset.
   Command records capture the selected command's title and description before
   it runs, together with current focus and document scroll. Following focus and
   scroll observations show its effect, including commands that change no page event.

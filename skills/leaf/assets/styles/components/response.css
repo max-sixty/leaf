@@ -130,7 +130,12 @@ button.lf-media-open { cursor: zoom-in; }
   :is(.lf-fab-bar, .lf-margin-preview) {
     --lf-thread-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
     --lf-comment-text-pad-end: var(--lf-thread-text-inset);
-    --lf-comment-send-room: var(--lf-icon-action-hit);
+    --lf-comment-send-inset: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
+    /* The text inset already clears part of Send. Reserve only the rest of its
+       hit box, rather than counting that shared room twice. */
+    --lf-comment-action-room: var(--lf-icon-action-hit);
+    --lf-comment-send-room: calc(var(--lf-comment-action-room) + var(--lf-comment-send-inset)
+      - var(--lf-comment-text-pad-end));
   }
   .lf-fab-bar .lf-compose-field, .lf-response-control {
     --lf-compose-pad-block: calc(var(--lf-thread-text-pad-block) - 1px);
@@ -164,16 +169,16 @@ button.lf-media-open { cursor: zoom-in; }
     --lf-field-end-room: var(--lf-comment-send-room);
     overflow-y: auto; }
   .lf-fab-bar .lf-compose-submit {
-    inset-inline-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
-    inset-block-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2); }
+    inset-inline-end: var(--lf-comment-send-inset);
+    inset-block-end: var(--lf-comment-send-inset); }
   /* The field keeps its full box while both actions occupy its trailing corner. */
   .lf-fab-bar[data-lf-other-responses] {
-    --lf-comment-send-room: calc(2 * var(--lf-icon-action-hit)); }
+    --lf-comment-action-room: calc(2 * var(--lf-icon-action-hit)); }
   .lf-fab-bar[data-lf-other-responses] .lf-compose-submit {
-    inset-inline-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2 + var(--lf-icon-action-hit)); }
+    inset-inline-end: calc(var(--lf-comment-send-inset) + var(--lf-icon-action-hit)); }
   .lf-fab-more { position: absolute; border: 0; background: transparent; color: var(--muted);
-    inset-inline-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
-    inset-block-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2); }
+    inset-inline-end: var(--lf-comment-send-inset);
+    inset-block-end: var(--lf-comment-send-inset); }
   .lf-fab-more:hover { color: var(--ink); background: var(--chip); }
   .lf-response-action { min-width: max(30px, var(--aim-floor)); padding-inline: 9px;
     display: inline-flex; align-items: center; justify-content: center; gap: 0;

@@ -1507,9 +1507,11 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     )
     page.wait_for_function("readLeafPresentation().pending.length === 0")
     assert page.evaluate("window.__failedLocalRenders") == 1
-    assert take_browser_errors(page) == [
+    errors = take_browser_errors(page)
+    assert [error.splitlines()[0] for error in errors] == [
         "leaf: Presentation failed: <lf-local> renderState threw: deliberate render failure"
     ]
+    assert "Caused by: Error: deliberate render failure" in errors[0]
 
 
 def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
@@ -1674,7 +1676,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
     expect(page.locator("#thread-failing")).to_have_count(1)
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 2")
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
-    assert take_browser_errors(page) == [
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: frozen descendant failure"
     ]
 
@@ -2083,8 +2085,10 @@ def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
             "leaf: Presentation failed: Thread list presentation retry failed: "
             "injected refusal; injected refusal"
         ),
-        "leaf: State presentation failed: Thread list presentation retry failed",
-        "leaf: read failed: Thread list presentation retry failed",
+        "leaf: State presentation failed: Thread list presentation retry failed: "
+        "injected refusal; injected refusal",
+        "leaf: read failed: Thread list presentation retry failed: "
+        "injected refusal; injected refusal",
     )
     expect(page.locator('[data-id="arriving"]')).to_have_count(0)
 
@@ -2531,6 +2535,7 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
         if cross_boundary:
             page.wait_for_function("scrollY < 200")
             expect(page.locator("#lf-margin-preview")).to_be_in_viewport()
+
         page.go_back()
         expect(heading).to_be_focused()
         scroll_settled(page)

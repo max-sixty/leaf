@@ -220,9 +220,9 @@ keyboard focus after addition or removal, reset, restore, copy, and submission.
 ### Concept or code map
 
 Keep semantic nodes and relations as ids and endpoints, never positions or colors alone.
-Pointer manipulation uses capture and has an equivalent keyboard route. The page may
-compose Targeting for stable element references and comments while it owns which node
-types, relation grammar, and edits make sense. The instruction lists changed nodes and
+Pointer manipulation uses capture and has an equivalent keyboard route. Give elements
+stable ids so readers can point at them in Leaf's Design mode while the page owns which
+node types, relation grammar, and edits make sense. The instruction lists changed nodes and
 relations. For document critique or source review, use Leaf comments, suggestions,
 Diff, or Visual Review instead of rebuilding those review loops in a map.
 

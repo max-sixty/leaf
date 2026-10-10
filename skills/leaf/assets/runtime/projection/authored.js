@@ -1,3 +1,4 @@
+// @ts-check
 /* This module owns typed authored initial values and anchor parentage. It decodes the
  * authored initial condition once from validated source markup, before content modules
  * upgrade or render it. Those values are inputs to the complete widget projection; no
@@ -8,6 +9,11 @@ import { readApplication } from "../semantic-state.js";
 import { dataBody } from "../widget-upgrade.js";
 import { authoredRank } from "./model.js";
 import { initialParent, initialSource } from "../initial-render.js";
+
+/** @typedef {import("../../../../../build/browser/domain.ts").ActionSpec} ActionSpec */
+/** @typedef {import("../../../../../build/browser/domain.ts").AuthoredWidget} AuthoredWidget */
+/** @typedef {import("../../../../../build/browser/domain.ts").AuthoredMap} AuthoredMap */
+/** @typedef {import("../../../../../build/browser/domain.ts").StateRecord} StateRecord */
 
 /* The authored initial condition, read once from validated source before upgrade.
    These typed values are inputs to the complete widget projection; no cloned DOM,
@@ -38,15 +44,18 @@ import { initialParent, initialSource } from "../initial-render.js";
    recorded widget's members. */
 export const authoredStates = () => readApplication().document.authored;
 export const authoredParents = new WeakMap();
+/** @param {Element} member */
 const recordedOwner = (member) => {
   const selector = recordedWidgetSelector();
   return selector ? member.closest(selector) : null;
 };
+/** @param {Element} widget @param {string} selector */
 const ownedRecordMembers = (widget, selector) =>
   [...widget.querySelectorAll(selector)].filter(
     (member) => recordedOwner(member) === widget,
   );
 
+/** @param {Element} el @param {StateRecord} record */
 export function domValue(el, record) {
   if (record.kind === "attribute")
     return ownedRecordMembers(el, `[${record.attr}]`)
@@ -70,18 +79,22 @@ export function rememberAuthoredParents(root = document, parent = root.parentEle
       authoredParents.set(element, initialParent(element));
 }
 
+/** @param {Element} widget @param {ActionSpec} spec @returns {AuthoredWidget["state"][string]} */
 function initialState(widget, spec) {
   const record = spec.record;
   if (spec.unit !== "widget") {
+    /** @type {Record<string, string[]>} */
     const value = {};
     if (record?.kind !== "position") return { value, units: {} };
+    /** @type {Record<string, string>} */
     const ranks = {};
     for (const container of widget.querySelectorAll(record.within))
       if (container.id && recordedOwner(container) === widget) {
-        value[container.id] = [...container.children]
+        const ids = [...container.children]
           .filter((part) => part.id)
           .map((part) => part.id);
-        value[container.id].forEach((id, index) => (ranks[id] = authoredRank(index)));
+        value[container.id] = ids;
+        ids.forEach((id, index) => (ranks[id] = authoredRank(index)));
       }
     return { value, ranks, units: {} };
   }
@@ -96,9 +109,12 @@ function initialState(widget, spec) {
   return { action: null, value, detail: record ? { value } : {} };
 }
 
+/** @param {Document | Element | DocumentFragment} root @param {AuthoredMap} existing @returns {Map<string, AuthoredWidget>} */
 export function stageAuthoredStates(root = document, existing = authoredStates()) {
   root = initialSource(root);
+  /** @type {Map<string, AuthoredWidget>} */
   const captured = new Map();
+  /** @type {Map<string, Map<string, ActionSpec>>} */
   const byTag = new Map();
   for (const { tag, verb, spec } of stateSpecs()) {
     const specs = byTag.get(tag) ?? new Map();
@@ -107,7 +123,7 @@ export function stageAuthoredStates(root = document, existing = authoredStates()
   }
   for (const [tag, specs] of byTag) {
     const widgets = [...root.querySelectorAll(tag)];
-    if (root.nodeType === Node.ELEMENT_NODE && root.matches(tag)) widgets.unshift(root);
+    if (root instanceof Element && root.matches(tag)) widgets.unshift(root);
     for (const widget of widgets) {
       if (!widget.id || existing.has(widget.id)) continue;
       captured.set(widget.id, {
@@ -122,5 +138,6 @@ export function stageAuthoredStates(root = document, existing = authoredStates()
   return captured;
 }
 
+/** @param {string} owner @param {string} unit @param {string} verb */
 export const stateCoordinate = (owner, unit, verb) =>
   JSON.stringify([owner, unit, verb]);

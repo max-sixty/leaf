@@ -9,10 +9,10 @@ metadata:
   - keyboard
 vars:
   prompt: |
-    An existing Leaf package widget owns a swipe deck with passButton and keepButton,
-    canSwipe(), and swipe(verdict) called by its button click handlers. Add its keyboard integration:
-    Left/Right act only inside the deck, while 1/2 also work at its enclosing Ask's
-    opening and associated thread or margin representative. The deck also works
+    An existing Leaf package widget owns a classifier with passButton and keepButton,
+    canClassify(), and classify(verdict) called by its button click handlers. Add its keyboard integration:
+    Left/Right act only inside the classifier, while 1/2 also work at its enclosing Ask's
+    opening and associated thread or margin representative. The classifier also works
     standalone. Disabled actions must retain their numbers, and typing digits in
     an editor must remain native. Show a concise JavaScript registration snippet.
     Both controls need inline hints. Leaf must own dispatch, forwarding, and hint
@@ -29,11 +29,11 @@ assert:
     from /runtime/widget-api.js and declares one command per existing action.
     Pass and Keep have stable dotted ids, concise titles, ordinary ArrowLeft and
     ArrowRight keys, explicit contextKeys 1 and 2, decision: true, their real
-    controls, requested bindingBadge seats or explicit null, canSwipe availability,
-    and direct invocation of swipe("pass") / swipe("keep") from run. The command
+    controls, requested bindingBadge seats or explicit null, canClassify availability,
+    and direct invocation of classify("pass") / classify("keep") from run. The command
     declaration owns native button clicks and disabled state, so the response removes
     the separate click listeners and disabled painters instead of calling click(). It attaches the
-    declaration to the deck and calls paintKeys when availability changes.
+    declaration to the classifier and calls paintKeys when availability changes.
     It does not attach the complete local-arrow scope to the Ask, assign numbers
     from live actions, duplicate callbacks into a second Ask row list, install
     keydown listeners, or calculate focus/hint visibility itself. It leaves native

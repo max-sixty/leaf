@@ -13,6 +13,15 @@ log and data, and closes the finished page without claiming it for an agent. A s
 derived tree contains the immutable live shell Cloudflare serves before the canonical
 server answers its API requests.
 
+Every `leaf` command a build runs comes from the Leaf its caller hands it. `leaf-dev
+site` hands it an installation prepared from this checkout (`leaf_dev.distribution`)
+beside its output, so each page vendors the compiled kernel a consumer install carries.
+The website's container image installs the same tree, so a revision a hosted session
+writes captures the layer the published revisions were built from. The suite and
+`refresh-previews` serve the site with this checkout's adapter, which refuses pages
+another Leaf vendored, so they build with the checkout's own Leaf; the suite's browser
+probes also import source modules a compiled kernel no longer has.
+
 A dead link is the failure a static host cannot report, so the build resolves every
 local href and src it wrote and refuses a site holding one that names no file.
 
@@ -34,6 +43,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable, Sequence
 from dataclasses import replace
 from functools import partial
 from html import escape
@@ -57,6 +67,7 @@ from leaf_website import SITE_MANIFEST, SITE_ORIGIN, initial_state, site_metadat
 
 from leaf_dev import LEAF_COMMAND, ROOT
 from leaf_dev.arms import environment
+from leaf_dev.distribution import prepare
 from leaf_dev.example_data import catalog_sources
 from leaf_dev.leaf_assets import pinned_assets
 from leaf_dev.page_fixtures import (
@@ -193,10 +204,12 @@ def check_links(out: Path) -> None:
         )
 
 
-def leaf(env: dict, *args: str, input_text: str | None = None) -> None:
+def leaf(
+    command: Sequence[str], env: dict, *args: str, input_text: str | None = None
+) -> None:
     """A leaf command, quiet unless it fails, and then exiting with what it said."""
     done = subprocess.run(
-        [*LEAF_COMMAND, *args],
+        [*command, *args],
         cwd=ROOT,
         env=env,
         capture_output=True,
@@ -231,6 +244,33 @@ def product_page(out: Path, source_name: str) -> Path:
 def asset_site(out: Path) -> Path:
     """The sibling tree exposed through Cloudflare's static asset binding."""
     return out.with_name(f"{out.name}-assets")
+
+
+def install_tree(out: Path) -> Path:
+    """The website's sibling installation: a prepared Leaf and `leaf_website` beside it.
+
+    The build runs its `leaf`, and the container image and the local adapter
+    (`leaf_dev.verify_site`) install it as the website's server."""
+    return out.with_name(f"{out.name}-install")
+
+
+def checkout_leaf() -> Callable:
+    """Run `leaf` commands from this checkout, whose pages vendor the source modules."""
+    # `environment()` keeps the builder's harness session out of published version notes.
+    return partial(leaf, LEAF_COMMAND, environment())
+
+
+def prepared_leaf(out: Path) -> Callable:
+    """Prepare the build's installation afresh, and run `leaf` commands from it."""
+    install = install_tree(out)
+    shutil.rmtree(install, ignore_errors=True)
+    prepare(install)
+    shutil.copytree(
+        ROOT / "worker" / "leaf_website",
+        install / "worker" / "leaf_website",
+        ignore=shutil.ignore_patterns("__pycache__"),
+    )
+    return partial(leaf, [str(install / "bin" / "leaf")], environment())
 
 
 def media_url(source: Path) -> str:
@@ -356,7 +396,7 @@ def deduplicate_tree(root: Path, *, mutable_names: set[str] = frozenset()) -> No
         os.link(existing, path)
 
 
-def publish_examples(out: Path, env: dict, *, assets: Path) -> None:
+def publish_examples(out: Path, run: Callable, *, assets: Path) -> None:
     """Publish worked examples and developer references without product pages."""
     for source in published_page_sources():
         published = out / "examples" / source.stem
@@ -364,7 +404,7 @@ def publish_examples(out: Path, env: dict, *, assets: Path) -> None:
         prepare_page(
             published,
             fixture,
-            partial(leaf, env),
+            run,
             final_status="idle",
             current_note="As published",
             assets=assets,
@@ -373,7 +413,7 @@ def publish_examples(out: Path, env: dict, *, assets: Path) -> None:
 
 
 def publish_pages(
-    out: Path, env: dict, assets: Path, source_markup: dict[Path, str]
+    out: Path, run: Callable, assets: Path, source_markup: dict[Path, str]
 ) -> None:
     """Publish product documents with build-local markup and authored companions.
 
@@ -384,7 +424,7 @@ def publish_pages(
     with tempfile.TemporaryDirectory() as tmp:
         template = Path(tmp) / "product-page"
         selection = package_selection_args(source_packages(DOCS / "index.html"))
-        leaf(env, "page", "init", *selection, str(template))
+        run("page", "init", *selection, str(template))
         # Reuse the initialized layer; each document prepares its own authored inputs.
         for source in product_sources():
             fixture = read_fixture(source)
@@ -408,26 +448,25 @@ def publish_pages(
             prepare_page(
                 target,
                 fixture,
-                partial(leaf, env),
+                run,
                 initialize=False,
                 final_status="idle",
                 current_note="As published",
                 assets=assets,
             )
-            leaf(env, "page", "check", str(target))
-    publish_examples(out, env, assets=assets)
+            run("page", "check", str(target))
+    publish_examples(out, run, assets=assets)
 
 
 def publish_live_shells(
-    out: Path, assets: Path, *, include_products: bool = True
+    out: Path, run: Callable, assets: Path, *, include_products: bool = True
 ) -> Path:
     """Materialize the public bytes of every private page directory."""
     images = social_images(assets)
     if include_products:
         # This image belongs to website-generated social metadata. Authored images
         # have already been materialized by the shared fixture preparation.
-        leaf(
-            environment(),
+        run(
             "page",
             "media",
             str(product_page(out, "index.html")),
@@ -518,17 +557,17 @@ def publish_live_shells(
     return assets
 
 
-def build_examples(out: Path, *, assets: Path) -> None:
+def build_examples(out: Path, run: Callable, *, assets: Path) -> None:
     """Build only the public example routes used to record catalog previews."""
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
-    # `environment()` keeps the builder's harness session out of published version notes.
-    publish_examples(out, environment(), assets=assets)
-    publish_live_shells(out, assets, include_products=False)
+    publish_examples(out, run, assets=assets)
+    publish_live_shells(out, run, assets, include_products=False)
 
 
 def build(
     out: Path,
+    run: Callable,
     *,
     assets: Path | None = None,
     source_markup: dict[Path, str] | None = None,
@@ -537,8 +576,8 @@ def build(
     assets = assets or pinned_assets()
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
-    publish_pages(out, environment(), assets, source_markup or {})
-    publish_live_shells(out, assets)
+    publish_pages(out, run, assets, source_markup or {})
+    publish_live_shells(out, run, assets)
     check_links(out)
 
 
@@ -571,7 +610,7 @@ def site(output: Path) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     # One destination is one publication; independent builds use separate outputs.
     with flocked(output.with_name(f"{output.name}.lock")):
-        build(output)
+        build(output, prepared_leaf(output))
         bundle_published_runtime(output)
     click.echo(
         f"✓ {len(list(output.rglob('*.html')))} pages → {output} and {asset_site(output)}"

@@ -2,8 +2,9 @@
 
 The Layout-tab and factual-correction phase landed in
 [PR #1476](https://github.com/max-sixty/leaf/pull/1476). The maintainer rewrite is
-written but unlanded and has no active owner. The agent-instruction rewrite is
-complete: the routed references now separate author operation, harness
+complete: its glossary, ownership, example and test guidance are shorter, and
+renamed heading references point to their owners.
+The agent-instruction rewrite is complete: the routed references now separate author operation, harness
 setup and maintainer mechanisms. UI vocabulary is complete; site and
 example selection still depend on the decisions below. Retire this note when the
 phases land and any standing rule has moved into its owning instructions.
@@ -16,17 +17,11 @@ Word counts describe the change; reader usefulness and preserved meaning judge i
 
 ## Phase 1: Maintainer instructions
 
-The local branch `agent-a7d03ea41654f534b` at `5c7baed6fcbaf7d26a2cc4f63a035418b546e6e8` contains the rewrite.
-Its recorded comparison takes 17 files from 33,267 to 24,750 words. The biggest
-cuts remove duplicated module contracts, discovery history and command catalogs
-already available through `--help`. The root instructions above “Repository map” are
-unchanged.
-
-Before landing, independently review the final cuts, especially `session-lifetime.md`
-and `tests/AGENTS.md`, and verify their incoming heading links. Re-run the required
-gates on the candidate after bringing it current; the earlier passing suite is
-historical evidence, not a current landing result. Keep this work with its existing
-branch rather than starting a second maintainer rewrite.
+The existing rewrite was reconciled with current main. The useful simplifications
+remain, with current session lifetime, preview feedback, distribution and testing
+contracts retained. Renamed heading references are repaired. Independent prose and
+contract review and the relevant instruction checks passed. Catalog guidance
+describes the current pipeline; the metadata-derived descriptions remain Phase 6.
 
 ## Phase 2: Agent instructions
 
@@ -117,4 +112,4 @@ without assuming the proposed retention limit is already in force.
 
 Code comparison remains unlisted, linked from the specialized examples introduction.
 The release query remains public with a report-building task. No placement decision
-is open. These changes are local on `codex/prose-review` and await landing.
+is open.

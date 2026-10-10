@@ -111,7 +111,7 @@ def visual_parts(record: dict, registry: dict) -> VisualParts:
 
 
 def registry_path(registry: dict, path: str):
-    """Resolve a dotted package declaration such as `$command.widgets`."""
+    """Resolve a dotted package declaration such as `$work.widgets`."""
     value = registry
     for part in path.split("."):
         if not isinstance(value, dict) or part not in value:

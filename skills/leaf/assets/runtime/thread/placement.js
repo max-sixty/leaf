@@ -126,16 +126,17 @@ function headingFor(place, outline) {
   return above;
 }
 
-// What Threads' narrowing reads of where a thread stands: whether its passage is gone
-// from this version, which the Placement filter asks, and the name of the page part it
-// stands in, which a search matches. A general comment names nowhere and is not gone; a
-// thread in the runtime's own chrome, a reply's or the page design's, stands in no part.
+// Threads' Placement filter asks whether an anchored passage has a current location,
+// not why it is unplaced: it may be removed or ambiguous. Search also reads the page
+// part it stands in. A general comment never claims a location; a thread in the
+// runtime's own chrome stands in no authored part.
 export function threadSection(t, outline, placedAt) {
   const place = threadPlace(t, placedAt);
-  if (!place)
-    return Object.freeze({ gone: Boolean(t.detached_from || t.anchor), section: "" });
-  const heading = inChrome(place) ? null : headingFor(place, outline);
-  return Object.freeze({ gone: false, section: heading ? subjectLabel(heading) : "" });
+  // The authored owner may still order an unresolved passage; only the canonical
+  // resolver establishes that passage's location.
+  const unplaced = Boolean((t.detached_from || t.anchor) && !placedAt(t.id));
+  const heading = place && !inChrome(place) ? headingFor(place, outline) : null;
+  return Object.freeze({ unplaced, section: heading ? subjectLabel(heading) : "" });
 }
 
 // ---------- the panel's Recent order ----------

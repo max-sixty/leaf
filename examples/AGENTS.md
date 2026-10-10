@@ -1,17 +1,15 @@
 # The examples
 
-Each top-level authored HTML file is both a complete user page and an integration
-fixture, and the website publishes it with the same vendored layer. The active cards
-in `docs/examples.html` decide catalog membership and which previews are generated;
-an unlisted page can stay published.
+Each top-level HTML file here is both a complete user page and an integration fixture,
+and the website publishes it with the same vendored layer. The active cards in
+`docs/examples.html` decide which pages the catalog lists and which get previews.
 
 ## Catalog pages
 
-Every catalog entry stands as a coherent artifact for a real user task and makes a
-distinct Leaf capability apparent on the first visit. Subject novelty, length, or
-vocabulary coverage alone does not qualify a page. Keep pages focused; a board,
-a short proposal, or a draft is enough. Exhaustive vocabulary coverage belongs to
-the feature gallery and the package pages.
+A catalog page is a coherent artifact for a real user task that makes a distinct Leaf
+capability apparent on the first visit. Keep it focused: a board, a short proposal, or
+a draft is enough. Exhaustive vocabulary coverage belongs in the feature gallery and
+the package pages.
 
 Each page's `<title>` and `<meta name="description">` differ from every other
 page's. The site build uses them for the page's public link card and derives
@@ -19,49 +17,41 @@ its catalog description from the same metadata. Catalog titles, grouping, and
 order are authored in `docs/examples.html`. The build refuses a page missing
 either metadata field.
 
-A page's connective prose is its own. Gestures repeat across pages; the sentences
-around them do not. The rule lives in `references/authoring-evidence.md`,
-"Interactive and visual evidence", and
-`test_no_example_writes_another_example_s_sentences` refuses a run of more than twelve
-shared words. A shorter borrowed clause is still a review finding.
+Each page writes its own sentences around the gestures it shares with other pages
+(`skills/leaf/references/authoring-evidence.md`, "Interactive and visual evidence").
+Review the connective prose for copied clauses even when the examples share a gesture.
 
 ## Developer pages and regression fixtures
 
-`developer/feature-gallery.html` is the one home of synthetic core feature
-scenarios, and every core Leaf feature is directly exercisable there. A change that
-adds or materially changes a core feature adds or updates its scenario in the
-gallery; coverage in a public example does not substitute. A scenario names the real
-control or gesture, seeds the state it needs, and tells the developer what result to
-inspect. For injected chrome whose state comes from outside the document, name that
-condition and exercise it in the gallery's browser test. An optional package's
-scenarios go on a focused package page, reusing a worked example where one already
-tells that package's story.
+`developer/feature-gallery.html` is the one home of synthetic scenarios for core
+features. A change that adds or materially changes a core feature adds or updates its
+scenario there, even when a public example already shows it. A scenario names the real
+control or gesture, seeds the state it needs, and says what result to inspect; for
+injected chrome whose state comes from outside the document, the gallery's browser test
+exercises that condition. An optional package's scenarios go on a focused package page.
 
 Full-page regression journeys that no longer belong in the showcase live under
-`tests/fixtures/pages/`. They join the corpus and page checks but are not website
-routes. Developer pages and regression fixtures follow the companion conventions
-below.
+`tests/fixtures/pages/`. They join the corpus and the page checks but are not website
+routes.
 
 ## The corpus
 
-`corpus.html`, `corpus.data.json`, `corpus.jsonl`, and `corpus.page/` are generated
-from the sources by `leaf-dev corpus`.
+`leaf-dev corpus` generates `corpus.html`, `corpus.data.json`, `corpus.jsonl`, and
+`corpus.page/` from the public examples, the developer pages, and the regression
+fixtures. Measure runtime cost on `corpus.html`; a small fixture can establish a cause
+but not the cost.
 
-Every widget and idiom in the shipped vocabulary stands in some corpus source, and
-the suite refuses one that does not. `examples/layer.json` lists every bundled
-package, used or not, because those floors read it to decide what vocabulary they
-cover. The floors guarantee a widget appears, not which of its shapes do: where an
-attribute or content shape changes what a user sees (an `lf-options` group's form,
-arity, joining, and `label` vary independently), a page shows that shape. `restated`,
-`overruled`, and `resolves` need a seeded log a later version contradicts or depends
-on; add one when a page has a real use for it, not to fill the slot.
+The suite refuses a widget or idiom in the shipped vocabulary that no corpus source
+holds, and a declared attribute or enum value no example shows. `layer.json` lists
+every optional bundled package so those checks cover its vocabulary. Where an attribute
+or content shape changes what a user sees (an `lf-options` group's form, arity,
+joining, and `label` vary independently), a page shows that shape. `restated`,
+`overruled`, and `resolves` are exempt, since each needs a seeded log a later version
+contradicts or depends on; add one only when a page has a real use for it.
 
-A shape that stands in the corpus has been rendered, not judged. When a sweep finds
-a defect, ask which gap let it through: an absent shape needs a fixture, and a
-present but unexamined one needs a reading or a `/ui-sweep` pass.
-
-Measure runtime cost across the composed surface on `corpus.html`; a small fixture
-can establish a cause but not the cost.
+A shape in the corpus has been rendered, not judged. When a sweep finds a defect, an
+absent shape needs a fixture, and a present but unexamined one needs a reading or a
+`/ui-sweep` pass.
 
 ## Companions
 
@@ -69,25 +59,23 @@ An example's markup is its current version. Beside it may sit:
 
 - `<stem>.page/`, copied to the page's `page/` when the example owns declarations,
   modules, or styles;
-- `versions/<stem>.vN.html`, each earlier version, read in filename order; they sit
-  outside the top level so discovery and the prose sweeps never read one as a page;
-- `<stem>.jsonl`, seeded events: a thread, a user decision, or a widget in a message,
-  which no markup can describe;
-- `<stem>.data.json`, each page-owned source id's current value, or a `$captures`
-  entry naming a sibling file (`format` defaults to `text`; `unified-diff` reads a
-  whole `.patch`).
+- `versions/<stem>.vN.html`, each earlier version, read in filename order;
+- `<stem>.jsonl`, seeded events for what markup cannot describe: a thread, a user
+  decision, or a widget in a message;
+- `<stem>.data.json`, each page-owned data source's current value, given literally
+  or as a `$captures` entry naming a sibling file (`example_data.py`).
 
-`prepare_page` in `dev/leaf_dev/page_fixtures.py` is the one builder of a page
-directory from an example; its docstring gives the build order.
+`prepare_page` in `dev/leaf_dev/page_fixtures.py` builds a page directory from an
+example.
 
-Capture a seeded anchor with `leaf thread open --quote` against the file. Never
-write `{section, quote, suffix}` by hand: a hand-written anchor detaches silently
-when its sentence changes. Seeded message markup must pass the door `leaf thread
-reply` runs, and the suite posts each fragment through it.
+Capture a seeded anchor with `leaf thread open --quote` against the file; a
+hand-written `{section, quote, suffix}` detaches silently when its sentence changes.
+The suite posts each seeded message fragment through the check `leaf thread reply`
+runs.
 
-A widget with a live half, such as an `lf-agent` row saying how long since its
-worker reported, needs both a seed so the corpus sweeps see it and a fixture that
-mints its own timestamps to pin what it says, since a seed's `ts` is a fixed instant.
+A widget with a live half, such as an `lf-atlas-worker` row saying how long since its worker
+reported, needs a seed so the corpus sweeps see it, and a fixture that mints its own
+timestamps to pin what it says.
 
 ## Media
 

@@ -1,14 +1,11 @@
 {
   "gallery-visual-run": {
     "title": "Optional packages move to focused pages",
-    "observedAt": "2026-09-11T18:30:00-07:00",
     "base": {
-      "revision": "19f3ba5f",
-      "url": "https://base.preview.example/"
+      "revision": "19f3ba5f"
     },
     "candidate": {
-      "revision": "e2481629",
-      "url": "https://candidate.preview.example/"
+      "revision": "e2481629"
     },
     "cases": [
       {
@@ -19,6 +16,7 @@
         "result": "The candidate replaces the general package tutorial opening with one-column links to focused package pages.",
         "classification": "changed",
         "capture": {
+          "observedAt": "2026-09-11T18:30:00-07:00",
           "browser": "Chromium",
           "browserVersion": "151.0.7922.34",
           "viewport": {
@@ -47,6 +45,7 @@
         "result": "Seeded regression for review: the candidate drops the GitHub destination.",
         "classification": "changed",
         "capture": {
+          "observedAt": "2026-09-11T18:30:00-07:00",
           "browser": "Chromium",
           "browserVersion": "151.0.7922.34",
           "viewport": {
@@ -75,8 +74,9 @@
         "result": "The same destinations and introduction remain in the same positions above the changed catalog.",
         "classification": "clean",
         "capture": {
+          "observedAt": "2026-10-08T10:51:22-07:00",
           "browser": "Chromium",
-          "browserVersion": "151.0.7922.34",
+          "browserVersion": "154.0.8037.98",
           "viewport": {
             "width": 1280,
             "height": 300
@@ -86,8 +86,8 @@
           "locale": "en-US",
           "timezone": "America/Los_Angeles"
         },
-        "before": "/media/986f35fe9f8e3a0a.png",
-        "after": "/media/a003412d813309b9.png"
+        "before": "/media/037e40b4680c16b4.png",
+        "after": "/media/037e40b4680c16b4.png"
       }
     ]
   }

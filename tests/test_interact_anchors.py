@@ -69,6 +69,65 @@ def test_an_empty_quote_neighbour_is_an_exact_boundary():
     assert resolve_quote(revised, anchor) is None
 
 
+def test_detached_capture_remains_detached_when_an_identical_copy_survives(page_dir):
+    """Admission/revision preserve uncertainty; unique file capture stays ordinary."""
+    from leaf.anchor_capture import resolve_quote
+
+    repeated = "<p>Repeated passed text.</p>"
+    unique = "<p>Unique passed text.</p>"
+    original = PAGE.replace(
+        "<h2>Plan</h2>",
+        '<h2>Plan</h2><section id="runs">' + repeated * 2 + unique + "</section>",
+    )
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    refused = comment(
+        page_dir, "--section", "runs", "--quote", "passed", "--text", "Which?"
+    )
+    assert refused.exit_code != 0 and "3 times" in refused.output
+    anchor = {
+        "section": "runs",
+        "quote": "passed",
+        "prefix": "Repeated",
+        "suffix": "text.",
+        "detached": True,
+    }
+    detached = append_command(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": anchor,
+            "text": "The selected second occurrence.",
+        },
+    )
+    exact = json.loads(
+        comment(
+            page_dir,
+            "--section",
+            "runs",
+            "--quote",
+            "Unique passed text.",
+            "--text",
+            "Unique.",
+        ).output
+    )
+    revised = original.replace(repeated * 2 + unique, repeated + unique)
+    (page_dir / "index.html").write_text(revised)
+    publish(page_dir, version=2)
+    threads = build_threads(events_model.read_events(page_dir), {})
+    assert threads[detached["id"]]["anchor"] == anchor
+    assert threads[exact["id"]]["anchor"] == exact["anchor"]
+    passages = passages_model.page_passages(structure_model.SourceDocument(revised))
+    assert resolve_quote(passages, anchor) is None
+    assert resolve_quote(passages, exact["anchor"]) is not None
+    from leaf.transcript import _thread_heading
+
+    assert "passage not identified" in _thread_heading(threads[detached["id"]])
+    assert "passage not identified" not in _thread_heading(threads[exact["id"]])
+
+
 def test_comment_anchors_on_a_quote_and_posts_as_agent(page_dir, sessionless):
     result = comment(
         published(page_dir), "--quote", "Ship dark", "--text", "dark for how long?"
@@ -1235,8 +1294,8 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
     merely the thread's placement, so a later reply cannot silently retarget it."""
     v1 = PAGE.replace(
         "</section>",
-        '<lf-tasks id="work"><lf-task id="held-goal" status="active" talk>'
-        "<strong>Held goal</strong></lf-task></lf-tasks></section>",
+        '<lf-test-tasks id="work"><lf-test-task id="held-goal" status="active" talk>'
+        "<strong>Held goal</strong></lf-test-task></lf-test-tasks></section>",
     )
     (page_dir / "index.html").write_text(v1)
     published(page_dir)
@@ -1531,7 +1590,7 @@ def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):
         "x",
     )
     assert across.exit_code != 0
-    assert "across a widget's parts" in across.output
+    assert "across separate reading regions" in across.output
     assert (
         comment(page_dir, "--quote", "Before the diagram.", "--text", "x").exit_code
         == 0
@@ -1740,21 +1799,20 @@ def test_an_unhonored_edit_outlives_a_republish(page_dir):
 
 def test_a_widgets_x_says_attribute_is_quotable_like_any_other_passage(page_dir):
     """renderSaid puts these words in the DOM, so the anchor pass can find them and this
-    has to offer them — otherwise a metric's own number is the one thing on the page
+    has to offer them — otherwise an attribute's own words are the one thing on the page
     Claude can't point at. Both edges the registry can give one are here: the option's
-    chip band opens the element, and the metric's delta closes it."""
+    chip band opens the element, and the gloss's tip closes it."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             '  <lf-diagram id="flow">',
-            '  <lf-metric id="k-visits" value="312" delta="+41"'
-            ' direction="up-good">daily visits</lf-metric>\n'
+            '  <lf-gloss id="k-visits" tip="312 daily visits">Traffic</lf-gloss>\n'
             '  <lf-diagram id="flow">',
         )
     )
     published(page_dir)
     for quote, section in (
         ("risk: low Backfill first", "backfill-first"),
-        ("daily visits +41", "k-visits"),
+        ("Traffic 312 daily visits", "k-visits"),
     ):
         result = comment(page_dir, "--quote", quote, "--text", "x")
         assert result.exit_code == 0, result.output

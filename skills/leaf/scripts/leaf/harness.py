@@ -453,36 +453,14 @@ class CodexHarness(EnvironmentHarness):
             yield
 
     def lifetime(self) -> dict:
-        """Codex states no process, so this one is discovered: the nearest
-        ancestor running the `codex` program.
+        """CLI sessions live with their nearest Codex ancestor, not the shell
+        running a tool command, which can exit before the session does.
 
-        The launcher cannot hand it over, because a shell tool's $PPID is a fact
-        about the *shape* of the command rather than about the session. Measured
-        through `codex exec` at 0.147.0: a bare command, an `&&` chain and a
-        `bash -lc` all reported the codex process, because the shell it wraps
-        them in can exec a last simple command in place; `leaf … | cat` reported
-        the wrapping shell itself, which exits with the pipeline. Recording that
-        one would have taken the page's server down a second after the command
-        that started it, and the page would have told its user no session
-        holds it while the session sat there working.
-
-        Codex has a second shape with no session process at all. The ChatGPT app
-        runs one `codex ... app-server` per app launch and multiplexes every
-        conversation through it: its children are node, uv and zsh, never a
-        per-conversation `codex`. The ancestry walk still reaches that process,
-        so recording its pid gave every session in the app one shared lifetime,
-        and one that ends only when the app quits — measured on a machine with
-        133 claims naming a single app-server pid and 49 session-managed servers
-        that could never retire. Nothing else there is per-conversation either:
-        the app holds every thread's writer lock under
-        `~/.codex/thread-writer-locks` for its own lifetime rather than the
-        thread's, so those are pinned the same way.
-
-        Such a session belongs to a persisted chat, whose native transcript the
-        hooks validate and publish in the session record. That file survives an
-        idle instance unloading and an unattended night. Archival moves it and
-        deletion removes it, ending ownership without an inactivity timeout.
-        Missing native evidence cannot establish a new desktop lifetime."""
+        Desktop chats share an App Server process and its writer locks, so neither
+        identifies one chat's lifetime. Its native transcript, validated by hooks
+        and published in the session record, survives idle instance unloading.
+        Archive moves that file and delete removes it. Starting a desktop page
+        requires that validated source to exist."""
         if (pid := self.process_pid()) is not None:
             if "app-server" in (process_argv(pid) or []):
                 from .state import chat_exists, session_record

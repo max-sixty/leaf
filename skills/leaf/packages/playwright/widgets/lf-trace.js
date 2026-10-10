@@ -56,6 +56,7 @@ import {
   focusDestination,
   focused,
   holdFocus,
+  iconElement,
   keeps,
   keepsText,
   once,
@@ -125,16 +126,11 @@ const nodeName = (node) =>
   [node.role, node.name || node.text].filter(Boolean).join(" · ") ||
   "Unnamed saved element";
 
-// Transport faces share Leaf's 16px stroke vocabulary; fixed SVGs need no asset load.
-function transportButton(label, path) {
+function transportButton(label, icon) {
   const button = offer("button", "lf-trace-transport-button");
   button.setAttribute("aria-label", label);
   button.title = label;
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", "0 0 16 16");
-  svg.setAttribute("aria-hidden", "true");
-  svg.innerHTML = path;
-  button.append(svg);
+  button.append(iconElement(icon, "lf-action-icon"));
   return button;
 }
 
@@ -383,18 +379,13 @@ customElements.define(
       this.viewer = offer("a", "lf-trace-viewer", "Open in Playwright");
       this.viewer.target = "_blank";
       this.viewer.rel = "noopener noreferrer";
-      this.previous = transportButton(
-        "Previous",
-        '<path d="m10 3.5-4.5 4.5 4.5 4.5"/>',
-      );
+      this.previous = transportButton("Previous", "previous");
       this.previous.classList.add("lf-trace-previous");
-      this.next = transportButton("Next", '<path d="m6 3.5 4.5 4.5L6 12.5"/>');
+      this.next = transportButton("Next", "next");
       this.next.classList.add("lf-trace-next");
-      this.previous.setAttribute("aria-label", "Previous");
-      this.next.setAttribute("aria-label", "Next");
       this.previous.title = "Previous recorded point";
       this.next.title = "Next recorded point";
-      this.play = transportButton("Play", '<path d="m5 3 7 5-7 5z"/>');
+      this.play = transportButton("Play", "play");
       this.play.classList.add("lf-trace-play");
       // Preserve the pressed meaning if playback ends before pointer release.
       this.play.addEventListener("pointerdown", () => {
@@ -403,11 +394,7 @@ customElements.define(
       this.play.addEventListener("pointercancel", () => {
         this.#playIntent = null;
       });
-      const pauseIcon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      pauseIcon.setAttribute("viewBox", "0 0 16 16");
-      pauseIcon.setAttribute("aria-hidden", "true");
-      pauseIcon.innerHTML = '<path d="M5 3v10M11 3v10"/>';
-      this.play.append(pauseIcon, el("span", "", "Play"));
+      this.play.append(iconElement("pause", "lf-action-icon"), el("span", "", "Play"));
       this.timeline = el("div", "lf-trace-timeline");
       this.timeline.tabIndex = quoted(this) ? -1 : 0;
       this.timeline.setAttribute("role", "group");
@@ -459,12 +446,9 @@ customElements.define(
       this.zoomControls = el("div", "lf-trace-zoom-controls");
       this.zoomControls.setAttribute("role", "group");
       this.zoomControls.setAttribute("aria-label", "Timeline zoom");
-      this.zoomIn = transportButton("Zoom in", '<path d="M8 3v10M3 8h10"/>');
-      this.zoomOut = transportButton("Zoom out", '<path d="M3 8h10"/>');
-      this.zoomReset = transportButton(
-        "Whole recording",
-        '<path d="M6 3H3v3M10 3h3v3M3 10v3h3M13 10v3h-3"/>',
-      );
+      this.zoomIn = transportButton("Zoom in", "add");
+      this.zoomOut = transportButton("Zoom out", "subtract");
+      this.zoomReset = transportButton("Whole recording", "fit");
       this.zoomControls.append(this.zoomOut, this.zoomIn, this.zoomReset);
       const toolbar = el("div", "lf-trace-toolbar");
       const transport = el("div", "lf-trace-transport");

@@ -551,11 +551,11 @@ session lifetime and cwd are known, and validated under the session lock at
 publication. The short page→session commit publishes the service before the claim
 as its final mutation; it performs no harness or network work while those locks stand.
 
-`detached.starting_detached` first yields the child's private announcement. The
-caller captures ownership inside that context, then accepts on normal exit. The
-child publishes and confirms before the context returns. `hosting.claim_and_start`
-exposes that prepared `PageStart`; a preview captures its exact acquisition before
-acceptance, and CLI/demo callers report the URL only after confirmation. A child
+`hosting.claim_and_start` exposes its prepared `PageStart` through
+`detached.starting_detached`. The caller captures ownership inside that context,
+then accepts on normal exit. The child server publishes and confirms before the
+context returns. A preview captures its exact acquisition before acceptance, and
+CLI/demo callers report the URL only after confirmation. A server
 abandoned before acceptance closes its private socket and lease without publishing.
 After acceptance, lost confirmation is uncertain commitment, and cleanup uses the
 captured acquisition. It cannot restore a superseded owner. Revival acquires
@@ -599,9 +599,12 @@ Process-backed harness sessions invalidate their generation at `SessionEnd`.
 
 Desktop user previews also detach their input watcher from the launching command.
 The launcher captures the claim's lifetime and cwd and holds delivery preparation
-until the watcher commits that acquisition and confirms its input subscription.
-The watcher exits on explicit service stop or lost ownership, without touching
-page files just to renew itself.
+until the watcher starts its server and confirms its input subscription. The
+preview reserves and rebuilds its own slot before serving, so startup may publish
+that fresh page before the launcher receives readiness. Abandoning startup or
+ending the watcher stops its service and withdraws its exact acquisition; a
+successor's ownership is preserved. The watcher exits on explicit service stop or
+lost ownership, without touching page files just to renew itself.
 
 The detached Codex adapter follows active session/page ownership, including when
 all owned pages declare idle. Idle pages deliver no input and direct waits end;

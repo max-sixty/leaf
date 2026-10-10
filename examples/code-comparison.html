@@ -1,10 +1,10 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <title>Compare built code readers</title>
+    <title>Choose a code reader treatment</title>
     <meta
       name="description"
-      content="Drive two real Leaf code readers from one viewport, isolate candidate settings, and target the built output for exact changes."
+      content="Compare scrolling and wrapping code readers in a narrow panel, adjust their spacing, and choose the treatment to keep."
     />
     <style>
       code-reader-comparison {
@@ -255,14 +255,14 @@
   </head>
   <body>
     <main class="layout-wide">
-      <p class="eyebrow">controlled A/B playground</p>
-      <h1>Compare built code readers</h1>
+      <p class="eyebrow">code reader design</p>
+      <h1>Choose a code reader treatment</h1>
       <p class="lede">
-        Both candidates are the shipped <code>lf-code</code> widget. One width gesture
-        reaches both; candidate settings stay explicit and copyable.
+        Compare a scrolling code reader with a wrapping one. Adjust their spacing and
+        shared width, then choose the treatment to keep.
       </p>
       <lf-ask id="code-comparison-ask" data-width="available">
-        <h2>Which built code-reader treatment should the agent keep?</h2>
+        <h2>Which code-reader treatment should the agent keep?</h2>
         <lf-playground id="code-comparison-playground" submit-label="Apply treatment">
           <lf-playground-control
             name="width"
@@ -283,11 +283,11 @@
             <lf-playground-choice value="A" label="A"></lf-playground-choice>
             <lf-playground-choice value="B" label="B"></lf-playground-choice>
           </lf-playground-control>
-          <lf-playground-preset label="Compact reader">
+          <lf-playground-preset label="A at 420px">
             <lf-playground-setting for="width" value="420"></lf-playground-setting>
             <lf-playground-setting for="chosen" value="A"></lf-playground-setting>
           </lf-playground-preset>
-          <lf-playground-preset label="Wrapped reader">
+          <lf-playground-preset label="B at 320px">
             <lf-playground-setting for="width" value="320"></lf-playground-setting>
             <lf-playground-setting for="chosen" value="B"></lf-playground-setting>
           </lf-playground-preset>
@@ -350,8 +350,8 @@ export function releaseLabels(releases) {
       <lf-ask id="code-targeting-ask" data-width="available">
         <h2>Which exact reader element should change?</h2>
         <p>
-          Targeting keeps element identity separate from the comparison's visual labels
-          and settings.
+          Select a title or code detail in the sample below, describe the edit, then
+          send it to the agent.
         </p>
         <lf-targeting
           id="code-comparison-targeting"
@@ -360,7 +360,7 @@ export function releaseLabels(releases) {
         >
           <lf-target-preview id="code-target-preview">
             <section id="target-reader-artifact" class="code-candidate">
-              <h3 class="reader-treatment-title">Built reader treatment</h3>
+              <h3 class="reader-treatment-title">Reader sample</h3>
               <lf-code id="target-built-code" language="javascript" hi="2">
                 <pre>
 export const summarize = checks =>

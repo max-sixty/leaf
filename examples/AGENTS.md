@@ -14,8 +14,10 @@ a short proposal, or a draft is enough. Exhaustive vocabulary coverage belongs t
 the feature gallery and the package pages.
 
 Each page's `<title>` and `<meta name="description">` differ from every other
-page's. The site build composes the catalog card from them and refuses a page
-missing either.
+page's. The site build uses them for the page's public link card and derives
+its catalog description from the same metadata. Catalog titles, grouping, and
+order are authored in `docs/examples.html`. The build refuses a page missing
+either metadata field.
 
 A page's connective prose is its own. Gestures repeat across pages; the sentences
 around them do not. The rule lives in `references/authoring-evidence.md`,

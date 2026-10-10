@@ -83,12 +83,8 @@
         <div id="lp-status-room">
           <div class="layout-tiles" id="lp-status">
             <lf-metric id="lp-k-traffic" value="25%">candidate traffic</lf-metric>
-            <lf-metric id="lp-k-checks" value="4 of 5" delta="-1" direction="up-good"
-              >checks passing</lf-metric
-            >
-            <lf-metric id="lp-k-latency" value="184 ms" delta="-6 ms" direction="up-bad"
-              >p95 latency</lf-metric
-            >
+            <lf-metric id="lp-k-checks" value="4 of 5">checks passing</lf-metric>
+            <lf-metric id="lp-k-latency" value="184 ms">p95 latency</lf-metric>
             <lf-metric id="lp-k-observed" value="14:24:44">last observation</lf-metric>
           </div>
         </div>
@@ -124,22 +120,22 @@
           <lf-chart id="lp-traffic-chart" data-height="220">
             <pre>
 {
-  ariaLabel: "Share of checkout traffic on checkout-v2 by minute since deploy: 0, 5, 10, then 25% from minute 3",
+  ariaLabel: "Share of checkout traffic on checkout-v2: 5% at 7 seconds, 10% at 23 seconds, then 25% from 35 seconds through the last observation at 163 seconds",
   marginBottom: 40,
-  x: {label: "minutes since deploy", ticks: 7},
+  x: {label: "seconds since deploy", ticks: 5},
   y: {grid: true, label: "share of checkout traffic (%)", domain: [0, 30]},
   marks: [
     Plot.lineY(
       [
-        {minute: 0, share: 0},
-        {minute: 1, share: 5},
-        {minute: 2, share: 10},
-        {minute: 3, share: 25},
-        {minute: 4, share: 25},
-        {minute: 5, share: 25},
-        {minute: 6, share: 25},
+        {second: 0, share: 0},
+        {second: 7, share: 5},
+        {second: 23, share: 10},
+        {second: 35, share: 25},
+        {second: 138, share: 25},
+        {second: 158, share: 25},
+        {second: 163, share: 25},
       ],
-      {x: "minute", y: "share", stroke: "var(--series-1)", strokeWidth: 2},
+      {x: "second", y: "share", curve: "step-after", stroke: "var(--series-1)", strokeWidth: 2},
     ),
     Plot.ruleY([0]),
   ],
@@ -200,7 +196,7 @@
                   Error rate
                   <span class="release-check-result" data-status="pass">Pass</span>
                 </th>
-                <td><code>0.11%</code> / below <code>0.50%</code></td>
+                <td><code>0.08%</code> / below <code>0.50%</code></td>
               </tr>
               <tr id="lp-check-latency">
                 <th scope="row">
@@ -228,7 +224,7 @@
                   Rollback target
                   <span class="release-check-result" data-status="pass">Pass</span>
                 </th>
-                <td>3 batches / zero delta</td>
+                <td>3 batches / final delta 0</td>
               </tr>
             </tbody>
           </table>

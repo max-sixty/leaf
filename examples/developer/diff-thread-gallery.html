@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>File conversations in a diff</title>
+    <meta
+      name="description"
+      content="Reply to separate conversations under one file while its patch stays collapsed."
+    />
+  </head>
+  <body>
+    <main class="layout-column">
+      <h1 id="dfg-title">Review app.py</h1>
+      <p id="dfg-guide">
+        Two fictional conversations sit below the same file. Reply to one while keeping
+        the other separate. Resolve a conversation with its check, then open its
+        resolved summary to reopen it. Comment on app.py starts another conversation
+        without opening the patch.
+      </p>
+      <script id="dfg-history" type="application/json">
+        [
+          {
+            "kind": "comment",
+            "author": "user",
+            "text": "This change looks good.",
+            "anchor": { "section": "dfg-patch", "datum": "[\"app.py\",\"file\"]" },
+            "id": "file-comment-1"
+          },
+          {
+            "kind": "comment",
+            "author": "user",
+            "text": "This is a quick test comment, ignore please.",
+            "anchor": { "section": "dfg-patch", "datum": "[\"app.py\",\"file\"]" },
+            "id": "file-comment-2"
+          }
+        ]
+      </script>
+      <lf-sample id="dfg-sample" label="file conversations">
+        <template id="dfg-page" data-sample data-sample-events="dfg-history">
+          <lf-diff id="dfg-patch" source="dfg-patch-source" collapsed>
+            <pre></pre>
+          </lf-diff>
+        </template>
+      </lf-sample>
+    </main>
+  </body>
+</html>

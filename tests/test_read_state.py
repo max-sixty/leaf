@@ -145,7 +145,6 @@ def test_read_does_not_nudge_a_closed_agent_turn(page_dir, monkeypatch):
     record_claim(
         page_dir,
         id="one-user-session",
-        activity="multiplexed",
         ts=service_model.now_iso(),
         turn="closed-turn",
         turn_closed=service_model.now_iso(),

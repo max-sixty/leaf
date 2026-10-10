@@ -18,7 +18,10 @@ POSTs could complete before capture.
 A state is an example, a viewport, a color scheme and a pointer, and the input that
 brings a fresh tab there (`DRIVERS`, which `leaf-dev probe --do drive:NAME` also runs).
 The catalogue (`STATES`) covers states a user reaches by acting, not only pages at rest;
-add one where a change touches a surface it does not reach.
+add one where a change touches a surface it does not reach. A state may name a
+region whose before/after bounds frame the comparison, retaining related controls
+without shrinking their details behind unrelated viewport changes. Raw screenshots
+always preserve the full viewport and its geometry.
 Use repeated `--state` options to compare only the states a change touches.
 
 Whether a state changed, and where, is `lf-shot`'s reading of its two stills, from the
@@ -31,6 +34,7 @@ whole, when the reading names none), ready to hand off as an `lf-shot` pair, and
 crops cover both stills' regions.
 """
 
+import re
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -99,6 +103,52 @@ def drawing_comment(page: Page) -> None:
         page.locator(
             '.lf-composer-drawing canvas[data-lf-drawing-context="ready"]'
         ).wait_for(state="visible")
+
+
+def drawing_photo_comment(page: Page) -> None:
+    """Drawing and photo removal together in the same draft attachment shelf."""
+    drawing_comment(page)
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.evaluate("""async () => {
+      const response = await fetch('/media/051bee487bfb5d13.png');
+      const image = await response.blob();
+      await navigator.clipboard.write([new ClipboardItem({'image/png': image})]);
+    }""")
+    field = page.locator(".lf-fab-input")
+    field.focus()
+    with page.expect_response(lambda response: response.url.endswith("/api/media")):
+        page.keyboard.press("ControlOrMeta+v")
+    expect(page.get_by_role("button", name="Remove pasted image 1")).to_be_visible()
+    settle(page)
+
+
+def share_link(page: Page) -> None:
+    """The standard readonly URL field reached by keyboard inside Share."""
+    page.get_by_role("button", name=re.compile(r"^More page controls(?:,|$)")).click()
+    page.locator(".lf-share > summary").click()
+    page.keyboard.press("Tab")
+    expect(page.get_by_role("textbox", name="Share link", exact=True)).to_be_focused()
+
+
+def diff_filter(page: Page) -> None:
+    """A nonempty file filter with Clear and its match count inside one field."""
+    field = page.locator("#pr-key-hunk").get_by_role(
+        "searchbox", name="Filter diff files"
+    )
+    field.scroll_into_view_if_needed()
+    page.keyboard.press("Tab")
+    field.fill("no-match")
+    expect(field).to_have_value("no-match")
+    settle(page)
+
+
+def playground_text(page: Page) -> None:
+    """A playground's native text control with the shared field face and focus."""
+    field = page.get_by_role("textbox", name="Notification title", exact=True)
+    field.scroll_into_view_if_needed()
+    page.keyboard.press("Tab")
+    field.fill("Deployment ready")
+    expect(field).to_have_value("Deployment ready")
 
 
 def card_by_pointer(page: Page) -> None:
@@ -497,6 +547,19 @@ def diff_path_by_keyboard(page: Page) -> None:
     head.focus()
 
 
+def diff_file_reply(page: Page) -> None:
+    """A reply to the first of two conversations under a collapsed diff file."""
+    threads = page.frame_locator("#dfg-sample iframe").locator(
+        "#dfg-patch .lf-page-thread"
+    )
+    expect(threads).to_have_count(2)
+    field = threads.first.get_by_role("textbox", name="Reply", exact=True)
+    field.click()
+    page.keyboard.insert_text(
+        "Keep the file conversations clear while this reply is drafted."
+    )
+
+
 def diff_line_composer(page: Page) -> None:
     """A line's thread control, number and shared composer in one reading."""
     diff = page.locator("#pr-exact-patch")
@@ -604,6 +667,10 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         tab_by_pointer,
         boxed_tab_by_keyboard,
         drawing_comment,
+        drawing_photo_comment,
+        share_link,
+        diff_filter,
+        playground_text,
         card_by_pointer,
         card_by_keyboard,
         card_more_room,
@@ -639,6 +706,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         code_copy_by_pointer,
         code_copy_by_keyboard,
         diff_path_by_keyboard,
+        diff_file_reply,
         code_source_by_touch,
         pane_focused,
         aim_cut_by_pane,
@@ -724,9 +792,47 @@ class State:
     viewport: tuple[int, int] = DESKTOP
     scheme: str = "light"
     touch: bool = False
+    region: str | None = None
 
 
 STATES = (
+    State(
+        "drawing-photo-comment",
+        "developer/feature-gallery",
+        drawing_photo_comment,
+        region=".lf-composer-media:visible",
+    ),
+    State(
+        "share-link", "developer/feature-gallery", share_link, region=".lf-share-panel"
+    ),
+    State("share-link-dark", "developer/feature-gallery", share_link, scheme="dark"),
+    State(
+        "diff-filter",
+        "pr-walkthrough",
+        diff_filter,
+        region="#pr-key-hunk .lf-diff-tools",
+    ),
+    State(
+        "diff-filter-phone-dark",
+        "pr-walkthrough",
+        diff_filter,
+        viewport=(390, 844),
+        scheme="dark",
+        touch=True,
+        region="#pr-key-hunk .lf-diff-tools",
+    ),
+    State(
+        "playground-text",
+        "notification-playground",
+        playground_text,
+        region='lf-playground-control:has(> input[type="text"])',
+    ),
+    State(
+        "playground-text-dark",
+        "notification-playground",
+        playground_text,
+        scheme="dark",
+    ),
     State("drawing-comment", "developer/feature-gallery", drawing_comment),
     State(
         "drawing-comment-dark",
@@ -767,6 +873,16 @@ STATES = (
         touch=True,
     ),
     State("visual-review-menu", "developer/visual-review-gallery", visual_review_menu),
+    State("diff-file-threads", "developer/diff-thread-gallery", at_rest),
+    State("diff-file-reply", "developer/diff-thread-gallery", diff_file_reply),
+    State(
+        "diff-file-reply-dark-touch",
+        "developer/diff-thread-gallery",
+        diff_file_reply,
+        viewport=(390, 844),
+        scheme="dark",
+        touch=True,
+    ),
     State("code-reader-feedback", "code-comparison", code_reader_feedback),
     State(
         "visual-review-menu-dark",
@@ -1056,15 +1172,34 @@ STATES = (
 )
 
 
-def capture(browser, address: str, state: State, path: Path) -> None:
+def capture(browser, address: str, state: State, path: Path) -> dict | None:
     """Bring a fresh tab to `state` and screenshot its viewport to `path`, at the
     density of the displays its pairs are read on, so a crop shows text and hairlines
     as the reader's screen draws them."""
-    with tab(browser, state.viewport, state.scheme, state.touch, scale=2) as page:
+    scale = 2
+    with tab(browser, state.viewport, state.scheme, state.touch, scale=scale) as page:
         load(page, address)
         state.drive(page)
         settle(page)
+        clip = None
+        if state.region:
+            target = page.locator(state.region)
+            expect(target).to_be_visible()
+            bounds = target.bounding_box()
+            assert bounds is not None
+            # Keep the focus paint outside the target while omitting unrelated chrome.
+            room = 8
+            x, y = max(0, bounds["x"] - room), max(0, bounds["y"] - room)
+            clip = {
+                "x": x,
+                "y": y,
+                "width": min(state.viewport[0], bounds["x"] + bounds["width"] + room)
+                - x,
+                "height": min(state.viewport[1], bounds["y"] + bounds["height"] + room)
+                - y,
+            }
         page.screenshot(path=path)
+        return {key: value * scale for key, value in clip.items()} if clip else None
 
 
 def differences(browser, names: list[str], out: Path) -> dict[str, dict]:
@@ -1107,18 +1242,21 @@ def differences(browser, names: list[str], out: Path) -> dict[str, dict]:
         context.close()
 
 
-def crop(folder: Path, regions: list[dict]) -> None:
-    """Write the crops of the two stills in `folder` around `regions`, and the diff."""
+def crop(
+    folder: Path, regions: list[dict], *, framing: list[dict] | None = None
+) -> None:
+    """Crop both stills around framing (or changed regions); retain actual diff outlines."""
     base = Image.open(folder / "base.png").convert("RGB")
     head = Image.open(folder / "head.png").convert("RGB")
+    framing = regions if framing is None else framing
     box = (
         (
-            max(min(r["x"] for r in regions) - CROP_MARGIN, 0),
-            max(min(r["y"] for r in regions) - CROP_MARGIN, 0),
-            min(max(r["x"] + r["width"] for r in regions) + CROP_MARGIN, head.width),
-            min(max(r["y"] + r["height"] for r in regions) + CROP_MARGIN, head.height),
+            max(min(r["x"] for r in framing) - CROP_MARGIN, 0),
+            max(min(r["y"] for r in framing) - CROP_MARGIN, 0),
+            min(max(r["x"] + r["width"] for r in framing) + CROP_MARGIN, head.width),
+            min(max(r["y"] + r["height"] for r in framing) + CROP_MARGIN, head.height),
         )
-        if regions
+        if framing
         else (0, 0, head.width, head.height)
     )
     base.crop(box).save(folder / "base-crop.png")
@@ -1154,6 +1292,7 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
     states = [state for state in STATES if not names or state.name in names]
     out = run_directory(OUT)
     failed: dict[str, str] = {}
+    crop_regions: dict[str, list[dict]] = {}
     with tempfile.TemporaryDirectory(prefix="leaf-stills-") as built:
         scratch = Path(built)
         arms, commits = build_pair(base_ref, scratch)
@@ -1181,7 +1320,11 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                             source_roots[arm] / "examples" / f"{state.source}.html",
                             scratch / f"{arm}-{state.name}",
                         ) as address:
-                            capture(browser, address, state, folder / f"{arm}.png")
+                            region = capture(
+                                browser, address, state, folder / f"{arm}.png"
+                            )
+                            if region:
+                                crop_regions.setdefault(state.name, []).append(region)
                     except click.ClickException as error:
                         failed[state.name] = (
                             f"on {arm}: {error.message.strip().splitlines()[-1].split('; ')[0]}"
@@ -1200,7 +1343,7 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
         if state.name in failed:
             click.echo(f"  failed  {state.name} {failed[state.name]}")
         elif (difference := read[state.name])["changed"]:
-            crop(folder, difference["regions"])
+            crop(folder, difference["regions"], framing=crop_regions.get(state.name))
             click.echo(
                 f"  changed {state.name}: {difference['changed']} px -> {folder}"
             )

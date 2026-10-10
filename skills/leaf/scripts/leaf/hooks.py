@@ -4,7 +4,7 @@ Every hook marks that it ran for its session (`leases.mark_hooks`), and a wait
 only wakes a session so marked (`Harness.hooks_carry`): a session launched
 without these hooks still gets the envelope printed, rather than waking to an
 empty turn. SessionEnd retires the harness instance without reading pages;
-activity-backed desktop chats retain their generation across instance unloads.
+persisted desktop chats retain their generation across instance unloads.
 
 Codex's synchronous prompt hook records the provider turn even before the session
 claims a page. Its native transcript also records turns resumed without input,

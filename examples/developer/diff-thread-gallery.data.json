@@ -1,0 +1,3 @@
+{
+  "dfg-patch-source": "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-return \"old\"\n+return \"new\"\n"
+}

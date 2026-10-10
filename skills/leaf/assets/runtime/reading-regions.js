@@ -13,6 +13,8 @@
    parts, and a block bounded with x-bound or data-bound, which `bounds.js` registers. A
    box page CSS makes scroll is none of these. It stays unsupported: `page check`
    advises bounding the block instead, and nothing here searches the DOM for scrollers.
+   Containment follows the rendered tree, including assigned slots: a native message
+   laid out by a package's shadow reader belongs to that reader's region.
 
    A region's scroller can change without any gesture: a window crossing the workspace
    threshold, a tab showing, a panel opening. A region whose width changes keeps its
@@ -35,7 +37,7 @@ import { sizeObserver } from "./rendering.js";
 import { shownRect, skipped } from "./geometry.js";
 import { pageScroller } from "./scrolling.js";
 import { reachReadingScroller } from "./reach.js";
-import { under, upFrom } from "./shadow.js";
+import { under, renderedUnder, renderedParent } from "./shadow.js";
 import { deepFocus, onStanding, pressing } from "./focus.js";
 
 const regions = new Map();
@@ -43,7 +45,7 @@ const transitionWatchers = new Set();
 
 const depthOf = (node) => {
   let depth = 0;
-  for (let current = node; current; current = upFrom(current)) depth += 1;
+  for (let current = node; current; current = renderedParent(current)) depth += 1;
   return depth;
 };
 
@@ -127,7 +129,7 @@ export const unconcealedReadingRegions = () =>
 
 const regionAt = (node) => {
   const region = [...regions.values()]
-    .filter((candidate) => live(candidate) && under(node, candidate.host))
+    .filter((candidate) => live(candidate) && renderedUnder(node, candidate.host))
     .sort((a, b) => depthOf(b.host) - depthOf(a.host))[0];
   return region;
 };
@@ -217,8 +219,8 @@ export const userReadingRegion = () => {
 export const containingReadingRegionFor = (node) => {
   let region = regionAt(node);
   while (region) {
-    if (under(node, region.body)) return regionRecord(region);
-    region = regionAt(region.host.parentElement);
+    if (renderedUnder(node, region.body)) return regionRecord(region);
+    region = regionAt(renderedParent(region.host));
   }
   return undefined;
 };
@@ -244,7 +246,9 @@ export function effectiveScroller(regionOrNode) {
   const containing = [...regions.values()]
     .filter(
       (candidate) =>
-        candidate !== region && live(candidate) && under(region.host, candidate.body),
+        candidate !== region &&
+        live(candidate) &&
+        renderedUnder(region.host, candidate.body),
     )
     .sort((a, b) => depthOf(b.host) - depthOf(a.host))[0];
   return containing ? effectiveScroller(containing) : pageScroller;
@@ -267,8 +271,8 @@ export const scrollerFor = (el) => {
 // scrolling, and a region scrolled to its end moves no further. A fixed box between a
 // node and a scroller stands still while that scroller moves, so the walk ends there.
 export function* scrollersOf(node) {
-  for (let box = scrollerFor(node); ; box = scrollerFor(upFrom(box))) {
-    for (let at = node; at !== box; at = upFrom(at))
+  for (let box = scrollerFor(node); ; box = scrollerFor(renderedParent(box))) {
+    for (let at = node; at !== box; at = renderedParent(at))
       if (!at || getComputedStyle(at).position === "fixed") return;
     yield box;
     if (box === pageScroller) return;

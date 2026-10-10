@@ -21,8 +21,10 @@ from leaf.registry import validation as registry_validation
 from leaf.structure import SourceDocument
 from leaf.validation import compatibility as validation_model
 from leaf_dev import record_demo
+from leaf_dev import site as site_model
 from leaf_dev.page_fixtures import source_packages
 from PIL import Image
+from unidiff import PatchSet
 
 ROOT = Path(__file__).parent.parent
 ASSETS = ROOT / "skills" / "leaf" / "assets"
@@ -93,6 +95,50 @@ def test_every_published_source_says_what_its_page_is():
     # A description repeated across pages tells a user nothing about which one
     # they found, and search engines fold the duplicates together.
     assert len(set(descriptions.values())) == len(descriptions)
+
+
+def test_catalog_descriptions_follow_example_metadata(tmp_path, monkeypatch):
+    """A page edit changes its catalog caption without editing the catalog.
+
+    Generated captions are committed for raw page readers; publication also
+    derives them to prevent an omitted regeneration from publishing stale copy.
+    """
+    catalog = (DOCS / "examples.html").read_text()
+    sources = SourceDocument(catalog).tree.select("a.example-link")
+    for link in sources:
+        name = link.attrs["href"].strip("/").split("/")[-1]
+        (tmp_path / f"{name}.html").write_text((EXAMPLES / f"{name}.html").read_text())
+    changed = tmp_path / "review-a-plan.html"
+    metadata = SourceDocument(changed.read_text()).named_metas
+    old = next(meta["content"] for meta in metadata if meta["name"] == "description")
+    description = 'Review a plan & choose <the next step> with "clear evidence".'
+    changed.write_text(
+        changed.read_text().replace(
+            html.escape(old, quote=True), html.escape(description, quote=True)
+        )
+    )
+    monkeypatch.setattr(site_model, "EXAMPLES", tmp_path)
+    composed = site_model.catalog_markup(catalog)
+    rebuilt = SourceDocument(composed)
+    for link in rebuilt.tree.select("a.example-link"):
+        name = link.attrs["href"].strip("/").split("/")[-1]
+        _, expected = site_model.document_metadata(tmp_path / f"{name}.html")
+        assert link.select_one(".example-description").text.strip() == expected
+    assert (
+        rebuilt.tree.select_one(
+            'a[href="/examples/review-a-plan/"] .example-description'
+        ).text
+        == description
+    )
+    assert site_model.catalog_markup(composed) == composed
+    # Caption derivation preserves authored selection, grouping and disabled cards.
+    assert [link.attrs["href"] for link in rebuilt.tree.select("a.example-link")] == [
+        link.attrs["href"] for link in sources
+    ]
+    assert (
+        composed[composed.index("<!--") : composed.index("-->") + 3]
+        == catalog[catalog.index("<!--") : catalog.index("-->") + 3]
+    )
 
 
 def test_docs_pages_use_only_registered_widgets(monkeypatch):
@@ -190,6 +236,53 @@ def code_block(source: str, block_id: str) -> str:
     )
     assert found, block_id
     return html.unescape(found.group(1))
+
+
+def test_pr_walkthrough_excerpts_match_the_captured_patch():
+    """Review evidence quotes the captured revision at its shown coordinates.
+
+    Source excerpts and the inline orchestration hunk must agree with the same
+    capture the complete patch widget presents, including their source locations.
+    """
+    source = (EXAMPLES / "pr-walkthrough.html").read_text()
+    page = SourceDocument(source)
+    manifest = json.loads((EXAMPLES / "pr-walkthrough.data.json").read_text())
+    patch_source = page.tree.select_one("#pr-exact-patch").attrs["source"]
+    capture = manifest["$captures"][patch_source]
+    patch = PatchSet((EXAMPLES / capture["file"]).read_text())
+    files = {file.path: file for file in patch}
+    blocks = page.tree.select("lf-code")
+    assert blocks
+    for block in blocks:
+        block_id = block.attrs["id"]
+        label = page.tree.select_one(f"#{block_id}-source")
+        path = label.select_one("code").text
+        right = {
+            line.target_line_no: line.value
+            for hunk in files[path]
+            for line in hunk
+            if line.target_line_no is not None
+        }
+        numbers = []
+        for interval in block.attrs["lines"].split(","):
+            bounds = [int(bound) for bound in interval.split("-")]
+            numbers.extend(range(bounds[0], bounds[-1] + 1))
+        assert numbers == sorted(set(numbers)), block_id
+        assert block.select_one("pre").text.lstrip("\n") == "".join(
+            right[n] for n in numbers
+        ), block_id
+
+    inline = page.tree.select_one("#pr-key-hunk pre").text.lstrip("\n")
+    [shown] = PatchSet(inline)
+    captured = files[shown.path]
+    assert shown
+    assert (shown.source_file, shown.target_file) == (
+        captured.source_file,
+        captured.target_file,
+    )
+    assert shown.patch_info == captured.patch_info
+    for hunk in shown:
+        assert str(hunk) in [str(candidate) for candidate in captured], shown.path
 
 
 def shown_log(records: list[dict]) -> str:

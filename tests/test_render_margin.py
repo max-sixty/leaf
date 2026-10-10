@@ -8470,9 +8470,12 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     expect(send).to_be_focused()
 
     resized_shell(page, 1920, 480)
-    page.evaluate(
-        "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
-    )
+    # Containment is measured while the attached passage is in view; a card
+    # follows its passage when that passage leaves the viewport.
+    target = page.locator("#off-t-resync")
+    target.scroll_into_view_if_needed()
+    expect(target).to_be_in_viewport()
+    rendered(page)
     expect(preview).to_be_visible()
     capped = preview.evaluate(
         """card => {

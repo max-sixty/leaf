@@ -38,6 +38,7 @@
  */
 import { html, render, repeat } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
+import { iconTemplate } from "./icons.js";
 import { repaint } from "./repaint.js";
 import { afterScript } from "./rendering.js";
 import {
@@ -143,7 +144,7 @@ function rowTemplate() {
       ?data-lf-news=${news.length > 0}
       ?hidden=${!open && !menu.some(visible)}
     >
-      ⋯
+      ${iconTemplate("more", "lf-action-icon")}
     </button>
   `;
 }

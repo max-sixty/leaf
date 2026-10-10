@@ -33,7 +33,7 @@ from leaf.projection import (
 from leaf.registry.schema import json_value
 from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.schema import MESSAGE_KINDS
-from leaf.service import PageTransaction, delivery_reply_attempt
+from leaf.service import PageTransaction, delivery_reply_attempt, same_claim
 from leaf.tasks import start_line_error
 from leaf.thread_context import thread_message, thread_names
 from leaf.validation.admission import (
@@ -83,13 +83,21 @@ def thread_named(page_dir: Path, events: list, name: str) -> str:
     return thread_addressed(page_dir, events, name)[0]
 
 
-def reserve_delivery_reply(session_id: str, delivery_id: str, target: dict) -> None:
+def reserve_delivery_reply(
+    session_id: str,
+    delivery_id: str,
+    target: dict,
+    *,
+    expected_claim: dict | None = None,
+) -> None:
     """Reserve a delivery's response address before provider execution begins."""
     attempt = delivery_reply_attempt(delivery_id)
     with PageTransaction(Path(target["page"])) as page:
         claim = page.active_claim
         if claim is None or claim["id"] != session_id:
-            raise RuntimeError(f"page is not claimed by session {session_id!r}")
+            raise ReceiptRefused(f"page is not claimed by session {session_id!r}")
+        if expected_claim is not None and not same_claim(claim, expected_claim):
+            raise ReceiptRefused("the correction's page acquisition has ended")
         page.bind_delivery_reply(session_id, target["responds"], attempt)
 
 
@@ -404,9 +412,10 @@ def post_reply(
                 if when_settled == "skip":
                     return None
                 if when_settled != "post":
+                    held = logged_id(events, for_event, responses)
                     sys.exit(
                         f"event {for_event!r} no longer requires a reply to {to!r}; "
-                        "read the current delivery or thread state"
+                        + (held or "read the current delivery or thread state")
                     )
             elif ephemeral:
                 in_hand = for_event

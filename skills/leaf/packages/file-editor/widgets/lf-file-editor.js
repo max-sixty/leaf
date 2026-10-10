@@ -29,7 +29,7 @@ import {
 import { createEditor } from "./editor.js";
 
 customElements.define(
-  "lf-file",
+  "lf-file-editor",
   class extends HTMLElement {
     connectedCallback() {
       if (!once(this)) return;
@@ -39,22 +39,22 @@ customElements.define(
     initialize() {
       const api = boundFile(this.getAttribute("binding"));
       const recoveryKey = `file:${this.id}:${this.getAttribute("binding")}`;
-      const head = offer("div", "lf-file-head");
-      const title = offer("span", "lf-file-name", this.getAttribute("binding"));
-      const status = offer("span", "lf-file-status");
+      const head = offer("div", "lf-file-editor-head");
+      const title = offer("span", "lf-file-editor-name", this.getAttribute("binding"));
+      const status = offer("span", "lf-file-editor-status");
       status.setAttribute("aria-hidden", "true");
-      const announcement = offer("span", "lf-file-announcement");
+      const announcement = offer("span", "lf-file-editor-announcement");
       announcement.setAttribute("role", "status");
       announcement.setAttribute("aria-live", "polite");
-      const problem = offer("div", "lf-file-problem");
-      const explanation = offer("p", "lf-file-explanation");
+      const problem = offer("div", "lf-file-editor-problem");
+      const explanation = offer("p", "lf-file-editor-explanation");
       explanation.setAttribute("role", "alert");
       const legend = offer(
         "p",
-        "lf-file-legend",
+        "lf-file-editor-legend",
         "Removed text is on disk. Added text is your draft.",
       );
-      const actions = offer("div", "lf-file-actions");
+      const actions = offer("div", "lf-file-editor-actions");
       const action = (label, run) => {
         const button = offer("button", "button", label);
         button.type = "button";
@@ -84,10 +84,10 @@ customElements.define(
         else await refresh(retry);
       });
       actions.append(useFile, keepDraft, retry);
-      const comparisonMount = offer("div", "lf-file-comparison");
+      const comparisonMount = offer("div", "lf-file-editor-comparison");
       problem.append(explanation, legend, actions, comparisonMount);
       head.append(title, status);
-      const mount = offer("div", "lf-file-edit");
+      const mount = offer("div", "lf-file-editor-edit");
       shadowStage(this, [head, mount, problem, announcement]);
       this.replaceChildren();
       let base = null,

@@ -151,6 +151,20 @@ def playground_text(page: Page) -> None:
     expect(field).to_have_value("Deployment ready")
 
 
+def banner_more(page: Page) -> None:
+    """The banner's More icon with its keyboard focus paint."""
+    page.keyboard.press("Tab")
+    page.locator(".lf-banner-more").focus()
+
+
+def playground_choice(page: Page) -> None:
+    """Keyboard focus on the choice's whole labelled hit target."""
+    page.keyboard.press("Tab")
+    radio = page.locator(".lf-playground-radio").first
+    radio.scroll_into_view_if_needed()
+    radio.focus()
+
+
 def card_by_pointer(page: Page) -> None:
     """The first margin card, opened by a click on its marker."""
     page.locator(".lf-margin-marker").first.click()
@@ -614,6 +628,31 @@ def more_menu(page: Page) -> None:
     page.locator(".lf-banner-menu").wait_for()
 
 
+def capture_area(page: Page) -> None:
+    """Select a page area, with its confirmation and cancellation controls visible."""
+    page.locator("#plan-context").scroll_into_view_if_needed()
+    more_menu(page)
+    page.get_by_role("button", name="Capture area", exact=True).click()
+    page.locator(".lf-region-selection").wait_for(state="visible")
+    page.mouse.move(100, 200)
+    page.mouse.down()
+    page.mouse.move(360, 350, steps=4)
+    page.mouse.up()
+
+
+def capture_small_drag(page: Page) -> None:
+    """Hold a small selection over words, which must remain visible during the drag."""
+    page.locator("#plan-current").scroll_into_view_if_needed()
+    more_menu(page)
+    page.get_by_role("button", name="Capture area", exact=True).click()
+    page.locator(".lf-region-selection").wait_for(state="visible")
+    target = page.locator("#plan-current").bounding_box()
+    left, top = round(target["x"]) + 45, round(target["y"]) + 8
+    page.mouse.move(left, top)
+    page.mouse.down()
+    page.mouse.move(left + 88, top + 44, steps=8)
+
+
 def versions_menu(page: Page) -> None:
     """The Versions menu, opened from More: a row for each version, with its note."""
     page.locator(".lf-banner-more").click()
@@ -671,6 +710,8 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         share_link,
         diff_filter,
         playground_text,
+        banner_more,
+        playground_choice,
         card_by_pointer,
         card_by_keyboard,
         card_more_room,
@@ -796,6 +837,43 @@ class State:
 
 
 STATES = (
+    State(
+        "banner-more",
+        "developer/feature-gallery",
+        banner_more,
+        region=".lf-banner-more",
+    ),
+    State(
+        "banner-more-phone-dark",
+        "developer/feature-gallery",
+        banner_more,
+        viewport=(390, 844),
+        scheme="dark",
+        touch=True,
+        region=".lf-banner-more",
+    ),
+    State(
+        "playground-choice",
+        "notification-playground",
+        playground_choice,
+        region=".lf-playground-choice-face:has(> input:focus)",
+    ),
+    State(
+        "playground-choice-phone-dark",
+        "notification-playground",
+        playground_choice,
+        viewport=(390, 844),
+        scheme="dark",
+        touch=True,
+        region=".lf-playground-choice-face:has(> input:focus)",
+    ),
+    State(
+        "trace-transport-icons",
+        "developer/playwright-trace-gallery",
+        trace_controls,
+        viewport=(540, 720),
+        region=".lf-trace-toolbar",
+    ),
     State(
         "drawing-photo-comment",
         "developer/feature-gallery",
@@ -1020,6 +1098,19 @@ STATES = (
     State("plan-go-to", "review-a-plan", go_to, viewport=(1024, 768)),
     State("plan-narrow", "review-a-plan", at_rest, viewport=(360, 740)),
     State("plan-touch", "review-a-plan", at_rest, viewport=(390, 844), touch=True),
+    State("plan-more", "review-a-plan", more_menu),
+    State("plan-capture", "review-a-plan", capture_area),
+    State(
+        "plan-capture-drag", "review-a-plan", capture_small_drag, viewport=(390, 740)
+    ),
+    State("plan-capture-dark", "review-a-plan", capture_area, scheme="dark"),
+    State(
+        "plan-capture-touch",
+        "review-a-plan",
+        capture_area,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State(
         "plan-more-touch", "review-a-plan", more_menu, viewport=(390, 844), touch=True
     ),

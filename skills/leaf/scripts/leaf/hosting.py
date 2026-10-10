@@ -774,7 +774,7 @@ def restarting_server(page_dir: Path):
     cmd_stop(page_dir, restart=mark)
     if not comes_back:
         print(
-            f"{page_dir}'s server belonged to a session that has ended, so it stays "
+            f"{page_dir}'s server has no live session owner, so it stays "
             f"stopped; `leaf server start {page_dir}` serves it for this one.",
             file=sys.stderr,
         )

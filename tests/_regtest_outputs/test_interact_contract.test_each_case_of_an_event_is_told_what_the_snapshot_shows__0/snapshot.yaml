@@ -4,9 +4,9 @@
 # A test records this file; nobody writes it by hand. The lines starting with `#`
 # explain it, and everything else is the recorded data. The walkthrough below is
 # one real run: the test serves a page, posts a comment to it the way the browser
-# does, runs `leaf wait` in a Claude Code session, and takes the delivery the way
-# Leaf's prompt hook does. Only the id, the times and the page's path are pinned,
-# so the file stays the same from run to run.
+# does, runs `leaf wait` in a Claude Code session, and acknowledges its complete
+# delivery. Only the id, the times and the page's path are pinned, so the file
+# stays the same from run to run.
 #
 # How this text reaches the agent, by example
 # -------------------------------------------
@@ -24,14 +24,13 @@
 #
 #      {"kind": "comment", "revision": 1, "text": "why here?", "anchor": {"section": "plan", "quote": "moves to Tuesdays"}, "attempt": "9f86d081884c7d659a2feaa0c55ad015", "author": "user", "id": "1946b466", "attention": true, "ts": "2026-09-21T20:12:30-07:00"}
 #
-# 3. Earlier, the agent ended its turn and Leaf's Stop hook went on watching.
-#    The watch notices the new input and wakes the session. Leaf's prompt hook
-#    runs as that turn begins and builds a delivery for the comment. This test
-#    drives the same watch and complete reader delivery through `leaf wait`.
+# 3. The agent runs `leaf wait`, which notices the new input and prints a complete
+#    delivery for the comment. The explicit wait carries the input even if the
+#    session's hooks no longer run.
 #    The comment is owed a reply, which the delivery records as its `answer` (step
-#    4): a `reply` for `leaf thread reply` here, where the Codex App Server route
+#    4): a `reply` for `leaf response reply <answer.ref>` here; the Codex App Server route
 #    would record a `turn`, which the turn's own messages write. For the
-#    instructions, the hook reads the clauses under
+#    instructions, `leaf wait` reads the clauses under
 #    `$events.handling.comment` in the page's copy of registry.json, then those
 #    under `$events.answering.reply`, the answer it owes. Each clause has a `text`
 #    and may have a `when`, a JSON Schema that must hold for the clause to apply.
@@ -133,21 +132,21 @@
 #        text: The widget is in a thread message: continue the work the user's answer
 #              selects or unblocks, and answer in that thread.
 #
-# 4. The hook adds the delivery as JSON to the turn's context, after one line
-#    saying so. The delivery's event is the log line from step 2 less `attempt`, the
-#    browser's retry key, and with these fields added:
+# 4. The wait prints the delivery as JSON. The delivery's event is the log line
+#    from step 2 less `attempt`, the browser's retry key, and with these fields added:
 #    `seq`, `subject`, `threads`, `handling` and `answer`.
 #    The batch's `handling` maps clause ids to their text, each distinct text
 #    appearing once. The event's `handling` names its applicable clauses in order.
-#    Once it has published that context, the hook confirms the delivery itself,
-#    so the envelope's `acknowledge` is null and the comment reads Picked up. The
-#    whole delivery, indented here (the hook writes it on one line):
+#    The envelope's `acknowledge` tells the agent to confirm receipt before work;
+#    printing alone does not mark the comment Picked up. Large readings expose
+#    numbered parts and a `next` command; read all parts before acknowledging.
+#    This comment fits in one reading, shown here as the wait prints it:
 #
 #      {
 #        "format": "leaf-delivery-v5",
 #        "id": "e8417b8a",
 #        "created_at": 1790046750.29,
-#        "acknowledge": null,
+#        "acknowledge": "Whoever ran the `leaf wait` that printed this delivery acknowledges it; until then the user's moves read Sent rather than Picked up. If the output was cut off, reread it with `leaf delivery read e8417b8a`. Follow any `next` commands before confirming. If you handle it, acknowledge before any other work; if you forward it, acknowledge once it durably arrives there. To acknowledge, start `leaf wait --ack e8417b8a` as the next background task: it confirms this delivery and waits for the next.",
 #        "batches": [
 #          {
 #            "page": "/path/to/page",
@@ -216,9 +215,9 @@
 #        ]
 #      }
 #
-# 5. The agent follows `handling`: it names any work the comment asks for with
-#    `leaf task start`, does it, and replies in the thread with
-#    `leaf thread reply`.
+# 5. The agent acknowledges the delivery, then follows `handling`. For requested
+#    work it opens with `leaf response reply <answer.ref> --ephemeral --text "<plan>"`,
+#    does the work, and answers with `leaf response reply <answer.ref>`.
 #
 # What this file records
 # ----------------------

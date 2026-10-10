@@ -571,12 +571,21 @@ class HostedTurn(CarriedTurn):
         try:
             if reply_error is not None:
                 self.record("turn_reply_commit_failed", **fault_fields(reply_error))
-            self.harness._finish_turn(
-                self.page_dir, self.session_id, terminal, expected=self.activity_epoch()
-            )
+            if self.correction is not None:
+                # The source admission refusal is precisely what the repair turn
+                # will correct. Closing cannot require that same invalid source.
+                super().close(terminal, reply_error)
+            else:
+                self.harness._finish_turn(
+                    self.page_dir,
+                    self.session_id,
+                    terminal,
+                    expected=self.activity_epoch(),
+                )
         finally:
             self.clear_activity()
-            self._receipt_unanswered()
+            if self.correction is None:
+                self._receipt_unanswered()
 
     def _receipt_unanswered(self) -> None:
         """Tell the user no answer is coming, for each move still owed one.
@@ -826,7 +835,27 @@ class WebsiteCodexHarness:
         finally:
             with self.lock:
                 self.following_threads.discard(turn.session_id)
-            self._continue_page(page_dir, turn.event_ids)
+            restarted = False
+            if turn.correction is not None and not self.stop_event.is_set():
+                try:
+                    with self.lock:
+                        process = self._ensure_server()
+                        restarted = self._resume_and_start(
+                            page_dir, turn.session_id, process, turn.event_ids[0]
+                        )
+                except Exception as error:  # noqa: BLE001 - daemon owns failure feedback
+                    log_agent(
+                        "turn_correction_start_failed",
+                        **agent_event_fields(turn.event_ids),
+                        error=type(error).__name__,
+                        detail=str(error),
+                    )
+            if not restarted:
+                if turn.correction is not None:
+                    for event_id in turn.event_ids:
+                        abandon_codex_delivery(turn.session_id, event_id)
+                    turn._receipt_unanswered()
+                self._continue_page(page_dir, turn.event_ids)
 
     def _continue_page(self, page_dir: Path, excluding: tuple[str, ...]) -> None:
         """Start the page's next unanswered move, receipting each start that cannot.

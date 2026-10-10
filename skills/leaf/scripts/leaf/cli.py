@@ -616,15 +616,34 @@ def delivery() -> None:
     """Handle transport-independent Leaf deliveries."""
 
 
-@delivery.command("read", short_help="Read one immutable delivery envelope.")
+@delivery.command("read", short_help="Read bounded immutable delivery input.")
 @click.argument("delivery_id", metavar="DELIVERY_ID")
-def delivery_read(delivery_id: str) -> None:
-    """Print DELIVERY_ID with its complete batches and response requirements. Where
-    a harness's hook offered it to this session as a pointer, reading it confirms
-    it, so the user's updates read Picked up."""
+@click.option(
+    "--part",
+    type=click.IntRange(min=1),
+    default=1,
+    help="Read this numbered part of a large delivery.",
+)
+def delivery_read(delivery_id: str, part: int) -> None:
+    """Read input without confirming it. Follow its next and acknowledgement instructions."""
     from leaf.delivery import cmd_delivery_read
 
-    cmd_delivery_read(delivery_id)
+    try:
+        cmd_delivery_read(delivery_id, part=part)
+    except ValueError as error:
+        raise click.ClickException(str(error)) from error
+
+
+@delivery.command("ack", short_help="Confirm complete delivery input reached context.")
+@click.argument("delivery_id", metavar="DELIVERY_ID")
+def delivery_ack(delivery_id: str) -> None:
+    """Attest complete receipt after reading every part of DELIVERY_ID."""
+    from leaf.delivery import cmd_delivery_ack
+
+    try:
+        cmd_delivery_ack(delivery_id)
+    except (OSError, RuntimeError) as error:
+        raise click.ClickException(str(error)) from error
 
 
 @cli.group(short_help="Open, answer, edit, summarize, or resolve a thread.")
@@ -675,7 +694,7 @@ def file() -> None:
 @click.argument("binding", metavar="ID")
 @click.argument("path", type=click.Path(path_type=Path), metavar="PATH")
 def file_bind(dir: str, binding: str, path: Path) -> None:
-    """Use ID in <lf-file binding=\"ID\"> to edit PATH."""
+    """Use ID in <lf-file-editor binding=\"ID\"> to edit PATH."""
     from leaf.file_bindings import FileBindingError, bind_file
 
     try:
@@ -903,8 +922,9 @@ def status(dir: str, state: str, detail: str) -> None:
 @cli.command(
     short_help="Confirm a delivery, if given, then wait for the next batch.",
     help=(
-        "Watch every page this session holds — plus PAGE, claimed first, when "
-        "given.\n\n" + WAIT_BATCH_OUTPUT_INSTRUCTION
+        "Watch every page this session holds, or observe PAGE without taking "
+        "ownership. Claim a foreign page explicitly with `leaf page claim`.\n\n"
+        + WAIT_BATCH_OUTPUT_INSTRUCTION
     ),
 )
 @click.argument("dir", metavar="PAGE", required=False)

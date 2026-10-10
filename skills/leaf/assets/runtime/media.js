@@ -37,10 +37,10 @@ import { reducedMotion, FOLD_MS } from "./motion.js";
 // browser reads a reference by its directory, as Python's own readings do, and leaves the
 // name to the server.
 const CANONICAL_MEDIA_ROOT = "/media/";
-const PASTED_IMAGE = String.raw`!\[Pasted image\]\((${CANONICAL_MEDIA_ROOT}[^\s)]+)\)`;
-const PASTED_MEDIA = new RegExp(PASTED_IMAGE, "g");
+const ATTACHED_IMAGE = String.raw`!\[Attached image\]\((${CANONICAL_MEDIA_ROOT}[^\s)]+)\)`;
+const ATTACHED_MEDIA = new RegExp(ATTACHED_IMAGE, "g");
 const MEDIA_SUFFIX = new RegExp(
-  `(?:^|\\n\\n)${PASTED_IMAGE}(?:\\n\\n${PASTED_IMAGE})*(?![\\s\\S])`,
+  `(?:^|\\n\\n)${ATTACHED_IMAGE}(?:\\n\\n${ATTACHED_IMAGE})*(?![\\s\\S])`,
 );
 
 export const isCanonicalMediaUrl = (href) => href.startsWith(CANONICAL_MEDIA_ROOT);
@@ -48,18 +48,18 @@ export const isCanonicalMediaUrl = (href) => href.startsWith(CANONICAL_MEDIA_ROO
 export const scopedMediaUrl = (href) =>
   offlineInteractive ? runtimeResource(href) : new URL(pageUrl(href.slice(1))).pathname;
 
-export function readPastedMedia(value) {
+export function readAttachedMedia(value) {
   const suffix = MEDIA_SUFFIX.exec(value);
   if (!suffix) return { text: value, paths: [] };
   return {
     text: value.slice(0, suffix.index),
-    paths: Array.from(suffix[0].matchAll(PASTED_MEDIA), (image) => image[1]),
+    paths: Array.from(suffix[0].matchAll(ATTACHED_MEDIA), (image) => image[1]),
   };
 }
 
-export function writePastedMedia(text, paths) {
+export function writeAttachedMedia(text, paths) {
   if (!paths.length) return text;
-  const images = paths.map((path) => `![Pasted image](${path})`).join("\n\n");
+  const images = paths.map((path) => `![Attached image](${path})`).join("\n\n");
   if (!text) return images;
   return text + "\n\n" + images;
 }

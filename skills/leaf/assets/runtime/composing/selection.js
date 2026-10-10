@@ -274,7 +274,7 @@ export function createSelectionComposer({
   }
   let composerEpoch = 0;
   // What the box holds that a user would miss, asked once. The complete draft, because a
-  // pasted image is in it and not in the field, plus a drawing, which stands beside the
+  // attached image is in it and not in the field, plus a drawing, which stands beside the
   // words rather than in them. Three places ask: the send's own guard, the sentence a
   // hiding box says about what became of the words, and the word Escape's row shows. They
   // had a spelling each, and the one over the field alone read a box holding a picture
@@ -309,7 +309,7 @@ export function createSelectionComposer({
     if (suggestCheck.checked && syncComposer.hasMedia()) {
       suggestCheck.checked = false;
       syncSuggestMode();
-      notice("Remove pasted images before suggesting replacement text");
+      notice("Remove attached images before suggesting replacement text");
       focusDestination(composerInput, "return");
       return;
     }
@@ -538,6 +538,14 @@ export function createSelectionComposer({
       rememberWriting(composerInput);
     }
   }
+  // A capture arrives with its passage and bytes together. Opening and attaching in one
+  // synchronous turn binds delivery to that draft's arrival generation, while carrying
+  // unsent words under the same rule as an explicit Comment gesture. Upload completion
+  // cannot retarget the picture if the user moves this composer to another passage.
+  function openComposerWithMedia(anchor, images, options = {}) {
+    openComposer(anchor, "", { carry: true, ...options });
+    return syncComposer.addMedia(images);
+  }
   // The box is one view of the draft standing on this passage, and it follows the plain
   // boxes' rule with one thing of its own: the composer is chrome as well as a box, so a
   // draft settled in another tab — sent, or discarded — leaves it nothing to be open about
@@ -583,7 +591,7 @@ export function createSelectionComposer({
     if (discard) clearDraft(composerCtx(pendingAnchor)); // before the anchor goes: the key is the anchor
     composerWatch?.();
     composerWatch = null;
-    syncComposer.load(""); // the whole draft, so a pasted image does not outlive its send
+    syncComposer.load(""); // the whole draft, so an attached image does not outlive its send
     seededQuote = "";
     suggestCheck.checked = false;
     pendingAnchor = null;
@@ -869,6 +877,7 @@ export function createSelectionComposer({
     syncResponseOptions,
     resetResponseOptions,
     openComposer,
+    openComposerWithMedia,
     hideComposer,
     detachComposer,
     carryComposerToReply,

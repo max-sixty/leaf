@@ -35,7 +35,6 @@ from .served_state.reading import page_reading
 from .server import running_server
 from .service import (
     PageTransaction,
-    claim_page,
     owned_pages,
     read_status,
     session_claims,
@@ -424,8 +423,9 @@ def wait_acknowledgement(harness: Harness | None) -> Callable[[str], str]:
         return (
             "Whoever ran the `leaf wait` that printed this delivery acknowledges "
             "it; until then the user's moves read Sent rather than Picked up. If "
-            "the output was cut off, acknowledge nothing and rerun the wait with room "
-            "for the whole envelope. If you handle it, acknowledge before any other "
+            f"the output was cut off, reread it with `leaf delivery read {delivery_id}`. "
+            "Follow any `next` commands before confirming. If you handle it, "
+            "acknowledge before any other "
             "work; if you forward it, acknowledge once it durably arrives there. To "
             f"acknowledge, {run_ack(delivery_id)}: it confirms this delivery and "
             "waits for the next."
@@ -435,14 +435,14 @@ def wait_acknowledgement(harness: Harness | None) -> Callable[[str], str]:
 
 
 def delivery_json(reading: PageTick, harness: Harness | None) -> str:
-    """Freeze and serialize a watcher reading as one delivery envelope."""
-    from .delivery import batch_data, freeze_delivery
+    """Freeze a watcher reading and present its bounded first part."""
+    from .delivery import batch_data, delivery_reading, freeze_delivery
 
     payload = freeze_delivery(
         [batch_data(reading.page_dir, reading.transaction, reading.batch)],
         acknowledge=wait_acknowledgement(harness),
     )
-    return json.dumps(payload, ensure_ascii=False)
+    return json.dumps(delivery_reading(payload), indent=2, ensure_ascii=False)
 
 
 def read_watch_pass[DeliveryResult](
@@ -550,8 +550,8 @@ def new_input_line(page_dir: Path) -> str:
 def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
     """Confirm a complete delivery, if given, then watch for the next batch.
 
-    A named initial wait claims that page. A receipt resumes the session's
-    current ownership set without taking any page back from a successor. A
+    A named wait observes that page without taking ownership. A receipt resumes
+    the session's current ownership set. A
     standalone consumer watches the pages its delivery names. Exit 0 carries
     the next immutable delivery; exit 2 names why the watch ended. A refused
     receipt raises before a watch starts, leaving that page's cursor unchanged.
@@ -563,8 +563,6 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
         from .delivery import receive_delivery
 
         received = receive_delivery(ack)
-    if page_dir is not None:
-        claim_page(page_dir)
     harness = session_harness()
     explicit = (page_dir,) if page_dir else tuple(received) if harness is None else ()
     named = explicit[0] if len(explicit) == 1 else None
@@ -575,12 +573,13 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
         return 2
 
     def print_delivery(reading: PageTick) -> None:
-        """Print immutable input; only the consumer can confirm receipt. Where the
-        harness's hook carries input into the turn, the wait only wakes it."""
-        if harness and harness.hooks_carry():
-            print(new_input_line(reading.page_dir), flush=True)
-        else:
-            print(delivery_json(reading, harness), flush=True)
+        """Print immutable input; only the consumer can confirm receipt.
+
+        An explicit wait is a complete delivery route. Earlier successful hooks
+        cannot prove that a later one will run, so it never delegates its input
+        to the next hook. The native between-turn watch owns hook wakes.
+        """
+        print(delivery_json(reading, harness), flush=True)
 
     try:
         while True:

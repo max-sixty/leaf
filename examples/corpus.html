@@ -7012,7 +7012,11 @@ observe --cohort staff</code></pre>
           which version to keep when edits overlap.
         </p>
       </header>
-      <lf-file id="research-file" binding="research-notes" data-height="480"></lf-file>
+      <lf-file-editor
+        id="research-file"
+        binding="research-notes"
+        data-height="480"
+      ></lf-file-editor>
       <details id="file-editing-setup">
         <summary>Connect a local file</summary>
         <p>
@@ -7395,6 +7399,24 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 drawing rather than replacing it. On a touch screen, “Draw mode” is in
                 “More page controls”, and “Undo stroke” and “Exit Draw mode” stand on
                 the banner while the mode holds.
+              </p>
+            </section>
+
+            <section id="bg-area-capture">
+              <h3>
+                <strong>Capture area</strong
+                ><span class="bg-feature-detail">: attach part of the page</span>
+              </h3>
+              <p id="bg-area-capture-guide">
+                Open “More page controls” and choose “Capture area”. Drag a rectangle
+                around this guide or a nearby widget, then choose “Attach capture” in
+                the banner. The selected image appears in an anchored comment: add
+                words, remove the image, or send it alone. Arrow keys move the
+                rectangle;
+                <kbd>Shift</kbd> with an arrow resizes it. <kbd>Enter</kbd> attaches the
+                image, and <kbd>Escape</kbd> or “Cancel capture” leaves without a
+                capture. Try a scrolled pane or a diagram to inspect the captured visual
+                state.
               </p>
             </section>
 
@@ -8922,8 +8944,9 @@ gallery/
                 <p id="bg-live-sample-guide">
                   Enter the practice page, accept its suggestion, and add a comment. Its
                   decisions and Threads belong to that page alone. Close any open
-                  controls and press <kbd>Escape</kbd> to return here; “Reset” clears
-                  the practice page.
+                  controls and press <kbd>Escape</kbd> to return here. Try “Full view”
+                  to use the whole window, then “Return to page”; your choices and
+                  drafts stay. “Reset” clears the practice page.
                 </p>
                 <lf-sample id="bg-live-sample" label="practice release note">
                   <template id="bg-live-sample-page" data-sample>

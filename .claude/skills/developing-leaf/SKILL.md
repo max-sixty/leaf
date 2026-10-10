@@ -37,6 +37,9 @@ forms or layout, read and follow `/ui-sweep` at `../ui-sweep/SKILL.md` on
 the changed surface and its dependent interactions. Its "External review"
 section owns selection and use of the tools below.
 
+For theme or reusable-control changes, its "Review a design system" section owns
+the review of foundations, component states, and their composition in a user task.
+
 ### External UI skills
 
 These are optional external installs, separate from Leaf's plugin. Check the
@@ -90,7 +93,9 @@ the user's question and the baseline and candidate views, and ask first whether
 those views are enough to make that choice; ask for a preference only once they
 are. Operate an interactive comparison's baseline and candidates through the
 same journey before handoff. For a live Leaf interface, embed them as
-`lf-sample window` children.
+`lf-sample window` children. Their standard Full view control lets the user try each
+candidate at viewport size and return with its practice state intact ("Live samples"
+in `skills/leaf/references/page-authoring.md`).
 The outer page carries the configuration and feedback; the children carry practice
 interactions. Start their fictional histories with `data-sample-events`, sharing
 one parent-local JSON fixture when the candidates need the same conversation

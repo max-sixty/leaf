@@ -27,12 +27,11 @@ explicitly when you are claiming a page without serving it.
 While your turn is running, Leaf's hooks offer new input between steps or when
 the turn tries to end, after the current model request and tool calls finish.
 Read the pointer
-with `leaf delivery read <id>`; reading it confirms pickup in this turn. This
-envelope has `acknowledge: null`, because the hook offers
-the same delivery the adapter would queue. The hook cannot interrupt a running
+with `leaf delivery read <id>` and follow its confirmation instruction after
+reading every part. The hook offers the same immutable input the adapter would queue. The hook cannot interrupt a running
 request or start an idle turn.
 
-When your task is idle, or a hook's pointer was not read before the turn ended,
+When your task is idle, or a hook's pointer was not confirmed before the turn ended,
 the adapter hands the delivery to `codex queue` as the task's next user message: a
 `leaf-delivery` XML element shown as one line in a code block, naming
 `leaf delivery read <id>`, which resolves the immutable envelope. The adapter
@@ -44,7 +43,7 @@ Answer every obligation with the operation its delivered `handling` clause names
 `leaf response reply <answer.ref>` for a reply. Your final message stays in the Codex
 chat and never reaches the page.
 
-The hooks and adapter share one delivery record, so input read during work is
+The hooks and adapter share one delivery record, so input confirmed during work is
 not queued again. Without a running trusted tool hook, delivery uses the queue.
 
 If serving refuses to connect delivery, follow its diagnostic before handing the

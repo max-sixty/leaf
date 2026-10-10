@@ -4368,7 +4368,7 @@ def test_a_panes_posture_change_keeps_the_reading_after_scrolling_past_focus(
             if (phase !== 'shift' || !shifted.some(({region}) => region.id === 'reading'))
               return;
             stop();
-            dispatchEvent(new WheelEvent('wheel', {deltaY: 500}));
+            document.body.dispatchEvent(new WheelEvent('wheel', {deltaY: 500, bubbles: true}));
             scrollTo({top: 1900, behavior: 'instant'});
             window.laterReading = scrollY;
           });

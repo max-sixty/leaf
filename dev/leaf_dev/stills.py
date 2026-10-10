@@ -788,6 +788,7 @@ STATES = (
         viewport=(390, 844),
         scheme="dark",
         touch=True,
+        region="#pr-key-hunk .lf-diff-tools",
     ),
     State(
         "playground-text",

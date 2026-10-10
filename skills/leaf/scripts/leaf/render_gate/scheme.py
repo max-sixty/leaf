@@ -6,6 +6,7 @@ from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
 from leaf.files import version_num
+from leaf.registry.contract import element_declarations
 from leaf.render_checks import (
     HANDOVER_DEADLINE_MS,
     SERVED_TIMEOUT_MS,
@@ -332,7 +333,7 @@ def _render_scheme(
         # only those:
         # $keys spells its members in the x- keys' own names, and a sweep over
         # every declaration took it for a widget called $keys.
-        declarations = {tag: e for tag, e in registry.items() if tag.startswith("lf-")}
+        declarations = element_declarations(registry)
         visual_provider_problems = evaluate_probe(
             page, "invalidVisualProviders", declarations
         )

@@ -6,6 +6,7 @@
    follow the same rule: a list of framed widget tags is still a closed consumer. */
 
 import { runtime } from "./context.js";
+import { isElementName } from "./registry-contract.js";
 
 // The vocabulary, vendored per page: which tags a module upgrades, and which of their
 // attributes are words the page says. Empty only during the real fetch interval, when
@@ -14,14 +15,12 @@ import { runtime } from "./context.js";
 export const registry = runtime.registry;
 export const tokenEntry = (name) => registry.$reactions.tokens[name];
 
-// The vocabulary's element declarations: every declaration under a tag, and never a `$`
-// declaration. Those are
-// the layer's own facts, and one of them ($keys) is spelled in the x- keys' own names —
-// so a sweep that picked widgets by "declares x-says" without asking the tag took it
-// for a widget called $keys, and querySelectorAll refused the name. Every walk over the
-// registry that means element declarations goes through here.
+// Ordinary keys are the authoring vocabulary: exact custom-element names and CSS
+// selectors. Only exact names are widget declarations; `lf-options.selected` is
+// an idiom selector. This is Python's schema.WIDGET_NAME grammar. Every widget
+// traversal goes through this owner rather than treating all vocabulary as widgets.
 export const elementDeclarations = () =>
-  Object.entries(registry).filter(([tag]) => tag.startsWith("lf-"));
+  Object.entries(registry).filter(([tag]) => isElementName(tag));
 
 // Take in the fetched vocabulary. A verb's writer is resolved here, once: `agent` where
 // its declaration says so, else `user`, the rule Python's `registry.contract.verb_writer`

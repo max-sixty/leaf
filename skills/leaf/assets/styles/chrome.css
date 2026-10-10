@@ -382,6 +382,7 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-banner { --lf-banner-gap: 10px;
     --lf-status-inset-left: 0px; --lf-status-inset-right: 0px;
     position: fixed; top: 0; left: 0; right: 0; z-index: var(--lf-z-banner);
+    box-sizing: border-box; height: var(--lf-banner-h);
     display: flex; flex-wrap: nowrap; align-content: flex-start;
     align-items: center; column-gap: var(--lf-banner-gap); row-gap: 0;
     padding: var(--lf-safe-top) calc(14px + var(--lf-safe-right)) 0
@@ -414,7 +415,6 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
      the status's disclosure meanwhile. */
   @container style(--lf-banner-rows: 2) {
     .lf-banner { flex-wrap: wrap; flex-direction: row-reverse;
-      box-sizing: border-box; height: var(--lf-banner-h);
       clip-path: inset(-100vh -100vw 0); }
     .lf-banner-status { flex-basis: 100%; }
     .lf-banner-actions { flex: 1 1 auto; order: 1; }

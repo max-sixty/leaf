@@ -921,11 +921,9 @@ def test_an_ask_marker_s_label_and_name_identify_its_question(browser, serve):
     }"""
     seen = {}
     for ask in ("short-ask", "long-ask"):
-        marker = page.locator(f'.lf-margin-marker[data-lf-margin-for="{ask}"]')
-        if not marker.count():
-            marker = page.locator(
-                f'[data-lf-margin-for="{ask}"] .lf-margin-marker[data-lf-kinds~="ask"]'
-            )
+        marker = page.locator(
+            f'[data-lf-margin-for="{ask}"] .lf-margin-marker[data-lf-kinds~="question"]'
+        )
         marker.scroll_into_view_if_needed()
         marker.hover()
         expect(marker.locator(".lf-margin-entry-label")).to_be_visible()
@@ -1520,9 +1518,13 @@ def test_draft_and_page_map_reaction_actions_stay_reachable(browser, serve, widt
     expect(draft_control(page, "cancel", "d-draft")).to_be_visible()
     with sending(page, "save the draft"):
         draft_control(page, "save", "d-draft").click()
-    expect(page.locator("#d-draft .lf-draft-body")).to_have_text(body)
+    expect(page.locator("#d-draft .lf-draft-body")).to_have_text(
+        body, use_inner_text=True
+    )
     navigate(page, page.url)
-    expect(page.locator("#d-draft .lf-draft-body")).to_have_text(body)
+    expect(page.locator("#d-draft .lf-draft-body")).to_have_text(
+        body, use_inner_text=True
+    )
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
@@ -2197,7 +2199,7 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
     expect(
         page.locator(
             '[data-lf-margin-for="bg-choice-ask"] '
-            '.lf-margin-marker[data-lf-kinds="ask"] '
+            '.lf-margin-marker[data-lf-kinds="question"] '
             'svg[data-lf-icon="question"]'
         )
     ).to_be_visible()
@@ -2969,7 +2971,9 @@ def test_the_chrome_names_an_ask_by_its_question(browser, serve):
     page.keyboard.press("Shift+m")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     group = dialog.locator(".lf-page-map-group").filter(
-        has=page.get_by_role("heading", name="ask · Which jobs are worth starting?")
+        has=page.get_by_role(
+            "heading", name="question · Which jobs are worth starting?"
+        )
     )
     expect(group).to_have_count(1)
     expect(group.locator(".lf-page-map-action")).to_have_text(["Waiting on you"])
@@ -4284,7 +4288,8 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     cluster = page.locator(f'[data-lf-margin-for="{target}"]')
     marker = cluster.locator(":scope > .lf-margin-marker")
     expect(marker).to_have_attribute(
-        "data-lf-kinds", "comment ask" if target == "bracket-decision" else "comment"
+        "data-lf-kinds",
+        "comment question" if target == "bracket-decision" else "comment",
     )
     expect(marker).not_to_have_attribute("data-lf-turn", re.compile(".+"))
     marker.evaluate("node => node.dataset.identityProbe = 'retained'")
@@ -5901,7 +5906,7 @@ def test_one_information_margin_entry_does_not_raise_a_preview(browser, serve):
     """A single non-thread reading travels directly; cards are reserved for threads."""
     page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
     resized(page, 1600, 900)
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="ask"]').first
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="question"]').first
     expect(marker).not_to_have_attribute("aria-controls", re.compile(".+"))
     expect(marker).not_to_have_attribute("aria-expanded", re.compile(".+"))
     marker.hover()

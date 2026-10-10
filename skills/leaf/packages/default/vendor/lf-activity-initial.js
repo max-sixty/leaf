@@ -125,6 +125,7 @@
     frame.title = host.getAttribute("label") || "Leaf sample";
     const view = document.createElement("dialog");
     view.className = "lf-sample-view";
+    view.dataset.lfGen = "1";
     view.setAttribute("open", "");
     view.setAttribute("role", "presentation");
     const controls = document.createElement("div");

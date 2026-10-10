@@ -343,7 +343,9 @@ example or fixture, a playground, or a page made for this conversation. Before
 writing its content, read `<root>/skills/leaf/SKILL.md` completely and follow
 its authoring, validation, handoff, and conversation-loop routes, using the
 checkout launcher for every `leaf` command and resolving its references from
-`<root>/skills/leaf/`.
+`<root>/skills/leaf/`. A brief for a subagent that writes the page names the
+content and the decisions the page puts to the user, and leaves how they are
+posed to those instructions.
 To make an existing page exercise the current checkout, re-vendor it with the
 checkout launcher (`<root>/skills/leaf/references/serving-pages.md`); fix or
 report a compatibility refusal rather than falling back to the installed plugin.

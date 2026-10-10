@@ -59,7 +59,7 @@
 .lf-trace-markers { min-inline-size: 0; block-size: calc(max(10rem, calc(var(--lf-trace-moment-rows, 0) * (var(--lf-trace-control-size) + var(--sp-2)) + var(--lf-trace-control-size))) + var(--lf-trace-control-size)); }
 .lf-trace-marker { inline-size: var(--lf-trace-control-size); block-size: var(--lf-trace-control-size); display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--r); background: var(--paper); color: var(--ink); font: 600 var(--t-6) / 1 var(--sans); cursor: pointer; }
 .lf-trace-marker:hover, .lf-trace-marker[aria-current] { background: var(--accent-tint); color: var(--accent); }
-.lf-trace-marker:focus-visible { --lf-focus-ring: trace-marker; outline: var(--focus-ring); outline-offset: -2px; }
+.lf-trace-marker:focus-visible { --lf-focus-ring: trace-marker; outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-ring-w)); }
 .lf-trace-marker:disabled { color: var(--muted); cursor: default; }
 .lf-trace-markers .vis-timeline { --lf-drawing: 1; border: 1px solid var(--border-2); border-radius: var(--r); font: inherit; }
 .lf-trace-markers .vis-panel, .lf-trace-markers .vis-grid { border-color: var(--border-2); }
@@ -85,7 +85,7 @@
 .lf-trace-bookmark-list { block-size: calc(var(--lf-trace-moment-rows, 0) * var(--lf-trace-control-size)); max-inline-size: 44rem; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .lf-trace-bookmark:not([hidden]) { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: var(--sp-2); inline-size: 100%; block-size: var(--lf-trace-control-size); border: 0; border-radius: var(--r); padding: var(--sp-2); background: none; color: var(--ink); text-align: start; font: inherit; cursor: pointer; }
 .lf-trace-moment-label { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.lf-trace-bookmark:focus-visible { --lf-focus-ring: trace-bookmark; outline: var(--focus-ring); outline-offset: -2px; }
+.lf-trace-bookmark:focus-visible { --lf-focus-ring: trace-bookmark; outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-ring-w)); }
 .lf-trace-bookmark:hover, .lf-trace-bookmark[aria-current] { color: var(--accent); background: var(--accent-tint); }
 .lf-trace-bookmark:disabled { color: var(--muted); cursor: default; }
 .lf-trace-frames-label { min-block-size: var(--lf-trace-control-size); display: inline-flex; align-items: center; gap: var(--sp-2); cursor: pointer; font-size: var(--t-6); }
@@ -95,7 +95,7 @@
 /* Point metadata owns its scroll. Frame gaps and disclosure cannot shrink the
  * surrounding page or pull a control out from under a reader during playback. */
 .lf-trace-metadata { margin-block-start: var(--sp-3); block-size: 14rem; overflow: auto; scrollbar-gutter: stable; --lf-top: 0px; }
-.lf-trace-metadata:focus-visible { --lf-focus-ring: trace-metadata; outline: var(--focus-ring); outline-offset: -2px; }
+.lf-trace-metadata:focus-visible { --lf-focus-ring: trace-metadata; outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-ring-w)); }
 .lf-trace-readout { margin-block: var(--sp-1) var(--sp-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lf-trace-action { margin-block: var(--sp-2) 0; font-weight: 600; }
 .lf-trace-phase { margin-block: var(--sp-1) var(--sp-2); font: 500 var(--t-5) / 1.4 var(--sans); font-variant-numeric: tabular-nums; }
@@ -141,7 +141,7 @@
 .lf-trace-transport-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2); flex: 0 0 auto; min-inline-size: var(--lf-trace-control-size); block-size: var(--lf-trace-control-size); padding: 0 var(--sp-2); border: 0; border-radius: var(--r); background: none; color: var(--ink); font: 500 var(--t-6)/1 var(--sans); cursor: pointer; }
 .lf-trace-transport-button svg { inline-size: 16px; block-size: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .lf-trace-transport-button:hover { background: var(--paper-2); }
-.lf-trace-transport-button:focus-visible { --lf-focus-ring: trace-transport-button; outline: var(--focus-ring); outline-offset: -2px; }
+.lf-trace-transport-button:focus-visible { --lf-focus-ring: trace-transport-button; outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-ring-w)); }
 .lf-trace-transport-button:disabled { color: var(--muted); cursor: default; }
 .lf-trace-play { min-inline-size: 86px; background: var(--accent-tint); color: var(--accent); }
 .lf-trace-play > svg:nth-child(2), .lf-trace-play[data-playing] > svg:first-child { display: none; }

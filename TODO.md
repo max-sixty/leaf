@@ -253,7 +253,12 @@ and its chrome coordinate.
   keeping its comments. They hold if revisions happen by ordinary composition. Include
   a cold agent asked for "a dashboard", the likeliest trigger for over-tiling. Run it
   with the agent-usability baseline (#19), by extending the document, dashboard and
-  queue tasks in `evals/`.
+  queue tasks in `evals/`. For a workspace, also measure what a screenshot of the
+  document cannot show: each pane's contents through its own scroll, how much of each
+  pane is empty, and whether a reader reaches every pane by key. The arrangement
+  judge sees only the first screen of a pane that scrolls and is told not to infer
+  interaction, so no case yet measures whether a workspace works as a screen. The
+  plain-HTML control (`--condition html`) has never run.
 - **Layout values that wait for a task:** a selection-and-detail component whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.
@@ -477,8 +482,13 @@ Revisit these when their stated trigger becomes real; they are not an active que
   its active pane and one key moves to the next. In a workspace today the arrow keys
   walk a side list, `q` reaches the next open Question, and a pane body that scrolls is a
   Tab stop, but nothing marks the active pane and no key moves from one pane to the
-  next. Pane focus belongs to the panes and the keyboard layer, not the Layout, so it
-  works the same wherever panes stand. Draw it as a playground before building it.
+  next. The runtime already tracks it: `userReadingRegion` (`reading-regions.js`) is the
+  pane holding focus, or else the last one pressed, wheeled or touched, and `j`/`k`/`d`/`u`
+  scroll it. Until the user picks a pane those keys reach the page, which a workspace
+  doesn't scroll, so they appear to do nothing. The feature is a mark on that region and
+  a key that moves it. Pane focus belongs to the
+  panes and the keyboard layer, not the Layout, so it works the same wherever panes
+  stand. Draw it as a playground before building it.
   Trigger: a user loses track of the active pane, or tabs through a pane to reach the
   next one.
 - **Expand everything waiting with a keypress.** A held notice, a collapsed summary,

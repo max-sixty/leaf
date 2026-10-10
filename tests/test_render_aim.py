@@ -174,7 +174,7 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
     Drive that example itself through the whole gesture, from outline to anchored
     composer."""
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
-    sidenote = registry["$idioms"]["aside.sidenote"]["example"]
+    sidenote = registry["aside.sidenote"]["x-example"]
     html = LONG_PAGE.replace(
         '<h1 id="t">Long</h1>', f'<h1 id="t">Long</h1>\n{sidenote}'
     )
@@ -2850,9 +2850,9 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
     A remark on the banner or a panel has no reader who can act on it, and a mode that
     took the chrome took the way out of the panel its own send opened: on a phone that
     panel covers the page, the banner goes inert under it, and its close was a comment.
-    So under the mode the Threads button opens the panel rather than a composer, nothing
-    under the pointer promises a comment there, the panel's edge draws it wider, and its
-    close closes it."""
+    The active mode's Exit control displaces the reading-loop controls on the banner.
+    The Threads key still opens the panel, where nothing under the pointer promises a
+    comment, the panel's edge draws it wider, and its close closes it."""
     edge = EDGES[0]
     page = open_page(browser, serve(LONG_PAGE, comments=1))
     resized(page, 1280, 800)
@@ -2874,10 +2874,11 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
     page.keyboard.press("Escape")
     expect(composer).to_be_hidden()
 
-    threads = page.locator(".lf-banner .lf-threads-toggle")
-    threads.hover()
+    exit_mode = page.get_by_role("button", name="Exit Design mode")
+    exit_mode.hover()
     expect(page.locator(".lf-inspect")).to_be_hidden()
-    threads.click()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     panel = page.locator(".lf-thread-panel")
     panel_settled(page)
     expect(panel).to_be_visible()
@@ -2895,6 +2896,12 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
     expect(panel).to_be_hidden()
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     assert comments() == seeded, "a press on the chrome posted a comment"
+    exit_mode.click()
+    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode")
+    threads = page.locator(".lf-banner-actions .lf-threads-toggle")
+    expect(threads).to_be_visible()
+    threads.click()
+    expect(panel).to_be_visible()
 
 
 def test_design_mode_leaves_leaves_surfaces_working_inside_a_widget(browser, serve):

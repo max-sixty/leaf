@@ -101,6 +101,52 @@ def drawing_comment(page: Page) -> None:
         ).wait_for(state="visible")
 
 
+def drawing_photo_comment(page: Page) -> None:
+    """Drawing and photo removal together in the same draft attachment shelf."""
+    drawing_comment(page)
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.evaluate("""async () => {
+      const response = await fetch('/media/051bee487bfb5d13.png');
+      const image = await response.blob();
+      await navigator.clipboard.write([new ClipboardItem({'image/png': image})]);
+    }""")
+    field = page.locator(".lf-fab-input")
+    field.focus()
+    with page.expect_response(lambda response: response.url.endswith("/api/media")):
+        page.keyboard.press("ControlOrMeta+v")
+    expect(page.get_by_role("button", name="Remove pasted image 1")).to_be_visible()
+    settle(page)
+
+
+def share_link(page: Page) -> None:
+    """The standard readonly URL field reached by keyboard inside Share."""
+    page.get_by_role("button", name="More page controls", exact=True).click()
+    page.locator(".lf-share > summary").click()
+    page.keyboard.press("Tab")
+    expect(page.get_by_role("textbox", name="Share link", exact=True)).to_be_focused()
+
+
+def diff_filter(page: Page) -> None:
+    """A nonempty file filter with Clear and its match count inside one field."""
+    field = page.locator("#pr-key-hunk").get_by_role(
+        "searchbox", name="Filter diff files"
+    )
+    field.scroll_into_view_if_needed()
+    page.keyboard.press("Tab")
+    field.fill("no-match")
+    expect(field).to_have_value("no-match")
+    settle(page)
+
+
+def playground_text(page: Page) -> None:
+    """A playground's native text control with the shared field face and focus."""
+    field = page.get_by_role("textbox", name="Notification title", exact=True)
+    field.scroll_into_view_if_needed()
+    page.keyboard.press("Tab")
+    field.fill("Deployment ready")
+    expect(field).to_have_value("Deployment ready")
+
+
 def card_by_pointer(page: Page) -> None:
     """The first margin card, opened by a click on its marker."""
     page.locator(".lf-margin-marker").first.click()
@@ -588,6 +634,10 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         tab_by_pointer,
         boxed_tab_by_keyboard,
         drawing_comment,
+        drawing_photo_comment,
+        share_link,
+        diff_filter,
+        playground_text,
         card_by_pointer,
         card_by_keyboard,
         card_more_room,
@@ -710,6 +760,25 @@ class State:
 
 
 STATES = (
+    State("drawing-photo-comment", "developer/feature-gallery", drawing_photo_comment),
+    State("share-link", "developer/feature-gallery", share_link),
+    State("share-link-dark", "developer/feature-gallery", share_link, scheme="dark"),
+    State("diff-filter", "pr-walkthrough", diff_filter),
+    State(
+        "diff-filter-phone-dark",
+        "pr-walkthrough",
+        diff_filter,
+        viewport=(390, 844),
+        scheme="dark",
+        touch=True,
+    ),
+    State("playground-text", "notification-playground", playground_text),
+    State(
+        "playground-text-dark",
+        "notification-playground",
+        playground_text,
+        scheme="dark",
+    ),
     State("drawing-comment", "developer/feature-gallery", drawing_comment),
     State(
         "drawing-comment-dark",

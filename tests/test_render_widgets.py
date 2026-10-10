@@ -10935,11 +10935,9 @@ def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(
     progress = diff.locator(".lf-diff-progress")
     rows = diff.locator(".lf-diff-file:not(.lf-diff-filtered)")
     geometry = """host => Object.fromEntries(
-      ['.lf-diff-tools', '.lf-diff-search input']
+      ['.lf-diff-search', '.lf-diff-progress']
         .map(selector => {
-          const node = selector.includes(' input')
-            ? host.shadowRoot.querySelector('.lf-diff-search').shadowRoot.querySelector('input')
-            : host.shadowRoot.querySelector(selector);
+          const node = host.shadowRoot.querySelector(selector);
           if (!node) return [selector, null];
           const {x, y, width, height} = node.getBoundingClientRect();
           return [selector, {x, y, width, height}];

@@ -12,8 +12,9 @@
    ordinary length serialization would round distant document positions before comparing
    them. Scrolling moves a row with its target on the compositor, whether the
    document scrolls or a pane does, with no pass at all.
-   Resize deliveries settle placement before their native paint; deferring that pass
-   to the next frame would show a row at its stale seat after its target changed.
+   Mutation checkpoints and resize deliveries settle placement before native paint;
+   deferring that pass to the next frame would show a row at its stale seat after its
+   target changed.
 
    Zero-size lanes start at the document origin. Root scrolling carries their rows
    natively. A row whose target scrolls inside a box short of the document stands in
@@ -46,7 +47,12 @@
    `display: contents` while its rendered descendants remain usable, and a collapsed
    target has no rendered part to offer. */
 import { TAB_STOP } from "/runtime/control-selectors.js";
-import { cancelRender, nextRender, sizeObserver } from "/runtime/rendering.js";
+import {
+  afterScript,
+  cancelRender,
+  nextRender,
+  sizeObserver,
+} from "/runtime/rendering.js";
 import {
   shellRight,
   shownBand,
@@ -55,7 +61,14 @@ import {
   shownWindow,
   skipped,
 } from "/runtime/geometry.js";
-import { renderedParent, shadowHost, under, upFrom } from "/runtime/shadow.js";
+import {
+  renderedChildren,
+  renderedParent,
+  renderedUnder,
+  shadowHost,
+  under,
+  upFrom,
+} from "/runtime/shadow.js";
 import { scrollerFor } from "/runtime/reading-regions.js";
 import { boundedBlockOf } from "/runtime/bounds.js";
 import { pageScroller } from "/runtime/scrolling.js";
@@ -110,12 +123,12 @@ function watchGeometry(geometry) {
   });
 }
 const GAP = 4;
-// The id of the thread card a margin row opens (margin-projection.js).
+// The id of the thread card a margin row opens (thread-preview.js).
 export const THREAD_CARD = "lf-margin-preview";
 // A row the user holds, which packing seats before every other (`packRows`): one under
 // the pointer, with focus in it, or whose entry has the thread card open, as that entry's
 // disclosure relation says (margin-projection.js, `syncReadingRelation`). The card stands
-// relative to its row (margin-projection.js), so a standing row whose target moves into
+// relative to its row (thread-preview.js), so a standing row whose target moves into
 // it would otherwise push the row down and the card the user is reading with it.
 const HELD = `:hover, :focus-within, :has([aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
 let pending = 0;
@@ -428,13 +441,20 @@ function hearTargetChanges(root) {
   root.addEventListener("slotchange", scheduleMarginLayout);
   // Resize delivery follows layout. A target or its anchored part removed by a widget
   // would therefore paint the row's fallback before the next layout pass withheld it.
-  // Hear those moves at their mutation checkpoint, before paint;
+  // Child-list changes in the measured layout can move a target without resizing it,
+  // including when native scroll anchoring preserves its viewport position.
+  // Hear those changes and target moves at their mutation checkpoint, before paint;
   // a remove-and-reinsert in one batch is a move, not a departure.
   new MutationObserver((records) => {
     if (
-      records.some((record) => record.type === "attributes" && !inChrome(record.target))
+      records.some(
+        (record) =>
+          !inChrome(record.target) &&
+          (record.type === "attributes" ||
+            (record.type === "childList" && wantedGeometry.has(record.target))),
+      )
     )
-      scheduleMarginLayout();
+      afterScript(layoutMarginRows);
     const moved = records
       .flatMap((record) => [...record.removedNodes, ...record.addedNodes])
       .filter((node) => node instanceof Element);
@@ -615,7 +635,7 @@ function coverIn(root, band, target, block, bands, stop) {
   const meets = (box) => box.bottom > band.top && box.top < band.bottom;
   const edges = ({ left, top, right, bottom }) => ({ left, top, right, bottom });
   const visit = (el) => {
-    for (const node of el.childNodes) {
+    for (const node of renderedChildren(el)) {
       if (node.nodeType === Node.TEXT_NODE) {
         if (!node.data.trim()) continue;
         const words = document.createRange();
@@ -632,7 +652,7 @@ function coverIn(root, band, target, block, bands, stop) {
       const box = node.getBoundingClientRect();
       const boxless = !box.width && !box.height;
       if (!boxless && !meets(box)) continue;
-      const holds = node !== target && under(target, node);
+      const holds = node !== target && renderedUnder(target, node);
       const control = node.matches(TAB_STOP);
       if (
         !boxless &&
@@ -654,7 +674,7 @@ function coverIn(root, band, target, block, bands, stop) {
           continue;
         }
         if (
-          !under(node, block) &&
+          !renderedUnder(node, block) &&
           !style.display.startsWith("inline") &&
           style.display !== "contents"
         )
@@ -667,7 +687,7 @@ function coverIn(root, band, target, block, bands, stop) {
         if (summary) visit({ childNodes: [summary] });
         continue;
       }
-      visit(node.shadowRoot ?? node);
+      visit(node);
     }
   };
   visit(root);

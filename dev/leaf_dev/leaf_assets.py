@@ -33,11 +33,11 @@ publication leave Leaf's consumers unchanged.
 """
 
 import json
+import os
 import re
 import subprocess
 import tarfile
 import tempfile
-import urllib.request
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Literal
@@ -69,22 +69,38 @@ def raw_prefix(repository: str) -> str:
 
 
 def _download(repository: str, revision: str, target: Path) -> None:
-    """Extract the archive's files into `target`, renamed into place whole so a
-    concurrent reader sees either nothing or the complete set."""
-    url = f"https://github.com/{repository}/archive/{revision}.tar.gz"
-    root = PurePosixPath(f"{repository.split('/')[1]}-{revision}")
+    """Fetch the pinned commit over Git and publish its files atomically.
+
+    Cloud environments allow Git transport where GitHub's archive endpoints are
+    blocked. Git archives the selected commit locally, so neither the remote head
+    nor checkout filters can change the bytes a pin selects.
+    """
+    url = f"https://github.com/{repository}.git"
     target.parent.mkdir(parents=True, exist_ok=True)
     try:
         with tempfile.TemporaryDirectory(dir=target.parent) as raw:
             payload = Path(raw) / "payload"
             payload.mkdir()
-            with (
-                urllib.request.urlopen(url, timeout=60) as response,
-                tarfile.open(fileobj=response, mode="r|gz") as bundle,
-            ):
+            git = Path(raw) / "repository.git"
+            run("git", "init", "--bare", str(git), cwd=Path(raw))
+            run("git", "fetch", "--depth", "1", url, revision, cwd=git)
+            archive = Path(raw) / "assets.tar"
+            run(
+                "git",
+                "-c",
+                f"core.attributesFile={os.devnull}",
+                "-c",
+                "core.autocrlf=false",
+                "archive",
+                "--worktree-attributes",
+                f"--output={archive}",
+                revision,
+                cwd=git,
+            )
+            with tarfile.open(archive) as bundle:
                 for member in bundle:
                     if member.isfile():
-                        path = payload / PurePosixPath(member.name).relative_to(root)
+                        path = payload / PurePosixPath(member.name)
                         path.parent.mkdir(parents=True, exist_ok=True)
                         path.write_bytes(bundle.extractfile(member).read())
             (payload / ".complete").write_text(revision, encoding="utf-8")
@@ -94,8 +110,8 @@ def _download(repository: str, revision: str, target: Path) -> None:
                 # Another build may have completed the same immutable revision first.
                 if not (target / ".complete").is_file():
                     raise
-    except (OSError, tarfile.TarError) as error:
-        raise RuntimeError(f"could not fetch {url}: {error}") from error
+    except (OSError, tarfile.TarError, RuntimeError) as error:
+        raise RuntimeError(f"could not fetch {url} at {revision}: {error}") from error
 
 
 def pinned_assets(root: Path = ROOT, *, revision_key: RevisionKey = "revision") -> Path:

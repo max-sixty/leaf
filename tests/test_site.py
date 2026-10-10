@@ -49,7 +49,7 @@ from playwright.sync_api import expect
 from render_cases_layout import banner_control
 
 # The suite's own page primitives, so a navigation here waits on what every other
-# navigation waits on. tests/AGENTS.md, "A wait consumes a fact the system states".
+# navigation waits on. tests/AGENTS.md, "Waits".
 from render_harness import (
     consume_browser_errors,
     displayed,
@@ -87,8 +87,7 @@ def pages_under(directory):
     """The pages a sweep walks, proved to exist before it walks them. Four of the
     checks below are loops over a glob and nothing else, so a directory that moved or
     was renamed turns every one of them into a sweep that pressed nothing — green, and
-    for the wrong reason (tests/AGENTS.md, "A sweep that walks controls by index must
-    prove it pressed them")."""
+    for the wrong reason (tests/AGENTS.md, "Sweeps over controls")."""
     pages = sorted(directory.glob("*.html"))
     assert pages, f"no pages under {directory}"
     return pages
@@ -255,10 +254,8 @@ def test_product_pages_vendor_the_composed_theme(site, monkeypatch):
         inputs = layer_model.layer_inputs(tuple(source_packages(page)))
         expected_theme = layer_model.composed_sheets(inputs)["theme.css"]
         target = site_build.product_page(site, page.name)
-        published = (target / "index.html").read_text()
         source_markup = page.read_text()
         assert 'href="/theme.css"' not in source_markup, page.name
-        assert published == source_markup, page.name
         assert (target / "theme.css").read_bytes() == expected_theme, page.name
 
 
@@ -308,7 +305,10 @@ def test_product_pages_are_published_as_complete_page_records(site):
     assert {source.name for source in sources} == set(site_build.PRODUCT_ROUTES)
     for source in sources:
         page = site_build.product_page(site, source.name)
-        assert (page / "index.html").read_bytes() == source.read_bytes()
+        expected = source.read_text()
+        if source.name == "examples.html":
+            expected = site_build.catalog_markup(expected)
+        assert (page / "index.html").read_text() == expected, source.name
         for name in (
             *schema_model.VENDORED_FILES,
             "events.jsonl",

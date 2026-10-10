@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -21,6 +22,7 @@ from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate import version as render_gate_model
+from leaf.render_gate.page_code import run_page_code
 from playwright.sync_api import expect
 from render_cases_layout import (
     BADGE_CHROME,
@@ -45,6 +47,7 @@ from render_harness import (
     example_media,
     leaf_page,
     open_page,
+    opened_tab,
     page_registry,
     panel_settled,
     primed,
@@ -540,6 +543,128 @@ def test_shot_captions_have_disjoint_targets_inside_their_rail(browser, serve, t
     expect(page.locator("lf-shot wa-comparison")).to_have_attribute("position", "0")
 
 
+@pytest.mark.parametrize("touch", [False, True])
+def test_shot_inspects_either_original_without_flipping_or_moving(
+    browser, serve, touch
+):
+    """Full-page evidence stays inspectable on a phone through the shared viewer.
+
+    Endpoint choice, inspection, and native modified navigation are separate routes;
+    closing the viewer returns to the same route without shifting the comparison.
+    A parent inspector can still withdraw the complete rail with controls off.
+    """
+    shots = {
+        "before": solid_png(1200, 600, (210, 220, 235)),
+        "after": solid_png(1200, 600, (235, 215, 205)),
+    }
+    sources = {
+        state: f"/media/{hashlib.sha256(data).hexdigest()[:16]}.png"
+        for state, data in shots.items()
+    }
+    source = SHOT_PAGE
+    for state in shots:
+        source = source.replace(SHOT_SRC[state], sources[state])
+    context = browser.new_context(
+        viewport={"width": 390 if touch else 1200, "height": 900}, has_touch=touch
+    )
+    page = open_page(
+        browser,
+        serve(source, media={sources[n]: d for n, d in shots.items()}),
+        context=context,
+    )
+    shot = page.locator("lf-shot")
+    shot.scroll_into_view_if_needed()
+    comparison = shot.locator("wa-comparison")
+    expect(comparison).to_have_attribute("position", "50")
+    before = shot.bounding_box()
+    links = shot.get_by_role("link")
+    link_bounds = [link.bounding_box() for link in links.all()]
+    assert len(link_bounds) == 2
+    assert link_bounds[0]["x"] + link_bounds[0]["width"] <= link_bounds[1]["x"]
+    assert not page.evaluate(
+        "performance.getEntriesByType('resource').some(e => e.name.includes('photoswipe'))"
+    )
+    viewer = page.get_by_role("dialog", name="Image preview")
+    for index, state in enumerate(("before", "after")):
+        link = shot.get_by_role(
+            "link", name=f"Open {state} image — the navigation rail"
+        )
+        floor = 44 if touch else 24
+        assert min(link_bounds[index]["width"], link_bounds[index]["height"]) >= floor
+        link.hover()
+        assert link.bounding_box() == link_bounds[index]
+        link.focus()
+        assert link.bounding_box() == link_bounds[index]
+        assert shot.bounding_box() == before
+        if touch:
+            link.tap()
+        else:
+            link.press("Enter")
+        expect(viewer).to_be_visible()
+        expect(viewer.locator(".lf-media-viewer-original")).to_have_attribute(
+            "href",
+            re.compile(re.escape(sources[state]) + "$"),
+        )
+        expect(viewer.locator(".lf-media-viewer-caption")).to_have_text(
+            f"{state}: the navigation rail"
+        )
+        viewer.get_by_role("button", name="Zoom to actual size", exact=True).click()
+        expect(viewer.locator("img.pswp__img")).to_have_css("width", "1200px")
+        page.keyboard.press("Escape")
+        expect(viewer).not_to_be_visible()
+        expect(link).to_be_focused()
+        expect(comparison).to_have_attribute("position", "50")
+        assert shot.bounding_box() == before
+        assert link.bounding_box() == link_bounds[index]
+
+    # A modified link retains its href and ordinary browser destination.
+    after = links.nth(1)
+    original = opened_tab(
+        page,
+        after.evaluate("link => link.href"),
+        lambda: after.click(modifiers=["ControlOrMeta"]),
+    )
+    assert original.url.endswith(sources["after"])
+    original.close()
+    expect(viewer).not_to_be_visible()
+    expect(comparison).to_have_attribute("position", "50")
+
+    shot.locator('.lf-shotcap[data-lf-state="before"]').click()
+    expect(comparison).to_have_attribute("position", "100")
+    comparison.click(position={"x": 20, "y": 40})
+    expect(comparison).to_have_attribute("position", "0")
+    assert shot.bounding_box() == before
+    shot.evaluate("node => node.setAttribute('alt', 'the updated rail')")
+    expect(after).to_have_accessible_name("Open after image — the updated rail")
+    after.click()
+    expect(viewer.locator(".lf-media-viewer-caption")).to_have_text(
+        "after: the updated rail"
+    )
+    page.keyboard.press("Escape")
+
+    # Parent-owned inspectors hide the same complete rail and keep the checkbox.
+    shot.evaluate("""node => {
+      node.dataset.lfShotControls = 'off';
+      node.querySelector('.lf-shotrail').style.display = 'none';
+    }""")
+    expect(comparison).to_have_count(0)
+    expect(links.first).not_to_be_visible()
+    box = shot.locator("input.lf-shotflip")
+    box.focus()
+    box.press("Space")
+    expect(box).not_to_be_checked()
+    assert shown_frames(page) == ["before"]
+    shot.evaluate("""node => {
+      node.removeAttribute('data-lf-shot-controls');
+      node.querySelector('.lf-shotrail').style.removeProperty('display');
+    }""")
+    expect(comparison).to_have_count(1)
+    expect(links.first).to_be_visible()
+    page.emulate_media(media="print")
+    expect(links.first).not_to_be_visible()
+    assert shown_frames(page) == ["before", "after"]
+
+
 def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     """The live pair is continuously comparable, with direct endpoint alternatives.
 
@@ -706,7 +831,9 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     assert after_caption.evaluate("node => getComputedStyle(node).backgroundColor") != (
         before_caption.evaluate("node => getComputedStyle(node).backgroundColor")
     )
-    assert "show after" not in shortcut_bar_text(page)
+    # A selectable caption owns Space even at its current endpoint so it cannot
+    # fall through to browser scrolling (the widget's existing command contract).
+    assert "show after" in shortcut_bar_text(page)
     after_caption.click()
     expect(comparison).to_have_attribute("position", "0")
     before_caption.click()
@@ -843,6 +970,109 @@ def test_a_tall_shot_drags_where_it_was_grabbed_without_moving_the_page(browser,
             abs(page.evaluate("document.scrollingElement.scrollTop") - scroll_before)
             <= 1
         )
+
+
+@pytest.mark.parametrize("holder", ["tabs", "pane"])
+def test_a_tall_shot_keeps_its_endpoint_labels_in_view(browser, serve, holder):
+    """The pair stays identifiable below page tabs and inside a workspace scroller."""
+    before = solid_png(390, 1200, (232, 226, 213))
+    after = solid_png(390, 1200, (214, 226, 235))
+    shot = f'<lf-shot id="sticky-shot" alt="a tall comparison" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>'
+    tail = '<p style="min-height: 1200px">Reading after the comparison.</p>'
+    if holder == "tabs":
+        markup = leaf_page(
+            "Sticky comparison",
+            f'<lf-tabs id="sticky-tabs"><lf-tab id="sticky-pair" label="Comparison"><lf-tabs id="embedded-tabs"><lf-tab id="embedded-pair" label="Pair">{shot}<div id="sideways-reading" data-bound="start" style="overflow:auto; width:100%"><div style="width:2000px"><p id="embedded-destination" style="margin-left:1600px; width:200px">A passage below the comparison.</p></div></div>{tail}</lf-tab><lf-tab id="embedded-notes" label="Notes"><p>Short notes.</p></lf-tab></lf-tabs>{tail}</lf-tab>'
+            '<lf-tab id="sticky-other" label="Other"><p>Another view.</p></lf-tab></lf-tabs>',
+        )
+    else:
+        markup = leaf_page(
+            "Sticky comparison",
+            f'<lf-pane id="sticky-pane" label="Comparison"><header>Comparison</header><section>{shot}{tail}</section></lf-pane>',
+            layout="workspace",
+        )
+    page = open_page(
+        browser,
+        serve(markup, media={SHOT_SRC["before"]: before, SHOT_SRC["after"]: after}),
+    )
+    resized(page, 1200, 800)
+    comparison = page.locator("#sticky-shot wa-comparison")
+    expect(comparison).to_be_visible()
+    rail = page.locator("#sticky-shot .lf-shotrail")
+    page.mouse.move(600, 350)
+    page.mouse.wheel(0, 600)
+    scroll_settled(page)
+    reading = rail.evaluate("""rail => {
+      const r = rail.getBoundingClientRect();
+      const pane = rail.closest('lf-pane')?.querySelector(':scope > section');
+      return {top: r.top, bottom: r.bottom,
+            expected: (pane ? pane.getBoundingClientRect().top
+              + parseFloat(getComputedStyle(pane).paddingTop) : 0)
+          + parseFloat(getComputedStyle(rail).top)};
+    }""")
+    assert abs(reading["top"] - reading["expected"]) <= 1, reading
+    for state, position in (("before", "100"), ("after", "0")):
+        rail.locator(f'[data-lf-state="{state}"]').click()
+        expect(comparison).to_have_attribute("position", position)
+    scroll = page.evaluate("document.scrollingElement.scrollTop")
+    page.keyboard.press("Shift+Tab")
+    scroll_settled(page)
+    assert abs(page.evaluate("document.scrollingElement.scrollTop") - scroll) <= 1
+    if holder == "tabs":
+        outer = page.locator("#sticky-tabs > .lf-tabstrip").bounding_box()
+        inner = page.locator("#embedded-tabs > .lf-tabstrip").bounding_box()
+        assert inner["y"] == pytest.approx(outer["y"] + outer["height"], abs=1)
+        assert reading["top"] == pytest.approx(inner["y"] + inner["height"], abs=1)
+        page.locator("#embedded-tabs > .lf-tabstrip").get_by_role(
+            "tab", name="Notes", exact=True
+        ).click()
+        scroll_settled(page)
+        assert (
+            page.locator("#embedded-notes p").bounding_box()["y"]
+            >= inner["y"] + inner["height"]
+        )
+        page.keyboard.press("ArrowLeft")
+        scroll_settled(page)
+        expect(page.locator("#embedded-pair")).to_be_visible()
+        page.mouse.wheel(0, 600)
+        scroll_settled(page)
+        landed = page.evaluate("""async () => {
+          const {scrollIntoReadingBand} = await window.__lfRuntimeImport('/runtime/landing-scroll.js');
+          const {scrollToFragment} = await window.__lfRuntimeImport('/runtime/anchor-travel.js');
+          const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+          const passage = document.querySelector('#embedded-destination');
+          const strip = document.querySelector('#embedded-tabs > .lf-tabstrip');
+          scrollToFragment(passage);
+          const elementTop = passage.getBoundingClientRect().top;
+          const range = document.createRange();
+          range.selectNodeContents(passage);
+          scrollIntoReadingBand(range, passage, 'start', 'instant');
+          return {elementTop, rangeTop: range.getBoundingClientRect().top,
+            rangeBottom: range.getBoundingClientRect().bottom,
+            landingBottom: landingBand(document.scrollingElement).bottom,
+            stripBottom: strip.getBoundingClientRect().bottom,
+            sidewaysVisible: passage.getBoundingClientRect().right <= document.querySelector('#sideways-reading').getBoundingClientRect().right + 1};
+        }""")
+        assert landed["sidewaysVisible"], landed
+        assert landed["elementTop"] >= landed["stripBottom"] - 1, landed
+        assert landed["rangeTop"] >= landed["stripBottom"] - 1, landed
+        assert landed["rangeBottom"] <= landed["landingBottom"] + 1, landed
+        page.locator("#sticky-shot").evaluate("""node => {
+          const tab = document.querySelector('#sticky-tabs [role="tab"]');
+          const r = tab.getBoundingClientRect();
+          document.scrollingElement.scrollBy(0,
+            node.getBoundingClientRect().bottom - (r.top + r.height / 2 + 5));
+        }""")
+        scroll_settled(page)
+        assert page.locator('#sticky-tabs [role="tab"]').first.evaluate("""tab => {
+          const r = tab.getBoundingClientRect();
+          return document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+            ?.closest('[role="tab"]') === tab;
+        }"""), "the departing comparison header covered the page tabs"
+    page.locator("#sticky-shot").evaluate("node => node.scrollIntoView({block: 'end'})")
+    page.mouse.wheel(0, 1000)
+    scroll_settled(page)
+    assert rail.bounding_box()["y"] < reading["top"] - 100
 
 
 def test_a_shot_adopts_a_fallback_choice_when_the_divider_arrives(browser, serve):
@@ -1253,6 +1483,61 @@ FILM_DECLARATION = {
 FILM_PAGE = LONG_PAGE.replace(
     "</main>", '<lf-film id="film"></lf-film><lf-loader id="loader"></lf-loader></main>'
 )
+
+
+def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
+    browser, serve
+):
+    url = serve(
+        FILM_PAGE.replace("</main>", '<img src="/page/missing-image.png"></main>'),
+        page_files={
+            "registry.json": json.dumps(FILM_DECLARATION),
+            "film.js": 'import { label } from "./helper.js";\n'
+            "export const paint = el => (el.textContent = label);\n",
+            "helper.js": 'export const label = "loaded";\n',
+            "widgets/lf-film.js": 'import { paint } from "../film.js";\n'
+            "customElements.define('lf-film', class extends HTMLElement {\n"
+            "  connectedCallback() { paint(this); }\n"
+            "});\n",
+            "widgets/lf-loader.js": "customElements.define('lf-loader', class extends HTMLElement {\n"
+            "  connectedCallback() { this.textContent = 'loaded'; }\n"
+            "});\n",
+        },
+        media={"page/missing-image.png": solid_png(1, 1, (0, 0, 0))},
+    )
+
+    class RoutedBrowser:
+        def __init__(self, *, fail_helper):
+            self.fail_helper = fail_helper
+
+        def new_page(self, **kwargs):
+            page = browser.unwatched.new_page(**kwargs)
+            page.route(
+                "**/page/helper.js",
+                lambda route: (
+                    route.abort("failed") if self.fail_helper else route.continue_()
+                ),
+            )
+            page.route(
+                "**/page/missing-image.png", lambda route: route.fulfill(status=404)
+            )
+            return page
+
+    failed = run_page_code(RoutedBrowser(fail_helper=True), url)
+    assert any("page failed to start" in report for report in failed), failed
+    assert any(
+        "Browser request failed (Script, net::ERR_FAILED)" in report
+        and f"in {url}:" in report
+        and "/page/helper.js" in report
+        for report in failed
+    ), failed
+    assert any(
+        "Browser request returned HTTP 404 (Image)" in report
+        and "/page/missing-image.png" in report
+        for report in failed
+    ), failed
+
+    assert run_page_code(RoutedBrowser(fail_helper=False), url) == []
 
 
 def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_shell):

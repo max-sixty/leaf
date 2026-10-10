@@ -126,16 +126,4 @@ export const runtime = {
 // live feed.
 export const passiveSample = document.body.hasAttribute("data-lf-sample-passive");
 
-export const revisionLabel = (revision) => {
-  const stamped = runtime.versions.find((candidate) => candidate.revision === revision);
-  if (stamped) return `v${stamped.version}`;
-  let previous = null;
-  for (const candidate of runtime.versions) {
-    if (
-      candidate.revision < revision &&
-      (previous === null || candidate.revision > previous.revision)
-    )
-      previous = candidate;
-  }
-  return previous ? `Draft after v${previous.version}` : "Draft";
-};
+export const revisionLabel = (revision) => runtime.state.revision_labels[revision];

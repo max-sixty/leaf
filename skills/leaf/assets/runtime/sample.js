@@ -19,6 +19,31 @@ import { discardPageStorage } from "./storage.js";
 import { dressFor, wear } from "./dress.js";
 import { widgetDescriptor } from "./widget-descriptors.js";
 
+// A page can carry many samples. Their child documents each import the runtime;
+// presenting them together can exhaust the browser's request pool before any child
+// finishes loading its module graph. Bound simultaneous loads across this page. A
+// loaded child can keep reading slow state without holding up the next sample.
+const MAX_LOADING_SAMPLES = 3;
+let loadingSamples = 0;
+const loadWaiters = [];
+async function loadWithinLimit(work) {
+  if (loadingSamples === MAX_LOADING_SAMPLES)
+    await new Promise((resolve) => loadWaiters.push(resolve));
+  else loadingSamples++;
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    if (loadWaiters.length) loadWaiters.shift()();
+    else loadingSamples--;
+  };
+  try {
+    return await work(release);
+  } finally {
+    release();
+  }
+}
+
 async function request(url, body, headers = {}) {
   const response = await fetch(url, {
     method: "POST",
@@ -33,7 +58,7 @@ async function request(url, body, headers = {}) {
 
 // Presentation waits on the child's state read, which can be slow without failing.
 // The child reports startup errors; the owner cancels a replaced or detached frame.
-function presented(frame, url, signal) {
+function presented(frame, url, signal, onLoaded) {
   const expected = new URL(url);
   expected.hash = "";
   return new Promise((resolve, reject) => {
@@ -70,6 +95,7 @@ function presented(frame, url, signal) {
         finish(new Error(`Leaf sample document did not start: ${url}`));
         return;
       }
+      onLoaded();
       const inspect = () => {
         const failure = doc.documentElement.dataset.lfStartupError;
         if (failure) finish(new Error(failure));
@@ -138,25 +164,27 @@ export function mountSample(
 
   async function replace() {
     await retire();
-    if (destroyed) throw new DOMException("sample destroyed", "AbortError");
-    const { url } = await request(
-      pageUrl("api/samples"),
-      { template, passive },
-      revision ? { "Leaf-View-Revision": String(revision) } : {},
-    );
-    current = new URL(url, location.href).href;
-    try {
+    return loadWithinLimit(async (release) => {
       if (destroyed) throw new DOMException("sample destroyed", "AbortError");
-      loading = new AbortController();
-      const doc = await presented(frame, current, loading.signal);
-      if (!passive) doc.body.toggleAttribute("inert", false);
-      return doc;
-    } catch (error) {
-      await retire();
-      throw error;
-    } finally {
-      loading = null;
-    }
+      const { url } = await request(
+        pageUrl("api/samples"),
+        { template, passive },
+        revision ? { "Leaf-View-Revision": String(revision) } : {},
+      );
+      current = new URL(url, location.href).href;
+      try {
+        if (destroyed) throw new DOMException("sample destroyed", "AbortError");
+        loading = new AbortController();
+        const doc = await presented(frame, current, loading.signal, release);
+        if (!passive) doc.body.toggleAttribute("inert", false);
+        return doc;
+      } catch (error) {
+        await retire();
+        throw error;
+      } finally {
+        loading = null;
+      }
+    });
   }
 
   function reset() {

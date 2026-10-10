@@ -25,6 +25,7 @@ from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    PANEL_PAGE,
     SUGGESTION_PAGE,
     THREAD_ASKS,
     live_url,
@@ -906,6 +907,32 @@ def test_every_suggestion_activation_dismisses_a_standing_selection(
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     expect(page.locator(".lf-composer")).to_be_hidden()
     assert page.evaluate("getSelection().isCollapsed")
+
+
+def test_focusing_a_selected_comment_field_keeps_its_captured_passage(browser, serve):
+    """The field survives the native selection collapse caused by entering it."""
+    page = open_page(browser, serve(SUGGESTION_PAGE))
+    box = page.locator("#replace").bounding_box()
+    select(
+        page,
+        (box["x"] + 4, box["y"] + 6),
+        (box["x"] + box["width"] - 8, box["y"] + box["height"] - 6),
+        steps=16,
+    )
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    field.focus()
+    expect(field).to_be_focused()
+    assert page.evaluate("getSelection().isCollapsed")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    write(page.locator(".lf-composer leaf-text"), "Keep this note")
+    page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").focus()
+    page.locator("#replace").select_text()
+    page.evaluate("getSelection().removeAllRanges()")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator(".lf-composer leaf-text")).to_have_js_property(
+        "value", "Keep this note"
+    )
 
 
 def test_the_floating_response_bar_has_one_compact_face(browser, serve):
@@ -2998,12 +3025,16 @@ def test_tab_between_two_staged_controls_turns_the_shortcut_bar_over(browser, se
 
     Such a move reaches the document as no focus event at all, so a repaint that waits
     for one leaves the line naming the keys of the control the user left, until the
-    heartbeat or a resize repaints it. A file's title and its Reviewed button make
+    heartbeat or a resize repaints it. A file's title and its comment button make
     different presses, and the line names them differently."""
-    page = open_page(
-        browser,
-        serve(DIFF_PAGE.replace('<lf-diff id="patch">', '<lf-diff id="patch" review>')),
+    url = serve(
+        DIFF_PAGE.replace(
+            '<lf-diff id="patch">', '<lf-diff id="patch" source="review-patch">'
+        )
     )
+    patch = DIFF_PAGE.split("<pre>", 1)[1].split("</pre>", 1)[0]
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    page = open_page(browser, url)
     page.keyboard.press("Tab")  # keyboard modality, as a user reaching the title has
     title = page.locator("lf-diff summary.lf-diff-head").first
     title.scroll_into_view_if_needed()
@@ -3013,7 +3044,7 @@ def test_tab_between_two_staged_controls_turns_the_shortcut_bar_over(browser, se
     assert "hide this file" in on_title, on_title
 
     page.keyboard.press("Tab")
-    expect(page.locator("lf-diff .lf-diff-review:focus")).to_have_count(1)
+    expect(page.locator("lf-diff .lf-diff-file-comment:focus")).to_have_count(1)
     said = shortcut_bar_text(page)
     assert "next hunk" in said, said
     assert "this file" not in said, said
@@ -6441,7 +6472,7 @@ def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve
     page.locator("lf-diff summary").first.click()
     first = page.locator('lf-diff [data-lf-datum=\'["first.py","new",1]\']')
     expect(first).to_have_count(1)
-    page.locator("lf-diff .lf-diff-wrap").focus()
+    page.locator("lf-diff").evaluate("node => { node.tabIndex = -1; node.focus(); }")
     page.keyboard.press("]")
     expect(page.locator(".lf-walk-position")).to_have_text("Hunk 1 of 1")
 
@@ -6770,6 +6801,29 @@ def test_passage_range_spanning_shadow_root_children_reads_the_stage(browser, se
     )
     assert result["section"] == "patch"
     assert result["quote"] == "first last"
+
+
+def test_passage_at_either_shadow_host_edge_excludes_its_words(browser, serve):
+    page = open_page(browser, serve(PANEL_PAGE))
+    quotes = page.evaluate(
+        """async () => {
+          const {anchorForRange} = await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
+          const paragraph = document.querySelector('#how-cap').firstChild;
+          const diff = document.querySelector('#how-patch');
+          const range = document.createRange();
+          range.setStart(paragraph, 0);
+          range.setEnd(diff, 0);
+          const before = anchorForRange(range).quote;
+          const afterParagraph = document.querySelector('#merge-both').firstChild;
+          range.setStart(diff, diff.childNodes.length);
+          range.setEnd(afterParagraph, afterParagraph.length);
+          return [before, anchorForRange(range).quote];
+        }"""
+    )
+    assert quotes == [
+        "The store is capped at forty megabytes a workspace.",
+        "The merge rule Two people editing one document offline is the case to answer.",
+    ]
 
 
 def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):

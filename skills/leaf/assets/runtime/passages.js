@@ -731,7 +731,16 @@ export function selectionBackward(selection, range = pageRange(selection)) {
 // about: climb to whichever ancestor shares the range's root, and ask there.
 function coveredBy(range, node) {
   const n = hostIn(node, range.commonAncestorContainer.getRootNode());
-  return Boolean(n) && range.intersectsNode(n);
+  if (!n || !range.intersectsNode(n)) return false;
+  // A host represents its shadow words only while the range actually enters it.
+  // intersectsNode includes an endpoint at the host's edge, even when no shadow
+  // word is selected (for example, a triple-click ending at the next widget).
+  if (n !== node) {
+    if (range.endContainer === n && range.endOffset === 0) return false;
+    if (range.startContainer === n && range.startOffset === n.childNodes.length)
+      return false;
+  }
+  return true;
 }
 
 // The segments a selection covers, clipped to where it starts and ends.

@@ -9,6 +9,8 @@
 // request that starts it names its cause (`adoptReactive`).
 // Native edit starts identify their field through DOM capture or EditContext's
 // attachment; a watch confirms the value that field's input commits.
+// Parent input bridges belong to the child document. Pagehide releases them before
+// its realm goes away; a back-forward cache return reconnects the same bridges.
 // The watch's own scheduling uses the saved platform methods and is never counted.
 (() => {
   "use strict";
@@ -22,6 +24,20 @@
   let order = 0;
   const then = Promise.prototype.then;
   const parents = [];
+  const parentConnections = [];
+  const stopParents = [];
+  const connectParent = (connect) => {
+    parentConnections.push(connect);
+    stopParents.push(connect());
+  };
+  addEventListener("pagehide", () => {
+    for (const stop of stopParents) stop();
+    stopParents.length = 0;
+  });
+  addEventListener("pageshow", (event) => {
+    if (event.persisted)
+      for (const connect of parentConnections) stopParents.push(connect());
+  });
   let callbackSource = null;
   let callbackDepth = 0;
   const localSource = (source) => {
@@ -240,37 +256,52 @@
       break;
     }
     if (view !== window && view.lfInputWork) {
-      parents.push(view.lfInputWork);
-      view.lfInputWork.subscribeEdits((source) => {
-        for (const subscriber of editSubscribers) subscriber(localSource(source));
-      });
-      view.lfInputWork.subscribe((source, completedEdit) => {
-        if (!source) return checkpoint(source, completedEdit);
-        checkpoint(localSource(source), completedEdit);
+      const parent = view.lfInputWork;
+      parents.push(parent);
+      connectParent(() => {
+        const stopEdits = parent.subscribeEdits((source) => {
+          for (const subscriber of editSubscribers) subscriber(localSource(source));
+        });
+        const stop = parent.subscribe((source, completedEdit) => {
+          if (!source) return checkpoint(source, completedEdit);
+          checkpoint(localSource(source), completedEdit);
+        });
+        return () => {
+          stopEdits();
+          stop();
+        };
       });
       if (view === view.parent) break;
       continue;
     }
+    const callbacks = [];
     for (const type of inputTypes) {
-      view.addEventListener(
-        type,
-        (event) => {
-          if (!event.isTrusted) return;
-          beginSource(
-            event,
-            event.composedPath()[0],
-            event.type === "beforeinput" || editorCommands.includes(event.type),
-          );
-          // The browser compiles handler attributes without invoking our setter.
-          // Adopt those callbacks before target dispatch, preserving getter identity.
-          for (const node of event.composedPath()) {
-            const name = `on${type}`;
-            if (typeof node?.[name] === "function") node[name] = node[name];
-          }
-        },
-        true,
-      );
+      const callback = (event) => {
+        if (!event.isTrusted) return;
+        beginSource(
+          event,
+          event.composedPath()[0],
+          event.type === "beforeinput" || editorCommands.includes(event.type),
+        );
+        // The browser compiles handler attributes without invoking our setter.
+        // Adopt those callbacks before target dispatch, preserving getter identity.
+        for (const node of event.composedPath()) {
+          const name = `on${type}`;
+          if (typeof node?.[name] === "function") node[name] = node[name];
+        }
+      };
+      callbacks.push([type, callback]);
     }
+    const listen = () => {
+      for (const [type, callback] of callbacks)
+        view.addEventListener(type, callback, true);
+      return () => {
+        for (const [type, callback] of callbacks)
+          view.removeEventListener(type, callback, true);
+      };
+    };
+    if (view === window) listen();
+    else connectParent(listen);
     if (view === view.parent) break;
   }
   addEventListener("storage", (event) => {

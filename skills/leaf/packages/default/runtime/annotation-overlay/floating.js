@@ -164,17 +164,20 @@ const held = {
     if (Math.abs(shifted.y ?? 0) >= 0.5) edges.y = shifted.y < 0 ? "bottom" : "top";
     const parent = await platform.getOffsetParent(elements.floating);
     const block = parent === window ? document.documentElement : parent;
-    // In standards mode the root's client dimensions are already viewport pixels;
-    // only the floating box's scale converts them to its positioning pixels.
-    const scale = parent === window ? await positioningScale(state) : { x: 1, y: 1 };
+    // Client dimensions belong to the block's CSS pixels, except the standards-mode
+    // root's viewport pixels. Cross through the platform's viewport conversion so
+    // a surface zoomed relative to an element block keeps the same positioning units.
+    const scale = await positioningScale(state);
+    const blockScale =
+      parent === window ? { x: 1, y: 1 } : await platform.getScale(parent);
     return {
       data: {
         edges,
         width: rects.floating.width,
         height: rects.floating.height,
         block: {
-          width: block.clientWidth / scale.x,
-          height: block.clientHeight / scale.y,
+          width: (block.clientWidth * blockScale.x) / scale.x,
+          height: (block.clientHeight * blockScale.y) / scale.y,
         },
       },
     };

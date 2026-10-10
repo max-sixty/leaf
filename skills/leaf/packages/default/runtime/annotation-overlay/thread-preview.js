@@ -156,7 +156,11 @@ export function createThreadPreview({
       width: box.width,
       height: box.height,
       messageMeasure: element.writingInlineSize,
-      messageHeight: parseFloat(style.height),
+      // A clipped editor owns a reading viewport to carry through Send. A fitting
+      // editor's height is only its current wrapping, which a new card width may
+      // change; imposing that old height would make short words scroll needlessly.
+      messageHeight:
+        element.scrollHeight > element.clientHeight ? parseFloat(style.height) : null,
       endRoom: element.endRoom ?? "none",
       scroll: element.scrollTop,
     };
@@ -217,7 +221,9 @@ export function createThreadPreview({
       "--lf-comment-message-measure":
         previewSession.messageViewport && `${origin.messageMeasure}px`,
       "--lf-comment-message-height":
-        previewSession.messageViewport && `${origin.messageHeight}px`,
+        previewSession.messageViewport && origin.messageHeight !== null
+          ? `${origin.messageHeight}px`
+          : null,
     };
     for (const [name, value] of Object.entries(properties))
       if (value) preview.style.setProperty(name, value);

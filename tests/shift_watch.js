@@ -2295,6 +2295,10 @@
   };
   const pendingMotion = [];
   const protectedMotion = (around) => {
+    // Initialization and reading returns deliberately replace the page's layout.
+    // Do not retain either endpoint from that presentation for a later paint to
+    // admit: callback samples can precede the native frame that ends the boundary.
+    if (around.some(({ at }) => presenting({ startTime: at }))) return;
     const growth = appendGrowth(around);
     for (const node of new Set(around.flatMap(({ nodes }) => nodes))) {
       const readings = around.map(({ at }) => readingAt(node, at));

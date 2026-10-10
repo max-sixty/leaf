@@ -11665,59 +11665,105 @@ def test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor(
 def test_touch_capture_can_cancel_and_reopen_before_attaching(browser, serve):
     page = capture_page(browser, serve, touch=True)
 
+    # Keep the drag's input client alive until the gesture journey ends.
+    touch = page.context.new_cdp_session(page)
+    page.evaluate("""() => {
+        const identities = new WeakMap();
+        let nextId = 0;
+        window.captureTouchEvents = [];
+        for (const type of ['pointerdown', 'pointerup', 'pointercancel',
+                            'touchstart', 'touchend', 'touchcancel', 'click']) {
+            window.addEventListener(type, event => {
+                const target = event.composedPath()[0];
+                if (!identities.has(target)) identities.set(target, ++nextId);
+                window.captureTouchEvents.push({
+                    type, timeStamp: event.timeStamp,
+                    pointerType: event.pointerType, pointerId: event.pointerId,
+                    target: target.getAttribute('aria-label') || target.tagName,
+                    identity: identities.get(target), disabled: target.disabled,
+                    preventedAtWindow: event.defaultPrevented,
+                    capture: document.documentElement.hasAttribute('data-lf-region-capture'),
+                });
+            }, {capture: true, passive: true});
+        }
+    }""")
+
     def drag_area():
         target = page.locator("#capture-target").bounding_box()
         left, top = int(target["x"]) + 10, int(target["y"]) + 20
-        touch = page.context.new_cdp_session(page)
-        try:
-            for kind, points in (
-                ("touchStart", [{"x": left, "y": top}]),
-                ("touchMove", [{"x": left + 180, "y": top + 130}]),
-                ("touchEnd", []),
-            ):
-                touch.send(
-                    "Input.dispatchTouchEvent", {"type": kind, "touchPoints": points}
-                )
-        finally:
-            touch.detach()
+        for kind, points in (
+            ("touchStart", [{"x": left, "y": top}]),
+            ("touchMove", [{"x": left + 180, "y": top + 130}]),
+            ("touchEnd", []),
+        ):
+            touch.send(
+                "Input.dispatchTouchEvent", {"type": kind, "touchPoints": points}
+            )
 
-    before = events_model.read_events(serve.page_dir)
-    before_media = sorted((serve.page_dir / "media").iterdir())
-    surface = open_capture_area(page, touch=True)
-    drag_area()
-    page.get_by_role("button", name="Cancel capture", exact=True).tap()
-    expect(surface).to_be_hidden()
-    expect(page.locator(".lf-composer-media-item")).to_have_count(0)
-    assert events_model.read_events(serve.page_dir) == before
-    assert sorted((serve.page_dir / "media").iterdir()) == before_media
-    surface = open_capture_area(page, touch=True)
-    drag_area()
-    page.get_by_role("button", name="Cancel capture", exact=True).press("Enter")
-    expect(surface).to_be_hidden()
-    expect(page.locator(".lf-composer-media-item")).to_have_count(0)
-    surface = open_capture_area(page, touch=True)
-    page.keyboard.press("Escape")
-    expect(surface).to_be_hidden()
-    expect(page.locator(".lf-composer-media-item")).to_have_count(0)
-    surface = open_capture_area(page, touch=True)
-    # A new press must belong to its own gesture, even before queued work from
-    # the preceding drag runs. Keep that ordering independent of machine load.
-    page.clock.install(time=0)
-    page.clock.pause_at(1)
-    drag_area()
-    expect(surface.locator(".lf-region-selection")).to_be_visible()
-    with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        page.get_by_role("button", name="Attach capture", exact=True).tap()
-        assert surface.get_attribute("aria-busy") == "true", (
-            "the first confirmation tap must start capture before drag timers run"
+    try:
+        before = events_model.read_events(serve.page_dir)
+        before_media = sorted((serve.page_dir / "media").iterdir())
+        surface = open_capture_area(page, touch=True)
+        drag_area()
+        page.get_by_role("button", name="Cancel capture", exact=True).tap()
+        expect(surface).to_be_hidden()
+        expect(page.locator(".lf-composer-media-item")).to_have_count(0)
+        assert events_model.read_events(serve.page_dir) == before
+        assert sorted((serve.page_dir / "media").iterdir()) == before_media
+        surface = open_capture_area(page, touch=True)
+        drag_area()
+        page.get_by_role("button", name="Cancel capture", exact=True).press("Enter")
+        expect(surface).to_be_hidden()
+        expect(page.locator(".lf-composer-media-item")).to_have_count(0)
+        surface = open_capture_area(page, touch=True)
+        page.keyboard.press("Escape")
+        expect(surface).to_be_hidden()
+        expect(page.locator(".lf-composer-media-item")).to_have_count(0)
+        surface = open_capture_area(page, touch=True)
+        # A new press must belong to its own gesture, even before queued work from
+        # the preceding drag runs. Keep that ordering independent of machine load.
+        page.clock.install(time=0)
+        page.clock.pause_at(1)
+        drag_area()
+        expect(surface.locator(".lf-region-selection")).to_be_visible()
+        with page.expect_response(lambda response: response.url.endswith("/api/media")):
+            page.get_by_role("button", name="Attach capture", exact=True).tap()
+            assert surface.get_attribute("aria-busy") == "true", (
+                "the first confirmation tap must start capture before drag timers run"
+            )
+            page.clock.resume()
+        expect(surface).to_be_hidden()
+        attachment = page.locator(".lf-composer-media-item img")
+        expect(attachment).to_be_visible()
+        image = Image.open(serve.page_dir / attachment.get_attribute("src").lstrip("/"))
+        assert image.size == (360, 260)
+        assert events_model.read_events(serve.page_dir) == before
+    except Exception as error:
+        error.add_note(
+            json.dumps(
+                {
+                    "browser": browser.version,
+                    "touch_state": page.evaluate("""() => ({
+                        events: window.captureTouchEvents, scrollY,
+                        buttons: Array.from(document.querySelectorAll('button'))
+                            .filter(button => /^(Cancel|Attach) capture$/.test(
+                                button.getAttribute('aria-label')))
+                            .map(button => {
+                                const rect = button.getBoundingClientRect();
+                                return {
+                                    label: button.getAttribute('aria-label'),
+                                    disabled: button.disabled,
+                                    box: [rect.x, rect.y, rect.width, rect.height],
+                                };
+                            }),
+                    })"""),
+                },
+                indent=2,
+            )
         )
-        page.clock.resume()
-    expect(surface).to_be_hidden()
-    attachment = page.locator(".lf-composer-media-item img")
-    expect(attachment).to_be_visible()
-    image = Image.open(serve.page_dir / attachment.get_attribute("src").lstrip("/"))
-    assert image.size == (360, 260)
-    assert events_model.read_events(serve.page_dir) == before
+        raise
+    finally:
+        touch.detach()
 
 
 def test_capture_temporarily_owns_page_input_without_leaving_draw_mode(browser, serve):

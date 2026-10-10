@@ -37,6 +37,9 @@ forms or layout, read and follow `/ui-sweep` at `../ui-sweep/SKILL.md` on
 the changed surface and its dependent interactions. Its "External review"
 section owns selection and use of the tools below.
 
+For theme or reusable-control changes, its "Review a design system" section owns
+the review of foundations, component states, and their composition in a user task.
+
 ### External UI skills
 
 These are optional external installs, separate from Leaf's plugin. Check the

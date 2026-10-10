@@ -1,7 +1,7 @@
 {
   "producer": {
-    "commit": "e5d390a834c8",
-    "committed": "2026-10-09T22:38:34-07:00",
+    "commit": "8939e51b2a0d",
+    "committed": "2026-10-09T22:48:03-07:00",
     "dirty": false
   },
   "runtime_paths": [
@@ -79,6 +79,7 @@
     "drawers.js",
     "drawn-edge.js",
     "dress.js",
+    "file-api.js",
     "focus.js",
     "geometry.js",
     "held-word.js",

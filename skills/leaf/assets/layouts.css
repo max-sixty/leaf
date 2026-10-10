@@ -328,7 +328,7 @@
      * drawing's: one drawn at the stated height keeps it, and one whose content has a
      * height of its own takes that. A failure is shown whole, since the user has to read
      * it. */
-    html[data-lf-interactive] [data-lf-height]:not(.lf-rendered, :has(> .lf-error)) {
+    html[data-lf-interactive] [data-lf-height]:not([data-lf-height=""], .lf-rendered, :has(> .lf-error)) {
       box-sizing: border-box;
       block-size: attr(data-lf-height px);
       overflow: clip;

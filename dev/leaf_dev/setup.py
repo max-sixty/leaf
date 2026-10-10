@@ -9,7 +9,6 @@ against warm caches; there is no separate readiness record to invalidate.
 
 import shlex
 import subprocess
-from concurrent.futures import ThreadPoolExecutor
 
 import click
 from leaf.state import flocked, state_home_path
@@ -47,15 +46,7 @@ def setup() -> None:
                 "--only-shell",
             )
             run("uv", "run", "--frozen", "playwright", "install", "chrome")
-            # These dependency trees are independent; npm owns their installation.
-            with ThreadPoolExecutor(max_workers=3) as pool:
-                installs = [
-                    pool.submit(run, "npm", "ci"),
-                    pool.submit(run, "npm", "ci", "--prefix", "worker"),
-                    pool.submit(run, "npm", "ci", "--prefix", "evals"),
-                ]
-                for install in installs:
-                    install.result()
+            run("npm", "ci")
     except subprocess.CalledProcessError as error:
         raise click.ClickException(
             f"{shlex.join(error.cmd)} exited with status {error.returncode}"

@@ -74,10 +74,6 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: worker/package-lock.json
-
-      - run: npm ci
-        working-directory: worker
 
       - run: npm ci
 

@@ -2832,9 +2832,7 @@ flowchart TD
                   />
                   <g id="chrome-leaves-drawer">
                     <rect class="over" x="6" y="24" width="72" height="112" rx="5" />
-                    <text class="strong" x="42" y="44" text-anchor="middle">
-                      Leaves
-                    </text>
+                    <text class="strong" x="42" y="44" text-anchor="middle">Pages</text>
                     <text class="strong" x="42" y="58" text-anchor="middle">
                       drawer
                     </text>
@@ -3791,7 +3789,7 @@ flowchart LR
               A visible tab asks the server for a short freshness token about four times
               a second (<code>GET /api/news</code>). The token is a digest of the page
               directory's file stamps and of the agent's presence: whether its session
-              is alive, in a turn, or watching, and the neighboring pages the Leaves
+              is alive, in a turn, or watching, and the neighboring pages the Pages
               drawer shows. A new revision, an appended event, a replaced data source or
               a change in the agent's activity therefore changes it. When the token
               differs from the one behind the state the tab last applied, the tab reads

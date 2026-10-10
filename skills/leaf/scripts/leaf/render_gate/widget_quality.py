@@ -27,8 +27,9 @@ Each check has one name in `CHECKS`, which a finding carries:
   where a widget in ordinary flow grows with what it holds (`../../../assets/AGENTS.md`,
   "Space and scrolling"). A box that needs a scroll of its own says so with
   `--lf-holds-height: 1`, as a bounded block does. Its reading is `heldScrollers` in
-  `render-checks/widgets.js`, which adds a tall block to each scroller and reads whether
-  the box grew, so it is taken after `changedBoxes`, last on the page.
+  `render-checks/widgets.js`, which names a box that scrolls vertically now, or that
+  asks to and overflows once a tall block is added to it. It writes the page, so it is
+  taken after `changedBoxes`, last on the page.
 """
 
 import re

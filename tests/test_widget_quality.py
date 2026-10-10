@@ -83,8 +83,10 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
 
     `lf-pinned` keeps a height its theme sets and scrolls inside it, so it is named for
     not growing with its content even though its one line fits. `lf-declared` keeps the
-    same height and says so with `--lf-holds-height: 1`, and `lf-sideways` keeps it but
-    scrolls only sideways, so neither is."""
+    same height and says so with `--lf-holds-height: 1`, `lf-sideways` keeps it but asks
+    to scroll only sideways, and `lf-roomy` asks to scroll but grows past its minimum
+    height, so none of them is. `lf-shallow` asks only for sideways scrolling, but its
+    line runs past its height, so it scrolls vertically and is named."""
     package = tmp_path / "package"
     for widget in (
         "lf-grow",
@@ -95,6 +97,8 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
         "lf-pinned",
         "lf-declared",
         "lf-sideways",
+        "lf-roomy",
+        "lf-shallow",
     ):
         made = CliRunner().invoke(
             cli_model.cli, ["package", "init", str(package), "--widget", widget]
@@ -116,6 +120,8 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
         ":scope:is(lf-pinned) { overflow: auto; }\n"
         ":scope:is(lf-declared) { overflow: auto; --lf-holds-height: 1; }\n"
         ":scope:is(lf-sideways) { overflow-x: auto; }\n"
+        ":scope:is(lf-roomy) { display: flex; min-block-size: 100px; overflow: auto; }\n"
+        ":scope:is(lf-shallow) { display: block; block-size: 10px; overflow-x: auto; }\n"
     )
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
@@ -141,7 +147,7 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     assert ran.returncode == 0, ran.stderr
     lines = ran.stdout.splitlines()
     assert lines[1] == (
-        f"widget quality: 9 finding(s) for 8 widget(s) in {headless_shell}, "
+        f"widget quality: 10 finding(s) for 10 widget(s) in {headless_shell}, "
         "advice for the widgets' author:"
     ), ran.stdout
     assert lines[2] == "  · <lf-bare> example: no worked example shows it"
@@ -149,12 +155,21 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
         r"  · <(lf-[a-z]+) id='(\w+)'> keeps-first-box: "
         r"first painted (\d+)x(\d+), (\d+)x(\d+) once presented"
     )
-    assert lines[-1] == (
-        "  · <lf-pinned id='pinned'> grows-with-content: <lf-pinned id=pinned> holds "
-        "100px and scrolls inside it; let it grow with its content, or declare "
+    advice = (
+        "and scrolls inside it; let it grow with its content, or declare "
         "--lf-holds-height: 1 where the task needs its own scroll"
-    ), ran.stdout
-    readings = [finding.fullmatch(line) for line in lines[3:-1]]
+    )
+    assert lines[-2:] == [
+        (
+            "  · <lf-pinned id='pinned'> grows-with-content: <lf-pinned id=pinned> "
+            f"holds 100px {advice}"
+        ),
+        (
+            "  · <lf-shallow id='shallow'> grows-with-content: <lf-shallow id=shallow> "
+            f"holds 10px {advice}"
+        ),
+    ], ran.stdout
+    readings = [finding.fullmatch(line) for line in lines[3:-2]]
     assert all(readings), lines
     grown = {reading[2]: int(reading[6]) - int(reading[4]) for reading in readings}
     assert all(grown.pop(word) > 0 for word in ("word", "spoken", "line")), lines

@@ -380,16 +380,15 @@ export function changedBoxes() {
   }));
 }
 
-// How tall a block `heldScrollers` adds to a box: taller than any widget's own bound,
-// so a box that grew by less kept a height its content did not decide.
+// How tall a block `heldScrollers` adds to a box: taller than any widget's own bound.
 const ADDED_BLOCK = 4000;
 const WRITTEN_IN = `input, select, ${TEXT_BOX}`;
 
-// Whether `box` scrolls vertically because its CSS asks it to. Beside an `auto` inline
-// axis CSS computes a `visible` block axis to `auto`, so a box that scrolls only
-// sideways reads as a vertical scroller too; with its inline axis set back to `visible`
-// for one read, only an asked-for vertical scroll remains.
-const scrollsVertically = (box) => {
+// Whether `box`'s CSS asks it to scroll vertically. Beside an `auto` inline axis CSS
+// computes a `visible` block axis to `auto`, so a box that scrolls only sideways reads
+// as a vertical scroller too; with its inline axis set back to `visible` for one read,
+// only an asked-for vertical scroll remains.
+const asksVerticalScroll = (box) => {
   const style = box.getAttribute("style");
   box.style.setProperty("overflow-x", "visible", "important");
   const asked = /auto|scroll/.test(getComputedStyle(box).overflowY);
@@ -398,19 +397,28 @@ const scrollsVertically = (box) => {
   return asked;
 };
 
+const overflowsVertically = (box) => box.scrollHeight > box.clientHeight + ROUNDING;
+
 // Each box in one of `tags`' widgets that holds its own height and scrolls inside it
 // without saying so. A widget in ordinary flow grows with its content, and a box that
 // needs a scroll of its own declares `--lf-holds-height: 1`, as a bounded block does
-// (assets/AGENTS.md, "Space and scrolling"). Whether a box holds its height is asked of
-// the box rather than of the rule that sized it: a tall block is added at its end and
-// taken away in the same task, so a theme's height, a grid track and a percentage of a
-// held parent all answer alike, and an empty widget whose rows the log has not supplied
-// yet answers as a full one would. A box is its nearest Leaf widget's, across shadow
-// roots, so a vendored component's scroller answers to the widget that placed it.
-// A field the user writes in keeps its own box as they type, so form controls, text
-// fields and editable regions are left out. This writes the page, so only
-// a page nothing reads again, such as the report's page of worked examples, is read
-// this way.
+// (assets/AGENTS.md, "Space and scrolling").
+//
+// A box that scrolls vertically now holds its height, whatever it asked for. A box
+// whose CSS asks for vertical scrolling but whose content fits is asked again with more
+// content: a tall block is added at its end and taken away in the same task, and a box
+// that then overflows kept a height its content did not decide, whether a theme's
+// height, a grid track or a percentage of a held parent set it. So an empty widget whose
+// rows the log has not supplied yet answers as a full one would, and a box that grows
+// into the block, from a minimum height or beside a taller sibling, is not named. A box
+// that asks only for sideways scrolling is not asked again, since its height may be its
+// drawing's.
+//
+// A box is its nearest Leaf widget's, across shadow roots, so a vendored component's
+// scroller answers to the widget that placed it. A field the user writes in keeps its
+// own box as they type, so form controls, text fields and editable regions are left
+// out. This writes the page, so only a page nothing reads again, such as the report's
+// page of worked examples, is read this way.
 export function heldScrollers(tags) {
   const main = document.querySelector("main");
   if (!main) return [];
@@ -434,21 +442,23 @@ export function heldScrollers(tags) {
         continue;
       let owner = box;
       while (owner && !owner.localName.startsWith("lf-")) owner = upFrom(owner);
-      if (!owner || !own.has(owner.localName) || !scrollsVertically(box)) continue;
-      const before = box.clientHeight;
-      const block = document.createElement("div");
-      block.style.cssText =
-        `display: block; flex: none; block-size: ${ADDED_BLOCK}px; ` +
-        "inline-size: 0; margin: 0; padding: 0; border: 0";
-      (box.shadowRoot ?? box).append(block);
-      const grown = box.clientHeight - before;
-      block.remove();
-      if (grown < ADDED_BLOCK - ROUNDING)
+      if (!owner || !own.has(owner.localName)) continue;
+      let held = overflowsVertically(box);
+      if (!held && asksVerticalScroll(box)) {
+        const block = document.createElement("div");
+        block.style.cssText =
+          `display: block; flex: none; block-size: ${ADDED_BLOCK}px; ` +
+          "inline-size: 0; margin: 0; padding: 0; border: 0";
+        (box.shadowRoot ?? box).append(block);
+        held = overflowsVertically(box);
+        block.remove();
+      }
+      if (held)
         found.push({
           tag: owner.localName,
           id: owner.id,
           at: locate(box),
-          height: Math.round(before),
+          height: box.clientHeight,
         });
     }
   return found;

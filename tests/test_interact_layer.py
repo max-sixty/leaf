@@ -20,7 +20,6 @@ from interact_support import (
     COMMAND_HUB_PACKAGE,
     COMPOSITE_TIMEOUT,
     PAGE,
-    PAGE_PACKAGES,
     PLUGIN_ROOT,
     ROOT,
     SHIPPED_PACKAGES,
@@ -35,6 +34,7 @@ from interact_support import (
     fetch,
     install_payload,
     lock_contention,
+    page_packages,
     publish,
     record_claim,
     shipped_payload,
@@ -800,7 +800,7 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
     elsewhere.mkdir()
     work = elsewhere / "work"
     shutil.copytree(COMMAND_HUB_PACKAGE, work)
-    selected = ("./work", *PAGE_PACKAGES[1:])
+    selected = ("./work", *page_packages()[1:])
     launcher = installed / "bin" / "leaf"
     page = tmp_path / "state" / "page"
 
@@ -937,7 +937,7 @@ def test_init_vendors_the_layer(page_dir):
     assert (page_dir / "vendor" / "floating-ui.LICENSES.txt").is_file()
     # The selected packages land in the same flat directories as the default one,
     # which is what lets a widget import `/vendor/…` without knowing where it came
-    # from (PAGE_PACKAGES).
+    # from page_packages().
     assert (page_dir / "widgets" / "lf-diagram.js").is_file()
     assert (page_dir / "vendor" / "agentic-mermaid.esm.js").is_file()
     assert (page_dir / "vendor" / "agentic-mermaid.LICENSES.txt").is_file()
@@ -3332,7 +3332,7 @@ def test_revendoring_removes_stale_broken_links_before_a_file_returns(
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )

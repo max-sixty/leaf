@@ -48,7 +48,12 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 import pytest
 from browser_sources import browser_function
 from click.testing import CliRunner
-from interact_support import STATED_TIMEOUT, append_carried_log_record, wait_for
+from interact_support import (
+    STATED_TIMEOUT,
+    append_carried_log_record,
+    package_path,
+    wait_for,
+)
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -480,6 +485,9 @@ def serve(tmp_path, monkeypatch, initialized_page):
     half of it. A thread and any widget a message carries exist nowhere else, so
     without this every sweep is green over a page the user never gets.
 
+    Explicit checkout packages may be passed as Paths; the fixture selects them
+    relative to its working directory, independently of the checkout and HOME.
+
     `seed_log=False` leaves an example's log out while still laying in its media, for a
     test that appends those events itself. `layer_registry` and `layer_widgets` add a
     project package, a registry and its widget modules, for a reading the layer makes
@@ -521,16 +529,17 @@ def serve(tmp_path, monkeypatch, initialized_page):
             if fixture is not None and packages is None
             else (
                 *EXAMPLE_PACKAGES,
-                "~/"
-                + (ROOT / "tests/fixtures/packages/work")
-                .relative_to(Path.home())
-                .as_posix(),
+                ROOT / "tests/fixtures/packages/work",
             )
             if packages is None
             else packages
         )
         if layer_registry is not None or layer_widgets:
             selected_packages = (*selected_packages, "./.leaf")
+        selected_packages = tuple(
+            package_path(item) if isinstance(item, Path) else item
+            for item in selected_packages
+        )
         selection_args = package_selection_args(selected_packages)
         d = tmp_path / f"page{len(servers)}"
 

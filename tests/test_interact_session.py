@@ -33,7 +33,6 @@ from interact_support import (
     COMPOSITE_TIMEOUT,
     HELD_LEASES,
     PAGE,
-    PAGE_PACKAGES,
     PLUGIN_ROOT,
     STATED_TIMEOUT,
     Prose,
@@ -54,6 +53,7 @@ from interact_support import (
     install_payload,
     let_a_pick_settle_a_thread,
     owed,
+    page_packages,
     page_state,
     publish,
     queue_board_registry,
@@ -5886,7 +5886,7 @@ def test_revendoring_can_change_x_work_while_the_target_holds_a_task(page_dir):
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )
@@ -16723,7 +16723,7 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
         [
             "page",
             "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+            *package_selection_args((*page_packages(), "./.leaf")),
             str(page_dir),
         ],
     )

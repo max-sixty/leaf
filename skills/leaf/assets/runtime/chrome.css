@@ -1509,10 +1509,10 @@ html[data-lf-draw-mode] main [data-lf-offer] * {
   .lf-going > .lf-thread-reply {
     visibility: hidden;
   }
-  :is(.lf-going .lf-resolve, .lf-reopen:has(> .lf-action-icon)) {
+  .lf-going .lf-resolve {
     color: var(--ok-ink);
   }
-  :is(.lf-going .lf-resolve, .lf-reopen:has(> .lf-action-icon))::before {
+  .lf-going .lf-resolve::before {
     background: var(--ok-tint);
   }
   .lf-thread.flash,

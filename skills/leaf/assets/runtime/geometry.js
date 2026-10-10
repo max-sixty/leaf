@@ -474,22 +474,35 @@ export function visibleBand(scroller, item = null) {
 // than at its own place in its holder, whose edge has scrolled beyond it: a page tab
 // strip over its panel's sixtieth paragraph, an open thread's title over the turns read
 // below it, a reply row pinned at the foot of a long thread. It rides along with every
-// scroll, so being in view says nothing about where in its holder the user is.
+// scroll, so being in view says nothing about where in its holder the user is. Whatever
+// a stuck box holds rides with it, a control in a scroller of its own included, such as
+// a reply row's attachment shelf, so every sticky box around `node` is asked.
+//
+// A box standing on its foot line in its own place counts as stuck too: a reply row at
+// the very end of its thread. Anything growing before it, a turn arriving or its own
+// draft, pushes it past that line, where it sticks, so it holds still as a stuck box
+// does, and a reader asking whether news moves it, or whether aiming a scroll at it
+// moves anything, gets the same answer either side of that line. Where else a box
+// stands in its own place is read from its holder's border box, which the box's own
+// place lies within, so a box exactly on its top line in its own place may read stuck
+// by its holder's padding: that boundary is one scroll offset wide.
+//
+// Which band a sticky box covers is a different question, answered from its stated
+// height whether it is stuck or not (`headerInset`, `footerInset`).
 export function stuckBox(node) {
-  let sticky = null;
-  let scroller = null;
-  // A sticky box that clips what it holds, as a tab strip does, still sticks in the
-  // scroller around it.
-  for (let el = node; el?.nodeType === 1; el = renderedParent(el)) {
-    if (!sticky && getComputedStyle(el).position === "sticky") sticky = el;
-    else if (el !== node && holdsHeaders(el)) {
-      scroller = el;
-      break;
-    }
-  }
-  if (!sticky || !scroller) return null;
+  for (let el = node; el?.nodeType === 1; el = renderedParent(el))
+    if (getComputedStyle(el).position === "sticky" && sticks(el)) return el;
+  return null;
+}
+// Whether `sticky` stands where sticking holds it, in the scroller around it. A sticky
+// box that clips what it holds, as a tab strip does, still sticks in that scroller.
+function sticks(sticky) {
+  let scroller = renderedParent(sticky);
+  while (scroller?.nodeType === 1 && !holdsHeaders(scroller))
+    scroller = renderedParent(scroller);
+  if (scroller?.nodeType !== 1) return false;
   const band = shownBand(scroller);
-  if (!band) return null;
+  if (!band) return false;
   const style = getComputedStyle(sticky);
   const room = getComputedStyle(scroller);
   const padTop = Number.parseFloat(room.paddingTop) || 0;
@@ -507,9 +520,9 @@ export function stuckBox(node) {
       : shownBox(parent);
   const topLine = band.top + padTop + Number.parseFloat(style.top);
   const footLine = band.bottom - padBottom - Number.parseFloat(style.bottom);
-  if (box.top <= topLine + 1 && holder.top < box.top - 1) return sticky;
-  if (box.bottom >= footLine - 1 && holder.bottom > box.bottom + 1) return sticky;
-  return null;
+  if (box.top <= topLine + 1 && holder.top < box.top - 1) return true;
+  if (Math.abs(box.bottom - footLine) <= 1) return true;
+  return box.bottom > footLine && holder.bottom > box.bottom + 1;
 }
 export function landingBand(scroller) {
   const band = shownBand(scroller);

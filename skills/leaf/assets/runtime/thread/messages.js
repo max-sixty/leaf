@@ -22,7 +22,16 @@ import {
   renderedWords,
 } from "../markdown.js";
 import { reportPageError } from "../layer-client.js";
-import { isReaction, moved } from "./model.js";
+import { editable, isReaction, moved } from "./model.js";
+import {
+  MessageEditor,
+  OPEN_MESSAGE_EDIT,
+  holdsMessageEdit,
+  keptRewrite,
+  openMessageEdit,
+  releaseMessageEdit,
+  watchRewrite,
+} from "./message-edit.js";
 import { tokenEntry } from "../registry.js";
 import { readAttachedMedia, writeAttachedMedia } from "../media.js";
 import {
@@ -48,6 +57,7 @@ import {
 } from "../anchor-resolution.js";
 import { rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
+import { iconTemplate } from "../icons.js";
 import { keeps } from "../keeps.js";
 import { flashDuration, motion } from "../motion.js";
 
@@ -169,9 +179,17 @@ export function messageReading(
     by: message.author === "agent" ? message.agent : "You",
     timestamp: message.ts,
     age: ago(message.ts),
-    edited: message.edited ? `Edited ${ago(message.edited.ts)}` : null,
+    // What the message said before its last rewrite is the edited mark's to tell, since
+    // answers above may have been about those words.
+    edited: message.edited
+      ? `Edited ${ago(message.edited.ts)}. Before, it said: “${message.edited.was}”`
+      : null,
+    editable: editable(message),
     failure: message.failure ?? null,
     pending: workflow?.stage === "sending",
+    // What a rewrite of the message is written over (`base` on an edit): its latest
+    // edit, or the message itself.
+    base: message.edited?.id ?? message.id,
     workflow,
     workflowLabel: workflowLabel(workflow),
     workflowTitle: workflowTitle(workflow),
@@ -202,6 +220,9 @@ export class MessageView {
   #arrivalMotion = null;
   #stopRead = null;
   #header = document.createElement("div");
+  #editor = null;
+  #kept = false;
+  #stopKept = null;
 
   constructor(commands) {
     this.#commands = commands;
@@ -210,6 +231,9 @@ export class MessageView {
 
   present(model, { arrived = false, headerControls = nothing } = {}) {
     const prior = this.#model;
+    // A surface that seats no rewrite offers none: a primary reader drawing one message
+    // of a conversation it lays out itself has no thread card to open it in.
+    if (model.editable && !this.#commands.edit) model = { ...model, editable: false };
     this.#model = model;
     const panel = model.panel;
     // A view presents messages of one surface for its whole life, so what the surface
@@ -223,7 +247,45 @@ export class MessageView {
         this.node.dataset.lfGen = "1";
         this.node.dataset.lfOffer = "";
       }
+      // A double click on the user's own words opens them for rewriting, as the word
+      // under it would otherwise only be selected. The word it selected goes first: the
+      // editor then sets its own caret, which clearing the selection after would take. A
+      // link keeps its own double click.
+      this.node.addEventListener("dblclick", (event) => {
+        if (event.target.closest?.(".lf-msg-editor, a[href]")) return;
+        if (!this.#model?.editable) return;
+        window.getSelection()?.removeAllRanges();
+        this.openEdit();
+      });
+      this.node.addEventListener(OPEN_MESSAGE_EDIT, () => this.openEdit());
     }
+    // The view the user opened the rewrite in draws its editor (`message-edit.js`); a
+    // closed editor goes with its subscription and keys.
+    const editing = model.editable && holdsMessageEdit(model.id, this, panel);
+    if (editing && !this.#editor)
+      this.#editor = new MessageEditor(model.id, this, {
+        wireInput: this.#commands.reply.wireInput,
+        said: () => this.#model.body.text,
+        base: () => this.#model.base,
+        send: (text, options) =>
+          this.#commands.edit.send(this.#model.id, text, options),
+        land: () => this.#commands.edit.land(),
+        paint: () => this.#commands.edit.paint(this.node),
+        previous: () => this.#commands.edit.previous(this.#model.id),
+        reveal: (caretLine) => this.#commands.edit.reveal(this.node, caretLine),
+      });
+    if (!editing && this.#editor) {
+      this.#editor.dispose();
+      this.#editor = null;
+    }
+    // Whether the message says it holds kept words follows the draft, which another tab
+    // can change; a keystroke in the open editor changes no such answer.
+    this.#kept = model.editable && !editing && keptRewrite(model.id);
+    if (model.editable && !this.#stopKept)
+      this.#stopKept = watchRewrite(model.id, () => {
+        if (keptRewrite(this.#model.id) !== this.#kept)
+          this.#commands.edit.paint(this.node);
+      });
     keeps(this.#header, "data-lf-reflow", "text");
     if (prior && prior.author !== model.author)
       this.node.classList.toggle(prior.author, false);
@@ -269,18 +331,44 @@ export class MessageView {
               ? html`<span class="lf-edited" title=${model.edited}>edited</span>`
               : nothing
           }
+          ${
+            this.#kept
+              ? html`<span
+                  class="lf-msg-kept"
+                  title="Your rewrite is kept; open it to save or cancel"
+                  >unsaved edit</span
+                >`
+              : nothing
+          }
         </span>
         ${headerControls}
       `,
       this.#header,
     );
+    // The user's own words offer their rewrite where an agent's reply offers its
+    // reactions: the message's one control, at its header's right edge (shadow.css).
+    const rewrite =
+      model.editable && !editing
+        ? html`<button
+            type="button"
+            class="lf-msg-control lf-msg-edit lf-ui"
+            tabindex="-1"
+            data-lf-gen="1"
+            data-lf-offer="button"
+            aria-label="Edit message"
+            title="Edit message"
+            @click=${() => this.openEdit()}
+          >
+            ${iconTemplate("edit", "lf-msg-control-icon")}
+          </button>`
+        : nothing;
     render(
       html`
         ${this.#header}
         <div
           class=${`lf-msg-body${model.body.kind === "suggestion" ? " lf-suggest-body" : ""}`}
         >
-          ${this.#body(model.body)}
+          ${editing ? this.#editor.node : this.#body(model.body)}
           ${
             model.body.drawing
               ? html`<span class="lf-drawing-reference">Drawing comment</span>`
@@ -301,7 +389,7 @@ export class MessageView {
               </button>`
             : nothing
         }
-        ${strip}
+        ${strip} ${rewrite}
       `,
       this.node,
     );
@@ -332,6 +420,31 @@ export class MessageView {
     return this.node;
   }
 
+  // Open the user's own words for rewriting here, with the caret after them. False where
+  // the message is not one they may rewrite.
+  openEdit() {
+    const model = this.#model;
+    if (!model?.editable) return false;
+    if (!this.#editor) {
+      this.#commands.edit.opening(model.id);
+      openMessageEdit(model.id, this, model.panel);
+      this.#commands.edit.paint(this.node);
+    }
+    this.#editor?.enter();
+    return true;
+  }
+
+  // Make way for another editor opening in the thread, closing this one where its
+  // words are the message's own.
+  putEditAside() {
+    this.#editor?.putAside();
+  }
+
+  // Whether this view draws an open rewrite.
+  get editing() {
+    return this.#editor !== null;
+  }
+
   #body(body) {
     if (body.kind === "reaction")
       return html`<div class="lf-msg-text">
@@ -359,6 +472,11 @@ export class MessageView {
   retire() {
     this.#arrivalMotion?.cancel();
     this.#reaction?.retire();
+    if (this.#model) releaseMessageEdit(this.#model.id, this);
+    this.#editor?.dispose();
+    this.#editor = null;
+    this.#stopKept?.();
+    this.#stopKept = null;
     this.#stopRead?.();
   }
 }

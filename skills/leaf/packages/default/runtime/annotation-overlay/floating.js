@@ -33,8 +33,7 @@
    existing focus owner only when that graph changes. The frame ignores pointer input;
    each surface's own CSS retains its interaction policy. Without the needed native
    capability, the existing observed placement path invalidates on scroll instead.
-   Every attachment solved in the window plane, including one held by the viewport's
-   edge, retains its physical attachment point,
+   Every attachment solved in the window plane retains its physical attachment point,
    carrying sources' measured scroll offsets, and written solver point. The physical
    point may move less than those scrolls (a sticky boundary), and the solver may move
    less than that point (a viewport constraint). Readers can distinguish both from
@@ -187,9 +186,10 @@ const held = {
 
 const INSETS = ["left", "right", "top", "bottom"];
 
-// The mechanical owner's last written placement, never a rectangle read back from
-// its rendered box. Consumers can distinguish a native plane change from a local
-// child/holder displacement without granting that displacement to the owner.
+// The mechanical owner's last written placement in viewport pixels, relative to
+// its frame, never a rectangle read back from its rendered box. Consumers can
+// distinguish a native plane change from a local child/holder displacement
+// without granting that displacement to the owner.
 const stood = new Map();
 export const floatingSelections = () => [...stood.values()];
 
@@ -496,6 +496,7 @@ export function floatingPlacement({ floating, update }) {
         return;
       }
       const { edges, width, height, block } = answer.middlewareData.held;
+      const { offset, scale } = answer.middlewareData.anchorAt;
       const {
         subject,
         anchor,
@@ -519,6 +520,8 @@ export function floatingPlacement({ floating, update }) {
           : fromStart
             ? atLayoutPrecision(spot)
             : extent - atLayoutPrecision(extent - spot - length);
+        point[axis] =
+          (point[axis] - (frameAnchor ? 0 : offset[coordinate])) * scale[coordinate];
       }
       stood.set(
         floating,
@@ -533,7 +536,7 @@ export function floatingPlacement({ floating, update }) {
           reference,
           edges: Object.freeze({ left: edges.x, top: edges.y }),
           point: Object.freeze(point),
-          size: Object.freeze({ width, height }),
+          size: Object.freeze({ width: width * scale.x, height: height * scale.y }),
         }),
       );
     },

@@ -262,13 +262,15 @@ def is_answer(event: dict) -> bool:
     """Whether an event is an agent's answer to the input its ``responds`` names.
 
     A thread parent locates presentation; only ``responds`` names the input an
-    answer settles. User replies and progress carry none, and a failure receipt names
-    the input it gives up on without answering it, so an answer may still follow it.
+    answer settles. User replies carry none. Progress is never an answer, though a log
+    written before #1727 addresses it to its input. A failure receipt names the input
+    it gives up on without answering it, so an answer may still follow it.
     """
     return (
         event["kind"] == "reply"
         and event["author"] == "agent"
         and event.get("responds") is not None
+        and not event.get("ephemeral")
         and "failure" not in event
     )
 

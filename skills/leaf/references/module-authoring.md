@@ -32,6 +32,12 @@ filter field. It supplies the shared frame, accessible label, native editor and
 Clear; the caller owns its query and results. Put an auxiliary reading such as a
 match count in its `end` slot and reserve its longest value with `reserve`.
 
+For a CodeMirror editor, import `LeafEditorView` from `widget-api.js` and use it
+in place of the dependency's `EditorView` constructor. It retains CodeMirror's
+state and editing API while admitting focus through Leaf's input owner and
+keeping editor reveals within the current document. Its navigation extension
+survives retained states and complete `setState` replacements.
+
 For a vertical navigation that must retain sideways reading, use
 `scrollIntoReadingBand(target, holder, block, behavior)`: `target` is an element or
 Range, and `holder` is the element whose reading regions contain it. Element targets
@@ -320,8 +326,11 @@ to press it on the user's behalf. A return marked as a move reads as
 the user arriving, and releases news or opens options they never went to. The call
 lends an element that is not a control the tab stop a control has for exactly as long
 as it holds it, so the browser's own Tab order continues from there and no `tabindex` is
-left on the page behind the user. It keeps the page still unless `{ scroll: true }` asks
-the browser to bring the element into view.
+left on the page behind the user. Focus placement always prevents native scrolling.
+In an embedded sample it places focus only while that child owns input. A module
+reveals a destination separately with `scrollIntoView(element, {block, behavior})`
+from `widget-api.js`; that operation stops at the current document, including when
+its element is in nested overflow.
 
 A module that moves, hides, or replaces nodes the user may be standing in, as a reorder or
 a re-render does, calls `holdFocus(scope)` before the change and the function it returns
@@ -334,7 +343,12 @@ attribute each item carries: the restore then lands on the item keyed the same, 
 nearest that survived, and on the control in it like the one the user stood on.
 
 A widget's own layer, such as a list it opens over its contents, records where it was
-opened from with `openLayer(layer)` as it opens, which reads where the user stands, and
+opened from with `openLayer(layer)` as it opens, which reads where the user stands.
+Open a native modal dialog or popover with `showNativeLayer(layer, {source})`;
+`modal: false` opens a nonmodal dialog. It suppresses the native opening's automatic
+focus inside a sample; use `focusDestination` for the intended arrival. Close a
+native dialog or popover with `closeNativeLayer(layer)`, which prevents the native
+return from taking input from the containing page. A layer
 closes with `closeLayer(close, land)`: `close` hides it, and `land` puts a user who stood
 in it where the close takes them, usually `handBack(openerOf(layer))`, which lets go onto
 the page where the opener is gone. Readers of where the user stands hear only where they

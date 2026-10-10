@@ -35,6 +35,7 @@ import {
   scopedMediaUrl,
   scrollerFor,
   scrollIntoReadingBand,
+  scrollIntoView,
   scrollBehavior,
   setChildren,
   shownWindow,
@@ -841,8 +842,8 @@ customElements.define(
     #select(id, land = false, restoreFocus = holdFocus(this)) {
       if (!this.#caseEntries.has(id)) return;
       // Changing case from a verdict is a route to its counterpart, not a passive
-      // return to the old control. The focus owner reveals that destination; a
-      // source refresh supplies its own hold and passes null here.
+      // return to the old control. Reveal that destination through the document's
+      // scroll owner; a source refresh supplies its own hold and passes null here.
       const disposition = restoreFocus
         ? focused()?.closest?.(".lf-vr-disposition")?.dataset.disposition
         : null;
@@ -862,15 +863,13 @@ customElements.define(
       this.#scheduleEvidenceLayout();
       paintKeys();
       if (land) this.#landOnEvidence("move");
-      else if (disposition)
-        focusDestination(
-          selected.article.querySelector(
-            `.lf-vr-disposition[data-disposition="${disposition}"]`,
-          ),
-          "move",
-          { scroll: true },
+      else if (disposition) {
+        const destination = selected.article.querySelector(
+          `.lf-vr-disposition[data-disposition="${disposition}"]`,
         );
-      else
+        focusDestination(destination, "move");
+        scrollIntoView(destination, { block: "nearest" });
+      } else
         restoreFocus?.(() => {
           this.#landOnEvidence("move");
           return true;

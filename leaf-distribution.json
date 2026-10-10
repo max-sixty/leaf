@@ -1,7 +1,7 @@
 {
   "producer": {
-    "commit": "715c99d7c993",
-    "committed": "2026-10-10T15:50:51Z",
+    "commit": "4d0e31810bb3",
+    "committed": "2026-10-10T09:19:26-07:00",
     "dirty": false
   },
   "runtime_paths": [
@@ -76,6 +76,7 @@
     "drawers.js",
     "drawn-edge.js",
     "dress.js",
+    "editor-view.js",
     "file-api.js",
     "focus.js",
     "geometry.js",
@@ -87,6 +88,7 @@
     "initial-render.js",
     "inline-contributions.js",
     "interaction-gallery-frame.js",
+    "interaction-gallery-playback.js",
     "interaction-gallery.js",
     "interaction-log.js",
     "keeps.js",
@@ -171,6 +173,8 @@
     "restore-state.js",
     "retained-face.js",
     "root-state.js",
+    "sample-child.js",
+    "sample-visibility.js",
     "sample.js",
     "scroll-motion.js",
     "scrolling.js",

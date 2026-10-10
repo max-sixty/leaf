@@ -16327,7 +16327,9 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     page.keyboard.type("Sent with quick shortcuts off")
     page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-page-comment-card")).to_be_hidden()
-    expect(page.locator(".lf-page-comment")).to_be_focused()
+    # This page's gesture step displaces the row control while the card is open.
+    # Its visible More door receives focus when Send closes the card.
+    expect(page.locator(".lf-banner-more")).to_be_focused()
     told(page)
     assert any(
         event.get("text") == "Sent with quick shortcuts off"

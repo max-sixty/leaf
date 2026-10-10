@@ -1934,6 +1934,39 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_header(
         assert scrolling["textEnd"] <= scrolling["send"]["x"]
 
 
+def test_a_compact_comment_reserves_only_the_room_send_occupies(browser, serve):
+    """At a narrow allocation, Space must not create a blank line while the
+    words and Send still fit. The text's right inset already clears part of
+    Send's hit box; reserving its full width again wasted eleven pixels."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page("Compact comment", '<p id="passage">A passage to comment on.</p>')
+        ),
+    )
+    resized(page, 346, 900)
+    page.locator("#passage").click(modifiers=["Alt"])
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    page.keyboard.insert_text("this is a nice feature; is it in leaf, or you")
+    rendered(page)
+    before = field.bounding_box()
+    page.keyboard.press("Space")
+    rendered(page)
+    after = field.bounding_box()
+    assert after["height"] == pytest.approx(before["height"], abs=1)
+    assert after["y"] == pytest.approx(before["y"], abs=1)
+    reservation = field.evaluate("""el => {
+      const style = getComputedStyle(el), box = el.getBoundingClientRect();
+      const send = el.parentElement.querySelector('.lf-compose-submit').getBoundingClientRect();
+      return {textEnd: box.right - parseFloat(style.borderInlineEndWidth)
+        - parseFloat(style.paddingInlineEnd)
+        - parseFloat(style.getPropertyValue('--lf-field-end-room')),
+        sendStart: send.left};
+    }""")
+    assert reservation["textEnd"] == pytest.approx(reservation["sendStart"], abs=0.1)
+
+
 def test_opening_a_line_under_a_full_last_line_moves_no_words(browser, serve):
     """Send's room stands after the field's last words, so it changes lines with the
     keystroke that changes the lines. A last line whose words fill the field puts the

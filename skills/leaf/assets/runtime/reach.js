@@ -2,7 +2,7 @@
    scrollable page and shadow content. */
 
 import { wearsLentStop } from "./focus.js";
-import { TAB_STOP, TEXT_BOX } from "./control-selectors.js";
+import { LENT_REACH_STOP, TAB_STOP, TEXT_BOX } from "./control-selectors.js";
 import { scrollsBy, skipped } from "./geometry.js";
 import { afterScript, nextFrame, nextRender, sizeObserver } from "./rendering.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
@@ -84,27 +84,34 @@ const mayScroll = new Map();
 // Keep that request with the owner of the stop so a later layout pass cannot
 // take it back as though it were a stop this pass had lent for overflow.
 const claimedStops = new WeakSet();
+// Keep the borrowed state with the lending owner. Consumers of authored working
+// regions must never infer a region from this layout-dependent keyboard stop.
+function lendStop(el) {
+  keeps(el, LENT_REACH_STOP, "");
+  keeps(el, "tabindex", 0);
+}
 export function claimReachStop(el) {
   if (claimedStops.has(el)) return;
   const authored = mayScroll.has(el) ? mayScroll.get(el) : el.getAttribute("tabindex");
   if (authored !== null) return;
   claimedStops.add(el);
-  keeps(el, "tabindex", 0);
+  lendStop(el);
 }
 
 export function releaseReachStop(el) {
   if (!claimedStops.has(el)) return;
   claimedStops.delete(el);
-  if (el.getAttribute("tabindex") !== "0") return;
-  keeps(
-    el,
-    "tabindex",
-    mayScroll.has(el) && overflows(el) && !holdsOwnStop(el) ? 0 : null,
-  );
+  if (el.getAttribute("tabindex") !== "0") {
+    keeps(el, LENT_REACH_STOP, null);
+    return;
+  }
+  if (mayScroll.has(el) && overflows(el) && !holdsOwnStop(el)) lendStop(el);
+  else returnStop(el, null);
 }
 // Takes back the stop this pass lent: to `-1` where focus.js has lent one for an
 // arrival, which it takes back on the blur, and otherwise to the author's value.
 function returnStop(el, authored) {
+  keeps(el, LENT_REACH_STOP, null);
   if (el.getAttribute("tabindex") === "0")
     keeps(el, "tabindex", wearsLentStop(el) ? -1 : authored);
 }
@@ -361,19 +368,23 @@ const reachSizes = sizeObserver(() => paintReach());
 // is a promise of more with nothing behind it. scrollLeft follows the inline direction:
 // it starts at zero and becomes negative in a right-to-left scroller.
 function paintSidewaysReach(el) {
-  if (!sideways.has(el) || unpainted(el)) return;
-  const style = getComputedStyle(el);
-  const scrolling =
-    SCROLLS.test(style.overflowX) && el.scrollWidth > el.clientWidth + 1;
-  const maximum = Math.max(0, el.scrollWidth - el.clientWidth);
-  const raw = Math.abs(el.scrollLeft);
-  const position = Math.min(maximum, Math.max(0, raw));
-  keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, scrolling ? style.direction : null);
-  el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.moreBefore, scrolling && position > 1);
-  el.toggleAttribute(
-    PAGE_PAINT_ATTRIBUTE.moreAfter,
-    scrolling && position < maximum - 1,
-  );
+  // An allocating owner can resize a pane before its image or table owner fits the
+  // contents. Like vertical reading cues, read the completed layout for this script.
+  afterScript(() => {
+    if (!sideways.has(el) || unpainted(el)) return;
+    const style = getComputedStyle(el);
+    const scrolling =
+      SCROLLS.test(style.overflowX) && el.scrollWidth > el.clientWidth + 1;
+    const maximum = Math.max(0, el.scrollWidth - el.clientWidth);
+    const raw = Math.abs(el.scrollLeft);
+    const position = Math.min(maximum, Math.max(0, raw));
+    keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, scrolling ? style.direction : null);
+    el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.moreBefore, scrolling && position > 1);
+    el.toggleAttribute(
+      PAGE_PAINT_ATTRIBUTE.moreAfter,
+      scrolling && position < maximum - 1,
+    );
+  });
 }
 function gone(el) {
   if (el.isConnected) return false;
@@ -400,7 +411,7 @@ function paintReach() {
   )) {
     if (unpainted(el)) continue;
     if (claimedStops.has(el)) continue;
-    if (overflows(el) && !holdsOwnStop(el)) keeps(el, "tabindex", 0);
+    if (overflows(el) && !holdsOwnStop(el)) lendStop(el);
     else returnStop(el, authored);
   }
   for (const el of sideways) paintSidewaysReach(el);
@@ -436,7 +447,7 @@ function paintReach() {
 // due once it has held still for `STILL_MS`, which a timer waits for. Its watch is
 // uncounted (`queries`, below) for the same reason. A transition, a drag or any motion
 // that ends within `PLAYING_MS` stays counted, so the page settles after its sweep; one
-// that runs longer settles up to `STILL_MS` before it. Asks from the window or a module
+// that runs longer settles up to `STILL_MS` before it. Questions from the window or a module
 // stay apart from a container's own, so announcing a playing container still settles.
 const STILL_MS = 100;
 const PLAYING_MS = 1000;

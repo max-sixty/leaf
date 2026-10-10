@@ -33,7 +33,7 @@ watchCommandScopes(() => [
   ...[...scopes.values()].flat(),
   { rows: [...commands.values()] },
 ]);
-import { under } from "../shadow.js";
+import { renderedUnder } from "../shadow.js";
 import { offlineInteractive } from "../context.js";
 
 export const ELEMENTS = Symbol("the scopes of the focused element");
@@ -55,6 +55,7 @@ const STACK = [
   "page search",
   "target picker",
   ELEMENTS,
+  "region capture",
   // Among inner scopes the order is moot, since the modes and the Page Map stand it down
   // themselves.
   "standing",
@@ -120,6 +121,7 @@ const PAGE_COMMANDS = [
   // already get to, where a walk it crowded out would be the only one.
   "navigation.go-to.open",
   "draw.mode.enter",
+  "capture.region.open",
   "design.mode.enter",
   "annotations.toggle",
   // The reference's own binding. Its place here is nominal: renderShortcutBar gives it the
@@ -206,10 +208,10 @@ function rung() {
   const here = focused();
   let surface = null;
   for (const { root } of steps) {
-    if (!root || root === document || !under(here, root)) continue;
-    if (!surface || under(root, surface)) surface = root;
+    if (!root || root === document || !renderedUnder(here, root)) continue;
+    if (!surface || renderedUnder(root, surface)) surface = root;
   }
-  const holds = (step) => under(step.root ?? document, surface);
+  const holds = (step) => renderedUnder(step.root ?? document, surface);
   return (surface && steps.find(holds)) ?? steps[0] ?? null;
 }
 // The page's own Escape, said and run off that one object: each rung states the act, the

@@ -19,7 +19,7 @@ from leaf.schema import (
 )
 
 from .contract import RegistryError, stamp_decisions
-from .kernel import kernel_event_kinds
+from .kernel import kernel_event_kinds, kernel_event_ownership
 from .schema import (
     json_validator,
     json_value,
@@ -40,8 +40,8 @@ def merge_layer_declarations(merged: dict, declarations: dict) -> None:
     a map merges by its own keys for the same reason one level down:
     $languages.paths is indexed by extension, and a layer adding `.svelte` must not
     silently drop every shipped extension with it. Scalar and list members replace
-    whole — a names list is one statement. `$events.kinds` is the exception: it is
-    Leaf's fixed kernel transport contract, and a layer cannot change it.
+    whole — a names list is one statement. `$events.kinds` and `$events.ownership`
+    are the exceptions: Leaf's fixed kernel transport contract, which no layer changes.
 
     Inside a map member the merge is JSON merge-patch: a later layer's value
     replaces the key, a new key joins, and `null` removes one — which is the
@@ -53,15 +53,13 @@ def merge_layer_declarations(merged: dict, declarations: dict) -> None:
         if not (name.startswith("$") and earlier is not None):
             merged[name] = entry
             continue
-        if (
-            name == "$events"
-            and "kinds" in entry
-            and entry["kinds"] != earlier.get("kinds")
-        ):
-            raise RegistryError(
-                "$events.kinds is Leaf's fixed transport contract and cannot be "
-                "changed by a layer"
-            )
+        if name == "$events":
+            for key in ("kinds", "ownership"):
+                if key in entry and entry[key] != earlier.get(key):
+                    raise RegistryError(
+                        f"$events.{key} is Leaf's fixed transport contract and cannot be "
+                        "changed by a layer"
+                    )
         combined = {**earlier, **entry}
         for key, value in entry.items():
             if isinstance(value, dict) and isinstance(earlier.get(key), dict):
@@ -138,11 +136,15 @@ def _valid_clauses(clauses) -> bool:
     return True
 
 
-def validate_event_contracts(kinds: dict, path) -> None:
-    if kinds != kernel_event_kinds():
-        raise RegistryError(
-            f"{path}: $events.kinds must equal Leaf's fixed transport contract"
-        )
+def validate_event_contracts(events: dict, path) -> None:
+    for key, expected in (
+        ("kinds", kernel_event_kinds()),
+        ("ownership", kernel_event_ownership()),
+    ):
+        if events.get(key) != expected:
+            raise RegistryError(
+                f"{path}: $events.{key} must equal Leaf's fixed transport contract"
+            )
 
 
 def validate_layer_declarations(

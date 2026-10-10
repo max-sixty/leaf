@@ -26,9 +26,9 @@
    Rejected: keeping wrappers around a placement (`returningFocus`, `placeChrome`) that a
    caller could forget, which is how those returns reached the readers as moves.
 
-   And it is the one reader of the user's inputs, so the one owner of whether they have
-   moved on since a hold began or a delayed move was scheduled. The two ask different
-   questions, so it keeps two counts:
+   And it exposes the document's input count, begun by prepaint.js before any module
+   can load, so delayed work knows whether the user has moved on since it began.
+   A hold asks a different question, so the two counts stay distinct:
 
    - A hold (`holdFocus`, `holdStanding`, `handBack`'s retry) reads `placements`: has
      focus been put anywhere since, by the user or by an owner, other than by a hold's
@@ -53,6 +53,11 @@
    and a group's one Tab stop (`rove`).
 
    The selector vocabulary lives in control-selectors.js, which imports nothing.
+   In a sample, only the document already holding input may place focus. A trusted
+   pointer or keyboard entry gives the child that ownership before Leaf handles the
+   gesture; remote commands and delayed work cannot borrow it from the parent. This
+   is a rule for Leaf placements, not a restriction on authored browser scripts.
+
    This module imports only that vocabulary, rendering.js and keeps.js: importing a
    gesture owner would cycle through its focus dependency. */
 import { nextRender } from "./rendering.js";
@@ -111,17 +116,23 @@ export const tabStops = (root) =>
 // that the focus and the place inside it land in one act rather than in two. Passing no
 // caret leaves the platform's, which is what a first arrival wants.
 //
-// The placement keeps the page still unless `scroll` asks the browser to bring the
-// element into view, as a list whose rows run past its box does for the row it lands on.
+// Placements never ask the browser to reveal their target: native focus scrolling
+// crosses browsing contexts. A caller needing reveal uses document-local scrolling.
+export const canPlaceFocus = () =>
+  !document.documentElement.lfSample || document.hasFocus();
 const CAUSES = new Set(["move", "step", "return", "press"]);
 export function focusDestination(
   destination,
   cause,
-  { caret = null, scroll = false } = {},
+  { caret = null, ...unknown } = {},
 ) {
   if (!CAUSES.has(cause)) throw new TypeError(`focusDestination: no cause ${cause}`);
+  const unexpected = Object.keys(unknown);
+  if (unexpected.length)
+    throw new TypeError(`focusDestination: unknown options ${unexpected.join(", ")}`);
+  if (!canPlaceFocus()) return;
   placed(cause, () => {
-    destination.focus({ preventScroll: !scroll });
+    destination.focus({ preventScroll: true });
     if (!landedOn(destination) && lendable(destination)) lendStop(destination);
   });
   if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
@@ -131,6 +142,7 @@ export function focusDestination(
 // arrival is the one that gave the node its focus, so the node it lands on takes that
 // arrival's cause, whether a placement or the user's own Tab or press gave it.
 export function forwardFocus(destination) {
+  if (!canPlaceFocus()) return;
   placed(placing ?? cause(destination), () =>
     destination.focus({ preventScroll: true }),
   );
@@ -522,21 +534,11 @@ addEventListener(
 // window losing focus, as find-in-page takes it. Delayed work compares the count it
 // began at (user-intent.js), as a hand-back waiting a frame for its target does. A scroll is none of these: the runtime's own landings fire
 // it, and each of the user's ways of scrolling begins with one that is.
-let inputs = 0;
-export const inputCount = () => inputs;
+const inputs = document.documentElement.lfInputs;
+export const inputCount = () => inputs.count;
 // Mechanical owners may stop motion at the input edge, before a command or drawing
 // handler consumes it. Observation adds no binding and never claims the event.
-const inputReaders = new Set();
-export function onUserInput(read) {
-  inputReaders.add(read);
-  return () => inputReaders.delete(read);
-}
-const input = (event) => {
-  inputs++;
-  for (const read of inputReaders) read(event);
-};
-for (const type of ["pointerdown", "keydown", "input", "wheel", "touchstart"])
-  addEventListener(type, input, { capture: true, passive: true });
+export const onUserInput = (read) => inputs.observe(read);
 
 // Where the caret stood, as a key went down, in each box the key went down in, before
 // the box's own handling moved it. A command whose meaning hangs on the caret's place,
@@ -557,9 +559,8 @@ onUserInput((event) => {
   });
 });
 export const caretAtKey = (node) => keyCarets?.get(node) ?? null;
-addEventListener("blur", (event) => {
-  if (event.target !== window) return;
-  input(event);
+onUserInput((event) => {
+  if (event.type !== "blur") return;
   landLabelPress();
   endPress(event, false);
 });
@@ -709,7 +710,7 @@ const shadowHostOf = (node) =>
   node?.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? (node.host ?? null) : null;
 // Whether `node` stands in `scope`, across every shadow tree between them.
 const within = (scope, node) => {
-  for (let at = node; at; at = at.parentNode ?? shadowHostOf(at))
+  for (let at = node; at; at = at.assignedSlot ?? at.parentNode ?? shadowHostOf(at))
     if (at === scope) return true;
   return false;
 };
@@ -727,12 +728,13 @@ export function holdFocus(scope, { key = null } = {}) {
   if (!key) return restore;
   let item = node;
   while (item && !item.matches?.(`[${key}]`))
-    item = item.parentNode ?? shadowHostOf(item);
+    item = item.assignedSlot ?? item.parentNode ?? shadowHostOf(item);
   if (!item || item === scope || !within(scope, item)) return restore;
   // The items are read in the tree the held one stands in, which is the scope's own or a
   // shadow tree inside it.
   const tree = item.getRootNode() === scope.getRootNode() ? scope : item.getRootNode();
-  const items = () => [...tree.querySelectorAll(`[${key}]`)];
+  const items = () =>
+    [...tree.querySelectorAll(`[${key}]`)].filter((item) => within(scope, item));
   // A key marking several nodes of one place counts once, where it first stands.
   const keys = [...new Set(items().map((each) => each.getAttribute(key)))];
   const at = keys.indexOf(item.getAttribute(key));
@@ -740,8 +742,11 @@ export function holdFocus(scope, { key = null } = {}) {
   // In an item, the control like the one the user stood on, as Remove for Remove, read
   // in the item's own tree, or the item itself where it holds none.
   let control = node;
-  while (control.getRootNode() !== item.getRootNode())
-    control = shadowHostOf(control.getRootNode());
+  while (control.getRootNode() !== item.getRootNode()) {
+    const host = shadowHostOf(control.getRootNode());
+    if (!host) break; // Slotted document controls already name their native kind.
+    control = host;
+  }
   const like =
     control.localName +
     [...control.classList].map((name) => `.${CSS.escape(name)}`).join("");
@@ -764,11 +769,21 @@ export function holdFocus(scope, { key = null } = {}) {
     // The drawn item keyed so, where a hidden copy of it stands too. One key may mark
     // several nodes of one place, as a diff line's text and its gutter's Comment: the one
     // like the control the user stood on, or holding one, comes first.
+    const matching = (root) => {
+      if (root.matches(like) && drawn(root)) return root;
+      const assigned =
+        root.localName === "slot" ? root.assignedElements({ flatten: true }) : [];
+      for (const child of assigned.length ? assigned : root.children) {
+        const found = matching(child);
+        if (found) return found;
+      }
+      return null;
+    };
     const find = (value) => {
       const found = keyed(value).filter(drawn);
       return (
         (like && found.find((each) => each.matches(like))) ??
-        (like && found.map((each) => each.querySelector(like)).find(Boolean)) ??
+        (like && found.map(matching).find(Boolean)) ??
         found[0] ??
         null
       );
@@ -787,11 +802,13 @@ export function holdFocus(scope, { key = null } = {}) {
 const heldIn = (scope) => {
   const held = heldByLabel();
   if (held) return within(scope, held) ? held : null;
-  const standing = scope.getRootNode().activeElement;
-  if (standing && standing !== document.body && scope.contains(standing))
-    return deepFocus(standing);
+  const standing = deepFocus(
+    scope.getRootNode().activeElement ?? scope.ownerDocument.activeElement,
+  );
+  if (standing && standing !== document.body && within(scope, standing))
+    return standing;
   const lost = dropped();
-  return lost && scope.contains(lost) ? lost : null;
+  return lost && within(scope, lost) ? lost : null;
 };
 
 // Whether the user stands in `scope`, across every shadow tree between them.
@@ -938,7 +955,9 @@ function holdOn(held) {
         if (place !== held)
           carried.set(
             place,
-            before?.inputs === inputs ? before : { from: held, inputs },
+            before?.inputs === inputCount()
+              ? before
+              : { from: held, inputs: inputCount() },
           );
         return true;
       }
@@ -1011,10 +1030,10 @@ export function controlNavigationKeys(node) {
 
 // Landing the user in the document. One act at both ends of the ladder, and for every
 // step that would otherwise leave them on Leaf's own apparatus, because standing on an
-// Ask out on the page and standing on a banner button are the same state — the user
+// Question out on the page and standing on a banner button are the same state — the user
 // holding something — reached from either side of the chrome. What those rungs do not
 // share is the word, and neither word is the other's: leaving the chrome names where the
-// user lands, since that is the whole of what the rung is for, and letting go of an Ask
+// user lands, since that is the whole of what the rung is for, and letting go of a Question
 // names the act, since they were on the page all along.
 //
 // Where they land is the block they are reading in the page region they last acted in
@@ -1150,10 +1169,10 @@ export function handBack(...destinations) {
   const yielded = !drawn(deepFocus());
   if (yielded) releaseFocus();
   const began = placements;
-  const pendingInput = inputs;
+  const pendingInput = inputCount();
   nextRender(() => {
     if (
-      inputs !== pendingInput ||
+      inputCount() !== pendingInput ||
       placements !== began ||
       (yielded && deepFocus() !== document.body) ||
       landed()

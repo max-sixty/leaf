@@ -33,6 +33,7 @@ const workflow = (id, stage, changes = {}) =>
 // The document a thread's frozen board is captured into: the reply `e2` in thread
 // `e1` holds the board `feeder-board`.
 const FROZEN_BOARD = {
+  registry: {},
   revision: 1,
   descriptors: new Map([
     [
@@ -72,7 +73,7 @@ test("workflow labels retain exact input progress and positive conditions", () =
   );
 });
 
-test("thread attention gives a standing user Ask precedence over agent work", () => {
+test("thread attention gives a standing user Question precedence over agent work", () => {
   const work = workflow("a", "working");
   const recovery = workflow("recovery", "sent", {
     condition: { kind: "failed" },
@@ -81,7 +82,7 @@ test("thread attention gives a standing user Ask precedence over agent work", ()
   const thread = {
     resolved: null,
     workflows: [recovery, work],
-    attention: { kind: "needs_user", reason: "ask", workflow: "recovery" },
+    attention: { kind: "needs_user", reason: "question", workflow: "recovery" },
   };
   assert.deepEqual(threadAttention(thread), {
     kind: "needs_user",
@@ -175,7 +176,7 @@ test("a thread the user is still sending waits on that send", () => {
   const [thread] = foldThreads([], [root]);
   const [record] = readThreadRecords(
     [{ ...thread, unread: [] }],
-    { revision: 1, descriptors: new Map(), messageBodies: new Map() },
+    { revision: 1, registry: {}, descriptors: new Map(), messageBodies: new Map() },
     new Map(),
     [sending],
   );
@@ -204,7 +205,7 @@ test("a local prose answer clears accepted user attention until refusal", () => 
 
   const [record] = readThreadRecords(
     [folded],
-    { revision: 1, descriptors: new Map(), messageBodies: new Map() },
+    { revision: 1, registry: {}, descriptors: new Map(), messageBodies: new Map() },
     new Map(),
     [
       workflow("failed", "answered", {
@@ -257,7 +258,7 @@ test("a local rewrite shows on its message and hands a closed thread to the agen
 
   const [record] = readThreadRecords(
     [folded],
-    { revision: 1, descriptors: new Map(), messageBodies: new Map() },
+    { revision: 1, registry: {}, descriptors: new Map(), messageBodies: new Map() },
     new Map(),
     [workflow("pending:rewrite", "sending", { message: "root" })],
   );
@@ -289,7 +290,7 @@ test("a local rewrite leaves a question asked since with the user", () => {
     text: "Which year?",
     ts: "then",
   };
-  const owed = { kind: "needs_user", reason: "ask", workflow: null };
+  const owed = { kind: "needs_user", reason: "question", workflow: null };
   const rewrite = {
     id: "pending:rewrite",
     kind: "edit",

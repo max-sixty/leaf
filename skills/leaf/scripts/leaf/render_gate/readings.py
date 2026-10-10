@@ -230,6 +230,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     column = evaluate_probe(page, "columnGeometry")
     overflow = column["overflow"]
     misplaced = column["misplaced"]
+    scrollbars = evaluate_probe(page, "scrollbarClearance")
     # This experiment writes and removes a temporary wrapping rule. Preserve its
     # position between the two read-only groups so each reads the same restored page.
     squeezed = evaluate_probe(page, "squeezedTables")
@@ -334,11 +335,12 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         f"[{scheme}] <{u['tag']} id={u['id']!r}> shows {u['w']}x{u['h']}px of words"
         " and offers no box to mark: it draws none of its own and no element inside"
         " it draws one either, so a comment anchored here would outline nothing and"
-        " the Ask walk would travel to the top of the page. Put the words in an"
+        " the Question walk would travel to the top of the page. Put the words in an"
         " element that takes a box"
         for u in unmarkable
     ]
     found += [f"[{scheme}] {text}" for _key, text in _overflow(overflow, misplaced)]
+    found += [f"[{scheme}] {text}" for _key, text in _scrollbars(scrollbars)]
     found += [f"[{scheme}] {s}" for s in squeezed]
     found += [
         f"[{scheme}] the control .{c['ctrl'].split()[0]}"
@@ -377,6 +379,22 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     found += [f"[{scheme}] {r}" for r in relative]
     notices = [f"[{scheme}] console: {e}" for e in resize_notices]
     return found, notices
+
+
+def _scrollbars(boxes: list) -> list[tuple[tuple[str, str], str]]:
+    """Overlay track collisions, keyed like other width-dependent geometry."""
+    return [
+        (
+            (box["place"], "scrollbar"),
+            (
+                f"{box['at']} leaves {box['clear']}px below its {box['content']}"
+                f" for a {box['required']:g}px horizontal overlay scrollbar; avoid the"
+                " horizontal overflow or reserve room below the content so reaching for"
+                " the bar does not cover it"
+            ),
+        )
+        for box in boxes
+    ]
 
 
 def _overflow(overflow: int, misplaced: list) -> list[tuple[tuple[str, str], str]]:
@@ -548,8 +566,8 @@ def margin_changes(page, readings, height: int) -> list[int]:
 
 
 def swept_overflow(readings, viewports) -> list[str]:
-    """Sideways overflow the fixed viewports miss, with the widths each run of it
-    spans and what it reads at the narrowest.
+    """Sideways overflow and scrollbar collisions the fixed viewports miss, with
+    the widths each run spans and what it reads at the narrowest.
 
     A run that takes in a fixed width is dropped here, because that viewport's own
     reading already reports it in both schemes."""
@@ -558,7 +576,10 @@ def swept_overflow(readings, viewports) -> list[str]:
         f"at {_span(widths)} wide, {text}"
         for widths, text in _swept(
             readings,
-            lambda reading: _overflow(reading["overflow"], reading["misplaced"]),
+            lambda reading: (
+                _overflow(reading["overflow"], reading["misplaced"])
+                + _scrollbars(reading["scrollbars"])
+            ),
         )
         if not fixed & set(widths)
     ]
@@ -602,7 +623,7 @@ def overflowing_region_advice(readings, height: int) -> list[str]:
     so its regions should show what they hold, and one that scrolls is the exception
     (page-authoring.md, A workspace). Advice rather than a failure: a region that
     scrolls still shows everything, and whether to trim it or split it is the author's
-    call. A region holding more than one open Ask is a queue of items to decide
+    call. A region holding more than one open Question is a queue of items to decide
     stacked into one scroll, so its advice names the queue form instead of trimming."""
     found = []
     regions = _swept(
@@ -614,9 +635,9 @@ def overflowing_region_advice(readings, height: int) -> list[str]:
             f"at {_span(widths)} wide and {height}px tall {region['at']} runs past "
             f"the region it scrolls in, {region['over']}px at {min(widths)}px"
         )
-        if region["asks"] > 1:
+        if region["questions"] > 1:
             found.append(
-                f"{where}, and holds {region['asks']} open Asks: a reader decides "
+                f"{where}, and holds {region['questions']} open Questions: a reader decides "
                 "them one at a time, so make the items a queue, one "
                 '`lf-tabs list="side"` whose tabs each hold one (page-authoring.md, '
                 "A workspace)"

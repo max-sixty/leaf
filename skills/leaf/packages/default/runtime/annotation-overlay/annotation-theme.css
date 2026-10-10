@@ -22,6 +22,7 @@
 .lf-margin-carrier { position: fixed; left: 0; top: 0; width: 0; height: 0; z-index: 2;
     position-visibility: always; }
 .lf-margin-cluster { position: absolute; z-index: 2;
+    left: var(--lf-margin-x, 0px); top: var(--lf-margin-y, 0px);
     display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     padding-right: var(--focus-ring-room); pointer-events: auto; }
 /* Keep a new row measurable, but unpainted until layout gives it a posture. */

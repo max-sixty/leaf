@@ -6,10 +6,11 @@
  * vendor module imports stays an entry at its own URL. Installations also retain
  * native package widgets, whose absolute URLs resolve through the revision's import
  * map, and the generation module, so page init can stamp it without rebuilding any
- * chunk. Website captures already carry their generation and preserve authored
- * module locations while bundling widgets. Both compile the framework
- * `build/browser/build.mjs` commits as native modules into the kernel and drop its
- * files, since only runtime modules import it. Neither path runs on a user's machine.
+ * chunk. Preparation compiles the framework `build/browser/build.mjs` commits as
+ * native modules into the kernel and drops its files, since only runtime modules
+ * import it. The website captures layers a prepared installation vendored, which
+ * already carry their generation, and compiles their kernel again with the widgets
+ * while preserving authored module locations. Neither path runs on a user's machine.
  */
 
 import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm } from "node:fs/promises";

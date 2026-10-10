@@ -36,6 +36,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    page_comment,
     panel_settled,
     resized,
     round_trip,
@@ -567,10 +568,12 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve, s
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
 
-    # Opening Threads does not add an unanchored reaction target.
+    # Neither Threads nor the page comment card adds an unanchored reaction target.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(page.locator(".lf-thread-panel-foot .lf-react-strip")).to_have_count(0)
+    expect(page.locator(".lf-thread-panel .lf-react-strip")).to_have_count(0)
+    page_comment(page)
+    expect(page.locator(".lf-page-comment-card .lf-react-strip")).to_have_count(0)
 
 
 def test_a_target_hint_opens_comment_and_a_token_seats_only_its_glyph(browser, serve):
@@ -1501,6 +1504,42 @@ def test_native_controls_keep_visual_gestures_they_already_own(browser, serve):
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     page.locator("#button-picture").click()
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
+
+
+def test_an_anchor_without_a_destination_keeps_its_picture_commentable(browser, serve):
+    """Only an actual link owns picture activation; historical anchors are content."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Historical picture",
+                """
+<h1 id="top">Historical picture</h1>
+<a id="visit" href="#after"><svg id="linked" viewBox="0 0 20 20" width="40" height="40"><circle cx="10" cy="10" r="8" /></svg></a>
+<a id="historical"><svg id="unlinked" viewBox="0 0 20 20" width="40" height="40" role="img" aria-label="Historical illustration"><circle cx="10" cy="10" r="8" /></svg></a>
+<p id="after">Destination</p>
+""",
+            )
+        ),
+    )
+    proxies = page.locator(".lf-visual-action")
+    expect(proxies).to_have_count(1)
+    assert proxies.evaluate("node => node.lfAnchor") == {"section": "unlinked"}
+    field = page.locator(".lf-fab-input")
+    page.locator("#linked").click()
+    expect(page).to_have_url(re.compile(r"#after$"))
+    expect(field).to_be_hidden()
+    page.locator("#unlinked").click()
+    expect(page).to_have_url(re.compile(r"#after$"))
+    expect(field).to_be_hidden()
+    page.locator("#unlinked").click(modifiers=["Alt"])
+    expect(field).to_be_focused()
+    with sending(page, "the comment on a historical illustration"):
+        write(field, "Keep this historical illustration.")
+        page.keyboard.press("ControlOrMeta+Enter")
+    assert events_model.read_events(serve.page_dir)[-1]["anchor"] == {
+        "section": "unlinked"
+    }
 
 
 def test_custom_controls_keep_visual_gestures_they_already_own(browser, serve):

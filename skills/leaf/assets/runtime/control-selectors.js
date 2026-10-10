@@ -36,7 +36,7 @@ export const TAB_STOP = `a[href], button, input, select, ${TEXT_BOX}, summary, [
 // land that holds content of its own: a tab stop focus rests on, a composite widget
 // whose items are the presses, an editing surface, a drag source.
 const PRESS_SELECTORS = [
-  "a",
+  "a[href]",
   "audio[controls]",
   "button",
   "img[usemap]",
@@ -65,8 +65,11 @@ const PRESS_SELECTORS = [
   "[role='textbox']",
   "[role='treeitem']",
 ];
+// Reach lends a mechanical tab stop to overflowing prose. That stop does not
+// turn its content into an authored interactive region.
+export const LENT_REACH_STOP = "data-lf-lent-reach-stop";
 const REGION_SELECTORS = [
-  "[tabindex]:not([tabindex='-1'])",
+  `[tabindex]:not([tabindex='-1']):not([${LENT_REACH_STOP}])`,
   "[contenteditable]:not([contenteditable='false'])",
   "[draggable='true']",
   "[role='application']",

@@ -708,6 +708,53 @@ def test_words_a_later_listener_can_cancel_native_disclosure_activation(browser)
     consume_browser_errors(page, "typed words left the screen without a key or press")
 
 
+POPOVER = """<button id=open popovertarget=pop>Open</button>
+<div id=pop popover><textarea id=field></textarea></div>
+<button id=elsewhere style="position:fixed;right:0;bottom:0">Elsewhere</button>"""
+
+
+def popover_page(browser):
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(POPOVER))
+    page.locator("#open").click()
+    page.locator("#field").fill("Keep my words")
+    return page
+
+
+@pytest.mark.parametrize("route", ["press-elsewhere", "invoker", "escape"])
+def test_words_a_popover_the_browser_closes_puts_away_its_fields(browser, route):
+    """The browser closes an auto popover itself, outside any page callback: light
+    dismissal by a press elsewhere, its popovertarget invoker's toggle, and Escape. Each
+    is the user putting the words away, as a native disclosure's close is."""
+    page = popover_page(browser)
+    if route == "press-elsewhere":
+        page.locator("#elsewhere").click()
+    elif route == "invoker":
+        page.locator("#open").click()
+    else:
+        page.keyboard.press("Escape")
+    assert not page.locator("#pop").evaluate("pop => pop.matches(':popover-open')")
+    judge_watches()
+
+
+@pytest.mark.parametrize("pressed_inside", [False, True])
+def test_words_a_popover_a_timer_closes_still_fail(browser, pressed_inside):
+    """A timer's close is passive, including during a press inside the popover, which
+    light dismissal never closes."""
+    page = popover_page(browser)
+    if pressed_inside:
+        box = page.locator("#pop").bounding_box()
+        page.mouse.move(box["x"] + 2, box["y"] + 2)
+        page.mouse.down()
+    page.evaluate(
+        "() => new Promise(done => setTimeout(() => { pop.hidePopover(); done(); }))"
+    )
+    if pressed_inside:
+        page.mouse.up()
+    judge_watches()
+    consume_browser_errors(page, "typed words left the screen without a key or press")
+
+
 def test_words_a_press_in_the_page_holding_their_frame_puts_away_are_put_away(browser):
     page = browser.new_page()
     page.goto(
@@ -722,6 +769,136 @@ def test_words_a_press_in_the_page_holding_their_frame_puts_away_are_put_away(br
     page.frame_locator("iframe").locator("#field").fill("Half a thought")
     page.locator("#clear").click()
     judge_watches()
+
+
+@pytest.mark.parametrize("cause", ["press", "passive", "unrelated", "older-press"])
+def test_words_message_ports_keep_their_scheduling_source(browser, cause):
+    """Opaque IPC owns only the effect sent by a press, including asynchronous work.
+
+    An earlier input message cannot credit the passive clear queued behind it.
+    Native transfer and listener identity remain visible to the application.
+    """
+    child = """<textarea id=field></textarea><script>
+      const script = document.currentScript;
+      addEventListener('message', event => {
+        const port = event.ports[0];
+        script.lfDocumentPort = port;
+        const receive = event => {
+          const {command, buffer} = event.data;
+          if (command !== 'clear') return;
+          Promise.resolve().then(() => setTimeout(() => {
+            field.value = '';
+            port.postMessage({bytes: [...new Uint8Array(buffer)]});
+          }, 0));
+        };
+        const unused = () => { throw new Error('removed listener ran'); };
+        port.addEventListener('message', unused);
+        port.removeEventListener('message', unused);
+        port.onmessage = receive;
+        if (port.onmessage !== receive) throw new Error('listener identity changed');
+        port.postMessage({ready: true});
+      });
+    </script>"""
+    parent = """<button id=clear>Clear</button><script>
+      const channel = new MessageChannel();
+      const port = channel.port1;
+      document.currentScript.lfDocumentPort = port;
+      const send = command => {
+        const buffer = new Uint8Array([3, 1, 4]).buffer;
+        port.postMessage({command, buffer}, {transfer: [buffer]});
+        if (buffer.byteLength !== 0) throw new Error('buffer was not transferred');
+      };
+      window.passive = lfInputWork.capture(() => send('clear'));
+      port.addEventListener('message', event => {
+        if (event.data.ready) window.connected = true;
+        else window.answer = event.data.bytes;
+      });
+      port.start();
+      frame.onload = () => frame.contentWindow.postMessage(null, '*', [channel.port2]);
+      clear.onclick = () => Promise.resolve().then(() => {
+        if (MODE === 'older-press') {
+          window.deliver = lfInputWork.capture(() => send('clear'));
+        } else if (MODE === 'unrelated') {
+          send('idle');
+          passive();
+        } else send('clear');
+      });
+    </script>""".replace("MODE", repr(cause))
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            f'<iframe id=frame sandbox="allow-scripts" srcdoc="{escape(child, quote=True)}"></iframe>'
+            + parent
+        )
+    )
+    page.wait_for_function("window.connected === true")
+    field = page.frame_locator("iframe").locator("#field")
+    field.fill("Keep my words")
+    if cause == "passive":
+        page.evaluate("passive()")
+    else:
+        page.locator("#clear").click()
+    if cause == "older-press":
+        page.wait_for_function("typeof window.deliver === 'function'")
+        field.fill("My newer words")
+        judge_watches()
+        page.evaluate("deliver()")
+    expect(field).to_have_value("")
+    page.wait_for_function("window.answer !== undefined")
+    assert page.evaluate("answer") == [3, 1, 4]
+    judge_watches()
+    if cause != "press":
+        consume_browser_errors(
+            page, "typed words left the screen without a key or press"
+        )
+
+
+def test_unclassified_worker_ports_keep_native_message_values(browser):
+    """Document tracing must leave an authored worker's uninstrumented peer native."""
+    worker = """onmessage = event => {
+      const port = event.ports[0];
+      port.onmessage = ({data}) => {
+        if (typeof data === 'string') port.postMessage(data);
+        else {
+          if (Object.keys(data).join(',') !== 'command,buffer')
+            throw new Error('application payload changed');
+          port.postMessage(data, [data.buffer]);
+          if (data.buffer.byteLength !== 0) throw new Error('worker transfer failed');
+        }
+      };
+      port.postMessage('ready');
+    };"""
+    source = f"""<button id=send>Send</button><script>
+      const worker = new Worker(URL.createObjectURL(new Blob([{worker!r}],
+        {{type: 'text/javascript'}})));
+      worker.onerror = event => {{ window.workerFailed = event.message; }};
+      const channel = new MessageChannel();
+      const port = channel.port1;
+      window.answers = [];
+      port.onmessage = ({{data}}) => {{
+        if (data === 'ready') window.connected = true;
+        else answers.push(typeof data === 'string' ? data :
+          {{command: data.command, bytes: [...new Uint8Array(data.buffer)]}});
+      }};
+      worker.postMessage(null, [channel.port2]);
+      send.onclick = () => {{
+        port.postMessage('native message');
+        const buffer = new Uint8Array([2, 7]).buffer;
+        port.postMessage({{command: 'native object', buffer}}, [buffer]);
+        if (buffer.byteLength !== 0) throw new Error('document transfer failed');
+      }};
+    </script>"""
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(source))
+    page.wait_for_function("window.connected === true")
+    page.locator("#send").click()
+    page.wait_for_function("window.workerFailed || answers.length === 2")
+    assert page.evaluate("window.workerFailed") is None
+    assert page.evaluate("answers") == [
+        "native message",
+        {"command": "native object", "bytes": [2, 7]},
+    ]
 
 
 @pytest.mark.parametrize("continuation", ["captured", "native-await", "passive"])

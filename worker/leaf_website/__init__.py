@@ -44,6 +44,7 @@ from leaf.delivery import read_delivery, stream_reply_target
 from leaf.harness import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
 from leaf.http import PageEndpoint, scope_page_urls
+from leaf.layer import foreign_runtime
 from leaf.leases import release_lease, take_lease, waiter_lease_path
 from leaf.page_memory import Slot, memo
 from leaf.registry.storage import layer_metadata
@@ -254,10 +255,15 @@ class _Binding(Slot):
 
 def page_binding(page_dir: Path) -> tuple[dict, dict | None]:
     """Read immutable delivery metadata once while this process keeps the page
-    (`leaf.page_memory`)."""
-    return memo(page_dir, _Binding).get(
-        None, lambda: (layer_metadata(page_dir), preview_metadata(page_dir))
-    )
+    (`leaf.page_memory`), refusing a page another Leaf's runtime vendored."""
+
+    def bind() -> tuple[dict, dict | None]:
+        identity = layer_metadata(page_dir)
+        if refusal := foreign_runtime(page_dir, identity):
+            raise RuntimeError(refusal)
+        return identity, preview_metadata(page_dir)
+
+    return memo(page_dir, _Binding).get(None, bind)
 
 
 def site_metadata(page_root: str, page: dict) -> str:
@@ -565,12 +571,21 @@ class HostedTurn(CarriedTurn):
         try:
             if reply_error is not None:
                 self.record("turn_reply_commit_failed", **fault_fields(reply_error))
-            self.harness._finish_turn(
-                self.page_dir, self.session_id, terminal, expected=self.activity_epoch()
-            )
+            if self.correction is not None:
+                # The source admission refusal is precisely what the repair turn
+                # will correct. Closing cannot require that same invalid source.
+                super().close(terminal, reply_error)
+            else:
+                self.harness._finish_turn(
+                    self.page_dir,
+                    self.session_id,
+                    terminal,
+                    expected=self.activity_epoch(),
+                )
         finally:
             self.clear_activity()
-            self._receipt_unanswered()
+            if self.correction is None:
+                self._receipt_unanswered()
 
     def _receipt_unanswered(self) -> None:
         """Tell the user no answer is coming, for each move still owed one.
@@ -820,7 +835,27 @@ class WebsiteCodexHarness:
         finally:
             with self.lock:
                 self.following_threads.discard(turn.session_id)
-            self._continue_page(page_dir, turn.event_ids)
+            restarted = False
+            if turn.correction is not None and not self.stop_event.is_set():
+                try:
+                    with self.lock:
+                        process = self._ensure_server()
+                        restarted = self._resume_and_start(
+                            page_dir, turn.session_id, process, turn.event_ids[0]
+                        )
+                except Exception as error:  # noqa: BLE001 - daemon owns failure feedback
+                    log_agent(
+                        "turn_correction_start_failed",
+                        **agent_event_fields(turn.event_ids),
+                        error=type(error).__name__,
+                        detail=str(error),
+                    )
+            if not restarted:
+                if turn.correction is not None:
+                    for event_id in turn.event_ids:
+                        abandon_codex_delivery(turn.session_id, event_id)
+                    turn._receipt_unanswered()
+                self._continue_page(page_dir, turn.event_ids)
 
     def _continue_page(self, page_dir: Path, excluding: tuple[str, ...]) -> None:
         """Start the page's next unanswered move, receipting each start that cannot.
@@ -1478,7 +1513,7 @@ def close_on_signal(agent_harness: WebsiteCodexHarness) -> None:
     process dies where it stood and an ordinary `finally` never runs. The App Server
     is in a session of its own, so nothing else reaps it: inside a container that is
     invisible, because the container takes every process away with it, but
-    `leaf-dev journey local` runs this adapter on a developer's machine and
+    `leaf-dev journey website-adapter` runs this adapter on a developer's machine and
     stops it exactly this way. Three App Servers were found alive there, fifteen
     hours and 95MB of resident memory each after the runs that started them.
 

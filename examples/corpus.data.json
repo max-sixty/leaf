@@ -118,19 +118,17 @@
       "diff": "diff --git a/atlas/api.py b/atlas/api.py\n--- a/atlas/api.py\n+++ b/atlas/api.py\n@@ -7,3 +7,3 @@ class ImportResult:\n-    errors: list[str]\n+    failures: tuple[ImportFailure, ...]\n     rows: int"
     }
   },
+  "dfg-patch-source": "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-return \"old\"\n+return \"new\"\n",
   "gallery-latency": 184,
   "gallery-markdown": "# Release ready\n\nThe **importer** now preserves field names.\n\n- Review the schema\n- Publish the release\n\n| Check | Result |\n| --- | --- |\n| Round trip | Passed |\n\n[Read the release](https://example.com/release)\n",
   "gallery-html": "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>Release card</title><style>body{font:18px system-ui;margin:32px;color:#17352d}article{border:2px solid #25755c;padding:24px;max-width:420px}h1{font-size:28px}strong{color:#25755c}</style><article><h1>Importer release</h1><p>The schema round trip <strong>passed</strong>.</p><details><summary>Release checklist</summary><p>Review the schema, then publish the release.</p></details></article></html>",
   "gallery-visual-run": {
     "title": "Optional packages move to focused pages",
-    "observedAt": "2026-09-11T18:30:00-07:00",
     "base": {
-      "revision": "19f3ba5f",
-      "url": "https://base.preview.example/"
+      "revision": "19f3ba5f"
     },
     "candidate": {
-      "revision": "e2481629",
-      "url": "https://candidate.preview.example/"
+      "revision": "e2481629"
     },
     "cases": [
       {
@@ -141,6 +139,7 @@
         "result": "The candidate replaces the general package tutorial opening with one-column links to focused package pages.",
         "classification": "changed",
         "capture": {
+          "observedAt": "2026-09-11T18:30:00-07:00",
           "browser": "Chromium",
           "browserVersion": "151.0.7922.34",
           "viewport": {
@@ -169,6 +168,7 @@
         "result": "Seeded regression for review: the candidate drops the GitHub destination.",
         "classification": "changed",
         "capture": {
+          "observedAt": "2026-09-11T18:30:00-07:00",
           "browser": "Chromium",
           "browserVersion": "151.0.7922.34",
           "viewport": {
@@ -197,8 +197,9 @@
         "result": "The same destinations and introduction remain in the same positions above the changed catalog.",
         "classification": "clean",
         "capture": {
+          "observedAt": "2026-10-08T10:51:22-07:00",
           "browser": "Chromium",
-          "browserVersion": "151.0.7922.34",
+          "browserVersion": "154.0.8037.98",
           "viewport": {
             "width": 1280,
             "height": 300
@@ -208,8 +209,8 @@
           "locale": "en-US",
           "timezone": "America/Los_Angeles"
         },
-        "before": "/media/986f35fe9f8e3a0a.png",
-        "after": "/media/a003412d813309b9.png"
+        "before": "/media/037e40b4680c16b4.png",
+        "after": "/media/037e40b4680c16b4.png"
       }
     ]
   },

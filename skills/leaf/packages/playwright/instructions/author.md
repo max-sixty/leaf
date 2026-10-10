@@ -11,10 +11,15 @@ recordings. Explicit zoom controls spread different times horizontally. Focus th
 timeline and use Left/Right or Home/End to step through captured stops. Drag the
 blue handle to scrub; empty space pans. Play follows the captured images and
 checkpoints at their recorded timing, including intermediate frames. Pause holds
-the current capture; selecting a moment or engaging with evidence also pauses.
+the current capture; selecting a moment, tapping the image, dragging with a mouse, or
+inspecting saved elements also pauses.
 Play at the end restarts the recording.
 Image controls fit, zoom and inspect the actual captured pixels; ordinary wheel
-scrolling keeps its page-navigation meaning. Image zoom and pan and the chosen
+scrolling and vertical swipes over the image keep their page-navigation meaning
+and leave playback running, including when the controls scroll out of view.
+On a touchscreen, tap the image or timeline to pause before dragging it to inspect
+pixels or pan time. The scrub handle still pauses and selects a moment directly.
+Image zoom and pan and the chosen
 timeline window survive playback, replay and returning from another scope.
 Explicit point navigation reveals its destination at the retained time zoom.
 Selected point details, including saved elements, scroll within their own region,

@@ -22,6 +22,16 @@ export function union(boxes) {
 // A value held between two bounds, the lower winning where they cross.
 export const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 
+// Native nearest scroll alignment on either axis. A destination spanning both edges
+// stays; an oversized one partly in view lands its far edge, retaining the visible end.
+export function nearestScrollBy(start, end, low, high) {
+  if (start < low && end > high) return 0;
+  const oversized = end - start > high - low;
+  if (start < low) return oversized ? end - high : start - low;
+  if (end > high) return oversized ? start - low : end - high;
+  return 0;
+}
+
 // Which padding-box edges clip descendants. Overflow is per axis; paint containment
 // and content visibility clip both even when overflow computes visible.
 export const clippingAxes = (style) => {

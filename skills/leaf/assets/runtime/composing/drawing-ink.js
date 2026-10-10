@@ -12,16 +12,16 @@
  * its edge. Ink still being drawn is cut by nothing, since the pen goes where the
  * user puts it. Equal complete descriptions retain the actual SVG node.
  *
- * A mark is drawn at its target's current size (`strokesIn`), so it stays on its element
- * in a narrower window. It scales with the element's box only, so text that reflows
- * moves under the mark and a circled word can leave its circle.
+ * A mark keeps its local offsets from the target's origin through affine transforms.
+ * Intrinsic visuals carry ink as their contents resize. HTML layout growth does not
+ * stretch ink; text that reflows moves under a mark and can leave its circle.
  */
 
 import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
-import { shownBox } from "../geometry.js";
 import { el } from "../widget-elements.js";
 import { paintSet } from "../target-paint-geometry.js";
-import { strokesIn, validDrawing } from "./drawing-record.js";
+import { validDrawing } from "./drawing-record.js";
+import { drawingGeometry } from "./drawing-geometry.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const FRAME_MIN = 1;
@@ -62,17 +62,6 @@ function pathFor(data) {
   return path;
 }
 
-// The drawing as a picture of itself, fitted to whatever box holds it: what a composer
-// shows of the drawing its comment carries.
-export function drawingThumbnail(drawing) {
-  const svg = document.createElementNS(SVG_NS, "svg");
-  const { x, y, width, height } = drawingFrame(drawing.strokes);
-  svg.setAttribute("viewBox", `${x} ${y} ${width} ${height}`);
-  svg.setAttribute("aria-hidden", "true");
-  svg.append(pathFor(pathData(drawing.strokes)));
-  return svg;
-}
-
 export function createDrawingInk({ drawings }) {
   // The draft or ordinary Thread is the accessible representation of its ink.
   const layer = el("div", "lf-ui lf-drawings");
@@ -88,9 +77,9 @@ export function createDrawingInk({ drawings }) {
   // still consume distinct prior nodes in order.
   function mark(drawing, target, className, id = "") {
     if (!validDrawing(drawing)) return null;
-    const box = shownBox(target);
-    if (!box?.width || !box?.height) return null;
-    const strokes = strokesIn(drawing, box);
+    const geometry = drawingGeometry(drawing, target);
+    if (!geometry) return null;
+    const { box, strokes } = geometry;
     const frame = drawingFrame(strokes);
     const { width, height } = frame;
     if (!width || !height) return null;
@@ -103,7 +92,7 @@ export function createDrawingInk({ drawings }) {
     const data = pathData(strokes);
     const described = JSON.stringify([className, id, frame, data]);
     const item = {
-      target,
+      target: geometry.target,
       rect,
       cut: className !== "lf-drawing-active",
     };
@@ -130,7 +119,7 @@ export function createDrawingInk({ drawings }) {
       const painted = mark(drawing, target, className, id);
       if (painted) {
         marks.push(painted);
-        nextObserved.add(target);
+        nextObserved.add(painted.target);
       }
     }
 

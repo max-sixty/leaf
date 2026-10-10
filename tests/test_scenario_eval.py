@@ -160,7 +160,6 @@ def test_success_readers_require_the_same_exact_agent_answer(tmp_path):
         "kind": "comment",
         "author": "user",
         "id": "input",
-        "attempt": review_scenario.attempt("first"),
     }
     answer = {
         "kind": "reply",
@@ -185,7 +184,7 @@ def test_success_readers_require_the_same_exact_agent_answer(tmp_path):
         (tmp_path / "events.jsonl").write_text("\n".join(json.dumps(e) for e in events))
         assert successful_replies(events, "input") == expected
         assert answered_by_reply(events, "input") is success
-        assert review_scenario.answers(tmp_path, "first") == expected
+        assert review_scenario.answers(tmp_path, "input") == expected
         assert journey.deployment_answer(events, "input") == (
             reply if success else None
         )
@@ -223,7 +222,7 @@ def test_settled_requires_context_entry_even_with_a_reply_and_closed_turn(
     from leaf.harness import EmbeddedHarness
     from leaf.service import PageTransaction
     from leaf.state import close_session_turn
-    from leaf_dev.review_scenario import attempt, settled
+    from leaf_dev.review_scenario import settled
 
     stamped = stamp(page_dir)
     assert stamped.exit_code == 0, stamped.output
@@ -238,7 +237,6 @@ def test_settled_requires_context_entry_even_with_a_reply_and_closed_turn(
                 "kind": "comment",
                 "author": "user",
                 "revision": 1,
-                "attempt": attempt("idle"),
                 "text": "Which items block?",
                 "anchor": {"section": "plan"},
             },
@@ -271,23 +269,21 @@ def test_settled_requires_context_entry_even_with_a_reply_and_closed_turn(
     assert pickup_receipts(events, phase=None, input_id="other") == []
     assert opened_input_ids(events) == ({comment["id"]} if phase == "opened" else set())
     if phase == "opened":
-        assert settled(page_dir, session, ["idle"])["turn_closed"] is not None
+        assert settled(page_dir, session, {"idle": comment["id"]})["turn_closed"]
     else:
         with pytest.raises(
             click.ClickException, match="never entered the harness context"
         ):
-            settled(page_dir, session, ["idle"])
+            settled(page_dir, session, {"idle": comment["id"]})
 
 
-def test_claude_code_timing_reports_context_entry_after_queue_acceptance(tmp_path):
-    from leaf_dev.review_scenario import attempt
-    from leaf_dev.verify_claude_code_task import timings
+def test_journey_timing_reports_context_entry_after_queue_acceptance():
+    from leaf_dev.journey import User
 
     comment = {
         "kind": "comment",
         "id": "input",
         "author": "user",
-        "attempt": attempt("idle"),
         "ts": "2026-10-08T12:00:00-07:00",
     }
     events = [comment]
@@ -300,6 +296,7 @@ def test_claude_code_timing_reports_context_entry_after_queue_acceptance(tmp_pat
         events.append(
             {
                 "kind": "pickup",
+                "id": f"pickup-{second}",
                 "phase": phase,
                 "events": [input_id],
                 "session": "reader",
@@ -310,6 +307,7 @@ def test_claude_code_timing_reports_context_entry_after_queue_acceptance(tmp_pat
     events.append(
         {
             "kind": "reply",
+            "id": "answer",
             "author": "agent",
             "parent": "input",
             "responds": "input",
@@ -317,7 +315,6 @@ def test_claude_code_timing_reports_context_entry_after_queue_acceptance(tmp_pat
             "ts": "2026-10-08T12:00:05-07:00",
         }
     )
-    (tmp_path / "events.jsonl").write_text("\n".join(json.dumps(e) for e in events))
-    assert (
-        timings(tmp_path, "idle") == "`idle` picked up after 4.0 s, answered after 5 s"
-    )
+    user = User(None, "version", lambda: events)
+    user.ids["idle"] = "input"
+    assert user.timing("idle") == "`idle` picked up after 4.0 s, answered after 5 s"

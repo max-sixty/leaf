@@ -6,7 +6,7 @@ from leaf import event_log as events_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_navigation import source_revision
-from render_harness import leaf_page, open_page, round_trip, write
+from render_harness import leaf_page, open_page, page_comment, round_trip, write
 
 EDITOR_INSPECTION = """(() => {
   const attach = Element.prototype.attachShadow;
@@ -199,7 +199,11 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
                 now,
             )
         elif edit == "resize-insert":
-            assert now["height"] > before["height"] + 50, (before, now)
+            # Moving Send to the new last line can also remove a wrapped row.
+            assert now["height"] > before["height"], (before, now)
+            assert now["height"] == pytest.approx(
+                editor.evaluate("box => box.naturalBlockSize"), abs=0.5
+            ), (before, now)
         else:
             assert now["height"] < before["height"] - 50, (before, now)
         assert now["y"] == pytest.approx(before["y"], abs=0.5), (before, now)
@@ -406,7 +410,9 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
 
     tail = '<p id="continuity-tail">Review the next step here.</p>'
     if place == "seat":
-        authored = SEATED_QUESTION_PAGE.replace("</lf-command>", "</lf-command>" + tail)
+        authored = SEATED_QUESTION_PAGE.replace(
+            "</lf-test-plan>", "</lf-test-plan>" + tail
+        )
         anchor = {"section": "jobs"}
         selector = '[data-lf-thread-seat="jobs"] > .lf-page-thread'
     elif place in ("margin", "panel"):
@@ -718,8 +724,7 @@ def test_direct_comment_arrival_keeps_its_canceled_entry_motion_canceled(
         browser, serve(ROOT / "examples/review-a-plan.html"), context=context
     )
     page.locator(".lf-threads-toggle").click()
-    field = page.locator(".lf-general leaf-text")
-    expect(field).to_be_visible()
+    field = page_comment(page)
     page.evaluate("""() => {
       window.__recuedArrivals = [];
       document.addEventListener('animationstart', event => {
@@ -757,6 +762,8 @@ def test_direct_comment_arrival_keeps_its_canceled_entry_motion_canceled(
             }""")
 
         before = reading_place()
+        # The send put the card away; the next thought is begun in it again.
+        page_comment(page)
         write(field, "Keep the next thought separate.")
         rendered(page)
         wait_for_probe(page, "pageSettled")

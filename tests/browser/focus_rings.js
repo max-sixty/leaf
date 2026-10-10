@@ -526,8 +526,9 @@
           // box that holds the control answers nothing — the control is inside it — so the
           // walk stops there rather than reading its rank.
           //
-          // A z-index named on the way up stops the walk: it lifts the box past the holder
-          // this would rank, so the reading says what it said before. Position lifts a box
+          // A z-index named on the way up orders its box only inside the stacking context
+          // around it, so the walk goes on from that context, which paints in the
+          // positioned layer around it as a positioned box does. Position lifts a box
           // the same way without naming one — a positioned box leaves its holder's place in
           // the flow to paint in the positioned layer of the nearest ancestor stacking
           // context. A positioned holder still answers for it, since the two paint in that
@@ -547,9 +548,26 @@
             }
             return false;
           };
+          // Ending the walk at the first z-index left the grip's ring reported under a
+          // thread's sticky title, whose z-index lifts it inside the list and no further,
+          // while every pixel of the ring's run was the ring's. The context paints as one
+          // unit, so its own rank answers for everything in it; a static holder above a
+          // static context answers through `clears`, as above a positioned box.
+          const forms = (n) => {
+            const s = getComputedStyle(n);
+            return (
+              stacked(s, above(n)) ||
+              s.position === "fixed" ||
+              s.position === "sticky" ||
+              s.isolation === "isolate" ||
+              s.transform !== "none" ||
+              s.filter !== "none" ||
+              parseFloat(s.opacity) < 1
+            );
+          };
           let under = false;
           let hoisted = false;
-          for (let a = over; a && control >= 0; a = above(a)) {
+          for (let a = over; a && control >= 0;) {
             if (holds(a, el)) break;
             const acs = getComputedStyle(a);
             const ranked = inside.indexOf(a);
@@ -558,8 +576,16 @@
                 hoisted && acs.position === "static" ? clears(el) : ranked > control;
               break;
             }
-            if (acs.zIndex !== "auto") break;
-            if (acs.position !== "static") hoisted = true;
+            if (acs.zIndex !== "auto") {
+              let context = above(a);
+              while (context && !holds(context, el) && !forms(context))
+                context = above(context);
+              a = context;
+              hoisted = false;
+              continue;
+            }
+            if (acs.position !== "static" || forms(a)) hoisted = true;
+            a = above(a);
           }
           // Nothing beneath a box the control paints over is over the ring either, so this
           // side is answered rather than carried on down the stack.
@@ -602,6 +628,7 @@
         sample:
           el === focused ||
           holds(el, focused) ||
+          holds(focused, el) ||
           el.hasAttribute("data-lf-ring-sample"),
         scrolled,
         cuts,
@@ -633,7 +660,7 @@
   // `summary`, a widget's own native control — and replacing it everywhere would be a
   // change to how the product looks rather than a thing this test is owed.
   //
-  // The layer's focus ring is the second, on the stop or on an ancestor: a `choose` group
+  // The layer's focus ring is the second, on the stop, a child, or an ancestor: a `choose` group
   // takes the ring for the pick mark inside it, whose own rule states `outline: none`
   // exactly so the two do not both draw, and the user sees the group.
   //
@@ -700,6 +727,14 @@
     const named = (el) =>
       getComputedStyle(el).getPropertyValue("--lf-focus-ring").trim() !== "none";
     if (shown(e) || overlaid(e)) return null;
+    // Tabs draw focus on their label inside the larger hit target. Only a named ring
+    // counts here, for the same reason as on an ancestor below.
+    for (const child of e.querySelectorAll("*"))
+      if (
+        child.checkVisibility({ visibilityProperty: true, opacityProperty: true }) &&
+        ((shown(child) && named(child)) || overlaid(child))
+      )
+        return null;
     for (
       let el = e.parentElement ?? e.getRootNode().host ?? null;
       el;

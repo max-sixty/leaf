@@ -36,12 +36,7 @@ export function createPageGeometry({
   let stopScrolls = null;
 
   function aimTarget() {
-    if (aim.isOn()) {
-      const target = aim.target();
-      return target
-        ? { element: target.element, part: "", surface: target.surface ?? null }
-        : null;
-    }
+    if (aim.isOn()) return aim.target();
     // Design mode's box and name follow a hovering pointer. A finger does not hover: its
     // last tap is not where it stands, and a box left there follows every scroll.
     const at = pointer();
@@ -71,8 +66,8 @@ export function createPageGeometry({
     const inspect = designMode.inspectElement;
     inspect.classList.toggle("lf-shown", Boolean(target));
     if (!target) return;
-    const name = target.part
-      ? `${target.part} · ${designMode.name(target.element)}`
+    const name = target.anchor.part
+      ? `${target.anchor.part} · ${designMode.name(target.element)}`
       : designMode.name(target.element);
     keepsText(inspect, name);
     targetPaint.labelAim(inspect);

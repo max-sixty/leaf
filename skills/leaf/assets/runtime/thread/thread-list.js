@@ -90,7 +90,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   };
 
   const emptyText =
-    "No threads yet. Select any text on the page to comment on it, or use the box below.";
+    "No threads yet. Select any text on the page to comment on it, or comment on the whole page from the banner.";
 
   // Opening a card is the third thing that reflows this list, beside the two renders, and
   // the only one the browser performs on its own: the named group closes the card that was
@@ -230,7 +230,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     //
     // An open thread the narrowing hides keeps its node, hidden, rather than leaving the
     // list: a widget an agent sent in a reply is instantiated once, here, and every other
-    // reading of it — the banner's Asks count, the drawer's rows, the q/Q walk — finds it by
+    // reading of it — the banner's Questions count, the drawer's rows, the q/Q walk — finds it by
     // id in the document. Pressing "Waiting on you" after answering a thread's question
     // took that thread's node out and, with it, the question from the page's count: 2/2
     // became 1/1 while the log said nothing had changed. Hidden is a fact about this list;
@@ -250,7 +250,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
         }),
       );
     }
-    for (const e of readApplication().effective.acceptedApprovals)
+    for (const e of readApplication().effective.thread.approvalHistory) {
       rows.push(
         Object.freeze({
           kind: "system",
@@ -259,6 +259,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
           text: `✓ Approved ${ago(e.ts)}`,
         }),
       );
+    }
     return Object.freeze({
       rows: Object.freeze(rows),
       intent: narrowing.intent,

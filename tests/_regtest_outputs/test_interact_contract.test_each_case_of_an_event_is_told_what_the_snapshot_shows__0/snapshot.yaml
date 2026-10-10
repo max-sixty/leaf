@@ -4,9 +4,9 @@
 # A test records this file; nobody writes it by hand. The lines starting with `#`
 # explain it, and everything else is the recorded data. The walkthrough below is
 # one real run: the test serves a page, posts a comment to it the way the browser
-# does, runs `leaf wait` in a Claude Code session, and takes the delivery the way
-# Leaf's prompt hook does. Only the id, the times and the page's path are pinned,
-# so the file stays the same from run to run.
+# does, runs `leaf wait` in a Claude Code session, and acknowledges its complete
+# delivery. Only the id, the times and the page's path are pinned, so the file
+# stays the same from run to run.
 #
 # How this text reaches the agent, by example
 # -------------------------------------------
@@ -24,14 +24,13 @@
 #
 #      {"kind": "comment", "revision": 1, "text": "why here?", "anchor": {"section": "plan", "quote": "moves to Tuesdays"}, "attempt": "9f86d081884c7d659a2feaa0c55ad015", "author": "user", "id": "1946b466", "attention": true, "ts": "2026-09-21T20:12:30-07:00"}
 #
-# 3. Earlier, the agent ended its turn and Leaf's Stop hook went on watching.
-#    The watch notices the new input and wakes the session. Leaf's prompt hook
-#    runs as that turn begins and builds a delivery for the comment. This test
-#    drives the same watch and complete reader delivery through `leaf wait`.
+# 3. The agent runs `leaf wait`, which notices the new input and prints a complete
+#    delivery for the comment. The explicit wait carries the input even if the
+#    session's hooks no longer run.
 #    The comment is owed a reply, which the delivery records as its `answer` (step
-#    4): a `reply` for `leaf thread reply` here, where the Codex App Server route
+#    4): a `reply` for `leaf response reply <answer.ref>` here; the Codex App Server route
 #    would record a `turn`, which the turn's own messages write. For the
-#    instructions, the hook reads the clauses under
+#    instructions, `leaf wait` reads the clauses under
 #    `$events.handling.comment` in the page's copy of registry.json, then those
 #    under `$events.answering.reply`, the answer it owes. Each clause has a `text`
 #    and may have a `when`, a JSON Schema that must hold for the clause to apply.
@@ -45,12 +44,12 @@
 #              page's words from the first to the last inside the ink's extents: the
 #              neighbourhood of the mark rather than the mark, so an arrow across a
 #              paragraph says the whole paragraph. It is absent where the extents hold
-#              no words, as over a picture or in a margin. `drawing.strokes` are
-#              offsets from the top-left corner of the element the comment is anchored
-#              on and `drawing.box` is its width and height, so a stroke's share of
-#              the box says which part of a picture it marks. Where the words and
-#              offsets leave unclear what the mark covers, `leaf page picture PAGE
-#              ID`, given the comment's `id`, shows what the user saw: it prints the
+#              no words, as over a picture or in a margin. `drawing.strokes` are local
+#              coordinates in one frame: HTML CSS pixels, SVG user units, or intrinsic
+#              image, canvas and video pixels. Optional `drawing.frame` identifies
+#              that visual inside the semantic comment target by a structural path;
+#              `drawing.box` is the frame's size. Prefer `leaf page picture PAGE ID`,
+#              given the comment's `id`, to see what the mark covers: it prints the
 #              path of a PNG of the comment's revision laid out in their window and
 #              color scheme (`drawing.viewport`, `drawing.scheme`), with the ink over
 #              it. Any `text` explains the mark. Otherwise it is an ordinary comment,
@@ -68,18 +67,18 @@
 #      clause 4, does not apply:
 #        when: {"required": ["about"], "properties": {"about": {"const": "design"}}}
 #        text: A design comment is about how the page looks or behaves rather than
-#              what it says. Its anchor's `section` is a widget's id or, when it
-#              starts `lf-`, a part of Leaf's own chrome, such as `lf-banner`,
+#              what it says. Its anchor's `section` is an authored element's id or,
+#              when it starts `lf-`, a part of Leaf's own chrome, such as `lf-banner`,
 #              `lf-threads` (the Threads panel), `lf-queue` (the Questions panel),
-#              `lf-versions` or `lf-composer`; `part`, when present, names the control
-#              the click landed on. Find the source that produces what it names and
-#              fix it in this page's own source, unless the behavior belongs to a
-#              package's widget or the user asks for a wider fix: then change the
-#              package as the Leaf skill's `references/packages.md` says, re-vendor,
-#              and note the re-vendor on the stamp. A fix that belongs in Leaf itself
-#              is the user's to raise, as the Leaf skill's "Improve Leaf through use"
-#              says. The stamped version that carries the fix is the result the reply
-#              reports.
+#              `lf-versions` or `lf-composer`; `part`, when present, describes the
+#              control, region or picture the click landed on. Find the source that
+#              produces what it names and fix it in this page's own source, unless the
+#              behavior belongs to a package's widget or the user asks for a wider
+#              fix: then change the package as the Leaf skill's
+#              `references/packages.md` says, re-vendor, and note the re-vendor on the
+#              stamp. A fix that belongs in Leaf itself is the user's to raise, as the
+#              Leaf skill's "Improve Leaf through use" says. The stamped version that
+#              carries the fix is the result the reply reports.
 #      clause 5, applies:
 #        when: {"required": ["thread", "answer"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}, "answer": {"properties": {"kind": {"const": "reply"}, "writer": {"const": "agent"}}}}}
 #        text: This event's thread has no title yet: name it by adding `--title "<a
@@ -133,21 +132,21 @@
 #        text: The widget is in a thread message: continue the work the user's answer
 #              selects or unblocks, and answer in that thread.
 #
-# 4. The hook adds the delivery as JSON to the turn's context, after one line
-#    saying so. The delivery's event is the log line from step 2 less `attempt`, the
-#    browser's retry key, and with these fields added:
+# 4. The wait prints the delivery as JSON. The delivery's event is the log line
+#    from step 2 less `attempt`, the browser's retry key, and with these fields added:
 #    `seq`, `subject`, `threads`, `handling` and `answer`.
 #    The batch's `handling` maps clause ids to their text, each distinct text
 #    appearing once. The event's `handling` names its applicable clauses in order.
-#    Once it has published that context, the hook confirms the delivery itself,
-#    so the envelope's `acknowledge` is null and the comment reads Picked up. The
-#    whole delivery, indented here (the hook writes it on one line):
+#    The envelope's `acknowledge` tells the agent to confirm receipt before work;
+#    printing alone does not mark the comment Picked up. Large readings expose
+#    numbered parts and a `next` command; read all parts before acknowledging.
+#    This comment fits in one reading, shown here as the wait prints it:
 #
 #      {
 #        "format": "leaf-delivery-v5",
 #        "id": "e8417b8a",
 #        "created_at": 1790046750.29,
-#        "acknowledge": null,
+#        "acknowledge": "Whoever ran the `leaf wait` that printed this delivery acknowledges it; until then the user's moves read Sent rather than Picked up. If the output was cut off, reread it with `leaf delivery read e8417b8a`. Follow any `next` commands before confirming. If you handle it, acknowledge before any other work; if you forward it, acknowledge once it durably arrives there. To acknowledge, start `leaf wait --ack e8417b8a` as the next background task: it confirms this delivery and waits for the next.",
 #        "batches": [
 #          {
 #            "page": "/path/to/page",
@@ -216,9 +215,9 @@
 #        ]
 #      }
 #
-# 5. The agent follows `handling`: it names any work the comment asks for with
-#    `leaf task start`, does it, and replies in the thread with
-#    `leaf thread reply`.
+# 5. The agent acknowledges the delivery, then follows `handling`. For requested
+#    work it opens with `leaf response reply <answer.ref> --ephemeral --text "<plan>"`,
+#    does the work, and answers with `leaf response reply <answer.ref>`.
 #
 # What this file records
 # ----------------------
@@ -354,7 +353,7 @@ comment with a drawing:
   event:
     kind: comment
     drawing:
-      format: leaf-drawing/2
+      format: leaf-drawing/3
       strokes: [[[0, 0], [9, 9]]]
       box: [640, 120]
       viewport: [1200, 900]
@@ -369,12 +368,12 @@ comment with a drawing:
         words from the first to the last inside the ink's extents: the neighbourhood
         of the mark rather than the mark, so an arrow across a paragraph says the
         whole paragraph. It is absent where the extents hold no words, as over a
-        picture or in a margin. `drawing.strokes` are offsets from the top-left
-        corner of the element the comment is anchored on and `drawing.box` is its
-        width and height, so a stroke's share of the box says which part of a picture
-        it marks. Where the words and offsets leave unclear what the mark covers,
-        `leaf page picture PAGE ID`, given the comment's `id`, shows what the user
-        saw: it prints the path of a PNG of the comment's revision laid out in their
+        picture or in a margin. `drawing.strokes` are local coordinates in one frame:
+        HTML CSS pixels, SVG user units, or intrinsic image, canvas and video pixels.
+        Optional `drawing.frame` identifies that visual inside the semantic comment
+        target by a structural path; `drawing.box` is the frame's size. Prefer `leaf
+        page picture PAGE ID`, given the comment's `id`, to see what the mark covers:
+        it prints the path of a PNG of the comment's revision laid out in their
         window and color scheme (`drawing.viewport`, `drawing.scheme`), with the
         ink over it. Any `text` explains the mark. Otherwise it is an ordinary comment,
         answered the same way.
@@ -488,17 +487,17 @@ design comment:
     - when: {"required": ["about"], "properties": {"about": {"const": "design"}}}
       text: >-
         A design comment is about how the page looks or behaves rather than what
-        it says. Its anchor's `section` is a widget's id or, when it starts `lf-`,
-        a part of Leaf's own chrome, such as `lf-banner`, `lf-threads` (the Threads
-        panel), `lf-queue` (the Questions panel), `lf-versions` or `lf-composer`;
-        `part`, when present, names the control the click landed on. Find the source
-        that produces what it names and fix it in this page's own source, unless
-        the behavior belongs to a package's widget or the user asks for a wider
-        fix: then change the package as the Leaf skill's `references/packages.md`
-        says, re-vendor, and note the re-vendor on the stamp. A fix that belongs
-        in Leaf itself is the user's to raise, as the Leaf skill's "Improve Leaf
-        through use" says. The stamped version that carries the fix is the result
-        the reply reports.
+        it says. Its anchor's `section` is an authored element's id or, when it
+        starts `lf-`, a part of Leaf's own chrome, such as `lf-banner`, `lf-threads`
+        (the Threads panel), `lf-queue` (the Questions panel), `lf-versions` or
+        `lf-composer`; `part`, when present, describes the control, region or picture
+        the click landed on. Find the source that produces what it names and fix
+        it in this page's own source, unless the behavior belongs to a package's
+        widget or the user asks for a wider fix: then change the package as the
+        Leaf skill's `references/packages.md` says, re-vendor, and note the re-vendor
+        on the stamp. A fix that belongs in Leaf itself is the user's to raise,
+        as the Leaf skill's "Improve Leaf through use" says. The stamped version
+        that carries the fix is the result the reply reports.
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
       text: >-
         When the event asks for work, say in its thread what you will do before
@@ -811,7 +810,7 @@ pick on the page:
         the pick in a later version, mark the element `restated` and say why in
         the version note.
     - text: >-
-        It answers the page's Ask, so the page shows it as waiting on you until
+        It answers the page's Question, so the page shows it as waiting on you until
         the markup records it. Name the work it selects or unblocks with `leaf task
         start <page> <event-id> "<the work, in a line>"` before starting it, then
         do it, write it in, and stamp a version.
@@ -840,9 +839,9 @@ option the user added:
         the version note.
     - when: {"not": {"required": ["answer"]}}
       text: >-
-        This move owes no answer of its own: it answers no Ask, a later move on
-        the same widget carries the answer, or it does not finish the answer yet,
-        such as a pick before the Done its group waits for.
+        This move owes no answer of its own: it answers no Question, a later move
+        on the same widget carries the answer, or it does not finish the answer
+        yet, such as a pick before the Done its group waits for.
 
 pick before Done:
   event:
@@ -863,9 +862,9 @@ pick before Done:
         the version note.
     - when: {"not": {"required": ["answer"]}}
       text: >-
-        This move owes no answer of its own: it answers no Ask, a later move on
-        the same widget carries the answer, or it does not finish the answer yet,
-        such as a pick before the Done its group waits for.
+        This move owes no answer of its own: it answers no Question, a later move
+        on the same widget carries the answer, or it does not finish the answer
+        yet, such as a pick before the Done its group waits for.
 
 decided suggestion:
   event:
@@ -889,7 +888,7 @@ decided suggestion:
         the pick in a later version, mark the element `restated` and say why in
         the version note.
     - text: >-
-        It answers the page's Ask, so the page shows it as waiting on you until
+        It answers the page's Question, so the page shows it as waiting on you until
         the markup records it. Name the work it selects or unblocks with `leaf task
         start <page> <event-id> "<the work, in a line>"` before starting it, then
         do it, write it in, and stamp a version.

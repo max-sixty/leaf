@@ -257,8 +257,8 @@ def test_sample_admits_interactive_widgets(page_dir):
     assert errs == []
 
 
-def test_an_ask_surface_frames_exactly_one_source(page_dir):
-    """A broad Ask has one authored title and one source of liveness and state."""
+def test_question_context_frames_any_number_of_independent_sources(page_dir):
+    """Context supplies one title without imposing source count or identity."""
     registry = registry_storage.load_registry(page_dir)
     first = (
         '<lf-options id="g-one" choose>'
@@ -294,15 +294,18 @@ def test_an_ask_surface_frames_exactly_one_source(page_dir):
         f'<lf-ask id="decision-untitled"><p>Context.</p>{first}</lf-ask>',
         registry,
     )
-    assert "an Ask must have exactly one direct heading, found none" in " ".join(
-        untitled
+    assert (
+        "a Question context must have exactly one direct heading, found none"
+        in " ".join(untitled)
     )
 
     retitled = fragment_errors(
         f'<lf-ask id="decision-retitled"><h2>Choose</h2><h3>Again</h3>{first}</lf-ask>',
         registry,
     )
-    assert "an Ask must have exactly one direct heading" in " ".join(retitled)
+    assert "a Question context must have exactly one direct heading" in " ".join(
+        retitled
+    )
 
     context_first = fragment_errors(
         f'<lf-ask id="decision-context-first"><p>Context.</p><h2>Choose</h2>{first}</lf-ask>',
@@ -321,38 +324,38 @@ def test_an_ask_surface_frames_exactly_one_source(page_dir):
         in " ".join(control_first)
     )
 
-    empty = fragment_errors(
-        '<lf-ask id="decision-empty"><h2>Nothing to answer</h2></lf-ask>',
-        registry,
+    assert (
+        fragment_errors(
+            '<lf-ask id="decision-empty"><h2>Nothing to answer</h2></lf-ask>',
+            registry,
+        )
+        == []
     )
-    assert "an Ask must frame exactly one declared Ask source, found none" in " ".join(
-        empty
+    assert (
+        fragment_errors(
+            f'<lf-ask id="decision-crowded"><h2>Two decisions</h2>{first}{second}</lf-ask>',
+            registry,
+        )
+        == []
     )
-
-    crowded = fragment_errors(
-        f'<lf-ask id="decision-crowded">{first}{second}</lf-ask>', registry
-    )
-    message = " ".join(crowded)
-    assert "an Ask must frame exactly one declared Ask source" in message
-    assert "<lf-options#g-one>" in message and "<lf-options#g-two>" in message
 
 
 def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
     """An existing id is insufficient when a typed reference names the wrong role."""
     registry = registry_storage.load_registry(page_dir)
     parser = SourceDocument(
-        '<lf-command id="hub" readings="goal">'
-        '<lf-task id="goal" status="active"><strong>Goal</strong>'
-        '<lf-agent id="worker" state="waiting" on="tree"><strong>Worker</strong>'
-        '<lf-worktree id="tree" source="project-worktrees"></lf-worktree>'
-        "</lf-agent></lf-task></lf-command>"
+        '<lf-test-plan id="hub" readings="goal">'
+        '<lf-test-task id="goal" status="active"><strong>Goal</strong>'
+        '<lf-test-worker id="worker" state="waiting" on="tree"><strong>Worker</strong>'
+        '<lf-test-tree id="tree" source="project-worktrees"></lf-test-tree>'
+        "</lf-test-worker></lf-test-task></lf-test-plan>"
     )
 
     errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
 
     assert len(errors) == 2
-    assert '$command.widgets widget where role="readings"' in errors[0]
-    assert '$command.widgets widget where role="goal"' in errors[1]
+    assert '$work.widgets widget where role="readings"' in errors[0]
+    assert '$work.widgets widget where role="goal"' in errors[1]
 
 
 def test_a_readings_seat_answers_to_one_command(page_dir):
@@ -361,22 +364,22 @@ def test_a_readings_seat_answers_to_one_command(page_dir):
     command names, while each command naming its own seat passes."""
     registry = registry_storage.load_registry(page_dir)
     parser = SourceDocument(
-        '<lf-command id="one" readings="seat"></lf-command>'
-        '<lf-command id="two" readings="seat"></lf-command>'
-        '<lf-command id="three" readings="other"></lf-command>'
-        '<lf-command-readings id="seat"></lf-command-readings>'
-        '<lf-command-readings id="other"></lf-command-readings>'
-        '<lf-command-readings id="orphan"></lf-command-readings>'
+        '<lf-test-plan id="one" readings="seat"></lf-test-plan>'
+        '<lf-test-plan id="two" readings="seat"></lf-test-plan>'
+        '<lf-test-plan id="three" readings="other"></lf-test-plan>'
+        '<lf-test-summary id="seat"></lf-test-summary>'
+        '<lf-test-summary id="other"></lf-test-summary>'
+        '<lf-test-summary id="orphan"></lf-test-summary>'
     )
 
     errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
 
     assert errors == [
         (
-            '<lf-command> (line 1): readings="seat" is already named by '
-            "<lf-command id='one'> (line 1); only one element may name it"
+            '<lf-test-plan> (line 1): readings="seat" is already named by '
+            "<lf-test-plan id='one'> (line 1); only one element may name it"
         ),
-        "<lf-command-readings> (line 1): no <lf-command> names it in `readings`",
+        "<lf-test-summary> (line 1): no <lf-test-plan> names it in `readings`",
     ]
 
 
@@ -435,8 +438,8 @@ def test_registry_example_ids_are_independent_between_entries(page_dir):
     registry["lf-diff"]["x-example"] = (
         '<lf-diff id="shared"><pre>one changed line</pre></lf-diff>'
     )
-    registry["lf-tree"]["x-example"] = (
-        '<lf-tree id="shared"><pre>one/file.py</pre></lf-tree>'
+    registry["lf-code"]["x-example"] = (
+        '<lf-code id="shared"><pre>one/file.py</pre></lf-code>'
     )
 
     assert (
@@ -573,7 +576,7 @@ def test_the_feature_gallery_eyebrows_index_literal_code_names():
     ]
     entries = [entry for eyebrow in eyebrow_entries for entry in eyebrow]
     assert entries
-    assert all(re.fullmatch(r"lf-[a-z0-9-]+", entry) for entry in entries), entries
+    assert all(re.fullmatch(r"[a-z][a-z0-9-]*", entry) for entry in entries), entries
     assert all(len(eyebrow) == len(set(eyebrow)) for eyebrow in eyebrow_entries), (
         "a feature eyebrow repeats a code name"
     )
@@ -704,11 +707,6 @@ def test_reply_validates_widget_markup(page_dir):
     bad = reply('<lf-diagram id="f"><pre>graph LR</pre><b>x</b></lf-diagram>')
     assert bad.exit_code != 0
     assert "its body is one <pre> holding the text" in bad.output
-    # Prose belongs in --text, where it renders as Markdown; a markup field
-    # holding none is a wrong turn, not an empty widget list.
-    prose = reply("just words")
-    assert prose.exit_code != 0
-    assert "carries no widget" in prose.output
     good = reply('<lf-diagram id="f"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>')
     assert good.exit_code == 0, good.output
     event = events_model.read_events(page_dir)[-1]
@@ -722,9 +720,9 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
     """Reply markup naming a page element of the wrong role never freezes, nor does
     a command naming the page's seat, which it would fill from another document."""
     subjects = (
-        '<lf-command id="hub" readings="seat"><lf-task id="goal" status="active">'
-        "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-task></lf-command>"
-        '<lf-command-readings id="seat"></lf-command-readings>'
+        '<lf-test-plan id="hub" readings="seat"><lf-test-task id="goal" status="active">'
+        "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-test-task></lf-test-plan>"
+        '<lf-test-summary id="seat"></lf-test-summary>'
     )
     (page_dir / "index.html").write_text(
         PAGE.replace("</section>", subjects + "</section>")
@@ -748,17 +746,17 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
             ],
         )
 
-    swapped = reply('<lf-command id="quoted" readings="goal"></lf-command>')
+    swapped = reply('<lf-test-plan id="quoted" readings="goal"></lf-test-plan>')
     assert swapped.exit_code != 0
     assert 'where role="readings"' in swapped.output
 
-    borrowed = reply('<lf-command id="quoted" readings="seat"></lf-command>')
+    borrowed = reply('<lf-test-plan id="quoted" readings="seat"></lf-test-plan>')
     assert borrowed.exit_code != 0
     assert "outside its own document" in borrowed.output
 
     valid = reply(
-        '<lf-command id="quoted" readings="quoted-seat"></lf-command>'
-        '<lf-command-readings id="quoted-seat"></lf-command-readings>'
+        '<lf-test-plan id="quoted" readings="quoted-seat"></lf-test-plan>'
+        '<lf-test-summary id="quoted-seat"></lf-test-summary>'
     )
     assert valid.exit_code == 0, valid.output
 
@@ -849,9 +847,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert (
-        "taken by widget markup in a reply" in result.output and "q1" in result.output
-    )
+    assert "taken by message markup" in result.output and "q1" in result.output
 
 
 def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
@@ -1160,8 +1156,8 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
             "Should I continue?",
             "--markup",
             (
-                '<lf-tasks id="reply-plan"><lf-task id="reply-task" status="review">'
-                "<strong>Review</strong></lf-task></lf-tasks>"
+                '<lf-test-tasks id="reply-plan"><lf-test-task id="reply-task" status="review">'
+                "<strong>Review</strong></lf-test-task></lf-test-tasks>"
             ),
             "--awaits",
         ],

@@ -13,6 +13,8 @@ COMMANDS = {
     "bench-check": "bench_check",
     "bench-latency": "bench_latency",
     "bugback": "bugback",
+    "catalog": "site",
+    "compare": "compare",
     "corpus": "corpus",
     "fetch-assets": "leaf_assets",
     "journey": "journey",
@@ -27,13 +29,11 @@ COMMANDS = {
     "publish-distribution": "distribution",
     "record-demo": "record_demo",
     "refresh-previews": "example_previews",
+    "setup": "setup",
     "site": "site",
     "stills": "stills",
     "thread-snapshots": "thread_snapshots",
     "trace-server": "trace_server",
-    "verify-claude-code-task": "verify_claude_code_task",
-    "verify-codex-task": "verify_codex_task",
-    "verify-pi-task": "verify_pi_task",
     "verify-site": "verify_site",
 }
 

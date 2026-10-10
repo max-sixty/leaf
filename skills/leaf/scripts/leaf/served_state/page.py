@@ -6,6 +6,7 @@ from typing import NamedTuple
 
 from ..activity import WORKING_GRACE
 from ..data import browser_data_from
+from ..files import revision_label
 from .browser import BrowserReading, project_browser_state
 from .context import PageRead, read_page
 
@@ -15,7 +16,7 @@ class ServedPage(NamedTuple):
     the semantic readings, and the page's stored external data.
 
     `reading` is None before the page has an active revision, when there is no
-    document to read threads, Asks, or widgets against.
+    document to read threads, Questions, or widgets against.
     """
 
     state: dict
@@ -93,6 +94,13 @@ def read_served_page(
         "taken": context.taken,
         "active": active,
         "versions": list(context.versions),
+        "revision_labels": {
+            str(revision): revision_label(context.events, revision)
+            for revision in sorted(
+                context.revisions
+                | {event["revision"] for event in context.events if "revision" in event}
+            )
+        },
         "source_error": source_error,
         "data": browser_data_from(context.data, selected_registry),
         **context.presence,

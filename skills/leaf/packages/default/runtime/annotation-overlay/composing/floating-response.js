@@ -7,7 +7,9 @@
    and declared layout changes invalidate the attachment. Replacing its target or native seat retires it. The compact response strip retains ordinary
    collision placement and scroll observation.
 
-   An editing field follows its passage out of view. The existing Resume writing route
+   A detached draft uses the shared unanchored window posture, preserving its original
+   anchor and native editor. Resume writing can recover it even after that passage is gone.
+   An attached editing field follows its passage out of view. The existing Resume writing route
    reveals that same field; no window seat or duplicate input stands in for it. A modal
    side panel withholds the page's response bar and takes its focus until the page is
    available again. */
@@ -23,7 +25,13 @@ import {
   targetParts,
   targetRange,
 } from "/runtime/resolved-target.js";
-import { pageRange, pageText } from "/runtime/passages.js";
+import {
+  blockAt,
+  pageRange,
+  pageText,
+  quoteFrom,
+  segmentsIn,
+} from "/runtime/passages.js";
 import { pageSelection, selectionAnchor } from "/runtime/composing/capture.js";
 import { closeLayer, holdFocus, focusDestination } from "/runtime/focus.js";
 import { coarsePointer } from "/runtime/pointer.js";
@@ -36,14 +44,13 @@ import {
   commentReference,
   commentBoundary,
   commentPlacement,
-  makeRoom,
-  reachableRoom,
 } from "../comment-placement.js";
 import { pointBand } from "/runtime/pointed-place.js";
 import { keeps, layoutPx } from "/runtime/keeps.js";
 
 export function createFloatingResponsePlacement({
-  nodes: { bar: fabBar, input: fabInput },
+  bar: fabBar,
+  input: fabInput,
   response,
   panelIsOpen,
   threadsBox,
@@ -67,30 +74,48 @@ export function createFloatingResponsePlacement({
     floating: fabBar,
     update: () => scheduleFabPosition(),
   });
-  let fabContentHeight = null;
   let nativeAttachment = false;
-  const fabFrameAt = () =>
-    response.open && response.floating && !panelIsOpen()
-      ? {
-          box: fabBar.getBoundingClientRect().toJSON(),
-          width: parseFloat(getComputedStyle(fabBar).width),
-          placement: fabPlacement.capture(),
-        }
-      : null;
-  // Used grid tracks exclude transformed descendant paint. A directional fit
-  // reserves the future card's footer; withholding requires only the current
-  // controls to fit, so they may borrow that transparent footer when space is short.
-  const nativeFrameSize = () => {
+  // The browser's selected Range is a mechanical place even when its durable quote
+  // is ambiguous. Keep it for this response transaction, only while its original
+  // endpoints survive. A revision replacing them retires it; semantic resolution
+  // is the only way to identify that passage again after the node lifetime ends.
+  // The detached draft itself remains reachable in the unanchored window posture.
+  let selectedPassage = null;
+  const fabFrameAt = () => {
+    if (!response.open || !response.floating || panelIsOpen()) return null;
+    const bar = fabBar.getBoundingClientRect();
+    const field = fabInput.getBoundingClientRect();
+    const style = getComputedStyle(fabBar);
+    const scaleX = bar.width / parseFloat(style.width);
+    const scaleY = bar.height / parseFloat(style.height);
+    const left = parseFloat(style.paddingLeft);
+    const top = parseFloat(style.paddingTop);
+    const width = field.width / scaleX + left + parseFloat(style.paddingRight);
+    const height = field.height / scaleY + top + parseFloat(style.paddingBottom);
+    // The reserved header and footer surround the words the user sends. Attachment
+    // shelves and options disappear on Send, so their tracks are not the card's origin.
+    return {
+      box: new DOMRect(
+        field.left - left * scaleX,
+        field.top - top * scaleY,
+        width * scaleX,
+        height * scaleY,
+      ).toJSON(),
+      width,
+      placement: fabPlacement.capture(),
+    };
+  };
+  // Where the frame's native rows end. Used grid tracks exclude transformed descendant
+  // paint. Withholding requires only the current controls to fit, so they may borrow the
+  // transparent footer reserved for the future card when space is short.
+  const nativeRowEnd = () => {
     const style = getComputedStyle(fabBar);
     const rows = style.gridTemplateRows.split(" ").map(parseFloat);
-    const rowEnd =
+    return Math.round(
       rows.reduce((height, row) => height + row, 0) +
-      parseFloat(style.rowGap) * (rows.length - 1) +
-      parseFloat(style.paddingTop);
-    return {
-      rowEnd: Math.round(rowEnd),
-      reservedHeight: Math.round(rowEnd + parseFloat(style.paddingBottom)),
-    };
+        parseFloat(style.rowGap) * (rows.length - 1) +
+        parseFloat(style.paddingTop),
+    );
   };
   const fabFits = () => {
     const boundary = floatBoundary();
@@ -116,7 +141,6 @@ export function createFloatingResponsePlacement({
     fabPosition.stop();
     cancelRender(fabPositionFrame);
     fabPositionFrame = 0;
-    fabContentHeight = null;
     if (!reset) return;
     fabPlacement.forget();
     fabBar.removeAttribute("data-lf-placement");
@@ -199,16 +223,36 @@ export function createFloatingResponsePlacement({
       response.open ? observes.editing : observes.compact,
     );
   }
-  // A visual's durable anchor is also the geometry authority. Resolve it again after a
-  // reflow instead of remembering where the pointer happened to land; what a pointing
-  // gesture keeps is the row it landed on, an element whose box is read afresh here, and
-  // the bar stands level with it (pointed-place.js).
+  // A retained native Range and a resolved passage are two routes to geometry. Only
+  // the former is allowed to outlive a selection's focus handoff, not its endpoints
+  // or words. Recovery and placement ask the same validity rule.
+  function selectedRange(anchor) {
+    if (
+      selectedPassage &&
+      sameAnchor(anchor, selectedPassage.anchor) &&
+      selectedPassage.start.isConnected &&
+      selectedPassage.end.isConnected &&
+      quoteFrom(segmentsIn(selectedPassage.range)) === anchor.quote
+    )
+      return selectedPassage.range;
+    selectedPassage = null;
+    return null;
+  }
+  // The native selected place owns a live response transaction; after replacement,
+  // only the durable coordinate can find it again. A pointed element keeps the row
+  // the hand named and reads its current box (pointed-place.js).
   function anchorGeometry(anchor) {
     if (anchor?.quote) {
       const selection = pageSelection();
       const current = selection ? selectionAnchor(selection) : null;
       if (current && sameAnchor(anchor, current)) {
-        const range = pageRange(selection);
+        const range = pageRange(selection).cloneRange();
+        selectedPassage = {
+          anchor,
+          range,
+          start: range.startContainer,
+          end: range.endContainer,
+        };
         return rangeGeometry(range);
       }
       // Entering the compact field deliberately collapses the browser selection after
@@ -220,6 +264,8 @@ export function createFloatingResponsePlacement({
       // captured passage still belongs to the response transaction; native selection is
       // no longer available once the field took focus.
       if (!response.open && !response.captured) return null;
+      const retained = selectedRange(anchor);
+      if (retained) return rangeGeometry(retained);
     }
     const found = anchor ? resolveAnchor(anchor, pageText()) : null;
     if (!anchor || !standsIn(anchor, found)) return null;
@@ -255,24 +301,26 @@ export function createFloatingResponsePlacement({
       withholdFab();
       return false;
     }
-    if (response.open && nativeAttachment) return true;
     const geometry = anchorGeometry(response.anchor);
-    const target = geometry?.box;
-    const owner = response.target;
-    if (!target) return false;
+    if (response.open && nativeAttachment && geometry) return true;
+    if (!geometry && !response.open) return false;
+    // Placement needs the actual block holding the native selection, independently
+    // of whether those words can be uniquely named by a durable anchor.
+    const context = geometry?.contextNode;
+    const owner =
+      response.target ??
+      blockAt(context) ??
+      (context?.nodeType === Node.ELEMENT_NODE ? context : context?.parentElement) ??
+      null;
     const windowBoundary = floatBoundary();
     const place = commentAttachment({
       target: owner,
       point: response.anchor.quote ? null : response.pointIn(owner),
       passage: geometry,
+      boundary: windowBoundary,
     });
     const boundary = place.region ? floatBoundary(place.region) : windowBoundary;
     if (boundary.width <= 0 || boundary.height <= 0) return false;
-    const roomRect = place.extent;
-    const keepClear = place.clear;
-    const scroller = place.scroller;
-    const verticalRoom = (side) =>
-      reachableRoom(side, roomRect, boundary, scroller).reachable;
     // Width before coordinates: the side is chosen from the card's minimum, then the size
     // pass gives CSS that side's actual inline room. If a later resize makes the chosen
     // side narrower than the bar's minimum, use the whole boundary and let shift overlap
@@ -286,28 +334,26 @@ export function createFloatingResponsePlacement({
           layoutPx(Math.max(0, boundary.width / scale)),
         );
     };
-    // The whole frame receives the room on its side. Native tracks reserve the
-    // furniture and give the editor what remains; a side too small for the minimum
-    // row uses the whole reading boundary, where shift can keep the surface visible.
-    const vertical = (side) => /^(top|bottom)$/.test(side);
-    const setHeight = (side, scale) => {
+    // The frame may grow to the whole boundary on any side, past the room its held edge
+    // leaves, since shift slides it inside. Native tracks reserve the furniture and give
+    // the editor what remains. Typing never scrolls the page to make room. The box grows
+    // from the edge that holds it, then slides inside the window, over its passage if it
+    // must, and once it fills the window scrolls its own words.
+    const setHeight = (scale) => {
       if (!response.open) return;
-      const room = vertical(side) ? verticalRoom(side) : boundary.height;
-      const height =
-        nativeFrameSize().reservedHeight > Math.round(room / scale)
-          ? boundary.height
-          : room;
-      fabBar.style.setProperty("--lf-float-h", layoutPx(Math.max(0, height / scale)));
+      fabBar.style.setProperty(
+        "--lf-float-h",
+        layoutPx(Math.max(0, boundary.height / scale)),
+      );
     };
-    const { fresh } = fabPlacement.choose({
-      clear: keepClear,
+    fabPlacement.choose({
+      clear: place.clear,
       column: place.column,
-      extent: roomRect,
+      extent: place.extent,
       boundary,
-      scroller,
+      scroller: place.scroller,
       coarse: coarsePointer.matches,
     });
-    if (fresh) fabContentHeight = null;
 
     const epoch = fabPosition.begin();
     const stillCurrent = () =>
@@ -321,56 +367,30 @@ export function createFloatingResponsePlacement({
           ui.getOverflowAncestors,
         );
         const { reference, placement, middleware, plane } = fabPlacement.options(ui, {
-          clear: keepClear,
+          clear: place.clear,
           row: place.row,
           lastRow: place.lastRow,
           column: place.column,
           margin: place.margin,
           boundary,
-          fit({ side: placed, width, scale }) {
+          fit({ width, scale }) {
             if (!stillCurrent()) return;
             setWidth(width, scale.x);
-            setHeight(placed, scale.y);
+            setHeight(scale.y);
             const frame = fabBar.getBoundingClientRect();
             if (
               Math.ceil(frame.width) > Math.ceil(boundary.width) ||
               Math.ceil(frame.height) > Math.ceil(boundary.height) ||
-              (response.open && nativeFrameSize().rowEnd > fabBar.clientHeight)
-            ) {
+              (response.open && nativeRowEnd() > fabBar.clientHeight)
+            )
               withholdFab();
-              return;
-            }
-            // Wrapping at the fitted width determines the height that spends scroll
-            // travel. Opening or re-seating preserves the reading position; later
-            // intrinsic growth may use the reading region's remaining travel before
-            // the field scrolls. Content, rather than placed height, keeps clipping
-            // during a wheel gesture from spending that travel again.
-            const height = fabBar.getBoundingClientRect().height;
-            const contentHeight = response.open
-              ? parseFloat(getComputedStyle(fabBar).height) +
-                Math.max(0, fabInput.scrollHeight - fabInput.clientHeight)
-              : fabBar.scrollHeight;
-            const contentChanged =
-              fabContentHeight !== null &&
-              Math.abs(contentHeight - fabContentHeight) > 0.5;
-            fabContentHeight = contentHeight;
-            if (
-              vertical(placed) &&
-              contentChanged &&
-              makeRoom(placed, keepClear, roomRect, height, boundary, scroller)
-            ) {
-              fabPlacement.scrolled();
-              // The scroll changed the attachment geometry. A fresh placement
-              // supersedes this answer before its old coordinates can stand.
-              placeFab();
-            }
           },
         });
         return fabPosition.position(
           ui.computePosition,
           commentReference(place, reference),
           { placement, middleware },
-          response.open ? () => "page" : plane,
+          response.open && owner ? () => "page" : plane,
           owner ?? document.documentElement,
         );
       })
@@ -428,7 +448,9 @@ export function createFloatingResponsePlacement({
     // Widgets declare moves inside a stable outer box here. Scroll has its own
     // mechanical owner and never emits this geometry-invalidating publication.
     document.addEventListener(LAYOUT, (event) => {
-      if (!response.anchor || !under(response.target, event.target)) return;
+      const geometry = anchorGeometry(response.anchor);
+      const target = response.target ?? geometry?.contextNode;
+      if (!response.anchor || !under(target, event.target)) return;
       nativeAttachment = false;
       scheduleFabPosition();
     });
@@ -440,7 +462,9 @@ export function createFloatingResponsePlacement({
       away: () => fabWithheld,
       bringBack: (behavior) => {
         const found = resolveAnchor(response.anchor, pageText());
-        const range = response.anchor.quote && targetRange(found);
+        const range =
+          response.anchor.quote &&
+          (targetRange(found) ?? selectedRange(response.anchor));
         if (range) return scrollToRange(range, behavior);
         const target = response.target;
         const line = response.pointIn(target) ?? target;
@@ -450,6 +474,7 @@ export function createFloatingResponsePlacement({
   }
   return {
     holdsHome: fabPosition.holdsHome,
+    stands: () => response.open || Boolean(anchorGeometry(response.anchor)),
     place: placeFab,
     stop: stopFabPositioning,
     frame: fabFrameAt,
@@ -458,6 +483,7 @@ export function createFloatingResponsePlacement({
     stoodAgain,
     withheld: () => fabWithheld,
     release: () => {
+      selectedPassage = null;
       fabWithheld = false;
       fabWithheldFocus = null;
     },

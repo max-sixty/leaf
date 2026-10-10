@@ -14,6 +14,7 @@
  * from the runtime: what one probe walks and what another walks cannot come apart. */
 export const openRoots = (root) => [
   root,
+  ...(root.shadowRoot ? openRoots(root.shadowRoot) : []),
   ...[...root.querySelectorAll("*")]
     .filter((el) => el.shadowRoot)
     .flatMap((el) => openRoots(el.shadowRoot)),

@@ -49,6 +49,7 @@ import {
   keepsHidden,
   keepsText,
   focusDestination,
+  scrollIntoView,
 } from "/runtime/widget-api.js";
 
 customElements.define(
@@ -124,7 +125,7 @@ customElements.define(
     // them. Same marker (the theme styles [data-lf-said]) and same contract
     // (generated, so the diff looks away; not .lf-ui, so the anchor pass doesn't)
     // — a widget with a module of its own does the part only it can, which is
-    // the line the layer's AGENTS.md draws and lf-milestone's chips are the
+    // the line the layer's AGENTS.md draws and a widget's authored labels are the
     // other case of.
     #structure() {
       for (const col of this.querySelectorAll(":scope > lf-column")) {
@@ -467,10 +468,9 @@ customElements.define(
       col.moveBefore(card, rest[index] ?? null);
       if (grip) {
         focusDestination(grip, "return");
-        card.scrollIntoView({
+        scrollIntoView(card, {
           behavior: scrollBehavior(),
           block: "nearest",
-          inline: "nearest",
         });
       }
       const last = card.getBoundingClientRect();

@@ -21,7 +21,7 @@
    A point belongs to one comment. The composing surface holds a draft's point while the
    box is up; a send hands its point over under its thread's key (`threadKey`, the
    attempt that survives the log's answer), with the row's words as a passage
-   (`rangeAnchor`), the identity the page already resolves quotes by. Comments pointed at
+   (`anchorForRange`), the identity the page already resolves quotes by. Comments pointed at
    one row share that row's key, the first one's, so they stand as one margin row.
 
    Anchor paint's pass is the one writer of the points (`placePoints`, beside its
@@ -54,7 +54,7 @@ const WITHIN_A_LINE = /^(inline|contents$)/;
 // the climb goes on past a block it found to see whether a cell holds it.
 //
 // The target's first line is none either: the target's own margin row stands there
-// already, so a comment pointed at an Ask's heading joins the Ask's row rather than
+// already, so a comment pointed at a Question's heading joins the Question's row rather than
 // standing as a second one pushed below it. First is read off the document, as nothing
 // drawn coming before it in the target, so no reflow, zoom or font moves a comment
 // between the two rows.

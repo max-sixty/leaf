@@ -23,9 +23,14 @@ import { SLIDE_END } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
 import { readThreads } from "./state.js";
-import { excludedByInert, upFrom } from "../shadow.js";
+import { excludedByInert, renderedParent } from "../shadow.js";
 import { nativeModalAdmits } from "../keyboard/layer-stack.js";
 import { keeps, keepsHidden } from "../keeps.js";
+import {
+  onSampleVisibility,
+  sampleVisibility,
+  readSampleVisibility,
+} from "../sample-visibility.js";
 
 const keyOf = (item) => `${item.message}\u0000${item.version}`;
 const EPSILON = 1;
@@ -41,12 +46,10 @@ function mergeIntervals(intervals) {
   return merged;
 }
 
-// A child viewport does not know how much of it the parent page shows. Walk each
-// containing frame and cut this viewport down to what its owner shows of it, through
-// every clipping ancestor, in this window's coordinates. The climb ends at the owner's
-// root element, whose shown band is the owner's viewport (`shownBand`). A frame taller
-// than its owner's viewport, as a live sample is, shows a band of its page the way the
-// top page's own viewport does.
+// An isolated sample requests a fresh visible band from its containing geometry
+// owner for every exposure scan, in this window's coordinates. Ordinary
+// same-origin embeddings read their containing frames directly, cutting this viewport
+// through every clipping ancestor up to each owner's viewport (`shownBand`).
 function frameBand() {
   let band = { left: 0, top: 0, right: innerWidth, bottom: innerHeight };
   let x = 0;
@@ -77,7 +80,11 @@ function frameBand() {
         bottom: Math.min(band.bottom, rect.bottom - y),
       };
     };
-    for (let ancestor = upFrom(frame); ancestor; ancestor = upFrom(ancestor)) {
+    for (
+      let ancestor = renderedParent(frame);
+      ancestor;
+      ancestor = renderedParent(ancestor)
+    ) {
       const style = owner.getComputedStyle(ancestor);
       if (
         ancestor.getAttribute?.("aria-hidden") === "true" ||
@@ -97,7 +104,7 @@ function frameBand() {
 function visibleInterval(body, clips, band) {
   if (!body.checkVisibility() || excludedByInert(body) || !nativeModalAdmits(body))
     return null;
-  for (let owner = body; owner; owner = upFrom(owner))
+  for (let owner = body; owner; owner = renderedParent(owner))
     if (owner.getAttribute?.("aria-hidden") === "true") return null;
   const box = body.getBoundingClientRect();
   // Sticky headers, the open thread panel standing over the right of the page, and the
@@ -125,7 +132,7 @@ function visibleInterval(body, clips, band) {
   };
 }
 
-export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
+export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
   let coverage = new WeakMap();
   const renderedBodies = new Map();
   const refusedThisVisit = new Set();
@@ -139,6 +146,7 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
 
   function resetExposure() {
     visitGeneration++;
+    exposureGeneration++;
     coverage = new WeakMap();
     refusedThisVisit.clear();
   }
@@ -165,7 +173,7 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
     const target = actionableUnread().sort(
       (a, b) => moved(a.message).seq - moved(b.message).seq,
     )[0];
-    if (target) void showThread(target.item.message, { focus: "message" });
+    if (target) void openThread(target.item.message, { part: "message" });
   }
 
   const firstUnreadCommand = {
@@ -180,11 +188,11 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
     run: firstUnread,
   };
 
-  function scan() {
+  function scan(sampleBand) {
     if (!presented || document.visibilityState !== "visible" || !document.hasFocus())
       return;
-    const band = frameBand();
-    if (!band) return;
+    const band = sampleBand ?? frameBand();
+    if (!band || sampleBand?.visible === false) return;
     const candidates = new Map(
       actionableUnread().map(({ item }) => [item.message, item]),
     );
@@ -192,7 +200,7 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
     const clips = new Map();
     const completed = new Map();
     for (const [node, rendered] of renderedBodies) {
-      const { body, id } = rendered;
+      const { body, id, version } = rendered;
       if (!node.isConnected || !body.isConnected) {
         sizes.unobserve(body);
         renderedBodies.delete(node);
@@ -200,7 +208,13 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
       }
       const item = candidates.get(id);
       const key = item && keyOf(item);
-      if (!item || completed.has(key) || refusedThisVisit.has(key)) continue;
+      if (
+        !item ||
+        item.version !== version ||
+        completed.has(key) ||
+        refusedThisVisit.has(key)
+      )
+        continue;
       const visible = visibleInterval(body, clips, band);
       if (!visible) continue;
       let tracked = coverage.get(body);
@@ -241,12 +255,21 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
     }
   }
 
+  let exposureGeneration = 0;
+
   function scheduleScan() {
+    exposureGeneration++;
     if (scheduled) return;
     scheduled = true;
     nextRender(() => {
       scheduled = false;
-      scan();
+      if (!sampleVisibility()) return scan();
+      // The containing page owns its clips and chrome. Ask it when this scan runs;
+      // a rectangle from an earlier threshold crossing cannot acknowledge words.
+      const generation = exposureGeneration;
+      void readSampleVisibility().then((reading) => {
+        if (generation === exposureGeneration) scan(reading);
+      }, reportError);
     });
   }
 
@@ -262,11 +285,17 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
     document.addEventListener(SLIDE_END, scheduleScan, true);
     addEventListener("blur", resetExposure);
     addEventListener("load", scheduleScan, true);
+    frameWatches.push(
+      onSampleVisibility(() => {
+        if (sampleVisibility()?.visible) scheduleScan();
+        else resetExposure();
+      }),
+    );
     // What a containing page shows of this one changes without a scroll or resize
     // inside it: the owner scrolls a frame taller than its viewport through the band
     // (frameBand), and moving the frame changes it without any scroll at all. Watch
     // each containing page's scrolling and each frame in its owner's viewport.
-    for (let current = window; current !== current.top;) {
+    for (let current = window; !sampleVisibility() && current !== current.top;) {
       let frame;
       try {
         frame = current.frameElement;
@@ -291,6 +320,7 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
     addEventListener(
       "pagehide",
       () => {
+        exposureGeneration++;
         sizes.disconnect();
         for (const unwatch of frameWatches) unwatch();
         frameWatches.length = 0;
@@ -299,23 +329,22 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
     );
   }
 
-  function observeBody(node, body, message) {
-    if (!body) return;
-    const previous = renderedBodies.get(node);
-    if (previous?.body !== body) {
-      if (previous) sizes.unobserve(previous.body);
-      sizes.observe(body);
-    }
-    renderedBodies.set(node, {
+  function observeMessage(body, message) {
+    if (!(body instanceof Element))
+      throw new TypeError("A message body must be an Element");
+    if (!renderedBodies.has(body)) sizes.observe(body);
+    const registration = {
       body,
       id: message.id,
-    });
-  }
-
-  function forgetBody(node) {
-    const rendered = renderedBodies.get(node);
-    if (rendered) sizes.unobserve(rendered.body);
-    renderedBodies.delete(node);
+      version: message.version ?? message.edited?.id ?? message.id,
+    };
+    renderedBodies.set(body, registration);
+    scheduleScan();
+    return () => {
+      if (renderedBodies.get(body) !== registration) return;
+      sizes.unobserve(body);
+      renderedBodies.delete(body);
+    };
   }
 
   function present() {
@@ -346,6 +375,7 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
 
   function begin() {
     presentationGeneration++;
+    exposureGeneration++;
     presented = false;
   }
 
@@ -360,8 +390,7 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
     begin,
     abort,
     present,
-    observeBody,
-    forgetBody,
+    observeMessage,
     firstUnreadCommand,
     exposureChanged: scheduleScan,
   };

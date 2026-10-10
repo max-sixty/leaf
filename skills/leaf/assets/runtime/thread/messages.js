@@ -2,6 +2,8 @@
 
    Every surface uses the same message, header and body vocabulary. Generated
    metadata, prose, workflow and reaction placement have one owner. Each message
+   projects pasted attachments separately from its words using the draft's media
+   reading, so a retained text viewport never clips an attachment. Each message
    retains its header and body together, sharing delivery, unread and fold state.
    Its header declares its stationary text-reflow boundary and hosts the thread's
    disclosure for progress completed by that reply. An
@@ -31,6 +33,7 @@ import {
   watchRewrite,
 } from "./message-edit.js";
 import { tokenEntry } from "../registry.js";
+import { readAttachedMedia, writeAttachedMedia } from "../media.js";
 import {
   rememberAuthoredParents,
   stageAuthoredStates,
@@ -56,7 +59,7 @@ import { rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
 import { iconTemplate } from "../icons.js";
 import { keeps } from "../keeps.js";
-import { motion } from "../motion.js";
+import { flashDuration, motion } from "../motion.js";
 
 export const loadMessageMarkdown = () =>
   loadMarkdown((error) =>
@@ -80,20 +83,24 @@ function proseReading(message) {
     reading.text !== text ||
     reading.markdown !== markdown
   ) {
-    const html = renderMarkdown(text);
+    const pasted = readAttachedMedia(text);
+    const html = renderMarkdown(pasted.text);
+    const mediaHtml = renderMarkdown(writeAttachedMedia("", pasted.paths));
     reading = Object.freeze({
       id: message.id,
       edited,
       text,
       markdown,
       html,
-      plainText: renderedWords(html),
+      mediaHtml,
+      plainText: renderedWords(html + mediaHtml),
     });
     renderedProse.set(key, reading);
   }
   return reading;
 }
 
+/** @param {import("../../../../../build/browser/domain.ts").Message | Extract<import("../../../../../build/browser/domain.ts").Command, {kind: "comment" | "reply"}>} message @returns {string} */
 export function messageText(message) {
   if (message.token) {
     const token = tokenEntry(message.token);
@@ -166,6 +173,7 @@ export function messageReading(
   return Object.freeze({
     key: message.attempt ?? message.id,
     id: message.id,
+    version: message.edited?.id ?? message.id,
     seq: moved(message).seq,
     unread: message.unread,
     attempt: message.attempt ?? null,
@@ -191,6 +199,7 @@ export function messageReading(
       kind,
       text: message.text ?? "",
       html: prose?.html ?? "",
+      mediaHtml: prose?.mediaHtml ?? "",
       plainText: prose?.plainText ?? message.text ?? "",
       drawing: Boolean(message.drawing),
       token: message.token ?? null,
@@ -211,6 +220,7 @@ export class MessageView {
   #authored = null;
   #dressed = false;
   #arrivalMotion = null;
+  #stopRead = null;
   #header = document.createElement("div");
   #editor = null;
   #kept = false;
@@ -223,6 +233,8 @@ export class MessageView {
 
   present(model, { arrived = false, headerControls = nothing } = {}) {
     const prior = this.#model;
+    // A surface that seats no rewrite, as a package's mirror of one message, offers none.
+    if (model.editable && !this.#commands.edit) model = { ...model, editable: false };
     this.#model = model;
     const panel = model.panel;
     // A view presents messages of one surface for its whole life, so what the surface
@@ -372,9 +384,9 @@ export class MessageView {
                 class="lf-btn lf-page-thread-open lf-ui"
                 data-lf-gen="1"
                 data-lf-offer="button"
-                @click=${() => this.#commands.showThread(this.#model.id)}
+                @click=${() => this.#commands.openThread(this.#model.id, { part: "message" })}
               >
-                Open interactive reply in Threads
+                Open interactive reply
               </button>`
             : nothing
         }
@@ -390,8 +402,7 @@ export class MessageView {
     }
     // Markdown is an opaque property part: tokenization never rewrites Lit markers.
     highlightBlocks(this.node);
-    this.#commands.read.observeBody(
-      this.node,
+    this.#stopRead = this.#commands.read.observeMessage(
       this.node.querySelector(":scope > .lf-msg-body"),
       model,
     );
@@ -404,7 +415,7 @@ export class MessageView {
       this.#arrivalMotion = motion(
         this.node,
         [{ "--lf-msg-arrival": 1, offset: 0 }],
-        1200,
+        flashDuration(),
       );
     }
     return this.node;
@@ -444,7 +455,12 @@ export class MessageView {
       </div>`;
     if (body.kind === "suggestion")
       return html`<div class="lf-msg-text" .textContent=${body.text}></div>`;
-    return html`<div class="lf-msg-text" .innerHTML=${body.html}></div>`;
+    return html`<div class="lf-msg-text" .innerHTML=${body.html}></div>
+      ${
+        body.mediaHtml
+          ? html`<div class="lf-msg-media" .innerHTML=${body.mediaHtml}></div>`
+          : nothing
+      }`;
   }
 
   commit() {
@@ -462,7 +478,7 @@ export class MessageView {
     this.#editor = null;
     this.#stopKept?.();
     this.#stopKept = null;
-    this.#commands.read.forgetBody(this.node);
+    this.#stopRead?.();
   }
 }
 
@@ -479,12 +495,11 @@ function datumLabel(anchor) {
   return datum?.dataset.lfDatumLabel?.trim() ?? "";
 }
 
-export function anchorLabel(anchor, about) {
+function coordinateLabel(anchor, about) {
   if (about === "design") {
     const addressable = anchor?.section ? elementById(anchor.section) : null;
     const name = addressable ? designName(addressable) : anchor?.section || "the page";
-    const on = anchor?.part ? `${anchor.part} · ${name}` : name;
-    return anchor?.quote ? `design · ${on} · “${anchor.quote}”` : `design · ${on}`;
+    return anchor?.quote ? `${name} · “${anchor.quote}”` : name;
   }
   const datum = datumLabel(anchor);
   if (datum) return anchor?.quote ? `${datum} · “${anchor.quote}”` : `§ ${datum}`;
@@ -498,4 +513,12 @@ export function anchorLabel(anchor, about) {
   if (!addressable) return `§ ${anchor.section}`;
   const says = addressableLabel(addressable);
   return `§ ${[addressableWord(addressable), says].filter(Boolean).join(" · ")}`;
+}
+
+// A named control part belongs to the coordinate in every reading, not just Design.
+export function anchorLabel(anchor, about) {
+  const label = coordinateLabel(anchor, about);
+  return [about === "design" && "design", anchor?.part, label]
+    .filter(Boolean)
+    .join(" · ");
 }

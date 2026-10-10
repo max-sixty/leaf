@@ -27,14 +27,33 @@ query private chrome, or duplicate a runtime helper inside itself. Resolve canon
 generated images or links. It uses the page's public root across ordinary and
 published pages while the source retains its canonical path.
 
+Use `searchField(className, {name, label, placeholder = label})` for a search or
+filter field. It supplies the shared frame, accessible label, native editor and
+Clear; the caller owns its query and results. Put an auxiliary reading such as a
+match count in its `end` slot and reserve its longest value with `reserve`.
+
+For a CodeMirror editor, import `LeafEditorView` from `widget-api.js` and use it
+in place of the dependency's `EditorView` constructor. It retains CodeMirror's
+state and editing API while admitting focus through Leaf's input owner and
+keeping editor reveals within the current document. Its navigation extension
+survives retained states and complete `setState` replacements.
+
 For a vertical navigation that must retain sideways reading, use
 `scrollIntoReadingBand(target, holder, block, behavior)`: `target` is an element or
 Range, and `holder` is the element whose reading regions contain it. Element targets
-support `start`, `center`, or `nearest` for `block`; a Range is always centered. It places the
+support `start`, `center`, `end`, or `nearest` for `block`; `nearest` centers a Range. It places the
 target in the innermost reading band and reveals it in enclosing regions, across
 shadow roots, without changing horizontal offsets.
 Use it for an explicit arrival; entering visible controls and ordinary repainting
 preserve their current reading position.
+
+For an arrival that also reveals inner overflow, use
+`scrollIntoView(target, {block, behavior})`. Horizontal inspection is nearest;
+`block` defaults to `start` and accepts `center`, `end`, and `nearest`.
+It prepares inner scrollports, then places the destination through its enclosing
+reading regions. Both scrolling helpers stop at the current document, including
+inside a live sample. Native `Element.scrollIntoView` can scroll containing pages
+through same-origin iframes, so modules use these helpers instead.
 
 Registry `x-text-format: inline-markdown` formats direct authored text nodes;
 `markdown` renders a data body's exact source as safe block Markdown. The latter
@@ -137,15 +156,14 @@ result, or after cancellation has restored the prior local DOM. Resume reconcile
 newest publisher reading. Optional recorded scalar attributes have a null initial
 value and must be removed when that value returns.
 
-A widget that declares `x-awaits` says what its answered Ask was answered with: its class
-declares `static answerWords(state, element)`, returning concise words for its row
-under Done in the Questions panel and a queue's row. The Questions panel is experimental and
-expected to change a lot. `state` is the same complete state `renderState`
-receives, and `element` is the widget, for authored markup such as an option's name;
-read nothing the module renders. Leaf calls it only while the Ask is answered, with the
-state of the publication that carries the Ask inventory, so the words never wait on a
-render; it normalizes their whitespace and bounds what it displays. A widget without one
-names no answer.
+A widget's `x-awaits.value` selects its typed answer from canonical state
+("Reading Questions and obligation queues"). For presentation, its class may
+declare `static answerWords(value, element)`, returning concise words for the
+Questions panel and list rows. `value` is the Question's typed `answer.value`;
+`element` supplies authored markup such as option labels. Read nothing the module
+renders. Leaf normalizes whitespace and bounds the displayed words. A widget
+without this formatter supplies no answer wording; its typed answer remains
+available through the Questions API.
 
 ## The widget controller
 
@@ -220,10 +238,8 @@ words the render gate pairs with the file.
 the body that scrolls it whenever the theme makes it scroll. The host makes focus in a
 pane's header or footer select that pane. Register from `connectedCallback` and call
 the returned cleanup from `disconnectedCallback`, so a reconnect can claim the same id.
-Separately scrolling apparatus adds `apparatusFor: ownerId`, naming an already live
-region: focus there still selects that owner for reading, while `scrollerFor(node)`
-names the apparatus's own physical scrollport. Dispose both registrations with their
-DOM owners.
+Containment follows rendered slots, so native conversation parts nominated into a
+shadow reader belong to the region registered around their outlets.
 `readingPosture(node)` is `bounded` exactly while the region's body is its own
 scroller, and `watchReadingRegionTransitions(listener)` receives a `shift` when a
 shown region's scroller or width changes without a gesture; the continuity owner records the user's
@@ -236,9 +252,10 @@ such as a tab switch, runs the change through `preserveReadingRegions(owner, cha
 which awaits the change's returned layout promise before restoring the visible regions'
 scrollers. `runtime/reading-regions.js` describes the region model.
 
-A widget that re-renders or resizes content inside a scroller of its own holds the
-user's place with `placeKeeper(scroller, {items, identity})` rather than by restoring a
-`scrollTop`; `runtime/user-place.js` describes it.
+A widget that re-renders or resizes content holds the user's place with
+`placeKeeper(scroller, {items, identity})` rather than by restoring a `scrollTop`.
+This includes synchronous changes in the platform page scroller when native anchoring
+does not retain the focused control; `runtime/user-place.js` describes the hold.
 
 A widget that remembers where the user was reading, in a view it hides and shows again,
 keeps a place rather than an offset: `capturePlace()` reads the page's place as a
@@ -261,10 +278,17 @@ read itself:
 .file > .head { position: sticky; top: var(--lf-top); block-size: var(--head-h); }
 .file > .rows { --lf-top: calc(var(--lf-top-outer) + var(--head-h)); }
 .file .row { scroll-margin-top: var(--head-h); }
+.file > .head { --lf-head-inset: var(--head-pad); }
 ```
 
 The rows' `scroll-margin-top` has a landing on a row, native or the runtime's, arrive
-below the header. The runtime reads what passes under it as off screen from `--lf-top`,
+below the header. The header's `--lf-head-inset` says how far below `--lf-top` its
+controls stand when it is stuck. The layer's focus margin takes the scroller's landing
+room (`--lf-landing-room`) back from it, so a control focused where its header sticks
+counts as shown; without it the browser scrolls toward each one it focuses, every key,
+and the stuck header never moves. A box that scrolls with `scroll-padding` of its own
+states that room in `--lf-landing-room-start` beside its `--lf-top-start`.
+The runtime reads what passes under it as off screen from `--lf-top`,
 for read acknowledgement, arrival checks, and chrome placement, so nothing is declared.
 The stacked value goes on a box that does not itself scroll, since the runtime reads a
 box that scrolls where it stands. The runtime starts `--lf-top` again on every box that
@@ -302,8 +326,11 @@ to press it on the user's behalf. A return marked as a move reads as
 the user arriving, and releases news or opens options they never went to. The call
 lends an element that is not a control the tab stop a control has for exactly as long
 as it holds it, so the browser's own Tab order continues from there and no `tabindex` is
-left on the page behind the user. It keeps the page still unless `{ scroll: true }` asks
-the browser to bring the element into view.
+left on the page behind the user. Focus placement always prevents native scrolling.
+In an embedded sample it places focus only while that child owns input. A module
+reveals a destination separately with `scrollIntoView(element, {block, behavior})`
+from `widget-api.js`; that operation stops at the current document, including when
+its element is in nested overflow.
 
 A module that moves, hides, or replaces nodes the user may be standing in, as a reorder or
 a re-render does, calls `holdFocus(scope)` before the change and the function it returns
@@ -316,7 +343,12 @@ attribute each item carries: the restore then lands on the item keyed the same, 
 nearest that survived, and on the control in it like the one the user stood on.
 
 A widget's own layer, such as a list it opens over its contents, records where it was
-opened from with `openLayer(layer)` as it opens, which reads where the user stands, and
+opened from with `openLayer(layer)` as it opens, which reads where the user stands.
+Open a native modal dialog or popover with `showNativeLayer(layer, {source})`;
+`modal: false` opens a nonmodal dialog. It suppresses the native opening's automatic
+focus inside a sample; use `focusDestination` for the intended arrival. Close a
+native dialog or popover with `closeNativeLayer(layer)`, which prevents the native
+return from taking input from the containing page. A layer
 closes with `closeLayer(close, land)`: `close` hides it, and `land` puts a user who stood
 in it where the close takes them, usually `handBack(openerOf(layer))`, which lets go onto
 the page where the opener is gone. Readers of where the user stands hear only where they
@@ -325,13 +357,26 @@ reached by its own arrows offers one Tab stop with `rove(items, stop)`. `standin
 says whether the user stands in a scope, across shadow trees, and `whenLeft(element, leave)`
 runs `leave` once when they move off an element.
 
-A module that takes the user to a thread calls `openThread(id, {focus})`
-with the Thread's `id`. It opens the thread where the page shows it, inline beside
+Generated native controls can give themselves a stable `data-lf-carry` key inside
+their nearest named owner. That owner must match authored markup by id and tag;
+another named wrapper establishes its own scope. Live document replacement carries
+focus and caret by owner id, key and native tag, once the generated control is visible
+after upgrade. Authored inputs retain focus immediately so typing continues during
+startup. The widget owns its drawing and values. An initial renderer keeps retained
+view geometry from the first frame. Keys are unique within their named owner.
+
+A module that takes the user to a thread calls `threadActions.open(key, {part, focus})`
+with the Thread's stable `key`. It opens the thread where the page shows it, inline beside
 its passage or widget, and in Threads when it has no place on the page, the same choice a
-mark and `t` make. `focus: "thread"` lands on the card or native summary;
-`focus: "reply"` reveals its available reply editor. Omitting `focus` follows the
+mark and `t` make. `part: "thread"` lands on the card or native summary;
+`part: "reply"` reveals its available reply editor. `part: "message"` requests the
+reader that renders native authored message content: the registered primary reader,
+then Threads. Omitting `part` follows the
 surface's ordinary route: a compact passage card starts at the card, while a widget
-conversation or Threads starts at its reply. The call returns a `Promise<Element|null>`:
+conversation or Threads starts at its reply. A focused jump that moves the page records
+a return place for Back. `travel: false` keeps the page in place and adds no return
+checkpoint. `focus` is a boolean, true by default;
+`focus: false` reveals the addressed part without taking focus. The call returns a `Promise<Element|null>`:
 the actual destination after reveal and placement, or `null` when the Thread no longer
 stands or newer input has superseded the move. Leaf owns the original gesture's
 continuity inside this route. The returned, still-focused destination is the capability
@@ -340,7 +385,7 @@ route's own move to that editor. A continuation uses the returned element only w
 it still holds focus:
 
 ```js
-const editor = await openThread(thread.id, {focus: "reply"});
+const editor = await threadActions.open(thread.key, {part: "reply"});
 if (editor?.matches(":focus") && editor.setSelectionRange) {
   editor.setSelectionRange(0, editor.value.length);
 }
@@ -364,7 +409,7 @@ widget whose title is an attribute, as a column's `label` is, declares `x-name`.
 `anchorLabel(anchor, about)` names a comment's anchor the way Threads does, and
 `markdownWords(text)` is the words a Markdown string renders to.
 
-A message's widget markup is a document of its own, and it may repeat the shapes the page
+A message's HTML markup is a document of its own, and it may repeat the shapes the page
 holds. A module that finds a partner element by reference, as a seat names the widget it
 serves, searches `authoredScope(element)`: the page's `main`, or the body of the message
 whose markup holds the element. A search of the whole `document` lets quoted markup answer
@@ -377,8 +422,12 @@ user who asked for stillness is answered: it returns `null` under that preferenc
 before `body[data-lf-presented]`, and while standing state is being restored into
 replacement markup, and a caller treats no animation and a finished one as the same
 state. `reducedMotion()`, `scrollBehavior()`, and `onMotionPreferenceChange()` answer the
-same preference where a module has to branch on it, and `FOLD_MS` is how long a unit takes
-to leave, so a widget retiring one uses that constant rather than choosing a number. Spend
+same preference where a module has to branch on it. `foldDuration()` reads how long a
+unit takes to leave from the document-root `--lf-motion-fold` stylesheet input; a widget
+retiring one calls that reader rather than choosing a number or caching a value.
+`flashDuration()` and `agentArrivalDuration()` read the corresponding shared cues.
+These typed time inputs accept CSS calculations and are set on the document root,
+including when the animated element lives in a shadow tree. Spend
 a duration only on letting the eye follow a box from where it was to where it is. A result
 the module can already draw is drawn in the gesture rather than after a wait.
 
@@ -390,7 +439,10 @@ A mechanical surface that must stop motion before a review gesture is handled us
 `onUserInput(callback)`. The shared input owner calls it synchronously during capture
 for pointer, key, input, wheel, touch and window blur events; the callback observes and
 does not claim the event. Filter the events belonging to the surface and release the
-returned subscription when it disconnects. Keyboard commands still use `commands()`.
+returned subscription when it disconnects. Keyboard commands still use `commands()`. A drawing stroke dispatches the bubbling,
+composed `lf-inspect` event on its semantic target before reading its coordinate frame.
+A moving visual handles that event to freeze the evidence being drawn on; entering
+Draw mode alone does not inspect a visual.
 
 A module implementing its own navigation captures `retainUserIntent()` in the gesture
 that starts it, before its
@@ -404,10 +456,10 @@ predicate before starting that synchronous handoff. If the synchronous work alre
 moved focus, the handoff keeps and adopts that destination instead of running the old
 focus move. A skipped move returns false, so a caller that requires the surface change
 can decline; adoption alone does not report that the move ran. Leaf's navigation
-primitives own that retention already; `openThread` returns its completed destination
+primitives own that retention already; `threadActions.open` returns its completed destination
 as described above.
 
-When Leaf travels to a target, such as a comment anchor or an Ask, it first dispatches
+When Leaf travels to a target, such as a comment anchor or a Question, it first dispatches
 `lf-reveal` on each ancestor of the target and the target itself, outermost first, with
 `detail: {target, mayReveal, present, replacedView}`. A widget that folds content listens
 for it and opens whatever holds `target`. `mayReveal` is the traveller's retained intent:
@@ -424,7 +476,7 @@ including immutable `contributionEntry({...})` records; it never returns control
 those same records independently in the target's Margin cluster and in Page Map.
 Reading items in `readings` have nonempty `id` strings, unique within that contribution;
 other contributions may reuse an ID. `kind` names what the contribution is, as one of the
-margin's reading kinds (`change`, `comment`, `ask`, `action`, …; `action` where it
+margin's reading kinds (`change`, `comment`, `question`, `action`, …; `action` where it
 declares none): where a pin with a primary and one more control finds no room for both,
 it stands folded to one control wearing that kind's face and name, which opens to them. Leaf retains each projected control by the opaque
 contribution key and entry key while its native kind remains compatible. Actions and disclosures are buttons; statuses are spans,
@@ -535,6 +587,13 @@ does not carry it. A widget whose parts have a face of their own styles
 what a key addresses calls `layoutChanged(this)`, and every standing indication resolves
 again.
 
+## Icons
+
+`iconElement(name, className)` and `iconTemplate(name, className)` draw Leaf's shared
+icons through `/runtime/widget-api.js`. Use `"comment"` for a thread control, with
+`lf-action-icon` inside an `lf-icon-action` button for the inherited stroke and
+hit area. The icon is decorative; the button supplies its accessible label.
+
 ## Commands and keyboard routes
 
 A widget contributes each command once with `commands(source, title, rows, options)`.
@@ -548,28 +607,28 @@ action name. A keyless command still has its title in the reference.
 
 Declare ordinary local bindings in `keys` and explicitly forwardable aliases in
 `contextKeys`. Both arrays work inside the widget. Only context aliases are exposed at
-the enclosing Ask's opening and its associated margin controls and threads. A route can
+the enclosing Question's opening and its associated margin controls and threads. A route can
 declare its own `contextKeys`; an ordinary key on another route is never forwarded.
-Numbers are widget choices, not an Ask allocation: options own their stable numeric
-assignments, and a swipe deck declares Pass as `1` and Keep as `2`. The page owns `q`
-and `Shift+q` navigation between Asks. Do not assign numbers based on currently available
+Numbers are widget choices, not a Question allocation: options own their stable numeric
+assignments, and a classifier declares Pass as `1` and Keep as `2`. The page owns `q`
+and `Shift+q` navigation between Questions. Do not assign numbers based on currently available
 actions: disabling `1` must not turn `2` into a different action.
 
 ```javascript
-const actions = commandScope("In a swipe deck", [
+const actions = commandScope("In a classifier", [
   {
-    id: "swipe.pass",
+    id: "classify.pass",
     title: "Pass",
     keys: ["ArrowLeft"],
     contextKeys: ["1"],
     decision: true,
     control: passButton,
     bindingBadge: passHint,
-    when: canSwipe,
-    run: () => swipe("pass"),
+    when: canClassify,
+    run: () => classify("pass"),
   },
 ]);
-commands(deck, actions);
+commands(classifier, actions);
 ```
 
 For a native button, `control` and `run` declare one activation path: Leaf invokes
@@ -583,7 +642,7 @@ contribution controls use the same callback through their surface-aware registra
 ("Focus, motion, and travel" above).
 
 Set `decision: true` and provide `control` when a command starts, advances, answers, or
-revises the Ask containing `source`. This semantic role neither assigns a binding nor
+revises the Question containing `source`. This semantic role neither assigns a binding nor
 makes ordinary keys forwardable. A numeric command need not be a Decision. Forwarding
 retains the original source, scope, row, and route identity, rechecks their current
 availability, and invokes the original callback or native control. On a native button
@@ -603,14 +662,14 @@ face the persistent `lf-binding-seat` class, whose shared style keeps it absolut
 positioned even when empty or restored. Position that seat beside its control using
 its holder and offsets; filling it must not move the control. `null` requests a badge
 at the control's corner. Each supplied face belongs to one action. The shared keyboard presenter writes its first reachable binding while the
-whole face is connected, visible, and uncovered; a reachable Ask alias takes precedence
+whole face is connected, visible, and uncovered; a reachable Question alias takes precedence
 over an intrinsic binding for the same command. Otherwise it paints a corner badge at
 the visible control. Commands without `bindingBadge` do not request an inline hint.
 The presenter reads the dispatcher's effective bindings, so hints withdraw outside the
 scope, during native text entry, or when the command is unavailable. A widget owns the
 face's placement, not its text or active state. Routes let one parameterized row
 contribute distinct controls and intrinsic bindings. Do not maintain a second
-Ask-control list or paint binding text in the package.
+Question-control list or paint binding text in the package.
 
 Command scopes compose by focused ancestry. The exact control scope is nearest, followed
 by containing widget scopes and Leaf's outer page scopes. A scope owns only the bindings
@@ -642,19 +701,14 @@ contract passes `true` as `offer()`'s fifth `pressable` argument; its tag then s
 same addressable marker as a native control.
 
 Register the command once, not every nearby button. Evidence nested inside an
-option is not an answer, and a shared-margin entry may sit outside the Ask source. When
+option is not an answer, and a shared-margin entry may sit outside the Question source. When
 controls or availability change, keep the row fields computed and call `paintKeys()`;
 every command projection then updates together. A package that needs the page-wide open
-Ask set calls `watchAsks(owner, callback)`. It invokes `callback(openAsks)` on the
-microtask after subscribing and again after each state change, at most once per
-microtask and possibly with an unchanged set. Register it once under
-"Projection subscriptions". Each
-Ask is an immutable `{id, tag, sourceId, sourceTag, thread}` record; resolve a node only
-to present or focus it, never to decide membership or answered state. The set is empty
-until the page's first server reading is admitted, and it changes with each later
-reading rather than when a gesture is sent, because only the log says which authored
-Asks still stand and which of them are answered. Package semantic behavior subscribes only through its
-controller.
+Question collection calls `watchQuestions(owner, callback)`. It invokes `callback(readQuestions())`
+on the microtask after subscribing and after application publications, at most once
+per microtask. Register it once under "Projection subscriptions". See "Reading Questions
+and obligation queues" for the complete collection and activation contract.
+Package semantic behavior subscribes only through its controller.
 
 Every row passed to `commands()` has a stable dotted `id`, such as `draft.save`. Keep that
 identity when its key or wording changes: the command browser and repeated widget
@@ -712,11 +766,15 @@ omitting the attribute keeps the visual as one target.
 
 ## Projection subscriptions
 
-Register `watchAsks`, `watchUpdates`, `watchHistory`, and `watchThreads` once for each
+Register `watchQuestions`, `watchUpdates`, `watchHistory`, and `watchThreads` once for each
 owner. They coalesce reads at the script's microtask checkpoint, pause while the owner
 is absent, and read the latest projection when it returns, even when unchanged.
 Moving the owner within one mutation batch retains its subscription. Their returned
 cleanup permanently retires the subscription, including queued reads and clock paints.
+Its `refresh()` reruns the same clock-tracked reading synchronously while the owner
+is connected, retaining the watcher's readiness proof. Use it when a mechanical
+change, such as revealing held news or entering print, needs to repaint; calling
+the renderer directly would leave its new time readings outside the subscription.
 
 ## Page history
 
@@ -724,7 +782,10 @@ A widget that renders the page's history declares `x-history` and reads it throu
 `watchHistory(owner, callback)`: the server's rows, newest first, each already
 carrying its thread, whether it was undone, the name an agent's row is shown under
 as `agent`, and a gesture's words as the document it was made in had them. The
-widget words those facts; it does not fold the log.
+widget words those facts; it does not fold the log. The callback also receives
+`{ready}`: whether the authoritative application is ready. A widget that restores a
+tab-local retained reading keeps it through preparation, then compares it with the
+ready history; a preparation reading is not a new history baseline.
 
 ## Data subscriptions and projections
 
@@ -749,6 +810,9 @@ Register once for the element. Leaf pauses the subscription when its owner leave
 delivers the newest snapshot when it returns, even if its revision is unchanged.
 Moving the owner within one DOM mutation batch retains the subscription. The returned
 cleanup function ends it permanently when the module explicitly stops watching.
+Its `refresh()` repaints the last delivered snapshot through the same clock
+tracking. It neither delivers a pending source reading nor revives an absent or
+retired subscription.
 The callback must state the whole rendering and remain idempotent.
 
 Use `watchOwner(element, {connect, disconnect})` for other resources that follow the
@@ -837,6 +901,22 @@ is that subscriber's page error and does not make later state reads repeat the
 page-wide failure. A rejection from the callback's first run permanently ends that
 registration.
 
+## Editing a bound file
+
+`boundFile(binding)` returns the transport for a file explicitly granted to this
+page with `leaf file bind`. Its `read()` returns `{label, text, revision, newline,
+bytes}`; `save({revision, text})` checks that exact revision before writing and
+returns the submitted snapshot. A stale save throws an error whose `current`
+holds the newer file. Other errors carry a message and leave the caller's buffer
+alone. `text` uses LF line endings; the host preserves the file's LF or CRLF form.
+
+The `writable` property is false in captured documents and exports. The transport
+owns page-relative routing and delivery checks; a widget never names a host path.
+The file remains external filesystem state: editing it does not append a Leaf
+action or participate in page Undo. CodeMirror owns editing history. Use the
+`file-editor` package's `lf-file-editor` for this interface; use `lf-code` for a portable
+snapshot that should travel with the page.
+
 ## Reading and opening Threads from a widget
 
 `readThreads()` returns the same immutable `{phase, threads}` collection the
@@ -847,7 +927,7 @@ widget with that collection initially and after relevant application updates, un
 order state and derives its displayed rows from the collection. `threadTurns(thread)`
 selects a Thread's displayed turns, and `threadSummary(thread)` gives its topic and
 latest activity. An agent-authored message or closing event carries `agent`, the
-name it is shown under. `openThread(thread.id)` takes the user to Leaf's canonical
+name it is shown under. `threadActions.open(thread.key)` takes the user to Leaf's canonical
 conversation surface for that Thread. The widget does not need to render or own the
 conversation to provide that route.
 
@@ -855,18 +935,32 @@ conversation to provide that route.
 and Leaf's optimistic event path:
 
 ```js
+threadActions.create({text, anchor, attempt});
+threadActions.open(thread.key, {part: "thread"});
 threadActions.reply(thread.key, text);
 threadActions.resolve(thread.key);
 threadActions.reopen(thread.key);
-threadActions.toggleReaction(thread.key, agentMessage.id, token);
+threadActions.setReaction(thread.key, agentMessage.key, token, true);
 ```
 
-Each method returns `null` when the current reading does not offer that action,
+Reply, settlement, and reaction methods return `null` when the current reading does not offer that action,
 otherwise a promise resolving to the admitted event or `null` if admission refuses it.
 The action changes `readThreads()` immediately; the server remains final. A reply
-requires non-empty text. A reaction requires an addressable agent message and a token
-in the current layer's vocabulary; pressing an already standing token takes it back.
+requires non-empty text. Creation accepts `text`, an optional `anchor`, `attempt`,
+`holds`, `about`, `drawing`, and `suggestion`. Empty text needs a drawing. In a ready reading its pending
+Thread appears immediately; creation returns `{key, delivery}` synchronously,
+where `key` is its minted or supplied attempt and `delivery` is the admission promise.
+Creation does not require an existing Thread reading; its returned key selects the
+Thread when the collection becomes ready. A reaction requires an addressable agent message and a token
+in the current layer's vocabulary; passing `false` withdraws a standing reaction.
 Use the Thread's stable `key`, which survives admission of a locally opened Thread.
+Every Thread carries `offers: {open, reply, resolve, reopen}` for current command
+availability. Reply is admissible on a resolved Thread and reopens it; native editor
+visibility also depends on the user's active composition. Each message's `reactions`
+is `null` or its current vocabulary and `choices`, including labels, glyphs and standing
+reactions. `setReaction` names the desired boolean state: a stale control cannot invert
+a concurrent change. Message keys survive admission too. To open one message, use
+`threadActions.open(thread.key, {message: message.key})`.
 Leaf's reply editors keep one durable draft per Thread; a package input retains its
 own draft.
 
@@ -874,12 +968,12 @@ own draft.
 
 `mountThreadViews(owner, render)` lets a package supply containers for Leaf's core
 conversation view. It registers one consumer per Element and returns a handle with
-`read()`, `update()`, and `unregister()`. The callback receives the same immutable
+`update()` and `unregister()`. The callback receives the same immutable
 Thread collection as `readThreads()` on its initial presentation and on later
 publications. A Thread waiting on the user has unresolved
 `attention.kind === "needs_user"`, which
 includes recovery after a failed response; `"waiting"` means it is with the agent.
-A Thread's `id` is the name Asks and workflows give it; its `root` is the first
+A Thread's `id` is the name Questions and workflows give it; its `root` is the first
 message it still holds, whose id differs where the log lost the opening message.
 Each Thread's `key` survives admission of a pending gesture, and its `anchor`
 names the `section` (the widget's id) and `datum` it rests on. A returned promise
@@ -888,19 +982,20 @@ read presentation. The second argument's `signal` is aborted when a newer render
 supersedes it or the consumer unregisters. Asynchronous callbacks check it before
 changing their UI. The owner unregisters on disconnect.
 
-For a Thread list or dashboard, `surfaces.render(thread.key, outlet)` shows a
+For a Thread list or dashboard, `surfaces.thread(thread.key, outlet)` shows a
 conversation in an Element inside the widget. Each widget chooses its own Threads,
 containers, filters, and order. Several widgets may render the same Thread, and
 removing one does not remove another's view. These are mirrors: they do not take the
 Thread away from its page or margin position. Leaf renders the messages, reply editor,
 reactions, resolution controls, and receipts. An authored message's interactive
-widgets open in the Threads panel, as they do from other inline Thread views.
+widgets open in the registered primary reader or the fallback Threads panel, as
+they do from other inline Thread views.
 
 ```js
 this.threads = mountThreadViews(this, (collection, surfaces) => {
   for (const thread of collection.threads) {
     const outlet = this.outletFor(thread.key);
-    if (outlet) surfaces.render(thread.key, outlet);
+    if (outlet) surfaces.thread(thread.key, outlet);
   }
 });
 ```
@@ -908,6 +1003,150 @@ this.threads = mountThreadViews(this, (collection, surfaces) => {
 The widget owns outlet creation and layout. Leaf requires every outlet to remain
 inside its owner, and a consumer may render each Thread only once per callback.
 The handle's `update()` requests a new render after a local layout change.
+
+## Owning the primary conversation presentation
+
+`registerThreadPresentation(owner, {render, reveal})` selects one primary package
+reader per page. It joins Leaf's required presentation: interactive message widgets
+have one native instance, in the nominated reader or the fallback Threads panel.
+Use this when a package supplies the page's conversation reader, including a shelf
+of conversations or a feed of individual turns. `mountThreadViews` remains useful
+for optional mirrors of that reader.
+
+`render(shownCollection, parts)` nominates connected Elements inside the owner.
+This immutable presentation reading holds updates that would move visible content,
+before the package allocates outlets. Leaf shows a native notice that releases them.
+`readThreads()` remains the current semantic reading for counts and action availability.
+
+```js
+parts.thread(thread.key, conversationOutlet);
+// Or nominate individual parts of that Thread:
+parts.message(thread.key, message.key, messageOutlet);
+parts.reply(thread.key, replyOutlet);
+```
+
+A pass can nominate a whole conversation or its individual parts, each once. Several
+parts can share an outlet; Leaf retains their nodes and reconciles nomination order.
+A shadow outlet displays retained parts through native slots: core nodes stay in
+document light DOM, forwarding through nested shadow boundaries to retain the complete
+layer stylesheet semantics. Leaf retains the generated nodes, message rendering, reactions,
+exact-version read exposure, and shared native reply draft. The package retains
+layout, ordering, selection, scroll and disclosure. A returned promise delays the
+required presentation; check `parts.signal` before asynchronous layout changes,
+since a newer pass or unregister aborts it.
+
+The handle supplies `update()` and `unregister()`. Await `update()` after local layout
+changes; ordinary updates preserve held news. A deliberate view change calls
+`update({release: true})` to show the current reading. `reveal(key, request)` selects
+and reveals the package's layout, returning its asynchronous layout work when needed.
+Return `false` to use core fallback. The reveal request carries `part` (message,
+thread, reply, or null for the surface default), `message` (the addressed stable
+message key, or null), boolean `focus`, `signal`, and `current()`. Addressed part
+and focus are independent: a message can be materialized without taking focus.
+Asynchronous work checks cancellation before changing layout.
+Leaf releases held news, awaits presentation, resolves the retained destination, and
+owns intent, focus, scrolling, first-unread navigation, and Question arrival.
+Focused arrivals clear a Leaf panel that covers the native reader before taking
+focus. Materializing a message without focus leaves clearance to its later arrival.
+Whole conversations include settlement controls; a fragment feed supplies
+Resolve/Reopen through `threadActions`. Unregister on disconnect. The worked `lf-conversation-workspace` in the
+feature gallery switches Conversation, Shelf and Feed with these APIs.
+
+## Reading Questions and obligation queues
+
+`readWork(scope)` projects a page-owned work hierarchy from the current application
+publication. Declare `$work.widgets` roles: `scope` bounds one hierarchy; `goal`
+names a recorded `state` attribute, `done` values and `stopped` values; `worker`
+names its recorded `state`, `running` and `retired` values and optional assignment
+attribute `on`; `evidence` declares an observed-data seat. The returned `goals`,
+`workers`, terminal `leaves`, `done`, `stopped`, `liveWorkers`, `running` and `quiet`
+readings retain their authored `element` identities. Stopped goals include held
+threads and outstanding interventions; worker reports retain last-heard time and
+respect the closest scope and goal's remit. No dashboard stores another copy.
+`workRole`, `workElements`, `directWorkElements` and `workAncestor` read the same
+role declaration for page-owned adapters. Atlas demonstrates native composition
+in `examples/command-hub.page/`; these domain tags are owned by that page.
+
+`readQuestions()` returns the publisher's immutable `{phase, all, user, unanswered}`.
+`all` contains widget, prose and stamped-version approval Questions, including answered and withdrawn
+Questions whose sources remain. `user` selects open Questions currently awaiting
+the user; `unanswered` includes every open Question, even one held with the agent
+or hidden behind a later prompt. Each record contains:
+
+```js
+{
+  id: "widget:release-disposition", // or "reply:<agent-message-id>"
+  source: {kind: "widget", id: "release-disposition", tag: "lf-options"},
+  thread: null,
+  message: null,
+  prompt: {text: "When should this ship?", target: "release-context"},
+  answer: {value: ["release-later"], event: null},
+  status: "answered", // open | answered | withdrawn
+  next_actor: null,   // user | agent | null
+}
+```
+
+An approval Question has `source.kind === "approval"`, `source.version` naming the
+stamped version and id `approval:v<version>`. Its answer is `null` until that
+version's approval settles it with typed `answer.value === true`; undo reopens it. Its arrival reaches the banner's Approve control.
+
+`thread` and `message` identify a frozen widget Question's owning Thread and exact
+message. A prose Question names its Thread and source message. Both are null for
+page-widget and approval Questions. Message provenance lets the native reader
+reveal the turn containing the Question, including one inside a hidden summary.
+
+A prose Question has `source.kind === "reply"` and its agent message's id as
+`source.id`. Its answer contains the settling user message or reaction and its
+event reference. A message carrying a widget Question does not also pose a prose
+Question. `prompt.text` can be `null` when a widget has no context heading;
+`prompt.target` identifies the DOM context or source the user can visit.
+An optional `x-question-context` wrapper contributes that context without
+changing the Question's identity or answer owner. `lf-ask` is one such adapter.
+
+The widget's `x-awaits.value` selects the state verb containing its typed answer;
+`x-awaits.answered` independently determines completion. `answer` is `null` before
+answer content exists. Partial values can appear while `status` is `open`, and a
+completed empty selection has `answer.value === []`. `answer.event` identifies the
+admitted answering action, or is `null` for authored or carried state. Formatting
+belongs to the widget family; display words are not canonical answer data.
+`questionWords(question)` formats the answer of one widget, prose or approval
+Question, using the widget family's formatter where declared. It may return empty
+display wording and owns no answer state or lifecycle.
+
+`watchQuestions(owner, callback)` receives this same collection. Widget membership
+and completion change when an authoritative reading is adopted; pending widget
+input supplies its typed value immediately. A pending prose reply changes
+`next_actor` without inventing an admitted answer. A required-version approval and
+its undo update that Question immediately, including its typed `true` answer; refusal
+restores the admitted record. Page-widget Questions follow
+the shown document version; frozen-thread Questions are page-wide.
+
+`questionActions.open(id)` resolves the current Question and follows its canonical
+arrival, including earlier prose prompts and completed Questions. It resolves to
+`false` when that Question is unavailable. Answering uses the source's declared
+command; Questions expose no separate answer collection or answer CRUD API.
+
+`readQueues()` and `watchQueues(owner, callback)` supply the immutable
+`{phase, onYou, onAgent, done}` that the Questions panel and `q` navigation use.
+Question rows have `kind === "question"`, their canonical `question` record and
+`ends` of `widget`, `reply` or `approval`. Explicit work rows have
+`kind === "task"`; response
+obligations and delivery retries retain their own kinds. A Question is not also
+a task. Live rows carry their workflow or `null`, plus `offers: {open, done}`
+for current command availability. Keep local filters and ordering separate.
+`queueItemKey(row)` names a row across a move between lists.
+`queueTitle(row)` names its subject using the same conversation or Question title as
+Questions, including rows whose obligation record carries no explicit title.
+
+`queueActions.open(key)` resolves the current row and follows Leaf's arrival.
+It resolves to `false` for an unavailable row. `queueActions.done(key)` returns
+an admission promise only for a current `onYou` work task with `ends === "done"`;
+otherwise it returns `null`. A widget Question ends through its widget and a
+prose Question through a reply or settling reaction. An approval Question ends
+through its stamped version's banner approval. Done removes its work task
+optimistically, a duplicate cannot send again, and refusal restores the admitted
+reading. The server remains final for all actions. Collections retain their shape
+while `phase` is `waiting`, `ready`, or `offline`; activate only a ready collection.
 
 ## Widget-local Thread placement
 
@@ -980,7 +1219,7 @@ but the outlet must stay inside its registered owner. Core validates both again
 at the sole conversation/composer commit. Failure of this selected page callback
 fails presentation instead of claiming an empty successful view.
 
-The same owner can register `consumeAnnotations(owner, render)` for Asks,
+The same owner can register `consumeAnnotations(owner, render)` for Questions,
 updates, status and contributed actions. It receives the current immutable
 inventory after the conversation cohort commits, plus these capabilities:
 
@@ -1006,4 +1245,4 @@ holding layout never authorizes old actions. Both handles provide `read()`,
 hold visible size changes with the shared `HeldReading` mechanism. Hold only layout
 identities and allocations, while updating surviving records and controls immediately;
 retired slots retain space with no interactive descendants. The bundled `lf-annotation-rail` is the worked
-implementation. Omitting either consumer retains the core Threads and Asks routes.
+implementation. Omitting either consumer retains the core Threads and Questions routes.

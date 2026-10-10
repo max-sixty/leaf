@@ -9,25 +9,46 @@
 // request that starts it names its cause (`adoptReactive`).
 // Native edit starts identify their field through DOM capture or EditContext's
 // attachment; a watch confirms the value that field's input commits.
+// Parent input bridges belong to the child document. Pagehide releases them before
+// its realm goes away; a back-forward cache return reconnects the same bridges.
+// Explicitly enrolled document ports carry the exact scheduling source between
+// instrumented browser realms, including opaque frames. Their private envelope is
+// removed before application listeners run. Unclassified ports retain native traffic.
 // The watch's own scheduling uses the saved platform methods and is never counted.
 (() => {
   "use strict";
-  const { later: task, microtask } = window.lfWatchPlatform;
+  const { later: task, microtask, listen, performance: clock } = window.lfWatchPlatform;
   const finishing = new Set();
   const nativeDefaults = new Map();
   const finished = new Set();
   const subscribers = new Set();
   const editSubscribers = new Set();
   const sources = new WeakMap();
-  let order = 0;
+  // Native input creation order is comparable across document realms. Delivery
+  // can be delayed beyond a newer edit, so arrival must never mint a newer input.
+  const inputOrder = () => clock.timeOrigin + clock.now();
   const then = Promise.prototype.then;
   const parents = [];
+  const parentConnections = [];
+  const stopParents = [];
+  const connectParent = (connect) => {
+    parentConnections.push(connect);
+    stopParents.push(connect());
+  };
+  listen(window, "pagehide", () => {
+    for (const stop of stopParents) stop();
+    stopParents.length = 0;
+  });
+  listen(window, "pageshow", (event) => {
+    if (event.persisted)
+      for (const connect of parentConnections) stopParents.push(connect());
+  });
   let callbackSource = null;
   let callbackDepth = 0;
   const localSource = (source) => {
     let local = sources.get(source.event);
     if (!local) {
-      local = { event: source.event, node: source.node, order: ++order };
+      local = { event: source.event, node: source.node, order: source.order };
       sources.set(source.event, local);
     }
     return source.nativeDefault
@@ -42,15 +63,20 @@
     const source = parents[0]?.current();
     return source ? localSource(source) : null;
   };
+  const closed = (owner) =>
+    owner.localName === "details" ? !owner.open : !owner.matches(":popover-open");
   const checkpoint = (source, completedEdit = false) => {
     // The first reader after activation owns the native default, even when a
     // toggle listener runs before the dispatch-completion task.
-    for (const [activation, owner] of nativeDefaults) {
-      if (!activation.event.defaultPrevented && !owner.open) {
-        nativeDefaults.delete(activation);
+    for (const [activation, owners] of nativeDefaults) {
+      if (activation.event.defaultPrevented) continue;
+      for (const owner of owners) {
+        if (!closed(owner)) continue;
+        owners.delete(owner);
         for (const subscriber of subscribers)
           subscriber({ ...activation, nativeDefault: owner }, true);
       }
+      if (!owners.size) nativeDefaults.delete(activation);
     }
     for (const subscriber of subscribers) subscriber(source, completedEdit);
   };
@@ -143,11 +169,28 @@
     }
   }
 
+  // A press is one gesture from pointerdown through its click; a key is its keydown.
+  const PRESS = new Set(["pointerdown", "mousedown", "pointerup", "mouseup"]);
+  const GESTURES = new Set(["pointerdown", "keydown"]);
   const endDispatch = (source) => {
     finishing.add(source);
     // A summary's native activation runs after the click listeners and their
-    // microtasks. Retain that one browser-owned close until dispatch completion,
-    // without assigning unrelated native-await work to the press.
+    // microtasks, and so do the closes the browser makes of the popovers open when a
+    // gesture starts: a press's light dismissal, a popovertarget invoker's toggle, and
+    // Escape. Retain those browser-owned closes until the gesture's dispatch completes,
+    // without assigning unrelated native-await work to the input. A press's light
+    // dismissal falls between its own events, outside every dispatch, so the closes a
+    // pointerdown retains stand until its click has dispatched.
+    // A press inside a popover never light-dismisses it, so only those it lands outside
+    // are retained for a press.
+    const path = source.event.composedPath();
+    const closes = new Set(
+      GESTURES.has(source.event.type)
+        ? [...document.querySelectorAll(":popover-open")].filter(
+            (popover) => source.event.type === "keydown" || !path.includes(popover),
+          )
+        : [],
+    );
     const summary =
       source.event.type === "click" ? source.node?.closest?.(nativeActivation) : null;
     const details = summary?.parentElement;
@@ -156,12 +199,19 @@
       summary.localName === "summary" &&
       details.querySelector(":scope > summary") === summary &&
       details.open;
-    if (closesDetails) nativeDefaults.set(source, details);
+    if (closesDetails) closes.add(details);
+    if (closes.size) nativeDefaults.set(source, closes);
     task(() => {
       // The dispatch is over. A native await continuation since dispatch is not owned by
       // this event unless its committing callback was explicitly captured.
       checkpoint(null, true);
-      nativeDefaults.delete(source);
+      for (const activation of nativeDefaults.keys())
+        if (
+          activation === source
+            ? !PRESS.has(source.event.type)
+            : source.event.type === "click" && PRESS.has(activation.event.type)
+        )
+          nativeDefaults.delete(activation);
       finishing.delete(source);
       if (!finishing.size) {
         for (const resolve of finished) resolve();
@@ -172,7 +222,9 @@
   const beginSource = (event, node, edit = false) => {
     // An earlier passive loss cannot be answered by the input that follows it.
     checkpoint(null, event.type !== "input");
-    const source = { event, node, order: ++order };
+    // A new gesture ends what an earlier one retained.
+    if (GESTURES.has(event.type)) nativeDefaults.clear();
+    const source = { event, node, order: inputOrder() };
     sources.set(event, source);
     if (edit) for (const subscriber of editSubscribers) subscriber(source);
     microtask(() => checkpoint(source));
@@ -202,6 +254,73 @@
     }
     return current();
   };
+
+  // DOM nodes and Events cannot be cloned across an opaque frame boundary. Retain
+  // their identity and creation order at the sending realm. A round trip recovers
+  // the original node and Event.
+  const realm = crypto.getRandomValues(new Uint32Array(4)).join(":");
+  const sourceIds = new WeakMap();
+  const messageSources = new Map();
+  let nextSource = 0;
+  const packSource = (source) => {
+    if (!source) return null;
+    let id = sourceIds.get(source.event);
+    if (!id) {
+      id = `${realm}:${++nextSource}`;
+      sourceIds.set(source.event, id);
+      messageSources.set(id, source);
+    }
+    const { type, key, code, defaultPrevented } = source.event;
+    return { id, order: source.order, event: { type, key, code, defaultPrevented } };
+  };
+  const unpackSource = (packed) => {
+    if (!packed) return null;
+    let source = messageSources.get(packed.id);
+    if (!source) {
+      source = { event: packed.event, node: null, order: packed.order };
+      messageSources.set(packed.id, source);
+      sourceIds.set(source.event, packed.id);
+    }
+    return source;
+  };
+  const nativeAdd = EventTarget.prototype.addEventListener;
+  const post = MessagePort.prototype.postMessage;
+  const onmessage = Object.getOwnPropertyDescriptor(MessagePort.prototype, "onmessage");
+  const adoptedPorts = new WeakSet();
+  const adoptPort = (port) => {
+    if (adoptedPorts.has(port)) return;
+    adoptedPorts.add(port);
+    nativeAdd.call(port, "message", (event) => {
+      const envelope = event.data;
+      if (envelope?.lfInputWorkMessage !== true) return;
+      Object.defineProperty(event, "data", { value: envelope.value });
+      sources.set(event, unpackSource(envelope.source));
+    });
+    Object.defineProperty(port, "postMessage", {
+      configurable: true,
+      writable: true,
+      value(value, ...args) {
+        return post.call(
+          this,
+          { lfInputWorkMessage: true, value, source: packSource(current()) },
+          ...args,
+        );
+      },
+    });
+    Object.defineProperty(port, "onmessage", {
+      ...onmessage,
+      get() {
+        const callback = onmessage.get.call(this);
+        return handlerOriginals.get(callback) ?? callback;
+      },
+      set(callback) {
+        onmessage.set.call(
+          this,
+          typeof callback === "function" ? handler(callback) : callback,
+        );
+      },
+    });
+  };
   for (let view = window; ; view = view.parent) {
     try {
       void view.document;
@@ -209,43 +328,59 @@
       break;
     }
     if (view !== window && view.lfInputWork) {
-      parents.push(view.lfInputWork);
-      view.lfInputWork.subscribeEdits((source) => {
-        for (const subscriber of editSubscribers) subscriber(localSource(source));
-      });
-      view.lfInputWork.subscribe((source, completedEdit) => {
-        if (!source) return checkpoint(source, completedEdit);
-        checkpoint(localSource(source), completedEdit);
+      const parent = view.lfInputWork;
+      parents.push(parent);
+      connectParent(() => {
+        const stopEdits = parent.subscribeEdits((source) => {
+          for (const subscriber of editSubscribers) subscriber(localSource(source));
+        });
+        const stop = parent.subscribe((source, completedEdit) => {
+          if (!source) return checkpoint(source, completedEdit);
+          checkpoint(localSource(source), completedEdit);
+        });
+        return () => {
+          stopEdits();
+          stop();
+        };
       });
       if (view === view.parent) break;
       continue;
     }
+    const callbacks = [];
     for (const type of inputTypes) {
-      view.addEventListener(
-        type,
-        (event) => {
-          if (!event.isTrusted) return;
-          beginSource(
-            event,
-            event.composedPath()[0],
-            event.type === "beforeinput" || editorCommands.includes(event.type),
-          );
-          // The browser compiles handler attributes without invoking our setter.
-          // Adopt those callbacks before target dispatch, preserving getter identity.
-          for (const node of event.composedPath()) {
-            const name = `on${type}`;
-            if (typeof node?.[name] === "function") node[name] = node[name];
-          }
-        },
-        true,
-      );
+      const callback = (event) => {
+        if (!event.isTrusted) return;
+        beginSource(
+          event,
+          event.composedPath()[0],
+          event.type === "beforeinput" || editorCommands.includes(event.type),
+        );
+        // The browser compiles handler attributes without invoking our setter.
+        // Adopt those callbacks before target dispatch, preserving getter identity.
+        for (const node of event.composedPath()) {
+          const name = `on${type}`;
+          if (typeof node?.[name] === "function") node[name] = node[name];
+        }
+      };
+      callbacks.push([type, callback]);
     }
+    const connect = () => {
+      for (const [type, callback] of callbacks)
+        view.addEventListener(type, callback, true);
+      return () => {
+        for (const [type, callback] of callbacks)
+          view.removeEventListener(type, callback, true);
+      };
+    };
+    if (view === window)
+      for (const [type, callback] of callbacks) listen(view, type, callback, true);
+    else connectParent(connect);
     if (view === view.parent) break;
   }
-  addEventListener("storage", (event) => {
+  listen(window, "storage", (event) => {
     if (!event.isTrusted) return;
     checkpoint(null);
-    const source = { event, node: null, order: ++order };
+    const source = { event, node: null, order: inputOrder() };
     sources.set(event, source);
     microtask(() => checkpoint(source));
     endDispatch(source);
@@ -353,6 +488,7 @@
   };
   window.lfInputWork = {
     current,
+    observeDocumentPort: adoptPort,
     capture: (callback) => wrap(callback, current()),
     // A generic scheduler can observe enqueue/run/finish without replacing its
     // callbacks. Capture at enqueue, enter at run, and checkpoint before release.

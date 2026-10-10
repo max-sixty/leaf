@@ -13,8 +13,8 @@ instruction to the agent stand in a rail beside it, on the same `2fr 1fr` tracks
 wide page's body and rail, wherever it has 43.5rem; narrower, they stack. A preview that needs
 width, such as two candidates side by side, belongs on a wide page (`<main
 class="layout-wide">`), or on a workspace page (`<main class="layout-workspace density-working">`) whose
-body is the playground's Ask, where the stage grows to the window's height. An Ask
-keeps the prose's width on either page, so give the playground's Ask
+body is the playground's `lf-ask` context, where the stage grows to the window's height.
+An `lf-ask` keeps the prose's width on either page, so give that context
 `data-width="available"`. Draw candidates directly on the stage without separate cards.
 
 The preview is the surface the user operates. An A/B comparison keeps both candidates
@@ -220,9 +220,9 @@ keyboard focus after addition or removal, reset, restore, copy, and submission.
 ### Concept or code map
 
 Keep semantic nodes and relations as ids and endpoints, never positions or colors alone.
-Pointer manipulation uses capture and has an equivalent keyboard route. The page may
-compose Targeting for stable element references and comments while it owns which node
-types, relation grammar, and edits make sense. The instruction lists changed nodes and
+Pointer manipulation uses capture and has an equivalent keyboard route. Give elements
+stable ids so readers can point at them in Leaf's Design mode while the page owns which
+node types, relation grammar, and edits make sense. The instruction lists changed nodes and
 relations. For document critique or source review, use Leaf comments, suggestions,
 Diff, or Visual Review instead of rebuilding those review loops in a map.
 

@@ -80,6 +80,7 @@ import {
   allBindings,
   lineOf,
   titleOf,
+  descriptionOf,
   commandEntries,
   commandRoutes,
   live,
@@ -98,7 +99,7 @@ import { EVERYTHING, nativeClaimAt } from "./text-entry.js";
 import { takesLetters, focused, recoveredLabelFocus } from "../focus.js";
 import { scopesAt, scopesFor, scopeIdentity } from "./scopes.js";
 import { nativeLayers } from "./layer-stack.js";
-import { shadowHost, under, excludedByInert } from "../shadow.js";
+import { shadowHost, renderedUnder, excludedByInert } from "../shadow.js";
 
 // The two questions a scope answers, named apart because the surfaces ask them apart: the
 // reference lists a scope the page *has* and filters its rows by liveness only where the user
@@ -183,9 +184,11 @@ const escapeOrder = (scopes, active) => {
   for (const scope of outer) {
     const at = root.get(scope);
     if (depth.get(scope) < 1 || at === document) continue;
-    if (!surface || under(at, surface)) surface = at;
+    if (!surface || renderedUnder(at, surface)) surface = at;
   }
-  const within = surface ? outer.filter((s) => under(root.get(s), surface)) : [];
+  const within = surface
+    ? outer.filter((s) => renderedUnder(root.get(s), surface))
+    : [];
   // Stable, so two scopes rooted at the same node keep the register's order.
   within.sort((a, b) => depth.get(a) - depth.get(b));
   const rest = outer.filter((scope) => !within.includes(scope));
@@ -231,7 +234,7 @@ export function stack(binding = null) {
   const visible = modalAt < 0 ? layers : layers.slice(modalAt);
   // The newest native modal is the one boundary the browser makes inert behind it.
   const floor = modalAt < 0 ? null : visible[0].root;
-  const aboveFloor = (scope) => !floor || under(scopeRoot(scope), floor);
+  const aboveFloor = (scope) => !floor || renderedUnder(scopeRoot(scope), floor);
   const top = visible.at(-1) ?? null;
   // The topmost layer also holds the focused control and explicitly inner modes: they
   // stand above the browser's light-dismiss boundary whatever their own root is.
@@ -250,7 +253,7 @@ export function stack(binding = null) {
     const layer = visible[index];
     take(
       (scope) =>
-        under(scopeRoot(scope), layer.root) ||
+        renderedUnder(scopeRoot(scope), layer.root) ||
         (layer === top && foreground(scope) && aboveFloor(scope)),
     );
     parts.push(layer.kind === "modal" ? MODAL_BOUNDARY : POPOVER_BOUNDARY);
@@ -292,7 +295,7 @@ export const shadow = () => {
 // callback. Resolve that reference at invocation time so replacement, disconnection,
 // scope liveness, row liveness, and dynamic routes have the same meaning as they do for
 // an intrinsic key press. The source scope need not be where focus stands: that is the
-// point of an ancestor projection such as Ask.
+// point of an ancestor projection such as Question.
 function referencedInvocation(reference) {
   if (!reference) return null;
   const current = referencedCommandEntry(reference);
@@ -308,6 +311,7 @@ function referencedInvocation(reference) {
     ? {
         id: reference.id,
         row: reference.row,
+        entry: current,
         binding: reference.binding ?? undefined,
         run,
         native: false,
@@ -328,14 +332,30 @@ function invocationFor(row, binding, command, recovered = null) {
       ? () => nativeControl.click()
       : null;
   return run
-    ? { id: command?.id ?? row.id, row, binding, run, native: Boolean(row.native) }
+    ? {
+        id: command?.id ?? row.id,
+        row,
+        entry: current,
+        binding,
+        run,
+        native: Boolean(row.native),
+      }
     : null;
 }
 
 function announceInvocation(invocation) {
+  const { row, entry } = invocation;
+  const route = entry.route;
   document.dispatchEvent(
     new window.CustomEvent("lf-command-invoked", {
-      detail: { id: invocation.id, binding: invocation.binding },
+      // Dynamic words are facts of this invocation. Reading the register later
+      // would describe the state after the command changed it.
+      detail: {
+        id: invocation.id,
+        binding: invocation.binding,
+        title: titleOf(route?.title === undefined ? row : route),
+        description: descriptionOf(route?.description === undefined ? row : route),
+      },
     }),
   );
 }
@@ -494,7 +514,7 @@ export function activeCommandLabel(ids) {
   return command?.binding != null ? spell(command.binding) : "";
 }
 // Snapshot executable bindings by row while focus is still on the page. A widget's
-// intrinsic key and an Ask alias can share a command id while only one is shadowed.
+// intrinsic key and a Question alias can share a command id while only one is shadowed.
 // The reference is a modal scope and shadows the page once it opens, so callers take
 // this snapshot before opening it.
 export function availableCommandRoutes({ commands = false } = {}) {

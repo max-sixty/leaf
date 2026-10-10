@@ -27,7 +27,6 @@ export function createThreadPanelController({
   refreshThread,
   closeReactionMode,
   closePreview,
-  syncGeneral,
 }) {
   const stopSide = declareSide((node) => {
     const listed = panel.contains(node)
@@ -59,7 +58,6 @@ export function createThreadPanelController({
       // The visible scaffold precedes reconciliation, whose anchor pass measures it.
       if (phase === "gesture") slide(panel, "right", "in");
       refreshThread();
-      syncGeneral(); // a restored draft has to reach the Send button's disabled state
     } else {
       ++viewRequest;
       // The selected surface closes at once so it cannot answer the next page key.
@@ -99,7 +97,7 @@ export function createThreadPanelController({
     // A keyboard press enters the panel's standing thread. A pointer press may carry
     // the page thread it began beside, even after focus moves to this door.
     const inlineThread = keyboard ? null : (pressed ?? threadAtStanding());
-    if (inlineThread) showThread(inlineThread, { focus: "thread" });
+    if (inlineThread) showThread(inlineThread, { part: "thread" });
     else setPanel(true, { focus: keyboard });
   };
   function mountThreadPanel() {

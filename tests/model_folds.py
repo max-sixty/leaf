@@ -1,10 +1,10 @@
 """Fold one document and one log into the reading a browser receives.
 
 The document starts state and the log changes it, and every current-state
-projection is that pair put through one construction. `browser_state` is where
-the server performs it, and it takes documents, events, a registry, and a
-presence reading — no page directory, no server, and no browser. A test whose
-subject is that fold calls it here with literal markup and a literal log.
+projection is that pair put through one construction. `read_served_page` builds
+the complete server response from a `PageRead`: documents, events, a registry,
+and a presence reading — no page directory, server, or browser. A test whose
+subject is that reading calls it here with literal markup and a literal log.
 
 What a fixture here cannot answer is anything a renderer decides. The reading is
 what the runtime is handed, not what a widget module draws with it, so a claim
@@ -32,8 +32,10 @@ nothing else on the machine.
 
 from interact_support import ModelPage, model_layer
 from leaf.event_contracts import admitted_event
+from leaf.files import document_descriptor, version_descriptors
 from leaf.passages import SourceReading
-from leaf.served_state.browser import browser_state
+from leaf.served_state.context import PageRead
+from leaf.served_state.page import read_served_page
 from leaf.structure import SourceDocument
 
 NOW = "2026-09-19T12:00:00+00:00"
@@ -79,17 +81,18 @@ def leaf_page(
 """
 
 
-def reading(
+def served_reading(
     documents: dict[int, str] | str,
     events: tuple[dict, ...] | list[dict] = (),
     *,
     registry: dict | None = None,
-    revision: int | None = None,
+    view_revision: int | None = None,
 ) -> dict:
     """The `/api/state` reading of one page, folded in this process.
 
-    `documents` is the authored markup of each revision, or one string for a
-    single-revision page; `revision` is the active one, newest by default.
+    `documents` holds the revisions available at this point, or one string for
+    a single revision. The newest is active; `view_revision` also reads a historical
+    document, through the same route as the browser.
 
     `events` are written the way a command states them. The log's own fields —
     `id` (`e1`, `e2`, … in written order, which is what a later event names its
@@ -106,7 +109,18 @@ def reading(
     if isinstance(documents, str):
         documents = {1: documents}
     parsed = {rev: SourceDocument(html) for rev, html in documents.items()}
-    registry = registry or model_layer()
+    # The layer identity is fixed fixture input; the vocabulary is composed from
+    # the same packages the page would install, without writing an installation.
+    registry = {
+        **(registry or model_layer()),
+        "$layer": {
+            "generation": "0" * 32,
+            "fingerprint": "0" * 64,
+            "runtime": "0" * 64,
+            "server": "0" * 64,
+            "packages": [],
+        },
+    }
     door = ModelPage(documents=parsed, registry=registry)
     kinds = registry["$events"]["kinds"]
     log = []
@@ -119,25 +133,56 @@ def reading(
         if "revision" in carries.get("properties", {}):
             stamped["revision"] = 1
         log.append(admitted_event(door, log, {**stamped, **command}))
-    active_revision = revision if revision is not None else max(parsed)
-    active = {
-        "revision": active_revision,
-        "version": active_revision,
-        "url": f"/revisions/r{active_revision}.html",
-        "label": f"v{active_revision}",
-        "executable": f"model-r{active_revision}",
-        "activated_at": NOW,
-    }
-    state, _reading = browser_state(
-        {rev: SourceReading(document, registry) for rev, document in parsed.items()},
-        log,
+    active_revision = max(parsed)
+    active = document_descriptor(
         active_revision,
-        UNCLAIMED,
-        active,
-        {active_revision},
-        NOW,
+        log,
+        url=f"/revisions/r{active_revision}-{'0' * 16}.html",
+        executable="0" * 64,
+        activated_at=NOW,
     )
-    return state
+    readings = {
+        rev: SourceReading(document, registry) for rev, document in parsed.items()
+    }
+    return read_served_page(
+        PageRead(
+            active=active,
+            events=log,
+            revisions=frozenset(parsed),
+            revision=readings.__getitem__,
+            registry=registry,
+            layer=registry["$layer"],
+            stored_data=lambda: {"version": "0" * 16, "sources": {}},
+            versions=tuple(version_descriptors(log, parsed)),
+            presence=UNCLAIMED,
+            live_stream=None,
+            now=NOW,
+            taken=float(len(log) + 1),
+        ),
+        view_revision=view_revision,
+    ).state
+
+
+def reading(
+    documents: dict[int, str] | str,
+    events: tuple[dict, ...] | list[dict] = (),
+    *,
+    registry: dict | None = None,
+    view_revision: int | None = None,
+) -> dict:
+    """The semantic browser projection beside its page-wide work readings.
+
+    Model assertions select from this view; wire consumers use `served_reading`
+    for the complete `/api/state` answer, including its envelope.
+    """
+    state = served_reading(
+        documents, events, registry=registry, view_revision=view_revision
+    )
+    return {
+        **state["browser"],
+        "activity": state["activity"],
+        "workflows": state["workflows"],
+    }
 
 
 def threads(state: dict) -> dict:

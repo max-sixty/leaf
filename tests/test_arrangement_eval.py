@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 
+import turbohtml
 from leaf_dev import ROOT, arrangement_plain
 from leaf_dev.arrangement_eval import WIDTHS, first_prompt
 
@@ -181,4 +182,7 @@ def test_reader_calibration_shows_the_judge_its_page_at_every_width(tmp_path):
         if line.strip().endswith(".png")
     ]
     assert listed and all(path.is_file() for path in listed)
-    assert 'value="8"' in (tmp_path / "source.html").read_text()
+    seeded = turbohtml.parse((tmp_path / "source.html").read_text())
+    clean = turbohtml.parse(reader_eval.fixture(reader_eval.CASES["clean"]))
+    assert seeded.select_one("#count-open dd strong").text == "8"
+    assert clean.select_one("#count-open dd strong").text == "7"

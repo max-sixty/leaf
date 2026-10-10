@@ -1589,15 +1589,18 @@ stateDiagram-v2
               did not.
             </p>
             <div class="layout-tiles" id="evidence-tiles">
-              <lf-metric id="m-limbo" value="57"
-                >threads left open on nobody (median age 28 days)</lf-metric
-              >
-              <lf-metric id="m-promise-resolves" value="15"
-                >threads you resolved right after the agent promised work</lf-metric
-              >
-              <lf-metric id="m-result-elsewhere" value="0 / 15"
-                >of those got the result in the thread</lf-metric
-              >
+              <dl id="m-limbo" class="panel">
+                <dt>threads left open on nobody (median age 28 days)</dt>
+                <dd><strong>57</strong></dd>
+              </dl>
+              <dl id="m-promise-resolves" class="panel">
+                <dt>threads you resolved right after the agent promised work</dt>
+                <dd><strong>15</strong></dd>
+              </dl>
+              <dl id="m-result-elsewhere" class="panel">
+                <dt>of those got the result in the thread</dt>
+                <dd><strong>0 / 15</strong></dd>
+              </dl>
             </div>
             <p>
               Of those 15 results, 6 landed in a version note or a sibling thread and 9

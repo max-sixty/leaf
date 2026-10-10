@@ -72,19 +72,19 @@
             </lf-chart>
             <lf-options id="ar-canary-choice" choose>
               <lf-option id="ar-canary-consecutive">
-                <lf-chip>last week: 0 pages</lf-chip>
-                <lf-chip tone="ok">recommended</lf-chip>
+                <small class="tag">last week: 0 pages</small>
+                <small class="tag ok">recommended</small>
                 <strong>Require three failed probes in a row</strong> Pages when the
                 canary is down for 90 seconds, which no deploy restart reached.
               </lf-option>
               <lf-option id="ar-canary-suppress">
-                <lf-chip>last week: 3 pages</lf-chip>
+                <small class="tag">last week: 3 pages</small>
                 <strong>Mute for five minutes after each deploy</strong> Keeps
                 single-probe sensitivity between trains, but depends on deploy events
                 arriving on time.
               </lf-option>
               <lf-option id="ar-canary-keep">
-                <lf-chip>last week: 47 pages</lf-chip>
+                <small class="tag">last week: 47 pages</small>
                 <strong>Keep paging on one failed probe</strong> No change to the rule.
               </lf-option>
             </lf-options>
@@ -114,18 +114,18 @@
             </p>
             <lf-options id="ar-latency-choice" choose>
               <lf-option id="ar-latency-objective">
-                <lf-chip>last week: 1 page</lf-chip>
-                <lf-chip tone="ok">recommended</lf-chip>
+                <small class="tag">last week: 1 page</small>
+                <small class="tag ok">recommended</small>
                 <strong>Page on the objective itself</strong> 1.2 seconds sustained for
                 ten minutes; peaks that recover stop paging.
               </lf-option>
               <lf-option id="ar-latency-hours">
-                <lf-chip>last week: 12 pages</lf-chip>
+                <small class="tag">last week: 12 pages</small>
                 <strong>Keep 800 ms, page only in working hours</strong> Nights and
                 weekends open a ticket instead.
               </lf-option>
               <lf-option id="ar-latency-keep">
-                <lf-chip>last week: 31 pages</lf-chip>
+                <small class="tag">last week: 31 pages</small>
                 <strong>Keep the current threshold</strong> No change to the rule.
               </lf-option>
             </lf-options>
@@ -155,18 +155,18 @@
             </p>
             <lf-options id="ar-webhooks-choice" choose>
               <lf-option id="ar-webhooks-age">
-                <lf-chip>last week: 2 pages</lf-chip>
-                <lf-chip tone="ok">recommended</lf-chip>
+                <small class="tag">last week: 2 pages</small>
+                <small class="tag ok">recommended</small>
                 <strong>Page on the oldest delivery's age</strong> Ten minutes old trips
                 it; a burst that drains does not.
               </lf-option>
               <lf-option id="ar-webhooks-depth">
-                <lf-chip>last week: 6 pages</lf-chip>
+                <small class="tag">last week: 6 pages</small>
                 <strong>Raise the depth to 20,000</strong> Fewer burst pages, and still
                 blind to a stuck consumer on a short queue.
               </lf-option>
               <lf-option id="ar-webhooks-keep">
-                <lf-chip>last week: 22 pages</lf-chip>
+                <small class="tag">last week: 22 pages</small>
                 <strong>Keep paging at 5,000</strong> No change to the rule.
               </lf-option>
             </lf-options>
@@ -227,7 +227,7 @@
             </lf-chart>
             <lf-options id="ar-export-choice" choose>
               <lf-option id="ar-export-window">
-                <lf-chip tone="ok">recommended</lf-chip>
+                <small class="tag ok">recommended</small>
                 <strong>Mute from 01:00 to 03:30 UTC</strong> Lag outside the batch
                 still pages.
               </lf-option>
@@ -265,7 +265,7 @@
             </p>
             <lf-options id="ar-disk-choice" choose>
               <lf-option id="ar-disk-delete">
-                <lf-chip tone="ok">recommended</lf-chip>
+                <small class="tag ok">recommended</small>
                 <strong>Delete it</strong> The capacity review and the 95% alert cover
                 the disk.
               </lf-option>
@@ -303,7 +303,7 @@
             </p>
             <lf-options id="ar-settlement-choice" choose>
               <lf-option id="ar-settlement-retry">
-                <lf-chip tone="ok">recommended</lf-chip>
+                <small class="tag ok">recommended</small>
                 <strong>Page when the retry fails too</strong> Real failures arrive five
                 minutes later.
               </lf-option>
@@ -363,7 +363,7 @@
             </lf-chart>
             <lf-options id="ar-3ds-choice" choose>
               <lf-option id="ar-3ds-spread">
-                <lf-chip tone="ok">recommended</lf-chip>
+                <small class="tag ok">recommended</small>
                 <strong>Page when three or more issuers fail</strong> A single bank's
                 outage opens a ticket instead.
               </lf-option>
@@ -397,7 +397,7 @@
             </p>
             <lf-options id="ar-cert-choice" choose>
               <lf-option id="ar-cert-platform">
-                <lf-chip tone="ok">recommended</lf-chip>
+                <small class="tag ok">recommended</small>
                 <strong>Route it to Platform's queue</strong> The team that can renew it
                 sees it; payments stops paging.
               </lf-option>
@@ -432,7 +432,7 @@
             </p>
             <lf-options id="ar-kafka-choice" choose>
               <lf-option id="ar-kafka-route">
-                <lf-chip tone="ok">recommended</lf-chip>
+                <small class="tag ok">recommended</small>
                 <strong>Page Data Platform during rebalances</strong> Payments hears
                 only when lag outlasts 15 minutes.
               </lf-option>

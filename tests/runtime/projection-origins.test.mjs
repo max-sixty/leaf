@@ -15,7 +15,7 @@ const coordinate = (verb) => JSON.stringify(["t-parser", "t-parser", verb]);
 
 const entry = (id, kind, verb, value = null, record = null) => ({
   unit: "t-parser",
-  e: { id, kind, action: verb },
+  e: { id, kind, widget: "t-parser", action: verb },
   spec: { record, unit: "widget" },
   value,
 });

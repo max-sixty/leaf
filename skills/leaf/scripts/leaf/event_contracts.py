@@ -8,7 +8,6 @@ This module selects each kind's gates. Their implementations stay with their
 domains: undo in `events` and widget meaning in `event_meaning`.
 """
 
-from leaf.asks import asking, projected_action_holders, quoted_in
 from leaf.event_log import EventRefused, Refusal, new_event_id
 from leaf.event_meaning import (
     AdmissionReadings,
@@ -21,9 +20,9 @@ from leaf.page_view import CandidatePageView, PageView
 from leaf.projection import (
     RANK,
     authored_positions,
-    page_reading,
     record_members,
 )
+from leaf.questions import asking, projected_action_holders, quoted_in
 from leaf.read_state import read_contract_error
 from leaf.registry.contract import (
     WRITERS,
@@ -34,6 +33,7 @@ from leaf.registry.contract import (
     verb_writer,
     visual_parts,
 )
+from leaf.registry.kernel import kernel_event_ownership
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import json_value, schema_error
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
@@ -63,16 +63,15 @@ def command_record_schema(contract: dict) -> dict:
     this shape before any gate reads kind-specific fields.
     """
     schema = contract["record"]
+    derived = kernel_event_ownership()["derived"]
     return {
         **schema,
         "properties": {
             key: value
             for key, value in schema["properties"].items()
-            if key not in {"meaning", "attention"}
+            if key not in derived
         },
-        "required": [
-            key for key in schema["required"] if key not in {"meaning", "attention"}
-        ],
+        "required": [key for key in schema["required"] if key not in derived],
     }
 
 
@@ -85,13 +84,30 @@ def browser_command_error(contract: dict, event: dict):
     are narrower than the record, because the fields a reply carries from the
     CLI are not a tab's to send."""
     return schema_error(
-        {"allOf": [command_record_schema(contract), contract["browser"]]},
+        {
+            "allOf": [
+                command_record_schema(contract),
+                contract["browser"],
+            ]
+        },
         {
             **event,
             **APPEND_STAMPED,
             "author": "page" if event.get("kind") == "error" else "user",
         },
     )
+
+
+def command_error(event: dict, contracts: dict) -> str | None:
+    """Validate a command before any kind-specific reader consumes its fields."""
+    kind = event.get("kind")
+    if not isinstance(kind, str) or kind not in contracts:
+        return f"kind must be one of {json_value(sorted(contracts))}"
+    error = schema_error(
+        command_record_schema(contracts[kind]),
+        {**APPEND_STAMPED, **event},
+    )
+    return f"{kind} event is invalid: {error}" if error else None
 
 
 def declared_event_error(event: dict, tag: str, registry: dict):
@@ -452,8 +468,9 @@ def admitting_registry(view, event: dict, events: list) -> dict:
     Read through `PageView.registry`, which opens the one captured file rather
     than materializing the whole bundle: this runs on every append."""
     revisions = view.revisions
+    version = event.get("version")
     revision = (
-        version_revisions(events).get(event.get("version"))
+        (version_revisions(events).get(version) if type(version) is int else None)
         if event.get("kind") == "done"
         else event.get("revision")
     )
@@ -489,15 +506,25 @@ def _approval_error(view, event: dict, events: list, registry: dict):
             '<meta name="lf-review" content="sign-off">, so it has no '
             "approval to record"
         )
-    page = page_reading(view.reading(revision, registry), events, revision)
+    page = AdmissionReadings(view, events, registry).page(revision)
     work = WorkReading(events, registry, page)
     unanswered = [
-        *work.document.asks["unanswered"],
-        *work.asks["unanswered"],
+        *(
+            question
+            for question in work.document.questions["unanswered"]
+            if question["source"]["kind"] == "widget"
+        ),
+        *(
+            question
+            for question in work.widget_questions["unanswered"]
+            if question["next_actor"] is not None
+        ),
     ]
     if unanswered:
-        identities = ", ".join(ask["id"] for ask in unanswered)
-        return f"v{event['version']} still has unanswered Asks: {identities}"
+        identities = ", ".join(question["id"] for question in unanswered)
+        return (
+            f"v{event['version']} still has unanswered widget Questions: {identities}"
+        )
     return None
 
 
@@ -675,9 +702,8 @@ def admission_error(
 
 def _task_error(view, event: dict, events: list, readings) -> str | None:
     """A task stands on an open thread, a widget that seats work or an element, or the
-    page, and a task on the user on no Ask, which already is one; an outcome ends a
-    task still open as its `ends` allows; a start names an open task or a move the
-    agent owes (`tasks.task_error`)."""
+    page. Task endings also admit an agent withdrawal of a prose Question; a
+    start names explicit agent work or an owed move (`tasks.task_error`)."""
     from leaf.tasks import start_reading
 
     progress_parent = (
@@ -714,14 +740,18 @@ def _task_error(view, event: dict, events: list, readings) -> str | None:
     def user_widget_error(widget: str) -> str | None:
         if error := element_error(widget):
             return error
-        asks = readings.work.document.asks["all"]
-        if ask := next(
-            (ask for ask in asks if widget in (ask["id"], ask["source"])), None
-        ):
-            return (
-                f"{widget!r} is an Ask, which already is a task on the user, under "
-                f"{ask['id']!r}, and ends when its widget answers it"
-            )
+        question = next(
+            (
+                item
+                for item in readings.work.all_questions["all"]
+                if item["source"]["kind"] == "widget"
+                and item["source"]["id"] == widget
+                and item["status"] == "open"
+            ),
+            None,
+        )
+        if question is not None:
+            return f"{widget!r} already has Question {question['id']!r}; use that Question instead of opening duplicate work"
         return None
 
     owed = {item["input"] for item in workflows if item["next_actor"] == "agent"}
@@ -734,6 +764,7 @@ def _task_error(view, event: dict, events: list, readings) -> str | None:
         user_widget_error=user_widget_error,
         owed=owed,
         tasks=lambda: admission_tasks(readings),
+        questions=lambda: readings.work.all_questions["all"],
     )
 
 
@@ -778,9 +809,9 @@ def admitted_event(view, events: list, event: dict) -> dict:
     """
     registry = admitting_registry(view, event, events)
     contracts = registry["$events"]["kinds"]
-    kind = event.get("kind")
-    if kind not in contracts:
-        raise EventRefused(f"kind must be one of {json_value(sorted(contracts))}")
+    if error := command_error(event, contracts):
+        raise EventRefused(error)
+    kind = event["kind"]
     if "id" not in event:
         event = {**event, "id": new_event_id(events)}
     readings = AdmissionReadings(view, events, registry)

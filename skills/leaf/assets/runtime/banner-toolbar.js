@@ -6,6 +6,11 @@
  * order, presence, row-versus-overflow placement, and the overflow door's state. The
  * native controls are retained islands: their own owners keep commands, words, and
  * local state while this owner retains the same nodes in its two Lit lists.
+ * An open overflow menu retains the seats it opened with until it closes. Semantic
+ * availability and news keep advancing: retired controls leave hidden seats and
+ * lose focusability, and newly offered rows join the next opening. Thus passive
+ * news never moves another destination under the reader or their pointer.
+ * Explicit travel to an undrawn control refreshes that inventory before arrival.
  *
  * Three seats partition the run, and measured geometry never changes the partition:
  *
@@ -28,11 +33,14 @@
  *   return once the selection goes.
  *
  * A contribution whose seat differs by face names one per face (`{ desk, phone }`). The
- * face is the window's, the same query that gives the banner its phone face in theme.css
- * and chrome.css, so the partition changes only when the window crosses that width.
+ * face is the window's, the stylesheet-owned --lf-banner-face that also dresses
+ * the banner, so the partition changes only when the window crosses that width.
  */
+import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
+import { scrollIntoView } from "./landing-scroll.js";
 import { html, render, repeat } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
+import { iconTemplate } from "./icons.js";
 import { repaint } from "./repaint.js";
 import { afterScript } from "./rendering.js";
 import {
@@ -50,10 +58,11 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   session: 10,
   preview: 20,
   layer: 30,
+  share: 35,
   leaves: 40,
   latest: 50,
   map: 70,
-  // The page's commands a finger reaches here rather than by key (touch-controls.js),
+  // The page's commands reached by pointer here (touch-controls.js),
   // among themselves in the shortcut line's order.
   commands: 75,
   blanket: 80,
@@ -64,7 +73,7 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   // Questions and Threads are the two doors to the one side panel, side by side.
   queue: 107,
   threads: 110,
-  // The way out of the mode or picker the user stands in, under a finger.
+  // The next steps in the mode or picker the user stands in.
   steps: 120,
   commentSelection: 130,
 });
@@ -76,17 +85,21 @@ overflowMenu.setAttribute("role", "group");
 overflowMenu.setAttribute("aria-label", "More page controls");
 
 const SEATS = ["row", "menu", "gesture"];
-// The banner's phone face; theme.css and chrome.css state the same query.
-const phone = matchMedia("screen and (width <= 480px)");
+// The render-blocking theme decides posture once, before the banner arrives.
+const bannerFace = () =>
+  getComputedStyle(document.documentElement)
+    .getPropertyValue("--lf-banner-face")
+    .trim();
+let face = bannerFace();
 
 const controls = new Map();
 let sequence = 0;
 let row = EMPTY;
 let menu = EMPTY;
+let openSeats = null;
 
 const perFace = (entry) => typeof entry.seat !== "string";
-const seatOf = (entry) =>
-  perFace(entry) ? entry.seat[phone.matches ? "phone" : "desk"] : entry.seat;
+const seatOf = (entry) => (perFace(entry) ? entry.seat[face] : entry.seat);
 const ordered = () =>
   [...controls.values()].sort(
     (left, right) => left.rank - right.rank || left.sequence - right.sequence,
@@ -105,6 +118,8 @@ const visible = (entry) => {
   if (seatOf(entry) === "row") return nearestGesture() === -Infinity;
   return seatOf(entry) !== "gesture" || entry.rank === nearestGesture();
 };
+const currentMenuSeats = () =>
+  new Set(menu.filter(visible).map((entry) => entry.control));
 
 // The door is part of the row's template, so Lit writes its state only where it moved.
 // Its name says what its dot stands for: each urgent control behind it names its news.
@@ -134,7 +149,7 @@ function rowTemplate() {
       ?data-lf-news=${news.length > 0}
       ?hidden=${!open && !menu.some(visible)}
     >
-      ⋯
+      ${iconTemplate("more", "lf-action-icon")}
     </button>
   `;
 }
@@ -198,9 +213,10 @@ function paintControl(entry) {
   entry.control.classList.toggle("lf-news-shown", entry.conditional && entry.offered);
   // These are paint only. The owner's entry is the value read by layout and door
   // decisions; neither class nor style is read back as authority.
-  const displayed = visible(entry);
-  entry.control.style.display = displayed ? "" : "none";
-  entry.control.style.visibility = visible(entry) ? "" : "hidden";
+  const held = openSeats !== null && seatOf(entry) === "menu";
+  const seated = held ? openSeats.has(entry.control) : visible(entry);
+  entry.control.style.display = seated ? "" : "none";
+  entry.control.style.visibility = seated && visible(entry) ? "" : "hidden";
 }
 
 // Lit reseats a control by moving its node, and a moved node drops focus. Focus goes
@@ -226,11 +242,18 @@ const focusable = (entry) =>
   !entry.focusTarget.matches(":disabled, [aria-disabled='true']") &&
   !entry.control.closest("[inert]") &&
   entry.control.checkVisibility();
+overflowMenu.addEventListener("beforetoggle", (event) => {
+  openSeats = event.newState === "open" ? currentMenuSeats() : null;
+  paint();
+});
 overflowMenu.addEventListener("toggle", (event) => {
   const open = event.newState === "open";
   render(rowTemplate(), bannerActions);
   const first = open && document.activeElement === overflowBtn && menu.find(focusable);
-  if (first) focusDestination(first.focusTarget, "move", { scroll: true });
+  if (first) {
+    focusDestination(first.focusTarget, "move");
+    scrollIntoView(first.focusTarget, { block: "nearest" });
+  }
   if (!open) opener = null;
   repaint();
 });
@@ -246,8 +269,12 @@ function seatControls() {
 }
 
 // Crossing the phone width moves a per-face control between the row and More.
-phone.addEventListener("change", () => {
+addEventListener("resize", () => {
+  const next = bannerFace();
+  if (next === face) return;
+  face = next;
   seatControls();
+  if (openSeats !== null) openSeats = currentMenuSeats();
   paint();
 });
 
@@ -392,8 +419,23 @@ function focusAfterRemoval(entry, wasInMenu) {
 // A secondary control stands behind a door this owner holds shut, so it
 // answers the layer's shared disclosure route: `reveal` walks the ancestors of what a
 // caller means to show, and this is the only one that can open for a menu control.
-overflowMenu.addEventListener("lf-reveal", () => {
-  if (!overflowMenu.matches(":popover-open")) overflowMenu.showPopover();
+function revealMenuControl(control) {
+  if (!overflowMenu.matches(":popover-open")) {
+    showNativeLayer(overflowMenu);
+    return;
+  }
+  const entry = menu.find(
+    (candidate) => candidate.control === control || candidate.control.contains(control),
+  );
+  // A gesture going to a new destination releases the old inventory before focus
+  // arrives. Revealing an already drawn control does not move its neighbours.
+  if (entry && visible(entry) && !openSeats.has(entry.control)) {
+    openSeats = currentMenuSeats();
+    paint();
+  }
+}
+overflowMenu.addEventListener("lf-reveal", (event) => {
+  if (event.detail.mayReveal()) revealMenuControl(event.detail.target);
 });
 
 // The node a user can actually put focus on to reach this control: the control
@@ -401,24 +443,26 @@ overflowMenu.addEventListener("lf-reveal", () => {
 // control fails `checkVisibility()` inside a shut popover, and `focus()` on it is a
 // no-op, so a caller that hands the user somewhere has to ask this rather than the
 // control. Null means the toolbar offers no way in, which happens only off the banner.
-export function bannerControlDoor(control) {
-  if (control.isConnected && control.checkVisibility()) return control;
+export function bannerControlDoor(control = overflowBtn) {
+  if (control.isConnected && control.checkVisibility({ visibilityProperty: true }))
+    return control;
   const menu = control.closest(".lf-banner-menu");
   return menu?.lfInvoker?.checkVisibility() ? menu.lfInvoker : null;
 }
 
 // Escape from a layer that opens from a banner control lands on that control, its parent
-// (runtime/keyboard/AGENTS.md, "Escape unwinds the hierarchy"). A control behind More is
+// (runtime/keyboard/AGENTS.md, "Escape"). A control behind More is
 // reached as its door reaches it: More opens from the door, so More's own Escape then
 // hands the user back to the door, and the user stands on the control.
 export function returnToBannerControl(control) {
-  if (overflowMenu.contains(control) && !overflowMenu.matches(":popover-open")) {
-    focusDestination(overflowBtn, "return");
-    overflowMenu.showPopover();
+  if (overflowMenu.contains(control)) {
+    if (!overflowMenu.matches(":popover-open")) focusDestination(overflowBtn, "return");
+    revealMenuControl(control);
   }
-  focusDestination(control, "return");
+  const destination = bannerControlDoor(control);
+  if (destination) focusDestination(destination, "return");
 }
 
 export function dismissBannerControls() {
-  if (overflowMenu.matches(":popover-open")) overflowMenu.hidePopover();
+  if (overflowMenu.matches(":popover-open")) closeNativeLayer(overflowMenu);
 }

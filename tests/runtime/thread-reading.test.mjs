@@ -56,7 +56,8 @@ test("Thread destinations without a page preview retain canonical targets and sh
   assert.equal(await destinations.openPageThread("detached", { intent }), control);
   assert.equal(arrivals[0].id, "detached");
   assert.equal(arrivals[0].options.intent, intent);
-  assert.equal(arrivals[0].options.focus, "reply");
+  assert.equal(arrivals[0].options.part, "reply");
+  assert.equal(arrivals[0].options.focus, true);
   window.dispatchEvent(new Event("input"));
   assert.equal(await destinations.openPageThread("detached", { intent }), null);
   assert.equal(arrivals.length, 1);
@@ -80,7 +81,6 @@ test("two Thread panels own separate controls and list state", () => {
   assert.notEqual(second.findInput.value, first.findInput.value);
   assert.equal(second.threadsBox.scrollTop, 0);
   assert.notEqual(first.panel, second.panel);
-  assert.notEqual(first.generalInput, second.generalInput);
   first.dispose();
   second.dispose();
 });
@@ -113,7 +113,6 @@ test("two mounted panel controllers keep independent visibility and keyboard run
       refreshThread: () => {},
       closeReactionMode: () => {},
       closePreview: () => {},
-      syncGeneral: () => {},
     });
   const firstController = make(first, "test-first");
   const secondController = make(second, "test-second");
@@ -129,7 +128,7 @@ test("two mounted panel controllers keep independent visibility and keyboard run
   second.dispose();
 });
 
-const NO_DOCUMENT = { descriptors: new Map(), messageBodies: new Map() };
+const NO_DOCUMENT = { registry: {}, descriptors: new Map(), messageBodies: new Map() };
 
 const agent = (id, extra = {}) => ({
   id,
@@ -205,7 +204,7 @@ test("attention names the outstanding question rather than the latest message", 
     seq: 2,
   });
   const source = servedThread([question, update], {
-    attention: { kind: "needs_user", reason: "ask", workflow: null },
+    attention: { kind: "needs_user", reason: "question", workflow: null },
     user_prompt: { message: "question", version: "question" },
   });
   const [thread] = readThreadRecords([source], NO_DOCUMENT, new Map(), []);
@@ -315,7 +314,7 @@ test("narrowing transitions reset what they contradict and counts name each subs
   assert.equal(transition(resolved, "waiting", "user").status, "open");
   assert.equal(transition(DEFAULT_INTENT, "status", "open"), DEFAULT_INTENT);
 
-  const onUser = { kind: "needs_user", reason: "ask" };
+  const onUser = { kind: "needs_user", reason: "question" };
   // A thread the agent has started a move in: the card says Working, so the agent
   // filter lists it.
   const claimed = { kind: "waiting", reason: "workflow", workflow: "working" };
@@ -433,9 +432,22 @@ test("panel narrowing controllers keep independent intent over shared threads", 
   assert.equal(first.listRoot.scrollTop, 0);
   assert.equal(second.listRoot.scrollTop, 10);
 
+  // Revealing a destination already in this view keeps the intent that retained
+  // arrivals use to distinguish repainting from a deliberate change of view.
+  const standing = second.narrowing.model(threads, places).intent;
+  await second.narrowing.revealThread("open");
+  assert.equal(second.narrowing.model(threads, places).intent, standing);
+  assert.equal(second.narrowing.widen(), false);
+  assert.equal(second.narrowing.model(threads, places).intent, standing);
+
   await second.narrowing.revealThread("resolved");
+  assert.notEqual(second.narrowing.model(threads, places).intent, standing);
   assert.deepEqual(second.narrowing.model(threads, places).shown, [resolved]);
   first.narrowing.widen();
   assert.deepEqual(first.narrowing.model(threads, places).shown, [open]);
   assert.deepEqual(second.narrowing.model(threads, places).shown, [resolved]);
+  // An empty normalized search can still carry raw editing to clear on Reset.
+  first.view.controls.changeWords(" ");
+  assert.equal(first.narrowing.widen(), true);
+  assert.equal(first.view.words, "");
 });

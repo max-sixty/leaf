@@ -223,7 +223,7 @@ declareBottomBar(bottomChromeBoxes);
 // ---------- the shortcut bar ----------
 // The rows the line shows, innermost scope first: the ones carrying a word for it. Each
 // keeps only bindings no nearer scope has named, so an inner meaning wins while a grouped
-// row's other presses remain visible — for example, an Ask's numbered pick replaces the
+// row's other presses remain visible — for example, a Question's numbered pick replaces the
 // page's ordinary digit meaning without hiding the option row's other keys.
 const sourceRows = new WeakMap();
 const sourceRow = (row) => sourceRows.get(row) ?? row;

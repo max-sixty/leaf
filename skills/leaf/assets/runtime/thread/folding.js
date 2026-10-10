@@ -9,7 +9,7 @@
    the thread out of a view it leaves (thread-card.js, `#goWithThread`). */
 import { newAttempt } from "../drafts.js";
 import { paintKeys } from "../keyboard/scopes.js";
-import { FOLD_MS, motion } from "../motion.js";
+import { foldDuration, motion } from "../motion.js";
 import { pendingForParent } from "../pending/model.js";
 import { bindQueuedWork } from "../queued-work.js";
 import { whenDocumentPresented } from "../semantic-state.js";
@@ -98,7 +98,7 @@ export function foldOut(node, repaintThread) {
   };
   const to = Object.fromEntries(Object.keys(from).map((key) => [key, "0px"]));
   to.opacity = 0;
-  const played = motion(node, [from, to], FOLD_MS);
+  const played = motion(node, [from, to], foldDuration());
   if (!played) return false;
   const record = { played };
   folding.set(node, record);

@@ -22,10 +22,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 COPY --from=codex /codex-bin /codex-bin
 RUN ln -s /codex-bin/rg /usr/local/bin/rg
 
-COPY pyproject.toml uv.lock ./
-COPY skills/leaf ./skills/leaf
-COPY worker/pyproject.toml ./worker/
-COPY worker/leaf_website ./worker/leaf_website
+# Leaf and its website server come from the installation `leaf-dev site` built its pages
+# with, a prepared one, so a revision a hosted session writes carries the same compiled
+# kernel as a consumer install.
+COPY .tmp/site-install/pyproject.toml .tmp/site-install/uv.lock \
+    .tmp/site-install/leaf-distribution.json ./
+COPY .tmp/site-install/skills/leaf ./skills/leaf
+COPY .tmp/site-install/worker ./worker
 RUN uv sync --frozen --no-dev --package leaf-website --compile-bytecode \
     && /app/.venv/bin/python -m compileall -q /app/skills/leaf/scripts/leaf \
     && /app/.venv/bin/leaf --version \

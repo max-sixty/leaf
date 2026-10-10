@@ -1,3 +1,4 @@
+import { registerSampleCommand, onSampleNotice } from "./runtime/sample-child.js";
 /* Leaf runtime boot and application composition root. */
 import "./vendor/browser-runtime.js";
 import "./runtime/interaction-log.js";
@@ -50,6 +51,7 @@ import {
 import { createResponseSurface } from "./runtime/composing/surface.js";
 import { createPassageSelection } from "./runtime/composing/capture.js";
 import { createDrawingController } from "./runtime/composing/drawing.js";
+import { createRegionCapture } from "./runtime/composing/region-capture.js";
 import { createDrawingInk } from "./runtime/composing/drawing-ink.js";
 import { createAim } from "./runtime/composing/aim.js";
 import {
@@ -68,6 +70,7 @@ import { createAnchorControls } from "./runtime/anchor-controls.js";
 import { createAnchorTravel } from "./runtime/anchor-travel.js";
 import {
   aimTargetAt,
+  aimTargets,
   resolveAnchor,
   setAnchoringReady,
 } from "./runtime/anchor-resolution.js";
@@ -92,10 +95,10 @@ import { createThreadListController } from "./runtime/thread/thread-list.js";
 import { createThreadNarrowing } from "./runtime/thread/narrowing.js";
 import { createThreadPanelElements } from "./runtime/thread/panel-elements.js";
 import { createPageMapDialog } from "./runtime/page-map-dialog.js";
-import { createAskView } from "./runtime/asks/view.js";
+import { createQuestionView } from "./runtime/questions/view.js";
 import { createQueueWalk } from "./runtime/queue-walk.js";
 import { createQueuePanel } from "./runtime/queue-panel.js";
-import { ASK_CONTROL } from "./runtime/asks/view-elements.js";
+import { QUESTION_CONTROL } from "./runtime/questions/view-elements.js";
 import {
   commandHintLayer,
   createCommandHints,
@@ -130,6 +133,7 @@ import {
 import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
 import { holdToRead } from "./runtime/held-word.js";
 
+await document.documentElement.lfSample?.ready;
 initializeServedDocument();
 keepPageRulesOffLayer();
 holdArrivingBounds();
@@ -202,11 +206,11 @@ import {
 import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
 import { offer } from "./runtime/widget-elements.js";
-import { retainUserIntent } from "./runtime/user-intent.js";
+import { retainUserIntent, restrictUserIntent } from "./runtime/user-intent.js";
 
 // Automatic recovery belongs to this arrival. A press made while its presentation
 // waits owns the page; recovery must not capture a fresh focus intent after that wait.
-const recoverComposer = retainUserIntent();
+const recoverComposer = retainUserIntent({ since: 0 });
 
 // This declaration belongs to the executable document lifetime. The revision capture
 // includes it in executable identity, so selecting another presentation retires this
@@ -232,23 +236,19 @@ const narrowing = createThreadNarrowing({
   ready: () => runtime.statePhase === "ready",
   repaint: () => app.presentThread(),
 });
-const paintVersionApproval = () =>
-  paintApproval(
-    app.pendingApprovals(),
-    app.approvalBlockingAsks(),
-    app.acceptedApprovals(),
-  );
+const paintVersionApproval = () => paintApproval(app.approvalBlockingQuestions());
 let threadPanelController;
 let drawers;
 let layout;
 let landing;
 let pageMapDialog;
-let asks;
+let questions;
 let panelKeys;
 let pageComment;
 let selectionComposer;
 let responseSurface;
 let drawing;
+let regionCapture;
 // A draft's drawing put in place, null taking it off, and the page's ink repainted.
 const replaceDrawing = (anchor, drawn) => {
   selectionComposer.setDraftDrawing(anchor, drawn);
@@ -257,6 +257,7 @@ const replaceDrawing = (anchor, drawn) => {
 // A composer's own controls for the drawing its draft holds, which the drawing
 // controller answers, and its history's way of putting one back.
 const drawingEdits = {
+  target: (anchor) => drawing.target(anchor),
   undoStroke: (anchor) => drawing.undoStroke(anchor),
   remove: (anchor) => drawing.removeDrawing(anchor),
   replace: replaceDrawing,
@@ -413,7 +414,7 @@ const version = createVersionController({
   openThread: (id, options) =>
     app.threadDestinations.openPageThread(id, { ...options, travel: false }),
   refreshThread: () => app.refreshThread(),
-  midComposition: () => app.midComposition(),
+  midComposition: (...args) => app.midComposition(...args),
   hasPending: () => app.hasPending(),
   readAndApply: (...args) => app.readAndApply(...args),
   retireProjectionCoverage: () => app.retireProjectionCoverage(),
@@ -421,8 +422,8 @@ const version = createVersionController({
   captureRetainedStanding: () => app?.overlay?.captureStanding() ?? null,
   restoreRetainedStanding: (standing) =>
     app?.overlay?.restoreStanding(standing) ?? false,
-  captureAskStanding: () => asks.captureStanding(),
-  restoreAskStanding: (standing) => asks.restoreStanding(standing),
+  captureQuestionStanding: () => questions.captureStanding(),
+  restoreQuestionStanding: (standing) => questions.restoreStanding(standing),
 });
 
 const inputs = createCompositionInputs({
@@ -431,6 +432,7 @@ const inputs = createCompositionInputs({
 });
 
 app = mountApplication({
+  arriveAtQueueItem: (item) => queueWalk.arriveAtItem(item),
   panel,
   firstUnreadBtn: panelElements.firstUnreadBtn,
   accompaniedThread: (...args) => landing.accompaniedThread(...args),
@@ -475,7 +477,8 @@ app = mountApplication({
   createMarginProjection: annotationRenderer?.createMarginProjection,
   annotationCommands: {
     designModeActive: designMode.active,
-    pointerModeActive: () => designMode.active() || drawing.drawModeActive(),
+    pointerModeActive: () =>
+      designMode.active() || drawing.drawModeActive() || regionCapture.active(),
     comparisonBase: version.comparisonBase,
     comparisonChanges: version.comparisonChanges,
     inlineComparison: version.inlineComparison,
@@ -485,7 +488,7 @@ app = mountApplication({
     pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
     renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
     scrollThreadIntoView,
-    goToAsk: (...args) => asks.goToAsk(...args),
+    goToQuestion: (...args) => questions.goToQuestion(...args),
   },
   state: {
     prepareActivation: (state) => version.prepareActivation(state),
@@ -558,21 +561,19 @@ pageMapDialog = createPageMapDialog({
   annotationFocus: app.overlay?.mapFocusTarget,
 });
 
-// Ask view is constructed below by its owner factory; all accesses above are inert closures.
-asks = createAskView({
-  panelIsOpen,
+// Question view is constructed below by its owner factory; all accesses above are inert closures.
+questions = createQuestionView({
   focusForNavigation,
   presentedControl: app.overlay?.presentedControl,
-  setPanel: (...args) => threadPanelController.setPanel(...args),
   prepareTrip: anchorTravel.prepareTrip,
   arrive: anchorTravel.arrive,
-  refreshThread: () => app.refreshThread(),
-  revealThread: (id) => narrowing.revealThread(id),
+  openPageThread: app.threadDestinations.openPageThread,
   announce,
   repaint,
 });
 const queueWalk = createQueueWalk({
-  arriveAtAsk: asks.arriveAtAsk,
+  actions: app.queueActions,
+  arriveAtQuestion: questions.arriveAtQuestion,
   arriveAtThread: navigation.arriveAtThread,
   threadHere: () => app.threadDestinations.threadHere(),
   threadTarget: (id) => app.threadDestinations.threadTarget(id),
@@ -580,11 +581,9 @@ const queueWalk = createQueueWalk({
   arrive: anchorTravel.arrive,
   readableDestination: anchorTravel.readableDestination,
   announce,
-  post: (event) => app.post(event),
 });
 const queue = createQueuePanel({
-  arriveAtItem: queueWalk.arriveAtItem,
-  endTask: queueWalk.endTask,
+  actions: app.queueActions,
   next: queueWalk.next,
   announce,
 });
@@ -594,8 +593,8 @@ const commandHints = createCommandHints({
 });
 
 const standingTarget = createStandingTarget({
-  isAskControl: (node) => node?.matches?.(ASK_CONTROL),
-  standingIn: asks.standingIn,
+  isQuestionControl: (node) => node?.matches?.(QUESTION_CONTROL),
+  standingIn: questions.standingIn,
 });
 
 panelKeys = createThreadPanelKeys({
@@ -608,12 +607,9 @@ panelKeys = createThreadPanelKeys({
 });
 pageComment = createPageComment({
   wireInput: inputs.wireInput,
-  createPageComment: app.createPageComment,
+  createPageComment: (command) => app.threadActions.create(command)?.delivery ?? null,
   designModeActive: designMode.active,
   panelIsOpen,
-  setPanel: (...args) => threadPanelController.setPanel(...args),
-  panelBox: panelElements.generalInput,
-  panelSend: panelElements.generalSend,
   showThread: landing.showThread,
   threadsToggle: toggleBtn,
 });
@@ -624,7 +620,6 @@ selectionComposer = createSelectionComposer({
   designModeActive: designMode.active,
   openPageThread: app.threadDestinations.openPageThread,
   threadTransitionOrigin: app.overlay?.threadTransitionOrigin,
-  anchorStands: (...args) => responseSurface.anchorStands(...args),
   anchorTravelAt: (...args) => responseSurface.anchorTravelAt(...args),
   bringForward: (...args) => responseSurface.bringForward(...args),
   fabAnchorAt: (...args) => responseSurface.fabAnchorAt(...args),
@@ -636,7 +631,7 @@ selectionComposer = createSelectionComposer({
   landFabFocus: (...args) => responseSurface.landFabFocus(...args),
   showFab: (...args) => responseSurface.showFab(...args),
   letGoOfFab: () => responseSurface.letGoOfFab(),
-  createComment: app.createComment,
+  createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
   landSent: landing.landSent,
   refreshThread: app.refreshThread,
   wireInput: inputs.wireInput,
@@ -714,7 +709,8 @@ targets = createTargetPicker({
   commentOnTarget: responseSurface.commentOnTarget,
   updateFab: responseSurface.updateFab,
   fabAnchorAt: responseSurface.fabAnchorAt,
-  pointerModeActive: () => designMode.active() || drawing.drawModeActive(),
+  pointerModeActive: () => drawing.drawModeActive() || regionCapture.active(),
+  readTargets: () => (designMode.active() ? designMode.targets() : aimTargets()),
   armChanged: () => aim.armChanged(),
 });
 drawing = createDrawingController({
@@ -737,6 +733,13 @@ drawing = createDrawingController({
   paintDrawings: drawingPaint.paint,
   shiftDrawingPaint: drawingPaint.shifted,
   repaint,
+});
+regionCapture = createRegionCapture({
+  closeTargetPicker: targets.closeTargetPicker,
+  closeReactionMode: () => reactions.setReact(false),
+  parent: chromeForeground,
+  visibleTargets: targets.visibleTargets,
+  openComposerWithMedia: selectionComposer.openComposerWithMedia,
 });
 
 layout = createChromeLayout({
@@ -772,28 +775,32 @@ threadPanelController = createThreadPanelController({
     pageComment.close();
     app.overlay?.closePreview(...args);
   },
-  syncGeneral: pageComment.sync,
 });
 // The sample host binds to this child's owners, rather than importing another
 // window's runtime. This capability is ready before the child presents.
-if (window.frameElement?.hasAttribute("data-lf-contained")) {
-  window.frameElement.lfShowThread = async (
-    id,
-    { surface, status, waiting, signal },
-  ) => {
+if (document.documentElement.lfSample) {
+  let viewOperation;
+  onSampleNotice("cancel-view", () => viewOperation?.abort());
+  registerSampleCommand("thread", async ({ id, surface, status, waiting }) => {
+    viewOperation?.abort();
+    viewOperation = new AbortController();
+    const { signal } = viewOperation;
     if (surface === "panel")
       return threadPanelController.showView({ thread: id, status, waiting, signal });
-    const intent = retainUserIntent({ available: () => !signal.aborted });
+    const retained = retainUserIntent({ available: () => !signal.aborted });
+    // A host view never takes focus, but newer child input still supersedes it.
+    const intent = restrictUserIntent(retained, retained);
     intent.handoff(() => threadPanelController.setPanel(false));
     return Boolean(
       await app.threadDestinations.openPageThread(id, {
-        focus: "thread",
+        focus: false,
         travel: false,
         intent,
       }),
     );
-  };
+  });
 }
+
 drawers = createDrawers({
   doors: { queue: [queueCounts] },
   sideEdge: layout.commentsEdge,
@@ -832,11 +839,11 @@ goToSequence = createGoToSequence({
   coveringAuxiliarySurface: auxiliarySurfaces.coveringSurface,
 });
 const standing = createStanding({
-  markHere: asks.markHere,
+  markHere: questions.markHere,
   paintStanding: anchorPaint?.paintStanding,
   paintSelectedMarginEntries: () =>
     app.overlay?.paintSelectedMarginEntries([
-      { kind: "ask", target: asks.standingIn() },
+      { kind: "question", target: questions.standingIn() },
       {
         kind: "comment",
         target: anchorPlacement.placedAt(standingThreadId())?.place,
@@ -921,7 +928,7 @@ if (!offlineInteractive) {
   anchorControls.mount();
   pageGeometry.mount();
   pageMapDialog.mount(chromeForeground);
-  asks.mount();
+  questions.mount();
   queueWalk.mount();
   queue.mount();
   commandHints.mount();
@@ -1024,10 +1031,9 @@ if (!passiveSample && !offlineInteractive) {
     setDesignMode: designMode.setActive,
   });
   annotationRenderer?.restoreAnnotations();
-  // The page has just arrived, so nothing holds focus and the first Tab starts at the
-  // skip link. Not the reading landing: a user who has read nothing has no position
-  // for the browser to carry on from.
-  releaseFocus();
+  // A page nobody has used starts Tab at the skip link. Inputs before the
+  // module graph arrived already gave this document a place to keep.
+  recoverComposer.handoff(releaseFocus);
 }
 mountHistory({
   followFragment: anchorTravel.followFragment,
@@ -1120,8 +1126,8 @@ async function startPage() {
   openResidency({ onRead: annotationRenderer?.syncMarginResidency });
   if (!offlineInteractive) {
     layout.syncLayout();
-    asks.buildBulkAnswers();
-    asks.syncAsks();
+    questions.buildBulkAnswers();
+    questions.syncQuestions();
   }
   await settlePageInterface();
   landFragment();

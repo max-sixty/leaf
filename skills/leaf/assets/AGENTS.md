@@ -7,6 +7,15 @@ owns its local contract. Page-authoring rules live in
 `../references/module-authoring.md`, package contracts in `../references/packages.md`,
 and rules shared with Python in root `AGENTS.md`, "Cross-runtime invariants".
 
+Shared stylesheet owners live under `styles/`: `styles/shadow.css` composes
+`styles/components/` into the shared root sheet. Document composition loads that
+sheet before the theme, and declared shadow roots adopt it too. Edit these sources
+and `styles/theme.css` / `styles/chrome.css`, not generated `theme.css`, `shadow.css`
+or `runtime/chrome.css`.
+`build/AGENTS.md`, “Committed bundles”, owns rebuilding and checking them, including
+bundled package entrypoints. Custom package authors supply complete sheets under
+`../references/packages.md`, “Styles and composition”.
+
 ## Layout and motion
 
 Leaf's current product focus is desktop; judge layout first at a representative
@@ -82,6 +91,10 @@ stylesheet's, a Layout's or the page's, which the runtime reads rather than deci
 The Questions panel is experimental and expected to change a lot: it replaced the Asks
 drawer to try one place for both queues (`runtime/queue-panel.js`).
 
+The current Threads panel is unsatisfactory and being reconsidered. Defer
+refinements to its existing layout and interaction design; carry those findings
+into the design reconsideration instead of polishing a surface that may go away.
+
 Widgets in ordinary document flow grow with their content by default. Internal
 vertical scrolling needs a task that benefits from keeping a region in view while
 its contents move, or a live stream whose newest entry the reader follows; being
@@ -154,15 +167,22 @@ refusal puts it back only while they have not acted since (`thread/thread-card.j
 `#speak`); news keeps its card in the view, and Resolve moves them to the neighbouring
 card. A region whose rows only the
 log or the clock decides, so no first paint can size it, shows none of them until the
-reader opens them through a control of fixed size the widget already draws, as a
-command's counts open its lists; after that a change to its rows waits the same way
-while its growth would be seen (`HeldReading`, command-hub's `lf-command.js`). A
+reader opens them through a control of fixed size the widget already draws, as the
+Atlas plan's Stopped work disclosure opens its list; after that a change to its rows
+waits the same way while its growth would be seen (`HeldReading` in
+`examples/command-hub.page/widgets/lf-atlas-plan.js`). A
 fixed-height box that scrolls them is no answer: nothing tells the reader a row is
 cut off, since a scroller shows no edge until it is scrolled.
 A change the user requested may reflow the
 content it replaces, shown as motion the eye can follow. A hover, focus, or
 keyboard reveal never changes the space given to its ancestors or siblings. Typing
-may grow its field at the edge its layout grows, but never carries the field. The
+may grow its field at the edge its layout grows, but never carries the field. A box
+that floats over the page, as the comment box and the thread card do, grows inside the
+window as the user types, toward whichever edge still has room, and never scrolls the
+page to make room for its growth (`comment-placement.js`), though one a scroll carried away still comes back for
+the words typed into it (`off-flow.js`). Only a field in flow, which cannot move apart
+from the page, keeps its controls in view as a browser keeps a caret in view
+(`reply-landing.js`). The
 suite's browser fixture watches ordinary tests and nightly tests marked `watch_shifts`
 for a protected box moving on screen without input, news landing just after a press included,
 or typing carrying its field (`tests/shift_watch.js`).
@@ -244,8 +264,9 @@ state that is already true, and motion that must finish before the result can be
 read is a pause. A motion the user waits on stays under 300ms; one that moves
 nothing, such as a landing flash, may run longer. A delay may withhold a flicker
 but never adds a minimum spinner time or a staged reveal. `runtime/motion.js` owns
-the shared gate, ease, reduced-motion answer, and every duration two motions
-share; the theme's guard answers for CSS.
+the shared gate, ease, and reduced-motion answer. Typed `--lf-motion-*` properties
+in the theme own shared durations; its readers resolve the live document-root
+values for JavaScript. The theme's guard answers for CSS.
 
 ## Runtime ownership
 
@@ -277,7 +298,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | --- | --- |
 | Composition and semantic publication | `application.js`, `semantic-state.js`, `context.js` |
 | Delivery, accepted state, and wakeups | `delivery.js`, `state-application.js`, `state-feed.js`, `layer-client.js`, `traffic.js` |
-| State models and projection | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `asks/model.js`, `queues.js` |
+| State models and projection | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `questions/model.js`, `queues.js` |
 | Widget capture and lifecycle | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js` |
 | Vocabulary and public helpers | `registry.js`, `widget-api.js`, `widget-elements.js` |
 | External data | `data.js`, `projection/data.js`, `projection/authored.js` |
@@ -287,13 +308,13 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Reading regions and scrolling | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
 | Keyboard | `keyboard/AGENTS.md` |
 | Focus and navigation | `focus.js`, `standing-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js` |
-| Asks | `asks/` |
+| Questions | `questions/` |
 | Comment capture | `composing/`, `drafts.js`, `media.js` |
 | Threads | `thread/`, `thread-panel.js` |
 | Annotation inventory and controls | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js` |
 | Annotation records and Page Map | `margin-model.js`, `margin-map-model.js`, `page-map-dialog.js`, `pointed-place.js` |
 | Physical annotation presentation | `../packages/default/runtime/annotation-overlay/` |
-| Passages and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `target-references.js`, `resolved-target.js`, `anchor-resolution.js` |
+| Passages and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js` |
 | Anchor placement, decoration and travel | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`, `indication.js` |
 | Banner and approvals | `banner*.js` |
 | Drawers and neighboring pages | `drawers.js`, `queue-panel.js`, `queue-list.js`, `live-leaves*.js` |
@@ -376,10 +397,9 @@ owner of such a condition states it as an attribute on the element the rule styl
 
 ### One writer for each fact
 
-Each mutable fact has one authority and one browser writer. The application
-publisher combines authored state, the admitted server reading, and the ordered
-ledger of unresolved local work into the one semantic reading every component
-selects from:
+Each mutable fact has one authority and one browser writer. The application publisher
+combines authored state, the admitted server reading, and the ordered ledger of
+unresolved local work into the one reading every component selects from:
 
 | Fact | Authority |
 | --- | --- |
@@ -388,7 +408,7 @@ selects from:
 | version shown | the revision the delivery prelude names; a newer revision with the same executable identity patches in place, a different one navigates to a fresh document |
 | accepted history, and the reading applied | the server event log and its `/api/state` answer, adopted whole by the publisher |
 | unresolved browser work | the publisher's one ordered ledger |
-| thread, workflow, attention, Asks, tasks, activity, unread | the server's folds; the browser adds only its own unresolved sends and the versions it is marking read |
+| thread, workflow, attention, Questions, tasks, activity, unread | the server's folds; the browser adds only its own unresolved sends and the versions it is marking read |
 | what is waiting on the user and on the agent | `queues.js`'s selection from those readings, the browser's side of `agent_state.queues` |
 | what the DOM represents | the presentation coordinator's renderer tickets and preparation regions |
 | when a document-wide renderer paints | the publication that opened the epoch, in the order `runtime/semantic-state.js` declares |
@@ -412,12 +432,11 @@ open menu.
 
 ## Startup and presentation
 
-Startup order is load-bearing:
+`leaf.js` boots in this order, each step relying on those before it:
 
-1. Construct the application, page commands, and UI owners in `leaf.js`; every
-   owner stands before the first input is wired, then sheets are adopted, chrome
-   attached, owners mounted, and the repaint phases wired.
-2. Begin the first state read without applying its answer.
+1. Construct every owner, then adopt sheets, attach chrome, mount the owners, and wire
+   the repaint phases, so no input is wired before its owner exists.
+2. Begin the first state read, without applying its answer.
 3. Restore the user's arrangement from storage.
 4. Fetch and validate the registry.
 5. Index passage fences and parent identities, then capture each widget's
@@ -450,12 +469,17 @@ reading of its own: whether chrome has caught up with input since.
 
 ## Authoritative projection
 
-Python owns the durable Ask and thread projections, including whether an Ask is
-answered (the registry's `$awaits.answered`); the browser adds no second fold.
-The server ships page and thread Asks as `document.asks` and the thread's
-`asks`, and each thread's `attention`, the one reading of whose turn a thread is
-(`needs_user` or `waiting`), which the browser adjusts only for its own
-unresolved sends; a refusal restores the accepted reading. Every state read has
+Python owns Question membership, widget completion and thread settlement. The server
+ships complete page and frozen-thread inventories as `document.questions` and
+`thread.questions`; prose Questions join that same thread inventory. A Question
+contains its source, prompt, typed answer, status and next actor. The browser
+selects each widget answer from the same local-inclusive state its controls draw,
+without folding its `x-awaits.answered` completion rule again. A required-version
+approval is another Question source: its local approval or undo updates its contained
+answer and status immediately, with refusal restoring the admitted reading. Thread attention
+(`needs_user` or `waiting`) changes locally for unresolved sends; a refusal restores
+the admitted reading. Questions derive their queue rows directly, while Tasks hold
+explicit committed work. Every state read has
 one `through_seq`, and version comparison asks `/api/view` at the sequence
 already applied. A page widget's projection stops at the current revision; a
 widget in frozen thread markup reads the whole log. `restated` and answered
@@ -465,27 +489,26 @@ condition behind a refusal can change without the user's words changing.
 
 ## The widget vocabulary stays open
 
-Core names a widget only when it is part of how Leaf works (root `AGENTS.md`,
-"Keep the layer open"); the merge grains are `../references/packages.md`,
-"Package contract". Layer-wide facts live under `$languages`, `$tones`,
-`$idioms`, and `$events`; each `x-` key's meaning is its `$keys` entry in
-`registry.json`. Use a boolean only when false has one clear meaning; otherwise
-declare named values.
+Core names a widget only when it is part of how Leaf works (root `AGENTS.md`, "Keep
+the layer open"; the merge grains are in `../references/packages.md`, "Package
+contract"). Each `x-` key's meaning is its `$keys` entry in `registry.json`. Use a
+boolean only when false has one clear meaning; otherwise declare named values.
 
-The Python reader models only transformations the registry declares. A module
-that changes text in a way the file cannot reproduce is fenced: browser capture
-stops at the fence, so a selection crossing it is not captured as a quote the file
-cannot confirm. Declare modelable words with `x-says`, `x-paints`, or the content
-key, and keep the widget fenced when its transformation cannot be represented.
+The Python reader models only transformations the registry declares. A module that
+changes text in a way the file cannot reproduce is fenced: browser capture stops at the
+fence, so a selection crossing it never becomes a quote the file cannot confirm.
+Declare modelable words with `x-says`, `x-paints`, or the content key, and keep a
+widget fenced when its transformation cannot be represented.
 
 ## Render gates
 
-`leaf page check <page> --render` is the browser contract: both color schemes,
-the runtime's actual readiness and motion boundary, screen and print, and
-reapplied standing state. Run it, or the relevant browser test file, after
-changing `leaf.js`, a runtime owner, a widget module, the registry, or the theme.
-`leaf/render-checks/index.js` exports one probe per failure class, invoked by
-`leaf/render_checks.py` and composed by `leaf/render_gate/`:
+Run `leaf page check <page> --render`, or the relevant browser test file, after
+changing `leaf.js`, a runtime owner, a widget module, the registry, or the theme;
+`../scripts/leaf/validation.md`, "Browser validation", lists what it reads. Put a
+check on the side that can observe the fact: static validation owns schema, ids,
+nesting, passages, event shapes, and file readings; the browser owns computed layout,
+composed trees, module writes, focus, and replay idempotence. A test reads widget state
+through the publisher's own reading, never a test-only interpretation of it.
 
 | Reading | Contract |
 | --- | --- |

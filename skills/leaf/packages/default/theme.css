@@ -222,7 +222,7 @@
 }
 /* A titled option's title heads its card, or, at working density (`--lf-density`,
  * theme.css) in a group wide enough to hold a row, runs into its consequence on one
- * row with its chips at the row's end. A narrow group, such as an Ask's options track,
+ * row with its chips at the row's end. A narrow group, such as a Question's options track,
  * keeps cards at any density: a row there broke the title around the floated chips.
  * The group is the query's container (container-type above), so both conditions read
  * the same box. Each form says its own, so neither resets the other. */
@@ -385,7 +385,7 @@
  * multiple-choice card already wears, saying the slot is untaken and where the press
  * lands.
  *
- * The Ask's binding badge temporarily takes that same opening-edge slot in either arity.
+ * The Question's binding badge temporarily takes that same opening-edge slot in either arity.
  * The slot is reserved beside the author's chip band and title on every card, so neither
  * a pick nor a binding badge moves or covers the words. A document-only chosen card keeps
  * the compact caption below: it has no live header state or binding badge. */
@@ -426,7 +426,7 @@
    & > lf-option > .lf-key-badge { top: var(--sp-2); }
    /* An empty draft offers only the route into its field, so that binding badge occupies
     * the Add seat while the press is hidden. Content reveals Add; once focus leaves the
-    * field, the Ask's write route is available beside it again and takes the inner seat.
+    * field, the Question's write route is available beside it again and takes the inner seat.
     * The form names both seats below; this card presentation reserves them both before
     * either face appears. */
    & > .lf-another > .lf-key-badge {
@@ -522,7 +522,7 @@
                                         font-family: var(--sans); font-weight: 700; } }
 :scope:is(lf-option) .lf-pick:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: options-pick;
                      outline-offset: var(--focus-ring-gap); border-radius: 4px; }
-/* The Ask's action keys, worn on the option cells they bind. The gutter reads status,
+/* The Question's action keys, worn on the option cells they bind. The gutter reads status,
  * binding badge, then prose, so each badge starts after the status rule and ends before the
  * cell's words. A card aligns its digit with the top of its content; rows centre theirs. */
 :scope:is(lf-option) > .lf-key-badge { position: absolute; z-index: 1;
@@ -716,10 +716,10 @@
    * carried by the exact row, while pointer focus needs no extra channel at all.
    * The decision is an ancestor of the control, so it is matched as a widget root
    * (an lf-ask) as well as a descendant of one: a bare selector here reaches only
-   * descendants, and an Ask standing at the page's top level kept its ring. */
-  :is(:scope, :scope *)[data-lf-ask]:has(
+   * descendants, and a Question standing at the page's top level kept its ring. */
+  :is(:scope, :scope *)[data-lf-question]:has(
     lf-options[choose]:not(:where([data-lf-exhibit]) *) :is(:focus, .lf-focus)
-  ) { --lf-ask-ring: none; }
+  ) { --lf-question-ring: none; }
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *)
   > lf-option:has(> .lf-pick:is(:focus-visible, .lf-focus-visible)) {
     outline: var(--focus-ring); --lf-focus-ring: options-row;
@@ -1344,8 +1344,8 @@
     justify-items: start;
     text-align: start;
   }
-    /* A row whose item holds an Ask has its answer between the name and the count, and
-     * that column keeps room for the check whether or not the Ask is answered, so an
+    /* A row whose item holds a Question has its answer between the name and the count, and
+     * that column keeps room for the check whether or not the Question is answered, so an
      * answer moves no row. The words take what the name leaves; the answer is its own
      * container so that, with too little room for any of them, it shows the check
      * alone, and contains its size so the words never widen the row. The tab's
@@ -2182,39 +2182,39 @@
 /* lf-ask: a semantic reading and arrival boundary, with no presentation of its own.
  * Block rather than the custom-element default inline so its box begins at the
  * question's opening and reaches around the context and control the standing ring says
- * are one Ask. */
+ * are one Question. */
 :scope:is(lf-ask) { display: block; }
 /* The options track. An Ask whose evidence includes a figure (its heading first, a
  * chart, image or table after it, and one option list last) outruns a window when
- * stacked: the options land below the figure they turn on. Where the Ask is 50rem
+ * stacked: the options land below the figure they turn on. Where the Question is 50rem
  * wide or more, the list stands in a 16rem track beside the premise and evidence and
  * sticks while they scroll, so the question, its figure and every option share one
  * window. 50rem leaves the evidence 32rem at the least, which a chart and a short
  * table still read at; a narrower Ask stacks like any other. An Ask keeps the reading
- * column on every page (`x-space`), so the track takes the room the page grants the Ask
- * or its figure with `data-width` (authoring-asks.md); room the page did not grant stays
+ * column on every page (`x-space`), so the track takes the room the page grants the Question
+ * or its figure with `data-width` (authoring-questions.md); room the page did not grant stays
  * the render check's to refuse.
  * The content decides the form, so there is no attribute for it. An Ask of words alone
  * stays stacked: its context is shorter than a list set at 16rem, so a track would
  * leave a column of air beside the list. A control other than a list has no room in
  * 16rem.
  *
- * The width is the Ask's own, so the Ask is the size container its children query. A
- * container cannot restyle itself, so the Ask stays a block and its children make the
+ * The width is the Question's own, so the Question is the size container its children query. A
+ * container cannot restyle itself, so the Question stays a block and its children make the
  * form: the context floats in a column at the start, each block clearing the one
  * above, and the list, the one block left in flow, stands under the heading at the
- * end, beside the floats, where it can stick. The Ask's `::after` clears the floats, so
- * the Ask is as tall as its taller column. Floats keep the margins that flow would
+ * end, beside the floats, where it can stick. The Question's `::after` clears the floats, so
+ * the Question is as tall as its taller column. Floats keep the margins that flow would
  * collapse, so each block in the column keeps only its start margin.
  *
  * A size container is a formatting context of its own, so in either form its first and
  * last children's margins stay inside it instead of collapsing with its neighbours'.
- * The block before the Ask is outside the Ask's scope, so the Ask cannot take that
+ * The block before the Question is outside the Question's scope, so the Question cannot take that
  * block's end margin away. It moves its heading's start margin onto itself instead, as
- * the gap a heading in an Ask stands at (`--sp-4`), which collapses with the end margin
+ * the gap a heading in a Question stands at (`--sp-4`), which collapses with the end margin
  * before it as the heading's would have. That margin is said at zero specificity, so
  * a frame that trims its first block's start margin (`--lf-block-frame`) trims the
- * Ask's as it would have the heading's. The list drops its end margin in favour of
+ * Question's as it would have the heading's. The list drops its end margin in favour of
  * whatever follows.
  *
  * The page resolves its room before a child container can rebase its lengths.

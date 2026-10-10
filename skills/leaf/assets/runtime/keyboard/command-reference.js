@@ -318,7 +318,7 @@ function captureCommandReferenceCatalog() {
 
   // One command id is one capability, with potentially several ways to reach it.
   // Teach a keyboard route rather than an unbound control; among keyboard routes,
-  // prefer the reachable one (an Ask digit can replace a shadowed intrinsic key).
+  // prefer the reachable one (a Question digit can replace a shadowed intrinsic key).
   // Invoking the reference names the capability, so any executable route makes the
   // entry available even when its displayed sequence has not been entered yet.
   const preferred = new Map();

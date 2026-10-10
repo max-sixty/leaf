@@ -179,12 +179,11 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
             lambda held: not held,
             failure=f"chat {retirement} left its preview watcher running",
         )
-        if retirement != "stop":
-            wait_for(
-                lambda: codex_adapter.adapter_is_live(sid),
-                lambda live: not live,
-                failure="the archived/deleted chat kept its delivery adapter",
-            )
+        wait_for(
+            lambda: codex_adapter.adapter_is_live(sid),
+            lambda live: not live,
+            failure=f"chat {retirement} kept its delivery adapter",
+        )
     finally:
         if (page / "events.jsonl").exists():
             hosting.cmd_stop(page)
@@ -239,7 +238,7 @@ def test_desktop_start_requires_its_validated_native_chat(
 def test_abandoned_desktop_preview_publishes_no_claim(
     tmp_path, spawn, under_codex, codex_env, native_codex_chat
 ):
-    """Outer preview acceptance owns both watcher readiness and HTTP publication."""
+    """Abandoning preview readiness retires its service, watcher, and acquisition."""
     source = tmp_path / "review.html"
     source.write_text(
         "<!doctype html><html><head><title>Review</title></head>"
@@ -305,8 +304,7 @@ def test_abandoned_desktop_preview_publishes_no_claim(
         with caller.makefile("rb") as announced:
             ready = json.loads(announced.readline())
         assert "url" in ready, ready
-        assert service.page_claim(page) is None
-        assert not (page / "service.json").exists()
+        assert fetch(ready["url"])[0] == 200
     finally:
         caller.close()
         output, errors = task.communicate(timeout=STATED_TIMEOUT)
@@ -1086,7 +1084,9 @@ preview = PreviewService(page, True)
 foreground = None
 try:
     if handoff == "preview":
-        started = preview.start()
+        with preview.starting() as url:
+            pass
+        started = (url, preview.note)
         # Joining the current adapter preserves the preview's acquisition.
         session_harness().ensure_delivery()
         assert page_claim(page)["acquisition"] == preview.claim["acquisition"]
@@ -1229,9 +1229,10 @@ def test_serving_preserves_a_direct_codex_wait(
 import json, subprocess, sys, time
 from pathlib import Path
 from leaf.leases import wait_is_live, adapter_is_live
-from leaf.service import PageTransaction
+from leaf.service import PageTransaction, claim_page
 from leaf.session import cmd_waiting
 page = Path(sys.argv[1])
+claim_page(page)
 cmd_waiting(page, "Review this page")
 watch = subprocess.Popen([sys.executable, "-m", "leaf", "wait", str(page)],
                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -1403,7 +1404,8 @@ def test_failed_delivery_preserves_the_existing_preview(
     from leaf.service import page_claim
 
     original = preview.PreviewService(page_dir, user=True)
-    url, _ = original.start()
+    with original.starting() as url:
+        pass
     claim = page_claim(page_dir)
     published = json.loads((page_dir / "service.json").read_text())
     successor = preview.PreviewService(page_dir, user=True)
@@ -1417,7 +1419,8 @@ def test_failed_delivery_preserves_the_existing_preview(
     try:
         with pytest.raises(failure, match="delivery refused"):
             if handoff == "preview":
-                successor.start()
+                with successor.starting():
+                    pass
             elif handoff == "start":
                 with claim_and_start(page_dir):
                     pass
@@ -1441,7 +1444,8 @@ def test_failed_serving_preparation_never_publishes_a_takeover(
     from leaf.service import page_claim
 
     original = preview.PreviewService(page_dir, user=True)
-    original.start()
+    with original.starting():
+        pass
     claim = page_claim(page_dir)
     cmd_stop(page_dir)
     # Keep the original watcher/claim, with its server down. Its next revival is
@@ -1510,8 +1514,8 @@ def test_a_preview_captures_acquisition_before_an_accepted_commit_is_interrupted
 
     monkeypatch.setattr(detached.socket.socket, "sendall", accept_then_interrupt)
     try:
-        with pytest.raises(KeyboardInterrupt):
-            owner.start()
+        with pytest.raises(KeyboardInterrupt), owner.starting():
+            pass
         assert (
             page_claim(page_dir)["acquisition"] != owner.claim["acquisition"]
         ) == transferred
@@ -1530,7 +1534,8 @@ def test_private_startup_keeps_previous_owner_until_acceptance(
     from leaf.state import end_session, ensure_session
 
     original = preview.PreviewService(page_dir, user=True)
-    url, _ = original.start()
+    with original.starting() as url:
+        pass
     previous = page_claim(page_dir)
     # A different harness is the candidate, so ending its session cannot itself end
     # the original watcher while the candidate is still unpublished.
@@ -1566,7 +1571,8 @@ def test_service_publication_failure_keeps_previous_preview_claim(
     from leaf.state import write_json
 
     original = preview.PreviewService(page_dir, user=True)
-    original.start()
+    with original.starting():
+        pass
     previous = page_claim(page_dir)
     hosting.cmd_stop(page_dir)
     published = json.loads((page_dir / "service.json").read_text())

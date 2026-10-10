@@ -59,6 +59,7 @@ class ClaudeCode:
         self.sent = queue.Queue()
         self.watches = queue.Queue()
         self.exits = queue.Queue()
+        self.diagnostics = queue.Queue()
         threading.Thread(target=self.route, daemon=True).start()
         loaded = self.read()
         self.pid, self.events = loaded["pid"], loaded["events"]
@@ -72,6 +73,8 @@ class ClaudeCode:
                 self.exits.put(record["watched"])
             elif "submitted" in record or "appended" in record:
                 self.sent.put(record)
+            elif "diagnostic" in record:
+                self.diagnostics.put(record["diagnostic"])
             else:
                 self.answers.put(record)
 
@@ -154,6 +157,54 @@ def test_the_module_is_off_until_its_option_is_on(spawn, sessionless):
     """The module hooks nothing unless the user turns its option on, so a default
     install keeps the registrations in `hooks.json`."""
     assert ClaudeCode(spawn, "cc-off", {"hooks_module": False}).events == []
+
+
+@pytest.mark.parametrize("failure", ["watch", "prompt", "startup", "spawn"])
+def test_failed_module_processes_report_their_diagnostics(
+    spawn, sessionless, tmp_path, failure
+):
+    """The native host runs an unavailable or failing external launcher. Neither
+    watch startup nor a hook's stderr may disappear behind the adapter."""
+    launcher = tmp_path / "bin" / "leaf"
+    if failure not in {"startup", "spawn"}:
+        launcher.parent.mkdir()
+        launcher.write_text(
+            "#!/bin/sh\n"
+            + (
+                'echo "watch launcher failed" >&2\nexit 23\n'
+                if failure == "watch"
+                else 'case "$*" in\n'
+                '*--watch) echo "page has new input" ;;\n'
+                '*) echo "prompt launcher failed" >&2; exit 23 ;;\n'
+                "esac\n"
+            )
+        )
+        launcher.chmod(0o755)
+    driven = ClaudeCode(
+        spawn,
+        "cc-failure",
+        {
+            "hooks_module": True,
+            "pluginRoot": str(tmp_path),
+            "throwWatchSpawn": failure == "spawn",
+        },
+    )
+    driven.start_turn()
+    driven.emit("session.start", {"cwd": str(tmp_path), "isInteractive": True})
+    diagnostic = driven.diagnostics.get(timeout=STATED_TIMEOUT)
+    if failure == "spawn":
+        assert (
+            diagnostic == "Leaf: watch could not start: Error: host cannot spawn watch"
+        )
+    elif failure == "startup":
+        assert "watch failed" in diagnostic and "ENOENT" in diagnostic, diagnostic
+    else:
+        assert diagnostic == (
+            "Leaf: watch failed (exit code 23): watch launcher failed"
+            if failure == "watch"
+            else "Leaf: UserPromptSubmit hook exited with code 23: prompt launcher failed"
+        )
+    driven.quit()
 
 
 def test_the_module_wakes_an_idle_session_with_a_prompt(page_dir, claude_code):
@@ -278,6 +329,7 @@ def test_shutdown_during_watch_replacement_waits_for_exit(claude_code):
     claude_code.quit()
     assert not leases_model.wait_is_live(None, claude_code.session)
     assert claude_code.watches.empty()
+    assert claude_code.diagnostics.empty()
 
 
 def test_clear_keeps_the_module_able_to_watch_the_next_session(claude_code):

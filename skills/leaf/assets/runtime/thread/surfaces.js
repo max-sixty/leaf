@@ -89,7 +89,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
   };
   // The outlet lifetime also owns its source standing. A page rail's card stands
   // at the source it shows, while its unrelated controls keep their authored place.
-  // The standing reader gives an innermost reply Ask priority over this relation.
+  // The standing reader gives an innermost reply Question priority over this relation.
   registration.stopSide = declareSide((node) => {
     const outlet = [...registration.outlets].find((outlet) => under(node, outlet));
     if (!outlet) return null;
@@ -462,9 +462,9 @@ export function revealHeld(ids) {
 
 // Resolve after reveal/presentation: a datum's outlet may have been replaced. Travel
 // takes the node rather than a callback that privately focuses and scrolls it.
-export function surfaceFocusTarget(id, { focus = "reply" } = {}) {
+export function surfaceFocusTarget(id, { part = "reply" } = {}) {
   // Exact message navigation is the panel's; a local surface lands on its thread.
-  if (focus === "message") return null;
+  if (part === "message") return null;
   id = threadNames(allThreads()).get(id)?.id ?? id;
   for (const registration of registrations.values()) {
     const thread = [...registration.outlets]
@@ -473,7 +473,7 @@ export function surfaceFocusTarget(id, { focus = "reply" } = {}) {
       )
       .find(Boolean);
     if (!thread) continue;
-    return threadFocusDestination(thread, { focus });
+    return threadFocusDestination(thread, { part });
   }
   return null;
 }

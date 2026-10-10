@@ -54,7 +54,7 @@ const WITHIN_A_LINE = /^(inline|contents$)/;
 // the climb goes on past a block it found to see whether a cell holds it.
 //
 // The target's first line is none either: the target's own margin row stands there
-// already, so a comment pointed at an Ask's heading joins the Ask's row rather than
+// already, so a comment pointed at a Question's heading joins the Question's row rather than
 // standing as a second one pushed below it. First is read off the document, as nothing
 // drawn coming before it in the target, so no reflow, zoom or font moves a comment
 // between the two rows.

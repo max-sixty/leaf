@@ -1502,44 +1502,161 @@ def test_completed_input_does_not_own_an_effects_unrelated_passive_motion(
     consume_browser_errors(page, "textarea#field moved without input by (80, 0)px")
 
 
+@pytest.mark.parametrize(
+    "creation,timeline,scale,property",
+    [
+        ("startup", "scroll", 1, "transform"),
+        ("startup", "view", 1, "transform"),
+        ("press", "scroll", 1, "transform"),
+        ("startup", "scroll", 0.5, "transform"),
+        ("startup", "scroll", 0.5, "top"),
+        ("press", "document", 0.5, "transform"),
+    ],
+)
 @pytest.mark.parametrize("local_motion", [False, True])
-def test_completed_input_keeps_only_its_native_attachment_displacement(
-    browser, local_motion
+def test_native_attachment_keeps_only_its_measured_displacement(
+    browser, creation, timeline, scale, property, local_motion
 ):
-    """A retained scroll effect carries its field without owning the field's own move."""
+    """Native effects retain viewport travel without owning their field's own move."""
     page = browser.new_page()
     page.goto(
         "data:text/html,"
-        + quote("""<!doctype html><body><button id="attach">Attach moving surface</button>
+        + quote(
+            """<!doctype html><body><button id="attach">Attach moving surface</button>
 <div id="source" style="height:80px;width:200px;overflow:auto"><div style="height:400px">Scroll source</div></div>
-<div id="attachment" style="position:absolute;left:250px;top:130px"><textarea id="field"></textarea></div>
+<div style="position:absolute;left:0;top:0;transform:scale(HOLDER_SCALE);transform-origin:0 0">
+<div id="attachment" style="position:absolute;left:250px;top:130px;zoom:TARGET_ZOOM"><textarea id="field"></textarea></div></div>
 <svg id="evidence" aria-hidden="true" style="position:absolute;left:0;top:400px;width:300px;height:30px;background:gray"></svg>
-<script>attach.addEventListener('click',()=>{
+<script>function attachMotion(){
+  const timeline=TIMELINE;
+  const from=timeline instanceof ViewTimeline ? timeline.startOffset.value : 0;
+  const to=timeline instanceof ViewTimeline ? timeline.endOffset.value : 320;
+  const frames='PROPERTY'==='top'
+    ? [{top:`${130-from}px`},{top:`${130-to}px`}]
+    : [{transform:`translateY(${-from}px)`},{transform:`translateY(${-to}px)`}];
   window.attachmentMotion=attachment.animate(
-    [{transform:'translateY(0px)'},{transform:'translateY(-320px)'}],
-    {timeline:new ScrollTimeline({source:source,axis:'y'}),duration:'auto',fill:'both'});
-});</script></body>""")
+    frames,
+    {timeline:timeline,duration:timeline===document.timeline?32000000:'auto',fill:'both'});
+  if(timeline===document.timeline)attachmentMotion.playbackRate=0;
+}
+attach.addEventListener('click',attachMotion);
+STARTUP</script></body>""".replace(
+                "STARTUP", "attachMotion();" if creation == "startup" else ""
+            )
+            .replace("HOLDER_SCALE", str(scale if property == "transform" else 1))
+            .replace("TARGET_ZOOM", str(scale if property == "top" else 1))
+            .replace("PROPERTY", property)
+            .replace(
+                "TIMELINE",
+                "new ViewTimeline({subject:source.firstElementChild,axis:'y'})"
+                if timeline == "view"
+                else "document.timeline"
+                if timeline == "document"
+                else "new ScrollTimeline({source:source,axis:'y'})",
+            )
+        )
     )
     paint(page)
-    page.locator("#attach").click()
+    if creation == "press":
+        page.locator("#attach").click()
     assert page.evaluate("attachmentMotion.playState") == "running"
     judge_watches()
     assert take_browser_errors(page) == []
     before = page.locator("#field").bounding_box()
     page.evaluate(
-        "carry=>{source.scrollTop=20;if(carry)field.style.marginLeft='80px';evidence.style.left='20px'}",
-        local_motion,
+        """({carry,scale,timeline})=>{
+          source.scrollTop=20;
+          if(timeline==='document')attachmentMotion.currentTime+=2000000;
+          if(carry){if(scale===1)field.style.marginLeft='80px';else field.style.marginTop='-20px'}
+          evidence.style.left='20px';
+        }""",
+        {"carry": local_motion, "scale": scale, "timeline": timeline},
     )
     paint(page)
     after = page.locator("#field").bounding_box()
     assert page.evaluate("source.scrollTop") == 20
-    assert after["y"] - before["y"] == pytest.approx(-20, abs=0.5)
-    assert after["x"] - before["x"] == (80 if local_motion else 0)
+    assert after["y"] - before["y"] == pytest.approx(
+        -20 * scale * (2 if local_motion and scale != 1 else 1), abs=0.5
+    )
+    assert after["x"] - before["x"] == (80 if local_motion and scale == 1 else 0)
     judge_watches()
     if local_motion:
         consume_browser_errors(page, "textarea#field moved without input")
     else:
         assert take_browser_errors(page) == []
+
+
+@pytest.mark.parametrize(
+    "change",
+    ["rebase", "retarget", "range", "layout", "unscrolled", "faster", "sideways"],
+)
+def test_native_scroll_credit_requires_its_retained_translation_trajectory(
+    browser, change
+):
+    """Uniform placement rebases retain scroll; changed trajectories cannot borrow it."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            """<!doctype html><body>
+<div id="source" style="height:80px;width:200px;overflow:auto"><div style="height:400px">Scroll source</div></div>
+<div id="attachment" style="position:absolute;left:250px;top:130px"><textarea id="field"></textarea></div>
+<svg id="evidence" aria-hidden="true" style="position:absolute;left:0;top:400px;width:300px;height:30px;background:gray"></svg>
+<script>
+window.attachmentMotion=attachment.animate(
+  [{transform:'translateY(0px)'},{transform:'END_TRANSLATION'}],
+  {timeline:new ScrollTimeline({source:source,axis:'y'}),duration:'auto',fill:'both'});
+</script></body>""".replace(
+                "END_TRANSLATION",
+                "translateX(-320px)"
+                if change == "sideways"
+                else "translateY(-640px)"
+                if change == "faster"
+                else "translateY(-320px)",
+            )
+        )
+    )
+    paint(page)
+    judge_watches()
+    assert take_browser_errors(page) == []
+    before = page.locator("#field").bounding_box()
+    page.evaluate(
+        """change=>{
+      if(change!=='unscrolled')source.scrollTop=20;
+      if(['rebase','retarget','unscrolled'].includes(change)){
+        attachmentMotion.effect.setKeyframes([
+          {transform:'translateY(20px)'},
+          {transform:`translateY(${change==='retarget'?-280:-300}px)`}]);
+        if(change!=='unscrolled')attachment.style.top='110px';
+      }
+      if(change==='range')attachmentMotion.rangeEnd='640px';
+      if(change==='layout')source.firstElementChild.style.height='720px';
+      evidence.style.left='20px';
+    }""",
+        change,
+    )
+    paint(page)
+    after = page.locator("#field").bounding_box()
+    assert after["y"] - before["y"] == pytest.approx(
+        {
+            "rebase": -20,
+            "retarget": -18.75,
+            "range": -10,
+            "layout": -10,
+            "unscrolled": 20,
+            "faster": -40,
+            "sideways": 0,
+        }[change],
+        abs=0.5,
+    )
+    assert after["x"] - before["x"] == pytest.approx(
+        -20 if change == "sideways" else 0, abs=0.5
+    )
+    judge_watches()
+    if change == "rebase":
+        assert take_browser_errors(page) == []
+    else:
+        consume_browser_errors(page, "textarea#field moved without input")
 
 
 # Rows in a box that clips without scrolling, as a diff's file does, and a box among

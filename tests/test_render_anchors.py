@@ -356,7 +356,7 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
     expect(field).to_be_visible()
     expect(field).to_be_focused()
     label = field.get_attribute("aria-label")
-    assert label and label.startswith("Comment on “4 of 5 checks passing")
+    assert label and label.startswith("Comment on “checks passing 4 of 5")
     draft = "Why does the remaining check need a decision?"
     write(field, draft)
     resized(page, 420, 850)

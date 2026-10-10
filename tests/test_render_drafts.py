@@ -3215,7 +3215,7 @@ def test_picture_paste_belongs_to_the_composer_not_the_shared_text_field(
         write(editor, "A later document edit")
         page.keyboard.press("Escape")
         compose(page, "#passage")
-        page.get_by_role("button", name="Remove pasted image 1", exact=True).click()
+        page.get_by_role("button", name="Remove attached image 1", exact=True).click()
         expect(page.locator(".lf-composer-media img")).to_have_count(0)
         page.locator("h1").click()
         page.keyboard.press("g")
@@ -3320,7 +3320,7 @@ def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
     Both directions here, and the box the user opens next, because a shelf that
     outlived its send is an image that rides into the next passage's draft."""
     page = open_page(browser, serve(LONG_PAGE))
-    image_markdown = "![Pasted image](/media/051bee487bfb5d13.png)"
+    image_markdown = "![Attached image](/media/051bee487bfb5d13.png)"
     compose(page, "#p3")
     pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
     with page.expect_response(lambda response: response.url.endswith("/api/media")):

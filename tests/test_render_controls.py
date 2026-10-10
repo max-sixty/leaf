@@ -3111,6 +3111,16 @@ def test_required_approval_is_a_question_until_approved(browser, serve, width):
         "button", name="Questions: 1 waiting on you", exact=True, include_hidden=True
     )
     expect(questions).to_be_attached()
+    target = page.evaluate("""async () => {
+      const {readQuestions, questionActions} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const question = readQuestions().all.find(q => q.source.kind === 'approval');
+      const target = document.getElementById(question.prompt.target);
+      await questionActions.open(question.id);
+      return target === document.querySelector('.lf-signoff') && document.activeElement === target;
+    }""")
+    assert target, (
+        "the public Question route did not reach its declared approval target"
+    )
     page.keyboard.press("q")
     approval = page.locator(".lf-signoff")
     expect(approval).to_be_visible()
@@ -3143,25 +3153,10 @@ def test_required_approval_is_a_question_until_approved(browser, serve, width):
 
 
 def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serve):
-    """Sign-off was one press with no second step, and the heaviest press on the page.
+    """Approval, its Question and its history agree during send, undo and refusal.
 
-    A user who meant Threads and hit the button beside it had approved the work, and
-    nothing on the page or in the log would take it back: `done` was outside
-    UNDOABLE_KINDS, so the append door refused the undo and the offer never reached the
-    shortcut bar. It is a mark rather than speech, the way a reaction is — the agent is told
-    the version is approved, not told something — so the withdrawal is the whole of the
-    correction, and it goes through the outbox and the `z` row every other user gesture
-    uses.
-
-    Read at all three levels the fault sat in, because two of them were separately wrong:
-    the shortcut bar has to offer the press, the log has to take the undo, and the projection
-    the button reads has to stop counting an approval a user withdrew — `done` was a
-    raw filter over the whole log, so an accepted undo would have left the button reading
-    "✓ Version approved" for ever.
-
-    And the tooltip, which is the other half of the same fault: it said "Approve this
-    work" whether or not the work had been approved, so the one surface that could tell a
-    user what the press would do next described one they had already made.
+    Holding each POST proves the result is visible before admission; a definitive
+    refusal restores the same admitted approval through every consumer.
     """
     html = LONG_PAGE.replace(
         "<title>long</title>",
@@ -3172,11 +3167,37 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     expect(button).to_have_attribute(
         "title", "Approve this work; the page stays open for follow-up"
     )
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    history = page.locator(".lf-threads > .lf-system")
+    questions = page.get_by_role(
+        "button", name="Questions: 1 waiting on you", exact=True, include_hidden=True
+    )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     button.click()
-    holding(page, held, 1, "the approval")
+    holding(page, held, 1, "the refused approval")
     expect(button).to_have_text("✓ Version approved")
+    expect(questions).to_have_count(0)
+    expect(history).to_contain_text("Approved")
+    held[0].fulfill(
+        json={
+            "ok": False,
+            "attempt": held[0].request.post_data_json["attempt"],
+            "error": "This approval was refused.",
+            "final": True,
+        }
+    )
+    round_trip(page)
+    expect(button).to_have_text("Approve version")
+    expect(questions).to_be_attached()
+    expect(history).to_have_count(0)
+    held.clear()
+    button.click()
+    holding(page, held, 1, "the accepted approval")
+    expect(button).to_have_text("✓ Version approved")
+    expect(questions).to_have_count(0)
+    expect(history).to_contain_text("Approved")
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
@@ -3185,12 +3206,45 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
         "title", "Approved. Press z to undo while approval is still your latest update"
     )
 
-    undo(page)
+    expect(history).to_contain_text("Approved")
+    expect(questions).to_have_count(0)
+    held.clear()
+    page.route("**/api/event", lambda route: held.append(route))
+    page.keyboard.press("z")
+    holding(page, held, 1, "the refused approval undo")
     expect(button).to_have_text("Approve version")
+    expect(questions).to_be_attached()
+    expect(history).to_have_count(0)
+    held[0].fulfill(
+        json={
+            "ok": False,
+            "attempt": held[0].request.post_data_json["attempt"],
+            "error": "This withdrawal was refused.",
+            "final": True,
+        }
+    )
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(button).to_have_text("✓ Version approved")
+    expect(questions).to_have_count(0)
+    expect(history).to_contain_text("Approved")
+    held.clear()
+    page.route("**/api/event", lambda route: held.append(route))
+    page.keyboard.press("z")
+    holding(page, held, 1, "the accepted approval undo")
+    expect(button).to_have_text("Approve version")
+    expect(questions).to_be_attached()
+    expect(history).to_have_count(0)
     expect(button).to_be_enabled()
     expect(button).to_have_attribute(
         "title", "Approve this work; the page stays open for follow-up"
     )
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(button).to_have_text("Approve version")
+    expect(questions).to_be_attached()
+    expect(history).to_have_count(0)
     kinds = [e["kind"] for e in events_model.read_events(serve.page_dir)]
     assert kinds[-2:] == [
         "done",
@@ -3199,9 +3253,17 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
 
     # And the press is available again, which is what makes this a correction rather than
     # a page the user has spent.
-    with sending(page, "the second approval"):
-        button.click()
+    held.clear()
+    page.route("**/api/event", lambda route: held.append(route))
+    button.click()
+    holding(page, held, 1, "the second approval")
     expect(button).to_have_text("✓ Version approved")
+    expect(questions).to_have_count(0)
+    expect(history).to_contain_text("Approved")
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(history).to_contain_text("Approved")
     assert [e["kind"] for e in events_model.read_events(serve.page_dir)][-1] == "done"
 
 
@@ -4662,7 +4724,7 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     resized(page, 390, 900)
     expect(page.locator(".lf-banner-menu > .lf-answer-all")).to_have_count(1)
     assert answer_all.evaluate("button => button === window.__lfBulkControl")
-    assert answer_all.locator(":scope > lf-ask-banner-face").count() == 1
+    assert answer_all.locator(":scope > lf-question-banner-face").count() == 1
     order = page.evaluate(
         """() => [...document.querySelector('.lf-banner-menu').children,
                     ...document.querySelector('.lf-banner-actions').children]

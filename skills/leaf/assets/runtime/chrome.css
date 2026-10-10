@@ -179,8 +179,12 @@ body:is(.lf-aiming, [data-lf-design-mode]) { cursor: default; }
 body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item { cursor: pointer; }
 /* Page words accept drawing presses; runtime surfaces and widget offers keep their
    controls usable. An aim box adds semantic context where one is available. */
+html[data-lf-region-capture],
+html[data-lf-region-capture] body,
 html[data-lf-draw-mode],
 html[data-lf-draw-mode] body { cursor: crosshair; touch-action: none; }
+html[data-lf-region-capture] main,
+html[data-lf-region-capture] main *,
 html[data-lf-draw-mode] main,
 html[data-lf-draw-mode] main * { cursor: crosshair !important; }
 html[data-lf-draw-mode] main [data-lf-runtime],
@@ -215,12 +219,12 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
    keeps its place for nothing, being the element's own paint rather than a box in
    the chrome that would have to chase it down every scroll, reflow and drag. A widget
    that carries the location itself while the user works inside it stands the band down
-   by declaring `--lf-ask-ring: none` on the decision: its theme is in a cascade layer
+   by declaring `--lf-question-ring: none` on the decision: its theme is in a cascade layer
    this sheet outranks whatever the selector, and a declaration still reaches it. */
 /* The ring stands outside the decision, so a landing keeps its room at the scroller's
-   edge, as a margin entry's does (theme.css): an Ask landed at the top of a scrolling
+   edge, as a margin entry's does (theme.css): a Question landed at the top of a scrolling
    pane stood flush with it, the top of its ring cut off under the pane's header rule. */
-[data-lf-ask] { outline: var(--lf-ask-ring, var(--focus-ring)); --lf-focus-ring: ask;
+[data-lf-question] { outline: var(--lf-question-ring, var(--focus-ring)); --lf-focus-ring: question;
                 outline-offset: var(--focus-ring-gap);
                 scroll-margin-block: var(--focus-ring-room); }
 /* Paper takes no input, so what a widget injects to be worked goes: the control,
@@ -273,6 +277,13 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
    marked itself lf-live — this block's name for the visually-hidden live region —
    and every tabbed page clipped to a pixel.) */
 @scope (.lf-chrome) {
+  /* Capture paint leaves page hit tests intact; the controller owns its input. */
+  .lf-region-capture { position: fixed; inset: 0; z-index: var(--lf-z-page-hints);
+    pointer-events: none; overflow: hidden; color: var(--ink); }
+  /* The box is the exact crop; its outline paints outside those pixels. */
+  .lf-region-selection { position: absolute; outline: 1px solid var(--accent);
+    box-shadow: 0 0 0 100vmax rgb(0 0 0 / 40%); }
+
   /* The layer is the runtime's, not the document's, so it never prints — one rule
      for all of it, rather than each piece remembering. :scope is the container
      itself, which is why this can't be written at document level without widening
@@ -812,9 +823,9 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-queue-finish { flex: none; margin: 4px 6px 0 0; }
   /* Both rings this row can wear, inset together. A control packed into a list states
      its own inset (theme.css, --focus-ring), because the list clips to its padding box.
-     The second ring is the standing Ask's (markHere), which the row naming that Ask
+     The second ring is the standing Question's (markHere), which the row naming that Question
      mirrors while the panel is open. Done's door is a stop in the same list. */
-  .lf-queue-row:is(:focus-visible, .lf-focus-visible, [data-lf-ask]),
+  .lf-queue-row:is(:focus-visible, .lf-focus-visible, [data-lf-question]),
   .lf-queue-done > summary:is(:focus-visible, .lf-focus-visible) {
     outline: var(--focus-ring); --lf-focus-ring: queue-row;
     outline-offset: calc(-1 * var(--focus-ring-w)); }
@@ -1756,7 +1767,7 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-chip-seat { position: absolute; left: 0; top: 0; width: 0; height: 0;
     pointer-events: none; }
   .lf-chip-seat > .lf-key-badge { position: absolute; left: 0; top: 0; display: block; }
-  /* Ask binding badges sit on the answer control's upper-left corner: the single digit is
+  /* Question binding badges sit on the answer control's upper-left corner: the single digit is
      a local label for the control it touches. */
   .lf-command-binding-badge { transform: translate(-50%, -50%); }
   /* The Target picker and Go-to sequence both give visible targets generated, prefix-free

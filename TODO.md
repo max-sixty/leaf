@@ -63,7 +63,7 @@ has tried; settle that before building it.
   [the comparison finding](notes/comparisons.md#phone-annotation-placement-2026-10-05).
 - **Make the next move and its result apparent.** Play through `review-a-plan`,
   `triage-board`, `pr-walkthrough`, and `ship-review`; fix dead ends and moves whose
-  result is hidden. Decide whether a page needs one progress reading across Asks,
+  result is hidden. Decide whether a page needs one progress reading across Questions,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
 - **Keep Tab off page content a panel beside the page covers.** Threads and the
@@ -287,9 +287,9 @@ A queue is one `lf-tabs list="side"` beside its open item (`page-authoring.md`, 
 workspace"). The first real one, a 21-item triage page, showed these. Its list's
 height and where a switch lands wait on the workspace decision under Layout.
 
-- **Start `a` from the open item's Ask.** From a row, `a` goes to the queue's first
-  open Ask, and `1` then picks for an item the user isn't looking at. The walk
-  measures from focus (`askPosition` in `asks/view.js`), and the row precedes every
+- **Start `q` from the open item's Question.** From a row, `q` goes to the queue's first
+  open Question, and `1` then picks for an item the user isn't looking at. The walk
+  measures from focus (`queue-walk.js`), and the row precedes every
   panel; `t` and `T` measure the same way. A tab could stand at the view it opens for
   the walks (`standing-target.js`), while `c` on a row still names the row.
 - **Keep the open item's group named on a phone.** In the one-row strip a group's
@@ -360,11 +360,11 @@ on 2026-10-07.
   them, but nothing runs them first. Write `evals/` cases in which agents author each
   kind and measure how often what they write fails to draw, then run the kinds agents
   get wrong and stop running those they reliably get right.
-- **Derive the waiting banner from the page's open Ask.** Consider using the Ask's
+- **Derive the waiting banner from the page's open Question.** Consider using the Question's
   words when no explicit waiting detail is needed. **Unconfirmed:** try pages with
-  several open Asks and an informational page before choosing how the banner
+  several open Questions and an informational page before choosing how the banner
   explains who owes the next move. Keep explicit agent status available when the
-  Ask alone does not explain the wait.
+  Question alone does not explain the wait.
 
 ### Development velocity
 
@@ -447,7 +447,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
   [What needs you](notes/what-needs-you/page.html#task-hierarchy)). Trigger: a page
   whose work the user wants to see broken down.
 - **Tell the agent when to ask before ending its own task.** The agent ends its tasks
-  itself, and asks first, with an Ask or a thread question, when the result needs the
+  itself, and asks first, with a Question or a thread question, when the result needs the
   user's sign-off
   ([What needs you](notes/what-needs-you/page.html#task-done)). The shipped
   instructions don't yet say when that is. Trigger: an agent ends a task as done that
@@ -471,7 +471,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
   building a feed or presence on it.
 - **Show which pane has focus, and move between panes by key.** A terminal marks
   its active pane and one key moves to the next. In a workspace today the arrow keys
-  walk a side list, `a` reaches the next open Ask, and a pane body that scrolls is a
+  walk a side list, `q` reaches the next open Question, and a pane body that scrolls is a
   Tab stop, but nothing marks the active pane and no key moves from one pane to the
   next. Pane focus belongs to the panes and the keyboard layer, not the Layout, so it
   works the same wherever panes stand. Draw it as a playground before building it.

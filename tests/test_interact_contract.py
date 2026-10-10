@@ -49,7 +49,6 @@ from interact_support import (
     assert_revendor_serializes_writer,
     check,
     comment,
-    consume_pending_input,
     decide,
     declare_data_input,
     element_declaration,
@@ -3477,6 +3476,12 @@ def test_check_refuses_a_predicate_no_page_could_carry(
     Same for an answering verb the widget does not declare, which would hold its
     Ask open for a state no gesture writes."""
     registry = json.loads((page_dir / "registry.json").read_text())
+    if key == "x-awaits":
+        declaration = {
+            "value": next(iter(registry[tag]["x-state"])),
+            "answered": {"choose": {}},
+            **declaration,
+        }
     registry[tag][key] = declaration
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
@@ -3488,10 +3493,12 @@ def test_check_refuses_a_predicate_no_page_could_carry(
 @pytest.mark.parametrize(
     ("declaration", "message"),
     [
-        ({}, "local Ask declares no `answered` condition"),
+        ({"value": "answer"}, "answered"),
     ],
 )
-def test_a_local_ask_declares_its_answered_condition(page_dir, declaration, message):
+def test_a_local_question_declares_its_answered_condition(
+    page_dir, declaration, message
+):
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-test-task"]["x-awaits"] = declaration
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -3773,9 +3780,9 @@ What the agent is told when a user acts on a page
 A test records this file; nobody writes it by hand. The lines starting with `#`
 explain it, and everything else is the recorded data. The walkthrough below is
 one real run: the test serves a page, posts a comment to it the way the browser
-does, runs `leaf wait` in a Claude Code session, and takes the delivery the way
-Leaf's prompt hook does. Only the id, the times and the page's path are pinned,
-so the file stays the same from run to run.
+does, runs `leaf wait` in a Claude Code session, and acknowledges its complete
+delivery. Only the id, the times and the page's path are pinned, so the file
+stays the same from run to run.
 
 How this text reaches the agent, by example
 -------------------------------------------
@@ -3793,14 +3800,13 @@ How this text reaches the agent, by example
 
 @LOGGED@
 
-3. Earlier, the agent ended its turn and Leaf's Stop hook went on watching.
-   The watch notices the new input and wakes the session. Leaf's prompt hook
-   runs as that turn begins and builds a delivery for the comment. This test
-   drives the same watch and complete reader delivery through `leaf wait`.
+3. The agent runs `leaf wait`, which notices the new input and prints a complete
+   delivery for the comment. The explicit wait carries the input even if the
+   session's hooks no longer run.
    The comment is owed a reply, which the delivery records as its `answer` (step
-   4): a `reply` for `leaf thread reply` here, where the Codex App Server route
+   4): a `reply` for `leaf response reply <answer.ref>` here; the Codex App Server route
    would record a `turn`, which the turn's own messages write. For the
-   instructions, the hook reads the clauses under
+   instructions, `leaf wait` reads the clauses under
    `$events.handling.comment` in the page's copy of registry.json, then those
    under `$events.answering.reply`, the answer it owes. Each clause has a `text`
    and may have a `when`, a JSON Schema that must hold for the clause to apply.
@@ -3810,21 +3816,21 @@ How this text reaches the agent, by example
 
 @CLAUSES@
 
-4. The hook adds the delivery as JSON to the turn's context, after one line
-   saying so. The delivery's event is the log line from step 2 less @DROPPED@, the
-   browser's retry key, and with these fields added:
+4. The wait prints the delivery as JSON. The delivery's event is the log line
+   from step 2 less @DROPPED@, the browser's retry key, and with these fields added:
    @ADDED@.
    The batch's `handling` maps clause ids to their text, each distinct text
    appearing once. The event's `handling` names its applicable clauses in order.
-   Once it has published that context, the hook confirms the delivery itself,
-   so the envelope's `acknowledge` is null and the comment reads Picked up. The
-   whole delivery, indented here (the hook writes it on one line):
+   The envelope's `acknowledge` tells the agent to confirm receipt before work;
+   printing alone does not mark the comment Picked up. Large readings expose
+   numbered parts and a `next` command; read all parts before acknowledging.
+   This comment fits in one reading, shown here as the wait prints it:
 
 @DELIVERY@
 
-5. The agent follows `handling`: it names any work the comment asks for with
-   `leaf task start`, does it, and replies in the thread with
-   `leaf thread reply`.
+5. The agent acknowledges the delivery, then follows `handling`. For requested
+   work it opens with `leaf response reply <answer.ref> --ephemeral --text "<plan>"`,
+   does the work, and answers with `leaf response reply <answer.ref>`.
 
 What this file records
 ----------------------
@@ -3883,7 +3889,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     in. A wording or condition change shows up as a diff per case. The assertions
     keep the table whole: every declared kind has a case, and every clause reaches
     at least one case, so no `when` is dead. Its header walks one real comment from
-    the HTTP route through `leaf wait` and the prompt hook's delivery, and holds that
+    the HTTP route through `leaf wait` and its acknowledged delivery, and holds that
     the clauses it lists as applying are exactly the `handling` the delivery
     carries."""
     registry = json.loads((schema_model.ASSETS / "registry.json").read_text())
@@ -4011,10 +4017,11 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         for clause in clauses:
             assert any(clause in matched for matched in reached), (kind, clause)
 
-    # The walkthrough: one comment through the real HTTP route, `leaf wait`, and the
-    # delivery Claude Code's prompt hook takes.
+    # The walkthrough: one comment through the real HTTP route and the explicit
+    # wait's complete delivery, acknowledged by its reader.
     (page_dir / "index.html").write_text(WALKTHROUGH_PAGE)
     publish(page_dir)
+    service_model.claim_page(page_dir)
     session_model.cmd_waiting(page_dir, "")
     posted = {
         "kind": "comment",
@@ -4028,8 +4035,9 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     logged = (page_dir / "events.jsonl").read_text().splitlines()[-1]
     capsys.readouterr()
     assert session_model.cmd_wait(page_dir) == 0
-    assert "has new input" in capsys.readouterr().out
-    envelope = consume_pending_input(harness_model.session_harness().session)
+    envelope = json.loads(capsys.readouterr().out)
+    assert envelope["acknowledge"] is not None
+    assert delivery_model.receive_delivery(envelope["id"]) == [page_dir]
     record = json.loads(logged)
     [batch] = envelope["batches"]
     [delivered] = batch["events"]
@@ -4136,21 +4144,21 @@ A route is how new user input reaches the agent's task:
                      output to the agent as the command's result, which wakes
                      it. The agent acknowledges the delivery itself, with
                      `leaf wait --ack <delivery-id>`, and answers with
-                     `leaf thread reply`. A Codex task running without Leaf's
+                     `leaf response reply <answer.ref>`. A Codex task without Leaf's
                      adapter uses this route, and so does a bare shell.
-  Claude Code hook   The agent keeps `leaf wait` running in the background, and
-                     under Claude Code it prints one line naming the page and
-                     exits, which opens a turn. Leaf's prompt hook runs as that
+  Claude Code hook   Leaf's native hook watcher runs between turns. When input
+                     arrives it wakes the session with one line naming the page,
+                     which opens a turn. Leaf's prompt hook runs as that
                      turn begins, and its Stop hook as a turn ends; either
                      freezes the delivery, acknowledges it, and adds it to the
                      turn's context after one line saying so. The agent answers
-                     with `leaf thread reply`.
+                     with `leaf response reply <answer.ref>`.
   Codex queue        Leaf's adapter freezes the delivery and runs `codex queue`
                      with a pointer to it as the task's next user message. The
                      agent reads the delivery with `leaf delivery read <id>`,
-                     which prints it as indented JSON, and answers with
-                     `leaf thread reply`. The adapter acknowledges the delivery once
-                     Codex's queue accepts it.
+                     follows every `next` command, and confirms complete receipt
+                     with `leaf delivery ack <id>` before answering with
+                     `leaf response reply <answer.ref>`.
   Codex App Server   Leaf starts a turn with `turn/start`, carrying the
                      delivery as a `leaf_delivery` tool output, and binds the
                      turn's opening and final messages as the reply. Leaf
@@ -4158,10 +4166,15 @@ A route is how new user input reaches the agent's task:
                      leaf.page's hosted agent and a `leaf codex launch`
                      terminal use this route.
 
+CLI readings print bounded, indented JSON. Large deliveries expose numbered
+parts and a `next` command; read all parts before acknowledging. A CLI reading
+requires explicit receipt even when the original envelope's transport could
+confirm it. This comment fits in one reading on every route.
+
 Each route freezes a delivery of its own. The envelope's shape is the same on
 all four. Two things differ, each stated once: `acknowledge` says how the agent
 confirms the delivery, or is null where the route confirmed it; and the
-comment's `answer` is a `reply`, for `leaf thread reply`, except on App Server,
+comment's `answer` is a `reply`, for `leaf response reply`, except on App Server,
 where it is a `turn` the turn's own messages write. The `handling` follows from
 the answer, so each agent is told only its own route.
 The agent's standing instructions (its harness contract, and on leaf.page the
@@ -4174,7 +4187,7 @@ What this file records
 One top-level key per route, holding exactly what reaches the agent's task:
 
   leaf wait:         its output, from a bare shell.
-  Claude Code hook:  the line the wait prints, and the prompt hook's
+  Claude Code hook:  the native watch's notification, and the prompt hook's
                      `additionalContext`, split into its instruction line, the
                      delivery on the next line, and what Leaf asks of the turn
                      after it.
@@ -4198,8 +4211,9 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     """The snapshot is the page a developer reads to compare what one comment puts
     in front of the agent on each route: `leaf wait`, Claude Code's hooks, the
     Codex queue's pointer and the delivery it names, and the Codex App Server
-    turn. These captures confirm nothing, so each sees the same pending input. Each
-    is taken from the code that route runs, after one real POST, so a change to
+    turn. The explicit and Codex captures leave input unconfirmed; the final hook
+    capture confirms it. Each is taken from the code that route runs, after one
+    real POST, so a change to
     any route's framing or to a delivery's contents shows up as a diff under the
     route it reaches."""
     (page_dir / "index.html").write_text(WALKTHROUGH_PAGE)
@@ -4245,14 +4259,18 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     )
     started = codex_model.app_server_turn_start_params(thread, prepared.payload)
     delivery_model.cmd_delivery_read(prepared.payload["id"])
-    assert json.loads(started["toolOutput"]["output"]) == json.loads(
-        capsys.readouterr().out
-    )
+    reader = json.loads(capsys.readouterr().out)
+    assert json.loads(started["toolOutput"]["output"]) == prepared.payload
+    assert reader["batches"] == prepared.payload["batches"]
+    assert f"leaf delivery ack {prepared.payload['id']}" in reader["acknowledge"]
 
-    # Claude Code: the wait claims the page and wakes the session, and the prompt
-    # hook of the turn it opens hands the delivery over.
-    assert session_model.cmd_wait(page_dir) == 0
-    woke = capsys.readouterr().out
+    # Claude Code: the native watcher wakes the session after its turn closes,
+    # and the next prompt hook hands the delivery over.
+    assert service_model.claim_page(page_dir)
+    with service_model.PageTransaction(page_dir) as transaction:
+        transaction.close_turn(session)
+    woke = session_model.watch_between_turns(harness_model.session_harness())
+    assert woke is not None
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": session}
     )
@@ -4300,7 +4318,7 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
             {
                 "leaf wait": {"output": readable(waited)},
                 "Claude Code hook": {
-                    "leaf wait output": pin(woke.rstrip("\n")),
+                    "watch notification": pin(woke),
                     "UserPromptSubmit additionalContext": {
                         "instruction": Prose(instruction),
                         "delivery": readable(hooked),
@@ -5032,7 +5050,11 @@ def test_an_ask_role_declares_an_addressable_instance(page_dir):
         "properties": {"open": {"type": "boolean"}},
         "additionalProperties": False,
         "x-content": "markup",
-        "x-awaits": {"when": {"open": [True]}, "answered": {"answer": {}}},
+        "x-awaits": {
+            "when": {"open": [True]},
+            "value": "answer",
+            "answered": {"answer": {}},
+        },
         "x-state": {
             "answer": {
                 "detail": {"type": "object", "additionalProperties": False},

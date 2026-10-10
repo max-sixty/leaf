@@ -40,6 +40,7 @@ import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { html, render, repeat } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
+import { iconTemplate } from "./icons.js";
 import { repaint } from "./repaint.js";
 import { afterScript } from "./rendering.js";
 import {
@@ -61,7 +62,7 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   leaves: 40,
   latest: 50,
   map: 70,
-  // The page's commands a finger reaches here rather than by key (touch-controls.js),
+  // The page's commands reached by pointer here (touch-controls.js),
   // among themselves in the shortcut line's order.
   commands: 75,
   blanket: 80,
@@ -72,7 +73,7 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   // Questions and Threads are the two doors to the one side panel, side by side.
   queue: 107,
   threads: 110,
-  // The way out of the mode or picker the user stands in, under a finger.
+  // The next steps in the mode or picker the user stands in.
   steps: 120,
   commentSelection: 130,
 });
@@ -145,7 +146,7 @@ function rowTemplate() {
       ?data-lf-news=${news.length > 0}
       ?hidden=${!open && !menu.some(visible)}
     >
-      ⋯
+      ${iconTemplate("more", "lf-action-icon")}
     </button>
   `;
 }
@@ -436,7 +437,7 @@ overflowMenu.addEventListener("lf-reveal", (event) => {
 // control fails `checkVisibility()` inside a shut popover, and `focus()` on it is a
 // no-op, so a caller that hands the user somewhere has to ask this rather than the
 // control. Null means the toolbar offers no way in, which happens only off the banner.
-export function bannerControlDoor(control) {
+export function bannerControlDoor(control = overflowBtn) {
   if (control.isConnected && control.checkVisibility({ visibilityProperty: true }))
     return control;
   const menu = control.closest(".lf-banner-menu");

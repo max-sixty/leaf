@@ -5339,7 +5339,7 @@ class _DeployedPage:
         if script == "window.__leafVerifier.startVisibleReplyClock":
             return 100.0
         if script == "window.__leafVerifier.replyShownAt":
-            return {"at": 12_600.0, "by": "message"}
+            return {"at": 12_600.0, "by": "message", "message": 12_600.0}
         if script == "window.__leafStartup.reading":
             presented_at = (
                 self.presented_at
@@ -5757,6 +5757,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             "sinceSendMs": {
                 "acknowledged": [250.0],
                 "responseVisible": 12500.0,
+                "responseMessageVisible": 12500.0,
             },
             "responseShownBy": "message",
             "activity": [

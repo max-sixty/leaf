@@ -717,10 +717,11 @@ def await_reply_shown(end: BrowserEnd, answer: dict) -> dict:
             )
         open_news(page, answer["parent"])
         end.pause(0.5)
-    deadline = time.monotonic() + VISIBLE_MESSAGE_PATIENCE
-    while shown["message"] is None and time.monotonic() < deadline:
-        end.pause(0.1)
-        shown = shown_reply(page, answer)
+    if shown["message"] is None:
+        deadline = time.monotonic() + VISIBLE_MESSAGE_PATIENCE
+        while shown["message"] is None and time.monotonic() < deadline:
+            end.pause(0.1)
+            shown = shown_reply(page, answer)
     return shown
 
 

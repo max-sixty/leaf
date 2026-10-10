@@ -13,6 +13,8 @@
 # 40f9aca26 and 2/2 with task-information comparison; resize and useful-ghost
 # controls passed 2/2 each on both arms. A separate blinded browser review
 # caught the original obstruction; plan scores alone did not establish that.
+# After integrating b0a015f42, explicit smallest-to-largest size coverage passed
+# 2/2 capture plans against 0/2 on that base; both controls still passed 2/2.
 description: review-shows-the-change
 metadata:
   purpose: 'Maintainer review: user reviews the change; agent verifies preservation.'

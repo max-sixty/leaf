@@ -1,6 +1,6 @@
 /* Area capture is a bounded page interaction; the selector and rasterizer load on demand.
- * Its page scope and early pointer claim suspend page input without changing Draw or
- * Design mode. The passive overlay leaves current target hit tests intact. Captures
+ * Its page scope and early pointer/touch claim suspend page input without changing
+ * Draw or Design mode. The passive overlay leaves current target hit tests intact. Captures
  * enter the same anchored draft and media admission path as other attached images.
  */
 import {
@@ -33,6 +33,12 @@ export function createRegionCapture({
   const claim = (event) => {
     event.preventDefault();
     event.stopImmediatePropagation();
+  };
+  // Preventing pointer defaults and touch-action stop page input, but Chromium can
+  // still recognize a fling that consumes the next tap. Consume the native touch
+  // gesture at its start; Leaf's controls keep their own native activation.
+  const claimTouch = (event) => {
+    if (!leafSurface(event.composedPath()[0])) claim(event);
   };
   // Register before Drawing and Aim mount. Paint is pointer-transparent, so selection
   // never occludes the actual page targets that anchor confirmation reads.
@@ -117,6 +123,10 @@ export function createRegionCapture({
           openComposerWithMedia,
           returnTo: bannerControlDoor(),
         });
+        document.addEventListener("touchstart", claimTouch, {
+          capture: true,
+          passive: false,
+        });
         document.documentElement.setAttribute("data-lf-region-capture", "");
         removeScope = pageScope("region capture", {
           title: "In area capture",
@@ -130,6 +140,7 @@ export function createRegionCapture({
         selector?.cancel();
         notice(`Could not open area capture — ${error.message}`);
       } finally {
+        document.removeEventListener("touchstart", claimTouch, true);
         selector = null;
         opening = false;
         document.documentElement.removeAttribute("data-lf-region-capture");

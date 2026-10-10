@@ -150,6 +150,14 @@ application. Recheck the affected Leaf journey when resolving this entry.
   installed Safari application. Chrome 155 also captured a live Leaf Mermaid
   diagram; Chromium 153.0.8010.12 passed the anchored upload/send/reload and
   keyboard/touch journeys.
+- **Observed touch-input gap, 2026-10-10:** Chromium 153.0.8010.12 can generate
+  a fling after a fast selection drag despite `touch-action: none` and prevented
+  pointer defaults. Linux then consumes the first confirmation tap to stop it.
+  Native input traces reproduce the fling with both dispatched touch events and
+  the browser's synthetic gesture controller; consuming the selection's native
+  `touchstart` prevents it. The capture controller owns that claim only while
+  selection is active and leaves Leaf controls to native activation. The touch
+  journey below checks this boundary and immediate first-tap confirmation.
 - **Observed resource gap:** an image loaded from another HTTP origin without
   CORS permission remained visible on the page but produced `image-fallback`
   during capture. Leaf refuses that result. A CSS background from the same

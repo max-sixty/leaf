@@ -29,6 +29,8 @@ package authors continue to use native JavaScript without a build.
 - `vendor.py` rebuilds every third-party bundle outside the framework, bundling what
   each consumer needs or adapting an upstream browser module. `pierre/` and
   `webawesome/` hold the inputs their builders use.
+  `floating-ui-zoom.patch` backports upstream #3492 to the locked 1.8.0 ESM;
+  its builder records the upstream commit and applies it to private package copies.
 
 After `npm ci`, both builds reproduce the tracked bytes, so a diff after a rebuild
 means the lock, a build script, or the registry input a bundle reads changed.

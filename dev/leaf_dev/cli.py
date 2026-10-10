@@ -28,6 +28,7 @@ COMMANDS = {
     "publish-distribution": "distribution",
     "record-demo": "record_demo",
     "refresh-previews": "example_previews",
+    "setup": "setup",
     "site": "site",
     "stills": "stills",
     "thread-snapshots": "thread_snapshots",

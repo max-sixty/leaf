@@ -96,10 +96,10 @@ aliases in the same attachment, and every context alias follows native editing.
 
 ## Touch routes
 
-Under a coarse pointer, every page capability that a key reaches and no direct gesture
-does has a banner control. A row declares the control's words as `touch`, or a routed
-row declares them on each route that needs its own control; `touch-controls.js` builds
-the control from the row the key uses.
+Every page capability that a key reaches and no direct gesture does has a banner
+control, serving both a finger and a mouse. A row declares the control's words as
+`touch`, or a routed row declares them on each route that needs its own control;
+`touch-controls.js` builds the control from the row the key uses.
 
 - A page command's control is an entry in the banner's More.
 - A page-scope row's control is a step on the banner's row while its scope is the

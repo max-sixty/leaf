@@ -92,6 +92,10 @@ acknowledged at stop:
       - <page>: 1 acknowledged user update with no answer (`leaf response reply <answer.ref>` for event-2).
 
       Each update takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf page state <page> <id>`.
+      Read these unanswered updates and their exact answer references:
+      ```xml
+      <leaf-delivery id="<delivery>" operation="delivery read" />
+      ```
 
 idle before answer:
   exit: 1

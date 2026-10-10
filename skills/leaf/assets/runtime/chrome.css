@@ -71,11 +71,15 @@ body:is(.lf-aiming, [data-lf-design-mode]) {
 body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item {
   cursor: pointer;
 }
+html[data-lf-region-capture],
+html[data-lf-region-capture] body,
 html[data-lf-draw-mode],
 html[data-lf-draw-mode] body {
   cursor: crosshair;
   touch-action: none;
 }
+html[data-lf-region-capture] main,
+html[data-lf-region-capture] main *,
 html[data-lf-draw-mode] main,
 html[data-lf-draw-mode] main * {
   cursor: crosshair !important;
@@ -148,6 +152,19 @@ html[data-lf-draw-mode] main [data-lf-offer] * {
   }
 }
 @scope (.lf-chrome) {
+  .lf-region-capture {
+    position: fixed;
+    inset: 0;
+    z-index: var(--lf-z-page-hints);
+    pointer-events: none;
+    overflow: hidden;
+    color: var(--ink);
+  }
+  .lf-region-selection {
+    position: absolute;
+    outline: 1px solid var(--accent);
+    box-shadow: 0 0 0 100vmax rgb(0 0 0 / 40%);
+  }
   @media print {
     :scope {
       display: none;

@@ -131,3 +131,48 @@ PY
 
 This checks API availability, not preservation behavior or the installed Safari
 application. Recheck the affected Leaf journey when resolving this entry.
+
+### Area capture rendering
+
+- **Disposition: DOM reconstruction with accepted visual differences.** Capture
+  area uses SnapDOM 3.3.0 to render the current DOM into an image. Text and native
+  form controls can differ slightly from the screen. Leaf rejects the library's
+  reported missing-image fallback; it cannot detect every omitted resource.
+- **Owner:** [`region-selector.js`](../skills/leaf/assets/runtime/composing/region-selector.js)
+  selects and anchors the crop; the vendored SnapDOM module owns rendering.
+- **Observed, 2026-10-09:** Chrome 155.0.8059.39, Playwright 1.63.0's Firefox
+  155.0, and its WebKit 26.6 produced the same 600 × 300 crop dimensions and
+  preserved open-shadow styles, inline SVG, a changed input value, page and
+  internal scrolling, and a fixed overlay in one synthetic fixture. Each capture
+  differed from that engine's screen capture at fewer than 1% of pixels, with
+  small text and form-control differences. No capture warnings occurred. These
+  isolated renderer checks do not establish complete Leaf support or test the
+  installed Safari application. Chrome 155 also captured a live Leaf Mermaid
+  diagram; Chromium 153.0.8010.12 passed the anchored upload/send/reload and
+  keyboard/touch journeys.
+- **Observed touch-input gap, 2026-10-10:** Chromium 153.0.8010.12 can generate
+  a fling after a fast selection drag despite `touch-action: none` and prevented
+  pointer defaults. Linux then consumes the first confirmation tap to stop it.
+  Native input traces reproduce the fling with both dispatched touch events and
+  the browser's synthetic gesture controller; consuming the selection's native
+  `touchstart` prevents it. The capture controller owns that claim only while
+  selection is active and leaves Leaf controls to native activation. The touch
+  journey below checks this boundary and immediate first-tap confirmation.
+- **Observed resource gap:** an image loaded from another HTTP origin without
+  CORS permission remained visible on the page but produced `image-fallback`
+  during capture. Leaf refuses that result. A CSS background from the same
+  external origin was omitted without a capture warning.
+- **Published limitations:** the upstream
+  [3.3.0 limitations](https://github.com/zumerlab/snapdom/blob/b27b35adfae9d9a8993c56b067837014bcef4750/README.md#limitations)
+  require readable images, fonts, and stylesheets; cross-origin iframe contents
+  become placeholders. Font omission and cross-origin iframe placeholders were
+  not exercised in the checks above. Source review found font-fetch failures
+  report through the console without a capture warning. The
+  [rendering contract](https://github.com/zumerlab/snapdom/blob/b27b35adfae9d9a8993c56b067837014bcef4750/FEATURES.md)
+  describes the SVG/`foreignObject` path used here; the experimental native
+  canvas engine is not enabled.
+- **Recheck:** run
+  `test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor`
+  and `test_touch_capture_can_cancel_and_reopen_before_attaching` in
+  `tests/test_render_threads.py`. Compare the rasterizer's same crop with a
+  native screenshot in each installed engine when updating SnapDOM.

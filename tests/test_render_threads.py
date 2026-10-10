@@ -2911,6 +2911,7 @@ def test_original_image_link_has_a_standalone_target(browser, serve, touch):
     page.locator("#image").click()
     viewer = page.get_by_role("dialog", name="Image preview")
     expect(viewer).to_be_visible()
+    expect(viewer.locator(".lf-media-viewer-caption")).to_be_hidden()
     original = viewer.get_by_role("link", name="Original")
     box = original.bounding_box()
     floor = 44 if touch else 24

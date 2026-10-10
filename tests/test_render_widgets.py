@@ -9991,7 +9991,7 @@ def test_the_queue_clock_owns_held_paint_failure_and_retry(browser, serve):
     page.evaluate("Promise.all([queueClockTick, queueClockTickAgain])")
     expect(row.locator(".lf-queue-where")).to_contain_text("now")
     assert row.evaluate("node => node === window.queueClockRow")
-    assert take_browser_errors(page) == [
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: deliberate Queue clock failure"
     ]
     page.evaluate(
@@ -10054,7 +10054,7 @@ def test_a_failed_queue_list_paint_reports_once_and_retains_the_prior_list(
     )
     rows.first.click()
     expect(page.locator("#live-question-decision")).to_be_focused()
-    assert take_browser_errors(page) == [
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: deliberate Queue list failure"
     ]
     holding(page, held, 2, "the gesture and the page's report of its failure")
@@ -10113,7 +10113,7 @@ def test_a_failed_ask_banner_paint_reports_once_and_retains_prior_controls(
     assert answer_all.evaluate("control => control === window.__lfAskBulk")
     rows.first.click()
     expect(page.locator("#live-question-decision")).to_be_focused()
-    assert take_browser_errors(page) == [
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: deliberate Ask banner failure"
     ]
     holding(page, held, 2, "the gesture and the page's report of its failure")

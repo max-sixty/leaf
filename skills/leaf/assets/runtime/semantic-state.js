@@ -5,7 +5,6 @@ import {
   createPresentationCoordinator,
   createPresentationSchedule,
   createSemanticApplication,
-  describeFailure,
   PRESENTATION_HELD,
 } from "../vendor/browser-runtime.js";
 
@@ -147,8 +146,7 @@ export const readApplicationPresentation = presentation.read;
 export function setPresentationFailureReporter(report) {
   if (typeof report !== "function")
     throw new TypeError("Presentation failure reporting needs a callback");
-  reportPresentationFailure = (reason) =>
-    report(`Presentation failed: ${describeFailure(reason)}`);
+  reportPresentationFailure = (reason) => report(reason, "Presentation failed");
 }
 export const watchSemantic = (callback) =>
   applicationState

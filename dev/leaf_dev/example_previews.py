@@ -23,6 +23,7 @@ import click
 import leaf_website
 from leaf.hosting import LeafHTTPServer
 from leaf.render_checks import wait_until_ready
+from leaf.render_gate.scheme import collect_page_exceptions
 from PIL import Image
 from playwright.sync_api import Page, sync_playwright
 
@@ -129,7 +130,7 @@ def refresh_previews() -> None:
             with serve_examples(site) as origin:
                 page = browser.new_page(viewport=VIEWPORT, color_scheme="light")
                 errors = []
-                page.on("pageerror", lambda error: errors.append(str(error)))
+                collect_page_exceptions(page, errors)
                 for source in catalog_sources():
                     errors.clear()
                     page.goto(f"{origin}/examples/{source.stem}/", wait_until="load")

@@ -670,7 +670,7 @@ def test_unrelated_agent_update_does_not_clear_a_standing_user_ask(page_dir):
             "author": "agent",
             "parent": root["id"],
             "responds": root["id"],
-            "awaits": True,
+            "question": True,
             "text": "Which option?",
         },
     )
@@ -2168,6 +2168,7 @@ def test_a_start_is_one_log_record_read_at_the_banner_and_the_move(
             [
                 "response",
                 "reply",
+                "--done",
                 response_reference(page_dir, "c2"),
                 "--text",
                 "Because.",
@@ -6308,7 +6309,16 @@ def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(pa
     # it stands through the user closing and reopening the thread.
     opened = CliRunner().invoke(
         cli_model.cli,
-        ["task", "open", str(page_dir), question["id"], "Check the change"],
+        [
+            "thread",
+            "reply",
+            str(page_dir),
+            question["id"],
+            "--text",
+            "Checking the change.",
+            "--task",
+            "Check the change",
+        ],
     )
     assert opened.exit_code == 0, opened.output
     assert not write("resolve", parent=question["id"])["attention"]
@@ -6683,13 +6693,13 @@ def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir, sessi
     assert progress.exit_code == 0, progress.output
     assert json.loads(progress.output)["parent"] == event["id"]
     answered = CliRunner().invoke(
-        cli_model.cli, ["response", "reply", retry_ref, "--text", "Hello"]
+        cli_model.cli, ["response", "reply", "--done", retry_ref, "--text", "Hello"]
     )
     assert answered.exit_code == 0, answered.output
     reply = json.loads(answered.output)
     assert reply["responds"] == event["id"]
     retried = CliRunner().invoke(
-        cli_model.cli, ["response", "reply", retry_ref, "--text", "Hello"]
+        cli_model.cli, ["response", "reply", "--done", retry_ref, "--text", "Hello"]
     )
     assert retried.exit_code == 0, retried.output
     assert json.loads(retried.output) == reply
@@ -7092,6 +7102,7 @@ def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
         [
             "response",
             "reply",
+            "--done",
             reference,
             "--text",
             "Used A.",
@@ -7105,6 +7116,7 @@ def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, second["id"]),
             "--text",
             "Used B.",
@@ -16094,7 +16106,7 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
 
     replied = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", response_reference(claimed, comment), "--text", "ok"],
+        ["response", "reply", "--done", response_reference(claimed, comment), "--text", "ok"],
     )
     assert replied.exit_code == 0, replied.output
     settled = CliRunner().invoke(cli_model.cli, waiting)
@@ -16156,7 +16168,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
         CliRunner()
         .invoke(
             cli_model.cli,
-            ["response", "reply", response_reference(claimed, comment), "--text", "ok"],
+            ["response", "reply", "--done", response_reference(claimed, comment), "--text", "ok"],
         )
         .exit_code
         == 0
@@ -17513,6 +17525,7 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
             [
                 "response",
                 "reply",
+                "--done",
                 envelope["batches"][0]["events"][0]["answer"]["ref"],
                 "--text",
                 "I will add the camera first.",
@@ -17967,7 +17980,7 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
         assert event["id"] == latest["id"]
         reply = CliRunner().invoke(
             cli_model.cli,
-            ["response", "reply", event["answer"]["ref"], "--text", "Here, next week."],
+            ["response", "reply", "--done", event["answer"]["ref"], "--text", "Here, next week."],
         )
         assert reply.exit_code == 0, reply.output
         assert not page_state(page_dir)["activity"]["obligations"]
@@ -20189,11 +20202,11 @@ def test_response_reference_preserves_page_identity_and_retries(page_dir, tmp_pa
     assert refs[0] != refs[1]
     for page, reference in zip((page_dir, other), refs):
         posted = CliRunner().invoke(
-            cli_model.cli, ["response", "reply", reference, "--text", str(page)]
+            cli_model.cli, ["response", "reply", "--done", reference, "--text", str(page)]
         )
         assert posted.exit_code == 0, posted.output
         retry = CliRunner().invoke(
-            cli_model.cli, ["response", "reply", reference, "--text", "Retried"]
+            cli_model.cli, ["response", "reply", "--done", reference, "--text", "Retried"]
         )
         assert retry.exit_code == 0, retry.output
         assert json.loads(posted.output) == json.loads(retry.output)
@@ -20240,6 +20253,7 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
         [
             "response",
             "reply",
+            "--done",
             reference,
             "--text",
             "Choose",
@@ -20259,6 +20273,7 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
         [
             "response",
             "reply",
+            "--done",
             reference,
             "--text",
             "Choose here.",
@@ -20299,7 +20314,7 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
             selected_ref,
             "--text",
             "Which store owns it?",
-            "--awaits",
+            "--question",
             "--detach",
         ],
     )
@@ -20307,7 +20322,7 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
     record = json.loads(questioned.output)
     assert record["parent"] == asked["id"]
     assert record["responds"] == selected["id"]
-    assert record["awaits"] is True
+    assert record["question"] is True
     assert record["anchor"] is None
 
 
@@ -20315,7 +20330,7 @@ def test_response_refuses_stale_replaced_foreign_and_reserved_inputs(
     page_dir, monkeypatch
 ):
     def cli_refuses(reference, text, reason):
-        args = ["response", "reply", reference, "--text", text]
+        args = ["response", "reply", "--done", reference, "--text", text]
         refused = CliRunner().invoke(cli_model.cli, args)
         assert refused.exit_code == 1
         assert refused.stderr.startswith("Error: ")
@@ -20339,7 +20354,7 @@ def test_response_refuses_stale_replaced_foreign_and_reserved_inputs(
     )
     before = events_model.read_events(page_dir)
     refused = CliRunner().invoke(
-        cli_model.cli, ["response", "reply", stale, "--text", "Used A."]
+        cli_model.cli, ["response", "reply", "--done", stale, "--text", "Used A."]
     )
     assert refused.exit_code != 0
     assert events_model.read_events(page_dir) == before
@@ -20385,7 +20400,7 @@ def test_response_refuses_stale_replaced_foreign_and_reserved_inputs(
         with monkeypatch.context() as patched:
             patched.setattr(thread_model, "post_response", fail)
             result = CliRunner().invoke(
-                cli_model.cli, ["response", "reply", reference, "--text", "Control"]
+                cli_model.cli, ["response", "reply", "--done", reference, "--text", "Control"]
             )
         assert result.exception is failure
         assert result.exit_code == (7 if isinstance(failure, SystemExit) else 1)
@@ -20431,7 +20446,7 @@ def test_delegated_response_survives_release_without_a_competing_claim(
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", reference, "--text", "The queue survives reconnect."],
+        ["response", "reply", "--done", reference, "--text", "The queue survives reconnect."],
     )
     assert result.exit_code == 0, result.output
     reply = json.loads(result.output)
@@ -20469,7 +20484,7 @@ def test_superseded_response_stays_refused_after_successor_stops(
         cleanup_model.end_session("successor")
     before = events_model.read_events(claimed)
     result = CliRunner().invoke(
-        cli_model.cli, ["response", "reply", reference, "--text", "Old worker"]
+        cli_model.cli, ["response", "reply", "--done", reference, "--text", "Old worker"]
     )
     assert result.exit_code == 1
     assert "claim no longer matches its delivery" in result.stderr
@@ -20566,8 +20581,9 @@ def test_provider_response_commits_full_content_before_reconnect(
     )
     markup = '<lf-options id="provider-choice" choose><lf-option id="provider-yes"><strong>Yes</strong></lf-option></lf-options>'
     flags = {
-        "question": ["--awaits", "--title", "Storage choice", "--section", "plan"],
+        "question": ["--question", "--title", "Storage choice", "--section", "plan"],
         "markup": [
+            "--done",
             "--markup",
             markup,
             "--title",
@@ -20602,7 +20618,7 @@ def test_provider_response_commits_full_content_before_reconnect(
         "Storage choice",
     )
     if rich == "question":
-        assert reply["awaits"] is True
+        assert reply["question"] is True
         assert reply["anchor"]["section"] == "plan"
     else:
         assert reply["markup"] == markup
@@ -20630,7 +20646,7 @@ def test_history_recovery_and_author_retry_survive_owner_process_restart(
     comment, target, delivery_id, _stream = _reserved_author_response(page_dir)
     identity = {"session": "worker-1", "agent": "Indexer"}
     thread_model.post_response(
-        target["ref"], "Worker question?", awaits=True, identity=identity
+        target["ref"], "Worker question?", question=True, identity=identity
     )
     payload = delivery_model.read_delivery(delivery_id)
     before = cleanup_model.session_record("codex-thread")
@@ -20678,7 +20694,7 @@ def test_history_recovery_and_author_retry_survive_owner_process_restart(
     [answer] = thread_model.successful_replies(
         events_model.read_events(page_dir), comment["id"]
     )
-    assert (answer["text"], answer["session"], answer["agent"], answer["awaits"]) == (
+    assert (answer["text"], answer["session"], answer["agent"], answer["question"]) == (
         "Worker question?",
         "worker-1",
         "Indexer",
@@ -20686,7 +20702,7 @@ def test_history_recovery_and_author_retry_survive_owner_process_restart(
     ), errors
     assert (
         thread_model.post_response(
-            target["ref"], "Worker question?", awaits=True, identity=identity
+            target["ref"], "Worker question?", question=True, identity=identity
         )
         == answer
     )
@@ -20700,7 +20716,7 @@ def test_explicit_answer_survives_a_provider_ending_without_final_text(
     answer = thread_model.post_response(
         target["ref"],
         "My question?",
-        awaits=True,
+        question=True,
         identity={"session": "codex-thread", "agent": "Codex"},
     )
     assert stream.finish(ending) is None
@@ -20710,7 +20726,9 @@ def test_explicit_answer_survives_a_provider_ending_without_final_text(
     assert comment["id"] not in delivery_model.current_responses(
         page_dir, events_model.read_events(page_dir)
     )
-    assert thread_model.post_response(target["ref"], "Retry") == answer
+    assert thread_model.post_response(target["ref"], "Retry", question=True) == answer
+    with pytest.raises(SystemExit, match="different declaration"):
+        thread_model.post_response(target["ref"], "Retry", task="Promise it")
 
 
 def test_addressed_progress_is_one_atomic_message_and_work_start(page_dir):
@@ -20787,7 +20805,7 @@ def test_committed_answer_survives_a_newer_displayed_reply(page_dir):
     comment, target, _delivery_id, old = _reserved_author_response(page_dir)
     identity = {"session": "codex-thread", "agent": "Codex"}
     thread_model.post_response(
-        target["ref"], "Older question?", awaits=True, identity=identity
+        target["ref"], "Older question?", question=True, identity=identity
     )
     newer = append_command(
         page_dir,
@@ -20809,7 +20827,7 @@ def test_committed_answer_survives_a_newer_displayed_reply(page_dir):
         for event in events_model.read_events(page_dir)
         if event["kind"] == "reply"
     ]
-    assert (reply["responds"], reply["text"], reply["awaits"]) == (
+    assert (reply["responds"], reply["text"], reply["question"]) == (
         comment["id"],
         "Older question?",
         True,
@@ -20841,7 +20859,7 @@ def test_bound_thread_refusal_routes_rich_content_to_addressed_reply(page_dir):
     assert "leaf response reply <answer.ref>" in refused.output
     corrected = runner.invoke(
         cli_model.cli,
-        ["response", "reply", target["ref"], "--text", "Choose.", "--markup", markup],
+        ["response", "reply", "--done", target["ref"], "--text", "Choose.", "--markup", markup],
     )
     assert corrected.exit_code == 0, corrected.output
     answer = json.loads(corrected.output)
@@ -20877,13 +20895,13 @@ def test_explicit_reply_refusal_reaches_its_author_before_commit(page_dir, inval
     assert files_model.latest_revision(page_dir) == before_revision
     (page_dir / "index.html").write_text(source)
     answer = thread_model.post_response(
-        target["ref"], "Corrected question?", awaits=True, identity=identity
+        target["ref"], "Corrected question?", question=True, identity=identity
     )
     assert stream.finish("completed", "Provider final") is None
     assert thread_model.successful_replies(
         events_model.read_events(page_dir), comment["id"]
     ) == [answer]
-    assert answer["awaits"] is True
+    assert answer["question"] is True
 
 
 def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_dir):
@@ -20971,6 +20989,7 @@ def test_retry_identity_cannot_take_current_provider_custody(
         [
             "response",
             "reply",
+            "--done",
             earlier,
             "--text",
             "Committed by author",
@@ -20995,6 +21014,7 @@ def test_retry_identity_cannot_take_current_provider_custody(
         [
             "response",
             "reply",
+            "--done",
             earlier,
             "--text",
             "Committed by author",
@@ -21043,7 +21063,7 @@ def test_old_provider_final_yields_to_new_reservation_for_same_input(page_dir, s
     )
     identity = {"session": "codex-thread", "agent": "Codex"}
     thread_model.post_response(
-        new_target["ref"], "New owner's question?", awaits=True, identity=identity
+        new_target["ref"], "New owner's question?", question=True, identity=identity
     )
     if settled:
         append_command(
@@ -21067,7 +21087,7 @@ def test_old_provider_final_yields_to_new_reservation_for_same_input(page_dir, s
         for event in events_model.read_events(page_dir)
         if event["kind"] == "reply"
     ]
-    assert (answer["responds"], answer["text"], answer["awaits"]) == (
+    assert (answer["responds"], answer["text"], answer["question"]) == (
         comment["id"],
         "New owner's question?",
         True,

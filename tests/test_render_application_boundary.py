@@ -2728,7 +2728,7 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
                 "revision": 1,
                 "parent": "opening",
                 "text": text,
-                "awaits": True,
+                "question": True,
             },
         )
     page = open_page(browser, url, context=context)

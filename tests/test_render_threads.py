@@ -5863,7 +5863,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
         "One choice remains. Which store should own the result?",
         None,
         for_event=asked,
-        awaits=True,
+        question=True,
     )
     page = open_page(
         browser,
@@ -9151,6 +9151,7 @@ def test_a_bounded_log_in_an_agent_reply_follows_its_end_as_a_reading_region(
         [
             "response",
             "reply",
+            "--done",
             response_reference(serve.page_dir, root),
             "--text",
             "Here is its log.",
@@ -12024,6 +12025,7 @@ def test_original_quoted_words_remain_readable_after_the_page_rewrites_them(
             [
                 "response",
                 "reply",
+                "--done",
                 response_reference(d, root),
                 "--detach",
                 "--text",

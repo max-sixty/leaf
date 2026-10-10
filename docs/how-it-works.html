@@ -349,7 +349,7 @@ leaf page state ./review
 leaf page state ./review &lt;thread-id&gt;
 # Revise ./review/index.html.
 leaf page check ./review
-leaf response reply &lt;answer.ref&gt; --text "The importer policy is updated."
+leaf response reply &lt;answer.ref&gt; --done --text "The importer policy is updated."
 leaf status ./review waiting "Does the revised policy match the workload?"</code></pre>
               <p id="answers-kinds">
                 A comment receives a thread reply. A page can also pose a
@@ -1188,7 +1188,7 @@ flowchart LR
   accDescr: Replies appear in threads, questions and tasks in the Questions panel, stamped versions on the page, reports on their widgets, and status in the banner and nearby labels.
   subgraph Sources["Who writes it"]
     Reply["agent: leaf response reply · proactive leaf thread reply · leaf thread open"]
-    Awaits["agent: leaf thread reply --awaits · leaf task open --on user"]
+    Awaits["agent: leaf response reply --question · leaf task open --on user"]
     Stamp["agent: leaf page stamp"]
     Report["agent: leaf page report"]
     Status["agent: leaf task start · leaf status"]
@@ -1256,15 +1256,19 @@ flowchart LR
               </li>
               <li id="updates-written-reply">
                 <strong><code>leaf response reply &lt;answer.ref&gt;</code></strong> An
-                answer in your thread, which clears the label beside your comment.
+                answer in your thread, which clears the label beside your comment. It
+                says what it leaves: <code>--done</code> when it delivers what you
+                asked, <code>--question</code> when it asks you back, or
+                <code>--task</code> when it promises work, which stays among the
+                agent's Tasks until the agent ends it.
               </li>
               <li id="updates-written-followup">
                 <strong><code>leaf thread reply … &lt;thread&gt;</code></strong> A later
                 message in a thread already answered, such as the result of work the
                 first reply promised.
               </li>
-              <li id="updates-written-awaits">
-                <strong><code>leaf thread reply … --awaits</code></strong> A prose
+              <li id="updates-written-question">
+                <strong><code>leaf response reply … --question</code></strong> A prose
                 Question for you, which stays open until you reply or settle it with a
                 reaction. The thread reads <em>On you to answer</em>, and the question
                 joins your Questions, in the Questions panel.

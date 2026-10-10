@@ -34,9 +34,8 @@ assert:
 - type: llm-rubric
   metric: judgment
   value: |
-    Pass only if the commands include a `leaf task open` on the page naming
-    3b9e51a0 (the comment or its thread) for the parser investigation, and a
-    `leaf response reply` answering 3b9e51a0; and if the brief gives the
+    Pass only if the commands answer 3b9e51a0 with `leaf response reply` carrying
+    `--task "<title>"` for the parser investigation; and if the brief gives the
     dispatched session what it needs to end that task where its result lands (the
     page and the task id, with `leaf task end`), or otherwise names how the task
     is ended. Fail if no task is opened, or if nothing provides for ending it.

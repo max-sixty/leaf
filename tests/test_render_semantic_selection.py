@@ -259,7 +259,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     banner_control(page, ".lf-banner-menu .lf-btn:text-is('Search page')").tap()
     expect(next_match).to_be_visible()
     expect(exit_draw).to_be_hidden()
-    expect(row.locator(".lf-btn:visible").filter(has_not_text="⋯")).to_have_text(
+    expect(row.locator(".lf-btn:visible:not(.lf-banner-more)")).to_have_text(
         ["Select", "Previous", "Next", "Close search"]
     )
     row.get_by_role("button", name="Close search", exact=True).tap()

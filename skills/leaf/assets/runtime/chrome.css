@@ -179,8 +179,12 @@ body:is(.lf-aiming, [data-lf-design-mode]) { cursor: default; }
 body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item { cursor: pointer; }
 /* Page words accept drawing presses; runtime surfaces and widget offers keep their
    controls usable. An aim box adds semantic context where one is available. */
+html[data-lf-region-capture],
+html[data-lf-region-capture] body,
 html[data-lf-draw-mode],
 html[data-lf-draw-mode] body { cursor: crosshair; touch-action: none; }
+html[data-lf-region-capture] main,
+html[data-lf-region-capture] main *,
 html[data-lf-draw-mode] main,
 html[data-lf-draw-mode] main * { cursor: crosshair !important; }
 html[data-lf-draw-mode] main [data-lf-runtime],
@@ -273,6 +277,13 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
    marked itself lf-live — this block's name for the visually-hidden live region —
    and every tabbed page clipped to a pixel.) */
 @scope (.lf-chrome) {
+  /* Capture paint leaves page hit tests intact; the controller owns its input. */
+  .lf-region-capture { position: fixed; inset: 0; z-index: var(--lf-z-page-hints);
+    pointer-events: none; overflow: hidden; color: var(--ink); }
+  /* The box is the exact crop; its outline paints outside those pixels. */
+  .lf-region-selection { position: absolute; outline: 1px solid var(--accent);
+    box-shadow: 0 0 0 100vmax rgb(0 0 0 / 40%); }
+
   /* The layer is the runtime's, not the document's, so it never prints — one rule
      for all of it, rather than each piece remembering. :scope is the container
      itself, which is why this can't be written at document level without widening

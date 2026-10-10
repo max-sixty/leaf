@@ -1,14 +1,16 @@
-"""Private resource preparation, caller acceptance, and producer confirmation.
+"""Resource readiness, caller acceptance, and producer confirmation.
 
-The child first announces a prepared resource without publishing ownership. The
-caller captures the announced identity inside `starting_detached`, then accepts
-on normal context exit. Acceptance is the caller's one write. The child commits
-its resource and confirms that publication before the caller returns.
+The child announces a prepared resource. The caller captures its identity inside
+`starting_detached`, then accepts on normal context exit. Acceptance is the
+caller's one write. The child runs any deferred commit and confirms readiness
+before the caller returns.
 
-Abandonment before acceptance publishes nothing. After acceptance, a missing
-confirmation is uncertain commitment, never evidence that the child did not
-commit. The caller already holds the announced owner and retires only that
-owner's resources; it never restores an owner an accepted start superseded.
+A producer deferring publication to the commit callback publishes nothing before
+acceptance. A producer that publishes earlier cleans up if the caller abandons it.
+After acceptance, a missing confirmation is uncertain commitment, never evidence
+that the child did not commit. The caller already holds the announced owner and
+retires only that owner's resources; it never restores an owner an accepted start
+superseded.
 """
 
 import json
@@ -44,7 +46,7 @@ def starting_detached(
     module: str = "leaf",
 ):
     """Spawn `python -m MODULE ARGUMENTS --handshake FD` in a session of its own, and
-    yield its private announcement, then accept and confirm on context exit.
+    yield its announcement, then accept and confirm on context exit.
 
     Raises `StartRefused` with the child's reason when it refuses, exits, or does not
     answer within `timeout`; a child that has not answered by then is terminated.
@@ -102,7 +104,7 @@ def starting_detached(
 
 
 class Handshake:
-    """The child's end: refuse with a reason, or announce and wait for the commit.
+    """The child's end: refuse with a reason, or announce and wait for acceptance.
 
     Used as a context manager around the child's whole start, so a start that ends
     in an exception before announcing — a `sys.exit` refusal or a fault — reaches the
@@ -121,9 +123,9 @@ class Handshake:
     ) -> bool:
         """Prepare an announcement, accept the caller's commit, then confirm it.
 
-        A caller leaving before acknowledgement publishes nothing. Once accepted,
-        the producer commits its resource and confirms the resulting identity;
-        losing the confirmation does not undo an accepted commit.
+        The optional commit callback defers publication until acceptance. Without
+        it, the producer supplies an already prepared resource and cleans up on
+        refusal. Losing confirmation does not undo an accepted commit.
         """
         try:
             self._socket.sendall(json.dumps(answer or {}).encode() + b"\n")

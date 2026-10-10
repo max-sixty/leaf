@@ -48,8 +48,9 @@
  * `landArrival` runs after presentation: a valid revision handoff restores continuity;
  * unexpected mechanical failures report without blocking proved state or deferred
  * arrivals. Otherwise a fresh navigation aimed nowhere restores a saved view from a
- * different revision. Ordinary reloads and history travel keep the browser's restored offset
- * (history.js). Comparison is restored after activation because its base must be
+ * different revision. Ordinary reloads and full-document history travel keep the browser's
+ * restored offset; history.js owns same-document working-place checkpoints.
+ * Comparison is restored after activation because its base must be
  * fetched again. Reading position is restored even after a patch because content above
  * it may have changed height.
  *
@@ -75,7 +76,13 @@ import {
 } from "./drafts.js";
 import { heldThreadId, replyDestination } from "./thread/focus.js";
 import { restoreReplyEditing } from "./thread/replies.js";
-import { focusDestination, onStanding, focused, closeLayer } from "./focus.js";
+import {
+  focusDestination,
+  onStanding,
+  onUserInput,
+  focused,
+  closeLayer,
+} from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { patchTree, patchRetains } from "./dom-children.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
@@ -1884,14 +1891,19 @@ export function createVersionController({
     };
     onStanding(recordStanding);
     onReadingInput(recordStanding);
-    document.addEventListener("input", recordStanding);
+    // Caret and selection keys are work in the same focused destination even
+    // when they change no text and produce no input or focus event.
+    onUserInput((event) => {
+      if (event.type === "keydown" || event.type === "input") recordStanding();
+    });
     queueRecord();
   }
 
   function installArrival() {
     installReadingContinuity();
-    // Ordinary reload and history travel keep the offset the browser restores
-    // (history.js). The root is its document scrollport, so native restoration is both
+    // Ordinary reload and full-document history travel keep the browser's restored
+    // offset; history.js owns same-document working-place checkpoints. The root is
+    // its document scrollport, so native restoration is both
     // more complete and less surprising than a parallel session-store reading. Leaf
     // intervenes for two semantic cases the platform cannot know: a fresh URL aimed at a
     // target a widget generates, hides, or moves (`aimArrival`), and travel to a

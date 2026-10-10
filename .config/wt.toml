@@ -13,17 +13,12 @@
 # lint rewrites the tree the suite reads, and the bundle rebuild needs the install the
 # first block makes and replaces bundles the suite copies into pages.
 #
-# `uv run` synchronizes the Python environment on every command, so the suite never meets
-# a stale one. Its node half had no such step: `tests/test_live_shell_artifact.py` runs
-# `worker/bundle-runtime.mjs`, which imports esbuild from an install git does not carry,
-# and a worktree that never ran setup failed the gate on a test its branch never touched.
-# `npm ci` gives the node side the same guarantee in seconds against a warm npm cache.
-# Each install writes only an ignored `node_modules/`, so they run beside the lint.
+# Setup waits for any background preparation, then verifies the dependencies the
+# suite reads. It owns installation and serialization for both entry points.
+# Installs write only ignored files, so they run beside the lint.
 [[pre-merge]]
 checks = "uv run pre-commit run -a"
-node = "npm ci"
-worker-node = "npm ci --prefix worker"
-eval-node = "npm ci --prefix evals"
+setup = "uv run --frozen leaf-dev setup"
 
 # The bundles build from the installed lock, so a rebuild reproduces the tracked bytes
 # exactly, and any difference is a lock nobody rebuilt from.
@@ -36,39 +31,14 @@ bundles = "npm run check:bundles"
 tests = "uv run pytest tests --nightly-changed-since main"
 node-checks = "npm run check"
 
-# A new worktree has no `node_modules`, so an ordinary `uv run pytest tests` fails before
-# anyone reaches a merge. Install in the background rather than blocking the switch; the
-# merge gate above installs again for the worktrees that predate this hook.
+# Prepare a new worktree while the agent starts working. The setup command also
+# serializes overlapping installs; its foreground entry below is the test barrier.
 [post-start]
-node = "npm ci"
+setup = "uv run --frozen leaf-dev setup"
 
-# uv run synchronizes the locked Python environment. The external images, browser
-# binaries, and website node_modules live outside it, so those remain explicit.
-[[aliases.setup]]
-assets = "uv run --frozen leaf-dev fetch-assets"
-
-[[aliases.setup]]
-chromium = "uv run --frozen playwright install --with-deps chromium --only-shell"
-
-[[aliases.setup]]
-webkit = "uv run --frozen playwright install --with-deps webkit"
-
-[[aliases.setup]]
-firefox = "uv run --frozen playwright install --with-deps firefox"
-
-[[aliases.setup]]
-chrome = "uv run --frozen playwright install chrome"
-
-# The root install carries the browser framework's build and the esbuild the Python suite
-# reaches through `worker/bundle-runtime.mjs`; `post-start` repeats it for every worktree
-# after this one, and only the first clone needs it from here. The worker install is
-# nearly three times larger (about 580M), so `post-start` leaves it to the worktrees that
-# build the website or reach the merge gate, which installs it for itself.
-[[aliases.setup]]
-browser = "npm ci"
-
-[[aliases.setup]]
-worker = "npm ci --prefix worker"
+# The same pipeline in the foreground, with failures propagated to the caller.
+[aliases]
+setup = "uv run --frozen leaf-dev setup"
 
 [[aliases.refresh-previews]]
 previews = "uv run --frozen leaf-dev refresh-previews"

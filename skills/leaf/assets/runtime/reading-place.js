@@ -16,12 +16,12 @@
  *
  * Whoever remembers a place owns when to take it and where to keep it: version
  * continuity (version.js) across revisions and reading-region shifts, a root tab set
- * (lf-tabs) for each of its views. The browser keeps a history entry's own offset
- * (history.js). `readingBlock` is the first block on screen in one region or the page;
- * `pageReadingBlock` is the block the user is reading, where a walk starts, and
- * `landingPlace` is where a let-go puts them. `openingPassage` gives travel the
- * passage its destination draws first, using the same rendered words as the visible
- * landmarks. It is independent of the viewport, so scrolling through a tall landing
+ * (lf-tabs) for each of its views. History's working-place checkpoints separately own
+ * an entry's viewport offset (history.js). `readingBlock` is the first block on screen
+ * in one region or the page; `pageReadingBlock` is the block the user is reading,
+ * where a walk starts, and `landingPlace` is where a let-go puts them. `openingPassage`
+ * gives travel the passage its destination draws first, using the same rendered words
+ * as the visible landmarks. It is independent of the viewport, so scrolling through a tall landing
  * does not turn a later passage into the trip's original arrival.
  */
 import {
@@ -310,60 +310,47 @@ function scrollerIdentity(scroller) {
 export function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
   if (!view || !currentIntent()) return;
   const box = region ? effectiveScroller(region) : pageScroller;
-  const standing = focusedPlace(view);
-  // A focus that remains visible after its region joins a different scroller can
-  // still be far from the passage's old reading band. Restore the landmark there;
-  // a focus with no saved landmark remains the only place to restore.
-  if (
-    standing &&
-    (rawOffsetFits(view, box) || (!view.quote && !view.section && !view.end)) &&
-    under(standing, region?.body ?? document.querySelector("body > main"))
-  ) {
-    scrollIntoReadingBand(standing, standing, "nearest", "instant");
-    return;
-  }
-  if (view.end) {
-    scrollToEnd(box);
-    return;
-  }
-  const boxTop = landingBand(box).top;
-  const text = pageText();
-  const found = view.quote && resolveAnchor(view, text);
-  const segments = targetSegments(found);
-  if (segments.length) {
-    reveal(segments[0].node.parentElement, currentIntent); // the passage may sit behind a tab
-    moveScrollerBy(
-      box,
-      rangeOf(segments).getBoundingClientRect().top - boxTop - view.quoteTop,
-    );
-    return;
-  }
-  // Repeated passage words may have no unique anchor. In that case the live
-  // focused control is still a precise place in this document; a section's
-  // opening is only a fallback for a reading with no such destination.
-  if (
-    standing &&
-    under(standing, region?.body ?? document.querySelector("body > main"))
-  ) {
-    scrollIntoReadingBand(standing, standing, "nearest", "instant");
-    return;
-  }
-  const section = targetElement(resolveAnchor({ section: view.section }, text));
-  if (section) {
-    reveal(section, currentIntent);
-    // A section containing this scroller cannot move when its contents scroll.
-    // Its outer rectangle therefore supplies no alignment inside the body: keep
-    // the old offset only in the same box, otherwise arrive at the section's opening.
-    if (under(box, section)) {
-      box.scrollTo({ top: rawOffsetFits(view, box) ? view.y : 0, behavior: "instant" });
-      return;
+  const destination = focusedPlace(view);
+  const standing =
+    destination &&
+    under(destination, region?.body ?? document.querySelector("body > main"))
+      ? destination
+      : null;
+  // Within one scroller, live focus is the reading place. Across a handover,
+  // first preserve the passage's reading band, then keep that focus reachable.
+  if (!standing || !rawOffsetFits(view, box)) {
+    if (view.end) {
+      scrollToEnd(box);
+    } else {
+      const boxTop = landingBand(box).top;
+      const text = pageText();
+      const segments = targetSegments(view.quote && resolveAnchor(view, text));
+      if (segments.length) {
+        reveal(segments[0].node.parentElement, currentIntent);
+        moveScrollerBy(
+          box,
+          rangeOf(segments).getBoundingClientRect().top - boxTop - view.quoteTop,
+        );
+      } else if (!standing) {
+        // An unresolved passage leaves live focus as the precise destination;
+        // section and raw-offset fallbacks belong to readings without one.
+        const section = targetElement(resolveAnchor({ section: view.section }, text));
+        if (section) {
+          reveal(section, currentIntent);
+          // A section containing the scroller cannot align its contents by its
+          // outer rectangle. Keep the old offset only in the same scrollport.
+          if (under(box, section))
+            box.scrollTo({
+              top: rawOffsetFits(view, box) ? view.y : 0,
+              behavior: "instant",
+            });
+          else moveScrollerBy(box, shownBox(section).top - boxTop - view.sectionTop);
+        } else if (rawOffsetFits(view, box))
+          box.scrollTo({ top: view.y, behavior: "instant" });
+      }
     }
-    // The shown reading on both sides of the subtraction, because the landmark is
-    // whatever id stands nearest the block the user was on, and a section that
-    // generates no box of its own is one a suggestion wrapping whole sections leaves
-    // there. Read raw, both sides come back 0 and the correction is 0 — so the restore
-    // that had somewhere to land did nothing, silently, and left the user at the top.
-    moveScrollerBy(box, shownBox(section).top - boxTop - view.sectionTop);
-  } else if (rawOffsetFits(view, box))
-    box.scrollTo({ top: view.y, behavior: "instant" });
+  }
+  // A restored passage or end can carry its focused control beyond the new
+  // viewport. Nearest reveal changes nothing when the destination already fits.
+  if (standing) scrollIntoReadingBand(standing, standing, "nearest", "instant");
 }

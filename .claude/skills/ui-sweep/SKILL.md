@@ -12,9 +12,15 @@ structure, then drive, judge, and fix them in the browser.
 ## First reading
 
 Open the exact candidate before reading its implementation or the author's verdict.
-Use the page for its stated task at ordinary browser zoom. Record the initial visual
-problems in the subject, actions, evidence, and supporting information. Give an
-independent reviewer the task and candidate before giving them the author's assessment.
+Use the page for its stated task at ordinary browser zoom. Before an input, name
+the subject information the reader needs to choose and correct it. Inspect
+user-controlled intermediate states and compare that information with its pre-input
+view: judge whether the interaction's controls and feedback preserve access to it.
+Vary user-controlled sizes from the smallest useful case to the largest, and
+positions through their useful range, alongside viewport dimensions.
+Record the initial visual problems in the subject, actions, evidence, and supporting
+information. Give an independent reviewer the task and candidate before giving them
+the author's assessment.
 
 ## Derive
 

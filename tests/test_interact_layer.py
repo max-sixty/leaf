@@ -141,6 +141,7 @@ def test_agent_interaction_command_help(regtest):
     for command in (
         "wait",
         "delivery read",
+        "delivery ack",
         "page state",
         "thread summarize",
         "status",

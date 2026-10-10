@@ -4023,6 +4023,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     # delivery Claude Code's prompt hook takes.
     (page_dir / "index.html").write_text(WALKTHROUGH_PAGE)
     publish(page_dir)
+    service_model.claim_page(page_dir)
     session_model.cmd_waiting(page_dir, "")
     posted = {
         "kind": "comment",
@@ -4253,12 +4254,14 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     )
     started = codex_model.app_server_turn_start_params(thread, prepared.payload)
     delivery_model.cmd_delivery_read(prepared.payload["id"])
-    assert json.loads(started["toolOutput"]["output"]) == json.loads(
-        capsys.readouterr().out
-    )
+    reader = json.loads(capsys.readouterr().out)
+    assert json.loads(started["toolOutput"]["output"]) == prepared.payload
+    assert reader["batches"] == prepared.payload["batches"]
+    assert f"leaf delivery ack {prepared.payload['id']}" in reader["acknowledge"]
 
-    # Claude Code: the wait claims the page and wakes the session, and the prompt
-    # hook of the turn it opens hands the delivery over.
+    # Claude Code explicitly claims the page; wait wakes the session, and the
+    # prompt hook of the turn it opens hands the delivery over.
+    service_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     woke = capsys.readouterr().out
     hooks_model.cmd_hook(

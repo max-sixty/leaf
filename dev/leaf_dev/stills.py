@@ -151,6 +151,20 @@ def playground_text(page: Page) -> None:
     expect(field).to_have_value("Deployment ready")
 
 
+def banner_more(page: Page) -> None:
+    """The banner's More icon with its keyboard focus paint."""
+    page.keyboard.press("Tab")
+    page.locator(".lf-banner-more").focus()
+
+
+def playground_choice(page: Page) -> None:
+    """Keyboard focus on the choice's whole labelled hit target."""
+    page.keyboard.press("Tab")
+    radio = page.locator(".lf-playground-radio").first
+    radio.scroll_into_view_if_needed()
+    radio.focus()
+
+
 def card_by_pointer(page: Page) -> None:
     """The first margin card, opened by a click on its marker."""
     page.locator(".lf-margin-marker").first.click()
@@ -671,6 +685,8 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         share_link,
         diff_filter,
         playground_text,
+        banner_more,
+        playground_choice,
         card_by_pointer,
         card_by_keyboard,
         card_more_room,
@@ -796,6 +812,43 @@ class State:
 
 
 STATES = (
+    State(
+        "banner-more",
+        "developer/feature-gallery",
+        banner_more,
+        region=".lf-banner-more",
+    ),
+    State(
+        "banner-more-phone-dark",
+        "developer/feature-gallery",
+        banner_more,
+        viewport=(390, 844),
+        scheme="dark",
+        touch=True,
+        region=".lf-banner-more",
+    ),
+    State(
+        "playground-choice",
+        "notification-playground",
+        playground_choice,
+        region=".lf-playground-choice-face:has(> input:focus)",
+    ),
+    State(
+        "playground-choice-phone-dark",
+        "notification-playground",
+        playground_choice,
+        viewport=(390, 844),
+        scheme="dark",
+        touch=True,
+        region=".lf-playground-choice-face:has(> input:focus)",
+    ),
+    State(
+        "trace-transport-icons",
+        "developer/playwright-trace-gallery",
+        trace_controls,
+        viewport=(540, 720),
+        region=".lf-trace-toolbar",
+    ),
     State(
         "drawing-photo-comment",
         "developer/feature-gallery",

@@ -12,6 +12,8 @@
  * CSS anchors keep the card with its phrase. */
 import {
   keeps,
+  showNativeLayer,
+  closeNativeLayer,
   offer,
   once,
   paintKeys,
@@ -171,9 +173,9 @@ customElements.define(
       paintKeys();
 
       if (show) {
-        this.#bubble.showPopover();
+        showNativeLayer(this.#bubble);
       } else {
-        if (this.#bubble.matches(":popover-open")) this.#bubble.hidePopover();
+        if (this.#bubble.matches(":popover-open")) closeNativeLayer(this.#bubble);
       }
     }
   },

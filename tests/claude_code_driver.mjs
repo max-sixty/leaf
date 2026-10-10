@@ -33,7 +33,7 @@ let appends = 0;
 function start(argv, env, input) {
   const child = spawn(argv[0], argv.slice(1), {
     env: { ...process.env, ...env },
-    stdio: ["pipe", "pipe", "ignore"],
+    stdio: ["pipe", "pipe", "pipe"],
   });
   child.stdin.on("error", () => {});
   child.stdin.end(input ?? "");
@@ -44,6 +44,7 @@ function start(argv, env, input) {
  * how it ended. As in Claude Code, `return()` ends the read at once and
  * terminates the child, even while a read waits on it. */
 function stream(request) {
+  if (options.throwWatchSpawn) throw new Error("host cannot spawn watch");
   if (request.argv.includes("--watch")) {
     print({
       watching: { ...JSON.parse(request.input), previous_active_watches: watches.size },
@@ -52,8 +53,11 @@ function stream(request) {
   const child = start(request.argv, request.env, request.input);
   if (request.argv.includes("--watch")) watches.add(child);
   let output = "";
+  let errors = "";
   child.stdout.on("data", (text) => (output += text));
-  const ended = new Promise((resolve) =>
+  child.stderr.on("data", (text) => (errors += text));
+  const ended = new Promise((resolve, reject) => {
+    child.on("error", reject);
     child.on("close", (code, signal) => {
       watches.delete(child);
       resolve({ code, signal });
@@ -62,8 +66,8 @@ function stream(request) {
       if (request.argv.includes("--watch")) {
         setImmediate(() => print({ watched: JSON.parse(request.input) }));
       }
-    }),
-  );
+    });
+  });
   let stop;
   const stopped = new Promise((resolve) => (stop = resolve));
   let finished = false;
@@ -82,6 +86,11 @@ function stream(request) {
         output = "";
         return { done: false, value: { stream: "stdout", text } };
       }
+      if (errors) {
+        const text = errors;
+        errors = "";
+        return { done: false, value: { stream: "stderr", text } };
+      }
       finished = true;
       return { done: true, value: how };
     },
@@ -99,7 +108,7 @@ function stream(request) {
 }
 
 const $ = {
-  plugin: { name: "leaf", root: ROOT },
+  plugin: { name: "leaf", root: options.pluginRoot ?? ROOT },
   session: {
     id: async () => session,
     append: async ({ message }) => {
@@ -116,15 +125,18 @@ const $ = {
       print({ submitted: text });
     },
   },
-  ui: { log: (text) => process.stderr.write(`${text}\n`) },
+  ui: { log: (text) => print({ diagnostic: text }) },
   process: {
     run: (argv, init = {}) =>
-      new Promise((resolve) => {
+      new Promise((resolve, reject) => {
         const child = start(argv, init.env, init.stdin);
         let stdout = "";
+        let stderr = "";
         child.stdout.on("data", (text) => (stdout += text));
+        child.stderr.on("data", (text) => (stderr += text));
+        child.on("error", reject);
         child.on("close", (code) => {
-          const finish = () => resolve({ exitCode: code ?? 1, stdout, stderr: "" });
+          const finish = () => resolve({ exitCode: code ?? 1, stdout, stderr });
           if (
             options.holdPromptHook &&
             init.stdin &&

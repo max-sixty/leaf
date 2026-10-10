@@ -35,7 +35,7 @@ from .structure import VOID_TAGS, SourceDocument
 #               the log's outcomes drops here exactly what drops there — and a widget
 #               whose decision leaves nothing showing goes with its slots (settledAway
 #               there, `gone` here). Its values are also the vocabulary's decision
-#               verbs, which is where `asks` reads them from.
+#               verbs, which is where `questions` reads them from.
 #   x-state, record kind "body"  the verb whose detail text becomes this element's
 #               body once the user sends one (lf-draft's `edit`): replay writes
 #               the newest surviving one into the DOM verbatim (renderState is

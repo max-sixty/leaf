@@ -98,9 +98,9 @@ change a session service to standing, stop it and start with `--standing`;
 starting a stopped service from the user's shell also selects standing.
 
 A session page retires when no live session holds it. Desktop Codex keeps the
-chat's ownership and delivery across an idle instance unloading; its pages retire
-after four hours without page use, renewed by a visible page or agent revision.
-Terminal sessions release ownership when their harness ends.
+chat's ownership and delivery across idle instance unloading and long absences.
+Archiving or deleting the chat ends that lifetime. Terminal sessions release
+ownership when their harness ends.
 
 `server start --standing`, or serving from the user's shell, makes a page stay
 live between sessions and prepares no agent delivery. Tell the user when starting
@@ -114,7 +114,7 @@ conversation follows `page-checkpoints.md`, "Sign-off and ending".
 
 ## Resuming a standing or foreign page
 
-Resume a page from one session only. A named `leaf wait <page>` moves the claim to
+Resume a page from one session only. `leaf page claim <page>` moves the claim to
 whichever session runs it, and a watcher another session still runs stops watching
 that page. First read the page:
 
@@ -123,24 +123,30 @@ leaf page state <page>
 ```
 
 Read the active revision's HTML (`active.file`) and the standing `state` over it,
-then open Asks, current thread state, and `measurement_lag` for figures whose sources
+then open Questions, current thread state, and `measurement_lag` for figures whose sources
 have run again. Before editing, follow `authoring-revisions.md`'s "Read
-before editing" section. Then run `leaf wait <page>` to claim it, or, where your
-harness contract says its own hook watches between turns, `leaf page claim <page>`. Starting a server
+before editing" section. Then run `leaf page claim <page>` and follow your harness
+contract for watching it. Starting a server
 when the standing one is already live prints its URL without changing its lifetime.
 
 ## Inspecting interactions
 
-For a served page, read the private diagnostic stream while reproducing a user or
-test-agent path:
+For a served page, read the private diagnostic stream to reconstruct a user or
+test-agent path. Select a browser tab and a time window using ISO times with
+explicit timezone offsets:
 
 ```bash
-tail -F <page>/interactions.jsonl
+leaf page interactions <page> --session TAB \
+  --since 2026-10-08T23:08:42-07:00 --until 2026-10-08T23:08:54-07:00 \
+  --type keydown --type command --type focusin
 ```
 
-It combines browser gestures and server request outcomes in delivery order. Browser
-rows carry a tab session, event time, and sequence; large values appear as ordered
-`interaction_part` rows whose `json` fields concatenate to the original row.
+Omit the session filter to include server requests, which have no browser session
+association. Use `--json` for complete structured values, or `tail -F
+<page>/interactions.jsonl` to follow raw delivery order while reproducing. The
+reader orders observations by their recorded time, deduplicates retries,
+reconstructs split values, and retains visible gap diagnostics under type filters.
+Browser and server clocks can differ; recorded order alone does not prove causation.
 The semantic decisions remain in `leaf page events <page>`. See [page-storage.md](../scripts/leaf/page-storage.md)
 for the file contract. The public site stores its browser batches in Workers
 Observability; `worker/README.md` describes lookup by session reference.

@@ -28,7 +28,6 @@ import { holdFocus, focusDestination, focused } from "../focus.js";
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
-import { reactionReading } from "./reaction-model.js";
 import { offer, reachedForWords, measure, reserve } from "../widget-elements.js";
 import { keeps, keepsHidden, layoutPx } from "../keeps.js";
 import { keys } from "../keyboard/scopes.js";
@@ -121,7 +120,7 @@ export function threadReading(thread, surface, commands, options) {
         typeof commands.nativeAuthored === "function"
           ? commands.nativeAuthored(message)
           : Boolean(commands.nativeAuthored ?? panel),
-      reactions: reactionReading(thread, message, panel || surface === "outlet"),
+      reactions: panel || surface === "outlet" ? message.reactions : null,
       workflows: message.workflows,
     }),
   );
@@ -1225,7 +1224,7 @@ export class ThreadView {
     // The trip promises to show the passage, so it clears the panel where the panel
     // stands over most of it and leaves the panel open beside one seen where it stands.
     travel.scrollToThread(model.id, {
-      focus: "reply",
+      part: "reply",
     });
   };
 
@@ -1328,8 +1327,7 @@ export class ThreadView {
         if (!mayLand.available() || (may && !may())) return;
         const restoreFocus = (may ?? mayRestore)();
         await narrowing.restore(async () => {
-          if (restoreFocus)
-            await travel.showThread(this.#model.id, { focus: "thread" });
+          if (restoreFocus) await travel.showThread(this.#model.id, { part: "thread" });
         });
       },
     };

@@ -23,6 +23,12 @@ export function setChildren(parent, nodes, remove = detach) {
   order(parent, nodes);
 }
 
+// Order this renderer's children without taking ownership of their siblings.
+export function orderChildren(parent, nodes) {
+  const owned = new Set(nodes);
+  order(parent, nodes, (node) => !owned.has(node));
+}
+
 // Replace a renderer-owned subtree using the same matching and text edits as an
 // authored revision. The caller owns every descendant's attributes and contents;
 // controls with independent state belong outside it. Current nodes pair to themselves,

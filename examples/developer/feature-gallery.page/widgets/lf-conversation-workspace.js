@@ -1,25 +1,27 @@
 /* A package chooses layout while Leaf retains conversations, messages and replies.
    Local selection and ordering never change the log or decide obligation membership. */
 import {
-  askAnswers,
+  compoundReadingRegionId,
   HeldReading,
   keepsHidden,
   keeps,
   keepsText,
   offer,
-  openThread,
   queueActions,
   queueItemKey,
-  readAsks,
+  queueTitle,
+  readQuestions,
+  questionWords,
   readQueues,
   readThreads,
   registerThreadPresentation,
+  registerReadingRegion,
   setChildren,
   shadowStage,
   threadActions,
   threadSummary,
   threadTurns,
-  watchAsks,
+  watchQuestions,
   watchQueues,
 } from "/runtime/widget-api.js";
 
@@ -28,21 +30,27 @@ customElements.define(
   class extends HTMLElement {
     connectedCallback() {
       if (!this.layout) this.build();
+      this.stopRegions = this.regionBodies.map(([name, body]) =>
+        registerReadingRegion({
+          id: compoundReadingRegionId(this, name),
+          host: body,
+          body,
+        }),
+      );
       this.presentation = registerThreadPresentation(this, {
         render: (collection, parts) => this.present(collection, parts),
-        open: async (key, request) => {
+        reveal: (key) => {
           this.selected = key;
           this.mode = "Conversation";
-          await this.presentation.update();
-          return request.current() ? this.presentation.destination(key, request) : null;
         },
       });
-      this.stopAsks = watchAsks(this, () => this.paintObligations());
+      this.stopQuestions = watchQuestions(this, () => this.paintObligations());
       this.stopQueues = watchQueues(this, () => this.paintObligations());
     }
     disconnectedCallback() {
+      for (const stop of this.stopRegions) stop();
       this.presentation.unregister();
-      this.stopAsks();
+      this.stopQuestions();
       this.stopQueues();
       this.indexOrder.dispose();
     }
@@ -88,7 +96,7 @@ customElements.define(
         const button = offer("button", "lf-btn", mode);
         button.addEventListener("click", () => {
           this.mode = mode;
-          void this.presentation.update();
+          void this.presentation.update({ release: true });
         });
         toolbar.append(button);
         return button;
@@ -113,6 +121,15 @@ customElements.define(
       index.prepend(conversations);
       this.reader = offer("section", "reader");
       this.reader.setAttribute("aria-label", "Conversation reader");
+      this.regionBodies = [
+        ["reader", this.reader],
+        ["index", index],
+        ["conversations", this.list],
+        ...Object.entries(this.queues).map(([name, body]) => [
+          name.toLowerCase(),
+          body,
+        ]),
+      ];
       body.append(index, this.reader);
       const compose = offer("form", "compose");
       this.input = offer("input");
@@ -173,8 +190,7 @@ customElements.define(
           const node = offer("li");
           const button = offer("button", "lf-btn");
           button.addEventListener("click", () => {
-            const current = readThreads().threads.find((item) => item.key === key);
-            if (current) void openThread(current.id, { focus: "thread" });
+            void threadActions.open(key, { part: "thread" });
           });
           node.append(button);
           row = { node, button };
@@ -196,10 +212,8 @@ customElements.define(
       if (this.mode === "Feed") {
         for (const thread of collection.threads)
           for (const message of threadTurns(thread)) {
-            const outlet = this.outlet(
-              JSON.stringify([thread.key, message.attempt ?? message.id]),
-            );
-            nominations.push(["message", thread.key, message.id, outlet]);
+            const outlet = this.outlet(JSON.stringify([thread.key, message.key]));
+            nominations.push(["message", thread.key, message.key, outlet]);
           }
         if (selected)
           nominations.push([
@@ -228,7 +242,7 @@ customElements.define(
       for (const [kind, key, message, outlet] of nominations)
         if (kind === "message") parts.message(key, message, outlet);
         else if (kind === "reply") parts.reply(key, outlet);
-        else parts.render(key, outlet);
+        else parts.thread(key, outlet);
       this.paintObligations();
     }
     indexLayout() {
@@ -248,13 +262,25 @@ customElements.define(
       return JSON.parse(shown);
     }
     paintObligations() {
-      const asks = readAsks();
-      const answers = askAnswers(asks.all).filter(
-        (answer) => answer !== null && answer !== "",
+      const questions = readQuestions();
+      const answered = questions.all.filter(
+        (question) => question.status === "answered",
       );
+      // Counts cover every Question; this summary lists completed widget choices.
+      const labels = questions.all
+        .filter(
+          (question) =>
+            question.source.kind === "widget" && question.status === "answered",
+        )
+        .map(questionWords)
+        .filter(Boolean);
       keepsText(
         this.counts,
-        `${asks.user.length} Asks on you${answers.length ? " · " + answers.join(" · ") : ""}`,
+        [
+          `${questions.user.length} Questions on you`,
+          ...(answered.length ? [`${answered.length} answered`] : []),
+          ...labels,
+        ].join(" · "),
       );
       const queues = readQueues();
       const layout = this.indexLayout();
@@ -281,7 +307,7 @@ customElements.define(
             setChildren(row.node, []);
             return row.node;
           }
-          keepsText(row.open, item.title ?? item.detail ?? item.kind);
+          keepsText(row.open, `Open ${queueTitle(item)}`);
           setChildren(row.node, item.offers.done ? [row.open, row.done] : [row.open]);
           return row.node;
         });

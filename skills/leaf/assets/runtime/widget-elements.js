@@ -306,6 +306,7 @@ export const offerElement = (...args) =>
 export function searchField(cls, { name, label, placeholder = label }) {
   const field = offer("wa-input", `lf-search-field lf-label-hidden ${cls}`);
   field.type = "search";
+  field.value = "";
   field.size = "s";
   field.withClear = true;
   // delegatesFocus keeps one native stop; the host declaration also lets modal

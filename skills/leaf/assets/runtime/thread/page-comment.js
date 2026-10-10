@@ -25,13 +25,14 @@
    the card spans the window under the banner. The box stands and takes words from the
    first paint: the offline banner says a comment will not send, not that there is
    nowhere to write it. */
+import { showNativeLayer, closeNativeLayer } from "../keyboard/layer-stack.js";
 import { el } from "../widget-elements.js";
 import { iconElement } from "../icons.js";
 import { textField } from "../composing/text-field.js";
 import { closeLayer, focusDestination } from "../focus.js";
 import { retainUserIntent } from "../user-intent.js";
 import { loadDraft, mirrorDraft, saveDraft, sendMessage } from "../drafts.js";
-import { FLASH_MS, backgroundFlash } from "../motion.js";
+import { flashDuration, backgroundFlash } from "../motion.js";
 import { keys } from "../keyboard/scopes.js";
 import { commandShortcut } from "../keyboard/control-keys.js";
 import { keeps } from "../keeps.js";
@@ -86,7 +87,7 @@ export function createPageComment({
       description: () =>
         holds() ? "Close the card, keeping the draft" : "Close the card",
       title: () => (holds() ? "close — draft kept" : "close"),
-      run: () => card.hidePopover(),
+      run: () => closeNativeLayer(card),
     },
   ]);
 
@@ -98,7 +99,7 @@ export function createPageComment({
   // away; opened with the control as its source, the card does not count a press on the
   // control as one outside it.
   control.addEventListener("click", () => {
-    if (cardIsOpen()) card.hidePopover();
+    if (cardIsOpen()) closeNativeLayer(card);
     else open();
   });
   registerBannerControl({
@@ -118,7 +119,7 @@ export function createPageComment({
       // a phone.
       const door = bannerControlDoor(control);
       if (door) focusDestination(door, "move");
-      card.showPopover({ source: control });
+      showNativeLayer(card, { source: control });
     }
     // At once rather than at `toggle`, which comes a task later: the words typed right
     // after the press belong in the box, not to the control or the page's keys.
@@ -154,7 +155,7 @@ export function createPageComment({
         if (!handle) return;
         const door = bannerControlDoor(control);
         closeLayer(
-          () => card.hidePopover(),
+          () => closeNativeLayer(card),
           () => focusDestination(door, "return"),
         );
         const mayRestore = retainUserIntent({
@@ -164,7 +165,7 @@ export function createPageComment({
         // Open, Threads shows the thread where it lands, as it does an anchored comment's
         // (composing/selection.js); the user returns to the banner door.
         if (panelIsOpen()) void showThread(handle.id, { focus: false, flash: false });
-        backgroundFlash(threadsToggle, FLASH_MS);
+        backgroundFlash(threadsToggle, flashDuration());
         // Delivery may refuse long after Send. Restore text entry only while the user
         // still stands at the door; a later gesture owns its focus and disclosure.
         void Promise.resolve(flight).then((accepted) => {
@@ -184,7 +185,7 @@ export function createPageComment({
   return {
     control,
     open,
-    close: () => cardIsOpen() && card.hidePopover(),
+    close: () => cardIsOpen() && closeNativeLayer(card),
     // The box `c` names when there is nothing else to comment on.
     box: input,
     // The box restates its hint and Send state when Design mode changes.

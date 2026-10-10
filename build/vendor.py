@@ -13,8 +13,13 @@ load and writes the bundle's license notices (`vendor`).
 Every version they carry is the one `package-lock.json` resolved: `package.json`
 names each package a bundle's entry imports, the lock settles the rest of the
 closure, and every build reads the root `node_modules` that `npm ci` installs from
-it. So a run after `npm ci` reproduces the tracked bytes, and a moved lock is the
-only thing that moves them.
+it. Pinned source backports are explicit build inputs beside this file. Together
+with the lock, those inputs reproduce the tracked bytes after `npm ci`.
+
+CodeMirror's style-mod provider expands its selectors before this build places
+its resulting rules in `lf-base`. The guarded provider adaptation preserves
+CodeMirror's sheet identity and mounting while letting Leaf and page-authored CSS
+participate in the ordinary cascade. A changed upstream seam fails the build.
 
 With no arguments it rebuilds everything; name bundles to redo only those.
 """
@@ -210,12 +215,32 @@ def build_photoswipe(work: Path) -> list[Path]:
     return [out]
 
 
+def build_snapdom(work: Path) -> list[Path]:
+    """Browser-native DOM rasterization, loaded only when capturing a page region."""
+    out = ASSETS / "vendor/snapdom.esm.js"
+    (work / "entry.mjs").write_text(
+        'export { snapdom } from "@zumer/snapdom";\n', encoding="utf-8"
+    )
+    esbuild(
+        "entry.mjs",
+        "--bundle",
+        "--format=esm",
+        "--minify",
+        "--legal-comments=inline",
+        f"--outfile={out}",
+        cwd=work,
+    )
+    return [out]
+
+
 def build_codemirror(work: Path) -> list[Path]:
-    """CodeMirror 6 is the editor inside every runtime composer (`leaf-text`).
+    """One CodeMirror 6 core for runtime composers and optional file editors.
 
     One bundle holds the editor core and the GFM Markdown language, exporting
-    exactly the names `composing/text-field.js` imports. The runtime owns the
-    live-preview decorations; nothing here styles a document. The language comes
+    the names composers and the file-editor adapter import. Optional autocomplete
+    and merge live in the file-editor package and import this same
+    state/view/language implementation. The runtime owns the live-preview
+    decorations; nothing here styles a document. The language comes
     without `markdown()`, whose HTML-block support would carry the HTML, CSS and
     JavaScript grammars into the bundle for syntax a comment never highlights.
 
@@ -239,6 +264,23 @@ def build_codemirror(work: Path) -> list[Path]:
         raise ValueError(f"CodeMirror wrapping measurement seam changed: {original}")
     source = source.replace(original, replacement)
     source_path.write_text(source, encoding="utf-8")
+    # CodeMirror owns selector expansion and module mounting. Its style provider
+    # has no cascade-layer option; wrap each module after it has generated its
+    # rules, so base themes and syntax highlights share Leaf's default tier too.
+    # Wrapping the input spec instead would expand CodeMirror's &light/&dark
+    # selectors against the at-rule rather than their editor class.
+    style_mod = work / "node_modules/style-mod"
+    shutil.copytree(NODE_MODULES / "style-mod", style_mod)
+    style_source = style_mod / "src/style-mod.js"
+    style_text = style_source.read_text(encoding="utf-8")
+    seam = "for (let prop in spec) render(splitSelector(prop), spec[prop], this.rules)"
+    if style_text.count(seam) != 1:
+        raise ValueError("CodeMirror style-module generation seam changed")
+    style_text = style_text.replace(
+        seam,
+        seam + '\n    this.rules = ["@layer lf-base {\\n" + this.getRules() + "\\n}"]',
+    )
+    style_source.write_text(style_text, encoding="utf-8")
     out = ASSETS / "vendor/codemirror.esm.js"
     (work / "entry.mjs").write_text(
         (
@@ -251,6 +293,11 @@ def build_codemirror(work: Path) -> list[Path]:
             'export { LanguageSupport } from "@codemirror/language";\n'
             "export { markdownLanguage, insertNewlineContinueMarkup }"
             ' from "@codemirror/lang-markdown";\n'
+            'export { ChangeSet, EditorSelection, Prec, Transaction, Annotation, Facet, RangeSet, RangeSetBuilder, StateField, Text, codePointAt, codePointSize, fromCodePoint, combineConfig, MapMode, RangeValue, CharCategory } from "@codemirror/state";\n'
+            'export { drawSelection, lineNumbers, highlightActiveLineGutter, highlightActiveLine, dropCursor, rectangularSelection, crosshairCursor, GutterMarker, gutter, WidgetType, logException, Direction, showTooltip, getTooltip } from "@codemirror/view";\n'
+            'export { defaultKeymap } from "@codemirror/commands";\n'
+            'export { HighlightStyle, syntaxHighlighting, indentOnInput, bracketMatching, syntaxTree, indentUnit, language, highlightingFor } from "@codemirror/language";\n'
+            'export { tags, highlightTree } from "@lezer/highlight";\n'
         ),
         encoding="utf-8",
     )
@@ -261,9 +308,23 @@ def build_codemirror(work: Path) -> list[Path]:
         "--minify",
         "--legal-comments=inline",
         f"--alias:@codemirror/view={source_path}",
+        f"--alias:style-mod={style_source}",
         f"--outfile={out}",
         cwd=work,
     )
+    return [out]
+
+
+def build_file_editor(work: Path) -> list[Path]:
+    """File editing extensions sharing the runtime's CodeMirror implementation.
+
+    The adapter is authored JavaScript. Merge and autocomplete live in this
+    optional package; their state/view/language imports resolve to the same core
+    that Leaf's composers use, so extensions never mix CodeMirror identities.
+    """
+    shutil.copyfile(ROOT / "build/file-editor/build.mjs", work / "build.mjs")
+    out = package_vendor("file-editor") / "extensions.esm.js"
+    run("node", "build.mjs", str(out), cwd=work)
     return [out]
 
 
@@ -309,6 +370,16 @@ def build_floating_ui(work: Path) -> list[Path]:
     positioning and lifecycle middleware used by Leaf's floating chrome are exported;
     esbuild drops the rest.
     """
+    # Backport upstream CSS-zoom support, merged but absent from published 1.8.0:
+    # https://github.com/floating-ui/floating-ui/pull/3492
+    # Commit 584a3afb1174ec00a371624afde50fc052b75a32, applied to its published ESM.
+    # Build from private copies so npm's installed source remains authoritative.
+    for package in ("core", "dom"):
+        shutil.copytree(
+            NODE_MODULES / "@floating-ui" / package,
+            work / "node_modules/@floating-ui" / package,
+        )
+    run("git", "apply", str(ROOT / "build/floating-ui-zoom.patch"), cwd=work)
     out = ASSETS / "vendor/floating-ui.esm.js"
     (work / "entry.mjs").write_text(
         "export { autoUpdate, getOverflowAncestors, computePosition, flip, limitShift, offset, shift, size } "
@@ -549,6 +620,7 @@ def build_trace_images(work: Path) -> list[Path]:
 
 
 BUILDS: dict[str, Callable[[Path], list[Path]]] = {
+    "snapdom": build_snapdom,
     "trace-timeline": build_trace_timeline,
     "trace-images": build_trace_images,
     "markdown": build_markdown,
@@ -556,6 +628,7 @@ BUILDS: dict[str, Callable[[Path], list[Path]]] = {
     "sortable": build_sortable,
     "agentic-mermaid": build_agentic_mermaid,
     "codemirror": build_codemirror,
+    "file-editor": build_file_editor,
     "floating-ui": build_floating_ui,
     "syntax": build_syntax,
     "jsdiff": build_jsdiff,

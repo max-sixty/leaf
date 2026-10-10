@@ -3,7 +3,11 @@
  *
  * Cloudflare serves the immutable live shell, initial state, and published data of each
  * product and example page at the edge. A request needing mutation starts the Python
- * Leaf server in a container selected by an opaque browser cookie. The container starts
+ * Leaf server in a container selected by an opaque browser cookie. Disposable sample
+ * URLs carry the opaque container object ID alongside their own random capability,
+ * so an opaque-origin child uses native requests without a browser session cookie.
+ * This routing reference selects a container only beneath that sample capability;
+ * it grants no access to its parent page. The container starts
  * with the same complete page directories and writes only to its own ephemeral
  * filesystem, so one user can exercise the real event log without changing another
  * user's page.
@@ -990,6 +994,15 @@ export default {
     const manifest = await siteManifest(request, env);
     const releasedAsset = releaseAssetRoute(pathname, manifest);
     if (releasedAsset !== null) {
+      if (request.method === "OPTIONS")
+        return new Response(null, {
+          status: 204,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+          },
+        });
       const assetUrl = new URL(request.url);
       assetUrl.pathname = releasedAsset.pathname;
       const response = stampedStaticResponse(
@@ -999,6 +1012,8 @@ export default {
       );
       const headers = new Headers(response.headers);
       headers.set("Cache-Control", "public, max-age=31536000, immutable");
+      headers.set("Access-Control-Allow-Origin", "*");
+      headers.set("Access-Control-Expose-Headers", "*");
       return new Response(response.body, {
         status: response.status,
         statusText: response.statusText,
@@ -1013,6 +1028,27 @@ export default {
       const canonical = new URL(request.url);
       canonical.pathname += "/";
       return Response.redirect(canonical.toString(), 308);
+    }
+
+    // An opaque sample has no session cookie. The first sample segment carries a
+    // namespace object ID for routing; Python admits only the independent random
+    // sample capability. Nested samples retain this first routing reference.
+    const sample = /^api\/samples\/[a-f0-9]{32}~([a-f0-9]{64})(?:\/|$)/.exec(route.inside);
+    if (sample) {
+      let id: DurableObjectId;
+      try {
+        id = env.PAGES.idFromString(sample[1]);
+      } catch {
+        return new Response("not found", { status: 404 });
+      }
+      const response = await env.PAGES.get(id).fetch(request);
+      const headers = new Headers(response.headers);
+      headers.delete("Set-Cookie");
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      });
     }
 
     const secure = url.protocol === "https:";
@@ -1134,7 +1170,25 @@ export default {
         ctx.waitUntil(dispatchAgentTask(env, params));
       }
     }
+    let body: BodyInit | null = response.body;
+    if (request.method === "POST" && route.inside === "api/samples" && response.ok) {
+      const answer = await response.json() as { url: string };
+      const allocated = new URL(answer.url, request.url);
+      const tail = allocated.pathname.slice(pathname.length);
+      if (allocated.origin !== url.origin || !allocated.pathname.startsWith(`${pathname}/`) ||
+          !/^\/[a-f0-9]{32}\/$/.test(tail)) {
+        throw new Error("sample allocation returned an invalid URL");
+      }
+      const objectId = env.PAGES.idFromName(privateContainer).toString();
+      allocated.pathname = `${allocated.pathname.slice(0, -1)}~${objectId}/`;
+      answer.url = allocated.pathname;
+      body = JSON.stringify(answer);
+    }
     const headers = new Headers(response.headers);
+    if (body !== response.body) {
+      headers.delete("Content-Length");
+      headers.delete("Content-Encoding");
+    }
     headers.set("Leaf-Session", "active");
     headers.set("Leaf-Session-Reference", reference);
     if (existing === null) {
@@ -1144,7 +1198,7 @@ export default {
     if (response.headers.get("Content-Type")?.startsWith("text/html")) {
       headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
     }
-    return new Response(response.body, {
+    return new Response(body, {
       status: response.status,
       statusText: response.statusText,
       headers,

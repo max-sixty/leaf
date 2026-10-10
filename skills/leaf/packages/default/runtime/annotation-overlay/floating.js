@@ -80,6 +80,18 @@ export const floatingUi = () =>
   (floatingUiModule ??= import("/vendor/floating-ui.esm.js"));
 afterPresentation(floatingUi);
 
+// Ask the solver's platform how one positioning pixel reaches the viewport. A Window
+// offset parent can still be scaled by CSS zoom; getScale(Window) cannot describe it.
+export async function positioningScale({ elements, platform, strategy }) {
+  const unit = await platform.convertOffsetParentRelativeRectToViewportRelativeRect({
+    elements,
+    offsetParent: await platform.getOffsetParent(elements.floating),
+    strategy,
+    rect: { x: 0, y: 0, width: 1, height: 1 },
+  });
+  return { x: unit.width, y: unit.height };
+}
+
 // How far the box's positioning space stands from client coordinates, read from the
 // reference's rectangle in both, so any box measured with the reference can be named in
 // that space. Nothing where a transform, filter, or containment between the box and the
@@ -87,15 +99,18 @@ afterPresentation(floatingUi);
 // outside that block cannot position it.
 const anchorAt = (reference, context, origins) => ({
   name: "anchorAt",
-  async fn({ rects, elements, platform }) {
+  async fn(state) {
+    const { rects, elements, platform } = state;
     if ((await platform.getOffsetParent(elements.floating)) !== window)
       return { data: { offset: null } };
     const client = reference.getBoundingClientRect();
+    const scale = await positioningScale(state);
     return {
       data: {
+        scale,
         offset: {
-          x: rects.reference.x - client.left,
-          y: rects.reference.y - client.top,
+          x: rects.reference.x - client.left / scale.x,
+          y: rects.reference.y - client.top / scale.y,
         },
         scrollOffsets: await referenceScrolls(context, origins, (element) =>
           platform.getOffsetParent(element),
@@ -135,7 +150,8 @@ function holderOf({ edge, at }, context, overflowAncestors) {
 // an edge the boundary shifted the box against outranks it.
 const held = {
   name: "held",
-  async fn({ placement, rects, middlewareData, elements, platform }) {
+  async fn(state) {
+    const { placement, rects, middlewareData, elements, platform } = state;
     const [side, alignment] = placement.split("-");
     const aligned = (start, end) => (alignment === "end" ? end : start);
     const edges =
@@ -148,12 +164,18 @@ const held = {
     if (Math.abs(shifted.y ?? 0) >= 0.5) edges.y = shifted.y < 0 ? "bottom" : "top";
     const parent = await platform.getOffsetParent(elements.floating);
     const block = parent === window ? document.documentElement : parent;
+    // In standards mode the root's client dimensions are already viewport pixels;
+    // only the floating box's scale converts them to its positioning pixels.
+    const scale = parent === window ? await positioningScale(state) : { x: 1, y: 1 };
     return {
       data: {
         edges,
         width: rects.floating.width,
         height: rects.floating.height,
-        block: { width: block.clientWidth, height: block.clientHeight },
+        block: {
+          width: block.clientWidth / scale.x,
+          height: block.clientHeight / scale.y,
+        },
       },
     };
   },
@@ -404,7 +426,7 @@ export function floatingPlacement({ floating, update }) {
       // its previous effects only when this answer can replace their measurement.
       const previousAnimations = scrollAnimations;
       scrollAnimations = [];
-      const { offset } = answer.middlewareData.anchorAt;
+      const { offset, scale } = answer.middlewareData.anchorAt;
       const wanted = planeOf(answer);
       const holder =
         anchoring && offset && physical && typeof wanted === "object"
@@ -421,8 +443,8 @@ export function floatingPlacement({ floating, update }) {
       const frameBox =
         plane === "page" ? anchorBox : frameAnchor?.getBoundingClientRect();
       const at = offset && {
-        x: offset.x + (frameBox?.left ?? 0),
-        y: offset.y + (frameBox?.top ?? 0),
+        x: offset.x + (frameBox?.left ?? 0) / scale.x,
+        y: offset.y + (frameBox?.top ?? 0) / scale.y,
       };
       keeps(floating, "data-lf-plane", plane);
       stopScrollInvalidation?.();
@@ -517,10 +539,15 @@ export function floatingPlacement({ floating, update }) {
     // solved against rather than read off the box, which may not yet be laid out
     // where a scroll the browser carried it through has put it.
     clientBox(answer) {
-      const { offset } = answer.middlewareData.anchorAt;
+      const { offset, scale } = answer.middlewareData.anchorAt;
       const { width, height } = answer.middlewareData.held;
       return offset
-        ? new DOMRect(answer.x - offset.x, answer.y - offset.y, width, height)
+        ? new DOMRect(
+            (answer.x - offset.x) * scale.x,
+            (answer.y - offset.y) * scale.y,
+            width * scale.x,
+            height * scale.y,
+          )
         : floating.getBoundingClientRect();
     },
     // Discards any placement in flight, leaving the box where it stands.

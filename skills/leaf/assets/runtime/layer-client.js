@@ -160,7 +160,9 @@ let sessionMode = release ? "unknown" : "active";
 // An ordinary server can restart while its durable page and log remain current.
 let sessionServer = null;
 const sessionChannel =
-  release && typeof window.BroadcastChannel !== "undefined"
+  release &&
+  !document.documentElement.lfSample &&
+  typeof window.BroadcastChannel !== "undefined"
     ? new window.BroadcastChannel("leaf-session")
     : null;
 

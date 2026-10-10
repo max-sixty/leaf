@@ -1,16 +1,8 @@
-/* The banner controls that stand in for the page's keys under a finger.
-
-   A press declaring `touch` words, a row's or one route's of a routed row, is one a finger
-   has no other way to make (AGENTS.md, "Touch routes"). On a coarse pointer each such
-   press of a page command is an entry in the banner's More, and a page scope's are the
-   gesture steps on the row while it is the innermost standing scope that has any: how a
-   finger leaves a mode or the picker, or walks search matches. One scope's steps stand
-   at a time, since a phone's row has room for one interaction's. The row is the one home: the control's
-   words are its `touch`, it is enabled while the row is live, and a tap makes the press.
-
-   Each paint reads the presses from the live register, building a control the first time
-   one appears and hiding one whose row has left. It runs in the standing content phase: a
-   step arriving on the row changes the banner's box, which chrome layout measures next. */
+/* Native banner controls derived from the page's command declarations.
+ * `touch` names a control a finger needs; the same control serves a mouse. Page commands
+ * stand behind More, and the innermost active scope supplies gesture steps on the row.
+ * Words, availability and activation all come from the same row as keyboard dispatch.
+ */
 import {
   BANNER_CONTROL_RANK,
   bannerStanding,
@@ -20,16 +12,13 @@ import {
   restoreBannerStanding,
   showBannerControls,
 } from "../banner-toolbar.js";
-import { coarsePointer } from "../pointer.js";
 import { el } from "../widget-elements.js";
 import { keepsText } from "../keeps.js";
-import { repaint } from "../repaint.js";
 import { live, word } from "./bindings.js";
 import { invokePress, standing } from "./dispatch.js";
 import { touchPresses } from "./register.js";
+import { keys } from "./scopes.js";
 import { focusDestination, closeLayer } from "../focus.js";
-
-coarsePointer.addEventListener("change", repaint);
 
 // Each press's control, by the command it invokes, beside the press as last read.
 const controls = new Map();
@@ -70,6 +59,16 @@ function place(press, seat) {
     present: false,
   });
   controls.set(press.id, { press, button });
+  // An exact focused button owns its native activation before a surrounding scope's
+  // Enter meaning. The semantic press still runs only through the click adapter above.
+  keys(button, "Banner controls", [
+    {
+      id: press.id,
+      keys: ["Enter", " "],
+      title: () => word(controls.get(press.id).press.words),
+      control: button,
+    },
+  ]);
   return press.id;
 }
 
@@ -85,7 +84,7 @@ export function paintTouchControls() {
   ]);
   const presence = [];
   for (const [id, { press, button }] of controls) {
-    const on = coarsePointer.matches && shown.has(id);
+    const on = shown.has(id);
     if (on) {
       keepsText(button, word(press.words));
       const disabled = !live(press.row);

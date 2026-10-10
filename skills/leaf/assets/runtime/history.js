@@ -7,8 +7,15 @@
  * Travel prepares its outgoing checkpoint before revealing a destination and commits
  * it only after arrival succeeds. Failed or canceled routes add no return stop.
  *
- * The browser restores a saved offset on traversal, except that Chrome answers a
- * traversal to an entry whose fragment names an element by scrolling to that element
+ * A working-place checkpoint owns the viewport offset, focus and selection together.
+ * Chrome's native restoration can lose the saved offset when Back interrupts a smooth
+ * arrival; its pending compositor update can also overwrite an immediate restoration.
+ * A traversal cancels the outgoing placement, waits for that cancellation's rendering
+ * update, then restores the checkpoint. Nested reading regions stop with that placement
+ * but keep their current offsets; these checkpoints restore the document viewport.
+ *
+ * Without a captured checkpoint, the browser restores its saved offset, except that
+ * Chrome answers a traversal to an entry whose fragment names an element by scrolling to that element
  * instead (measured: Back to `#s2` after reading 3000px down landed on `#s2` at 666).
  * So every same-document traversal comes through here, through the Navigation API. An
  * owner that claims the destination (`claimTraversals`) places the page itself, as a
@@ -16,10 +23,9 @@
  * (`mountHistory`'s `returnToFragment`, anchor-travel.js) where the entry's fragment
  * names a place the page no longer shows: the offset was saved over a page that has
  * changed, so travel reveals the place and lands on it. Any other traversal is
- * intercepted only so the browser restores the entry's saved offset, which it does for
- * an intercepted traversal. Each entry also holds the browser focus and selection it
- * was left with. Back and Forward restore that working place after its owner has
- * revealed the view, so the next command reads the returned place from the browser.
+ * intercepted to restore its working-place checkpoint, or the browser's saved offset
+ * for an entry without one. Back and Forward restore that working place after its
+ * owner has revealed the view, so the next command reads the returned place from the browser.
  * These are return checkpoints, never a reading of the user's current position; a
  * newer gesture cancels a delayed return, and a node removed since is not restored.
  *
@@ -37,6 +43,9 @@ import { pageRange, selectEnds, selectionBackward } from "./passages.js";
 import { retainUserIntent } from "./user-intent.js";
 import { placeOf } from "./standing-target.js";
 import { upFrom } from "./shadow.js";
+import { readingRegions } from "./reading-regions.js";
+import { nextFrame } from "./rendering.js";
+import { pageScroller } from "./scrolling.js";
 
 const claims = new Set();
 const places = new Map();
@@ -53,7 +62,13 @@ function readPlace() {
     [range.endContainer, range.endOffset],
   ];
   if (ends && selectionBackward(selection, range)) ends.reverse();
-  return { focus, place: placeOf(focus), caret: readCaret(focus), ends };
+  return {
+    focus,
+    place: placeOf(focus),
+    caret: readCaret(focus),
+    ends,
+    offset: [scrollX, scrollY],
+  };
 }
 
 const drawn = (node) =>
@@ -111,7 +126,7 @@ export function replaceEntry(url, state = history.state) {
 export function prepareEntry() {
   const key = window.navigation?.currentEntry.key;
   const place = readPlace();
-  const offset = [scrollX, scrollY];
+  const offset = place.offset;
   const sourceUrl = window.location.href;
   const sourceState = history.state;
   return (url, state, replace) => {
@@ -158,13 +173,37 @@ export function mountHistory({ followFragment, returnToFragment }) {
         scroll: "manual",
         focusReset: "manual",
         handler: async () => {
+          if (!mayReturn()) return;
+          // Cancel the outgoing placement, including its nested reading regions.
+          // Its compositor update can outlive this task, so restore only after a
+          // complete rendering update has carried the cancellation to the browser.
+          const scrollers = new Set([
+            pageScroller,
+            ...readingRegions().map((region) => region.body),
+          ]);
+          for (const scroller of scrollers)
+            scroller.scrollTo({
+              left: scroller.scrollLeft,
+              top: scroller.scrollTop,
+              behavior: "instant",
+            });
+          await new Promise((resolve) => nextFrame(() => nextFrame(resolve)));
+          if (!mayReturn()) return;
           let work;
           mayReturn.handoff(() => {
             work = handler?.();
           });
           await work;
           if (!mayReturn()) return;
-          if (!handler) event.scroll();
+          if (!handler) {
+            if (place)
+              window.scrollTo({
+                left: place.offset[0],
+                top: place.offset[1],
+                behavior: "instant",
+              });
+            else event.scroll();
+          }
           if (place) returnPlace(place);
         },
       });

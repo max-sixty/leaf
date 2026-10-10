@@ -218,7 +218,7 @@ export function createProjectionPresentation({ onDeferredReady }) {
 
   // `present` stays in here. The region has two ways in — its own subscription above,
   // and `presentDocument` for a caller that changed the document and has no business
-  // knowing which regions are alive. A third, handed to one caller, is how the Ask
+  // knowing which regions are alive. A third, handed to one caller, is how the Question
   // inventory came to be left out of a document-wide repaint.
   return {
     retireProjectionCoverage,

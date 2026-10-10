@@ -55,7 +55,6 @@ from render_harness import (
     draft_control,
     draft_key,
     example_media,
-    expect_banner_control_offered,
     expect_comment_notes,
     held_stale,
     hold_pending_thread_presentation,
@@ -423,7 +422,7 @@ def test_clicking_a_shadow_widget_input_keeps_its_focus_and_thread_reading(
             "parent": root["id"],
             "revision": 1,
             "text": "Filter the files in this patch.",
-            "markup": """<lf-diff id="reply-patch" data-height="201"><pre>
+            "markup": """<lf-diff id="reply-patch" data-height="151"><pre>
 diff --git a/reading.py b/reading.py
 --- a/reading.py
 +++ b/reading.py
@@ -1280,10 +1279,10 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "3")
 
 
-def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, serve):
+def test_an_empty_draft_survives_reload_and_a_live_revision(browser, serve):
     """Empty text is a real replacement, not the absence of a saved draft. Deleting
-    the whole body must hold a live editor on its version, survive reload, and arrive
-    in the log as an ordinary absolute edit."""
+    the whole body must survive a live revision and reload, then arrive in the log
+    as an ordinary absolute edit."""
     url = serve(JOURNEY_V1)
     page = open_page(browser, live_url(url))
     draft = page.locator("#draft-ops")
@@ -1294,7 +1293,9 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     d = serve.page_dir
     stamp_page(d, JOURNEY_V2, "v2")
     told(page)
-    expect_banner_control_offered(page.locator(".lf-latest-chip"))
+    wait_for_revision(page, 2)
+    expect(draft.locator("leaf-text")).to_be_focused()
+    expect(draft.locator("leaf-text")).to_have_js_property("value", "")
     assert "/versions/" not in page.url
 
     page.reload(wait_until="load")
@@ -3283,7 +3284,7 @@ def test_picture_paste_belongs_to_the_composer_not_the_shared_text_field(
         write(editor, "A later document edit")
         page.keyboard.press("Escape")
         compose(page, "#passage")
-        page.get_by_role("button", name="Remove pasted image 1", exact=True).click()
+        page.get_by_role("button", name="Remove attached image 1", exact=True).click()
         expect(page.locator(".lf-composer-media img")).to_have_count(0)
         page.locator("h1").click()
         page.keyboard.press("g")
@@ -3388,7 +3389,7 @@ def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
     Both directions here, and the box the user opens next, because a shelf that
     outlived its send is an image that rides into the next passage's draft."""
     page = open_page(browser, serve(LONG_PAGE))
-    image_markdown = "![Pasted image](/media/051bee487bfb5d13.png)"
+    image_markdown = "![Attached image](/media/051bee487bfb5d13.png)"
     compose(page, "#p3")
     pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
@@ -5628,7 +5629,7 @@ def test_delayed_thread_destination_yields_to_shared_generation_or_new_input(
       const drafts=await window.__lfRuntimeImport('/runtime/drafts.js');
       const {replyDestination}=await window.__lfRuntimeImport('/runtime/thread/focus.js');
       const {retainUserIntent,restrictUserIntent}=await window.__lfRuntimeImport('/runtime/user-intent.js');
-      const {openThread}=await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {openThread}=await window.__lfRuntimeImport('/runtime/application.js');
       const button=document.createElement('button');button.id='held-reply-route';button.textContent='Continue the held reply';document.querySelector('main').append(button);
       button.onclick=()=>{
         const original=retainUserIntent();window.readOriginalIntent=original;

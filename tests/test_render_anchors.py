@@ -25,6 +25,7 @@ from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    PANEL_PAGE,
     SUGGESTION_PAGE,
     THREAD_ASKS,
     live_url,
@@ -355,7 +356,7 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
     expect(field).to_be_visible()
     expect(field).to_be_focused()
     label = field.get_attribute("aria-label")
-    assert label and label.startswith("Comment on “4 of 5 checks passing")
+    assert label and label.startswith("Comment on “checks passing 4 of 5")
     draft = "Why does the remaining check need a decision?"
     write(field, draft)
     resized(page, 420, 850)
@@ -627,7 +628,8 @@ def test_gallery_revision_preserves_every_open_quoted_thread(browser, serve):
         expect(thread.locator(".lf-quote")).to_contain_text(
             f"“{root['anchor']['quote']}” Changed"
         )
-        expect(thread.locator(".lf-quote")).to_have_attribute("aria-disabled", "false")
+        expect(thread.locator(".lf-quote")).to_have_attribute("role", "button")
+        expect(thread.locator(".lf-quote")).to_have_attribute("tabindex", "0")
         expect(thread.locator(".lf-quote.detached")).to_have_count(0)
         expect(thread.locator(".lf-msg")).to_have_count(1)
     moves = [
@@ -810,8 +812,10 @@ def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serv
         (end["x"] + end["width"] - 6, end["y"] + end["height"] - 6),
         steps=16,
     )
-    wait_for_pending_mark(page)
-    assert "Refill" in pending_text(page)
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    quote = composer_quote(page)
+    assert quote["shown"] and "Refill" in quote["text"]
+    assert "Refill" in page.evaluate("getSelection().toString()")
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     assert not page.evaluate("getSelection().isCollapsed")
 
@@ -1628,7 +1632,7 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
     )
 
     opener = (
-        page.locator("summary")
+        page.locator("main summary")
         if holder == "disclosure"
         else page.get_by_role("tab", name="Code", exact=True)
     )
@@ -3686,7 +3690,8 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
     quote = page.locator(f'.lf-thread[data-id="{root["id"]}"] .lf-quote')
     expect(quote).to_contain_text("The version stamp never lands")
     expect(quote).to_have_class(re.compile(r"\bdetached\b"))
-    expect(quote).to_have_attribute("aria-disabled", "true")
+    expect(quote).not_to_have_attribute("role", "button")
+    expect(quote).not_to_have_attribute("tabindex", "0")
     expect(quote).to_have_attribute("title", re.compile("no longer"))
 
 
@@ -6800,6 +6805,29 @@ def test_passage_range_spanning_shadow_root_children_reads_the_stage(browser, se
     )
     assert result["section"] == "patch"
     assert result["quote"] == "first last"
+
+
+def test_passage_at_either_shadow_host_edge_excludes_its_words(browser, serve):
+    page = open_page(browser, serve(PANEL_PAGE))
+    quotes = page.evaluate(
+        """async () => {
+          const {anchorForRange} = await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
+          const paragraph = document.querySelector('#how-cap').firstChild;
+          const diff = document.querySelector('#how-patch');
+          const range = document.createRange();
+          range.setStart(paragraph, 0);
+          range.setEnd(diff, 0);
+          const before = anchorForRange(range).quote;
+          const afterParagraph = document.querySelector('#merge-both').firstChild;
+          range.setStart(diff, diff.childNodes.length);
+          range.setEnd(afterParagraph, afterParagraph.length);
+          return [before, anchorForRange(range).quote];
+        }"""
+    )
+    assert quotes == [
+        "The store is capped at forty megabytes a workspace.",
+        "The merge rule Two people editing one document offline is the case to answer.",
+    ]
 
 
 def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):

@@ -737,8 +737,11 @@ and a blank image stands in for any media an example names. The checks:
   rows are empty. A
   box whose task needs its own scroll, such as an inspector whose contents change
   under a playing recording, declares `--lf-holds-height: 1` on itself; a bounded
-  block's theme already does. A box that asks to scroll only sideways is named only
-  while its content runs past its height.
+  block's theme and the workspace Layout's scrolling regions already declare it. A
+  widget that scrolls a part within the height a workspace gives it
+  (`--lf-full-height`) declares it on that part too, though this check never sees
+  that part scroll, since a worked example stands outside a workspace. A box that
+  asks to scroll only sideways is named only while its content runs past its height.
 
 After `leaf page init` re-vendors the page (`serving-pages.md`, "Re-vendoring and
 layer epochs"), run `leaf page check <page> --render` on the version that uses

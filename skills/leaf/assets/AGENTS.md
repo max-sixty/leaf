@@ -99,9 +99,11 @@ Widgets in ordinary document flow grow with their content by default. Internal
 vertical scrolling needs a task that benefits from keeping a region in view while
 its contents move, or a live stream whose newest entry the reader follows; being
 an inspection object is not enough. A box that holds its own height declares
-`--lf-holds-height: 1`, as a bounded block's theme does, and the widget quality check
-`grows-with-content` names every other widget box that scrolls vertically within a
-height it keeps (`scripts/leaf/render_gate/widget_quality.py`). Page-authoring
+`--lf-holds-height: 1`, as a bounded block's theme and a full-height workspace's
+scrolling regions do, and the widget quality check `grows-with-content` names every
+other widget box that scrolls vertically within a height it keeps
+(`scripts/leaf/render_gate/widget_quality.py`), in each package's worked examples and,
+in the suite, on every corpus page, where the widgets hold data. Page-authoring
 choices live in `../references/page-authoring.md`, "Bounds and widths". A necessary
 scroller chains
 into the document at its edges; isolate scrolling only at a bounded task or modal

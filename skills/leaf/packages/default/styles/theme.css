@@ -1469,7 +1469,8 @@
    * as a full-height workspace's body is, takes that height, and its list and its open
    * item each scroll on their own, as a mail client's do: walking a long queue never
    * moves the item being read, and reading down a long item never moves the queue. Each
-   * is a reading region (lf-tabs.js). Stacked, the list is a row of its own height over
+   * is a reading region (lf-tabs.js) that holds the height it was given on purpose
+   * (`--lf-holds-height`). Stacked, the list is a row of its own height over
    * the item, which takes the rest; beside the item, both span the two rows, and an item
    * spanning the flexible row adds nothing to the row its own height would size. */
   @container style(--lf-full-height: 1) {
@@ -1495,6 +1496,7 @@
       --lf-top: 0px;
       overscroll-behavior: contain;
       scrollbar-gutter: stable;
+      --lf-holds-height: 1;
     }
   }
 

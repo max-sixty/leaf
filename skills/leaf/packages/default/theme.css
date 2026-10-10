@@ -1597,6 +1597,7 @@
       --lf-top: 0px;
       overscroll-behavior: contain;
       scrollbar-gutter: stable;
+      --lf-holds-height: 1;
     }
   }
   :where(:scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page]) {

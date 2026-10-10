@@ -220,7 +220,8 @@ fill, and it does not inherit: while the workspace is full-height, the Layout se
 `main` for the body and on a grid of panes for its cells. A widget given that height
 keys its rules on `@container style(--lf-full-height: 1)`, which asks the widget's
 parent, fits what it shows to the height, so the reader moves through the workspace
-rather than scrolling it, and sets `--lf-full-height: inherit` on each box that passes
+rather than scrolling it, declares `--lf-holds-height: 1` on each part it scrolls within
+that height, and sets `--lf-full-height: inherit` on each box that passes
 the height on to its parts, as a playground does down to its panes. A widget deeper in
 the body, in a section or a tab, is not told, and takes its content's height. A behavior
 module that composes regions out of boxes it generates, such as a playground's controls

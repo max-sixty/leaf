@@ -18,6 +18,7 @@ from interact_support import (
     append_command,
     running_http_server,
 )
+from known_widget_findings import KNOWN, PACKAGES
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import hosting as hosting_model
@@ -30,6 +31,7 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
+from leaf.render_gate.widget_quality import own_tags
 from leaf.schema import ELEMENT_ID
 from leaf.validation import compatibility as validation_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -3729,12 +3731,49 @@ def typed_box_findings(page):
     return findings
 
 
+# Each bundled widget's package, which answers for it in `KNOWN`, by tag.
+WIDGET_PACKAGES = {
+    tag: package.name for package in PACKAGES for tag in own_tags(package)
+}
+
+
+def held_scroller_findings(page, source):
+    """Each box in a widget that holds its own height and scrolls inside it
+    (`grows-with-content`, widget_quality.py), in the page and each Leaf document it
+    frames. `package check --render` reads a widget's worked example, which carries no
+    data, so a box that holds its height only once rows arrive goes unseen there; the
+    corpus gives the widgets their data. A widget is one a bundled package or the page's
+    own package declares, and a finding `KNOWN` lists for the widget's package is that
+    defect, wherever it stands. A box the page or a Layout bounds on purpose declares
+    `--lf-holds-height: 1`, as a workspace's panes do. `heldScrollers` writes the page,
+    so it reads a page nothing reads again."""
+    local = source.with_suffix(".page")
+    tags = sorted({*WIDGET_PACKAGES, *(own_tags(local) if local.is_dir() else ())})
+    findings = []
+    for frame in page.frames:
+        if not frame.evaluate(
+            "() => !!document.querySelector('script[data-lf-entry]')"
+        ):
+            continue
+        where = "" if frame == page.main_frame else f" in {urlsplit(frame.url).path}"
+        findings += [
+            f"<{box['tag']} id={box['id']!r}> {box['at']} holds {box['height']}px and "
+            f"scrolls inside it{where}"
+            for box in render_checks_model.evaluate_probe(frame, "heldScrollers", tags)
+            if (box["tag"], "grows-with-content")
+            not in KNOWN.get(WIDGET_PACKAGES.get(box["tag"]), set())
+        ]
+    return findings
+
+
 @pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
 def test_a_still_page_comes_back_from_every_journey_as_it_was(browser, serve, source):
     """A still_page goes through each journey that must leave it as it found it: left
     alone (`rest_findings`), every surface opened and closed (`surface_findings`),
     resized to a phone's width and back (`resize_findings`), and each typed box scrolled
-    away and back (`typed_box_findings`).
+    away and back (`typed_box_findings`). The page those journeys hand back, at the width
+    it opened at, is then read for widgets that hold their height
+    (`held_scroller_findings`), which writes it.
 
     They share one page because each reads only what its own journey changes, and
     the page the journey before handed over is one a reader could have reached.
@@ -3747,6 +3786,7 @@ def test_a_still_page_comes_back_from_every_journey_as_it_was(browser, serve, so
         "closed surfaces": surface_findings(page),
         "resized from the widest": resize_findings(page, RESIZE_PATH),
         "typed boxes": typed_box_findings(page),
+        "held scrollers": held_scroller_findings(page, source),
         "resized from the narrowest": resize_findings(
             still_page(browser, url, width=RESIZE_PATH[-1]), RESIZE_PATH[::-1]
         ),

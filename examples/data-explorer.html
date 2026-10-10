@@ -4,7 +4,7 @@
     <title>Shape a release query</title>
     <meta
       name="description"
-      content="Build, order, and test structured release filters, then send the resulting query as one complete task."
+      content="Choose releases for a report: add filters, check the matching rows, and ask the agent to build the query."
     />
     <style>
       release-query-explorer {
@@ -142,7 +142,9 @@
           #build() {
             const toolbar = document.createElement("div");
             toolbar.className = "query-toolbar";
-            toolbar.append(document.createTextNode("Filters run from top to bottom."));
+            toolbar.append(
+              document.createTextNode("Releases must match every filter."),
+            );
             const add = offer("button", "lf-btn query-add", "Add filter");
             add.addEventListener("click", () => {
               const id = `filter-${this.#next++}`;
@@ -204,11 +206,11 @@
               );
               const conditions = rows
                 .map((row) => `${row.field} ${row.operator} ${row.value}`)
-                .join(", then ");
+                .join(" and ");
               const filterTask = conditions
-                ? `Apply ${conditions}`
+                ? `Require ${conditions}`
                 : "Apply no filters";
-              return `Implement the release query in release-report.sql. ${filterTask}, return at most ${values.limit} releases in that order, and show the query plus its result-table test.`;
+              return `Implement the release query in release-report.sql. ${filterTask}. Return at most ${values.limit} matching releases in source order, and show the query plus its result-table test.`;
             });
           }
 
@@ -358,7 +360,7 @@
             }
             keepsText(
               this.#count,
-              `${filtered.length} matching ${filtered.length === 1 ? "release" : "releases"}`,
+              `${filtered.length} ${filtered.length === 1 ? "release" : "releases"} shown`,
             );
             layoutChanged(this);
           }
@@ -368,11 +370,11 @@
   </head>
   <body>
     <main class="layout-wide">
-      <p class="eyebrow">structured data explorer</p>
+      <p class="eyebrow">release report</p>
       <h1>Shape a release query</h1>
       <p class="lede">
-        Compose ordered filters against a captured release set. The table and final
-        instruction derive from the same structured configuration.
+        Choose which releases to include in the report. Add filters, check the matching
+        rows, then ask the agent to build the query.
       </p>
       <lf-ask id="release-query-ask" data-width="available">
         <h2>Which release query should the agent build?</h2>
@@ -386,10 +388,10 @@
             max="6"
             step="1"
           ></lf-playground-control>
-          <lf-playground-preset label="Focused query">
+          <lf-playground-preset label="Up to 4 results">
             <lf-playground-setting for="limit" value="4"></lf-playground-setting>
           </lf-playground-preset>
-          <lf-playground-preset label="Broad query">
+          <lf-playground-preset label="Up to 6 results">
             <lf-playground-setting for="limit" value="6"></lf-playground-setting>
           </lf-playground-preset>
           <lf-playground-preview id="release-query-preview">

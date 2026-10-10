@@ -528,6 +528,68 @@ def events(dir: str, after: int, follow: bool) -> None:
     cmd_events(resolve_dir(dir), after, follow=follow)
 
 
+@page.command(short_help="Read browser interactions and request diagnostics.")
+@click.argument("dir", metavar="PAGE")
+@click.option(
+    "--session", help="Select one browser tab; excludes unassociated server requests."
+)
+@click.option(
+    "--since",
+    metavar="ISO_TIME",
+    help="Include observations at or after this time, with timezone offset.",
+)
+@click.option(
+    "--until",
+    metavar="ISO_TIME",
+    help="Exclude observations at or after this time, with timezone offset.",
+)
+@click.option(
+    "--type",
+    "types",
+    multiple=True,
+    help="Select an observation type; repeat to select several.",
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    help="Print complete reconstructed records as JSON lines.",
+)
+def interactions(
+    dir: str,
+    session: str | None,
+    since: str | None,
+    until: str | None,
+    types: tuple[str, ...],
+    as_json: bool,
+) -> None:
+    """Read diagnostics chronologically, without acknowledging user input.
+
+    Times print in the local timezone. Retries are deduplicated, split records
+    are reconstructed, and gaps remain visible even with a type filter.
+    """
+    from leaf.interaction_log import (
+        format_interaction,
+        interaction_time,
+        read_interactions,
+    )
+
+    try:
+        start = interaction_time(since) if since else None
+        stop = interaction_time(until) if until else None
+        if start is not None and stop is not None and start >= stop:
+            raise ValueError("--since must precede --until")
+        rows = read_interactions(
+            resolve_dir(dir), session=session, since=start, until=stop, types=types
+        )
+    except ValueError as error:
+        raise click.ClickException(str(error)) from error
+    for row in rows:
+        click.echo(
+            json.dumps(row, ensure_ascii=False) if as_json else format_interaction(row)
+        )
+
+
 @page.command(short_help="Take a page this session did not serve.")
 @click.argument("dir", metavar="PAGE")
 def claim(dir: str) -> None:
@@ -600,6 +662,28 @@ def thread_summarize(
         cmd_summarize(
             resolve_dir(dir), from_message, through_message, text, label=label
         )
+    )
+
+
+@cli.group(short_help="Bind existing local files for editing on a page.")
+def file() -> None:
+    """Grant a page access to an explicitly chosen local text file."""
+
+
+@file.command("bind", short_help="Grant a page read/write access to one file.")
+@click.argument("dir", metavar="PAGE")
+@click.argument("binding", metavar="ID")
+@click.argument("path", type=click.Path(path_type=Path), metavar="PATH")
+def file_bind(dir: str, binding: str, path: Path) -> None:
+    """Use ID in <lf-file binding=\"ID\"> to edit PATH."""
+    from leaf.file_bindings import FileBindingError, bind_file
+
+    try:
+        snapshot = bind_file(resolve_dir(dir), binding, path)
+    except (FileBindingError, OSError) as error:
+        raise click.ClickException(str(error)) from error
+    click.echo(
+        f"Bound {binding} to {path.expanduser().resolve()} ({snapshot['bytes']} bytes)."
     )
 
 

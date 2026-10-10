@@ -1,4 +1,4 @@
-/* Vertical landings through the reading regions holding a destination.
+/* Document-local scrolling through the boxes holding a destination.
  *
  * Anchor travel and widget walks share this operation: the owning reading region
  * places the destination at its landing band, then each enclosing region reveals
@@ -11,16 +11,20 @@
  * such as an embedded tab strip; a declared margin and that slot are alternative
  * readings of the same clearance, never added twice. A nearest landing takes its
  * bottom margin too, which clears a pinned foot such as a long thread's reply row.
+ * Full placement first reveals inner overflow. Both operations stop at this
+ * document, so a sample never scrolls its containing page. End alignment reveals
+ * a tall destination's closing edge through enclosing reading regions.
  */
 import {
   landingBand,
+  localScrollBy,
   placeHolder,
   shownBox,
   scrollAxes,
   visibleBand,
 } from "./geometry.js";
 import { scrollersOf } from "./reading-regions.js";
-import { moveScrollerBy, reachable } from "./scrolling.js";
+import { moveScrollerBy, reachable, pageScroller } from "./scrolling.js";
 import { nearestScrollBy } from "./rect.js";
 import { renderedParent } from "./shadow.js";
 
@@ -55,7 +59,12 @@ function placementBy(where, block, box, margin) {
   const rect = where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
   const band = landingBand(box);
   const room = band.bottom - band.top;
-  const place = block === "start" ? margin : Math.max((room - rect.height) / 2, margin);
+  const place =
+    block === "start"
+      ? margin
+      : block === "end"
+        ? room - rect.height - scrollMargin(where, "Bottom")
+        : Math.max((room - rect.height) / 2, margin);
   const movement =
     block === "nearest" && !(where instanceof Range)
       ? nearestScrollBy(
@@ -82,6 +91,9 @@ export function scrollIntoReadingBand(where, holder, block, behavior) {
   let { top, bottom } = rect;
   if (block === "start") {
     top -= margin;
+  } else if (block === "end") {
+    top = bottom - 1;
+    bottom += scrollMargin(where, "Bottom");
   }
   let { local, moved } = verticalTravel(box, placementBy(where, block, box, margin));
   if (Math.abs(moved) >= 1) moveScrollerBy(box, local, behavior);
@@ -104,4 +116,46 @@ export function scrollIntoReadingBand(where, holder, block, behavior) {
     if (Math.abs(moved) >= 1) moveScrollerBy(outer, local, behavior);
     inner = outer;
   }
+}
+
+// Reveal inner overflow before aligning its owning reading region. The ancestry
+// walk ends at this document's scrollport or a fixed box; native scrollIntoView
+// would continue through same-origin frames and move their containing pages.
+// Horizontal inspection is nearest; vertical alignment is start, center, end,
+// or nearest. An explicit alignment lets a passage prepare its inner overflow
+// before its enclosing context lands in the reading band.
+export function scrollIntoView(
+  where,
+  { alignment = where, behavior = "auto", block = "start" } = {},
+) {
+  if (!where) return;
+  const holder = placeHolder(alignment);
+  if (!holder) return;
+  const targetScroller = scrollersOf(holder).next().value;
+  if (!targetScroller) return;
+  // Horizontal inspection can belong to any ancestor, the owning region included.
+  // Only inner scrollports prepare Y; the region and its outers glide below.
+  let inside = true;
+  for (
+    let box = placeHolder(where);
+    box instanceof Element;
+    box = renderedParent(box)
+  ) {
+    if (box === targetScroller) inside = false;
+    const band = landingBand(box);
+    if (!band) continue;
+    const { left, right, top, bottom } = band;
+    const destination = where.getBoundingClientRect();
+    const byX = nearestScrollBy(destination.left, destination.right, left, right);
+    const byY = inside
+      ? nearestScrollBy(destination.top, destination.bottom, top, bottom)
+      : 0;
+    if (byX || byY)
+      box.scrollBy({
+        ...localScrollBy(box, { x: byX, y: byY }),
+        behavior: "instant",
+      });
+    if (box === pageScroller || getComputedStyle(box).position === "fixed") break;
+  }
+  scrollIntoReadingBand(alignment, holder, block, behavior);
 }

@@ -1324,7 +1324,7 @@ export function createMarginProjection({
       return {
         root: preview,
         description: "Return to the page element this thread is about",
-        title: "back to page",
+        title: "back to element",
         out: () => focusDestination(stepsOut(), "return"),
       };
     return {

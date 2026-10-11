@@ -1216,6 +1216,55 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
     assert any("in shadow of lf-diff#patch" in error for error in moved), moved
 
 
+def test_a_preparation_no_input_aimed_at_lands_passive(browser, serve):
+    """Overlapping an input's rendering does not make a preparation that input's.
+
+    A press outside the diff keeps its counted work running until a response the page
+    asked for before the press opens a diff file; that file's landing, once the press
+    has settled, moves the control after it without input."""
+    patch = "diff --git a/first.md b/first.md\n--- a/first.md\n+++ b/first.md\n"
+    patch += "@@ -1 +1 @@\n-old\n+new\n"
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Passive preparation",
+                '<button id="press">Elsewhere</button>'
+                f'<lf-diff id="patch" collapsed><pre>{escape(patch)}</pre></lf-diff>'
+                '<button id="control">Keep this control usable</button>',
+            )
+        ),
+    )
+    answer, grammar = [], []
+    page.route("**/held-answer", lambda route: answer.append(route))
+    page.route("**/vendor/syntax/markdown.js", lambda route: grammar.append(route))
+    page.evaluate("""async () => {
+      const {nextFrame} = await window.__lfRuntimeImport('/runtime/rendering.js');
+      const details = document.querySelector('#patch').shadowRoot.querySelector('details');
+      const opens = () => { details.open = true; };
+      fetch('/held-answer').then(opens, opens);
+      document.querySelector('#press').addEventListener('click', () => {
+        let after = 0;
+        const work = () => { if (!details.open || ++after < 3) nextFrame(work); };
+        nextFrame(work);
+      }, {once: true});
+    }""")
+    holding(page, answer, 1, "the page's own request")
+    page.locator("#press").click()
+    answer[0].fulfill(status=204)
+    holding(page, grammar, 1, "the markdown grammar")
+    rendered(page)
+    judge_watches()
+    assert page.lf_errors == []
+
+    grammar[0].continue_()
+    expect(page.locator("#patch [data-line]").last).to_contain_text("new")
+    rendered(page)
+    judge_watches()
+    moved = consume_browser_errors(page, "moved without input")
+    assert any(error.startswith("button#control ") for error in moved), moved
+
+
 def test_shift_judgement_waits_for_paint_instead_of_a_time_cap(browser):
     """A held native frame keeps judgment pending; release still reports the fault."""
     page = field_page(browser)

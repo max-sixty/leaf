@@ -654,8 +654,9 @@ def test_package_thread_mirrors_share_core_conversation_without_claiming_placeme
       node.consumer.update();
     }""")
     # The log answered the reply before the held mirror drew it, so to that mirror it is
-    # news, which waits behind a notice rather than moving its reply box.
-    expect(second.locator(".lf-thread-news")).to_have_text("1 new reply")
+    # news, which waits behind a notice rather than moving its reply box. It is the
+    # user's own message, not a reply.
+    expect(second.locator(".lf-thread-news")).to_have_text("1 new message")
     expect(second.locator(".lf-page-thread")).not_to_contain_text("While held")
 
     # This lifecycle removal follows the user's clearing their local filter.

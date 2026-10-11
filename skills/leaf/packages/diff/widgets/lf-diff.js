@@ -1441,6 +1441,15 @@ export default class extends HTMLElement {
   }
 
   attachEntryControls(entry) {
+    this.attachLineComments(entry);
+    const hover = (event) => {
+      const line = event.target.closest("[data-content] > [data-line]");
+      const gutter = entry.lineGutters.get(line);
+      if (gutter && !line.contains(event.relatedTarget))
+        gutter.classList.toggle("lf-diff-line-hover", event.type === "pointerover");
+    };
+    entry.node.addEventListener("pointerover", hover);
+    entry.node.addEventListener("pointerout", hover);
     const label = entry.record.path || "file";
     entry.fileComment = commentButton(
       label,
@@ -1450,11 +1459,12 @@ export default class extends HTMLElement {
     entry.node
       .querySelector(":scope > .lf-diff-file-actions")
       .prepend(entry.fileComment);
-    this.attachLineComments(entry);
   }
   attachLineComments(entry) {
+    entry.lineGutters ??= new WeakMap();
     for (const line of entry.lines) {
       const { gutterRow } = this.threadPair(line.node);
+      entry.lineGutters.set(line.node, gutterRow);
       if (line.comment?.parentElement === gutterRow) continue;
       line.comment = commentButton(
         lineLabel(line),
@@ -1467,12 +1477,6 @@ export default class extends HTMLElement {
       line.comment.tabIndex = -1;
       line.comment.setAttribute(LINE_KEY, diffDatumKey(line));
       gutterRow.append(line.comment);
-      line.node.addEventListener("pointerenter", () =>
-        gutterRow.classList.add("lf-diff-line-hover"),
-      );
-      line.node.addEventListener("pointerleave", () =>
-        gutterRow.classList.remove("lf-diff-line-hover"),
-      );
     }
   }
 

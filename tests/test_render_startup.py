@@ -334,7 +334,9 @@ def test_a_website_example_names_its_limited_agent(browser, serve):
     ) == ["/examples/", "/#install"]
     expect(page.locator(".lf-status-button .lf-publication-install")).to_have_count(0)
     expect(status).to_have_attribute("title", " ".join(status.text_content().split()))
-    expect(page.locator(".lf-banner .lf-dot")).to_have_class(re.compile(r"^lf-dot\s*$"))
+    assert page.locator(".lf-banner .lf-dot").evaluate(
+        "dot => [...dot.classList]"
+    ) == ["lf-dot"]
 
 
 @pytest.mark.parametrize("outcome", ["presented", "abandoned", "offline"])
@@ -3775,7 +3777,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(summary).to_have_text("No session")
     # Grey, not the amber a session falling behind wears: nobody is on the line, which
     # is a page's reading arrangement rather than something for the user to chase.
-    expect(dot).to_have_class(re.compile(r"^lf-dot\s*$"))
+    assert dot.evaluate("dot => [...dot.classList]") == ["lf-dot"]
 
     # Nothing ever claimed the page — a server started outside an agent harness. There is
     # no pid to ask after, so a claim made moments ago is evidence and still stands.

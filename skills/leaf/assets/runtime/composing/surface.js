@@ -533,7 +533,9 @@ export function createResponseSurface({
   const fabReturnPlaces = () => returnPlaces(fabAnchor);
 
   // Opening Comment is an overlay gesture. Any visible part of its subject is
-  // enough to open it: the physical presenter owns its attachment and measure.
+  // enough to open it: the physical presenter owns its attachment and measure, so
+  // this asks only whether any of it is seen, not whether a landing would show more
+  // (landing-scroll.js, `alreadyShown`, which a short subject cut by an edge is not).
   // Only stale standing or a resumed draft whose subject is wholly out of view needs
   // travel (including revealing a closed ancestor), before placement measures it.
   function bringForward(addressable) {

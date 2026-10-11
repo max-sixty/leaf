@@ -1385,6 +1385,7 @@
   // and of each element holding it at the key; the animations already moving any of
   // them; and until when the typing rule reads it.
   const renderings = [];
+  const renderingOwns = ({ start, through }, at) => at >= start && at <= through;
   let open = null;
   let latestInput = -Infinity;
   let newsBefore = -Infinity;
@@ -1573,8 +1574,10 @@
     // page mutation does not reopen ownership of every landmark in the frame.
     if (!source || !changed || !permitted(source)) return;
     if (source.event.type === "input" && open?.typing) return;
-    if (open?.source?.event === source.event) return;
-    begin(nativePerformance.now(), null, source);
+    const at = nativePerformance.now();
+    // The sampled interval can end before its open record is retired.
+    if (open?.source?.event === source.event && renderingOwns(open, at)) return;
+    begin(at, null, source);
   });
   const reported = new Set();
   const report = (what, detail, evidence) => {
@@ -2388,8 +2391,7 @@
       }
     }
   };
-  const inputOwns = (at) =>
-    renderings.some((gesture) => at >= gesture.start && at <= gesture.through);
+  const inputOwns = (at) => renderings.some((gesture) => renderingOwns(gesture, at));
   const typingAt = (at) =>
     renderings.findLast(
       ({ start, typing }) => typing && start <= at && at <= typing.until,

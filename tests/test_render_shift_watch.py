@@ -1780,6 +1780,55 @@ def test_delayed_input_callbacks_cannot_reopen_rendering_after_news(
         consume_browser_errors(page, "p#below moved without input")
 
 
+def test_a_same_source_commit_after_its_last_sample_starts_a_new_rendering(browser):
+    """An extant rendering record cannot stand in for ownership of this callback."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body style="margin:0">
+      <script data-lf-entry>
+        window.renderingDone = false;
+        document.currentScript.lfRenderingSettled = () => renderingDone;
+      </script>
+      <button id="press">Press</button><div id="above"></div><p id="below" style="margin:0">Below</p>
+      <script>
+        press.onclick = () => {
+          const commit = lfInputWork.capture(() => {
+            above.style.height = '80px';
+            window.committed = true;
+          });
+          const frame = lfWatchPlatform.frame;
+          let held = 3;
+          frame(function hold() {
+            if (--held) frame(hold);
+            else {
+              renderingDone = true;
+              // The sensor first samples completion. This native callback runs
+              // after that sample, before the next one retires the open record.
+              frame(commit);
+            }
+          });
+        };
+      </script>""")
+    )
+    page.evaluate("document.body.setAttribute('data-lf-presented', '')")
+    paint(page)
+    page.locator("#press").click()
+    page.wait_for_function("window.committed")
+    judge_watches()
+    assert page.locator("#above").bounding_box()["height"] == 80
+    assert take_browser_errors(page) == []
+
+    page.evaluate("below.style.marginTop = '40px'")
+    judge_watches()
+    errors = consume_browser_errors(page, "p#below moved without input")
+    evidence = shift_evidence(errors[0])
+    assert any(
+        comparison["residual"] == {"left": 0, "top": 40}
+        for comparison in evidence["comparisons"]
+    ), evidence
+
+
 @pytest.mark.parametrize(
     "effect,owned,news",
     [

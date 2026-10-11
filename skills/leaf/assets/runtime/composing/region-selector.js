@@ -6,19 +6,16 @@
  * instructions and errors belong to the shared controls and notice line. Pointer
  * drags set a rectangle; arrows move it and
  * Shift+arrows resize it, so capturing never requires a drag. The selected pixels stay
- * in viewport coordinates until confirmation, when SnapDOM takes a document-coordinate
- * crop of the live DOM, excluding the selector and shortcut bar. SnapDOM owns cloning,
- * shadow trees, styles, fonts, SVG and rasterization; Leaf owns no renderer.
- * SnapDOM normalizes that crop into its capture root's layout pixels; explicit export
- * dimensions keep the image in the selected viewport pixels under CSS zoom. Paint
- * crosses into the overlay's layout coordinates through its native element frame.
- * The crop is approximate browser rendering, not privileged access to screen pixels.
- * Known missing images refuse capture instead of attaching a placeholder.
+ * in viewport coordinates until confirmation, when `pageImage` draws that
+ * document-coordinate crop, excluding the selector, banner and shortcut bar. The crop
+ * is approximate browser rendering, not privileged access to screen pixels.
  *
  * The closest containing semantic target at the rectangle's center anchors its comment.
  * A canceled or superseded capture cannot create an attachment. Failed rasterization
- * leaves the rectangle available to retry. Image upload and draft ownership remain the
- * composition input's, including its protection against a draft changing mid-upload.
+ * leaves the rectangle available to retry; a part that could not be drawn attaches the
+ * image anyway, with a notice naming what may be missing. Image upload and draft
+ * ownership remain the composition input's, including its protection against a draft
+ * changing mid-upload.
  */
 import { el } from "../widget-elements.js";
 import { paintKeys } from "../keyboard/scopes.js";
@@ -29,6 +26,7 @@ import { nextRender } from "../rendering.js";
 import { elementBorderFrame } from "../geometry.js";
 import { clamp } from "../rect.js";
 import { notice } from "../notifications.js";
+import { pageImage } from "./page-image.js";
 
 const MIN_SIZE = 8;
 const STEP = 10;
@@ -154,23 +152,9 @@ export function createRegionSelector({
     keepsText(status, "Capturing…");
     paintKeys();
     try {
-      const { snapdom } = await import("../../vendor/snapdom.esm.js");
-      if (ended || ticket !== attempt) return;
-      const image = await snapdom(document.body, {
-        clip,
-        width: clip.width,
-        height: clip.height,
-        dpr: window.devicePixelRatio,
-        exclude: ".lf-region-capture, .lf-shortcut-bar, .lf-banner",
-        excludeMode: "remove",
-        invalidate: true,
-        reconcile: true,
+      const { blob, warnings } = await pageImage(clip, {
+        exclude: [".lf-region-capture", ".lf-shortcut-bar", ".lf-banner"],
       });
-      const blob = await image.toBlob({ format: "png" });
-      if (image.warnings.some(({ code }) => code === "image-fallback"))
-        throw new Error(
-          "An image in this area could not be captured. Try another area or paste a screenshot.",
-        );
       if (ended || ticket !== attempt) return;
       if (revision !== runtime.currentRevision)
         throw new Error("The page changed. Select the area again.");
@@ -179,6 +163,8 @@ export function createRegionSelector({
         adding = openComposerWithMedia(anchor, [blob]);
       });
       await adding;
+      // The attachment stands; the notice says what it may be missing.
+      if (warnings.length) notice(`Captured — ${warnings.join(" ")}`);
     } catch (error) {
       if (ended || ticket !== attempt) return;
       busy = false;

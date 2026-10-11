@@ -26,7 +26,10 @@ export function initialSample(host, { offer }) {
   status.setAttribute("role", "status");
   actions.append(reset, full, status);
   controls.append(actions);
-  view.append(controls, frame);
+  const exhibit = document.createElement("div");
+  exhibit.className = "lf-sample-exhibit";
+  exhibit.append(frame);
+  view.append(controls, exhibit);
   host.append(view);
   return { template, frame, view, controls, reset, full, status };
 }

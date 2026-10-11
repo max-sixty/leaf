@@ -100,7 +100,6 @@ export const runtime = {
   get state() {
     return readApplication().authoritative;
   },
-  restoringState: false,
   registry: {},
   get statePhase() {
     return readApplication().phase;

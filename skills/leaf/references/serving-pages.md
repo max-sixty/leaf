@@ -7,7 +7,7 @@ URL returned by `leaf server start`.
 ## Exported files
 
 When `$ARGUMENTS` asks for `--export`, build the page as a finished record (the
-main skill's "Operate", step 3), since only a stamped version exports, then run:
+main skill's "Quick pages and records" step), since only a stamped version exports, then run:
 
 ```bash
 leaf page export <page> -o <file>

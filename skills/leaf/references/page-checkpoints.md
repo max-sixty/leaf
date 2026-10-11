@@ -4,7 +4,7 @@
 
 At a checkpoint the user would name, such as sign-off or the end of the
 conversation, stamp the exact current source with a brief changelog, after the
-review the main skill's "Operate", step 3, asks of a record. An answered message
+review the main skill's "Quick pages and records" step asks of a record. An answered message
 is not a checkpoint.
 
 ```bash

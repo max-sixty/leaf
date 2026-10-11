@@ -56,6 +56,7 @@ from render_harness import (
     pane_posture,
     panel_settled,
     refuse,
+    reported_browser_errors,
     resized,
     root_overflow,
     round_trip,
@@ -619,7 +620,7 @@ def test_a_failed_background_presentation_keeps_the_new_undo_authority(browser, 
     page.route("**/api/state*", malformed_state)
     with (
         page.expect_console_message(
-            lambda message: "read failed" in message.text
+            lambda message: "State presentation failed" in message.text
         ) as reported,
         page.expect_request("**/api/state*"),
     ):
@@ -652,12 +653,7 @@ def test_a_failed_background_presentation_keeps_the_new_undo_authority(browser, 
     assert logged_undo["undoes"] != first["id"]
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
     expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
-    assert take_browser_errors(page) == [
-        reported.value.text.replace(
-            "leaf: read failed:", "leaf: State presentation failed:", 1
-        ),
-        reported.value.text,
-    ]
+    assert take_browser_errors(page) == [reported.value.text]
 
 
 def test_a_newer_queued_action_survives_an_older_refusal(browser, serve):
@@ -1128,8 +1124,9 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
             lambda message: "leaf: state in event response" in message.text
         ),
         # The move's own append is what the page hears next, so the malformed read
-        # it prompts fails here rather than on a later timer.
-        page.expect_console_message(lambda message: "read failed" in message.text),
+        # it prompts is answered here rather than on a later timer. Its failure reads
+        # like the event answer's, so the test waits on the read itself.
+        page.expect_response("**/api/state*"),
     ):
         heater.focus()
         for key in ["Enter", "ArrowRight", "Enter"]:
@@ -1202,7 +1199,6 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
         page,
         "leaf: State presentation failed:",
         "leaf: state in event response",
-        "read failed",
         "400",
     )
 
@@ -2807,10 +2803,10 @@ def test_a_failed_candidate_presentation_keeps_version_approval(browser, serve):
         route.continue_()
     nudge(serve.page_dir)
     expect(approval).to_have_text("✓ Version approved")
-    assert take_browser_errors(page) == [
+    reported_browser_errors(
+        page,
         "leaf: State presentation failed: injected approval commit fault",
-        "leaf: read failed: injected approval commit fault",
-    ]
+    )
 
 
 def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
@@ -2917,10 +2913,10 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
     page.unroute("**/api/state*")
     for route in held_states:
         route.continue_()
-    assert take_browser_errors(page) == [
+    reported_browser_errors(
+        page,
         "leaf: State presentation failed: injected candidate commit fault",
-        "leaf: read failed: injected candidate commit fault",
-    ]
+    )
 
 
 def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
@@ -3082,7 +3078,7 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
     expect(suggestion_control(page, "sug-refill", "undo")).to_be_enabled()
     expect(suggestion_control(page, "sug-refill", "undo")).to_be_enabled()
-    assert take_browser_errors(page) == [
+    reported_browser_errors(
+        page,
         "leaf: State presentation failed: injected wake candidate fault",
-        "leaf: read failed: injected wake candidate fault",
-    ]
+    )

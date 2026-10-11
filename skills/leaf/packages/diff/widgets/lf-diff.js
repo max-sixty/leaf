@@ -27,6 +27,9 @@ import {
   ensureSyntaxLanguage,
   focusDestination,
   holdFocus,
+  html,
+  keyed,
+  render,
   inChrome,
   iconElement,
   inBaseLayer,
@@ -237,35 +240,21 @@ function renderedLines(file, rendered) {
 // with no break in it but the one the stylesheet forces, a narrow row cut names mid-word
 // ("skills/wor|ktrunk", "preview.|rs"). The text is unchanged; a <wbr> adds only the
 // opportunity.
-function pathNode(className, path) {
-  const node = Object.assign(document.createElement("span"), { className });
+function pathTemplate(path) {
   const parts = path.split("/");
   const base = parts.pop();
   const parent = parts.pop();
-  if (parts.length) {
-    const ancestors = Object.assign(document.createElement("span"), {
-      className: "lf-diff-dir lf-diff-dir-ancestor",
-    });
-    for (const folder of parts)
-      ancestors.append(`${folder}/`, document.createElement("wbr"));
-    node.append(ancestors);
-  }
-  if (parent !== undefined) {
-    node.append(
-      Object.assign(document.createElement("span"), {
-        className: "lf-diff-dir lf-diff-dir-parent",
-        textContent: `${parent}/`,
-      }),
-      document.createElement("wbr"),
-    );
-  }
-  node.append(
-    Object.assign(document.createElement("span"), {
-      className: "lf-diff-base",
-      textContent: base,
-    }),
-  );
-  return node;
+  return html`${
+      parts.length
+        ? html`<span class="lf-diff-dir lf-diff-dir-ancestor"
+            >${parts.map((part) => html`${part}/<wbr />`)}</span
+          >`
+        : ""
+    }${
+      parent !== undefined
+        ? html`<span class="lf-diff-dir lf-diff-dir-parent">${parent}/</span><wbr />`
+        : ""
+    }<span class="lf-diff-base">${base}</span>`;
 }
 
 // While a file's row cuts its path short, the row wears `data-path-cut`, which draws the
@@ -281,8 +270,10 @@ function pathNode(className, path) {
 // flex allocation and the full path for accessibility, title and held-word intact.
 //
 // One observer watches every file's row, so a delivery reads every row it names before
-// writing any. A row is watched from when it becomes its file's row (`fileEntry`,
-// `replaceFileRendering`) until another replaces it; a file's rendered evidence goes
+// writing any. A summary's paint starts watching its path parts and moves that
+// observation when their identity changes (`paintSummary`); replacing its row stops
+// the old observations (`replaceFileRendering`). Summaries are created only within
+// the synchronous source commit, after its evidence is prepared. Rendered evidence goes
 // into the kept row (`replaceFileContent`) and brings no row of its own. A
 // row that leaves the page with its file or its diff is not unwatched: an observer
 // holds what it watches weakly, so the row is collected with its observation.
@@ -324,9 +315,6 @@ const pathSizes = sizeObserver((entries) => {
       part.toggleAttribute("data-folder-hidden", hidden);
   }
 });
-function watchPathCut(details) {
-  for (const part of pathParts(details)) pathSizes.observe(part);
-}
 function unwatchPathCut(details) {
   for (const part of pathParts(details)) pathSizes.unobserve(part);
 }
@@ -349,61 +337,54 @@ const threadSizes = sizeObserver((entries) => {
   }
 });
 
-function filePathNode({ path, previousPath }) {
-  const named = previousPath
-    ? Object.assign(document.createElement("span"), { className: "lf-diff-path" })
-    : pathNode("lf-diff-path", path || "(unnamed file)");
-  if (previousPath) {
-    const arrow = Object.assign(document.createElement("span"), {
-      className: "lf-diff-arrow",
-      textContent: " → ",
-    });
-    named.append(
-      pathNode("lf-diff-source-path", previousPath),
-      arrow,
-      pathNode("lf-diff-destination-path", path),
-    );
-  }
-  named.dataset.path = named.textContent.replaceAll("/", "/\u200b");
-  return named;
+function filePathTemplate({ path, previousPath }) {
+  const name = path || "(unnamed file)";
+  // The held-word presentation uses generated content, so it needs a soft break
+  // after each slash alongside the visible path's <wbr> opportunities. A cut path
+  // is read whole on keyboard focus or a held press (`paintSummary`, held-word.js).
+  const displayPath = previousPath ? `${previousPath} → ${path}` : name;
+  return html`<span
+    class="lf-diff-path"
+    data-path=${displayPath.replaceAll("/", "/\u200b")}
+    >${
+      previousPath
+        ? html`<span class="lf-diff-source-path">${pathTemplate(previousPath)}</span
+            ><span class="lf-diff-arrow"> → </span
+            ><span class="lf-diff-destination-path">${pathTemplate(path)}</span>`
+        : pathTemplate(name)
+    }</span
+  >`;
 }
 
-// Keep the disclosure's native owner while its source/destination mapping changes.
-function updateSummaryPath(details, next) {
-  const current = details.querySelector(".lf-diff-head > .lf-diff-path");
-  if (current.dataset.path === next.dataset.path) return;
-  unwatchPathCut(details);
-  current.replaceWith(next);
-  watchPathCut(details);
-}
-
-function paintCounts(stat, { additions, deletions }) {
-  if (!stat.firstElementChild) {
-    const added = document.createElement("span");
-    added.className = "lf-diff-additions";
-    const removed = document.createElement("span");
-    removed.className = "lf-diff-deletions";
-    stat.append(added, " ", removed);
-  }
-  keepsText(stat.firstElementChild, `+${additions}`);
-  keepsText(stat.lastElementChild, `−${deletions}`);
+// Lit owns only the summary's contents. The native disclosure and Pierre's body
+// stay connected across revisions, including loading and failed evidence.
+function paintSummary(details, record) {
+  const { path, previousPath, additions, deletions } = record;
+  const previous = pathParts(details);
+  render(
+    html`${keyed(JSON.stringify([path, previousPath]), filePathTemplate(record))}<span
+        class="lf-diff-stat"
+        data-lf-gen="1"
+        ><span class="lf-diff-additions">+${additions}</span>${" "}<span
+          class="lf-diff-deletions"
+          >−${deletions}</span
+        ></span
+      >`,
+    details.firstElementChild,
+  );
+  const current = pathParts(details);
+  for (const part of previous) if (!current.includes(part)) pathSizes.unobserve(part);
+  for (const part of current) if (!previous.includes(part)) pathSizes.observe(part);
 }
 
 function summaryNode(record, open) {
   const details = document.createElement("details");
   details.className = "lf-diff-fold";
   details.open = open;
-  // The row's path gives way from its folders, so a row that cuts it short says the
-  // whole path (`watchPathCut`), and a press held on the row reads it as the keyboard
-  // standing there does (held-word.js). It says `data-path`: the path with a zero-width
-  // space after each slash, since generated content takes no <wbr>.
   const summary = document.createElement("summary");
   summary.className = `lf-diff-head ${HOLDS_WORD}`;
-  const stat = document.createElement("span");
-  stat.className = "lf-diff-stat";
-  paintCounts(stat, record);
-  stat.dataset.lfGen = "1";
-  summary.append(filePathNode(record), stat);
+  details.append(summary);
+  paintSummary(details, record);
   commands(summary, "On a diff", [
     {
       id: "diff.toggle",
@@ -411,7 +392,6 @@ function summaryNode(record, open) {
       title: () => `${details.open ? "hide" : "show"} this file`,
     },
   ]);
-  details.append(summary);
   return details;
 }
 
@@ -431,7 +411,6 @@ function fileEntry(row) {
   actions.className = "lf-diff-file-actions lf-ui";
   actions.dataset.lfGen = "1";
   node.append(actions, row);
-  watchPathCut(row);
   return {
     node,
     details: row.matches("details") ? row : null,
@@ -495,7 +474,6 @@ function replaceFileRendering(entry, row, outlets) {
   unwatchPathCut(entry.details);
   setChildren(entry.node, [entry.node.firstElementChild, row]);
   entry.details = row.matches("details") ? row : null;
-  watchPathCut(entry.details);
   entry.lines = [];
   entry.renderKey = null;
   return () => restore?.(entry.details?.firstElementChild, entry.node);
@@ -605,12 +583,9 @@ function renameNode(record) {
   const row = document.createElement("div");
   row.className = "lf-diff-rename";
   row.dataset.lfGen = "1";
-  row.append(
-    filePathNode(record),
-    Object.assign(document.createElement("span"), {
-      className: "lf-diff-stat",
-      textContent: "renamed",
-    }),
+  render(
+    html`${filePathTemplate(record)}<span class="lf-diff-stat">renamed</span>`,
+    row,
   );
   return row;
 }
@@ -1008,8 +983,7 @@ customElements.define(
             });
             keeps(entry.node, "data-lf-gen", "1");
             if (rename) return entry;
-            updateSummaryPath(entry.details, filePathNode(record));
-            paintCounts(entry.details.querySelector(".lf-diff-stat"), record);
+            paintSummary(entry.details, record);
             if (prepared) restores.push(this.applyEntry(entry));
             else entry.details.querySelector("pre")?.toggleAttribute("hidden", true);
             return entry;

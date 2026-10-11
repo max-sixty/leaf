@@ -356,6 +356,8 @@ def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(browser, 
         assert reading["room"] >= reading["prefix"], reading
         assert reading["base"] == "CLAUDE.md" and not reading["baseCut"], reading
         head.tap()
-        expect(head.locator("..")).to_have_attribute("open", "")
+        file = head.locator("..")
+        expect(file).to_have_attribute("open", "")
+        expect(file.locator("[data-line]").last).to_contain_text("new = True")
         head.tap()
-        expect(head.locator("..")).not_to_have_attribute("open", "")
+        expect(file).not_to_have_attribute("open", "")

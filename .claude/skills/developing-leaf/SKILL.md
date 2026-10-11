@@ -294,8 +294,8 @@ harness promises:
   ends, comments after an Escape are answered, and quitting ends the session's claim
   and its watch. Run it, with and without `--hooks-module`, after a change to
   `hooks/hooks.json`, `hooks/claude-code.ts`, `ClaudeCodeHarness`, `hooks.py`,
-  `loop-guard.py`, or the watch between turns in `session.py`; with the flag it also
-  checks that Escape closes the turn and leaves a watch running.
+  `background-watch.py`, or the watch between turns in `session.py`; with the flag it
+  also checks that Escape closes the turn and leaves a watch running.
 - `codex-app-server` and `codex-queue`, a Codex task through each transport of
   automatic server handoff, the queue being the desktop app's: the page server
   titles each thread, the claim names the user's turn while it runs and the task's

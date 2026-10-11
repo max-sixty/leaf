@@ -353,7 +353,7 @@ function normalizedProjection(
   const desiredIds = [];
   for (const projection of [view?.document.projection, thread?.projection]) {
     if (!projection) continue;
-    for (const wire of projection.entries ?? []) {
+    for (const wire of projection.entries) {
       const e = wire.event;
       const descriptor = descriptors?.get(e.widget);
       const currentSpec = descriptor && eventSpec(descriptor.declaration, e);
@@ -382,9 +382,9 @@ function normalizedProjection(
             : wire.value,
       });
     }
-    actionIds.push(...(projection.actions ?? []));
-    reportIds.push(...(projection.reports ?? []));
-    desiredIds.push(...(projection.desired ?? []));
+    actionIds.push(...projection.actions);
+    reportIds.push(...projection.reports);
+    desiredIds.push(...projection.desired);
   }
   return { entries, actionIds, reportIds, desiredIds, coverage: view?.coverage ?? [] };
 }

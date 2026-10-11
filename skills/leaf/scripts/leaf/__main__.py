@@ -6,9 +6,10 @@ starts has `sys.executable` in hand and needs no launcher or environment manager
 
 Harnesses call `leaf hook --harness NAME` on every turn, including sessions holding no
 page. That invocation, and the same with `--watch` after it, enter the dependency-light
-hook owner before importing Click or registering other commands. Help and every other
-invocation use the CLI, whose `prog_name` stays `leaf` for both entry forms.
-`leaf session-end` delegates to the same cleanup owner in a managed interpreter.
+hook owner without importing Click; they are the only route to it, so any other `hook`
+argv is refused with its usage line. `leaf session-end` delegates to the same cleanup
+owner in a managed interpreter. Help and every other invocation use the CLI, whose
+`prog_name` stays `leaf` for both entry forms.
 """
 
 import sys
@@ -21,11 +22,9 @@ def main() -> None:
 
         end_session()
         return
-    if (
-        len(args) > 2
-        and args[:2] == ["hook", "--harness"]
-        and args[3:] in ([], ["--watch"])
-    ):
+    if args[:1] == ["hook"]:
+        if len(args) < 3 or args[1] != "--harness" or args[3:] not in ([], ["--watch"]):
+            sys.exit("usage: leaf hook --harness NAME [--watch]")
         from leaf.hooks import main as hook
 
         hook(args[2], watch=args[3:] == ["--watch"])

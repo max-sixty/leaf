@@ -1193,29 +1193,3 @@ def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
     from leaf.tasks import cmd_end
 
     _print_records(cmd_end(resolve_dir(dir), task_id, outcome, detail))
-
-
-@cli.command(hidden=True)
-@click.option(
-    "--harness",
-    required=True,
-    help="The harness whose registration runs this hook.",
-)
-@click.option(
-    "--watch",
-    is_flag=True,
-    help="Watch the session's pages until input, printing what wakes the session.",
-)
-def hook(harness: str, watch: bool) -> None:
-    """Answer an agent-harness hook on stdin."""
-    from leaf.hooks import main
-
-    main(harness, watch=watch)
-
-
-@cli.command(hidden=True)
-def session_end() -> None:
-    """Release ownership for the harness's SessionEnd payload on stdin."""
-    from leaf.state import main
-
-    main()

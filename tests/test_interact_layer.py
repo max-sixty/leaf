@@ -343,13 +343,30 @@ def test_workflow_shell_continuations_use_literal_blocks():
     assert not offenders, f"plain run scalars with shell continuations: {offenders}"
 
 
-def test_hidden_hook_remains_callable():
-    result = CliRunner().invoke(
-        cli_model.cli, ["hook", "--harness", "codex"], input="{}"
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["hook"],
+        ["hook", "--harness"],
+        ["hook", "--watch", "--harness", "codex"],
+        ["hook", "--harness", "codex", "--bogus"],
+    ],
+)
+def test_a_hook_argv_no_registration_sends_is_refused_with_its_usage(argv):
+    """`hook` is routed before the CLI loads, and only in the shapes harness
+    registrations send; any other shape names the one it takes, rather than reading
+    a payload it was never meant to have."""
+    result = subprocess.run(
+        [sys.executable, "-m", "leaf", *argv],
+        input="{}",
+        capture_output=True,
+        text=True,
+        check=False,
     )
 
-    assert result.exit_code == 0
-    assert result.output == ""
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert result.stderr == "usage: leaf hook --harness NAME [--watch]\n"
 
 
 def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):

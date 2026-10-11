@@ -105,23 +105,27 @@ def _snapshot(path: Path, raw: bytes) -> dict:
 def bind_file(page_dir: Path, binding: str, file: Path) -> dict:
     """Grant this page read/write access to one existing canonical text path.
 
-    The author named the path, so a path the system cannot reach is refused in the
-    system's own words, path included."""
+    The author named the path, so a path the system cannot reach or read is refused
+    in the system's own words, path included. The page's own storage failing is a
+    fault."""
     if not BINDING_ID.fullmatch(binding):
         raise FileBindingError(
             "Binding id must start with a lowercase letter and use lowercase letters, digits or -."
         )
     try:
         path = file.expanduser().resolve(strict=True)
-        if path == (page_dir / FILE_BINDINGS_FILE).resolve():
-            raise FileBindingError("A page cannot edit its own file access grants.")
-        with page_locked(page_dir):
-            snapshot = _read(path)
-            bindings = _bindings(page_dir)
-            bindings[binding] = str(path)
-            write_json(page_dir / FILE_BINDINGS_FILE, {"bindings": bindings})
     except OSError as error:
         raise FileBindingError(str(error)) from error
+    if path == (page_dir / FILE_BINDINGS_FILE).resolve():
+        raise FileBindingError("A page cannot edit its own file access grants.")
+    with page_locked(page_dir):
+        try:
+            snapshot = _read(path)
+        except OSError as error:
+            raise FileBindingError(str(error)) from error
+        bindings = _bindings(page_dir)
+        bindings[binding] = str(path)
+        write_json(page_dir / FILE_BINDINGS_FILE, {"bindings": bindings})
     return snapshot
 
 

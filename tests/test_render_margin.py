@@ -5448,7 +5448,7 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
 
 
 def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, serve):
-    """A middle-width margin gives its marker's space to the message."""
+    """A middle-width margin gives marker clearance to the message's width."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     page.emulate_media(reduced_motion="reduce")
     # Keep the title comparison centred so this width exercises the middle rail.
@@ -5481,7 +5481,10 @@ def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, s
     assert geometry["cardLeft"] == pytest.approx(geometry["wordsRight"] + 8, abs=0.5), (
         geometry
     )
-    assert geometry["cardLeft"] < geometry["pinRight"], geometry
+    # A compact marker can end inside the gap beside the words, especially with
+    # Linux's narrower fonts. Width priority removes the marker's clearance; it
+    # need not cover that marker's painted pixels.
+    assert geometry["cardWidth"] > room_past_pin, geometry
     assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
         geometry
     )

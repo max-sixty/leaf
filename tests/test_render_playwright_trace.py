@@ -2752,7 +2752,10 @@ def test_trace_play_press_belongs_to_its_pointer_click(browser, serve):
     widget = user.locator("lf-trace")
     play = widget.get_by_role("button", name="Play", exact=True)
     pause = widget.get_by_role("button", name="Pause", exact=True)
-    # Settle normal playback before holding the clock across pointer release.
+    # Settle normal playback before holding the clock across pointer release. Play
+    # from the start: from the initial selection, real-time playback can end
+    # before a loaded runner's next click reaches Pause.
+    widget.get_by_role("button", name="Start", exact=True).click()
     play.click()
     pause.click()
     rendered(user)

@@ -18,9 +18,10 @@
    `reportPageError` is the common runtime error surface. A widget failure may `failSoft`
    its own element so the rest of the page and Threads remain usable, but a presentation
    failure neither rolls back accepted semantic state nor proves pending receipts were
-   shown. The window error listener, module load failures, a widget's `failSoft`, and the
-   render gate all report through the same page-level evidence. Do not catch an error merely to stamp readiness
-   or continue accounting for pending attempts.
+   shown. The window error listener, module load failures, a widget's `failSoft`, the
+   application's presentation and settlement of a gesture, and the render gate all
+   report through the same page-level evidence. Do not catch an error merely to stamp
+   readiness or continue accounting for pending attempts.
 
    A fault that leaves part of the page not working as authored, such as the tab icon,
    an interaction demo that fails to load or run a command, or a code block that fails

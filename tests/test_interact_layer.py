@@ -55,7 +55,6 @@ from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
 from leaf.page import page_instructions
 from leaf.registry import contract as registry_contract
-from leaf.registry import reactions as registry_reactions
 from leaf.registry import storage as registry_storage
 from leaf.registry import widgets as registry_widgets
 from leaf.render_gate import browser as browser_model
@@ -337,13 +336,39 @@ def test_workflow_shell_continuations_use_literal_blocks():
     assert not offenders, f"plain run scalars with shell continuations: {offenders}"
 
 
-def test_hidden_hook_remains_callable():
-    result = CliRunner().invoke(
-        cli_model.cli, ["hook", "--harness", "codex"], input="{}"
+@pytest.mark.parametrize(
+    ("argv", "usage"),
+    [
+        (["hook"], "leaf hook --harness NAME [--watch]"),
+        (["hook", "--harness"], "leaf hook --harness NAME [--watch]"),
+        (
+            ["hook", "--watch", "--harness", "codex"],
+            "leaf hook --harness NAME [--watch]",
+        ),
+        (
+            ["hook", "--harness", "codex", "--bogus"],
+            "leaf hook --harness NAME [--watch]",
+        ),
+        (["session-end", "now"], "leaf session-end"),
+    ],
+)
+def test_a_harness_entry_argv_no_registration_sends_is_refused_with_its_usage(
+    argv, usage
+):
+    """`hook` and `session-end` are routed before the CLI loads, and only in the
+    shapes harness registrations send; any other shape names the one it takes, rather
+    than reading a payload it was never meant to have."""
+    result = subprocess.run(
+        [sys.executable, "-m", "leaf", *argv],
+        input="{}",
+        capture_output=True,
+        text=True,
+        check=False,
     )
 
-    assert result.exit_code == 0
-    assert result.output == ""
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert result.stderr == f"usage: {usage}\n"
 
 
 def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
@@ -4990,7 +5015,7 @@ def test_init_merges_reaction_tokens_merge_patch_style(tmp_path, monkeypatch):
             {
                 "$reactions": {
                     "tokens": {
-                        "keep": {"glyph": "👍", "means": "ship it", "settles": True},
+                        "keep": {"glyph": "👍", "settles": True},
                         "shorten": None,
                         "meh": {"glyph": "~"},
                     }
@@ -5008,32 +5033,24 @@ def test_init_merges_reaction_tokens_merge_patch_style(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     tokens = json.loads((page / "registry.json").read_text())["$reactions"]["tokens"]
     assert list(tokens) == ["keep", "change", "clarify", "support", "prioritize", "meh"]
-    assert tokens["keep"] == {"glyph": "👍", "means": "ship it", "settles": True}
+    assert tokens["keep"] == {"glyph": "👍", "settles": True}
     assert tokens["meh"] == {"glyph": "~"}
     assert "settles" not in tokens["change"]
-    assert registry_reactions.described(
-        {"token": "keep"}, {"$reactions": {"tokens": tokens}}
-    ) == {
-        "token": "keep",
-        "means": "ship it",
-    }
-    assert registry_reactions.described(
-        {"token": "meh"}, {"$reactions": {"tokens": tokens}}
-    ) == {"token": "meh"}
 
 
 @pytest.mark.parametrize(
     "entry",
     [
-        {"glyph": "✓", "means": ""},
-        {"glyph": "", "means": "x"},
-        {"glyph": "✓", "means": "x", "settle": True},  # a flag nothing reads
-        {"glyph": "✓", "means": "x", "settles": "yes"},
+        {"glyph": ""},
+        {"glyph": "✓", "means": "x"},  # prose the layer does not declare
+        {"glyph": "✓", "settle": True},  # a flag nothing reads
+        {"glyph": "✓", "settles": "yes"},
     ],
 )
 def test_package_check_refuses_a_malformed_reaction_token(tmp_path, monkeypatch, entry):
-    """Consumers read declared fields directly, so an invalid glyph, explanation, or
-    misspelled behavior must fail at the package boundary instead of disappearing."""
+    """Consumers read declared fields directly, so an invalid glyph, an undeclared
+    field, or a misspelled behavior must fail at the package boundary instead of
+    disappearing."""
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     assert runner.invoke(cli_model.cli, ["package", "init", ".leaf"]).exit_code == 0

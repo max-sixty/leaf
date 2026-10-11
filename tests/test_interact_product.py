@@ -43,7 +43,7 @@ from leaf.registry import storage as registry_storage
 from leaf.registry.contract import element_declarations
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_digest
-from leaf.validation import compatibility as validation_model
+from leaf.validation import composition as validation_model
 from leaf.validation.instances import reference_errors
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import package_selection_args, prepare_page, read_fixture
@@ -1975,7 +1975,6 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
         ("shorten", bare["id"]),
         ("change", answered["id"]),
     ]
-    assert all("means" not in reaction for reaction in state["reactions"])
     assert state["reactions"][0]["anchor"]["quote"] == "Ship dark"
 
     result = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])

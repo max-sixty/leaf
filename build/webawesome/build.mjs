@@ -31,9 +31,9 @@ const css = await build({
   minify: true,
   write: false,
 });
-// Move only theme variables to component hosts. Upstream root color/font defaults
-// are inheritance, and declaring them on a host would override its own state face.
-// The same token selectors work inside Leaf's declared shadow stages.
+// Move only upstream theme variables to component hosts. Transplanting root
+// appearance would override component state ink; leaf-theme.css owns the chosen
+// typography defaults. The selectors also work in Leaf's declared shadow stages.
 const tokens = execFileSync(python, ["theme.py"], {
   input: css.outputFiles[0].text,
   encoding: "utf8",

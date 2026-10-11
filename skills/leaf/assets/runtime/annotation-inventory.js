@@ -37,11 +37,11 @@ import { renderedParent, shadowHost, under } from "./shadow.js";
 import { placeOf } from "./standing-target.js";
 import { questionPlace } from "./questions/place.js";
 import { scrollBehavior } from "./motion.js";
+import { comparisonChanges } from "./version.js";
 
 export function createAnnotationInventory({
   readQuestions,
   comparisonBase,
-  comparisonChanges,
   inlineComparison,
   toggleInlineComparison,
   placedAt,
@@ -322,10 +322,8 @@ export function createAnnotationInventory({
       );
     }
 
-    const questions = readQuestions().user.filter(
-      (question) => question.source.kind === "widget",
-    );
-    for (const question of questions) {
+    // Only a widget Question has a place on the page; the rest have no node.
+    for (const question of readQuestions().user) {
       const id = question.id;
       const target = questionPlace(question).node;
       if (!target) continue;

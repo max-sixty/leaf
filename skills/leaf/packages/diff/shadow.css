@@ -61,11 +61,17 @@
   display: none;
 }
 .lf-diff-head .lf-diff-dir {
-  flex: 1 1 0;
+  flex: 0 1 auto;
   min-width: 0;
   max-width: max-content;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.lf-diff-head .lf-diff-dir-ancestor {
+  flex: 1 1 0;
+}
+.lf-diff-head :is(.lf-diff-source-path, .lf-diff-destination-path) .lf-diff-dir {
+  flex: 1 1 0;
 }
 .lf-diff-head .lf-diff-dir::before {
   content: "…" / "";
@@ -82,6 +88,9 @@
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.lf-diff-head > .lf-diff-path > .lf-diff-base {
+  flex-shrink: 0;
 }
 .lf-diff-head > .lf-diff-stat {
   flex: none;

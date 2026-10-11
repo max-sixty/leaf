@@ -54,7 +54,6 @@ export function createPendingLedger({ newAttempt, enqueue }) {
       return handle;
     },
     snapshot,
-    sending,
     nextSending: () => {
       const [attempt] = sending();
       return attempt ? handles.get(attempt) : null;
@@ -79,13 +78,13 @@ export function createPendingLedger({ newAttempt, enqueue }) {
         if (receipt.attempt) handles.get(receipt.attempt)?.resolveRead(receipt);
       return left.length > 0;
     },
-    /** @param {DeliveryHandle} entry @param {Event[]} receipts */
-    nameParent(entry, receipts) {
-      applicationState.nameParent(entry.event.attempt, receipts);
+    /** @param {DeliveryHandle} entry */
+    nameParent(entry) {
+      applicationState.nameParent(entry.event.attempt);
     },
-    /** @param {DeliveryHandle} entry @param {Event[]} receipts */
-    nameUndo(entry, receipts) {
-      return applicationState.nameUndo(entry.event.attempt, receipts);
+    /** @param {DeliveryHandle} entry */
+    nameUndo(entry) {
+      return applicationState.nameUndo(entry.event.attempt);
     },
   };
 }

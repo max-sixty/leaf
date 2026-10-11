@@ -480,7 +480,6 @@ app = mountApplication({
     pointerModeActive: () =>
       designMode.active() || drawing.drawModeActive() || regionCapture.active(),
     comparisonBase: version.comparisonBase,
-    comparisonChanges: version.comparisonChanges,
     inlineComparison: version.inlineComparison,
     toggleInlineComparison: version.toggleInlineComparison,
     leavePageMap: (...args) => pageMapDialog.leavePageMap(...args),
@@ -502,7 +501,6 @@ app = mountApplication({
   },
   feed: {
     prepareActivation: (state) => version.prepareActivation(state),
-    notifyDataSubscribers,
     renderStatus,
   },
 });

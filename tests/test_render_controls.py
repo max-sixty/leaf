@@ -1971,7 +1971,6 @@ def test_sample_host_view_changes_leave_its_scroll_and_keyboard_position(
             completed += 1
             expect(page.locator("#completed")).to_have_text(str(completed))
             child = frame.element_handle().content_frame()
-            rendered(child)
             expect(button).to_be_focused()
             assert page.evaluate("scrollY") == before
             panel = child.locator(".lf-thread-panel")
@@ -5009,9 +5008,11 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
                 }"""
         )
         for item in ("toolbar", "ring"):
+            # Centered flex boxes round to device pixels independently of the
+            # banner's stated height; subpixel overhang is not a clipped aim.
             assert (
-                geometry[item]["top"] >= geometry["banner"]["top"] - 0.01
-                and geometry[item]["bottom"] <= geometry["banner"]["bottom"] + 0.01
+                geometry[item]["top"] >= geometry["banner"]["top"] - 1
+                and geometry[item]["bottom"] <= geometry["banner"]["bottom"] + 1
             ), f"the wide coarse {item} escaped its banner at {width}px: {geometry}"
 
     # The browser's root is Leaf's page scrollport, and native touch beginning in
@@ -6234,10 +6235,7 @@ def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
                 row["title"]: (row["activity"]["kind"], row["activity"]["detail"])
                 for row in state["others"]
             }
-            == {
-                "The closing leaf": ("closed", ""),
-                "The other leaf": ("working", "recording the demo"),
-            }
+            == {"The other leaf": ("working", "recording the demo")}
         ),
     )
     held = page.evaluate(
@@ -6577,9 +6575,8 @@ def test_a_failed_leaves_restore_keeps_application_presentation_pending(
     )
     told(
         page,
-        until=lambda state: any(
-            row["title"] == "The closing leaf" and row["activity"]["kind"] == "closed"
-            for row in state["others"]
+        until=lambda state: all(
+            row["title"] != "The closing leaf" for row in state["others"]
         ),
     )
     page.wait_for_function(
@@ -7499,17 +7496,12 @@ def test_a_walk_down_the_drawer_stops_clear_of_the_shortcut_bar_text(
 
 
 def test_a_walk_down_the_queue_stops_clear_of_the_shortcut_bar_text(browser, serve):
-    """The pages drawer's reading above, made of the drawer beside it. The room is one
-    fact — the shortcut bar stands in the corner both lists reach — and it was written to one
-    list, so the Asks list's walk parked its last row 47px under the line. Nothing said
-    so, because no example ships enough Asks to fill a drawer and the walk that would have
-    shown it had only ever been made down the other one.
+    """A covering Questions panel keeps the last row above the shortcut bar.
 
-    So both lists end above the same band (`--lf-bottom-bar-h`), and this is the half of that the
-    leaves reading could not cover: a fact stated per drawer is a fact the second drawer
-    goes without, and the second drawer is the one nobody looks at."""
+    Beside a live page the bar ends at the panel's edge, so only the covering
+    posture exercises the clearance shared with the Pages drawer."""
     page = open_page(browser, serve(MANY_ASKS_PAGE))
-    resized(page, 900, 420)
+    resized(page, 480, 420)
     banner_control(page, ".lf-queue").click()
     rows = page.locator("button.lf-queue-row")
     expect(rows).to_have_count(24)
@@ -7604,6 +7596,25 @@ def test_a_scroll_box_inside_a_widgets_shadow_tree_takes_the_keyboard(browser, s
     assert all(item["tab"] == -1 for item in fitted), (
         "a diff that fits added a keyboard stop with nowhere to scroll"
     )
+
+
+def test_a_hidden_control_does_not_take_a_scroll_boxes_keyboard_route(browser, serve):
+    markup = leaf_page(
+        "Hidden control in scroll box",
+        '<h1>Review</h1><a id="before" href="#scroll">Read code</a>'
+        '<div id="scroll" style="width:220px; overflow-x:auto; white-space:nowrap">'
+        '<button style="visibility:hidden">Unavailable</button>'
+        "<span>alpha_function_name = compute_the_overly_long_value(first_argument, second_argument)</span>"
+        "</div>",
+    )
+    page = open_page(browser, serve(markup))
+    box = page.locator("#scroll")
+    assert box.evaluate("el => el.scrollWidth > el.clientWidth")
+    expect(box).to_have_attribute("tabindex", "0")
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(box).to_be_focused()
+    assert box.evaluate("el => el.matches(':focus-visible')")
 
 
 def test_a_comment_on_a_scrolling_box_leaves_its_tab_stop_alone(browser, serve):

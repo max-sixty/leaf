@@ -1005,7 +1005,9 @@ def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
         host = context.new_page()
         host.goto(url, wait_until="load")
         expect(host.get_by_role("button", name="Reset", exact=True)).to_be_enabled()
-        expect(host.locator("body")).to_have_attribute("data-lf-auxiliary-surface", surface)
+        expect(host.locator("body")).to_have_attribute(
+            "data-lf-auxiliary-surface", surface
+        )
         child = host.frame_locator("#practice iframe")
         expect(child.locator("body")).not_to_have_attribute(
             "data-lf-auxiliary-surface", surface

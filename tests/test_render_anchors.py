@@ -188,7 +188,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
         const {TEXT_BLOCK, pageRange} = await window.__lfRuntimeImport('/runtime/passages.js');
         const {anchorForRange, resolveAnchor} =
             await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
-        const {nextRender, renderingSettled} =
+        const {nextRender, renderingState} =
             await window.__lfRuntimeImport('/runtime/rendering.js');
         const tick = () => new Promise(r => setTimeout(r, 0));
         const rendered = async () => {
@@ -201,7 +201,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
                 await Promise.race([deadline, (async () => {
                     await tick();
                     await new Promise(resolve => nextRender(resolve));
-                    while (!renderingSettled()) await tick();
+                    while (!Object.values(renderingState()).every(Boolean)) await tick();
                 })()]);
             } finally {
                 clearTimeout(timer);
@@ -958,12 +958,21 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
     # at rest, since a hover state read against a resting one compares nothing.
     page.mouse.move(4, 4)
 
+    # The slotted shortcut hint keeps the text field's muted placeholder ink.
+    # Typography shared with sent messages must not turn an empty hint into prose.
+    hint_ink = """hint => [getComputedStyle(hint).color,
+        getComputedStyle(hint.querySelector('kbd')).color]"""
+    hint = page.locator(".lf-fab-input .lf-compose-placeholder")
+    expect(hint).to_be_visible()
+    assert len(set(hint.evaluate(hint_ink))) == 1
+
     family = """el => { const s = getComputedStyle(el);
         return Object.fromEntries(["font-family", "font-size",
             "border-top-width", "border-top-style",
             "background-color"].map(p => [p, s.getPropertyValue(p)])); }"""
     raised = page.locator(".lf-fab-input").evaluate(family)
     page.keyboard.press("e")
+    expect(page.locator(".lf-fab-bar .lf-fab-suggest")).to_be_visible()
     adjacent = page.locator(".lf-fab-bar .lf-fab-suggest").evaluate(family)
     assert raised == adjacent, (
         "the floating field and its other responses are drawn differently:\n  "
@@ -977,9 +986,11 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
         f"the response bar speaks in the document's voice: {raised['font-family']}"
     )
     assert (
-        page.locator(".lf-fab-input").evaluate("el => getComputedStyle(el).boxShadow")
+        page.locator(".lf-fab-input").evaluate("el => getComputedStyle(el).filter")
         != "none"
     ), "the field that floats over the page says nothing about its elevation"
+    page.locator(".lf-fab-input").click()
+    assert len(set(hint.evaluate(hint_ink))) == 1
 
 
 # One rendered key face: the geometry a physical press claims wherever Leaf draws it, and

@@ -539,7 +539,7 @@ diff --git a/other.md b/other.md
     try:
         one_frame(page)
         assert not page.evaluate(
-            "document.querySelector('script[data-lf-entry]').lfRenderingSettled()"
+            "Object.values(document.querySelector('script[data-lf-entry]').lfRenderingState()).every(Boolean)"
         ), "registered source preparation must keep rendering pending"
     finally:
         held[0].continue_()

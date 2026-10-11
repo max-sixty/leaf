@@ -192,7 +192,7 @@
    Paragraphs keep the editor's whitespace and a blank line between them through
    send, replies and reopening. */
   :is(.lf-thread-transcript, .lf-thread-reply, .lf-general) { --quote-inset: 10px; --pre-inset: 10px; }
-  leaf-text.lf-fab-input, .lf-fab-bar .lf-compose-placeholder, .lf-msg-body {
+  leaf-text.lf-fab-input, .lf-msg-body {
           font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans); color: var(--ink); }
   .lf-msg-body { min-width: 0; margin: var(--lf-msg-body-gap) 0 0; overflow-wrap: anywhere; }
   /* A message's words, or its rewrite standing where they stood (message-edit.js). */

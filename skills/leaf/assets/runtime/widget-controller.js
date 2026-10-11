@@ -5,8 +5,9 @@
    the owner DOM is never a semantic store. Its semantic render and asynchronous
    preparation are two stable widget-id regions: neither can supersede the other's
    proof. Subscriptions belong to the owner; removal pauses them and reconnecting
-   restores the latest reading and preparation. Registered preparation also holds the
-   mechanical rendering reading until completion or removal. Local editing defers the render
+   restores the latest reading and preparation. Registered preparation also holds full
+   rendering readiness until completion or removal; queued updates can independently
+   settle while it waits. Local editing defers the render
    region at its newest unpublished reading, without painting a detached owner. */
 import { applicationState, attachWidgetPresentation } from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";

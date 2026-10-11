@@ -8603,13 +8603,10 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
 def test_the_ring_reading_sees_and_measures_a_ring_cast_as_a_shadow(browser, serve):
     """The band has two carriers, and a reading that knew one was blind to the other.
 
-    Most of the layer's rules draw the ring as an outline. Two cast it as a shadow: the
-    anchored response bar, whose focused states write `outline: none` so the field and
-    its choices keep one silhouette, and the target hint the keyboard is browsing, a chip
-    in a layer nothing can focus. To a user those are the same band, and a sweep asking
-    only the outline answered `no ring here` for both — the bar's own controls came back
-    credited to `pressable`, the name of the floor rule whose outline the bar takes away,
-    and neither ring's geometry was measured anywhere.
+    Most of the layer's rules draw the ring as an outline. A target hint the keyboard
+    is browsing casts it as a shadow, on a chip in a layer nothing can focus. To a user
+    those are the same band, and a sweep asking only the outline misses the shadow's
+    indication and geometry.
 
     Knowing one on sight is the first half, and the layer offers three shadows to mistake
     for it: the elevation lift every floating surface wears, the inset accent wash a
@@ -9148,7 +9145,7 @@ RING_CASES = (
     (
         "an inline response",
         (),
-        {"pr-walkthrough": (("leaf-text.lf-fab-input", "response-control"),)},
+        {"pr-walkthrough": (("leaf-text.lf-fab-input", "text-box"),)},
     ),
     # The list holds focus itself only while it shows no thread, so the sample finds
     # nothing and backs out of the find box onto the emptied list.
@@ -9199,7 +9196,7 @@ RING_CASES = (
     (
         "the response bar",
         ("Tab", "s", "Shift+Tab", "Tab", "Enter"),
-        {"corpus": ((".lf-fab-input", "response-control"),)},
+        {"corpus": ((".lf-fab-input", "text-box"),)},
     ),
     # These controls live behind exact page-owned view states. Give each one a focused
     # stop rather than changing the active panel for the whole page: selecting a

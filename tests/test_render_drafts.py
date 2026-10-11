@@ -4533,6 +4533,9 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
     second_inserted = "".join(second_delta.locator("ins").all_inner_texts())
     assert "before" in second_deleted and "deploying" in second_deleted
     assert "afterthebackup" in re.sub(r"\s+", "", second_inserted)
+    # Comparisons preserve source whitespace; template indentation is visible here.
+    comparison = second_delta.locator(".lf-draft-delta").text_content()
+    assert comparison == comparison.strip()
 
     draft.get_by_role("button", name="Restore edit 1 · v1").focus()
     page.keyboard.press("Enter")

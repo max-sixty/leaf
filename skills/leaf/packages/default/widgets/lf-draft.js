@@ -356,9 +356,11 @@ customElements.define(
         </summary>
         <section class="lf-draft-current">
           <strong>
-            ${standing === authored
-              ? "Standing text matches this version"
-              : "This version → standing text"}
+            ${
+              standing === authored
+                ? "Standing text matches this version"
+                : "This version → standing text"
+            }
           </strong>
           ${standing === authored ? nothing : this.#delta(authored, standing)}
         </section>
@@ -370,20 +372,24 @@ customElements.define(
               html`<li>
                 <div class="lf-draft-revision-head">
                   <strong>${row.label}</strong>
-                  ${row.text === standing
-                    ? nothing
-                    : html`<button
-                        ${offered("lf-btn lf-draft-restore")}
-                        aria-disabled=${String(blocked)}
-                        tabindex=${blocked ? -1 : 0}
-                        @click=${() => this.#restore(row.text, row.label)}
-                      >
-                        Restore ${row.label.toLowerCase()}
-                      </button>`}
+                  ${
+                    row.text === standing
+                      ? nothing
+                      : html`<button
+                          ${offered("lf-btn lf-draft-restore")}
+                          aria-disabled=${String(blocked)}
+                          tabindex=${blocked ? -1 : 0}
+                          @click=${() => this.#restore(row.text, row.label)}
+                        >
+                          Restore ${row.label.toLowerCase()}
+                        </button>`
+                  }
                 </div>
-                ${row.before === null
-                  ? html`<div class="lf-draft-snapshot">${row.text || "Empty"}</div>`
-                  : this.#delta(row.before, row.text)}
+                ${
+                  row.before === null
+                    ? html`<div class="lf-draft-snapshot">${row.text || "Empty"}</div>`
+                    : this.#delta(row.before, row.text)
+                }
               </li>`,
           )}
         </ol>
@@ -392,12 +398,11 @@ customElements.define(
 
     // The aligned run is computed once per pair; guard keeps its nodes across renders.
     #delta(before, after) {
-      return html`<div class="lf-draft-delta">
-        ${guard([before, after], () => {
-          const nodes = alignedNodes(alignText(before, after));
-          return nodes.length ? nodes : "Empty";
-        })}
-      </div>`;
+      const content = guard([before, after], () => {
+        const nodes = alignedNodes(alignText(before, after));
+        return nodes.length ? nodes : "Empty";
+      });
+      return html`<div class="lf-draft-delta">${content}</div>`;
     }
 
     // The summary is a stable node now; its disclosure line is declared once per node.

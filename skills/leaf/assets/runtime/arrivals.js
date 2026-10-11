@@ -98,7 +98,7 @@ export function liveStages() {
 }
 
 const stands = (el) => {
-  const root = el.getRootNode();
+  const root = Node.prototype.getRootNode.call(el);
   return root === document
     ? document.body.contains(el)
     : stages.has(root) && root.host.isConnected;

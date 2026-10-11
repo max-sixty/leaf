@@ -168,7 +168,7 @@ const placed = (cause, move) => {
 const landedOn = (node) =>
   node === document.body
     ? node.matches(":focus")
-    : node.getRootNode().activeElement === node ||
+    : Node.prototype.getRootNode.call(node).activeElement === node ||
       Boolean(node.shadowRoot?.activeElement);
 
 // A stop is lent only to a drawn element that is no control of its own: a control that
@@ -189,7 +189,7 @@ export const wearsLentStop = (element) => lent.has(element);
 // element in light or shadow DOM, in Chromium, Firefox and WebKit.
 export function whenLeft(element, leave) {
   const blur = () => {
-    if (element.getRootNode().activeElement === element) return;
+    if (Node.prototype.getRootNode.call(element).activeElement === element) return;
     element.removeEventListener("blur", blur);
     leave();
   };
@@ -732,7 +732,10 @@ export function holdFocus(scope, { key = null } = {}) {
   if (!item || item === scope || !within(scope, item)) return restore;
   // The items are read in the tree the held one stands in, which is the scope's own or a
   // shadow tree inside it.
-  const tree = item.getRootNode() === scope.getRootNode() ? scope : item.getRootNode();
+  const tree =
+    Node.prototype.getRootNode.call(item) === Node.prototype.getRootNode.call(scope)
+      ? scope
+      : Node.prototype.getRootNode.call(item);
   const items = () =>
     [...tree.querySelectorAll(`[${key}]`)].filter((item) => within(scope, item));
   // A key marking several nodes of one place counts once, where it first stands.
@@ -742,8 +745,10 @@ export function holdFocus(scope, { key = null } = {}) {
   // In an item, the control like the one the user stood on, as Remove for Remove, read
   // in the item's own tree, or the item itself where it holds none.
   let control = node;
-  while (control.getRootNode() !== item.getRootNode()) {
-    const host = shadowHostOf(control.getRootNode());
+  while (
+    Node.prototype.getRootNode.call(control) !== Node.prototype.getRootNode.call(item)
+  ) {
+    const host = shadowHostOf(Node.prototype.getRootNode.call(control));
     if (!host) break; // Slotted document controls already name their native kind.
     control = host;
   }
@@ -803,7 +808,8 @@ const heldIn = (scope) => {
   const held = heldByLabel();
   if (held) return within(scope, held) ? held : null;
   const standing = deepFocus(
-    scope.getRootNode().activeElement ?? scope.ownerDocument.activeElement,
+    Node.prototype.getRootNode.call(scope).activeElement ??
+      scope.ownerDocument.activeElement,
   );
   if (standing && standing !== document.body && within(scope, standing))
     return standing;

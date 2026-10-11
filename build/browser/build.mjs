@@ -145,21 +145,26 @@ function litModule(lit) {
       build.onLoad(
         { filter: /[/\\]lit-html[/\\](?:lit-html|directive-helpers)\.js$/ },
         async ({ path: source }) => {
-          const original =
+          const seams =
             path.basename(source) === "lit-html.js"
-              ? "this._$AA.parentNode.insertBefore(t,this._$AB)"
-              : "e.insertBefore(o,l)";
-          const replacement =
-            path.basename(source) === "lit-html.js"
-              ? "leafMove(this._$AA.parentNode,t,this._$AB)"
-              : "leafMove(e,o,l)";
-          const text = await readFile(source, "utf8");
-          if (text.split(original).length !== 2)
-            throw new Error(`Lit move seam changed: ${source}: ${original}`);
+              ? [
+                  [
+                    "this._$AA.parentNode.insertBefore(t,this._$AB)",
+                    "leafMove(this._$AA.parentNode,t,this._$AB)",
+                  ],
+                  // Root marker insertion also goes through the platform lookup:
+                  // a named form control can shadow the container's insertBefore.
+                  ["i.insertBefore(l(),t)", "leafMove(i,l(),t)"],
+                ]
+              : [["e.insertBefore(o,l)", "leafMove(e,o,l)"]];
+          let text = await readFile(source, "utf8");
+          for (const [original, replacement] of seams) {
+            if (text.split(original).length !== 2)
+              throw new Error(`Lit move seam changed: ${source}: ${original}`);
+            text = text.replace(original, replacement);
+          }
           return {
-            contents:
-              'import {move as leafMove} from "/runtime/dom-move.js";\n' +
-              text.replace(original, replacement),
+            contents: 'import {move as leafMove} from "/runtime/dom-move.js";\n' + text,
             resolveDir: path.dirname(source),
           };
         },

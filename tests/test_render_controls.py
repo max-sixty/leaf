@@ -10200,13 +10200,18 @@ def test_a_reference_command_finishes_its_gesture_before_a_newer_control(
 
 @pytest.mark.parametrize("native_move", [True, False])
 def test_lit_moves_keep_native_editor_and_frame_state(browser, serve, native_move):
-    """Native moves retain editor/frame state; insertion needs the focus wrapper."""
+    """Moves survive named form fields; native moves also retain frame state."""
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "Retained rows",
-                '<h1>Retained rows</h1><section id="rows"></section><section id="other"></section>',
+                "<h1>Retained rows</h1>"
+                + "".join(
+                    f'<form id="{id}"><input name="moveBefore"><input name="getRootNode">'
+                    '<input name="insertBefore"></form>'
+                    for id in ["rows", "other"]
+                ),
             )
         ),
     )
@@ -10216,7 +10221,7 @@ def test_lit_moves_keep_native_editor_and_frame_state(browser, serve, native_mov
       const {render: heldRender} = await window.__lfRuntimeImport('/runtime/dom-children.js');
       const render = nativeMove ? rawRender : heldRender;
       const rows = document.querySelector('#rows');
-      if (!nativeMove) rows.moveBefore = undefined;
+      if (!nativeMove) Element.prototype.moveBefore = undefined;
       let ids = ['a', 'b', 'c'];
       const paint = () => render(repeat(ids, id => id, id => html`
         <div data-row=${id}><input aria-label=${id}>
@@ -10268,3 +10273,16 @@ def test_lit_moves_keep_native_editor_and_frame_state(browser, serve, native_mov
             )
         else:
             assert page.evaluate("window.blurs") > 0
+    assert page.evaluate(
+        """async () => {
+      const {selectionBackward} = await window.__lfRuntimeImport('/runtime/passages.js');
+      const form = document.querySelector('#rows');
+      const first = document.createElement('label'), last = document.createElement('label');
+      first.textContent = 'First'; last.textContent = 'Second';
+      form.prepend(first); form.append(last);
+      const selection = getSelection();
+      selection.setBaseAndExtent(first.firstChild, 0, last.firstChild, 6);
+      return [selection.getRangeAt(0).commonAncestorContainer === form,
+              selectionBackward(selection)];
+    }"""
+    ) == [True, False]

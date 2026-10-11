@@ -108,7 +108,6 @@ export const runtime = {
   get statePhase() {
     return readApplication().phase;
   },
-  undoing: false,
   get versions() {
     return readApplication().authoritative?.versions ?? [];
   },

@@ -53,6 +53,7 @@ import {
   once,
   offer,
   failSoft,
+  focusDestination,
   iconElement,
   nextFrame,
   isCanonicalMediaUrl,
@@ -399,22 +400,29 @@ customElements.define(
           comparison.append(frame);
         }
         let dragged = false;
+        const handleOf = (event) =>
+          event
+            .composedPath()
+            .find(
+              (node) =>
+                node instanceof Element &&
+                node.getAttribute("part")?.split(/\s+/).includes("handle"),
+            );
         comparison.addEventListener("change", () => {
           dragged = true;
           this.#chose = true;
           this.#paint();
         });
         comparison.addEventListener("pointerdown", (event) => {
-          if (event.button === 0) dragged = false;
+          if (!event.isPrimary || event.button !== 0) return;
+          dragged = false;
+          // The vendor cancels native focus when it starts dragging. The handle
+          // remains the input destination, so arrows can continue the adjustment.
+          const target = handleOf(event);
+          if (target) focusDestination(target, "press");
         });
         comparison.addEventListener("click", (event) => {
-          const onHandle = event
-            .composedPath()
-            .some(
-              (node) =>
-                node instanceof Element &&
-                node.getAttribute("part")?.split(/\s+/).includes("handle"),
-            );
+          const onHandle = handleOf(event);
           if (
             !dragged &&
             !onHandle &&

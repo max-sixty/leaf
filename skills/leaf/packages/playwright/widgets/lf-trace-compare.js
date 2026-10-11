@@ -20,7 +20,7 @@ import {
   quoted,
   sizeObserver,
 } from "/runtime/widget-api.js";
-await import("../vendor/webawesome.esm.js");
+await import("/vendor/webawesome.esm.js");
 
 customElements.define(
   "lf-trace-compare",

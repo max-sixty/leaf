@@ -143,8 +143,8 @@ reply, a reaction from another tab, the thread resolved or reopened elsewhere) w
 behind a notice in a row the thread already draws. A thread the agent starts in a seat
 also waits there; a thread that would open a seat of its own, as on a diff line with
 no thread, waits in the margin behind its marker (`thread/held-news.js`). It shows
-once a gesture of theirs takes them to it: opening the notice or the thread, walking to the thread or one of its Asks, or acting there. In
-the Threads panel, a card news takes out of the view, as another actor resolving its
+once a gesture of theirs takes them to it: opening the notice or the thread, walking
+to the thread or one of its Asks, or acting there. In the Threads panel, a card news takes out of the view, as another actor resolving its
 thread under Open does, stays where it stands, holding the news behind that notice
 and, once shown, in the shape it stood in, until its going would move nothing the
 user sees or they change the view

@@ -11,9 +11,8 @@ only the runtime, theme and server differ between the two stills of a state. Wit
 changes to page markup are visible as well. Each
 capture starts with a fresh authored fixture and event log, so a prior gesture cannot
 change another state's initial condition.
-Message delivery belongs to thread_journey and test_render_thread_snapshots: its
-held checkpoints replace the former panel/card sent stills, whose unrestricted
-POSTs could complete before capture.
+Message delivery belongs to thread_journey and test_render_thread_snapshots, whose
+held checkpoints capture a send before its POST completes; a still cannot hold one.
 
 A state is an example, a viewport, a color scheme and a pointer, and the input that
 brings a fresh tab there (`DRIVERS`, which `leaf-dev probe --do drive:NAME` also runs).

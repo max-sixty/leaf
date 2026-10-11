@@ -88,8 +88,8 @@ at a time, leave the page live beside them, and cover it where they would leave 
 a usable page
 (`--lf-auxiliary-beside`, read by `standsBeside`). Which box scrolls is the
 stylesheet's, a Layout's or the page's, which the runtime reads rather than decides.
-The Questions panel is experimental and expected to change a lot: it replaced the Asks
-drawer to try one place for both queues (`runtime/queue-panel.js`).
+The Questions panel is experimental and expected to change a lot: it tries one place
+for both queues (`runtime/queue-panel.js`).
 
 The current Threads panel is unsatisfactory and being reconsidered. Defer
 refinements to its existing layout and interaction design; carry those findings

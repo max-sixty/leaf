@@ -20,7 +20,8 @@
 // Each trusted gesture owns its counted rendering until declared completion. A widget
 // preparation it began (`observeWidgetPreparations`) works on in a promise the loop
 // cannot see; the gesture owns that preparation's landing, as a rendering from the
-// task that settles it until the loop settles again, and nothing while it waits.
+// task that settles it until the loop settles again, and nothing while it waits. It
+// began one only if it was aimed inside the declaring widget while its rendering ran.
 // Native effects it began retain only their sampled displacement within their
 // own subtree; their continued lifetime never owns unrelated page movement.
 // Native scroll effects belong to their retained scroll source, regardless of the
@@ -1153,7 +1154,8 @@
     }
     open = null;
   };
-  const begin = (start, typing = null, own = new Set()) => {
+  // `target` is the node the input was aimed at, where it has one.
+  const begin = (start, typing = null, own = new Set(), target = null) => {
     end();
     open = {
       start,
@@ -1163,17 +1165,26 @@
       told: false,
       last: false,
       typing,
+      target,
     };
     renderings.push(open);
   };
   // The renderings preparations' landings opened, each running until the loop settles
-  // as an input's own does. A preparation declared while an input's rendering runs, or
-  // a landing's, is that input's; one declared outside them stays passive.
+  // as an input's own does. A preparation is an input's only where that input was aimed
+  // inside the widget that declared it, in the rendered tree, and was declared while
+  // that input's rendering, or a landing it owns, still ran. Overlap alone is not
+  // cause: a preparation a timer, news or another widget's input started stays passive.
   const landing = new Set();
   const preparing = new WeakMap();
+  const aimedInside = (rendering, widget) => {
+    for (let at = rendering?.target; at; at = up(at)) if (at === widget) return true;
+    return false;
+  };
   const prepared = (phase, preparation) => {
     if (phase === "begin") {
-      const owner = open ?? [...landing].at(-1);
+      const owner = [open, ...[...landing].reverse()].find((rendering) =>
+        aimedInside(rendering, preparation.owner),
+      );
       if (owner) preparing.set(preparation, owner);
       return;
     }
@@ -1188,6 +1199,7 @@
       told: false,
       last: false,
       typing: owner.typing,
+      target: owner.target,
     };
     landing.add(rendering);
     renderings.push(rendering);
@@ -1252,26 +1264,31 @@
     for (let at = field; at instanceof Element; at = up(at)) holding.push(at);
     const start = nativePerformance.now();
     const at = read(start, false);
-    begin(start, {
+    begin(
+      start,
+      {
+        field,
+        at,
+        found: boxes(
+          holding.filter((node) => {
+            const paint = paintAt(node, at);
+            return (
+              node === field ||
+              paint.reading ||
+              paint.control ||
+              paint.reflow ||
+              paintedHolder(node)
+            );
+          }),
+        ),
+        moving: holding
+          .flatMap((node) => node.getAnimations())
+          .filter((animation) => animation.playState === "running" && moves(animation)),
+        until: Infinity,
+      },
+      new Set(),
       field,
-      at,
-      found: boxes(
-        holding.filter((node) => {
-          const paint = paintAt(node, at);
-          return (
-            node === field ||
-            paint.reading ||
-            paint.control ||
-            paint.reflow ||
-            paintedHolder(node)
-          );
-        }),
-      ),
-      moving: holding
-        .flatMap((node) => node.getAnimations())
-        .filter((animation) => animation.playState === "running" && moves(animation)),
-      until: Infinity,
-    });
+    );
   });
   // A viewport resize is input, and its new size is the fact. Chrome lays out the
   // resized viewport before dispatching resize, which precedes the frame's callbacks,
@@ -1302,7 +1319,12 @@
   const heard = (event) => {
     if (!event.isTrusted || (event.type === "pointermove" && !event.buttons)) return;
     if (event.type === "pointerdown") presses.set(event.pointerId, new Set());
-    begin(nativePerformance.now(), null, presses.get(event.pointerId) ?? new Set());
+    begin(
+      nativePerformance.now(),
+      null,
+      presses.get(event.pointerId) ?? new Set(),
+      event.composedPath()[0] ?? null,
+    );
     if (event.type === "click") presses.delete(event.pointerId);
   };
   for (let view = window; ; view = view.parent) {

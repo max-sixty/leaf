@@ -19,8 +19,11 @@
  * can reach. A private revision that changes executable code marks its one required
  * container reload in the URL; every ordinary document navigation stays at the edge.
  * Accepted browser events start their agent task in the already-selected user
- * container without holding the browser acknowledgement open. Analytics Engine records
- * accepted product events; Workers Observability records the content-free execution path.
+ * container without holding the browser acknowledgement open. A page fault reported
+ * from a passive session is the published page failing, so the edge logs it for the
+ * site's maintainers instead of activating a container to hold it. Analytics Engine
+ * records accepted product events; Workers Observability records the execution path,
+ * whose only page words are a bounded startup or fault `reason`.
  */
 
 import {
@@ -69,13 +72,14 @@ interface AgentTaskParams {
 }
 
 const settledAgentResultSchema = z.object({ status: z.literal("settled") });
+const siteRelease = z.string().check(z.regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/));
 const startupTime = z.nullable(
   z.number().check(z.int(), z.nonnegative(), z.maximum(300_000)),
 );
 const startupReportSchema = z.strictObject({
   version: z.literal(2),
   loadId: z.string().check(z.regex(/^[0-9a-f]{32}$/)),
-  release: z.string().check(z.regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/)),
+  release: siteRelease,
   layer: z.string().check(z.regex(/^[A-Za-z0-9_-]{1,128}$/)),
   outcome: z.union([
     z.literal("presented"),
@@ -102,6 +106,16 @@ const startupReportSchema = z.strictObject({
   presentedMs: startupTime,
 });
 const MAX_STARTUP_BYTES = 2048;
+// The fields of the runtime's `reportPageError` event the edge reads. Admission stays
+// the container's: this only recognizes a fault, which the edge logs and never admits.
+const pageFaultSchema = z.object({
+  kind: z.literal("error"),
+  text: z.string(),
+  revision: z.optional(z.number()),
+});
+const MAX_PAGE_FAULT_BYTES = 64 * 1024;
+// The startup report's `reason` bound, for the same kind of words.
+const PAGE_FAULT_REASON_CHARS = 300;
 const interactionEntrySchema = z.record(z.string(), z.unknown()).check(
   z.refine(
     (entry) =>
@@ -686,6 +700,55 @@ async function recordStartup(
   });
 }
 
+// A passive session reads the published page, whose author is the site. A fault it
+// reports owes no reply, so it would start no agent work; in a container it would only
+// wait for the visitor's first agent turn, whose agent did not write the page either. So
+// it belongs beside the startup beacon, where the site's maintainers read, rather than in
+// a private container activated to hold it. Null for any other event, which goes to the
+// container as before.
+async function pageFault(
+  request: Request,
+): Promise<z.infer<typeof pageFaultSchema> | null> {
+  const raw = await readBoundedText(request.clone(), MAX_PAGE_FAULT_BYTES);
+  if (raw === null) return null;
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const parsed = pageFaultSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+function recordPageFault(
+  request: Request,
+  fault: z.infer<typeof pageFaultSchema>,
+  manifest: SiteManifest,
+  route: PageRoute,
+  reference: string,
+): Response {
+  console.log({
+    component: "leaf-page-error",
+    event: "browser_page_error",
+    reference,
+    route: route.root,
+    // The document's release, which a tab not yet reloaded past a deploy still names,
+    // beside the edge's, as the startup record keeps them.
+    release: siteRelease.safeParse(request.headers.get("Leaf-Release")).data ?? null,
+    currentRelease: manifest.release,
+    revision: fault.revision ?? null,
+    ...browserIdentity(request),
+    reason: fault.text.slice(0, PAGE_FAULT_REASON_CHARS),
+  });
+  const answer = new Response(null, {
+    status: 204,
+    headers: { "Cache-Control": "no-store", "Leaf-Session": "passive" },
+  });
+  stampDelivery(answer.headers, route, manifest, reference);
+  return answer;
+}
+
 type InteractionIdentity =
   | { reference: string; sampleReference?: never }
   | { sampleReference: string; reference?: never };
@@ -1116,6 +1179,15 @@ export default {
         return new Response("interaction batch has no page session", { status: 400 });
       }
       return recordInteractions(request, route, { reference }, manifest.release);
+    }
+    if (!active && request.method === "POST" && route.inside === "api/event") {
+      const fault = await pageFault(request);
+      if (fault !== null) {
+        if (existing === null) {
+          return new Response("page error has no page session", { status: 400 });
+        }
+        return recordPageFault(request, fault, manifest, route, reference);
+      }
     }
     if (
       !active &&

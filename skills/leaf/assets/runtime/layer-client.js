@@ -24,7 +24,10 @@
 
    A fault that leaves part of the page not working as authored, such as the tab icon,
    an interaction demo that fails to load or run a command, or a code block that fails
-   to highlight, reports here so the agent hears of it, not only the console. A failed
+   to highlight, reports here so the agent hears of it, not only the console. On
+   leaf.page a passive session reads the published page, so the Worker answers that
+   report at the edge and logs it for the site's maintainers instead
+   (`worker/src/index.ts`, `pageFault`). A failed
    user-view observer stays silent: that context is optional and must not become agent
    work. Code running inside a sample's child page reports to the child's own
    disposable log, not the page that embeds it. */

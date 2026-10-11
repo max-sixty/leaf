@@ -204,12 +204,14 @@ def workflow_provider(
     }
 
 
-def screenshot_judge(screenshots: Path, home: Path) -> dict:
+def screenshot_judge(screenshots: Path | None, home: Path) -> dict:
     """The Codex grader for an executor's `agent-rubric`s, run under a home of its own.
 
     Its permission profile lets it read the run's screenshot tree and nothing else,
     so neither a page's source, the author's transcript, nor a path naming the arm
-    reaches it. `:minimal` is the runtime paths tools need, which include the temp
+    reaches it. Passing None leaves evidence access to each call's isolated profile,
+    so an assertion can grant exactly one sample instead of the run's whole tree.
+    `:minimal` is the runtime paths tools need, which include the temp
     directories but not the repository. Codex starts its sandbox helper by executing
     itself, so the profile also grants the executable, run by its resolved path: a
     symlink's own location is refused. A profile replaces Codex's older sandbox
@@ -222,7 +224,7 @@ def screenshot_judge(screenshots: Path, home: Path) -> dict:
             "",
             "[permissions.screenshots.filesystem]",
             '":minimal" = "read"',
-            f'{json.dumps(f"{screenshots}/**")} = "read"',
+            *([f'{json.dumps(f"{screenshots}/**")} = "read"'] if screenshots else []),
             f'{json.dumps(str(codex))} = "read"',
             "",
         ]
@@ -434,7 +436,7 @@ def eval(args: tuple[str, ...], base: str | None, harness: str, condition: str):
     """Score CASE globs or task/context addresses on the working tree.
 
     Options Promptfoo takes follow the cases, such as `--repeat 3` or `-j 4`.
-    `npm run eval:view` opens the results.
+    `pnpm run eval:view` opens the results.
     """
     split = next((i for i, arg in enumerate(args) if arg.startswith("-")), len(args))
     globs, promptfoo_args = args[:split], args[split:]
@@ -455,7 +457,9 @@ def eval(args: tuple[str, ...], base: str | None, harness: str, condition: str):
     else:
         base = None
     if not PROMPTFOO.is_file():
-        raise click.ClickException("Install development dependencies first: npm ci")
+        raise click.ClickException(
+            "Install development dependencies first: pnpm install --frozen-lockfile"
+        )
     RUNS.mkdir(parents=True, exist_ok=True)
     out = Path(
         tempfile.mkdtemp(
@@ -513,5 +517,5 @@ def eval(args: tuple[str, ...], base: str | None, harness: str, condition: str):
             stdin=subprocess.DEVNULL,
             check=False,
         ).returncode
-    click.echo(f"evidence: {out}\nview: npm run eval:view")
+    click.echo(f"evidence: {out}\nview: pnpm run eval:view")
     sys.exit(status)

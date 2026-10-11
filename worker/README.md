@@ -201,7 +201,8 @@ from the user's. `turn_interrupted` and
 `turn_abandoned_interrupt_started` and `turn_abandoned_interrupt_completed` the same for
 a turn found running on a resumed thread. `turn_failure_reported` says how many of that
 delivery's moves the harness settled with a failure receipt and how many it could not; a
-turn that answered everything it was given writes no such record.
+turn that answered everything it was given writes no such record. `turn_receipt_refused`
+records a receipt the page turned down, after which the page is still handed on.
 `container_continuation_receipted` marks a start the Worker's dispatch is not holding
 — a move a follower found waiting when its turn ended — and says whether the
 `startup_failed` receipt it wrote settled that move, so a `container_start_failed` on
@@ -481,8 +482,8 @@ error without sending anything to OpenAI. There is no site-wide quota.
 Run the complete local site from the repository root with Docker available:
 
 ```sh
-npm ci
-npm run site:dev
+pnpm install --frozen-lockfile
+pnpm run site:dev
 ```
 
 ## Remote development
@@ -506,7 +507,7 @@ Wrangler secrets do not carry across named environments. The first deployment re
 both credentials from the process and creates the dev Worker with its OpenAI secret:
 
 ```sh
-CLOUDFLARE_API_TOKEN=... OPENAI_API_KEY=... npm run deploy:dev
+CLOUDFLARE_API_TOKEN=... OPENAI_API_KEY=... pnpm run deploy:dev
 ```
 
 Later deployments need only `CLOUDFLARE_API_TOKEN`, loaded from 1Password as above. The
@@ -515,7 +516,7 @@ commit plus working-tree state a release identity, waits for that exact release,
 runs the agent journey (`leaf-dev journey`):
 
 ```sh
-npm run deploy:dev
+pnpm run deploy:dev
 ```
 
 ## Production deployment
@@ -545,7 +546,7 @@ gh secret set CLOUDFLARE_API_TOKEN \
   --repo max-sixty/leaf --env cloudflare-deploy
 gh secret set CLOUDFLARE_API_TOKEN \
   --repo max-sixty/leaf --env tend
-npx wrangler secret put OPENAI_API_KEY --config worker/wrangler.toml
+pnpm exec wrangler secret put OPENAI_API_KEY --config worker/wrangler.toml
 ```
 
 In yolo mode, the next `publish-site` run can use code Tend merged to `main`

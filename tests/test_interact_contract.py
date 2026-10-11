@@ -43,7 +43,7 @@ from interact_support import (
     _report_without_overruled,
     _report_without_upgrade,
     _tasks_version,
-    _user_verb_update,
+    _user_verb_report,
     append_carried_log_record,
     append_command,
     assert_revendor_serializes_writer,
@@ -1153,13 +1153,14 @@ def test_init_allows_a_logged_report_the_incoming_layer_no_longer_speaks(page_di
     assert events_model.read_events(page_dir)
 
 
-def test_init_allows_to_orphan_a_logged_visual_anchor(page_dir):
+@pytest.mark.parametrize("parts", ["node:A node:B", "all"])
+def test_init_allows_to_orphan_a_logged_visual_anchor(page_dir, parts):
     """A provider can remove a visual target without deleting its original comment."""
     version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace(
             '<lf-diagram id="flow">',
-            '<lf-diagram id="flow" parts="node:A node:B">',
+            f'<lf-diagram id="flow" parts="{parts}">',
         )
     )
     publish(page_dir)
@@ -1218,7 +1219,7 @@ def test_a_bare_re_vendor_replaces_a_broken_vendored_registry(page_dir):
 def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
     """The preview holds replacement back; its writer finishes before the test
     releases the page, including when a preview assertion fails."""
-    before = registry_storage.layer_generation(page_dir)
+    before = registry_storage.layer_metadata(page_dir)["generation"]
     theme = page_dir / "theme.css"
     theme.write_text(theme.read_text() + "\n/* repair this installed edit */\n")
     init_waiting = threading.Event()
@@ -1246,9 +1247,9 @@ def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
                 bool,
                 failure="Re-vendoring did not attempt the preview lock",
             )
-            assert registry_storage.layer_generation(page_dir) == before
+            assert registry_storage.layer_metadata(page_dir)["generation"] == before
         initing.result()
-    assert registry_storage.layer_generation(page_dir) != before
+    assert registry_storage.layer_metadata(page_dir)["generation"] != before
 
 
 def test_revendoring_serializes_with_a_browser_action_entering_the_log(
@@ -2150,19 +2151,19 @@ def test_initial_rendering_has_one_structure_owner(
             "source attribute `source` must be required",
         ),
         (
-            lambda entry: entry["required"].remove("at"),
-            "must be required and declare a date-time string",
+            lambda entry: entry["required"].remove("run"),
+            "must be required and declare a nonempty string",
         ),
         (
-            lambda entry: entry["properties"]["at"].pop("format"),
-            "must be required and declare a date-time string",
+            lambda entry: entry["properties"]["run"].pop("minLength"),
+            "must be required and declare a nonempty string",
         ),
     ],
 )
-def test_a_measured_widget_joins_one_data_input_to_one_aware_instant(
+def test_a_measured_widget_joins_one_data_input_to_one_run_receipt(
     page_dir, change, message
 ):
-    """The generic check cannot infer a widget's source or timestamp. Its registry
+    """The generic check cannot infer a widget's source or write receipt. Its registry
     declaration names both, and the registry door refuses a half-readable join before
     an authored value can silently miss the freshness advisory."""
     registry = json.loads((page_dir / "registry.json").read_text())
@@ -2172,8 +2173,8 @@ def test_a_measured_widget_joins_one_data_input_to_one_aware_instant(
         registry_validation.validate_registry(registry, "test registry")
 
 
-def test_a_measurement_timestamp_cannot_also_be_replay_writable(page_dir):
-    """The capture instant belongs to the authored version. Letting replay write it
+def test_a_measurement_run_cannot_also_be_replay_writable(page_dir):
+    """The run receipt belongs to the authored version. Letting replay write it
     would give the browser a newer freshness boundary than file checks and page state
     read from the immutable document."""
     registry = json.loads((page_dir / "registry.json").read_text())
@@ -2181,15 +2182,15 @@ def test_a_measurement_timestamp_cannot_also_be_replay_writable(page_dir):
     widget["x-upgrade"] = True
     widget["properties"]["restated"] = {"type": "boolean"}
     widget["x-state"] = {
-        "retime": {
+        "repin": {
             "unit": "widget",
-            "record": {"kind": "value", "attr": "at"},
+            "record": {"kind": "value", "attr": "run"},
         }
     }
 
     with pytest.raises(
         registry_contract.RegistryError,
-        match="x-measured timestamp attribute `at` is an authored snapshot instant",
+        match="x-measured run attribute `run` is an authored source receipt",
     ):
         registry_validation.validate_registry(registry, "test registry")
 
@@ -2777,8 +2778,8 @@ def test_a_work_seat_declaration_is_checked_whole(page_dir, mutate, message):
         (_report_without_overruled, "not the boolean `overruled`"),
         # Reports replay through renderState, so the widget must upgrade.
         (_report_without_upgrade, "declares x-state"),
-        # Only a report carries update prose.
-        (_user_verb_update, "registry extensions are invalid"),
+        # Only an agent verb declares `report` text.
+        (_user_verb_report, "registry extensions are invalid"),
         # The user answers their own Ask; the agent's news never does.
         (_agent_verb_answers, "which are not x-state verbs the user writes"),
         (_body_record_with_prose, "x-content must be data"),
@@ -3075,15 +3076,15 @@ def test_scalar_record_admission_inherits_the_destination_schema(page_dir):
 
 
 @pytest.mark.parametrize(
-    "mutation", ["detail", "record-value", "record-rank", "update-field"]
+    "mutation", ["detail", "record-value", "record-rank", "report-field"]
 )
 def test_recorded_declarations_cannot_override_the_fixed_payload(page_dir, mutation):
     registry = json.loads((page_dir / "registry.json").read_text())
     spec = registry["lf-board"]["x-state"]["move"]
     if mutation == "detail":
         spec["detail"] = {"type": "object", "additionalProperties": False}
-    elif mutation == "update-field":
-        registry["lf-test-worker"]["x-state"]["state"]["update"] = "doing"
+    elif mutation == "report-field":
+        registry["lf-test-worker"]["x-state"]["state"]["report"] = "doing"
     else:
         spec["record"][mutation.removeprefix("record-")] = "custom"
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -3108,7 +3109,7 @@ def test_value_records_use_the_string_type_html_attributes_carry(page_dir):
     assert "record attribute `state` must be a string or string enum" in result.output
 
 
-def test_report_update_prose_is_required_only_when_declared(page_dir):
+def test_report_text_is_required_only_when_declared(page_dir):
     """The report flag fixes nonempty text; reports without it carry just their value."""
     registry = json.loads((page_dir / "registry.json").read_text())
     page = ModelPage(
@@ -3141,7 +3142,7 @@ def test_report_update_prose_is_required_only_when_declared(page_dir):
             page, [], {**command, "kind": "action", "author": "user", "detail": detail}
         )
 
-    del registry["lf-test-worker"]["x-state"]["state"]["update"]
+    del registry["lf-test-worker"]["x-state"]["state"]["report"]
     page = ModelPage(
         '<lf-test-worker id="agent" state="working">Agent</lf-test-worker>',
         registry=registry,

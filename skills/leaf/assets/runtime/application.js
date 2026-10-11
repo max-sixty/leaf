@@ -6,28 +6,19 @@
 import { annotationMode, runtime } from "./context.js";
 import {
   applicationState,
-  readApplication,
   setPresentationFailureReporter,
   whenApplicationRegionsPresented,
   whenWidgetsPresented,
   presentDocument,
-  whenDocumentPresented,
 } from "./semantic-state.js";
 import { announce, notice } from "./notifications.js";
-import {
-  approvalBlockingQuestions as readApprovalBlockingQuestions,
-  readQuestions,
-} from "./questions/model.js";
+import { readQuestions } from "./questions/model.js";
 import { paintKeys } from "./keyboard/scopes.js";
-import { pendingTraffic } from "./traffic.js";
+import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
 import { createDelivery, deliverBookkeeping } from "./delivery.js";
-import {
-  createProjectionPresentation,
-  shallowSigs as projectionShallowSigs,
-} from "./projection/presentation.js";
-import { projectionDeferred } from "./projection/state.js";
-import { createProjectionCommands } from "./projection/commands.js";
+import { createProjectionPresentation } from "./projection/presentation.js";
+import { createUndo } from "./undo.js";
 import { createDataProjection } from "./projection/data.js";
 import { createThreadPresentation } from "./thread/presentation.js";
 import { createAnnotationInventory } from "./annotation-inventory.js";
@@ -51,8 +42,7 @@ import {
   renderSurfaces,
 } from "./thread/surfaces.js";
 import { createStateApplication } from "./state-application.js";
-import { beginRead as beginStateRead, createStateFeed } from "./state-feed.js";
-import { watchUpdates as observeUpdates } from "./updates.js";
+import { createStateFeed } from "./state-feed.js";
 
 const commandDispatch = createCommandDispatch();
 let application = null;
@@ -65,6 +55,7 @@ export function mountApplication(dependencies) {
   if (application) throw new Error("Leaf application mounted twice");
   setPresentationFailureReporter(dependencies.reportPageError);
   const { ledger } = commandDispatch;
+  watchPendingTraffic(applicationState.select((root) => root.effective.sending));
   const hasPending = () => ledger.snapshot().length > 0;
   const engagement = dependencies.createEngagement({
     hasPending,
@@ -77,8 +68,9 @@ export function mountApplication(dependencies) {
 
   const stateApplying = () => stateApplication?.isApplying() ?? false;
 
-  const currentReceipts = () => readApplication().authoritative?.browser.receipts ?? [];
-  const approvalBlockingQuestions = readApprovalBlockingQuestions;
+  // The destinations are built after the overlay, whose thread preview they take, and
+  // the views built below before them hold this forwarder to open a thread.
+  const openPageThread = (...args) => threadDestinations.openPageThread(...args);
 
   // Retire the entries the ledger's lifecycle says wait only for release, once every
   // region that draws them has committed the reading that no longer does.
@@ -136,19 +128,10 @@ export function mountApplication(dependencies) {
     return presentDocument();
   };
 
-  const retryProjection = () => {
-    if (!projectionDeferred()) return false;
-    if (stateApplying()) {
-      queuedInvalidation = true;
-      return false;
-    }
-    invalidateDom();
-    return true;
-  };
-
+  // The drag that deferred the projection has ended: present the reading it held.
   const projection = createProjectionPresentation({
     onDeferredReady: () => {
-      if (!retryProjection()) return;
+      invalidateDom();
       releasePendingSafely("deferred pending release");
     },
   });
@@ -164,48 +147,32 @@ export function mountApplication(dependencies) {
 
   /** @param {import("./pending/state.js").DeliveryHandle} entry */
   function afterEnqueue(entry) {
-    let presentationError = null;
-    let threadPresentation = Promise.resolve();
+    // Enqueue has already published and claimed its presentation, whose coordinator
+    // reports any failed paint. The entry's answer describes the server's durable
+    // decision, so a local announcement or key-paint failure is reported here rather
+    // than turning an accepted gesture into an apparent refusal, and it cannot strand
+    // the gesture before transport or leave later sends behind an unanswered entry.
     try {
-      pendingTraffic(readApplication().effective.sending);
-      // Enqueue publishes and claims its presentation synchronously, including while an
-      // accepted reading is still preparing. Observe that pass without starting another;
-      // its coordinator reports any failed paint, and transport proceeds independently.
-      threadPresentation = whenDocumentPresented().catch(() => undefined);
+      if (isMessageEvent(entry.event)) announce("Message sent");
+      if (entry.event.kind === "edit") announce("Message edited");
+      paintKeys();
     } catch (error) {
-      presentationError = error;
+      console.error("leaf: optimistic presentation", error);
     } finally {
-      try {
-        if (isMessageEvent(entry.event)) announce("Message sent");
-        if (entry.event.kind === "edit") announce("Message edited");
-        paintKeys();
-      } catch (error) {
-        presentationError ??= error;
-      } finally {
-        // The durable gesture has entered the one ledger. A local paint failure cannot
-        // strand it before transport or leave every later send waiting behind an
-        // unanswered entry.
-        void delivery.drain();
-      }
+      void delivery.drain();
     }
-    // The returned promise describes the server's durable decision. Report a local
-    // optimistic-presentation failure without turning an accepted gesture into an
-    // apparent refusal for callers that restore drafts or clear busy state from it.
-    if (presentationError)
-      console.error("leaf: optimistic presentation", presentationError);
-    return threadPresentation;
   }
 
   commandDispatch.mount({
     afterEnqueue,
-    withdraw: (candidate) => projectionCommands.withdraw(candidate),
+    withdraw: (candidate) => undo.withdraw(candidate),
     onCollision: (attempt) =>
       notice(`Couldn't send — attempt ${attempt} is already in use`),
   });
 
-  const { post, dispatchWidget } = commandDispatch;
+  const { post } = commandDispatch;
 
-  const projectionCommands = createProjectionCommands({
+  const undo = createUndo({
     post,
     stateApplying,
     unaccountedGesture: engagement.unaccountedGesture,
@@ -223,16 +190,16 @@ export function mountApplication(dependencies) {
   };
   const read = createReadTracking({
     markRead,
-    openThread: (...args) => threadDestinations.openPageThread(...args),
+    openThread: openPageThread,
     firstUnreadBtn: dependencies.firstUnreadBtn,
   });
 
   const threadActions = createThreadActions({
     post,
-    withdraw: projectionCommands.withdraw,
+    withdraw: undo.withdraw,
     sendReaction: dependencies.sendReaction,
     currentRevision: () => runtime.currentRevision,
-    open: (...args) => threadDestinations.openPageThread(...args),
+    open: openPageThread,
   });
   const queueActions = createQueueActions({
     post,
@@ -248,7 +215,7 @@ export function mountApplication(dependencies) {
   const settlementView = {
     pendingEntries: ledger.snapshot,
     actions: threadActions,
-    retainReversal: projectionCommands.retainReversal,
+    retainReversal: undo.retainReversal,
   };
   const reactionView = {
     registerSurface: dependencies.registerReactSurface,
@@ -259,7 +226,7 @@ export function mountApplication(dependencies) {
     settlement: settlementView,
     reaction: reactionView,
     read,
-    openThread: (...args) => threadDestinations.openPageThread(...args),
+    openThread: openPageThread,
     landInThread: dependencies.landInThread,
   };
   const cardView = {
@@ -283,11 +250,10 @@ export function mountApplication(dependencies) {
   const annotations = createAnnotationInventory({
     readQuestions,
     comparisonBase: dependencies.annotationCommands.comparisonBase,
-    comparisonChanges: dependencies.annotationCommands.comparisonChanges,
     inlineComparison: dependencies.annotationCommands.inlineComparison,
     toggleInlineComparison: dependencies.annotationCommands.toggleInlineComparison,
     placedAt: dependencies.anchorPlacement.placedAt,
-    openThread: (...args) => threadDestinations.openPageThread(...args),
+    openThread: openPageThread,
     goToQuestion: dependencies.annotationCommands.goToQuestion,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
   });
@@ -324,7 +290,7 @@ export function mountApplication(dependencies) {
     inventory: annotations,
     refreshInventory: refreshAnnotationInventory,
     renderAnnotations,
-    openPageThread: (...args) => threadDestinations.openPageThread(...args),
+    openPageThread,
     panelIsOpen: dependencies.panelIsOpen,
     panel: dependencies.panel,
     accompaniedThread: dependencies.accompaniedThread,
@@ -433,7 +399,6 @@ export function mountApplication(dependencies) {
 
   delivery = createDelivery({
     ledger,
-    currentReceipts,
     applyAcceptedState: receiveState,
     settleRejected: async (entry, state) => {
       if (state)
@@ -453,9 +418,13 @@ export function mountApplication(dependencies) {
         // ledger.accept; release itself waits for every owning presentation region
         // before undo and other semantic readers may observe the entry leave.
         releasePendingSafely("accepted event reconciliation");
-        // In that ordering a gesture that is not an action left on accept; the same
-        // descriptor invalidation belongs to whichever edge actually retires it.
-        if (!applicationState.entry(entry.event.attempt)) invalidateDom();
+        // In that ordering a gesture that is not an action left on accept; the key
+        // repaint and descriptor invalidation accountPending gives an entry leaving on
+        // presentation belong to whichever edge actually retires it.
+        if (!applicationState.entry(entry.event.attempt)) {
+          paintKeys();
+          invalidateDom();
+        }
         return;
       }
       paintKeys();
@@ -465,13 +434,9 @@ export function mountApplication(dependencies) {
   });
 
   const feed = createStateFeed({
-    prepareActivation: dependencies.feed.prepareActivation,
-    notifyDataSubscribers: dependencies.feed.notifyDataSubscribers,
-    renderStatus: dependencies.feed.renderStatus,
-    projectionDeferred,
-    retryProjection,
+    prepareActivation: dependencies.state.prepareActivation,
+    renderStatus: dependencies.state.renderStatus,
     stateApplying,
-    releasePending,
     invalidateDom,
     receiveState,
   });
@@ -485,12 +450,17 @@ export function mountApplication(dependencies) {
   const threadSurfaceCommands = {
     invalidate: invalidateDom,
     composition: dependencies.compositionSurface,
-    reveal: (...args) => threadDestinations.openPageThread(...args),
+    reveal: openPageThread,
+  };
+  // data-annotations=page is the one switch that hands presentation to the page: both
+  // page consumers refuse a document that keeps Leaf's own margin.
+  const requirePageAnnotations = () => {
+    if (annotationMode !== "page")
+      throw new Error("Page annotation presentation requires data-annotations=page");
   };
   let annotationRegistration = null;
   const consumeAnnotations = (owner, render) => {
-    if (annotationMode !== "page")
-      throw new Error("Page annotation presentation requires data-annotations=page");
+    requirePageAnnotations();
     if (annotationRegistration)
       throw new Error("The document already has a page annotation view");
     const registration = Symbol("page annotation view");
@@ -507,8 +477,10 @@ export function mountApplication(dependencies) {
   };
   const placeThreads = (owner, render) =>
     registerConsumer(owner, render, threadSurfaceCommands);
-  const placePageThreads = (owner, render) =>
-    registerPageConsumer(owner, render, threadSurfaceCommands);
+  const placePageThreads = (owner, render) => {
+    requirePageAnnotations();
+    return registerPageConsumer(owner, render, threadSurfaceCommands);
+  };
   const mountThreadViews = (owner, render) =>
     registerMirrorConsumer(owner, render, { commands: inlineView });
 
@@ -543,18 +515,13 @@ export function mountApplication(dependencies) {
   };
 
   application = {
-    ...projectionCommands,
-    watchUpdates: observeUpdates,
-    ...engagement,
-    approvalBlockingQuestions,
-    beginRead: beginStateRead,
+    withdraw: undo.withdraw,
+    midComposition: engagement.midComposition,
     threadBox,
-    dispatchWidget,
     hasPending,
     invalidateDom,
     landInThread: dependencies.landInThread,
     annotations,
-    refreshAnnotationInventory,
     renderAnnotations,
     mountAnnotations,
     overlay,
@@ -567,7 +534,6 @@ export function mountApplication(dependencies) {
     post,
     projectData: dataProjection.projectData,
     readAndApply: feed.readAndApply,
-    receiveState,
     refreshThread,
     presentThread,
     placeThreads,
@@ -594,22 +560,17 @@ export function mountApplication(dependencies) {
         readQuestions().all,
       );
     },
-    shallowSigs: projectionShallowSigs,
     startFeed: feed.startFeed,
     wireInput: dependencies.wireInput,
   };
   return application;
 }
 
-export const approvalBlockingQuestions = (...args) =>
-  app().approvalBlockingQuestions(...args);
-export const beginRead = (...args) => app().beginRead(...args);
 export const threadBox = (...args) => app().threadBox(...args);
 export const dispatchWidget = commandDispatch.dispatchWidget;
 export const hasPending = (...args) => app().hasPending(...args);
 export const invalidateDom = (...args) => app().invalidateDom(...args);
 export const landInThread = (...args) => app().landInThread(...args);
-export const midComposition = (...args) => app().midComposition(...args);
 export const navigateToDatum = (...args) => app().navigateToDatum(...args);
 // The one route to a thread by its root id: the thread's inline destination while
 // it has one, Threads otherwise, the same choice a mark and t/T make.
@@ -617,7 +578,6 @@ export const openThread = (...args) => app().threadDestinations.openPageThread(.
 export const post = commandDispatch.post;
 export const projectData = (...args) => app().projectData(...args);
 export const readAndApply = (...args) => app().readAndApply(...args);
-export const receiveState = (...args) => app().receiveState(...args);
 export const refreshThread = (...args) => app().refreshThread(...args);
 export const placeThreads = (...args) => app().placeThreads(...args);
 export const placePageThreads = (...args) => app().placePageThreads(...args);
@@ -641,10 +601,4 @@ export const queueActions = Object.freeze({
   open: (...args) => app().queueActions.open(...args),
   done: (...args) => app().queueActions.done(...args),
 });
-export const shallowSigs = (...args) => app().shallowSigs(...args);
-export const startFeed = (...args) => app().startFeed(...args);
-export const unaccountedGesture = (...args) => app().unaccountedGesture(...args);
-export const undoable = (...args) => app().undoable(...args);
-export const undoLast = (...args) => app().undoLast(...args);
-export const watchUpdates = (...args) => app().watchUpdates(...args);
 export const wireInput = (...args) => app().wireInput(...args);

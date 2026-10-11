@@ -334,6 +334,7 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_its_delivery_reference(
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, asked["id"]),
             "--text",
             "a week",
@@ -380,7 +381,7 @@ def test_a_reply_refused_after_user_resolution_names_the_resolution(page_dir):
 
     refused = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", reference, "--text", "I checked it."],
+        ["response", "reply", "--done", reference, "--text", "I checked it."],
     )
 
     assert refused.exit_code != 0
@@ -413,6 +414,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--markup",
             frozen,
@@ -440,6 +442,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, pressed["id"]),
             "--section",
             pressed["id"],
@@ -1343,6 +1346,7 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, root["id"]),
             "--section",
             "backfill-first",
@@ -1359,6 +1363,7 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, root["id"]),
             "--detach",
             "--text",
@@ -1444,156 +1449,6 @@ def test_a_removed_visual_part_moves_its_thread_to_the_surviving_section(page_di
     assert thread["anchor"] == {"section": "flow"}
     assert thread["rewritten_from"] == root["anchor"]
     assert next(e for e in events if e["id"] == root["id"])["anchor"] == root["anchor"]
-
-
-def test_a_detached_thread_releases_the_visual_part_it_left(page_dir):
-    """`--detach` is the documented move when the subject leaves the page, so the
-    edit that removes the subject has to follow it. The opening comment keeps its
-    original coordinate in the log; nothing resolves that coordinate any more."""
-    root = json.loads(
-        comment(
-            parted(page_dir),
-            "--section",
-            "flow",
-            "--part",
-            "node:A",
-            "--text",
-            "Why this one?",
-        ).output
-    )
-    detached = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            str(page_dir),
-            root["id"],
-            "--detach",
-            "--text",
-            "Removing this node; the thread has no page target.",
-        ],
-    )
-    assert detached.exit_code == 0, detached.output
-
-    result = drop_node_a(page_dir)
-    assert result.exit_code == 0, result.output
-    stored_root = next(
-        event
-        for event in events_model.read_events(page_dir)
-        if event["id"] == root["id"]
-    )
-    assert stored_root["anchor"] == {"section": "flow", "visual": "node:A"}
-
-
-def test_a_moved_thread_releases_the_visual_part_it_left(page_dir):
-    """The other half of the same rule: a thread moved onto the whole diagram, or
-    onto a part that survives, stops holding the one it came from."""
-    root = json.loads(
-        comment(
-            parted(page_dir),
-            "--section",
-            "flow",
-            "--part",
-            "node:A",
-            "--text",
-            "Why this one?",
-        ).output
-    )
-    moved = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            str(page_dir),
-            root["id"],
-            "--section",
-            "flow",
-            "--text",
-            "Folded this node into the diagram; the thread is about the whole of it.",
-        ],
-    )
-    assert moved.exit_code == 0, moved.output
-
-    result = drop_node_a(page_dir)
-    assert result.exit_code == 0, result.output
-
-
-def test_a_resolved_thread_releases_the_visual_part_it_held(page_dir):
-    """Closing a thread is the ordinary end of one, and it releases the part on the
-    same terms a detach does — the same terms that already release the section id,
-    which `page check` lets a resolved thread's page drop as advice. Held past
-    the close, the everyday route out of a thread would be the one route that
-    pins a node to its diagram for good."""
-    root = json.loads(
-        comment(
-            parted(page_dir),
-            "--section",
-            "flow",
-            "--part",
-            "node:A",
-            "--text",
-            "Why this one?",
-        ).output
-    )
-    closed = CliRunner().invoke(
-        cli_model.cli, ["thread", "resolve", str(page_dir), root["id"]]
-    )
-    assert closed.exit_code == 0, closed.output
-
-    result = drop_node_a(page_dir)
-    assert result.exit_code == 0, result.output
-
-
-def test_a_bare_reaction_holds_no_visual_part(page_dir):
-    """A reaction nobody has answered is a mark and not a thread, so it never gates
-    a version — the rule `anchored_ids` already states for the section id. It has no
-    turn to reply with either, so holding the part would leave the author no move
-    that releases it."""
-    append_carried_log_record(
-        parted(page_dir),
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "token": "shorten",
-            "anchor": {"section": "flow", "visual": "node:A"},
-        },
-    )
-
-    result = drop_node_a(page_dir)
-    assert result.exit_code == 0, result.output
-
-
-def test_reopening_a_thread_does_not_reclaim_a_released_visual_part(page_dir):
-    """A release is final. `unresolve` is a user's own gesture and `resolve` is
-    undoable, so a closed thread can come back after the author has already
-    published the part away on the licence the close granted. The coordinate cannot
-    be restored — no revision declares it any more — so re-asserting it would leave
-    `page check` refusing every later edit, and the only move out would be a
-    detach that overrides the decision the user just made."""
-    root = json.loads(
-        comment(
-            parted(page_dir),
-            "--section",
-            "flow",
-            "--part",
-            "node:A",
-            "--text",
-            "Why this one?",
-        ).output
-    )
-    closed = CliRunner().invoke(
-        cli_model.cli, ["thread", "resolve", str(page_dir), root["id"]]
-    )
-    assert closed.exit_code == 0, closed.output
-    assert drop_node_a(page_dir).exit_code == 0
-    publish(page_dir, version=2)
-
-    append_carried_log_record(
-        page_dir, {"kind": "unresolve", "author": "user", "parent": root["id"]}
-    )
-    reopened = check(page_dir)
-    assert reopened.exit_code == 0, reopened.output
 
 
 def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):
@@ -2055,7 +1910,7 @@ def test_the_agents_own_comment_is_not_printed_back_to_it(page_dir):
     published(page_dir)
     assert comment(page_dir, "--quote", "Ship dark", "--text", "x").exit_code == 0
     assert page_state(page_dir)["pending"] == 0
-    assert hook_transport_model.unattended_pages("") == []
+    assert hook_transport_model.remedies(hook_transport_model.read_plans("")) == []
 
 
 def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
@@ -2082,6 +1937,7 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
             [
                 "response",
                 "reply",
+                "--done",
                 response_reference(page_dir, root["id"]),
                 "--text",
                 "fixed in v2",
@@ -2273,6 +2129,7 @@ def test_native_message_markup_shares_admission_and_id_ownership(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, user),
             "--text",
             "Ready.",
@@ -2452,6 +2309,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--text",
             "See:",
@@ -2466,6 +2324,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--text",
             "See:",

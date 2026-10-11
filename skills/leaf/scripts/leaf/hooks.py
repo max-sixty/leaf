@@ -37,6 +37,7 @@ session; `harness.hook_harness` says why neither comes from the environment."""
 import time
 
 from .leases import mark_hooks, mark_step_hook
+from .refusals import Refused
 from .service import claim_records, owned_pages
 from .state import (
     advance_turn,
@@ -209,7 +210,7 @@ def cmd_watch(harness: str, payload: dict) -> str | None:
 def main(harness: str, *, watch: bool = False) -> None:
     """Read one harness payload and dispatch it, without importing the CLI.
 
-    Both the application entry and the Click command enter here.
+    The application entry is the only caller.
     A watch owns leases, so it releases them when the harness terminates it.
     """
     import json
@@ -218,7 +219,9 @@ def main(harness: str, *, watch: bool = False) -> None:
     try:
         payload = json.load(sys.stdin)
     except json.JSONDecodeError as error:
-        sys.exit(f"hook expects the harness's JSON payload on stdin ({error.msg})")
+        raise Refused(
+            f"hook expects the harness's JSON payload on stdin ({error.msg})"
+        ) from error
     if watch:
         from .leases import release_on_termination
 

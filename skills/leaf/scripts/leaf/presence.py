@@ -1,4 +1,6 @@
-"""Page and neighboring-leaf presence readings."""
+"""Page and neighboring-leaf presence readings, and the two writes that follow
+from them: the user-attention lease (`renew_viewed`) and the one message to a
+claimant whose input nothing will carry (`nudge_unwatched`)."""
 
 import hashlib
 import json
@@ -7,7 +9,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from .activity import Turn, current_turn, declared_at
+from .activity import Turn, current_turn, declared_at, takes_input
 from .event_log import read_cursor
 from .file_changes import FileChanges, existing_root
 from .files import (
@@ -29,18 +31,22 @@ from .schema import (
 )
 from .server import running_server
 from .service import (
+    PageTransaction,
     claim_is_active,
     claim_path,
     page_claim,
     read_status,
     unacknowledged,
 )
-from .state import now_iso
+from .state import now_iso, write_json
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. Readers share one observation for two seconds, while
 # a changed page file invalidates it immediately.
 PRESENCE_CACHE_S = 2.0
+# How stale the user-attention lease may grow while a visible tab keeps asking for
+# news before the next ask renews it.
+VIEWED_RENEW_S = 30
 # (row-directory stamp, producer publications): the machine's, so one slot.
 _candidates = ((), ())
 _candidates_lock = threading.Lock()
@@ -172,6 +178,12 @@ def neighbor_candidates() -> tuple:
 def other_leaves(page_dir: Path) -> list:
     """Live neighboring pages, from their own compact canonical publications.
 
+    A closed page is not one of them. Its server stays up so the page stays
+    readable, a standing one for good, so nothing else would ever drop its row, and
+    a count the user glances at to find who needs them would become a tally of
+    everything that has run here. This page's own row is never in the list, so a
+    user looking at a closed page still sees it.
+
     Each candidate costs its server lease/service and one disposable row read.
     Never open another page's log, document, or projection. A row belongs to
     the server incarnation that computed it; absent or older rows stay absent.
@@ -197,7 +209,7 @@ def other_leaves(page_dir: Path) -> list:
             if info is None:
                 continue
             row = read_row(candidate, info, record=record)
-            if row is not None:
+            if row is not None and row["activity"]["kind"] != "closed":
                 others.append(
                     {
                         **row,
@@ -273,7 +285,7 @@ def presence_with_activity(
         "claim_session": claim.get("id") if claim else None,
         # Opaque identity of the claiming session's current turn on this page.
         # An opened delivery names this value; equality, rather than timestamps,
-        # is what says that exact user move is in the turn running now.
+        # is what says that exact update is in the turn running now.
         "claim_turn": claim.get("turn") if claim else None,
         # When the claiming session's last turn ended, or None while none has.
         # A `working` claim older than this is one that no later turn renewed
@@ -291,7 +303,7 @@ def presence_with_activity(
         # nobody has ever viewed — which used to be indistinguishable from one the
         # user studied and left. Hidden tabs stop their freshness reads, so this records
         # user attention rather than tab lifetime.
-        "viewed": (read_json(page_dir / VIEWED_FILE) or {"t": None})["t"],
+        "viewed": _viewed_at(page_dir),
         # Where the claimant is working (claim_page), for the drawer's hover: what
         # tells one leaf from another is the work behind it, and neither the title
         # nor the page directory says which that is. It outlives the session that
@@ -359,3 +371,51 @@ def presence_reading(page_dir: Path) -> str:
         reading = presence_fingerprint(live_facts(page_dir, claim), neighbors)
         kept.token = (stamp, now + PRESENCE_CACHE_S, reading)
         return reading
+
+
+def nudge_unwatched(page: PageTransaction) -> None:
+    """Message the claimant of a page holding input nothing will carry, once per
+    ending of its turn (`session-lifetime.md`, Watchers).
+
+    Nothing carries it when no wait lease is held and the claimant takes no input
+    by the activity fold's own reading (`activity.takes_input`), because its turn
+    was seen to end: closed by the Stop hook, or interrupted as its harness's record
+    says. A turn Leaf only stopped believing in may still be running a long step,
+    and a running turn needs no nudge, because its Stop hook refuses to end with the
+    input unpicked. Each ending gets one nudge per page, named by the claim's turn
+    and the stamp that ended or last renewed it, so a user ticking three boxes queues
+    one turn or one approval rather than three, while a turn interrupted again after
+    a new prompt is messaged again. The claimant's harness decides whether its
+    session can be reached at all and what to say; a harness whose watcher is a
+    process of its own has nowhere to put this and answers no.
+
+    Admission calls it, and so does a watch giving up its lease. It runs under the
+    page's lock, so the mark it leaves is exact: a local socket accepts or refuses at
+    once, and input after a refusal tries again."""
+    claim, page_dir = page.active_claim, page.page_dir
+    if not claim or wait_is_live(page_dir, claim["id"]):
+        return
+    present, turn = claimant_reading(page_dir, page.events)
+    stamp = claim.get("turn_closed") or claim.get("turn_opened")
+    mark = f"{claim['turn']}@{stamp}"
+    if (
+        turn.ended is not None
+        and not takes_input(present, turn)
+        and claim.get("messaged_ending") != mark
+        and claim_harness(claim).nudge(page_dir)
+    ):
+        page.note_messaged(mark)
+
+
+def _viewed_at(page_dir: Path) -> float | None:
+    """When a browser last had the page visible, or None for a page nobody has
+    ever viewed."""
+    return (read_json(page_dir / VIEWED_FILE) or {"t": None})["t"]
+
+
+def renew_viewed(page_dir: Path) -> None:
+    """Renew the user-attention lease for a visible tab asking for news, at most
+    once per VIEWED_RENEW_S."""
+    viewed, now = _viewed_at(page_dir), time.time()
+    if viewed is None or now - viewed > VIEWED_RENEW_S:
+        write_json(page_dir / VIEWED_FILE, {"t": now})

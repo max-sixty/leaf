@@ -12,7 +12,9 @@
 # One exclude for the file rather than one per hook, because the rule is the file's and
 # a per-hook list misses whichever hook is added next. The right order for a change to
 # the corpus is the hooks first, `leaf-dev corpus` last.
-exclude: ^(skills/leaf/packages/default/shadow\.css$|skills/leaf/(assets/vendor|packages/.*/vendor)/|examples/(corpus\.html|pr-walkthrough\.patch)$)
+# Historical eval fixtures are frozen, hash-checked source evidence, including
+# reconstructed variants. Formatting one would invalidate its provenance pin.
+exclude: ^(skills/leaf/packages/default/shadow\.css$|skills/leaf/(assets/vendor|packages/.*/vendor)/|examples/(corpus\.html|pr-walkthrough\.patch)$|evals/ui-review-detection/fixtures/)
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -33,6 +35,13 @@ repos:
       - id: ruff-check
         args: [--fix]
       - id: ruff-format
+  # Definitions nothing reaches. The hook reads the whole Python tree whatever
+  # changed, since a definition dies in the change that removes its last caller,
+  # in another file; `[tool.vulture]` in pyproject.toml holds the scope and patterns.
+  - repo: https://github.com/jendrikseipp/vulture
+    rev: v2.16
+    hooks:
+      - id: vulture
   # JavaScript and HTML. Not CSS, where it splits theme.css's grouped rules one per
   # line, and not markdown, where it strips the indent off a list item's continuation
   # lines. HTML is safe because every whitespace-significant body on a page is inside a
@@ -61,7 +70,7 @@ repos:
   # pattern below only wakes it. dependency-cruiser is not an eslint plugin, so it
   # needs a hook of its own, pinned here as every other tool in this file is.
   # `package.json` is the `build/browser/` build's manifest; the lint gate runs no
-  # `npm ci`, so a tool pinned only there would never be installed.
+  # `pnpm install --frozen-lockfile`, so a tool pinned only there would never be installed.
   - repo: local
     hooks:
       - id: dependency-cruiser

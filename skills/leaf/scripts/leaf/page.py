@@ -8,10 +8,10 @@ separate audiences for the different responsibilities they actually declare.
 """
 
 import json
-import sys
 from collections.abc import Collection
 from pathlib import Path
 
+from .refusals import Refused
 from .registry.contract import is_element_name
 from .registry.storage import read_page_registry
 from .schema import INSTRUCTIONS_DIR
@@ -38,7 +38,7 @@ def instruction_selection(
     while pending:
         name = pending.pop()
         if name not in declarations:
-            sys.exit(f"unknown instructions vocabulary entry {name!r}")
+            raise Refused(f"unknown instructions vocabulary entry {name!r}")
         if name in selected_entries:
             continue
         selected_entries.add(name)
@@ -60,7 +60,7 @@ def instruction_selection(
         )
     for contract in sorted(selected_contracts):
         if contract not in data_contracts:
-            sys.exit(f"unknown instructions data contract {contract!r}")
+            raise Refused(f"unknown instructions data contract {contract!r}")
     return sorted(selected_entries), sorted(selected_contracts)
 
 
@@ -73,7 +73,7 @@ def page_instructions(
     """Compose shared and selected instructions by their declared audience."""
     vocabulary = read_page_registry(page_dir)
     if vocabulary is None:
-        sys.exit(f"no registry.json in {page_dir}; run `leaf page init` first")
+        raise Refused(f"no registry.json in {page_dir}; run `leaf page init` first")
     registry = vocabulary.registry
     selected_entries, selected_contracts = instruction_selection(
         registry, entries, contracts

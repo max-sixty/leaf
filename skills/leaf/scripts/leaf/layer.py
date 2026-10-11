@@ -11,6 +11,7 @@ from typing import NamedTuple
 
 from .locations import located, locations_overlap
 from .machine import package_store
+from .refusals import Refused
 from .registry.contract import element_declarations, is_element_name
 from .schema import (
     ASSETS,
@@ -54,7 +55,7 @@ def resolve_packages(selected: tuple[str, ...]) -> list[Path]:
         if re.fullmatch(HTML_NAME, value):
             named = named_package(value)
             if named is None:
-                sys.exit(
+                raise Refused(
                     f"unknown package {value!r}; run `leaf package install` to add "
                     f"it, or use './{value}' for a project-relative package path"
                 )
@@ -63,7 +64,7 @@ def resolve_packages(selected: tuple[str, ...]) -> list[Path]:
             continue
         package_path = Path(value)
         if package_path.is_absolute():
-            sys.exit(
+            raise Refused(
                 f"package {value!r} is absolute; use a bundled name, "
                 "explicit project-relative path, or ~ path so the vendored registry "
                 "does not publish a machine path"
@@ -72,7 +73,7 @@ def resolve_packages(selected: tuple[str, ...]) -> list[Path]:
         if not root.is_absolute():
             root = Path.cwd() / root
         if not (root.exists() or root.is_symlink()):
-            sys.exit(f"package {value!r} is not a directory")
+            raise Refused(f"package {value!r} is not a directory")
         packages.append(root)
     return packages
 
@@ -93,29 +94,29 @@ def checked_inputs(inputs: list[Path]) -> list[Path]:
         if not (root.exists() or root.is_symlink()):
             continue
         if not root.is_dir():
-            sys.exit(f"{root} must be a directory")
+            raise Refused(f"{root} must be a directory")
         for name in VENDORED_FILES:
             path = root / name
             if (path.exists() or path.is_symlink()) and not path.is_file():
-                sys.exit(f"{path} must be a file")
+                raise Refused(f"{path} must be a file")
         for sub in PACKAGE_DIRS:
             directory = root / sub
             if not (directory.exists() or directory.is_symlink()):
                 continue
             if not directory.is_dir():
-                sys.exit(f"{directory} must be a directory")
+                raise Refused(f"{directory} must be a directory")
             if sub == INSTRUCTIONS_DIR:
                 for path in directory.iterdir():
                     if not path.is_file():
-                        sys.exit(f"{path} must be a file")
+                        raise Refused(f"{path} must be a file")
                     if not INSTRUCTIONS_FILE.fullmatch(path.name):
-                        sys.exit(f"{path} must be named <audience>.md")
+                        raise Refused(f"{path} must be named <audience>.md")
                 continue
             for path in directory.rglob("*"):
                 if path.is_dir() and not path.is_symlink():
                     continue
                 if not path.is_file():
-                    sys.exit(f"{path} must be a file or real directory")
+                    raise Refused(f"{path} must be a file or real directory")
         roots.append(root)
     return roots
 
@@ -193,9 +194,9 @@ def _sheet(source: Path) -> str:
     try:
         css = source.read_text(encoding="utf-8")
     except UnicodeDecodeError:
-        sys.exit(f"{source} must be UTF-8")
+        raise Refused(f"{source} must be UTF-8")
     if errors := css_syntax_errors(css, str(source)):
-        sys.exit(errors[0])
+        raise Refused(errors[0])
     return css if css.endswith("\n") else css + "\n"
 
 
@@ -245,7 +246,7 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     from .styles import scoped
 
     if not any((root / "theme.css").is_file() for root in inputs):
-        sys.exit("the incoming layer has no theme.css")
+        raise Refused("the incoming layer has no theme.css")
     order = f"@layer {', '.join(CASCADE_LAYERS)};\n"
     theme = [order]
     shadow = [order]
@@ -291,7 +292,7 @@ def composed_instructions(inputs: list[Path]) -> dict[str, bytes]:
             try:
                 instructions = path.read_text(encoding="utf-8")
             except UnicodeDecodeError:
-                sys.exit(f"{path} must be UTF-8")
+                raise Refused(f"{path} must be UTF-8")
             if instructions.strip():
                 parts.setdefault(path.name, []).append(
                     f"# Package `{root.name}`\n\n{instructions.strip()}\n"
@@ -304,7 +305,7 @@ def checked_layer_inputs(inputs: list[Path]) -> list[Path]:
     roots = checked_inputs(inputs)
     if overlap := overlapping_inputs(roots):
         left_root, left, right_root, right = overlap
-        sys.exit(
+        raise Refused(
             f"layer inputs {left_root} and {right_root} overlap at {left} and "
             f"{right}; package scopes must be separate"
         )
@@ -540,11 +541,10 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
     """Read and validate the complete layer produced by checked inputs."""
     from .revision_artifact import (
         JAVASCRIPT_SUFFIXES,
-        ArtifactError,
         dependency_path,
         javascript_imports,
     )
-    from .validation.compatibility import incoming_registry
+    from .validation.composition import incoming_registry
 
     protected = kernel_runtime_paths()
     private_modules = {"/leaf.js", *(f"/runtime/{name}" for name in protected)} - {
@@ -561,7 +561,7 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
         if (root / "leaf.js").exists():
             replacements.append("leaf.js")
         if replacements:
-            sys.exit(
+            raise Refused(
                 f"package {root} replaces private kernel modules: "
                 + ", ".join(sorted(replacements))
                 + "; use /runtime/widget-api.js and package-owned modules"
@@ -571,18 +571,13 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
                 if not module.is_file() or module.suffix not in JAVASCRIPT_SUFFIXES:
                     continue
                 path = "/" + module.relative_to(root).as_posix()
-                try:
-                    for _, _, specifier in javascript_imports(
-                        module.read_bytes(), path
-                    ):
-                        dependency = dependency_path(specifier, path, module=True)
-                        if dependency in private_modules:
-                            sys.exit(
-                                f"{module} imports private kernel module {specifier!r}; "
-                                "use /runtime/widget-api.js"
-                            )
-                except ArtifactError as error:
-                    sys.exit(str(error))
+                for _, _, specifier in javascript_imports(module.read_bytes(), path):
+                    dependency = dependency_path(specifier, path, module=True)
+                    if dependency in private_modules:
+                        raise Refused(
+                            f"{module} imports private kernel module {specifier!r}; "
+                            "use /runtime/widget-api.js"
+                        )
     incoming = incoming_registry(roots)
     directory_sources = {sub: composed_dir_files(roots, sub) for sub in BROWSER_DIRS}
     missing_modules = sorted(
@@ -593,7 +588,7 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
         and f"{tag}.js" not in directory_sources["widgets"]
     )
     if missing_modules:
-        sys.exit(
+        raise Refused(
             "the incoming registry marks widgets as upgraded but their modules "
             "are missing:\n"
             + "\n".join(f"  - widgets/{tag}.js" for tag in missing_modules)
@@ -608,7 +603,7 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
             None,
         )
         if source is None:
-            sys.exit(f"the incoming layer has no {name}")
+            raise Refused(f"the incoming layer has no {name}")
         top_files[name] = source.read_bytes()
     directory_files = {
         sub: {
@@ -618,7 +613,7 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
     }
     client = directory_files["runtime"].get("layer-generation.js", b"")
     if client.count(LAYER_PLACEHOLDER) != 1:
-        sys.exit(
+        raise Refused(
             "the incoming runtime/layer-generation.js must contain exactly one "
             "layer-generation placeholder"
         )

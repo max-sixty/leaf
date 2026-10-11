@@ -43,10 +43,10 @@ from leaf.registry import storage as registry_storage
 from leaf.registry.contract import element_declarations
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_digest
-from leaf.validation import compatibility as validation_model
+from leaf.validation import composition as validation_model
 from leaf.validation.instances import reference_errors
 from leaf_dev.example_data import regression_sources
-from leaf_dev.page_fixtures import package_selection_args, prepare_page, read_fixture
+from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 PUBLIC_EXAMPLES = tuple(
     path for path in sorted((ROOT / "examples").glob("*.html")) if path.stem != "corpus"
@@ -492,16 +492,12 @@ def test_page_fixtures_pass_check(example, tmp_path, monkeypatch, initialized_pa
     refuses it."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
     fixture = read_fixture(example)
-    d = tmp_path / "page"
-
-    def initialize(target):
-        run_leaf("page", "init", *package_selection_args(fixture.packages), str(target))
+    d = initialized_page(tmp_path / "page", fixture.packages)
 
     def checked(version):
         result = check(d)
         assert result.exit_code == 0, f"{version.name}: {result.output}"
 
-    initialized_page("-".join(["fixture", *fixture.packages]), d, initialize)
     # Every authored version, not only the current one: a fault in a prior
     # version stops preview and the site build, a slow way to hear it.
     prepare_page(
@@ -561,11 +557,13 @@ def test_the_feature_gallery_eyebrows_index_literal_code_names():
     """Every showcased element is indexed by a code name, never descriptive prose."""
     authored = FEATURE_GALLERY.read_text(encoding="utf-8")
     gallery_registry = json.loads(
-        (schema_model.BUNDLED_PACKAGES / "gallery" / "registry.json").read_text(
+        (FEATURE_GALLERY.with_suffix(".page") / "registry.json").read_text(
             encoding="utf-8"
         )
     )
-    apparatus = {tag for tag in gallery_registry if tag.startswith("lf-")}
+    apparatus = {
+        tag for tag, entry in gallery_registry.items() if entry.get("x-exhibit")
+    }
     assert apparatus
     eyebrows = re.findall(
         r'<p class="eyebrow bg-feature-elements">(.*?)</p>',
@@ -697,6 +695,7 @@ def test_reply_validates_widget_markup(page_dir):
             [
                 "response",
                 "reply",
+                "--done",
                 response_reference(page_dir, "c1"),
                 "--text",
                 "See:",
@@ -739,6 +738,7 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
             [
                 "response",
                 "reply",
+                "--done",
                 response_reference(page_dir, "c1"),
                 "--text",
                 "Choose:",
@@ -771,7 +771,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
 
     def reply(markup, *, for_event=None, to="c1"):
         route = (
-            ["response", "reply", response_reference(page_dir, for_event)]
+            ["response", "reply", "--done", response_reference(page_dir, for_event)]
             if for_event
             else ["thread", "reply", str(page_dir), to]
         )
@@ -874,6 +874,7 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--text",
             "Pick:",
@@ -944,6 +945,7 @@ def test_the_wire_ships_a_message_as_logged(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--text",
             "Fixed in `poll()`.",
@@ -987,7 +989,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
     answered = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", reference, "--text", "The work is ready."],
+        ["response", "reply", "--done", reference, "--text", "The work is ready."],
     )
     assert answered.exit_code == 0, answered.output
     assert json.loads(answered.output)["responds"] == "c1"
@@ -1077,6 +1079,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
         [
             "response",
             "reply",
+            "--done",
             reference,
             "--text",
             "The schedule works.",
@@ -1110,6 +1113,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, root["id"]),
             "--text",
             "Complete.",
@@ -1124,7 +1128,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
             root["id"],
             "--text",
             "Which store?",
-            "--awaits",
+            "--question",
         ],
     )
     duplicate = CliRunner().invoke(
@@ -1143,7 +1147,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
                 '<lf-option id="store-a"><strong>A</strong></lf-option>'
                 "</lf-options></lf-ask>"
             ),
-            "--awaits",
+            "--question",
         ],
     )
     aggregate = CliRunner().invoke(
@@ -1160,7 +1164,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
                 '<lf-test-tasks id="reply-plan"><lf-test-task id="reply-task" status="review">'
                 "<strong>Review</strong></lf-test-task></lf-test-tasks>"
             ),
-            "--awaits",
+            "--question",
         ],
     )
     assert answered.exit_code == 0, answered.output
@@ -1169,9 +1173,9 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
     assert "reply markup already declares" in duplicate.output
     assert aggregate.exit_code == 0, aggregate.output
     replies = [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
-    assert "awaits" not in replies[0]
-    assert replies[1]["awaits"] is True
-    assert replies[2]["awaits"] is True
+    assert "question" not in replies[0]
+    assert replies[1]["question"] is True
+    assert replies[2]["question"] is True
 
 
 def test_an_agent_edits_predecessor_messages_without_rewriting_history(
@@ -1208,6 +1212,7 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, user["id"]),
             "--text",
             "The crawl is paused.",
@@ -1346,6 +1351,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
             [
                 "response",
                 "reply",
+                "--done",
                 response_reference(page_dir, event_id),
                 "--text",
                 text,
@@ -1429,7 +1435,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
             response_reference(page_dir, again["id"]),
             "--text",
             "Which year goes first?",
-            "--awaits",
+            "--question",
         ],
     )
     assert asking.exit_code == 0, asking.output
@@ -1486,6 +1492,7 @@ def test_a_rewritten_message_stays_out_of_the_suggested_summary(page_dir, monkey
             [
                 "response",
                 "reply",
+                "--done",
                 response_reference(page_dir, said["id"]),
                 "--text",
                 f"A{n}",
@@ -1781,6 +1788,7 @@ def test_reply_markup_uses_the_captured_registry_after_candidate_files_disappear
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--text",
             "plain answer, x < y",
@@ -1965,7 +1973,6 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
         ("shorten", bare["id"]),
         ("change", answered["id"]),
     ]
-    assert all("means" not in reaction for reaction in state["reactions"])
     assert state["reactions"][0]["anchor"]["quote"] == "Ship dark"
 
     result = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
@@ -1994,6 +2001,7 @@ def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, root),
             "--text",
             "The terrace works.",

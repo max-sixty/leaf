@@ -6,18 +6,18 @@ took it in unless it is superseded progress. Two kinds of read evidence count:
 
 - a `read` event naming that exact version, which the browser posts when its visible
   body has been shown to the user;
-- a user move made in the version's thread and logged after the version, which is
-  the thread the move names (`thread_context.event_threads`): a reply or reaction,
+- an update made in the version's thread and logged after the version, which is
+  the thread the update names (`thread_context.event_threads`): a reply or reaction,
   a resolve or reopen, an action on a widget a message of that thread
   carries, and an action whose admitted answer closes the thread, such as accepting
   the page suggestion it asked for. Answering, resolving and replying are all things
   a user does with what the thread says, so each implies they have read it as it
   then stood.
 
-Only the thread a move names counts. Delivery also files a move under threads it
+Only the thread an update names counts. Delivery also files an update under threads it
 changes without naming them (`thread_context.thread_memberships`): a later decision
 on a suggestion that had answered a thread, or the `undo` of an answer. Neither
-shows the user what the thread says, so neither is evidence here. A move the user
+shows the user what the thread says, so neither is evidence here. An update the user
 took back is no evidence either, as it is none for every other fold over the
 standing log.
 

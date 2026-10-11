@@ -16,8 +16,8 @@ including edits and retired content. Quote exact visible authored words inside
 one widget part. The command refuses ambiguous, retired, replaced, or
 cross-boundary text instead of creating a detached comment. The thread's id is its
 opening comment's `id`, in the record `leaf thread open` prints. `leaf page state
-<page> <id>`, `leaf thread reply`, `edit` and `resolve`, and `leaf task open` all
-take the id of any message in the thread.
+<page> <id>`, `leaf thread reply`, `edit` and `resolve` all take the id of any
+message in the thread.
 
 A browser selection can identify actual words mechanically without distinguishing
 which repeated passage they came from. Such a comment retains its quote and carries
@@ -37,7 +37,7 @@ name stands.
 
 ```bash
 leaf thread open <page> --section <element-id> --title "Afternoon workshop" --text "…"
-leaf response reply <answer.ref> --title "Afternoon workshop" --text "…"
+leaf response reply <answer.ref> --done --title "Afternoon workshop" --text "…"
 ```
 
 A delivery carries each thread's current title, null until named. Titles are plain
@@ -52,14 +52,14 @@ Markup passes the shared structure, vocabulary, media, and id checks; it cannot
 declare document settings or add a stylesheet for the whole page.
 
 ```bash
-leaf response reply <answer.ref> --text "The deploy passed." --markup '<details><summary>Deploy log</summary><pre>Ready&#10;Done</pre></details>'
+leaf response reply <answer.ref> --done --text "The deploy passed." --markup '<details><summary>Deploy log</summary><pre>Ready&#10;Done</pre></details>'
 ```
 
 Thread markup is frozen in the log and has no revision
 boundary: every immutable historical document shows the same markup. It must therefore
 validate against every pinned revision's captured registry, not only the active
 registry. Use only widget vocabulary shared by those registries. If no shared widget
-fits, ask in prose with `--text` (and `--awaits` on a reply), or use a page widget
+fits, ask in prose with `--text` and `--question`, or use a page widget
 when the question and its answer belong in the final record. Markup is checked as it
 is posted but not drawn, so a data widget, such as a chart, whose body does not draw
 reaches you as an `error` event when the user opens its thread; answer with a corrected
@@ -82,8 +82,8 @@ a file and redirect it to stdin, where its paragraphs and list items are visible
 you write them.
 
 ```bash
-leaf response reply <answer.ref> --text "…"
-leaf response reply <answer.ref> < reply.md
+leaf response reply <answer.ref> --done --text "…"
+leaf response reply <answer.ref> --done < reply.md
 ```
 
 A user may paste an image into any thread text box, or choose **Capture area** in
@@ -104,8 +104,8 @@ and rechecks the exact input against current state. A response captured before a
 newer user correction cannot settle that correction. A replaced log or a page
 claimed by another session refuses the write.
 
-The same command supports `--markup`, `--awaits`, `--title`, `--quote`, `--section`,
-`--part`, `--detach`, and `--ephemeral`. A saved source edit is validated and
+The same command supports `--markup`, `--title`, `--quote`, `--section`, `--part`,
+`--detach`, and `--ephemeral`, and an answer declares what it leaves (below). A saved source edit is validated and
 activated in the reply transaction, so the edit and its answer cross one command
 boundary. Repeating an ordinary reply's reference returns its previous record
 without appending another message. Use `--attempt` to name retries of a progress
@@ -115,8 +115,8 @@ settles the input without reopening a closed thread.
 The delivery's `writer` records the automatic reply route at capture. With
 `writer: "turn"`, Leaf streams the provider's opening and commits its completed
 final text unless an explicit reply has already answered the input. Use the same
-response command for an explicit answer, including markup, a question, a title or
-relocation: it validates saved edits and commits immediately. Its author, retry
+response command for an explicit answer, including markup, a question, a promised
+task, a title or relocation: it validates saved edits and commits immediately. Its author, retry
 identity and content remain in the log even if the provider later fails or
 reconnects. The provider's final yields to that successful answer. A failure
 receipt is refused while an active provider reservation still promises an answer.
@@ -133,7 +133,7 @@ When a revision rewrites a quoted passage, preserve every affected open thread,
 including threads you are not answering this turn. `leaf page check` lists each
 quote that no longer identifies one passage. Activation moves those threads to
 their own surviving sections automatically, recording an anchor transition without
-adding a message or answering an outstanding move. A surviving unique quote keeps
+adding a message or answering an outstanding update. A surviving unique quote keeps
 its precise attachment; repeated words require unique stored context.
 
 Prefer the passage that replaced the quote when you know it: move the thread onto
@@ -142,9 +142,9 @@ and a diagram should use its declared stable visual part. A bare replacement quo
 can also move a thread whose old element the edit removes:
 
 ```bash
-leaf response reply <answer.ref> --section <element-id> --quote "<new passage>" --text "Updated this and moved the thread to the result."
-leaf response reply <answer.ref> --section <element-id> --text "Updated this and moved the thread here."
-leaf response reply <answer.ref> --section <diagram-id> --part node:<source-id> --text "Updated this node and moved the thread here."
+leaf response reply <answer.ref> --done --section <element-id> --quote "<new passage>" --text "Updated this and moved the thread to the result."
+leaf response reply <answer.ref> --done --section <element-id> --text "Updated this and moved the thread here."
+leaf response reply <answer.ref> --done --section <diagram-id> --part node:<source-id> --text "Updated this node and moved the thread here."
 ```
 
 When the subject itself leaves the page, detach the thread instead of moving it onto
@@ -153,7 +153,7 @@ surviving section. You can also detach it explicitly in the reply that reports
 the removal:
 
 ```bash
-leaf response reply <answer.ref> --detach --text "Removed this; the thread no longer has a page target."
+leaf response reply <answer.ref> --done --detach --text "Removed this; the thread no longer has a page target."
 ```
 
 The reply records the active revision and its anchor transition atomically. The opening
@@ -171,50 +171,58 @@ user can reopen a resolved thread, and it comes back pointing at a coordinate no
 revision declares any more, while a detached thread reads as **No longer in this
 version** and a later reply may still move it to a replacement.
 
-An ordinary reply answers the thread without putting anything on the user's queue.
-Add `--awaits` when the reply's prose asks the user to answer; the reply is then a
-Question under `reply:<message-id>` in `page state`'s `questions` collection,
-until they answer in the thread:
+An answer says what it leaves the thread with, one of three:
+
+- `--done`: it delivers what the message asked for, and nothing stays on either queue.
+- `--question`: its prose asks the user something back. The reply is then a Question
+  under `reply:<message-id>` in `page state`'s `questions` collection, until they
+  answer in the thread.
+- `--task "<what you owe>"`: it promises work it doesn't deliver. The reply opens
+  that task on its thread under the reply's own id, which stays on you until
+  `leaf task end <page> <reply-id>` ([Long-running work](conversation-loop.md#long-running-work)).
 
 ```bash
-leaf response reply <answer.ref> --awaits --text "Which store should own it?"
+leaf response reply <answer.ref> --question --text "Which store should own it?"
+leaf response reply <answer.ref> --task "Rebuild the banner quieter" --text "Rebuilding it; it lands in v4."
 ```
 
 To add an agent-initiated turn to a thread that currently owes no reply, use
 `leaf thread reply <page> <message-id>`. This proactive command takes the same
-content and anchor options. Leaf refuses an ordinary proactive reply while the
+content and anchor options, and `--question` or `--task` where the turn asks or
+promises. Leaf refuses an ordinary proactive reply while the
 thread owes a response; copy that response's delivery reference instead.
 Use the captured response reference for progress on an owed input too.
 
-### Progress updates
+### Progress messages
 
-Use `--ephemeral` for an interim update that is useful while work is underway:
+Use `--ephemeral` for interim progress that is useful while work is underway:
 
 ```bash
 leaf response reply <answer.ref> --ephemeral --text "Checking the keyboard route."
 ```
 
-This posts progress without answering the input. Progress on a move you owe also
-takes that move in hand, as `leaf task start` does, with the update as its
+This posts progress without answering the update. Progress on an update you owe also
+takes that update in hand, as `leaf task start` does, with the progress text as its
 **Working** line beside the thread and in the banner, so it is one line.
-[Conversation handoff](conversation-loop.md#when-to-write), "When to write", makes
-the first one your first command after a delivery. A proactive progress update
-names a thread with no response due. The updates stay visible until the
+[Conversation loop](conversation-loop.md#when-to-write), "When to write", makes
+the first one your first command after a delivery. A proactive progress message
+names a thread with no response due. Progress messages stay visible until the
 next non-ephemeral agent reply in that thread, then fold behind “Show N progress
 messages” beside that reply’s timestamp. The original messages remain available
 to expand and edit.
-Intervening user messages remain visible; separate runs of updates fold separately.
-One update can fold on its own. An explicit summary can cover those updates instead.
+Intervening user messages remain visible; separate runs of progress messages fold
+separately. One progress message can fold on its own. An explicit summary can cover
+them instead.
 
-An ephemeral update is progress text, so it cannot carry `--awaits`, markup,
-failure or an anchor move. Put questions and results in ordinary replies. The shared
+A progress message is progress text, so it cannot carry `--question`, `--task`,
+markup, failure or an anchor move. Put questions and results in ordinary replies. The shared
 disclosure appears in the panel and contextual thread surfaces. A completing reply
 held behind a new-reply notice keeps its progress visible until the reply is shown;
 originals already being read or focused stay expanded.
 
 A widget whose registry entry declares `x-awaits` already poses a Question
 and keeps its thread "On you" while that Question awaits the user. Leaf refuses
-`--awaits` beside such markup; the widget's state is the one reading.
+`--question` beside such markup; the widget's state is the one reading.
 
 Correct an agent-authored message, including a predecessor's, without adding another turn:
 
@@ -234,7 +242,7 @@ than a correction: it arrives as an `edit` event, with the message's new `text` 
 the `was` it replaced, and you owe it an answer like any reply.
 
 An ordinary reply leaves the thread open, or reopens a resolved thread, so the user
-can inspect the answer or revised page. Reactions, ephemeral updates and failure receipts do not reopen it. The user closes it by default. Resolve it yourself only when the
+can inspect the answer or revised page. Reactions, progress messages and failure receipts do not reopen it. The user closes it by default. Resolve it yourself only when the
 user asks, when a delivered event's handling says to, as for a reaction or a
 version request, or when no review or follow-up can change the outcome.
 Completing the requested work does not meet that bar by itself; when uncertain,
@@ -285,7 +293,7 @@ The disclosure defaults to “Earlier discussion”; set `--label` to name the r
 To fold messages without adding summary prose, pass an explicit empty `--text`:
 
 ```bash
-leaf thread summarize <page> --from <first-message-id> --through <last-message-id> --label 'Previous updates' --text ''
+leaf thread summarize <page> --from <first-message-id> --through <last-message-id> --label 'Previous progress messages' --text ''
 ```
 
 As the discussion grows, write another summary with the desired endpoints.

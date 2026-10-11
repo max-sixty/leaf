@@ -55,7 +55,7 @@ def compose_page_registry(
 
         # Example validation consumes source/instance readers which themselves load
         # page registries. Import it after those owners have finished initializing.
-        from leaf.validation.compatibility import validate_registry_examples
+        from leaf.validation.composition import validate_registry_examples
 
         if page_declarations:
             validate_registry_examples(registry, source)

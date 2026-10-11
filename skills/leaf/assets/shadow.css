@@ -1,4 +1,4 @@
-/* Generated from skills/leaf/assets/styles/shadow.css by npm run build:styles. */
+/* Generated from skills/leaf/assets/styles/shadow.css by build/styles.mjs. */
 /* skills/leaf/assets/styles/components/surfaces.css */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -320,10 +320,16 @@ summary {
   display: none;
 }
 .lf-thread-checkpoint[data-expanded=true] {
-  margin-block: 12px;
+  position: relative;
+}
+.lf-thread-checkpoint[data-expanded=true]::before {
+  content: "";
+  position: absolute;
+  inset-block: -7px;
+  inset-inline: -12px -6px;
   border: 1px solid var(--rule);
   border-radius: 5px;
-  padding: 6px 12px;
+  pointer-events: none;
 }
 .lf-summary-checkpoint {
   padding-block: 4px;
@@ -1185,6 +1191,9 @@ leaf-text.lf-fab-input,
   place-items: center;
   border-radius: var(--r);
 }
+.lf-icon-action[hidden] {
+  display: none;
+}
 .lf-action-icon {
   position: relative;
   z-index: 1;
@@ -1489,7 +1498,8 @@ button.lf-media-open {
   --lf-thread-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
   --lf-comment-text-pad-end: var(--lf-thread-text-inset);
   --lf-comment-send-inset: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
-  --lf-comment-send-room: calc(var(--lf-icon-action-hit) + var(--lf-comment-send-inset) - var(--lf-comment-text-pad-end));
+  --lf-comment-action-room: var(--lf-icon-action-hit);
+  --lf-comment-send-room: calc(var(--lf-comment-action-room) + var(--lf-comment-send-inset) - var(--lf-comment-text-pad-end));
 }
 .lf-fab-bar .lf-compose-field,
 .lf-response-control {
@@ -1523,6 +1533,24 @@ leaf-text.lf-fab-input {
 .lf-fab-bar .lf-compose-submit {
   inset-inline-end: var(--lf-comment-send-inset);
   inset-block-end: var(--lf-comment-send-inset);
+}
+.lf-fab-bar[data-lf-other-responses] {
+  --lf-comment-action-room: calc(2 * var(--lf-icon-action-hit));
+}
+.lf-fab-bar[data-lf-other-responses] .lf-compose-submit {
+  inset-inline-end: calc(var(--lf-comment-send-inset) + var(--lf-icon-action-hit));
+}
+.lf-fab-more {
+  position: absolute;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  inset-inline-end: var(--lf-comment-send-inset);
+  inset-block-end: var(--lf-comment-send-inset);
+}
+.lf-fab-more:hover {
+  color: var(--ink);
+  background: var(--chip);
 }
 .lf-response-action {
   min-width: max(30px, var(--aim-floor));
@@ -1607,6 +1635,9 @@ leaf-text.lf-fab-input {
   max-height: 50vh;
   margin: 0;
 }
+.lf-fab-bar[data-lf-presentation=inline].lf-response-open > .lf-response-options {
+  flex-basis: 100%;
+}
 .lf-fab-bar .lf-composer-media {
   flex: none;
   max-width: 148px;
@@ -1652,10 +1683,8 @@ leaf-text.lf-fab-input {
 :host-context(html[data-lf-draw-mode]):host-context(main) * {
   cursor: crosshair !important;
 }
-:host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat,
-:host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat *,
-:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-offer],
-:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-offer] * {
+:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-runtime],
+:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-runtime] * {
   cursor: auto !important;
 }
 :root {

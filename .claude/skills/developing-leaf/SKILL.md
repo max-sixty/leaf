@@ -26,6 +26,11 @@ jq 'select(has("lf-shot"))."lf-shot"' \
   skills/leaf/assets/registry.json skills/leaf/packages/*/registry.json
 ```
 
+A fact both runtimes use is owned by one language and consumed as data, or generated
+from the registry (`skills/leaf/assets/AGENTS.md`, "Facts both runtimes know"). When
+writing or reviewing a change that adds a parity fixture or a test that scans one
+language's source for the other's names, ask why the fact is not generated.
+
 ## Review a UI change
 
 For browser API and rendering support, maintain
@@ -163,20 +168,14 @@ show a recorded journey with a timeline so the user can inspect intermediate
 states and motion. Review the final exported recording through playback or decoded
 frames at their recorded times, including its loop boundary; select the interval
 that shows the behavior being reviewed. Use that same probe with
-`--record .tmp/recordings/NAME`.
+`--record .tmp/recordings/NAME`; its `--help` owns the recording flags.
 Its Playwright trace has an action timeline, a screenshot
 filmstrip, DOM snapshots, console and network; its WebM shows the actual frames.
-Add `--gif` for a short shareable loop, or `--actions` to decorate clicks and keys.
-`--journey FILE` runs a Python file's `run(page)` using Playwright's full API,
-including assertions; it returns a JSON reading. Capture keeps the journey's
-timing without adding pauses, and defaults to normal motion. `--actions` is for
-demonstrations: Playwright waits 500 ms before each annotated input, so omit it
-from timing-sensitive reproductions. Native video holds the final frame for at
-least one second. `--motion reduce`
-reproduces the reduced-motion preference. A failed journey keeps its recording
-and exits unsuccessfully. The same command takes any HTTP(S) URL for general
-browser work. Keep the page and context open until the recorder finalizes:
-Playwright cannot save screencast video after its page closes. Serve the trace
+`--journey FILE` drives the page with Playwright's full API, including
+assertions. Omit `--actions` from timing-sensitive reproductions. A failed journey
+keeps its recording and exits unsuccessfully. Keep the page and context open until
+the recorder finalizes: Playwright cannot save screencast video after its page
+closes. Serve the trace
 without opening a desktop browser with:
 
 ```bash
@@ -233,10 +232,10 @@ handed to the user carries the fragment of the semantic block it is about
 `uv run leaf-dev preview <example>` serves a live page at `.tmp/previews/<example>`
 in the foreground, like a dev server, so run it as a long-running command
 (`run_in_background` in Claude Code). A desktop Codex `--user` preview instead
-detaches its watcher and returns its URL: the page and feedback stay available
+detaches its watcher and returns its URL: the page and its updates stay available
 when Codex unloads the chat's idle instance. `--source <file>` serves any authored HTML
 file in place of a shipped example. It follows source and runtime edits at one
-URL. A user preview resumes its existing page after a restart, preserving feedback,
+URL. A user preview resumes its existing page after a restart, preserving updates,
 decisions, data and revisions; a plain preview rebuilds from the fixture.
 `--slot <name>` starts another copy, with its own initial fixture history and data.
 
@@ -244,15 +243,31 @@ A plain preview takes no task claim, so its presses reach only the page's log;
 use it for screenshots and browser checks. `--user` claims the page at
 the directory printed at startup (`.tmp/previews/<example>-user` by default;
 `--slot` chooses the directory name) so the user's comments reach the harness, which
-also makes every click this session drives there read as an unanswered user
-move. So drive only claimless previews and start any `--user` preview from the
+also makes every click this session drives there read as an unanswered
+update. So drive only claimless previews and start any `--user` preview from the
 session the user talks to. Don't
 idle a preview to quiet the loop; `idle` closes the page in the browser.
+
+### Temporary review resources
+
+Keep a review's live resources proportional to the work being performed. Use the
+smallest fixture that preserves the journey and its relevant surroundings; `--source`
+can avoid serving an entire gallery for one interaction. Separate page directories
+isolate reviewers' comments and data; fresh browser contexts isolate browser storage.
+Neither alone requires another browser or Python process. Different historical server
+runtimes still need their own environments.
+
+For finite checks, prefer `leaf-dev probe` or `stills`, whose serving scopes
+close their temporary servers when the journey exits. A live preview also watches source
+and runtime edits, which an immutable revision does not need. Start comparison pages
+as reviewers need them. Any custom runner owns its temporary servers and browsers
+through completion, failure and cancellation, including waiting for its children to
+exit. Keep previews and trace viewers handed to the user available for their review.
 
 ### In Codex
 
 1. Start the preview with `--user` from the current
-   chat. It connects Leaf feedback to this Codex chat before printing the URL;
+   chat. It connects the page's updates to this Codex chat before printing the URL;
    desktop Codex returns after the detached watcher subscribes to source edits.
    Each restart reconnects the existing page automatically.
 2. Call `mcp__codex_app__open_in_codex` with the printed keyed URL and the semantic
@@ -279,41 +294,22 @@ Threads, each reply's showing timed by the page, and the release ask's reload
 checked. Use it when what the page shows is part of the change. A website target
 is always in Chrome, since delivery through the page is its subject.
 
-On a harness the journey runs a session of it with this working tree as its plugin,
-under a throwaway home holding the host's login, and goes on as the user at its
-terminal: it types turns, presses Escape, kills the adapter, and sends each step's
-comment, timing it from the page's log. Between
-steps it checks every comment so far is answered once and entered the session's
-context, and the page's claim names the session with its turn closed. The
-suite stands in for each harness, and only this run shows what the harness itself
-does. Run it on the harness a change touches; each target also checks what its
-harness promises:
+On a harness the journey runs a session of it with this working tree as its plugin
+and goes on as the user at its terminal. The suite stands in for each harness, and
+only this run shows what the harness itself does. Run it on the harness a change
+touches; each target's module header lists its steps and the harness promises it
+checks:
 
-- `claude-code`, an interactive session in a tmux pane: a comment sent during a turn
-  is picked up in it, the Stop hook keeps a turn going for a comment pending as it
-  ends, comments after an Escape are answered, and quitting ends the session's claim
-  and its watch. Run it, with and without `--hooks-module`, after a change to
-  `hooks/hooks.json`, `hooks/claude-code.ts`, `ClaudeCodeHarness`, `hooks.py`,
-  `loop-guard.py`, or the watch between turns in `session.py`; with the flag it also
-  checks that Escape closes the turn and leaves a watch running.
-- `codex-app-server` and `codex-queue`, a Codex task through each transport of
-  automatic server handoff, the queue being the desktop app's: the page server
-  titles each thread, the claim names the user's turn while it runs and the task's
-  last turn by App Server's id after, and rich requests get clickable choices and a
-  question awaiting the user. On `codex-queue` a comment sent during the user's turn
-  must also enter that turn and be answered before its final response, and one sent
-  while an interrupted turn resumes with empty input must enter the resumed turn.
-  Run both
-  after a change to `codex.py`, `codex_adapter.py`, `hooks.py`, `hook_transport.py`,
-  or the claim's turn in `service.py`. For a change to preview startup or lifetime,
-  add `--preview`: setup starts the canonical user preview, every step checks the
-  keyed URL, and a last step interrupts the isolated server to prove the preview
-  restores both the address and working feedback without a source edit.
-- `pi`, the version `dev/pi/` pins, on a copy of the host's Codex login: a comment
-  sent during a run is delivered into it with no run after, Escape closes the turn
-  without waking Pi again, a comment held at Escape enters a fresh run, and quitting
-  ends the session's claim and its watch. Run it after a change to `hooks/pi.ts`,
-  `PiHarness`, `hooks.py`, or the watch between turns in `session.py`.
+- `claude-code` (`journey_claude_code.py`): run it, with and without
+  `--hooks-module`, after a change to `hooks/hooks.json`, `hooks/claude-code.ts`,
+  `ClaudeCodeHarness`, `hooks.py`, `background-watch.py`, or the watch between
+  turns in `session.py`.
+- `codex-app-server` and `codex-queue` (`journey_codex.py`): run both after a change
+  to `codex.py`, `codex_adapter.py`, `hooks.py`, `hook_transport.py`, or the claim's
+  turn in `service.py`, adding `--preview` for a change to preview startup or
+  lifetime.
+- `pi` (`journey_pi.py`): run it after a change to `hooks/pi.ts`, `PiHarness`,
+  `hooks.py`, or the watch between turns in `session.py`.
 
 For the website, TARGET is `website-adapter` for its adapter against the host's
 Codex login (no Worker, container limits, credential proxy or Docker),
@@ -363,9 +359,9 @@ only for a Leaf-specific development contract that neither can exercise. For cas
 in Leaf's suite, run both the merge base and the working tree:
 
 ```bash
-npm ci
+pnpm install --frozen-lockfile
 uv run leaf-dev eval [CASE]... --base --harness claude-code|codex [--repeat N]
-npm run eval:view
+pnpm run eval:view
 ```
 
 `evals/README.md` owns selection, arms, conditions, the case format, where the

@@ -1440,10 +1440,19 @@ def test_a_screenshot_margin_trace_paints_one_complete_quiet_contour(browser, se
         return Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
 
     quiet = screenshot()
-    toggle = page.get_by_role(
-        "button",
-        name="Show after — the run list with and without a status column",
-    )
+    # Exercise the generic contribution trace with a real public registration;
+    # the screenshot's own endpoint actions live in its native control rail.
+    page.evaluate("""async () => {
+      const {contributionEntry, registerContribution} =
+        await window.__lfRuntimeImport('/runtime/widget-api.js');
+      registerContribution({key: 'review-capture',
+        target: document.querySelector('#rn-console-shot'),
+        read: () => ({entries: [contributionEntry({key: 'review', glyph: 'R',
+          label: 'Review capture'})]}), activate: () => {},
+      });
+    }""")
+    margins_laid_out(page)
+    toggle = page.get_by_role("button", name="Review capture", exact=True)
     toggle.hover()
     trace = page.locator('.lf-target-trace[data-for="rn-console-shot"]')
     expect(trace).to_be_visible()
@@ -1463,7 +1472,7 @@ def test_a_screenshot_margin_trace_paints_one_complete_quiet_contour(browser, se
         f"the screenshot frame covered the trace's {missing} edge: {changed} ink pixels"
     )
     assert shot.evaluate("element => getComputedStyle(element).outlineStyle") == "none"
-    toggle.click()
+    shot.locator('.lf-shotcap[data-lf-state="after"]').click()
     expect(shot.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
 
 
@@ -3187,7 +3196,9 @@ def test_a_note_the_page_does_not_show_takes_no_room(browser, serve):
     expect(page.locator("#frequency")).to_have_css("float", "right")
     page.locator("#more > summary").click()
     expect(main).to_have_attribute("data-lf-margin", "rail")
-    expect(main).not_to_have_attribute("style", re.compile("--lf-shift"))
+    expect(page.locator("body")).not_to_have_attribute(
+        "style", re.compile("--lf-column-shift")
+    )
     assert main.evaluate("node => node.getBoundingClientRect().left") == centred
 
 
@@ -3508,7 +3519,7 @@ aside.note { --lf-resident: note; display: none }
       const inert = !owner.residencyStarted();
       owner.openResidency({onRead: changed => window.completed.push(changed)});
       return {inert, tokens: main.getAttribute('data-lf-margin'),
-              shift: main.style.getPropertyValue('--lf-shift')};
+              shift: document.body.style.getPropertyValue('--lf-column-shift')};
     }""",
         {"asset": asset, "rail": rail},
     )
@@ -3521,8 +3532,8 @@ aside.note { --lf-resident: note; display: none }
     page.evaluate("document.documentElement.dir='rtl'; residency.scheduleResidency()")
     page.wait_for_function("completed.length >= 2")
     assert (
-        page.locator("main").evaluate(
-            "node => node.style.getPropertyValue('--lf-shift')"
+        page.locator("body").evaluate(
+            "node => node.style.getPropertyValue('--lf-column-shift')"
         )
         == expected["shift"]
     )

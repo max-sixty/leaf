@@ -1,4 +1,4 @@
-/* The world a runtime module is imported into by `npm run test:runtime`.
+/* The world a runtime module is imported into by `pnpm run test:runtime`.
 
    A fold needs no browser, but the modules holding folds are written for one: they sit
    in files that also reach for `document`, `customElements`, or a DOM type at module
@@ -25,6 +25,16 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 
 GlobalRegistrator.register({ url: "https://leaf.test/" });
+// happy-dom has no visual viewport, which geometry.js's `whenNone` listens to and its
+// `shownWindow` reads. This one is the whole window, unzoomed; boxes here have no size,
+// so nothing reads as seen through it.
+window.visualViewport = Object.assign(new window.EventTarget(), {
+  offsetLeft: 0,
+  offsetTop: 0,
+  scale: 1,
+  width: window.innerWidth,
+  height: window.innerHeight,
+});
 // What a delivered document's prepaint declares before any module runs
 // (`runtime/prepaint.js`): the page's storage scope, "" for a page at the origin's root.
 document.documentElement.dataset.lfPageScope = "";

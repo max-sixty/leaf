@@ -25,10 +25,8 @@ from leaf.event_log import (
 )
 from leaf.files import read_json, unfinished_publications
 from leaf.machine import pid_alive, state_home
-from leaf.schema import (
-    STATUS_FILE,
-    UNNAMED_AGENT,
-)
+from leaf.refusals import Refused
+from leaf.schema import STATUS_FILE
 from leaf.state import (
     CLAIMED_SUFFIX,
     EVENTS_FILE,
@@ -339,9 +337,7 @@ class PageTransaction:
         with flocked(session_lock_path(claim["id"])):
             projected = readable_claim(claim)
             if not claim_is_active(projected):
-                raise RuntimeError(
-                    "the prepared acquisition no longer has a live session"
-                )
+                raise Refused("the prepared acquisition no longer has a live session")
             previous = self.claim
             yield previous, projected
             publish_claim(self.page_dir, claim)
@@ -396,8 +392,9 @@ class PageTransaction:
         """Record that input reaching this page messaged its session after a turn
         ended.
 
-        Browser-event admission sends at most one such message per ending of a
-        turn (`session-lifetime.md`, Watchers). `ending` names the claim's turn id
+        `presence.nudge_unwatched` sends at most one such message per ending of a
+        turn (`session-lifetime.md`, Watchers), from browser-event admission or
+        from a watch giving up its lease. `ending` names the claim's turn id
         and its close stamp, or for an interrupted turn its last opening, so a
         later ending, whether a close under a new id or an interrupt after a new
         prompt renewed the same one, never matches the ending a message already
@@ -423,23 +420,6 @@ class PageTransaction:
             status["stream"] = stream
         write_json(self.page_dir / STATUS_FILE, status)
         return status
-
-    def voice(self) -> dict:
-        """Who a line written on this page speaks as: the posting session where
-        one is running, which need not be the claimant, and the page's claimant
-        otherwise — a line written by a server speaks in the name of whoever
-        holds the page. `UNNAMED_AGENT` covers a page nothing has claimed,
-        where there is no name to use and inventing one would put words in a
-        program's mouth."""
-        from leaf.harness import message_identity
-
-        identity = message_identity()
-        claim = self.claim
-        return {
-            "agent": identity.get("agent")
-            or (claim["agent"] if claim else UNNAMED_AGENT),
-            "session": identity.get("session") or (claim["id"] if claim else None),
-        }
 
     def set_stream_activity(
         self, session_id: str, turn_id: str, activity: dict

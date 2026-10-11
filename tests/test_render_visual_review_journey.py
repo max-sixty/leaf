@@ -1,6 +1,5 @@
 """Authenticated website-journey proof for the visual-review package."""
 
-import hashlib
 import json
 import re
 import shutil
@@ -17,6 +16,7 @@ from render_cases_layout import (
     ring_faults,
     standing_ring,
 )
+from render_cases_navigation import source_revision
 from render_harness import (
     CORPUS_SOURCES,
     consume_browser_errors,
@@ -470,9 +470,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     assert capture_key not in json.dumps(record)
     data_model.cmd_data_set(review_dir, "journey-run", record)
     # The draft begun on this value keeps its revision across the replacement below.
-    drafted_revision = hashlib.sha256(
-        data_model.source_file(review_dir, "journey-run").read_bytes()
-    ).hexdigest()[:16]
+    drafted_revision = source_revision(review_dir, "journey-run")
 
     user = open_page(browser, review_url)
     resized(user, 1366, 768)
@@ -847,7 +845,7 @@ def test_visual_review_reports_an_image_failure_after_its_peer_has_loaded(
     url = serve(VISUAL_REVIEW_GALLERY)
     run = json.loads(
         data_model.source_file(serve.page_dir, "gallery-visual-run").read_text()
-    )
+    )["value"]
     failed_source = run["cases"][0]["after"]
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
@@ -906,7 +904,7 @@ def test_visual_review_case_navigation_keeps_equal_stable_step_targets(
     )
     record = json.loads(
         data_model.source_file(serve.page_dir, "gallery-visual-run").read_text()
-    )
+    )["value"]
     for index in range(3):
         next_button.click()
         expect(selected).to_have_js_property(
@@ -1168,6 +1166,75 @@ def test_visual_review_text_refresh_retains_comparison_choice_and_focus(browser,
     )
     after = caption.bounding_box()
     assert abs(after["y"] - before["y"]) <= 1, (before, after)
+
+
+def test_visual_review_recovers_from_rejected_cases(browser, serve):
+    """Correcting a failed source restores its review and working navigation."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    widget = page.locator("#visual-review-run")
+    selected = widget.locator(".lf-vr-case-select")
+    first = selected.evaluate("node => node.value")
+    record = json.loads(
+        data_model.source_file(serve.page_dir, "gallery-visual-run").read_text()
+    )["value"]
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "gallery-visual-run",
+        record | {"cases": [*record["cases"], record["cases"][0]]},
+    )
+    told(page)
+    expect(widget.locator(".lf-error")).to_contain_text("visual run repeats a case id")
+    consume_browser_errors(page, "visual run repeats a case id")
+    data_model.cmd_data_set(serve.page_dir, "gallery-visual-run", record)
+    told(page)
+    expect(widget.locator(".lf-error")).to_have_count(0)
+    expect(widget.locator(".lf-vr-title")).to_have_text(record["title"])
+    assert widget.evaluate(
+        """async node => {
+          const {readingRegion, compoundReadingRegionId} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
+          return readingRegion(compoundReadingRegionId(node, 'evidence')).body ===
+            node.querySelector('.lf-vr-cases');
+        }"""
+    )
+    expect(selected).to_have_js_property("value", first)
+    widget.locator(".lf-vr-next").click()
+    ids = [case["id"] for case in record["cases"]]
+    expect(selected).to_have_js_property(
+        "value", ids[(ids.index(first) + 1) % len(ids)]
+    )
+
+
+def test_visual_review_source_reorder_keeps_the_focused_case_draft(browser, serve):
+    """Moving a keyed case retains its comment editor, text selection and focus."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    widget = page.locator("#visual-review-run")
+    case = widget.locator(".lf-vr-case:not([hidden])")
+    comment_on_target(page, case)
+    field = case.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    page.keyboard.type("Keep this draft while the case order changes")
+    page.keyboard.press("Shift+ArrowLeft")
+    selection = field.evaluate("node => [node.selectionStart, node.selectionEnd]")
+    editor = field.element_handle()
+    record = json.loads(VISUAL_REVIEW_GALLERY.with_suffix(".data.json").read_text())[
+        "gallery-visual-run"
+    ]
+    data_model.cmd_data_set(
+        serve.page_dir, "gallery-visual-run", record | {"cases": record["cases"][::-1]}
+    )
+    told(page)
+    expect(widget.locator(".lf-vr-case").last).to_have_attribute(
+        "data-lf-datum", record["cases"][0]["id"]
+    )
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property(
+        "value", "Keep this draft while the case order changes"
+    )
+    assert field.evaluate("(node, old) => node === old", editor)
+    assert (
+        field.evaluate("node => [node.selectionStart, node.selectionEnd]") == selection
+    )
 
 
 def test_visual_review_selected_caption_owns_its_activation_keys(browser, serve):

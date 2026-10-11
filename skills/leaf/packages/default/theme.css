@@ -1,4 +1,4 @@
-/* Generated from skills/leaf/packages/default/styles/theme.css by npm run build:styles. */
+/* Generated from skills/leaf/packages/default/styles/theme.css by build/styles.mjs. */
 /* skills/leaf/packages/default/styles/shot.css */
 :scope:is(lf-shot) {
   display: block;
@@ -1599,6 +1599,7 @@
       --lf-top: 0px;
       overscroll-behavior: contain;
       scrollbar-gutter: stable;
+      --lf-holds-height: 1;
     }
   }
   :where(:scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page]) {
@@ -1822,91 +1823,6 @@
   :scope:is(lf-tabs)[list=side] > lf-tab[group]::before {
     content: attr(group) " · " attr(label);
   }
-}
-:scope:is(lf-annotation-rail) {
-  display: block;
-  box-sizing: border-box;
-  min-inline-size: 0;
-  block-size: min(70vh, 40rem);
-  overflow: auto;
-  border: 1px solid var(--border-2);
-  border-radius: var(--sp-2);
-}
-:scope:is(lf-annotation-rail) .lf-ar-region {
-  padding: var(--sp-3);
-}
-:scope:is(lf-annotation-rail) .lf-ar-heading {
-  margin: 0 0 var(--sp-3);
-  font: 600 var(--t-4)/1.4 var(--sans);
-}
-:scope:is(lf-annotation-rail) .lf-ar-source {
-  margin: var(--sp-3) 0 var(--sp-2);
-  color: var(--ink-2);
-  font: 600 var(--t-5)/1.4 var(--sans);
-  block-size: 1.4em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-:scope:is(lf-annotation-rail) .lf-ar-entry {
-  display: flow-root;
-  margin-block: var(--sp-2);
-  border-block-start: 1px solid var(--border-2);
-}
-:scope:is(lf-annotation-rail) .lf-ar-open {
-  margin-block: var(--sp-2);
-  min-block-size: 32px;
-}
-:scope:is(lf-annotation-rail) .lf-ar-outlet {
-  min-inline-size: 0;
-}
-:scope:is(lf-annotation-rail) .lf-ar-notice {
-  block-size: 32px;
-  max-inline-size: 100%;
-  overflow: hidden;
-  white-space: nowrap;
-}
-:scope:is(lf-annotation-rail) .lf-ar-action-row {
-  display: flow-root;
-}
-:scope:is(lf-annotation-rail) .lf-ar-action-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  align-items: center;
-}
-:scope:is(lf-annotation-rail) .lf-ar-slot {
-  display: inline-flex;
-  flex: none;
-  block-size: 32px;
-  max-inline-size: 100%;
-  min-inline-size: 0;
-}
-:scope:is(lf-annotation-rail) .lf-ar-item {
-  block-size: 32px;
-  inline-size: 100%;
-  min-inline-size: 0;
-  text-align: start;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-@media screen and (pointer: coarse) {
-  :scope:is(lf-annotation-rail) :is(.lf-ar-open, .lf-ar-notice, .lf-ar-slot, .lf-ar-item) {
-    min-block-size: var(--aim-floor);
-  }
-}
-:scope:is(lf-annotation-rail) .lf-ar-entry:has(.lf-page-thread) > .lf-ar-open {
-  display: none;
-}
-:scope:is(lf-annotation-rail) .lf-ar-empty {
-  color: var(--ink-2);
-}
-:scope:is(lf-annotation-rail) [data-lf-ar-retired]:not(:has(.lf-ar-outlet > *)) {
-  display: none;
-}
-:scope:is(lf-annotation-rail) .lf-ar-group:not(:has(.lf-ar-entry:not([data-lf-ar-retired]), .lf-ar-entry .lf-ar-outlet > *)) {
-  display: none;
 }
 :scope:is(lf-toc) {
   display: block;
@@ -2496,8 +2412,15 @@
 :scope:is(lf-sample):has(> .lf-sample-view:modal) {
   height: var(--lf-sample-height);
 }
+:scope:is(lf-sample)[data-lf-sample-live] {
+  padding-left: 0;
+  border-left: 0;
+}
+.lf-sample-exhibit {
+  padding-left: var(--sp-4);
+  border-left: 3px solid var(--border-2);
+}
 .lf-sample-controls {
-  display: table-caption;
   margin-bottom: 10px;
 }
 .lf-sample-controls > div {
@@ -2541,7 +2464,15 @@
 .lf-sample-view:modal > .lf-sample-controls {
   flex: none;
 }
-.lf-sample-view:modal > .lf-sample-frame {
+.lf-sample-view:modal > .lf-sample-exhibit {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border: 0;
+}
+.lf-sample-view:modal .lf-sample-frame {
   flex: 1;
   min-height: 0;
 }
@@ -2552,6 +2483,7 @@
 }
 @media print {
   .lf-sample-controls,
+  .lf-sample-exhibit,
   .lf-sample-frame {
     display: none;
   }
@@ -2743,6 +2675,7 @@
     max-block-size: var(--lf-bound, 28rem);
     overflow: auto;
     --lf-bound-box: 1;
+    --lf-holds-height: 1;
     --lf-top: 0px;
   }
 }

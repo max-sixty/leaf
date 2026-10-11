@@ -57,7 +57,7 @@ import { PRESSABLE, reveal } from "./widget-elements.js";
 import { threadNames } from "./thread/model.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { targetElement, targetPlace, targetSegments } from "./resolved-target.js";
-import { closestAcross, pageText, rangeOf, selectEnds } from "./passages.js";
+import { closestAcross, rangeOf, selectEnds } from "./passages.js";
 import { standingPoint } from "./pointed-place.js";
 import { PRESSES } from "./control-selectors.js";
 import { typesText } from "./focus.js";
@@ -170,7 +170,7 @@ export function createAnchorTravel({
   async function restoreSelection(anchor, { backward, intent }) {
     const mayArrive = retainTravel(intent);
     const resolve = () => {
-      const target = resolveAnchor(anchor, pageText());
+      const target = resolveAnchor(anchor);
       const segments = targetSegments(target);
       if (!segments.length) return null;
       const range = rangeOf(segments);
@@ -455,6 +455,10 @@ export function createAnchorTravel({
     return seen && { holder, destination, seen };
   }
 
+  // Whether travel to `where` would leave the page as it stands: the destination stands
+  // whole inside the band a landing aims for (`landingBand`) and nothing cuts it. Being
+  // in front of the user (`seenRect`) is not enough, since a destination half cut off or
+  // pressed against the banner is one a landing still moves.
   function readableDestination(where) {
     const shown = seenOf(where);
     if (!shown) return false;

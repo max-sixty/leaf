@@ -4,7 +4,21 @@ import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
+import { realpathSync } from "node:fs";
+import { createRequire } from "node:module";
 import { patchTransitions } from "./transition-patch.mjs";
+
+// Externalizing Lit is sound only when Web Awesome resolves Leaf's version.
+const rootRequire = createRequire(import.meta.url);
+const webawesomeRequire = createRequire(
+  rootRequire.resolve("@awesome.me/webawesome/package.json"),
+);
+if (
+  realpathSync(rootRequire.resolve("lit")) !==
+  realpathSync(webawesomeRequire.resolve("lit"))
+) {
+  throw new Error("Web Awesome and Leaf must resolve the same Lit");
+}
 
 const [out, version, python] = process.argv.slice(2);
 const css = await build({
@@ -17,9 +31,9 @@ const css = await build({
   minify: true,
   write: false,
 });
-// Move only theme variables to component hosts. Upstream root color/font defaults
-// are inheritance, and declaring them on a host would override its own state face.
-// The same token selectors work inside Leaf's declared shadow stages.
+// Move only upstream theme variables to component hosts. Transplanting root
+// appearance would override component state ink; leaf-theme.css owns the chosen
+// typography defaults. The selectors also work in Leaf's declared shadow stages.
 const tokens = execFileSync(python, ["theme.py"], {
   input: css.outputFiles[0].text,
   encoding: "utf8",

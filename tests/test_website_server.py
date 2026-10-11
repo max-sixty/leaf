@@ -47,6 +47,7 @@ from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
 from leaf.leases import take_lease, waiter_lease_path
 from leaf.machine import pid_alive
+from leaf.refusals import Refused
 from leaf.render_checks import rendered
 from leaf.revision_artifact import capture_artifact
 from leaf.revision_delivery import compose_document
@@ -863,6 +864,46 @@ def test_a_follower_that_faults_still_hands_the_page_on(page_dir, monkeypatch):
 
     assert continued == [comment["id"]]
     assert "hosted-thread" not in harness.following_threads
+
+
+def test_a_refused_correction_receipt_still_hands_the_page_on(
+    page_dir, monkeypatch, capsys
+):
+    """A correction turn that cannot restart receipts what it owed, and the page can
+    refuse that receipt while a reply is still held. The refusal is recorded and
+    the page's next move is still started."""
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    harness = website_server.WebsiteCodexHarness("codex")
+    harness.following_threads.add("hosted-thread")
+    turn = unfollowed_turn(harness, page_dir)
+    turn.correction = {"source": "index.html"}
+
+    def no_server():
+        raise RuntimeError("no App Server")
+
+    def refused_receipt():
+        raise Refused("failure receipts wait for this turn to release the answer")
+
+    continued = []
+    monkeypatch.setattr(harness, "_ensure_server", no_server)
+    monkeypatch.setattr(turn, "_receipt_unanswered", refused_receipt)
+    monkeypatch.setattr(
+        harness, "attach", lambda target, event_id: continued.append(event_id)
+    )
+    harness._run_follow_turn(turn)
+
+    assert continued == [comment["id"]]
+    [record] = [
+        json.loads(line)
+        for line in capsys.readouterr().out.splitlines()
+        if json.loads(line)["event"] == "turn_receipt_refused"
+    ]
+    assert (
+        record["detail"] == "failure receipts wait for this turn to release the answer"
+    )
 
 
 def test_an_ending_on_an_unopenable_page_still_answers_every_move(
@@ -1815,7 +1856,7 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
     competing_writer_rejected = []
 
     def refuse(*args, **kwargs):
-        with pytest.raises(SystemExit, match="answered by this turn's messages"):
+        with pytest.raises(Refused, match="answered by this turn's messages"):
             post_reply(
                 page_dir,
                 comment["id"],
@@ -3168,10 +3209,21 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     assert watcher is not None
     request.addfinalizer(watcher.close)
     thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
-    # An active editor holds the turn's update so this journey exercises the receipt
-    # beside held news; an idle panel thread now shows the update immediately.
+    # An active editor holds the turn's opening so this journey exercises the receipt
+    # beside held news; an idle panel thread streams it immediately. The reply joins
+    # the thread with its first words, not when the turn opens its seat.
     thread.locator("leaf-text").focus()
     turn.begin()
+    turn.reply_stream.update(
+        {
+            "message": {
+                "item": "msg-0",
+                "phase": "commentary",
+                "text": "Looking at the page.",
+                "complete": False,
+            }
+        }
+    )
     # Present the accepted turn before resolving it: coalescing these server writes
     # would never exercise a workflow receipt disappearing beside the news control.
     told(page)
@@ -4395,7 +4447,7 @@ def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
         "reply => window.__leafVerifier.replyShownAt(reply)", arg=reply
     )
     shown = page.evaluate("window.__leafVerifier.replyShownAt", reply)
-    assert shown["by"] == "message"
+    assert shown["by"] == "message" and shown["message"] == shown["at"]
     assert before <= shown["at"] <= page.evaluate("Date.now()")
 
 
@@ -5328,7 +5380,7 @@ class _DeployedPage:
         if script == "window.__leafVerifier.startVisibleReplyClock":
             return 100.0
         if script == "window.__leafVerifier.replyShownAt":
-            return {"at": 12_600.0, "by": "message"}
+            return {"at": 12_600.0, "by": "message", "message": 12_600.0}
         if script == "window.__leafStartup.reading":
             presented_at = (
                 self.presented_at
@@ -5746,6 +5798,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             "sinceSendMs": {
                 "acknowledged": [250.0],
                 "responseVisible": 12500.0,
+                "responseMessageVisible": 12500.0,
             },
             "responseShownBy": "message",
             "activity": [

@@ -18,7 +18,7 @@ import {
   whenDocumentPresented,
   readApplication,
 } from "./semantic-state.js";
-import { reportPageError, sameLayer } from "./layer-client.js";
+import { reportCarried, sameLayer } from "./layer-client.js";
 import { importWidgets } from "./widget-loader.js";
 import { observeServerNow, observeWorkingGrace } from "./presence.js";
 import { settleAcceptedDrafts } from "./drafts.js";
@@ -58,10 +58,8 @@ export function createStateApplication({
 
   async function runSerialized(operation) {
     const prior = admission;
-    let release;
-    admission = new Promise((resolve) => {
-      release = resolve;
-    });
+    const { promise, resolve: release } = Promise.withResolvers();
+    admission = promise;
     await prior;
     try {
       return await operation();
@@ -130,14 +128,11 @@ export function createStateApplication({
     );
 
     return runSerialized(async () => {
-      if (applicationState.overtaken(state)) {
-        await notifyChangedData();
-        return;
-      }
       // Pending deferral is rechecked by activates. An installation edits the user's
       // document and there is no putting it back, so the answer that would follow it is
       // judged first, against the revision the install would leave showing. A candidate
-      // that could not be adopted is dropped here, with the page still whole.
+      // that could not be adopted, overtaken by a newer reading included, is dropped
+      // here, with the page still whole.
       const following = activation?.activates() ? activation.revision : null;
       if (!applicationState.canAdopt(state, following)) {
         await notifyChangedData();
@@ -217,7 +212,7 @@ export function createStateApplication({
           });
         }
       } catch (error) {
-        reportPageError(error, `State presentation failed`);
+        reportCarried(error, `State presentation failed`);
         throw error;
       } finally {
         stateApplying = false;

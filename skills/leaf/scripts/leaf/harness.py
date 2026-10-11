@@ -20,7 +20,6 @@ import json
 import os
 import socket
 import subprocess
-import sys
 import time
 from collections.abc import Callable
 from contextlib import contextmanager
@@ -33,6 +32,7 @@ from leaf.files import read_json
 from leaf.leases import adapter_is_live, hooks_ran, step_hook_ran, wait_is_live
 from leaf.machine import ancestry, pid_alive, process_argv
 from leaf.page_memory import Slot
+from leaf.refusals import Refused
 
 
 @dataclass(frozen=True)
@@ -229,7 +229,7 @@ class Harness:
         as the comment is admitted (`thread_titles`), or None where it cannot.
 
         Only a harness whose model any process on the machine can ask has one. The
-        website's host names the thread instead, as the move opening it is
+        website's host names the thread instead, as the update opening it is
         dispatched to it, since only it can reach the App Server it owns."""
         return None
 
@@ -306,7 +306,7 @@ class ClaudeCodeHarness(EnvironmentHarness):
         if job := os.environ.get("CLAUDE_JOB_DIR"):
             record = read_json(Path(job) / "state.json")
             if record is None:
-                sys.exit(
+                raise Refused(
                     f"CLAUDE_JOB_DIR names no job record ({job}/state.json); "
                     "leaf takes a background job's lifetime from it"
                 )
@@ -466,7 +466,7 @@ class CodexHarness(EnvironmentHarness):
                 from .state import chat_exists, session_record
 
                 if not chat_exists(session_record(self.session)):
-                    sys.exit(
+                    raise Refused(
                         "Leaf cannot establish this desktop Codex chat's lifetime: "
                         "its validated native transcript is unavailable. Run a new "
                         "prompt with Leaf's Codex hooks enabled, then retry."
@@ -478,7 +478,7 @@ class CodexHarness(EnvironmentHarness):
         # LEAF_SESSION_ID with no codex above it is a hand-built environment, so
         # say what was walked.
         chain = " → ".join(program for _, program in ancestry())
-        sys.exit(
+        raise Refused(
             "LEAF_SESSION_ID names a Codex session but no codex process runs "
             f"above this one ({chain}); leaf takes the session's lifetime from it"
         )
@@ -573,7 +573,7 @@ class PiHarness(EnvironmentHarness):
 
     def lifetime(self) -> dict:
         if (pid := self.process_pid()) is None:
-            sys.exit(
+            raise Refused(
                 "PI_SESSION_ID names a Pi session but LEAF_PI_PID is unset: Leaf's "
                 "Pi extension (hooks/pi.ts) is not loaded in it"
             )

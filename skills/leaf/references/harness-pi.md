@@ -28,15 +28,15 @@ once the page is handed over, end the run: start no `leaf wait`. Input that
 arrives as a run is about to end comes into that run the same way, and keeps it
 going.
 
-The extension confirms an envelope it puts in your context, so the user's moves
+The extension confirms an envelope it puts in your context, so the user's updates
 read **Picked up** and its `acknowledge` is null: run no acknowledgement command.
-Large input arrives as a `leaf delivery read <id>` pointer instead: read every
-part before working or replying, then follow its confirmation instruction
-(`references/event-batches.md`, "Delivery and acknowledgement").
+Large input arrives instead as a pointer, `leaf delivery read <id>`. Run it before
+working or replying, and once you have read every part, follow its confirmation
+instruction.
 
 To pick up a page this session did not serve, run `leaf page claim <page>`; the
 extension watches it from the end of the run.
 
-If a run ends without answering a delivered move, the next prompt carries that
+If a run ends without answering a delivered update, the next prompt carries that
 obligation back into context. Under `pi --print` the session ends with its run,
 and nothing carries later input back to it.

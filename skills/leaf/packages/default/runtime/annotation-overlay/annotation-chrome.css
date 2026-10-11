@@ -103,7 +103,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     grid-column: 1; grid-row: 1; align-self: stretch;
     grid-template-rows: minmax(0, 1fr); }
   .lf-fab-bar:not([data-lf-presentation="inline"]) > .lf-response-options {
-    grid-column: 1 / -1; grid-row: 2; }
+    /* Disclosed actions wrap within the editor's track; their intrinsic width
+       must not move the field or its disclosure out from under the pointer. */
+    contain: inline-size; grid-column: 1 / -1; grid-row: 2; }
   .lf-fab-bar:not([data-lf-presentation="inline"]):has(.lf-composer-media:not([hidden])) {
     grid-template-columns: auto minmax(0, 1fr); }
   .lf-fab-bar:not([data-lf-presentation="inline"]):has(.lf-composer-media:not([hidden]))
@@ -265,7 +267,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-thread .lf-thread-reply { grid-row: 4; }
   /* The card accompanies a live page: scrolling continues there at either edge,
      including when all turns fit and the transcript has no scroll travel. */
+  /* Deliberate visual tradeoff: this pale thumb falls below WCAG's usual 3:1
+     contrast guidance for custom controls, chosen to keep the card's chrome quiet.
+     Native scrolling, hiding, and hover widening remain browser-controlled. */
   .lf-margin-thread .lf-thread-transcript { min-height: 1lh; overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--ink) 12%, var(--paper)) transparent;
     scroll-padding-block: var(--focus-ring-room); }
   /* The field stands at the card's inset; words stand one inset inside it. */
   .lf-margin-thread .lf-page-thread { padding: 0; background: var(--paper); }

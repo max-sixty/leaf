@@ -24,8 +24,8 @@ package authors continue to use native JavaScript without a build.
   `build:browser` and `check:browser` include these outputs.
 - `styles.mjs` resolves native CSS imports in component source entrypoints under
   `skills/leaf/assets/styles/` and bundled packages' `styles/` into the committed
-  complete sheets. `build:styles` writes them; `check:styles` verifies them through
-  the existing browser and bundle gates. Consumers load no imports and run no compiler.
+  complete sheets; `build:browser` and `check:browser` include these outputs.
+  Consumers load no imports and run no compiler.
 - `vendor.py` rebuilds every third-party bundle outside the framework, bundling what
   each consumer needs or adapting an upstream browser module. An entry under
   `build/` named after a key in its `BUILDS` table, a directory or a single
@@ -36,21 +36,24 @@ package authors continue to use native JavaScript without a build.
   and overflow lengths.
   The builder records the upstream commit and applies both to private package copies.
 
-After `npm ci`, both builds reproduce the tracked bytes, so a diff after a rebuild
-means the lock, a build script, or the registry input a bundle reads changed.
+After `pnpm install --frozen-lockfile`, both builds reproduce the tracked bytes, so a
+diff after a rebuild means the lock, a build script, or the registry input a bundle
+reads changed.
 Rebuild after any of those changes:
 
 ```sh
-npm ci
-npm run build:browser      # npm run check:browser compares without writing
+pnpm install --frozen-lockfile
+pnpm run build:browser      # pnpm run check:browser compares without writing
 uv run build/vendor.py     # all bundles, or name the ones to rebuild
 ```
 
-Rebuild after `npm install` moves a pin or the lock, or after changing registry
+Rebuild after `pnpm install` moves a pin or the lock, or after changing registry
 input a bundle reads. `package.json` pins every JavaScript version that ships.
 `lit-html` is held at 3.3.0, below what `lit` would take: from 3.3.1, `repeat` leaves
 a comment behind for each item it removes (lit/lit#5298), so a list the chrome redraws
-grows for as long as the page is open. The releases it skips carry typings and a fix
-to the `ref` directive, which neither Leaf nor Web Awesome uses. Lift it to a release
+grows for as long as the page is open. `browser/build.mjs` backports lit/lit#5218
+to that pin so optional `ref(undefined)` survives disconnection and reconnection.
+The build adapts the published module in memory and fails if its locked seam changes.
+Lift it to a release
 that carries lit/lit#5299; the closed-surface journey of
 `test_a_still_page_comes_back_from_every_journey_as_it_was` fails while the leak stands.

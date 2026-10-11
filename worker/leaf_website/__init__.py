@@ -34,7 +34,7 @@ from leaf.codex import (
     app_server_connect,
     app_server_handshake,
     app_server_request,
-    delivery_owed_moves,
+    delivery_owed_updates,
     open_app_server_delivery,
     prepare_codex_delivery,
     start_app_server_delivery,
@@ -47,6 +47,7 @@ from leaf.http import PageEndpoint, scope_page_urls
 from leaf.layer import foreign_runtime
 from leaf.leases import release_lease, take_lease, waiter_lease_path
 from leaf.page_memory import Slot, memo
+from leaf.refusals import Refused
 from leaf.registry.storage import layer_metadata
 from leaf.revision_delivery import Delivery
 from leaf.revisioning import activate_source
@@ -202,6 +203,11 @@ def log_agent(event: str, **fields) -> None:
             ),
             flush=True,
         )
+
+
+def elapsed_ms(started: float) -> int:
+    """Milliseconds since a `time.monotonic()` reading, as records' durationMs."""
+    return round((time.monotonic() - started) * 1000)
 
 
 def bounded_detail(message: str) -> str:
@@ -444,7 +450,7 @@ class HostedTurn(CarriedTurn):
         )
 
     def elapsed(self) -> int:
-        return round((time.monotonic() - self.started) * 1000)
+        return elapsed_ms(self.started)
 
     def record(self, event: str, **fields) -> None:
         log_agent(event, **self.fields, turnId=self.turn_id, **fields)
@@ -598,7 +604,7 @@ class HostedTurn(CarriedTurn):
         claims no more than the absence of an answer, because that is all this
         observed.
         """
-        targets = delivery_owed_moves(read_delivery(self.delivery_id))
+        targets = delivery_owed_updates(read_delivery(self.delivery_id))
         settled = 0
         swept = False
         try:
@@ -676,13 +682,13 @@ class WebsiteCodexHarness:
         except (OSError, RuntimeError) as error:
             log_agent(
                 "app_server_prewarm_failed",
-                durationMs=round((time.monotonic() - started) * 1000),
+                durationMs=elapsed_ms(started),
                 **fault_fields(error),
             )
             return
         log_agent(
             "app_server_prewarm_completed",
-            durationMs=round((time.monotonic() - started) * 1000),
+            durationMs=elapsed_ms(started),
         )
 
     def _warm_leaf_cli(self) -> None:
@@ -701,13 +707,13 @@ class WebsiteCodexHarness:
         except (OSError, subprocess.SubprocessError) as error:
             log_agent(
                 "leaf_cli_prewarm_failed",
-                durationMs=round((time.monotonic() - started) * 1000),
+                durationMs=elapsed_ms(started),
                 **fault_fields(error),
             )
             return
         log_agent(
             "leaf_cli_prewarm_completed",
-            durationMs=round((time.monotonic() - started) * 1000),
+            durationMs=elapsed_ms(started),
         )
 
     def _hold_waiter(self, page_dir: Path, thread_id: str) -> None:
@@ -775,7 +781,7 @@ class WebsiteCodexHarness:
             if self.socket_path.exists():
                 log_agent(
                     "app_server_spawn_completed",
-                    durationMs=round((time.monotonic() - started) * 1000),
+                    durationMs=elapsed_ms(started),
                 )
                 return self.process
             if self.process.poll() is not None:
@@ -827,7 +833,9 @@ class WebsiteCodexHarness:
 
         Handing it on is part of the ending rather than a reward for a clean one: a
         follower that faulted leaves the same page with the same moves outstanding as
-        one that did not, and this is the only place either is looked at.
+        one that did not, and this is the only place either is looked at. A receipt
+        the page refuses here, such as one waiting on a reply the turn still holds, is
+        recorded rather than ending the thread before the page is handed on.
         """
         page_dir = turn.page_dir
         try:
@@ -854,7 +862,14 @@ class WebsiteCodexHarness:
                 if turn.correction is not None:
                     for event_id in turn.event_ids:
                         abandon_codex_delivery(turn.session_id, event_id)
-                    turn._receipt_unanswered()
+                    try:
+                        turn._receipt_unanswered()
+                    except Refused as error:
+                        log_agent(
+                            "turn_receipt_refused",
+                            **agent_event_fields(turn.event_ids),
+                            **fault_fields(error),
+                        )
                 self._continue_page(page_dir, turn.event_ids)
 
     def _continue_page(self, page_dir: Path, excluding: tuple[str, ...]) -> None:
@@ -1030,7 +1045,7 @@ class WebsiteCodexHarness:
                 thread_id,
                 prepared.payload,
             )
-        except RuntimeError as error:
+        except (RuntimeError, Refused) as error:
             # No turn to follow, and after an uncertain start possibly one this
             # request made and never named. This harness owns the thread, so it tells
             # the provider to drop whatever it began rather than waiting to adopt it,
@@ -1050,7 +1065,7 @@ class WebsiteCodexHarness:
             "turn_start_acknowledged",
             **agent_event_fields(prepared_events),
             turnId=turn_id,
-            durationMs=round((time.monotonic() - started) * 1000),
+            durationMs=elapsed_ms(started),
         )
         # App Server answered for the turn it made from this delivery, so the follower
         # knows which turn is its own before it reads anything. The answer names a turn
@@ -1111,7 +1126,7 @@ class WebsiteCodexHarness:
                     "turn_abandoned_interrupt_completed",
                     eventId=event_id,
                     turnId=(message.get("params") or {}).get("turn", {}).get("id"),
-                    durationMs=round((time.monotonic() - started) * 1000),
+                    durationMs=elapsed_ms(started),
                 )
                 return
         raise RuntimeError("the running Codex App Server turn did not stop")
@@ -1163,7 +1178,7 @@ class WebsiteCodexHarness:
         log_agent(
             "thread_start_completed",
             eventId=event_id,
-            durationMs=round((time.monotonic() - started) * 1000),
+            durationMs=elapsed_ms(started),
         )
         return result["thread"]["id"]
 
@@ -1200,7 +1215,7 @@ class WebsiteCodexHarness:
         log_agent(
             "thread_resume_completed",
             eventId=event_id,
-            durationMs=round((time.monotonic() - started) * 1000),
+            durationMs=elapsed_ms(started),
         )
         return True
 
@@ -1224,7 +1239,7 @@ class WebsiteCodexHarness:
                     log_agent(
                         "app_server_available",
                         eventId=event_id,
-                        durationMs=round((time.monotonic() - server_started) * 1000),
+                        durationMs=elapsed_ms(server_started),
                     )
                     claim = page_claim(page_dir)
                     thread_id = (
@@ -1262,14 +1277,14 @@ class WebsiteCodexHarness:
             log_agent(
                 "container_start_failed",
                 eventId=event_id,
-                durationMs=round((time.monotonic() - started) * 1000),
+                durationMs=elapsed_ms(started),
                 **fault_fields(error),
             )
             raise
         log_agent(
             "container_start_completed",
             eventId=event_id,
-            durationMs=round((time.monotonic() - started) * 1000),
+            durationMs=elapsed_ms(started),
         )
         # The Worker dispatches each move here as the page admits it, so a thread the
         # move opens is named now, even when a running turn leaves the move to the
@@ -1323,14 +1338,34 @@ def _agent_failure(posted: dict) -> tuple[str, str]:
     return _agent_event({"event": posted["event"]}), failure
 
 
+# One published page as the router reads it: its URL root ("" for the site root), its
+# directory in the site build, and its publication kind.
+PageRoute = tuple[str, Path, str]
+
+
+def page_routes(site_root: Path, pages: dict) -> tuple[PageRoute, ...]:
+    """Read the build's page manifest into routes, longest root first.
+
+    `leaf-dev site` writes each directory relative to the build it describes and
+    derives each kind itself, so both are read as given.
+    """
+    return tuple(
+        (
+            "" if public_root == "/" else public_root,
+            (site_root / page["directory"]).resolve(),
+            page["kind"],
+        )
+        for public_root, page in sorted(
+            pages.items(), key=lambda item: len(item[0]), reverse=True
+        )
+    )
+
+
 def published_page(
-    site_root: Path, pages: dict, path: str
+    routes: tuple[PageRoute, ...], path: str
 ) -> tuple[Path, str, str, str] | None:
-    """Resolve a public URL through the build's generated page manifest."""
-    for public_root, page in sorted(
-        pages.items(), key=lambda item: len(item[0]), reverse=True
-    ):
-        page_root = "" if public_root == "/" else public_root
+    """Resolve a public URL to its page directory, root, inner path and kind."""
+    for page_root, page_dir, kind in routes:
         if path in {page_root, f"{page_root}/"}:
             inside = "/"
         elif path.startswith(f"{page_root}/"):
@@ -1339,13 +1374,6 @@ def published_page(
                 continue
         else:
             continue
-        directory = page.get("directory")
-        kind = page.get("kind")
-        if not isinstance(directory, str) or kind not in {"product", "example"}:
-            raise ValueError(f"invalid site manifest entry for {public_root}")
-        page_dir = (site_root / directory).resolve()
-        if not page_dir.is_relative_to(site_root):
-            raise ValueError(f"site manifest path escapes its root: {directory}")
         return page_dir, page_root, inside, kind
     return None
 
@@ -1358,13 +1386,13 @@ class WebsitePageEndpoint(PageEndpoint):
         request,
         server,
         *,
-        site_root: Path,
+        routes: tuple[PageRoute, ...],
         pages: dict,
         release: str,
         agent_harness: WebsiteCodexHarness,
     ) -> None:
         super().__init__(request, server, release=release)
-        self.site_root = site_root
+        self.routes = routes
         self.pages = pages
         self.agent_harness = agent_harness
 
@@ -1445,7 +1473,7 @@ class WebsitePageEndpoint(PageEndpoint):
             accepted = self.agent_harness.failure_receipt(
                 self.page_dir, event_id, failure
             )
-        except SystemExit as error:
+        except Refused as error:
             return self._json({"error": str(error)}, 400)
         if accepted is None:
             return self._json({"status": "settled"})
@@ -1454,7 +1482,7 @@ class WebsitePageEndpoint(PageEndpoint):
     def _select_page(self) -> Response | None:
         if self.method == "GET" and self.path == "/health":
             return self._content(200, "text/plain; charset=utf-8", b"ok\n")
-        selected = published_page(self.site_root, self.pages, self.path)
+        selected = published_page(self.routes, self.path)
         if selected is None:
             return self._not_found()
         page_dir, page_root, inside, kind = selected
@@ -1480,7 +1508,7 @@ def site_endpoint(
     manifest = json.loads((root / SITE_MANIFEST).read_text(encoding="utf-8"))
     return partial(
         WebsitePageEndpoint,
-        site_root=root,
+        routes=page_routes(root, manifest["pages"]),
         pages=manifest["pages"],
         release=manifest["release"],
         agent_harness=agent_harness or WebsiteCodexHarness(),
@@ -1497,7 +1525,6 @@ def initial_state(
     """Build the canonical state shared by users before any private mutation."""
     state = PageStateService(
         page_dir,
-        layer_identity=layer_metadata(page_dir),
         preview=preview_metadata(page_dir),
         publication={**PUBLICATION, "kind": kind},
     ).page_state(view_revision)

@@ -1,9 +1,9 @@
 /* Keyboard reachability, containment, the sticky-header slot, and continuation paint for
    scrollable page and shadow content. */
 
-import { wearsLentStop } from "./focus.js";
-import { LENT_REACH_STOP, TAB_STOP, TEXT_BOX } from "./control-selectors.js";
-import { scrollsBy, skipped } from "./geometry.js";
+import { tabStops, wearsLentStop } from "./focus.js";
+import { LENT_REACH_STOP, TEXT_BOX } from "./control-selectors.js";
+import { scrollsBy, skipped, userScrollport } from "./geometry.js";
 import { afterScript, nextFrame, nextRender, sizeObserver } from "./rendering.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { shadowRootsIn, upFrom } from "./shadow.js";
@@ -18,7 +18,8 @@ import { keeps } from "./keeps.js";
 // entry, and it reaches the runtime's own boxes on the same terms as the page's — and
 // into the trees an x-shadow widget renders in, which the walk alone does not enter.
 //
-// A box holding a control is already reachable (lf-board, through its grips). Re-read
+// A box holding a control in Tab order is already reachable (lf-board, through its
+// grips). Programmatic-only buttons inside a diff do not provide that route. Re-read
 // that content when layout changes: an initially empty Page Map list must give up its
 // container stop once actions arrive inside it.
 //
@@ -65,15 +66,12 @@ import { keeps } from "./keeps.js";
 // style answers can move (`queries`, below). The candidate set is what the declaration
 // leaves behind, so the re-measure walks a handful of boxes rather than the document.
 //
-// A box the user can scroll. `hidden` scrolls too, for a script, and is a sticky box's
-// scroller (`scrollsBy`, geometry.js), but no stop or edge mark reaches what it hides.
-const SCROLLS = /^(auto|scroll)$/;
 // until-found retains its own box, unlike its skipped descendants. That hidden
 // box cannot be inspected, so its apparent overflow earns no keyboard stop.
 const overflows = (el) =>
   !el.hasAttribute("hidden") &&
   (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight);
-const holdsOwnStop = (el) => el.querySelector(TAB_STOP) !== null;
+const holdsOwnStop = (el) => tabStops(el).length > 0;
 // Each candidate with the `tabindex` its author gave it, or null for none. The pass
 // writes only the stop it lends, `0`, and takes back only that, to the author's value:
 // a box that stops scrolling is the box it was before, not one a click can now focus.
@@ -179,7 +177,7 @@ function paintReadingReach(el) {
   afterScript(() => {
     if (!downwards.has(el) || unpainted(el)) return;
     const style = getComputedStyle(el);
-    const scrolling = SCROLLS.test(style.overflowY);
+    const scrolling = userScrollport(style.overflowY);
     el.toggleAttribute(
       PAGE_PAINT_ATTRIBUTE.moreBelow,
       scrolling && el.scrollTop + el.clientHeight < el.scrollHeight - 1,
@@ -279,7 +277,7 @@ function classify(el) {
   // stop this pass lent it.
   if (
     el.hasAttribute("hidden") ||
-    (!SCROLLS.test(style.overflowX) && !SCROLLS.test(style.overflowY))
+    (!userScrollport(style.overflowX) && !userScrollport(style.overflowY))
   ) {
     if (!mayScroll.has(el)) return;
     const authored = mayScroll.get(el);
@@ -300,7 +298,7 @@ function classify(el) {
     el.setAttribute(PAGE_PAINT_ATTRIBUTE.holds, "1");
   // A text box is out of the continuation marks for its own reason: it scrolls a
   // value its user is writing and already knows continues.
-  if (SCROLLS.test(style.overflowX) && !el.matches(TEXT_BOX) && !sideways.has(el)) {
+  if (userScrollport(style.overflowX) && !el.matches(TEXT_BOX) && !sideways.has(el)) {
     sideways.add(el);
     watchReach(el);
     el.addEventListener("scroll", sidewaysScrolled, { passive: true });
@@ -382,7 +380,7 @@ function paintSidewaysReach(el) {
     if (!sideways.has(el) || unpainted(el)) return;
     const style = getComputedStyle(el);
     const scrolling =
-      SCROLLS.test(style.overflowX) && el.scrollWidth > el.clientWidth + 1;
+      userScrollport(style.overflowX) && el.scrollWidth > el.clientWidth + 1;
     const maximum = Math.max(0, el.scrollWidth - el.clientWidth);
     const raw = Math.abs(el.scrollLeft);
     const position = Math.min(maximum, Math.max(0, raw));

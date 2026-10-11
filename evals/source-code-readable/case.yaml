@@ -55,6 +55,35 @@ assert:
 # report revision r8. Original guidance passed 1/2; clarifying its existing diff
 # paragraph in place passed 2/2. Require the binding that supplies line controls.
 variants:
+  # Work-update suggestion (2026-10-10): one Codex run per arm passed this case
+  # and text-edit. Candidate used wt step diff; base assembled a temporary index.
+  current-work:
+    metadata:
+      purpose: A current-work update offers refreshable patch evidence without transcribing it.
+    vars:
+      prompt: |
+        Prepare a short Leaf update on our current branch's work. The branch has
+        three commits and uncommitted edits across twelve text files. Checks pass.
+        The change consolidates request cancellation under one owner; explain
+        that behavior and give Max a way to inspect the implementation while we
+        continue revising it. Worktrunk is available. The page directory and
+        repository are unavailable in this read-only task. Reply with the HTML
+        section and the shell commands you would run to supply and later refresh
+        its evidence. Do not invent source contents.
+    assert:
+    - type: llm-rubric
+      metric: refreshable-patch
+      value: |
+        The section briefly explains the behavior change and includes a
+        source-bound lf-diff. Commands select the whole branch's work including
+        uncommitted edits, using wt step diff or an equivalent comparison, and
+        supply the patch to leaf data set for the widget's source, either as a
+        JSON string (for example via jq -Rs .) or through the optional
+        leaf package run diff patch_manifest.py file-manifest producer.
+        Refresh repeats capture into the same source id. Fail if the answer invents or transcribes patch contents,
+        captures only the latest commit or only uncommitted edits, or requires
+        rewriting the page's HTML for each refresh. Launcher spelling may be
+        leaf, a resolved launcher path, or $LEAF.
   text-edit:
     metadata:
       purpose: A report reviewing a wording change lets the reader see and comment on the exact

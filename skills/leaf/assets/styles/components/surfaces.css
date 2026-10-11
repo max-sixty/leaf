@@ -175,12 +175,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * `background` is the one property a control's own dress is written in, and every layer
  * writes it: a chip states a fill, chrome's .lf-btn swaps one on hover, a package restates
  * both. A shared rule setting `background` has to out-specify all of them to be seen and
- * then wins against the ones that should have won — the aim wash landed on nothing at
- * all against `.lf-command-facts > [role="button"]`, which ties it exactly. The shadow is
- * painted over whatever fill the control wears, so the chip keeps its ground, the .lf-btn
- * keeps its swap, and both deepen by the same amount under the pointer. It is inset, so
- * it paints inside the padding box, follows the corner the control already has, and adds
- * nothing outside a rectangle the movement tests are watching.
+ * then wins against the ones that should have won. The shadow is painted over whatever
+ * fill the control wears, so the chip keeps its ground, the .lf-btn keeps its swap, and
+ * both deepen by the same amount under the pointer. It is inset, so it paints inside the
+ * padding box, follows the corner the control already has, and adds nothing outside a
+ * rectangle the movement tests are watching.
  *
  * A spent press keeps its shape and gives up its opacity. That is the layer's one cue
  * for "there is nothing left to do here", and it is stated with the hand it withdraws so
@@ -406,10 +405,14 @@ summary { align-content: center; }
    it covers. One disclosure beside that context controls the entire range. */
 .lf-thread-checkpoint { margin-block: 16px; }
 .lf-thread-checkpoint[hidden] { display: none; }
-/* An inset border groups the retained messages without changing their headers
-   or giving progress a separate background. Collapsed disclosures stay inline. */
-.lf-thread-checkpoint[data-expanded="true"] { margin-block: 12px;
-  border: 1px solid var(--rule); border-radius: 5px; padding: 6px 12px; }
+/* A border groups the retained messages without changing their headers or giving
+   progress a separate background. It is drawn around them rather than taking room,
+   so opening a group moves none of their words: an answer folding the progress a
+   reader is on keeps it open in place (held-news.js). Collapsed disclosures stay inline. */
+.lf-thread-checkpoint[data-expanded="true"] { position: relative; }
+.lf-thread-checkpoint[data-expanded="true"]::before { content: ""; position: absolute;
+  inset-block: -7px; inset-inline: -12px -6px; border: 1px solid var(--rule);
+  border-radius: 5px; pointer-events: none; }
 .lf-summary-checkpoint { padding-block: 4px; }
 /* Keep the context label readable when the disclosure needs another line. */
 .lf-summary-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }

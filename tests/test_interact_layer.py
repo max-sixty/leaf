@@ -54,8 +54,8 @@ from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
 from leaf.page import page_instructions
+from leaf.refusals import Refused
 from leaf.registry import contract as registry_contract
-from leaf.registry import reactions as registry_reactions
 from leaf.registry import storage as registry_storage
 from leaf.registry import widgets as registry_widgets
 from leaf.render_gate import browser as browser_model
@@ -213,7 +213,7 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     references.append(reference)
 
     def response_args(*extra):
-        return ["response", "reply", reference, "--text", "Answer", *extra]
+        return ["response", "reply", reference, "--text", "Answer", "--done", *extra]
 
     record(response_args(), 0)
     record(response_args(), 0)
@@ -225,14 +225,8 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     )
     assert code == 200, response
     ids.append(events_model.read_events(page)[-1]["id"])
-    record(["response", "reply", "not-a-response-ref", "--text", "Answer"], 1)
+    record(["response", "reply", "not-a-response-ref", "--text", "Answer", "--done"], 1)
     record(["thread", "resolve", str(page), ids[-1]], 0)
-    # The title harness stand-in runs asynchronously; retain this fixture until
-    # its jobs have reported, before the page/state home are retired.
-    for worker in threading.enumerate():
-        if worker.name == "leaf-thread-title":
-            worker.join(timeout=STATED_TIMEOUT)
-            assert not worker.is_alive(), "the title stand-in outlived its page fixture"
     regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
 
 
@@ -343,13 +337,39 @@ def test_workflow_shell_continuations_use_literal_blocks():
     assert not offenders, f"plain run scalars with shell continuations: {offenders}"
 
 
-def test_hidden_hook_remains_callable():
-    result = CliRunner().invoke(
-        cli_model.cli, ["hook", "--harness", "codex"], input="{}"
+@pytest.mark.parametrize(
+    ("argv", "usage"),
+    [
+        (["hook"], "leaf hook --harness NAME [--watch]"),
+        (["hook", "--harness"], "leaf hook --harness NAME [--watch]"),
+        (
+            ["hook", "--watch", "--harness", "codex"],
+            "leaf hook --harness NAME [--watch]",
+        ),
+        (
+            ["hook", "--harness", "codex", "--bogus"],
+            "leaf hook --harness NAME [--watch]",
+        ),
+        (["session-end", "now"], "leaf session-end"),
+    ],
+)
+def test_a_harness_entry_argv_no_registration_sends_is_refused_with_its_usage(
+    argv, usage
+):
+    """`hook` and `session-end` are routed before the CLI loads, and only in the
+    shapes harness registrations send; any other shape names the one it takes, rather
+    than reading a payload it was never meant to have."""
+    result = subprocess.run(
+        [sys.executable, "-m", "leaf", *argv],
+        input="{}",
+        capture_output=True,
+        text=True,
+        check=False,
     )
 
-    assert result.exit_code == 0
-    assert result.output == ""
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert result.stderr == f"usage: {usage}\n"
 
 
 def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
@@ -487,8 +507,10 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     assert both.exit_code == 2
     assert "No such option '--for'" in both.output
 
-    [task] = written(["task", "open", str(page_dir), later, "Trace the store"])
-    assert task["subject"] == {"kind": "thread", "id": root}
+    [task] = written(
+        ["thread", "reply", str(page_dir), later, "--text", "On it.", "--task", "Trace"]
+    )
+    assert (task["parent"], task["task"]) == (later, "Trace")
 
     [closed] = written(["thread", "resolve", str(page_dir), later])
     assert (closed["kind"], closed["parent"]) == ("resolve", later)
@@ -654,7 +676,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "hooks/hooks.json",
         "hooks/claude-code.ts",
         "hooks/codex.json",
-        "hooks/scripts/loop-guard.py",
+        "hooks/scripts/background-watch.py",
         "skills/leaf/SKILL.md",
         "skills/leaf/references/authoring-questions.md",
         "skills/leaf/references/authoring-evidence.md",
@@ -942,8 +964,8 @@ def test_init_vendors_the_layer(page_dir):
     # which is what lets a widget import `/vendor/…` without knowing where it came
     # from page_packages().
     assert (page_dir / "widgets" / "lf-diagram.js").is_file()
-    assert (page_dir / "vendor" / "agentic-mermaid.esm.js").is_file()
-    assert (page_dir / "vendor" / "agentic-mermaid.LICENSES.txt").is_file()
+    assert (page_dir / "vendor" / "mermaid.esm.js").is_file()
+    assert (page_dir / "vendor" / "mermaid.LICENSES.txt").is_file()
     assert (page_dir / "widgets" / "lf-diff.js").is_file()
     assert (page_dir / "vendor" / "pierre-diffs.esm.js").is_file()
 
@@ -970,11 +992,11 @@ def test_init_and_revendoring_preserve_the_page_owned_contribution(
 
     initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
-    generation = registry_storage.layer_generation(page)
+    generation = registry_storage.layer_metadata(page)["generation"]
     revendored = runner.invoke(cli_model.cli, ["page", "init", str(page)])
 
     assert revendored.exit_code == 0, revendored.output
-    assert registry_storage.layer_generation(page) == generation
+    assert registry_storage.layer_metadata(page)["generation"] == generation
     assert {name: (authored / name).read_text() for name in files} == files
     assert "lf-local" not in registry_storage.load_registry(page)
     composed = registry_storage.read_page_registry(page)
@@ -1331,6 +1353,99 @@ def test_no_has_rule_restyles_the_whole_document():
         "a :has() rule whose target names nothing restyles the whole document:\n"
         + "\n".join(unkeyed)
     )
+
+
+def test_browser_code_mints_ids_that_work_outside_secure_contexts():
+    """`leaf --host` serves a page over plain HTTP to a LAN address, where
+    `crypto.randomUUID` does not exist, so a call to it throws in the user's browser.
+    The runtime and bundled packages mint ids through runtime/ids.js, and the classic
+    bootstrap.js through its one copy of it."""
+    roots = (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
+    callers = [
+        str(source.relative_to(schema_model.ASSETS.parent))
+        for root in roots
+        for source in sorted(root.rglob("*.js"))
+        if "vendor" not in source.parts
+        and "randomUUID"
+        in re.sub(r"(?<!:)//[^\n]*|/\*.*?\*/", "", source.read_text(), flags=re.DOTALL)
+    ]
+    assert callers == [], callers
+
+
+def test_kernel_selectors_name_no_package_tag():
+    """The kernel styles and finds a package widget by what its registry declares, a
+    mark delivery paints such as `data-lf-resident`, never by its tag: a rule naming
+    lf-toc serves lf-toc and no other contents map, and binds the kernel to one
+    package's vocabulary. A kernel sheet's selectors and `@scope` preludes, and the
+    selectors the runtime hands a DOM query, use no tag a bundled package declares as
+    a type selector.
+
+    The interaction gallery still finds its tabs by tag (F86, which moves it into a
+    package); the reading names that one leak so it can only shrink."""
+    tags = {
+        tag
+        for registry in schema_model.BUNDLED_PACKAGES.glob("*/registry.json")
+        for tag in json.loads(registry.read_text())
+        if not tag.startswith("$")
+    }
+
+    def types(tokens):
+        """The type selectors among `tokens`, in and out of `:is()`-like arguments."""
+        previous = None
+        for token in tokens:
+            if token.type == "ident" and not (
+                previous is not None
+                and previous.type in ("literal", "delim")
+                and previous.value in (".", ":", "::")
+            ):
+                yield token.value
+            if token.type in ("function", "() block"):
+                yield from types(
+                    token.arguments if token.type == "function" else token.content
+                )
+            previous = token
+
+    def leaks_in(selector):
+        return tags & set(types(tinycss2.parse_component_value_list(selector)))
+
+    def preludes(rules):
+        for rule in rules:
+            if rule.type == "qualified-rule" or (
+                rule.type == "at-rule" and rule.lower_at_keyword == "scope"
+            ):
+                yield tinycss2.serialize(rule.prelude).strip()
+            if getattr(rule, "content", None) is not None:
+                yield from preludes(tinycss2.parse_blocks_contents(rule.content))
+
+    leaks = []
+    for sheet in sorted(schema_model.ASSETS.rglob("*.css")):
+        if "vendor" in sheet.parts or sheet.read_text().startswith(
+            "/* Generated from "
+        ):
+            continue
+        where = sheet.relative_to(schema_model.ASSETS)
+        rules = tinycss2.parse_stylesheet(sheet.read_text(), skip_comments=True)
+        leaks += [f"{where}: {p}" for p in preludes(rules) if leaks_in(p)]
+    query = re.compile(
+        r"\.(?:querySelector|querySelectorAll|closest|matches)\(\s*([\"'`])(.*?)\1",
+        re.DOTALL,
+    )
+    for module in sorted(schema_model.ASSETS.rglob("*.js")):
+        if "vendor" in module.parts:
+            continue
+        code = re.sub(
+            r"(?<!:)//[^\n]*|/\*.*?\*/", "", module.read_text(), flags=re.DOTALL
+        )
+        where = module.relative_to(schema_model.ASSETS)
+        leaks += [
+            f"{where}: {found[1]}"
+            for found in query.findall(code)
+            if leaks_in(found[1])
+        ]
+    assert leaks == [
+        "runtime/interaction-gallery.js: lf-tabs",
+        "runtime/interaction-gallery.js: :scope > lf-tab",
+    ], leaks
 
 
 def test_layout_style_and_widgets_never_read_each_other():
@@ -1825,7 +1940,7 @@ def test_the_browser_gate_opens_away_from_the_project_a_page_selected(
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
-    with pytest.raises(SystemExit):
+    with pytest.raises(Refused):
         layer_model.resolve_packages(("./.leaf",))
 
     with preview_server(page, structure_model.SourceDocument(PLAIN_PAGE), 1) as url:
@@ -2294,17 +2409,6 @@ def test_a_wait_takes_the_suites_deadline():
         "settimeout",
         "wait",
     }
-    # Literal deadlines in files another change is rewriting, at most this many in
-    # each, to move onto the suite's deadlines once that change lands. Each is a hang
-    # bound like the rest.
-    held_elsewhere = {
-        "test_render_anchors.py": 1,
-        "test_render_controls.py": 3,
-        "test_render_gate.py": 6,
-        "test_render_navigation.py": 9,
-        "test_render_startup.py": 8,
-        "test_render_threads.py": 8,
-    }
 
     def literal(node) -> bool:
         if isinstance(node, ast.BinOp):
@@ -2327,7 +2431,7 @@ def test_a_wait_takes_the_suites_deadline():
         )
         yield from zip(arguments.kwonlyargs, arguments.kw_defaults)
 
-    literals = {}
+    fixed = []
     for path in sorted((ROOT / "tests").rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
@@ -2357,16 +2461,10 @@ def test_a_wait_takes_the_suites_deadline():
             else:
                 continue
             if computed:
-                literals.setdefault(path.name, []).append(
+                fixed.append(
                     f"{path.relative_to(ROOT)}:{node.lineno} "
                     + ast.unparse(node).split("\n", 1)[0]
                 )
-    fixed = [
-        site
-        for name, sites in literals.items()
-        if len(sites) > held_elsewhere.get(name, 0)
-        for site in sites
-    ]
     assert not fixed, (
         "these waits fix their own deadline; bound them with STATED_TIMEOUT "
         "(interact_support.py), or in a browser with SERVED_TIMEOUT_MS or "
@@ -2771,7 +2869,7 @@ def test_replace_files_rejects_case_aliased_future_targets(tmp_path, monkeypatch
     first = tmp_path / "Result.css"
     second = tmp_path / "rESULT.CSS"
 
-    with pytest.raises(SystemExit, match="resolve to the same target"):
+    with pytest.raises(Refused, match="resolve to the same target"):
         interact_files.replace_files(
             [(first, b"first", False), (second, b"second", False)]
         )
@@ -4994,7 +5092,7 @@ def test_init_merges_reaction_tokens_merge_patch_style(tmp_path, monkeypatch):
             {
                 "$reactions": {
                     "tokens": {
-                        "keep": {"glyph": "👍", "means": "ship it", "settles": True},
+                        "keep": {"glyph": "👍", "settles": True},
                         "shorten": None,
                         "meh": {"glyph": "~"},
                     }
@@ -5012,32 +5110,24 @@ def test_init_merges_reaction_tokens_merge_patch_style(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     tokens = json.loads((page / "registry.json").read_text())["$reactions"]["tokens"]
     assert list(tokens) == ["keep", "change", "clarify", "support", "prioritize", "meh"]
-    assert tokens["keep"] == {"glyph": "👍", "means": "ship it", "settles": True}
+    assert tokens["keep"] == {"glyph": "👍", "settles": True}
     assert tokens["meh"] == {"glyph": "~"}
     assert "settles" not in tokens["change"]
-    assert registry_reactions.described(
-        {"token": "keep"}, {"$reactions": {"tokens": tokens}}
-    ) == {
-        "token": "keep",
-        "means": "ship it",
-    }
-    assert registry_reactions.described(
-        {"token": "meh"}, {"$reactions": {"tokens": tokens}}
-    ) == {"token": "meh"}
 
 
 @pytest.mark.parametrize(
     "entry",
     [
-        {"glyph": "✓", "means": ""},
-        {"glyph": "", "means": "x"},
-        {"glyph": "✓", "means": "x", "settle": True},  # a flag nothing reads
-        {"glyph": "✓", "means": "x", "settles": "yes"},
+        {"glyph": ""},
+        {"glyph": "✓", "means": "x"},  # prose the layer does not declare
+        {"glyph": "✓", "settle": True},  # a flag nothing reads
+        {"glyph": "✓", "settles": "yes"},
     ],
 )
 def test_package_check_refuses_a_malformed_reaction_token(tmp_path, monkeypatch, entry):
-    """Consumers read declared fields directly, so an invalid glyph, explanation, or
-    misspelled behavior must fail at the package boundary instead of disappearing."""
+    """Consumers read declared fields directly, so an invalid glyph, an undeclared
+    field, or a misspelled behavior must fail at the package boundary instead of
+    disappearing."""
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     assert runner.invoke(cli_model.cli, ["package", "init", ".leaf"]).exit_code == 0

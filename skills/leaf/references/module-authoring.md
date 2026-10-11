@@ -22,8 +22,10 @@ page readiness open. Cancel it when the motion stops or its owner leaves.
 
 `/runtime/widget-api.js` is the whole Leaf API a behavior module gets: a module imports
 only that public helper surface, and does not reach into the runtime's private owners,
-query private chrome, or duplicate a runtime helper inside itself. Resolve canonical
-`/media/…` paths from typed data with `scopedMediaUrl(path)` before assigning them to
+query private chrome, or duplicate a runtime helper inside itself. It exports Lit's
+`html`, `svg`, `mathml`, `nothing`, `noChange`, `repeat`, `keyed`, `live`, `ref`,
+`createRef`, `classMap`, `styleMap`, `guard`, `when`, `ifDefined`, and `unsafeHTML`.
+Resolve canonical `/media/…` paths from typed data with `scopedMediaUrl(path)` before assigning them to
 generated images or links. It uses the page's public root across ordinary and
 published pages while the source retains its canonical path.
 
@@ -84,6 +86,28 @@ user outside it waits on the page rather than on a widget it would have to know 
 A declared `x-shadow` widget gets the same transition protection when it builds its root
 with `shadowStage`.
 
+## Template rendering
+
+Use Leaf's public `render(template, container)` when a paint must land in the
+turn that caused it, including a forward widget gesture. `LitElement` schedules
+updates on a microtask; use it only for runtime faces whose contract permits that
+delay. Package widgets extend `HTMLElement` and
+receive semantic state through `widgetController`, without a LitElement widget
+base or a reactive copy of that state.
+
+Templates own generated containers or bounded ranges, rather than authored
+children. Retain concrete native nodes with `setChildren` for rows holding
+iframes or editors: `repeat` currently moves rows by disconnecting them.
+
+Once `render(template, container)` owns a container, update its children through
+`render` so Lit retains its markers and disconnects removed directives. `failSoft`
+resets the container and renders an error box; a later template render replaces
+that box. It also supports native recovery and repeated failures.
+
+`shadowStage(host, nodes)` owns the shadow root's structure and styles. For a
+template, stage a concrete container with `shadowStage(host, [container])` and
+call `render(template, container)`. Retain that container on later stage updates.
+
 ## What a behavior module owes
 
 A behavior module follows these rules:
@@ -97,18 +121,20 @@ A behavior module follows these rules:
   control anatomy. `offered` owns the element's class and chrome markers; native
   button type defaults to `button`. A native input's `type` binding precedes
   `offered` so its press marker reads that type. Bind values and handlers normally, and use
-  `repeat(items, identity, template)` to retain editable controls under their identities.
+  `repeat(items, identity, template)` to retain keyed controls, subject to the
+  container and native-state rules in "Template rendering".
+  `said(true)`, `said(false)`, or `said("echo")` marks a template element's words with
+  the same passage and print meaning as `relabel`; Lit owns the element's content.
 - Read UI based on element geometry synchronously from `PRESENTATION` for its
   first paint, then through normal layout signals. Reconcile UI derived from
   authored structure at `PAGE_INTERFACE`, at startup and each in-place revision
-  activation. Retain surviving nodes with `setChildren` to preserve focus and
-  native view state.
+  activation. Retain surviving nodes with `setChildren` (the rendering contract
+  below describes its native-state guarantees).
 - Use `nextRender`/`cancelRender` for paints and `sizeObserver` for size
   observation, so checks and tests wait for that work too. `nextRender` runs in
   the current rendering callback's frame, or in the next frame when called
   elsewhere. Use `nextFrame` for a step that must run in a later frame, such as
-  an animation tick. A playback loop keeps `requestAnimationFrame`, so playing
-  does not prevent the page from settling.
+  an animation tick.
 - Use `afterScript(callback)` to coalesce a stable callback at the current
   script's microtask checkpoint when synchronous updates yield one final
   mechanical reading.
@@ -121,6 +147,9 @@ A behavior module follows these rules:
 - Register `commands()` at upgrade. Use `DISCLOSE(el)` for folding controls,
   whose commands the runtime owns. Check `quoted()` before wiring input and
   controller command availability before a semantic widget’s optimistic gesture.
+  In templates, `commandsOn(title, rows, options)` attaches that same command scope
+  to its element. It reads the current declaration on each render and withdraws its
+  attachment when the directive leaves; projected commands on the element remain.
 
 Each helper's header under `runtime/` explains its contract.
 
@@ -178,10 +207,14 @@ validated source markup; `state` is that baseline with admitted and unresolved r
 folded over it; `thread.heldBy` is the `id` of the open, admitted Thread whose root
 holds this widget, or `null`. Each `actions` entry carries its availability and
 exact history or Undo candidates. Guard every optimistic mutation with its entry's
-availability; `dispatch()` repeats the same check.
+availability; `dispatch()` repeats the same check. Before document adoption, the
+snapshot can lack authored and state values; while `defer()` holds presentation, it
+can be newer than the rendered view. Draw auxiliary semantic UI from the complete
+reading passed to `subscribe`, retaining it across local control repaints.
 
-Call `subscribe(callback)` once during the widget's initialization. It invokes
-immediately while connected and returns cleanup for retiring the callback itself.
+Call `subscribe(callback)` once during the widget's initialization. It calls the
+callback with the complete reading while connected and returns cleanup for retiring
+the callback itself. A node connecting before document adoption waits for that reading.
 The controller retains callbacks across removal: it stops semantic updates and releases
 presentation regions while detached, then paints the latest reading and restores
 preparation proof when the same owner reconnects. No unsubscribe or resubscribe belongs
@@ -220,7 +253,8 @@ fill, and it does not inherit: while the workspace is full-height, the Layout se
 `main` for the body and on a grid of panes for its cells. A widget given that height
 keys its rules on `@container style(--lf-full-height: 1)`, which asks the widget's
 parent, fits what it shows to the height, so the reader moves through the workspace
-rather than scrolling it, and sets `--lf-full-height: inherit` on each box that passes
+rather than scrolling it, declares `--lf-holds-height: 1` on each part it scrolls within
+that height, and sets `--lf-full-height: inherit` on each box that passes
 the height on to its parts, as a playground does down to its panes. A widget deeper in
 the body, in a section or a tab, is not told, and takes its content's height. A behavior
 module that composes regions out of boxes it generates, such as a playground's controls
@@ -427,9 +461,8 @@ state. `reducedMotion()`, `scrollBehavior()`, and `onMotionPreferenceChange()` a
 same preference where a module has to branch on it. `foldDuration()` reads how long a
 unit takes to leave from the document-root `--lf-motion-fold` stylesheet input; a widget
 retiring one calls that reader rather than choosing a number or caching a value.
-`flashDuration()` and `agentArrivalDuration()` read the corresponding shared cues.
-These typed time inputs accept CSS calculations and are set on the document root,
-including when the animated element lives in a shadow tree. Spend
+The `--lf-motion-*` time inputs accept CSS calculations and are set on the document
+root, including when the animated element lives in a shadow tree. Spend
 a duration only on letting the eye follow a box from where it was to where it is. A result
 the module can already draw is drawn in the gesture rather than after a wait.
 
@@ -768,7 +801,7 @@ omitting the attribute keeps the visual as one target.
 
 ## Projection subscriptions
 
-Register `watchQuestions`, `watchUpdates`, `watchHistory`, and `watchThreads` once for each
+Register `watchQuestions`, `watchReports`, `watchHistory`, and `watchThreads` once for each
 owner. They coalesce reads at the script's microtask checkpoint, pause while the owner
 is absent, and read the latest projection when it returns, even when unchanged.
 Moving the owner within one mutation batch retains its subscription. Their returned
@@ -801,10 +834,10 @@ if (once(this)) watchData(this, "builds", (snapshot) => render(snapshot));
 ```
 
 The callback receives `null` while the source has no readable value, otherwise a clone
-of `{source, contract, revision, updated, value, origin}`. `revision` identifies the
-value itself, so a renderer can distinguish two writes even when their wall clock
-timestamps coincide. The callback runs immediately and again when the source's
-contract, revision, or validity changes. An incompatible contract or unreadable
+of `{source, contract, revision, run, updated, value, origin}`. `revision` identifies
+the value itself; `run` identifies its publication, including a rerun with the same
+value or wall-clock timestamp. The callback runs immediately and again when the
+source's contract, publication, or validity changes. An incompatible contract or unreadable
 value delivers `null`, clearing the previous rendering. The subscription stays
 active and recovers when a readable value returns. `page state` and `page check`
 report invalid values; an incompatible subscriber reports the contract it requires.
@@ -817,14 +850,26 @@ tracking. It neither delivers a pending source reading nor revives an absent or
 retired subscription.
 The callback must state the whole rendering and remain idempotent.
 
-Use `watchOwner(element, {connect, disconnect})` for other resources that follow the
-same lifetime, such as a clocked paint after asynchronous preparation. It calls
-`connect` synchronously when registered on a connected element, then calls each hook
-once per actual departure or return. Its returned function permanently unregisters
-the hooks and disconnects any active resources. Register dependent resources before
+Register `whileConnected(element, start)` once for mechanical resources such as
+listeners, observers, and registrations. It calls `start(signal)` synchronously on a
+connected element and again on each return. Listeners take `{signal}`; `start` may
+return a cleanup function for other resources. An actual departure aborts the signal
+and calls that cleanup, and a failed `start` aborts its signal before reporting the
+error. Its returned function permanently retires the subscription and releases active
+resources. `watchOwner(element, {connect, disconnect})` exposes the same lifetime for
+resources that already have separate hooks. Register dependent resources before
 `watchData` so they stand when its initial or resumed callback runs.
 
-Time readings made synchronously in controller, `watchData`, `watchUpdates`, and
+Both helpers decide departures at the arrival mutation batch: a move within that
+batch retains resources. Teardown that must happen synchronously, such as cancelling
+a grab or removing hoisted dialog content, belongs in `disconnectedCallback`.
+
+`frameFor(element, paint)` returns a scheduling function that coalesces calls through
+`nextRender`. It ignores calls while detached, cancels pending work on departure, and
+checks connection again before painting. Returning permits fresh scheduling; it does
+not replay cancelled work.
+
+Time readings made synchronously in controller, `watchData`, `watchReports`, and
 `watchHistory` callbacks subscribe that paint to Leaf's shared clock. Calls to `ago`,
 `shortAgo` and `quietSince` refresh the callback only when their result changes. `ago(ts)`
 says how long ago `ts` was as the page words it everywhere ("2h ago"), and `shortAgo(ts)`
@@ -847,11 +892,19 @@ redeliver unchanged data to keep a timestamp current.
 `revision`. An unchanged source keeps that origin when another source changes.
 
 The renderer owns its nodes and their placement. Use `setChildren(parent, nodes)`
-for retained native nodes: it moves only what is out of place and preserves focus
-and caret in a row it moves. Leaf's public `render(template, container)` applies
-Lit templates with the same focus protection; `repeat(records, keyOf, template)`
-retains keyed template rows. Leave native disclosure, editor and scroll state with
-the retained nodes, rather than binding them to initial defaults on each update.
+for retained native nodes: it moves only what is out of place. For an individual
+placement use `move(parent, node, before)`, with `null` to append. Within one
+composed root it uses native `moveBefore` where available, preserving focus, caret
+and iframe documents. Otherwise it uses `insertBefore`, which can reset that state. Leaf's public
+`render(template, container)` restores editor focus and caret after Lit renders;
+`repeat(records, keyOf, template)` retains keyed template rows, but Lit's ordinary
+insertion can reset iframe documents even in browsers with native moves. Leave
+native disclosure, editor and scroll state with the retained nodes. When the
+application owns a native property the user also changes,
+bind it with `live`, such as `.value=${live(value)}` or `.checked=${live(checked)}`:
+it compares the live DOM value and restores the authoritative value even when that
+value equals the previous template input, as when a gesture is refused. Do not bind
+initial defaults onto properties whose current value belongs to the browser.
 For a subtree whose contents and descendant attributes all belong to the renderer,
 use `setRenderedChildren(parent, nodes)`: it matches unchanged nodes and edits only
 changed text, preserving native selections in text the source kept. Keep independently
@@ -1054,6 +1107,18 @@ Whole conversations include settlement controls; a fragment feed supplies
 Resolve/Reopen through `threadActions`. Unregister on disconnect. The worked `lf-conversation-workspace` in the
 feature gallery switches Conversation, Shelf and Feed with these APIs.
 
+## Reading version changes
+
+`comparisonChanges(owner)` returns the changed descendant Elements in the standing
+version comparison, excluding the owner itself. Omit the owner to read every changed
+Element. It reads the comparison's identities, so CSS markers do not determine
+membership. With no comparison standing it returns an empty array.
+
+`watchComparison(owner, callback)` calls the callback immediately when the owner is
+connected and whenever the comparison changes. It pauses while the owner is detached
+and reads again on reconnection. Its returned function permanently ends the watch.
+Use `comparisonChanges` in the callback to update counts or other local presentations.
+
 ## Reading Questions and obligation queues
 
 `readWork(scope)` projects a page-owned work hierarchy from the current application
@@ -1209,7 +1274,8 @@ Escape may return focus. Widgets do not receive draft, submission, or event APIs
 ## Page annotation presentation
 
 With `data-annotations="page"` on `body`, one connected Element may register
-`placePageThreads(owner, render)` to nominate page-owned conversation outlets.
+`placePageThreads(owner, render)` to nominate page-owned conversation outlets; both
+registrations in this section throw on a page without it.
 Its callback receives the same admitted target batch and `{signal, collection}` context,
 and returns the same matching outlet array as a widget-local surface. Page targets
 include exact passages and visual details, as well as projected data. The complete
@@ -1246,5 +1312,8 @@ holding layout never authorizes old actions. Both handles provide `read()`,
 `update()` and `unregister()`. Unregister on disconnect. Retain keyed rows and
 hold visible size changes with the shared `HeldReading` mechanism. Hold only layout
 identities and allocations, while updating surviving records and controls immediately;
-retired slots retain space with no interactive descendants. The bundled `lf-annotation-rail` is the worked
-implementation. Omitting either consumer retains the core Threads and Questions routes.
+retired slots retain space with no interactive descendants. An owner that scrolls
+inside a box of its own is a reading region: a page bounds it with `data-bound`, which
+registers it, and a widget whose theme makes it scroll calls `registerReadingRegion`.
+At narrow widths the owner stays where touch and the keyboard reach it. Omitting either
+consumer retains the core Threads and Questions routes.

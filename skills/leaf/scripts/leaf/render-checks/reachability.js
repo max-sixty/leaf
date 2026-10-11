@@ -1,4 +1,5 @@
-import { shownBox, shownParts, TEXT_BOX } from "/runtime/widget-api.js";
+import { shownParts, TEXT_BOX } from "/runtime/widget-api.js";
+import { shownBox } from "/runtime/check-api.js";
 import { at } from "./locate.js";
 import { coveredWords } from "./words.js";
 
@@ -228,7 +229,7 @@ export function unmarkableElements() {
 // Chrome starts no pointer selection inside one, which is why `offer` builds a press
 // as a span wearing role="button". A widget reaching for <button> anyway is the one
 // mistake the marker cannot fix, so it is reported separately and says why.
-export function unreachableWords() {
+function unreachableWords() {
   const found = [];
   for (const el of document.querySelectorAll("*")) {
     if (!el.tagName.startsWith("LF-")) continue;

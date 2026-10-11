@@ -1150,6 +1150,21 @@
         color: var(--danger-ink);
       }
 
+      #pr-flow-diagram .node.removed rect {
+        fill: var(--del-tint);
+        stroke: var(--danger);
+      }
+      #pr-flow-diagram .node.removed text {
+        fill: var(--danger-ink);
+      }
+      #pr-flow-diagram .node.added rect {
+        fill: var(--ok-tint);
+        stroke: var(--ok);
+      }
+      #pr-flow-diagram .node.added text {
+        fill: var(--ok-ink);
+      }
+
       .pr-scale-facts {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
@@ -1728,51 +1743,19 @@
       });
       followLine();
     </script>
+<!-- security-boundary.html authored styles -->
+<style>
+      #security-before-flow .node.danger rect {
+        fill: var(--danger-tint);
+        stroke: var(--danger);
+      }
+      #security-before-flow .node.danger text {
+        fill: var(--danger-ink);
+      }
+</style>
 <!-- command-hub.html authored styles -->
 <style>
       @import url("/page/theme.css");
-</style>
-<!-- annotation-workspace.html authored styles -->
-<style>
-      #aw-regions {
-        display: grid;
-        grid-template-columns: minmax(0, 2fr) minmax(20rem, 1fr);
-        min-block-size: 0;
-      }
-      #aw-research,
-      #aw-conversations {
-        min-inline-size: 0;
-        min-block-size: 0;
-      }
-      #aw-conversations {
-        display: flex;
-        flex-direction: column;
-        gap: var(--sp-3);
-      }
-      #aw-conversations > h2 {
-        margin: 0;
-        flex: none;
-      }
-      #aw-annotations {
-        inline-size: 100%;
-        block-size: 100%;
-        min-block-size: 0;
-        flex: 1 1 0;
-      }
-      #aw-navigation {
-        display: flex;
-        flex-wrap: wrap;
-        gap: var(--sp-3);
-      }
-      @media (width < 720px), (height < 480px) {
-        #aw-regions {
-          grid-template-columns: minmax(0, 1fr);
-        }
-        #aw-annotations {
-          block-size: clamp(18rem, 55svh, 30rem);
-          flex: none;
-        }
-      }
 </style>
 <!-- current-proposed-comparison.html authored styles -->
 <style>
@@ -1816,6 +1799,8 @@
 </style>
 <!-- feature-gallery.html authored styles -->
 <style>
+      @import url("/page/theme.css");
+
       #bg-metrics > dl {
         margin: 0;
         padding: var(--sp-3);
@@ -2245,7 +2230,7 @@
           you: "2be2443f0bb6cc49fc86b52f340e6073",
           resolved: "bab3cdfcfb8c02aacbb27da731de947a",
           summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
-          updates: "bg-progress-question",
+          progress: "bg-progress-question",
         }[view];
         void sample.showThread(thread, {
           surface: "panel",
@@ -2555,8 +2540,8 @@ catalog.</p>
             pays twice.
           </p>
           <p>
-            Every other card is either cosmetic, has a safe retry, or affects one
-            customer who has a workaround. None gets worse by waiting a week.
+            None of the other cards gets worse by waiting a week. Each is cosmetic for
+            most users, safe to retry, has a manual workaround, or has few reports.
           </p>
         </section>
         <section class="panel" id="triage-moves">
@@ -4175,11 +4160,7 @@ max-sixty/worktrunk #3865
                 <span>unchanged boundary</span>
                 <span class="pr-added">+ new path</span>
               </p>
-              <lf-diagram
-                id="pr-flow-diagram"
-                data-height="541"
-                parts="node:Row node:Mode node:Working node:Unified node:Prepared node:History node:Temp node:Staged node:Unstaged node:Untracked node:Tabs"
-              >
+              <lf-diagram id="pr-flow-diagram" data-height="541" parts="all">
                 <pre>
 flowchart TB
   accTitle: Unified diff preparation
@@ -4194,8 +4175,6 @@ flowchart TB
   Temp --> Staged[Staged]
   Temp --> Unstaged[Unstaged]
   Temp --> Untracked[Untracked]
-  classDef removed fill:var(--del-tint),stroke:var(--danger),color:var(--danger)
-  classDef added fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)
   class Working removed
   class Unified,Prepared,Temp added
 </pre>
@@ -4977,11 +4956,7 @@ unsafe fn merge&lt;T, F&gt;(v: &amp;mut [T], mid: usize, buf: *mut T, compare: &
           one known consumer while Git, PATH entries, language startup files, action
           manifests, and setup-generated shims remained open paths into runner work.
         </p>
-        <lf-diagram
-          id="security-before-flow"
-          data-height="117"
-          parts="node:R0 node:R1 node:A1 node:R2 node:P1"
-        >
+        <lf-diagram id="security-before-flow" data-height="117" parts="all">
           <pre>
 flowchart LR
   accTitle: Shared checkout crosses the sandbox boundary
@@ -4990,7 +4965,6 @@ flowchart LR
   R1 --> A1[Same tree handed to agent]
   A1 --> R2[Same tree returned to runner]
   R2 --> P1[Runner tail and action POSTs]
-  classDef danger fill:var(--danger-tint),stroke:var(--danger),color:var(--danger-ink)
   class A1,R2,P1 danger
 </pre>
         </lf-diagram>
@@ -5124,10 +5098,7 @@ flowchart LR
 
         <section id="security-states">
           <h2 id="security-states-heading">Sandbox execution and cleanup</h2>
-          <lf-diagram
-            id="security-proposed-states"
-            parts="node:S0 node:S1 node:S2 node:S3 node:S4 node:S5 node:S6 node:S7 node:F"
-          >
+          <lf-diagram id="security-proposed-states" parts="all">
             <pre>
 stateDiagram-v2
   accTitle: Sandbox execution and cleanup states
@@ -6195,7 +6166,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
             <dd><output data-atlas-count="stopped">0</output></dd>
           </dl>
           <button type="button" class="button atlas-refresh" disabled>
-            Show updates
+            Show latest
           </button>
           <details class="atlas-stopped">
             <summary>Stopped work</summary>
@@ -6208,90 +6179,6 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
           <lf-activity id="atlas-record"></lf-activity>
         </section>
       </aside>
-</lf-tab>
-
-<lf-tab id="corpus-annotation-workspace" label="Annotation workspace">
-<header>
-        <h1>Measurement review</h1>
-        <nav id="aw-navigation" aria-label="Review regions">
-          <a href="#aw-finding">Finding</a>
-          <a href="#aw-next-run">Next run</a>
-          <a href="#aw-conversations">Conversations</a>
-        </nav>
-      </header>
-
-      <div id="aw-regions">
-        <lf-pane id="aw-research" label="Sampling evidence">
-          <header><h2>Repeat before changing the calibration</h2></header>
-          <div id="aw-evidence">
-            <p id="aw-finding">
-              The third block has a wider range. Repeat with unchanged calibration
-              before treating it as a persistent change.
-            </p>
-            <table id="aw-measurements">
-              <caption>
-                Illustrative sensor readings from one bench session
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col">Block</th>
-                  <th scope="col">Readings (mV)</th>
-                  <th scope="col">Range (mV)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <th scope="row">First</th>
-                  <td>10.1, 10.2, 10.0, 10.1</td>
-                  <td>0.2</td>
-                </tr>
-                <tr>
-                  <th scope="row">Second</th>
-                  <td>10.2, 10.1, 10.3, 10.2</td>
-                  <td>0.2</td>
-                </tr>
-                <tr>
-                  <th scope="row">Third</th>
-                  <td>9.7, 10.5, 10.0, 10.6</td>
-                  <td>0.9</td>
-                </tr>
-              </tbody>
-            </table>
-            <section id="aw-run-decision">
-              <lf-ask id="aw-next-run">
-                <h3>How should the repeat be sampled?</h3>
-                <p>
-                  Keep the sensor, calibration and interval fixed. Four readings match
-                  the earlier blocks; eight give more evidence about the range.
-                </p>
-                <lf-options id="aw-sampling" choose>
-                  <lf-option id="aw-four-readings">
-                    Four readings · two minutes
-                  </lf-option>
-                  <lf-option id="aw-eight-readings">
-                    Eight readings · four minutes
-                  </lf-option>
-                </lf-options>
-              </lf-ask>
-            </section>
-          </div>
-        </lf-pane>
-
-        <aside
-          id="aw-conversations"
-          aria-labelledby="aw-conversations-heading"
-          tabindex="-1"
-        >
-          <h2 id="aw-conversations-heading">Conversations and actions</h2>
-          <lf-annotation-rail id="aw-annotations"></lf-annotation-rail>
-        </aside>
-      </div>
-      <footer>
-        <p id="aw-comment-route">
-          Select a reading or passage to comment on it. Conversations stay in this
-          workspace; Threads opens the complete discussion.
-        </p>
-      </footer>
 </lf-tab>
 
 <lf-tab id="corpus-current-proposed-comparison" label="Current Proposed Comparison">
@@ -7383,7 +7270,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 <kbd>w</kbd> again and start over this guide: the stroke joins the kept
                 drawing rather than replacing it. On a touch screen, “Draw mode” is in
                 “More page controls”, and “Undo stroke” and “Exit Draw mode” stand on
-                the banner while the mode holds.
+                the banner while the mode holds. Try drawing over a choice control: the
+                stroke marks the choice without selecting it. Leaf’s comment box and
+                draft editing controls remain usable while Draw mode holds.
               </p>
             </section>
 
@@ -7529,7 +7418,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <button
                 type="button"
                 class="button"
-                data-view="updates"
+                data-view="progress"
                 aria-pressed="false"
               >
                 Progress messages
@@ -7563,7 +7452,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   <strong>A summarized discussion.</strong> The workshop planning thread
                   keeps its earlier decisions in a summary.
                 </p>
-                <p id="bg-thread-updates">
+                <p id="bg-thread-progress">
                   <strong>Progress messages.</strong> Show the folded checks from the
                   answer’s header, then hide them again.
                 </p>
@@ -7571,46 +7460,6 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </lf-sample>
           </section>
 
-          <section id="bg-page-annotations">
-            <p class="eyebrow bg-feature-elements">lf-annotation-rail</p>
-            <h3>Page-owned annotations</h3>
-            <p>
-              Alt-click the recommendation in this practice window to comment. The reply
-              and actions stay in the allocated annotation area. Choose a route, then
-              use Undo to return to the open question.
-            </p>
-            <lf-sample
-              id="bg-page-annotations-sample"
-              label="practice route review"
-              window
-            >
-              <template
-                id="bg-page-annotations-page"
-                data-sample
-                data-annotations="page"
-              >
-                <style>
-                  #bg-page-annotations-rail {
-                    display: block;
-                    inline-size: 100%;
-                    block-size: 20rem;
-                  }
-                </style>
-                <h1>Workshop route</h1>
-                <p id="bg-page-annotations-finding">
-                  The shorter path leaves more time to inspect the cooling loop.
-                </p>
-                <lf-ask id="bg-page-annotations-ask">
-                  <h2>Which path should the inspection take?</h2>
-                  <lf-options id="bg-page-annotations-options" choose>
-                    <lf-option id="bg-page-annotations-short">Short path</lf-option>
-                    <lf-option id="bg-page-annotations-long">Full circuit</lf-option>
-                  </lf-options>
-                </lf-ask>
-                <lf-annotation-rail id="bg-page-annotations-rail"> </lf-annotation-rail>
-              </template>
-            </lf-sample>
-          </section>
           <section id="bg-threads">
             <h2>
               <strong>Threads</strong
@@ -7751,8 +7600,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               page opens: its status-line notice also reaches the live region without
               moving focus. A new question, response failure, or return to page activity
               uses that same line. Replies still unread when the page opens are
-              announced once on arrival; rereading a stage or tool update creates no new
-              notice.
+              announced once on arrival; rereading a stage change or tool activity
+              creates no new notice.
             </p>
             <p id="bg-reply-lifetime">
               <strong>An unfinished reply.</strong> Open a thread inline or in Threads
@@ -7893,7 +7742,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     <strong>An existing thread.</strong> The sample agenda has room for
                     one more topic. Its speech-bubble control is green, and hovering it
                     shows “On you” under the label. The image question still needs an
-                    answer even though the agent added a later progress update. In
+                    answer even though the agent added a later progress message. In
                     Threads, “On you” still says to answer the question. Open the
                     control and reply: the control turns blue as the thread comes back
                     to the agent. The same reading fills the panel’s “On you” filter and
@@ -7967,7 +7816,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 latest exchange stays below the summary, and keyboard focus can reach
                 the disclosure.
               </p>
-              <p id="bg-thread-updates">
+              <p id="bg-thread-progress">
                 <strong>Progress messages.</strong> The ephemeral schedule checks fold
                 automatically when their final answer arrives, without adding a digest.
                 Choose “Progress messages” in the practice page, then use “Show 2
@@ -8728,8 +8577,8 @@ gallery/
                 reactions, user actions, and published versions. The board move near the
                 end was taken back, so its row stays struck through and marked “undone”.
                 Press a thread row to open its thread, or a widget row to travel to the
-                widget. New updates wait behind the fixed control while you read; press
-                it to reveal them.
+                widget. New rows wait behind the fixed control while you read; press it
+                to reveal them.
               </p>
               <lf-activity id="bg-activity"></lf-activity>
             </section>
@@ -9263,11 +9112,11 @@ switch --readers checkout-api,orders-api</code></pre>
                 <lf-num
                   id="bg-latency"
                   source="gallery-latency"
-                  at="2000-01-01T00:00:00Z"
+                  run="a41f103e236c985b"
                   via="uv run bench-gallery"
                   >184 ms</lf-num
-                >, its timestamp, and the command that produced it. Because the source
-                has a newer update, <code>page check</code> reports that the measurement
+                >, its run receipt, and the command that produced it. Because the source
+                has a newer value, <code>page check</code> reports that the measurement
                 is behind its source.
               </p>
             </section>

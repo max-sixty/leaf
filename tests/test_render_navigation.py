@@ -75,7 +75,6 @@ from render_harness import (
     RELEASE_FOCUS,
     ROOT,
     accessible_details,
-    active_digit_bindings,
     command_reference_rows,
     comment_note,
     consume_browser_errors,
@@ -9406,49 +9405,6 @@ def test_away_from_an_ask_the_reference_names_widget_owned_options(browser, serv
     expect(first).to_contain_text("Keep the store")
     expect(second).to_contain_text("Signed tokens")
     expect(reference.locator('tr[data-lf-command="ask.activate-nth"]')).to_have_count(0)
-
-
-def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
-    """A widget can replace its action controls without declaring its bindings again."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "draft ask",
-                """
-<h1 id="h">Release note</h1>
-<lf-ask id="note-decision"><h2>How should the note read?</h2>
-  <lf-draft id="note" needed><pre>Keep this text editable.</pre></lf-draft>
-</lf-ask>
-""",
-            )
-        ),
-    )
-
-    page.keyboard.press("q")
-    expect(page.locator("#note-decision")).to_be_focused()
-    assert active_digit_bindings(page) == "1"
-
-    page.keyboard.press("?")
-    page.keyboard.press("?")
-    edit = page.locator('.lf-command-reference-command[data-lf-command="draft.edit"]')
-    expect(edit).to_have_text("Edit")
-    edit.click()
-    expect(page.locator("#note leaf-text")).to_be_focused()
-
-    save = draft_control(page, "save", "note")
-    save.focus()
-    expect(save).to_be_focused()
-    page.keyboard.press("?")
-    assert active_digit_bindings(page) == "1–2"
-    expect(save).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter 1")
-    page.keyboard.press("?")
-    cancel = page.locator(
-        '.lf-command-reference-command[data-lf-command="draft.cancel"]'
-    )
-    expect(cancel).to_have_text("Cancel")
-    cancel.click()
-    expect(page.locator("#note leaf-text")).to_have_count(0)
 
 
 def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve):

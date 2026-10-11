@@ -6,7 +6,10 @@
  *
  * Run with --check to compare a fresh, typechecked build with committed bytes
  * without writing them. This module owns its source root, outputs, and their layer
- * paths; Leaf installation, vendoring, activation, and export never invoke this tool.
+ * paths, and writes and checks every other committed Node-built output beside them:
+ * the initial renderers (`build/initial.mjs`) and the stylesheets
+ * (`build/styles.mjs`). Leaf installation, vendoring, activation, and export never
+ * invoke this tool.
  *
  * Each TypeScript module compiles to one JavaScript module, its types blanked to
  * whitespace, so every line keeps its source line number and two branches conflict
@@ -38,6 +41,7 @@ import { transformSync } from "amaro";
 import { build } from "esbuild";
 import { eventTypes } from "./event-types.mjs";
 import { initialOutputs } from "../initial.mjs";
+import { styleOutputs } from "../styles.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -234,6 +238,7 @@ export async function buildOutputs() {
     Buffer.from(licenseNotices("browser-runtime", packageRoots)),
   );
   for (const [name, bytes] of await initialOutputs()) outputs.set(name, bytes);
+  for (const [name, bytes] of await styleOutputs()) outputs.set(name, bytes);
   return outputs;
 }
 

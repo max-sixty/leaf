@@ -9458,6 +9458,86 @@ def test_leaving_a_long_threads_reply_keeps_the_list_where_it_was(browser, serve
     assert card.locator(".lf-msg").last.evaluate(IN_LANDING_BAND)["inside"]
 
 
+def test_leaving_a_long_threads_reply_scrolled_out_of_view_lands_it(browser, serve):
+    """Escape out of the reply of a thread taller than the list, once the user has
+    scrolled the list past all of it, lands the thread's latest turn. Only a thread
+    already shown stands around the box; this one left focus on a title nothing
+    showed."""
+    url = serve(PANEL_PAGE)
+    # Closed threads are short, so it takes a run of them to fill the list above it.
+    root = seed_panel_threads(serve.page_dir, 30, long_index=29)[29]
+    page = open_page(browser, url)
+    open_threads_list(page, 1200, 900)
+    card = reply_by_keyboard(page, root)
+    page.locator(".lf-threads").evaluate("list => { list.scrollTop = 0; }")
+    scroll_settled(page, ".lf-threads")
+    assert card.evaluate(
+        "card => card.getBoundingClientRect().top"
+        " >= card.closest('.lf-threads').getBoundingClientRect().bottom"
+    ), "the list still shows the thread, so this proves nothing"
+    page.keyboard.press("Escape")
+    expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
+    rendered(page)
+    scroll_settled(page, ".lf-threads")
+    landed = card.locator(".lf-msg").last.evaluate(IN_LANDING_BAND)
+    assert landed["inside"], f"the thread was left out of the list's band: {landed}"
+
+
+def test_standing_again_on_a_long_threads_target_keeps_the_list(browser, serve):
+    """With Threads open, arriving by keyboard at a target whose thread the list
+    already has expanded, and partly in view, leaves the list where the user put it.
+    The thread is taller than the list, so it can show no more of itself; the arrival
+    took the list to its title, away from the turn the user had scrolled to."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Thread opening. " + LANDING_WORDS, {"section": "how-cap"}
+    )
+    for turn in range(1, 12):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent" if turn % 2 else "user",
+                **({"agent": "Codex"} if turn % 2 else {}),
+                "parent": root,
+                "text": f"Turn {turn}. " + LANDING_WORDS,
+            },
+        )
+    page = open_page(browser, url)
+    open_threads_list(page, 1200, 900)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    listing = page.locator(".lf-threads")
+
+    # Keyboard modality without Tab, whose own landing in the list would scroll it.
+    def arrive(selector):
+        page.keyboard.press("Shift")
+        page.locator(selector).evaluate(
+            "node => { if (node.getAttribute('tabindex') !== '-1') node.tabIndex = -1;"
+            " node.focus(); }"
+        )
+        expect(page.locator(selector)).to_be_focused()
+        rendered(page)
+        scroll_settled(page, ".lf-threads")
+
+    arrive("#how-cap")
+    expect(card).to_have_attribute("open", "")
+    listing.evaluate("list => { list.scrollTop += list.clientHeight / 2; }")
+    scroll_settled(page, ".lf-threads")
+    before = listing.evaluate("list => list.scrollTop")
+    shown = card.evaluate(
+        """card => {
+          const list = card.closest('.lf-threads').getBoundingClientRect();
+          const box = card.getBoundingClientRect();
+          return box.top < list.top && box.bottom > list.top && box.height > list.height;
+        }"""
+    )
+    assert shown, "the thread is not a tall one partly in view, so this proves nothing"
+    arrive("#how-store")
+    arrive("#how-cap")
+    expect(card).to_have_attribute("open", "")
+    assert listing.evaluate("list => list.scrollTop") == before
+
+
 def test_reopening_a_touch_panel_keeps_its_reading_position_and_draft(browser, serve):
     """A modal panel returns to the turn being read; an explicit thread walk lands.
 
@@ -9716,6 +9796,128 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
         rendered(page)
         reading = transcript.evaluate(CARD_TOP_AUTHORS)
         assert reading["named"] == reading["under"] == index and reading["row"], reading
+
+
+@pytest.mark.parametrize(("width", "touch"), [(1200, False), (311, True)])
+def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
+    browser, serve, width, touch
+):
+    """Reading down a long reply in the thread card, its head keeps the writer's name
+    and the time at the top, while its annotations, the progress disclosure and the
+    edited label, leave with the reply's first line as the words do. They stuck with
+    the name, so the row went on offering the reply's earlier updates over every line
+    of it. A narrow card wraps the disclosure onto a second row, and it rises under
+    the name rather than over it. A focused disclosure stays in the stuck row."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Explain with examples?", {"section": "how-store"}
+    )
+    thread_model.post_reply(
+        serve.page_dir,
+        root,
+        "I'm capturing both widths.",
+        None,
+        for_event=root,
+        ephemeral=True,
+    )
+    answer = thread_model.post_reply(
+        serve.page_dir, root, LANDING_WORDS * 8, None, for_event=root
+    )["id"]
+    thread_model.cmd_edit(serve.page_dir, answer, "Edited. " + LANDING_WORDS * 8)
+    # Later turns leave room to scroll the answer past the top in either direction.
+    for turn, author in enumerate(("user", "agent")):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": author,
+                "parent": root,
+                "text": f"Turn {turn}. " + LANDING_WORDS * 4,
+            },
+        )
+    context = browser.new_context(
+        viewport={"width": width, "height": 900}, has_touch=touch, is_mobile=touch
+    )
+    page = open_page(browser, url, context=context)
+    page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
+    selector = (
+        f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'
+        " > .lf-thread-transcript"
+    )
+    transcript = page.locator(selector)
+    expect(transcript).to_be_visible()
+    rendered(page)
+    scroll_settled(page, selector)
+    message = transcript.locator(f'.lf-msg[data-event="{answer}"]')
+    toggle = message.get_by_role("button", name="Show 1 progress message", exact=True)
+    expect(toggle).to_be_visible()
+    expect(message.locator(".lf-edited")).to_be_visible()
+
+    def scrolled_past(distance):
+        """Each part's top against the transcript's, once the answer's opening stands
+        `distance` pixels above it and a rendering update has moved what scroll moves,
+        and what the user sees at the name's middle."""
+        transcript.evaluate(
+            """(box, [selector, distance]) => {
+              const message = box.querySelector(selector);
+              box.scrollTop += message.getBoundingClientRect().top
+                - box.getBoundingClientRect().top + distance;
+            }""",
+            [f'.lf-msg[data-event="{answer}"]', distance],
+        )
+        rendered(page)
+        return transcript.evaluate(
+            """(box, selector) => {
+              const message = box.querySelector(selector);
+              const head = message.querySelector(':scope > .lf-msg-head');
+              const name = head.querySelector('b');
+              const from = box.getBoundingClientRect().top;
+              const top = node => node.getBoundingClientRect().top - from;
+              const at = name.getBoundingClientRect();
+              const time = head.querySelector('time');
+              const middle = at.top + at.height / 2;
+              // The name itself, and the gap between it and the time.
+              const seen = [at.left + 4, time.getBoundingClientRect().left - 4]
+                .map(x => document.elementFromPoint(x, middle));
+              const toggle = head.querySelector('.lf-summary-expand');
+              return {message: top(message), name: top(name),
+                      time: top(time),
+                      edited: top(head.querySelector('.lf-edited')),
+                      toggle: top(toggle),
+                      toggleBottom: toggle.getBoundingClientRect().bottom - from,
+                      nameShown: seen.every(node => name.contains(node)),
+                      head: head.offsetHeight};
+            }""",
+            f'.lf-msg[data-event="{answer}"]',
+        )
+
+    rest = scrolled_past(0)
+    assert abs(rest["message"]) <= 1, rest
+    for distance in (6, 12, 20, 30):
+        reading = scrolled_past(distance)
+        assert abs(reading["message"] + distance) <= 1, reading
+        # The name and time stay where they stood and stay on top; the annotations
+        # move with the words.
+        assert abs(reading["name"] - rest["name"]) <= 1, (rest, reading)
+        assert abs(reading["time"] - rest["time"]) <= 1, (rest, reading)
+        assert reading["nameShown"], reading
+        for part in ("toggle", "edited"):
+            moved = reading[part] - (rest[part] - distance)
+            assert abs(moved) <= 1, (part, rest, reading)
+    gone = scrolled_past(2 * rest["head"])
+    assert abs(gone["name"] - rest["name"]) <= 1, (rest, gone)
+    assert gone["toggleBottom"] <= 0, gone
+
+    page.keyboard.press("Shift")
+    toggle.focus()
+    assert toggle.evaluate("node => node.matches(':focus-visible')")
+    rendered(page)
+    focused = transcript.evaluate(
+        """(box, toggle) => toggle.getBoundingClientRect().top
+             - box.getBoundingClientRect().top""",
+        toggle.element_handle(),
+    )
+    assert abs(focused - rest["toggle"]) <= 1, (rest, focused)
 
 
 SEAT_FILLER = "".join(
@@ -13003,6 +13205,83 @@ def test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor(
     thread.locator(".lf-thread-summary").click()
     expect(thread.locator(".lf-message-media img")).to_have_attribute("src", media_url)
     assert (serve.page_dir / media_url.lstrip("/")).read_bytes() == pixels
+
+
+CAPTURE_SAMPLE_PAGE = leaf_page(
+    "Capture a live sample",
+    """<h1>Capture a live sample</h1>
+<lf-sample id="capture-sample" label="practice">
+  <template id="capture-sample-page" data-sample>
+    <h1>Practice</h1>
+    <section id="child-paint" style="height:200px;background:rgb(200,40,40)"></section>
+  </template>
+</lf-sample>""",
+)
+
+
+def test_a_region_capture_draws_live_samples_and_survives_removed_links(browser, serve):
+    """The parent cannot read a sample's opaque frame, so a capture without the child's
+    own image showed a placeholder box where the user saw the practice page. An image
+    SnapDOM cannot read attaches the capture anyway, with a notice: SnapDOM reads a
+    margin beyond the crop and cannot say whether the image fell inside it. A capture
+    also leaves SnapDOM watching mutations, and a removed link's subtree once threw from
+    that observer as an uncaught page error."""
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, device_scale_factor=2
+    )
+    page = open_page(browser, serve(CAPTURE_SAMPLE_PAGE), context=context)
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    warnings = []
+    page.on("console", lambda message: warnings.append(message.text))
+    page.evaluate("document.querySelector('#capture-sample').ready")
+    # Another origin without CORS: visible to the reader, unreadable to SnapDOM.
+    page.evaluate("""() => new Promise(resolve => {
+        const image = document.createElement('img');
+        image.src = new URL('icon.svg', location.href).href
+            .replace('127.0.0.1', 'localhost');
+        image.onload = image.onerror = resolve;
+        document.querySelector('#capture-sample').before(image);
+    })""")
+    sample = page.locator("#capture-sample").bounding_box()
+    frame = page.locator("#capture-sample iframe").bounding_box()
+    surface = open_capture_area(page)
+    left, top = int(sample["x"]) + 1, int(sample["y"]) + 1
+    page.mouse.move(left, top)
+    page.mouse.down()
+    page.mouse.move(
+        int(frame["x"] + frame["width"]) - 1, int(frame["y"]) + 260, steps=5
+    )
+    page.mouse.up()
+    with page.expect_response(lambda response: response.url.endswith("/api/media")):
+        page.keyboard.press("Enter")
+    expect(surface).to_be_hidden()
+    media_url = page.locator(".lf-composer-media-item img").get_attribute("src")
+    image = Image.open(
+        io.BytesIO((serve.page_dir / media_url.lstrip("/")).read_bytes())
+    ).convert("RGB")
+    paint = page.locator("#capture-sample iframe").content_frame.locator("#child-paint")
+    inside = paint.bounding_box()
+    at = (round((inside["x"] + 20 - left) * 2), round((inside["y"] + 20 - top) * 2))
+    assert image.getpixel(at) == (200, 40, 40)
+    assert not [text for text in warnings if "cross-origin iframe" in text]
+    expect(page.locator(".lf-status-notice")).to_contain_text(
+        "An image near this area could not be drawn"
+    )
+    consume_browser_errors(page, "localhost", "ERR_FAILED")
+
+    page.evaluate("""() => new Promise(resolve => {
+        const link = document.createElement('a');
+        link.href = 'http://127.0.0.1:9/elsewhere';
+        const label = link.appendChild(document.createElement('span'));
+        document.querySelector('main').append(link);
+        setTimeout(() => {
+            label.setAttribute('data-moved', '');
+            link.remove();
+            setTimeout(resolve, 50);
+        });
+    })""")
+    assert errors == []
 
 
 def test_touch_capture_can_cancel_and_reopen_before_attaching(browser, serve):

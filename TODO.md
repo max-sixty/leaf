@@ -417,6 +417,10 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Product and harness ideas
 
+- **Learn how users prefer to dictate comments.** Observe whether people use
+  browser dictation, OS dictation, or their own dictation app. Defer a microphone
+  button until an unmet need justifies the extra visual noise in Leaf's text boxes.
+
 - **Assess whether automatic measurement freshness is useful (#7 in the simplification audit).**
   Keep the current `lf-num` source/write-time reminder for now. Look for cases where
   its warnings lead an author to update a stale claim, and weigh that benefit against

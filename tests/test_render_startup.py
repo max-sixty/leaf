@@ -361,7 +361,9 @@ def test_a_website_example_names_its_limited_agent(browser, serve):
     ) == ["/examples/", "/#install"]
     expect(page.locator(".lf-status-button .lf-publication-install")).to_have_count(0)
     expect(status).to_have_attribute("title", " ".join(status.text_content().split()))
-    expect(page.locator(".lf-banner .lf-dot")).to_have_class(re.compile(r"^lf-dot\s*$"))
+    assert page.locator(".lf-banner .lf-dot").evaluate("dot => [...dot.classList]") == [
+        "lf-dot"
+    ]
 
 
 @pytest.mark.parametrize("outcome", ["presented", "abandoned", "offline"])
@@ -2129,9 +2131,7 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
         route.continue_()
     wait_until_ready(page)
     expect(controls).to_be_visible()
-    expect(page.locator(".lf-status-detail")).not_to_have_text(
-        re.compile(r"^The page is ready for reading and new comments")
-    )
+    expect(page.locator(".lf-status-text")).not_to_have_text("Loading saved state…")
 
 
 def test_playground_joins_initial_widget_settlement(browser, serve):
@@ -2162,9 +2162,7 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
     wait_until_ready(page)
     expect(submit).to_be_enabled()
     expect(compact).to_be_checked()
-    expect(page.locator(".lf-status-detail")).not_to_have_text(
-        re.compile(r"^The page is ready for reading and new comments")
-    )
+    expect(page.locator(".lf-status-text")).not_to_have_text("Loading saved state…")
 
 
 def test_a_broken_optional_page_interface_does_not_withhold_presentation(
@@ -3475,7 +3473,7 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     second = first.fetch().json()
     with page.expect_request("**/api/state*"):
         first.fulfill(json=second)
-    expect(text).to_have_text(re.compile(r"^Agent is working — second"))
+    expect(text).to_have_text(re.compile(r"^\s*Agent is working — second"))
     assert len(held) == 2
 
     trailing = held[1]
@@ -3485,7 +3483,7 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     third = trailing.fetch().json()
     trailing.fulfill(json=third)
     told(page)
-    expect(text).to_have_text(re.compile(r"^Agent is working — third"))
+    expect(text).to_have_text(re.compile(r"^\s*Agent is working — third"))
 
 
 def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
@@ -3933,8 +3931,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(page.locator(".lf-status-queues")).to_have_text("Tasks: 2")
     expect(text).to_have_text(
         re.compile(
-            r"^Claude is working — revising the plan \(.+\)\. 1 response owed on updates awaiting delivery\."
-            r" Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
+            r"^\s*Claude is working — revising the plan \(.+\)\. 1 response owed on updates awaiting delivery\."
+            r" Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.\s*$"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3954,8 +3952,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     told(page)
     expect(text).to_have_text(
         re.compile(
-            r"^Claude is working — revising the plan \(.+\)\. "
-            r"1 response owed on queued updates\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
+            r"^\s*Claude is working — revising the plan \(.+\)\. "
+            r"1 response owed on queued updates\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.\s*$"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3971,7 +3969,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(summary).to_have_text("Claude working — picked up your comment")
     expect(text).to_have_text(
         re.compile(
-            r"^Claude picked up your comment and hasn't said what it's doing yet"
+            r"^\s*Claude picked up your comment and hasn't said what it's doing yet"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3996,8 +3994,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # work declaration continues to describe what the agent is doing overall.
         expect(text).to_have_text(
             re.compile(
-                r"^Claude is working — revising the plan \(.+\)\. "
-                r"1 response owed on updates awaiting delivery\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
+                r"^\s*Claude is working — revising the plan \(.+\)\. "
+                r"1 response owed on updates awaiting delivery\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.\s*$"
             )
         )
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -4015,8 +4013,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         expect(summary).to_have_text("Claude using a tool — revising the plan")
         expect(text).to_have_text(
             re.compile(
-                r"^Claude is using a tool — revising the plan \(.+\) · "
-                r"Running the tests\. 1 response owed on updates awaiting delivery\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
+                r"^\s*Claude is using a tool — revising the plan \(.+\) · "
+                r"Running the tests\. 1 response owed on updates awaiting delivery\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.\s*$"
             )
         )
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -4077,7 +4075,9 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # or the user, and with no margin the page would report every such gap as
         # an abandonment and take it back again.
         declare("working", "revising the plan", quiet_for=60, turn_ended=30)
-        expect(text).to_have_text(re.compile(r"^Claude is working — revising the plan"))
+        expect(text).to_have_text(
+            re.compile(r"^\s*Claude is working — revising the plan")
+        )
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
 
         # And a status written after the turn closed carries the claim past the ending
@@ -4085,7 +4085,9 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # the closed turn's to answer for, and the rope above is what judges it from
         # there.
         declare("working", "revising the plan", quiet_for=60, turn_ended=5 * 60)
-        expect(text).to_have_text(re.compile(r"^Claude is working — revising the plan"))
+        expect(text).to_have_text(
+            re.compile(r"^\s*Claude is working — revising the plan")
+        )
 
         # What the page wants back, in the agent's words, where the user arrives.
         # The whole line is the tooltip too: it is the first thing on the row to be
@@ -4145,7 +4147,9 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # Claude's own status gets a far longer rope: the same silence is just a long turn.
     # No turn has closed under this claim, so the rope is the whole of what judges it.
     declare("working", "running the migration", quiet_for=10 * 60)
-    expect(text).to_have_text(re.compile(r"^Claude is working — running the migration"))
+    expect(text).to_have_text(
+        re.compile(r"^\s*Claude is working — running the migration")
+    )
 
     # A dead session needs no timeout at all — the owning pid is simply gone, so the
     # claim it left has nothing behind it however lately it was written.
@@ -4156,12 +4160,14 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(summary).to_have_text("No session")
     # Grey, not the amber a session falling behind wears: nobody is on the line, which
     # is a page's reading arrangement rather than something for the user to chase.
-    expect(dot).to_have_class(re.compile(r"^lf-dot\s*$"))
+    assert dot.evaluate("dot => [...dot.classList]") == ["lf-dot"]
 
     # Nothing ever claimed the page — a server started outside an agent harness. There is
     # no pid to ask after, so a claim made moments ago is evidence and still stands.
     declare("working", "running the migration", claimed=False)
-    expect(text).to_have_text(re.compile(r"^Agent is working — running the migration"))
+    expect(text).to_have_text(
+        re.compile(r"^\s*Agent is working — running the migration")
+    )
 
     # Once that claim goes quiet there is nothing left holding the page, and an hour of
     # silence on a page that stands for weeks is not a fault to report.
@@ -4171,7 +4177,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     )
 
     declare("working", "revising the plan", agent="Codex")
-    expect(text).to_have_text(re.compile(r"^Codex is working — revising the plan"))
+    expect(text).to_have_text(re.compile(r"^\s*Codex is working — revising the plan"))
 
     declare("idle")
     expect(text).to_have_text("Page closed. Waiting on Claude: 2 replies.")
@@ -4200,7 +4206,7 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
 
     claim("running the migration")
     expect(text).to_have_text(
-        re.compile(r"^Claude is working — running the migration \(just now\)\.")
+        re.compile(r"^\s*Claude is working — running the migration \(just now\)\.")
     )
 
     # An hour fast. A fixed time rather than an installed clock, so the page's own
@@ -4210,7 +4216,7 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
     # clock moved: an unchanged sentence would pass on the render before it.
     claim("waiting on the shard")
     expect(text).to_have_text(
-        re.compile(r"^Claude is working — waiting on the shard \(just now\)\.")
+        re.compile(r"^\s*Claude is working — waiting on the shard \(just now\)\.")
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
 
@@ -4501,7 +4507,7 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
     # The gallery's own queues end the disclosure, after the activity it shares.
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(
-            r"^Claude is working — Writing the page \(just now\)\. Waiting on you"
+            r"^\s*Claude is working — Writing the page \(just now\)\. Waiting on you"
         )
     )
 
@@ -4511,7 +4517,7 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
     expect(workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(
-            r"^Claude picked up your comment and hasn't said what it's doing yet"
+            r"^\s*Claude picked up your comment and hasn't said what it's doing yet"
             r" \(just now\)\. Waiting on you"
         )
     )
@@ -4730,7 +4736,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     # The page's own line is as fresh as it was, which is the whole case: this is one
     # claim going quiet beside a live one, not a page that has gone quiet all over.
     expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(r"^Agent is working — rerunning the failing shard")
+        re.compile(r"^\s*Agent is working — rerunning the failing shard")
     )
     expect(work_line).to_have_text("Update stale")
     expect(work_line).to_have_attribute(
@@ -4761,7 +4767,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
         )
     )
     expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(r"^Claude is working — rerunning the failing shard")
+        re.compile(r"^\s*Claude is working — rerunning the failing shard")
     )
     expect(work_line).to_have_text("Update stale")
     expect(work_line.locator("time")).to_have_count(0)

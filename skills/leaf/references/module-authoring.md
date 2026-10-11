@@ -358,8 +358,10 @@ its element is in nested overflow.
 
 A module that moves, hides, or replaces nodes the user may be standing in, as a reorder or
 a re-render does, calls `holdFocus(scope)` before the change and the function it returns
-after it. Moving a focused node drops its focus to the page body; the returned function
-puts the user back on that node, with its caret, or on the first drawn stand-in it is
+after it. Same-root retained moves, including keyed Lit reorders, preserve native state
+where the browser supports `moveBefore`. The focus hold covers ordinary insertion,
+hiding and replacement: its returned function puts the user back on the node, with its
+caret, or on the first drawn stand-in it is
 passed, such as the replacement keyed on the same identity. It does nothing once focus was
 placed elsewhere in the meantime, and `holdFocus` returns `null` where the user stands
 outside `scope`. A list of keyed items passes `holdFocus(list, { key })`, naming the

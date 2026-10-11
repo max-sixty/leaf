@@ -261,7 +261,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
       );
     }
     return Object.freeze({
-      rows: Object.freeze(rows),
+      rows: Object.freeze(threadsBox.withWithdrawals(rows, narrowing.intent)),
       intent: narrowing.intent,
       count: open.length,
       unread: threads.filter((t) => t.unread.length).length,

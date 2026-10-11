@@ -152,7 +152,7 @@ ACTION_ON_ASK = {
             "unit": "widget",
             "record": {"kind": "attribute", "attr": "chosen"},
             "creates": None,
-            "update": False,
+            "report": False,
             "detail": {
                 "type": "object",
                 "properties": {
@@ -2772,7 +2772,7 @@ def test_page_map_keyed_reconciliation_preserves_user_standing(browser, serve):
           window.lfKeyedMap.change();
           const current = window.lfKeyedMap.reordered.control('keep', 'map', true);
           const actions = [...current.parentElement.children]
-            .map(node => node.lfMapAction?.record?.key);
+            .map(node => node.dataset.lfMarginEntryKey);
           const words = [...document.querySelectorAll(
             '.lf-page-map-list .lf-page-map-action-label-word')]
             .map(node => node.textContent);
@@ -2996,42 +2996,42 @@ def test_a_finger_opens_the_page_map_on_its_first_row(browser, serve):
 
 def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
     """A late action-only location is reachable while it is visible."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
-    resized(page, 1440, 900)
-    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Page & layout").click()
-    margins_laid_out(page)
-    page.evaluate(
-        """() => new Promise(resolve => {
-          addEventListener('scrollend', resolve, {once: true});
-          const anchor = document.querySelector('#bg-shot');
-          const scroller = document.scrollingElement;
-          const top = anchor.getBoundingClientRect().top + scroller.scrollTop;
-          scroller.scrollTo(0, top - 100);
-        })"""
+    fixture = leaf_page(
+        "Late action location",
+        "".join(
+            f'<p id="action-{index}" style="min-height: 90px">Capture {index}</p>'
+            for index in range(30)
+        ),
     )
+    page = open_page(browser, serve(fixture))
+    resized(page, 1440, 900)
+    page.evaluate("""async () => {
+      const {contributionEntry, registerContribution} =
+        await window.__lfRuntimeImport('/runtime/widget-api.js');
+      for (let index = 0; index < 30; index++) {
+        registerContribution({key: `capture-${index}`,
+          target: document.querySelector(`#action-${index}`),
+          read: () => ({entries: [contributionEntry({key: 'review', glyph: 'R',
+            label: 'Review capture'})]}), activate: () => {},
+        });
+      }
+    }""")
+    page.locator("#action-29").scroll_into_view_if_needed()
     margins_laid_out(page)
     page.evaluate(RELEASE_FOCUS)
-    show_after = page.locator('[data-lf-margin-for="bg-shot"]').get_by_role(
-        "button", name="Show after — a sample run list with and without a status column"
+    review = page.locator('[data-lf-margin-for="action-29"]').get_by_role(
+        "button", name="Review capture", exact=True
     )
-    # The hint layer offers the locations on screen, so that is the premise, and the
-    # scroll reaches the location's own anchor rather than the section holding it.
-    # `to_be_visible` says a control is laid out, not that the user can see it, so it
-    # passed while gallery content grew between the two and carried this entry out of
-    # the scrollport — leaving the case asking for a chip the page was right not to draw.
-    expect(show_after).to_be_in_viewport()
+    # The hint layer offers on-screen locations, including entries late in the
+    # inventory when their earlier peers have scrolled out of view.
+    expect(review).to_be_in_viewport()
 
     page.keyboard.press("g")
-    target = show_after.evaluate(
+    target = review.evaluate(
         "button => button.closest('[data-lf-margin-for]').dataset.lfMarginFor"
     )
     page.keyboard.type(address_code(page, "Margin entry", target))
-    expect(
-        page.locator('[data-lf-margin-for="bg-shot"]').get_by_role(
-            "button",
-            name="Show before — a sample run list with and without a status column",
-        )
-    ).to_be_focused()
+    expect(review).to_be_focused()
 
 
 def test_margin_target_hover_requires_pointer_movement(browser, serve):
@@ -4006,7 +4006,7 @@ def test_page_map_only_origins_do_not_count_as_margin_entries(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     origin = page.get_by_role(
-        "button", name=re.compile(r"^Open reported update: Reported update")
+        "button", name=re.compile(r"^Open reported state: Reported state")
     )
     origin.focus()
     page.keyboard.press("Enter")
@@ -5109,11 +5109,11 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
             )
         ).to_be_focused()
         assert (
-            dialog.locator(".lf-page-map-action").evaluate_all(
-                """(buttons, target) => buttons
-              .filter(button => button.lfMapAction.entry.targetId === target)
-              .map(button => button.lfMapAction.record.key)""",
-                target,
+            dialog.locator(".lf-page-map-group")
+            .filter(has=page.get_by_role("heading", name=f"{target.title()} target"))
+            .locator(".lf-page-map-action")
+            .evaluate_all(
+                "buttons => buttons.map(button => button.dataset.lfMarginEntryKey)"
             )
             == action_order
         )
@@ -5448,7 +5448,7 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
 
 
 def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, serve):
-    """The gallery's middle-width rail clears its pin and holds the whole card."""
+    """A middle-width margin gives marker clearance to the message's width."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     page.emulate_media(reduced_motion="reduce")
     # Keep the title comparison centred so this width exercises the middle rail.
@@ -5478,7 +5478,13 @@ def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, s
     assert geometry["wordsRight"] < geometry["pinRight"], geometry
     assert geometry["minimum"] <= room_past_pin < geometry["preferred"], geometry
     assert geometry["placement"] == "right", geometry
-    assert geometry["cardLeft"] >= geometry["pinRight"] + 8 - 0.5, geometry
+    assert geometry["cardLeft"] == pytest.approx(geometry["wordsRight"] + 8, abs=0.5), (
+        geometry
+    )
+    # A compact marker can end inside the gap beside the words, especially with
+    # Linux's narrower fonts. Width priority removes the marker's clearance; it
+    # need not cover that marker's painted pixels.
+    assert geometry["cardWidth"] > room_past_pin, geometry
     assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
         geometry
     )
@@ -7018,10 +7024,11 @@ def test_the_first_rail_allocation_matches_its_native_row(browser, serve):
 
 
 @pytest.mark.parametrize("width", [1440, 1920, 2400])
-def test_a_margin_card_clears_its_row_where_its_minimum_fits(browser, serve, width):
-    """Where the room past the margin row holds the card's minimum, the card
-    stands clear of the row. Otherwise it stands beside the words, over the row.
-    Short of its preferred measure it takes the room to the visible edge."""
+def test_a_margin_card_clears_its_row_without_sacrificing_message_width(
+    browser, serve, width
+):
+    """Only a full-width message leaves the margin row clear; a narrower message
+    uses the row's space and reaches the visible edge."""
     page = open_page(browser, serve(ASK_PAGE, events=[PARAGRAPH_ON_ASK]))
     resized(page, width, 900)
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
@@ -7036,15 +7043,15 @@ def test_a_margin_card_clears_its_row_where_its_minimum_fits(browser, serve, wid
           const box = card.getBoundingClientRect();
           return {controlsRight: controls.right, cardLeft: box.left,
                   cardRight: box.right, viewport: innerWidth,
-                  minimum: parseFloat(getComputedStyle(card)
-                    .getPropertyValue('--thread-card-min'))};
+                  preferred: parseFloat(getComputedStyle(card)
+                    .getPropertyValue('--thread-card'))};
         }"""
     )
     past = (
         geometry["viewport"] - 8 - (geometry["controlsRight"] + 8)
-        >= geometry["minimum"]
+        >= geometry["preferred"]
     )
-    assert past == (width != 1440), geometry
+    assert past == (width == 2400), geometry
     assert geometry["cardLeft"] == pytest.approx(
         (geometry["controlsRight"] if past else page.evaluate(WORDS_RIGHT)) + 8,
         abs=0.5,
@@ -7623,9 +7630,7 @@ def test_a_second_press_into_a_standing_card_leaves_one_level_to_take_off(
     leave_card_by_its_target(page)
 
 
-# Read the card with the selected target's whole control cluster. A card the rail cannot
-# hold beside that cluster keeps it clear, takes the card's minimum measure, and puts
-# its right edge on the visible edge, so it crosses the column by only what the rail lacks.
+# Read the card alongside its target, control cluster, and available message width.
 THREAD_CARD_GEOMETRY = """() => {
   const main = document.querySelector('main').getBoundingClientRect();
   const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
@@ -7734,8 +7739,8 @@ def test_a_sent_comment_keeps_its_text_viewport(browser, serve, text, zoom):
 def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
     browser, serve, wrapping
 ):
-    """An accepted comment preserves the real editor frame and wrapping, beside
-    or over either page shape, while its reply and neighboring controls remain usable."""
+    """An accepted comment preserves its editor frame, wrapping and reply, using
+    the marker strip where clearing it would narrow the message."""
     sidebar_page = ASK_PAGE.replace(
         '<main class="layout-column">',
         '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
@@ -7791,12 +7796,14 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
         "textbox", name="Reply", exact=True
     ).click()
 
-    # With room to spare, the carried frame stays clear of the target controls.
+    # At this width clearing the controls would narrow the message. Both the
+    # editor and its sent card use that space, retaining the editor's frame.
     wide = page.evaluate(THREAD_CARD_GEOMETRY)
     assert wide["minimum"] <= wide["cardWidth"] <= wide["preferred"], wide
     assert wide["replyWidth"] >= 160, wide
     assert wide["cardLeft"] == pytest.approx(editor_start, abs=0.5), wide
-    assert wide["cardLeft"] > wide["controlsRight"], wide
+    assert wide["cardLeft"] == pytest.approx(wide["wordsRight"] + 8, abs=0.5), wide
+    assert wide["cardLeft"] < wide["controlsRight"], wide
 
 
 def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):
@@ -11167,6 +11174,48 @@ def test_the_margin_layer_follows_the_page_in_the_tab_order(browser, serve):
     expect(page.locator("#after-margin-entries")).to_be_focused()
 
 
+def test_the_rail_s_way_in_is_a_marker_in_front_of_the_user(browser, serve):
+    """Tab into the rail lands on a marker the user can see. One scrolled under the
+    banner is still in the window but out of sight, so the rail's one stop passes from
+    it to the marker below."""
+    filler = "".join(f"<p>Filler paragraph {i}.</p>" for i in range(40))
+    source = leaf_page(
+        "the rail's way in",
+        '<h1 id="t">Rail</h1><p id="first">The first commented paragraph.</p>'
+        "<p>One between.</p><p>Another between.</p>"
+        f'<p id="second">The second commented paragraph.</p>{filler}'
+        '<p><a id="last" href="#t">The last link</a></p>',
+    )
+    page = open_page(
+        browser, serve(source, events=[_comment_on("first"), _comment_on("second")])
+    )
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    first = page.locator('[data-lf-margin-for="first"] .lf-margin-marker')
+    second = page.locator('[data-lf-margin-for="second"] .lf-margin-marker')
+    expect(first).to_have_attribute("tabindex", "0")
+    banner = first.evaluate(
+        """async row => {
+          const {bannerFoot} = await window.__lfRuntimeImport('/runtime/geometry.js');
+          scrollBy({top: row.getBoundingClientRect().bottom - bannerFoot() + 4,
+            behavior: 'instant'});
+          return bannerFoot();
+        }"""
+    )
+    rendered(page)
+    margins_laid_out(page)
+    row = first.bounding_box()
+    assert 0 < row["y"] + row["height"] < banner, (row, banner)
+    page.locator("#last").evaluate("link => link.focus({preventScroll: true})")
+    for _ in range(20):
+        page.keyboard.press("Tab")
+        if page.evaluate(
+            "() => document.activeElement?.matches('.lf-margin-marker') ?? false"
+        ):
+            break
+    expect(second).to_be_focused()
+
+
 def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serve):
     """Margin coordinates do not cross the author's CSS anchor scope. Both scoped
     and ordinary targets keep their controls reachable, with the same target and
@@ -11483,216 +11532,14 @@ def test_a_crowded_outline_keeps_the_reading_position_when_it_fits_again(
     )
 
 
-def page_annotation_rail_source():
-    return leaf_page(
-        "Authored annotations",
-        """
-      <h1>Authored annotations</h1>
-      <p id="subject">An exact passage remains here.</p>
-      <lf-annotation-rail id="annotations"></lf-annotation-rail>
-      <textarea id="elsewhere" aria-label="Elsewhere"></textarea>
-    """,
-        head="<style>lf-annotation-rail {height:360px;width:430px}</style>",
-    ).replace("<body>", '<body data-annotations="page">')
-
-
-def test_rail_native_comment_and_retained_reply(browser, serve):
-    page = open_page(browser, serve(page_annotation_rail_source()))
-    rail = page.locator("lf-annotation-rail")
-    page.locator("#subject").click(modifiers=["Alt"])
-    editor = rail.locator(".lf-fab-input")
-    expect(editor).to_be_visible()
-    expect(editor).to_be_focused()
-    page.evaluate('window.nativeComposer=document.querySelector(".lf-fab-input")')
-    editor.press_sequentially("A comment in the authored rail")
-    page.keyboard.press("Control+Enter")
-    card = rail.locator(".lf-page-thread")
-    expect(card).to_have_count(1)
-    expect(card).to_be_visible()
-    page.evaluate(
-        """async () => {const {openThread}=await __lfRuntimeImport('/runtime/application.js'); await openThread(document.querySelector('.lf-page-thread').dataset.thread,{part:'reply',travel:false});}"""
-    )
-    reply = card.locator("leaf-text")
-    expect(reply).to_be_focused()
-    reply.press_sequentially("A retained rail reply")
-    page.evaluate("""() => {
-      window.railBefore={rail:document.querySelector('lf-annotation-rail'),
-        row:document.querySelector('.lf-ar-entry'),group:document.querySelector('.lf-ar-group'),
-        outlet:document.querySelector('.lf-ar-entry .lf-ar-outlet'),
-        input:document.activeElement};
-      document.activeElement.setSelectionRange(2,7,'backward');
-    }""")
-    page.evaluate("""async () => {
-      const {repaint}=await __lfRuntimeImport('/runtime/repaint.js');
-      repaint();
-      const {whenDocumentPresented}=await __lfRuntimeImport('/runtime/semantic-state.js');
-      await whenDocumentPresented();
-    }""")
-    assert page.evaluate("""() => {
-      const b=railBefore, input=document.activeElement;
-      return b.rail===document.querySelector('lf-annotation-rail') &&
-        b.row===document.querySelector('.lf-ar-entry') && b.row.querySelector('.lf-page-thread').open &&
-        b.group===document.querySelector('.lf-ar-group') &&
-        b.outlet===document.querySelector('.lf-ar-entry .lf-ar-outlet') &&
-        input===b.input && input.value==='A retained rail reply' &&
-        input.selectionStart===2 && input.selectionEnd===7 && input.selectionDirection==='backward';
-    }""")
-    assert (
-        page.evaluate(
-            "document.querySelector('lf-annotation-rail').getBoundingClientRect().height"
-        )
-        == 360
-    )
-    assert page.locator(".lf-margin-projection,.lf-margin-preview").count() == 0
-    resources = page.evaluate(
-        "() => performance.getEntriesByType('resource').map(e=>new URL(e.name).pathname)"
-    )
-    assert not [path for path in resources if "/annotation-overlay/" in path]
-    print(
-        {
-            "rail_height": 360,
-            "native_reply_caret": [2, 7, "backward"],
-            "outlet_identity": "retained",
-        }
-    )
-
-
 def page_annotation_action_source():
     return leaf_page(
-        "Canonical action rail",
+        "Page-owned annotations",
         """
-      <h1>Canonical action rail</h1><p id="subject">A source for contributed actions.</p>
-      <lf-ask id="choice-question"><h2>Which route?</h2>
-        <lf-options id="routes" choose><lf-option id="route-a">Route A</lf-option>
-        <lf-option id="route-b">Route B</lf-option></lf-options>
-      </lf-ask>
+      <h1>Page-owned annotations</h1><p id="subject">A source for contributed actions.</p>
       <lf-draft id="draft"><pre>A draft to revise.</pre></lf-draft>
-      <lf-annotation-rail id="annotations"></lf-annotation-rail>
     """,
-        head="<style>lf-annotation-rail {height:360px;width:430px}</style>",
     ).replace("<body>", '<body data-annotations="page">')
-
-
-def test_rail_reading_keys_follow_its_scroll_box_after_reconnection(browser, serve):
-    """Paging in an allocated annotation region moves its rows, and reconnecting
-    the retained rail keeps its scroll position and reading route."""
-    choices = "".join(
-        f'<lf-ask id="question-{i}"><h2>Decision {i}</h2>'
-        f'<lf-options id="options-{i}" choose>'
-        f'<lf-option id="choice-{i}">Keep sample {i}</lf-option>'
-        "</lf-options></lf-ask>"
-        for i in range(30)
-    )
-    source = page_annotation_rail_source().replace("<textarea", choices + "<textarea")
-    page = open_page(browser, serve(source))
-    rail = page.locator("#annotations")
-    assert rail.evaluate("el => el.scrollHeight > el.clientHeight")
-    rail.locator(".lf-ar-item").first.focus()
-    document_before = page.evaluate("scrollY")
-    for _ in range(2):
-        before = rail.evaluate("el => el.scrollTop")
-        page.keyboard.press("d")
-        page.wait_for_function(
-            "before => document.querySelector('#annotations').scrollTop > before.rail"
-            " || scrollY !== before.document",
-            arg={"rail": before, "document": document_before},
-        )
-        scroll_settled(page, "#annotations")
-        after = rail.evaluate("el => el.scrollTop")
-        assert after > before
-        assert page.evaluate("scrollY") == document_before
-        rail.evaluate("""async el => {
-          const {preserveReadingRegions} = await __lfRuntimeImport('/runtime/reading-regions.js');
-          const parent = el.parentNode, next = el.nextSibling;
-          await preserveReadingRegions(parent, () => {
-            el.remove();
-            parent.insertBefore(el, next);
-          });
-        }""")
-        rendered(page)
-        assert rail.evaluate("el => el.scrollTop") == after
-
-
-def test_rail_ask_draft_and_optimistic_undo(browser, serve):
-    page = open_page(browser, serve(page_annotation_action_source()))
-    rail = page.locator("lf-annotation-rail")
-    ask = rail.get_by_role("button", name="Which route? · Waiting on you", exact=True)
-    expect(ask).to_be_visible()
-
-    ask.click()
-    page.wait_for_function("!!document.activeElement?.closest('#choice-question')")
-    draft_control(page, "edit", "draft").click()
-    expect(draft_control(page, "cancel", "draft")).to_be_visible()
-    editor = page.locator("#draft leaf-text")
-    expect(editor).to_be_focused()
-    write(editor, "A canonical rail saved this draft.")
-    draft_control(page, "save", "draft").click()
-    expect(page.locator("#draft .lf-draft-body")).to_have_text(
-        "A canonical rail saved this draft."
-    )
-    expect(draft_control(page, "edit", "draft")).to_be_visible()
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    page.locator("#route-a .lf-pick").click()
-    expect(page.locator("#route-a")).to_have_attribute("chosen", "")
-    expect(ask).to_be_visible()
-    holding(page, held, 1, "the optimistic rail choice")
-    held[0].continue_()
-    page.unroute("**/api/event")
-    expect(ask).to_have_count(0)
-    undo(page)
-    expect(page.locator("#route-a")).not_to_have_attribute("chosen", "")
-    expect(ask).to_be_visible()
-
-
-def test_rail_actions_wrap_and_hold_a_new_row_until_revealed(browser, serve):
-    """Actions stay reachable without sideways scrolling; foreign growth still waits."""
-    source = page_annotation_action_source().replace(
-        "width:430px", "width:100%;max-width:430px"
-    )
-    page = open_page(browser, serve(source))
-    resized(page, 390, 844)
-    page.evaluate("""async () => {
-      const {registerContribution, contributionEntry} =
-        await window.__lfRuntimeImport('/runtime/widget-api.js');
-      window.__railActions = {count: 6, activated: null};
-      const state = window.__railActions;
-      state.registration = registerContribution({key: 'review-actions',
-        target: document.querySelector('#subject'),
-        read: () => ({entries: Array.from({length: state.count}, (_, i) =>
-          contributionEntry({key: String(i), label: `Review reading ${i}`, glyph: '→'}))}),
-        activate: key => {state.activated = key},
-      });
-    }""")
-    rendered(page)
-    rail = page.locator("#annotations")
-    notice = rail.get_by_role("button", name="Show updated annotations", exact=True)
-    notice.click()
-    actions = rail.locator(".lf-ar-action-controls").filter(
-        has=page.get_by_role("button", name="Review reading 0", exact=True)
-    )
-    expect(actions.get_by_role("button")).to_have_count(6)
-    ask = rail.get_by_role("button", name="Which route? · Waiting on you", exact=True)
-    before = ask.bounding_box()
-    height = actions.evaluate("el => el.clientHeight")
-    page.evaluate("""() => {
-      window.__railActions.count = 12;
-      window.__railActions.registration.update();
-    }""")
-    rendered(page)
-    expect(notice).to_be_enabled()
-    expect(actions.get_by_role("button")).to_have_count(6)
-    assert ask.bounding_box() == before
-    notice.click()
-    expect(actions.get_by_role("button")).to_have_count(12)
-    assert actions.evaluate("el => el.clientHeight") > height
-    for width in (320, 1200):
-        resized(page, width, 844)
-        assert actions.evaluate("el => el.scrollWidth <= el.clientWidth")
-    last = actions.get_by_role("button", name="Review reading 11", exact=True)
-    last.focus()
-    page.keyboard.press("Space")
-    page.wait_for_function("window.__railActions.activated === '11'")
 
 
 def test_draw_mode_leaves_page_annotation_controls_usable(browser, serve):
@@ -11708,165 +11555,6 @@ def test_draw_mode_leaves_page_annotation_controls_usable(browser, serve):
     expect(edit).to_be_visible()
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-drawing-pending")).to_have_count(0)
-
-
-@pytest.mark.watch_shifts
-@pytest.mark.parametrize("reveal", ["button", "return"])
-def test_rail_holds_foreign_thread_layout_before_existing_actions(
-    browser, serve, reveal
-):
-    """A new conversation cannot push the rail's existing Ask out from under a reader."""
-    page = open_page(browser, serve(page_annotation_action_source()))
-    rail = page.locator("lf-annotation-rail")
-    ask = rail.get_by_role("button", name="Which route? · Waiting on you", exact=True)
-    expect(ask).to_be_visible()
-    before = ask.bounding_box()
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "agent",
-            "agent": "Codex",
-            "session": "pytest-rail-news",
-            "revision": 1,
-            "text": "A new thought about the source",
-            "anchor": {"section": "subject"},
-        },
-    )
-    told(page)
-    expect(rail.locator(".lf-page-thread")).to_have_count(0)
-    expect(
-        rail.get_by_role("button", name="Show updated annotations", exact=True)
-    ).to_be_enabled()
-    assert ask.bounding_box() == before
-    if reveal == "button":
-        rail.get_by_role("button", name="Show updated annotations", exact=True).click()
-    else:
-        page.evaluate("""() => {
-          window.__lfTestVisibility = 'hidden';
-          Object.defineProperty(document, 'visibilityState', {
-            configurable: true, get: () => window.__lfTestVisibility,
-          });
-          document.dispatchEvent(new Event('visibilitychange'));
-        }""")
-        with page.expect_request("**/api/news"):
-            page.evaluate("""() => {
-              window.__lfTestVisibility = 'visible';
-              document.dispatchEvent(new Event('visibilitychange'));
-            }""")
-        told(page)
-        rendered(page)
-    expect(rail.locator(".lf-page-thread")).to_have_count(1)
-    expect(rail).to_contain_text("A new thought about the source")
-    if reveal == "return":
-        page.wait_for_function("""async () => {
-          const { readingIsContinuous } = await window.__lfRuntimeImport(
-            '/runtime/reading-continuity.js');
-          return readingIsContinuous();
-        }""")
-        append_carried_log_record(
-            serve.page_dir,
-            {
-                "kind": "comment",
-                "author": "agent",
-                "agent": "Codex",
-                "session": "pytest-rail-news",
-                "revision": 1,
-                "text": "News after returning to the source",
-                "anchor": {"section": "subject"},
-            },
-        )
-        told(page)
-        expect(rail.locator(".lf-page-thread")).to_have_count(1)
-        expect(
-            rail.get_by_role("button", name="Show updated annotations", exact=True)
-        ).to_be_enabled()
-
-
-def test_rail_holds_source_group_changes_before_existing_actions(browser, serve):
-    """A relocated conversation keeps its source-group allocation until the reader opens it."""
-    source = page_annotation_action_source().replace("height:360px", "height:700px")
-    root = {
-        "id": "0123456789abcdef0123456789abcdef",
-        "kind": "comment",
-        "author": "agent",
-        "agent": "Codex",
-        "session": "pytest-rail-news",
-        "revision": 1,
-        "text": "A current source conversation",
-        "anchor": {"section": "subject"},
-    }
-    page = open_page(browser, serve(source, events=[root]))
-    resized(page, 1400, 1100)
-    rail = page.locator("lf-annotation-rail")
-    ask = rail.get_by_role("button", name="Which route? · Waiting on you", exact=True)
-    expect(ask).to_be_visible()
-    before = ask.bounding_box()
-    page.evaluate("window.railGroup = document.querySelector('.lf-ar-group')")
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Codex",
-            "session": "pytest-rail-news",
-            "revision": 1,
-            "parent": root["id"],
-            "text": "Move the conversation to the decision",
-            "anchor": {"section": "choice-question"},
-        },
-    )
-    told(page)
-    expect(
-        rail.get_by_role("button", name="Show updated annotations", exact=True)
-    ).to_be_enabled()
-    assert ask.bounding_box() == before
-    assert page.evaluate(
-        "document.querySelector('.lf-ar-entry').parentElement.parentElement === railGroup"
-    )
-    rail.get_by_role("button", name="Show updated annotations", exact=True).click()
-    page.wait_for_function(
-        "document.querySelector('.lf-ar-entry').parentElement.parentElement !== railGroup"
-    )
-    expect(rail.locator(".lf-page-thread")).to_have_count(1)
-
-
-def test_rail_refused_comment_retires_native_thread_and_restores_words(browser, serve):
-    source = page_annotation_action_source().replace("height:360px", "height:700px")
-    page = open_page(browser, serve(source))
-    resized(page, 1400, 1100)
-    rail = page.locator("lf-annotation-rail")
-    page.locator("#subject").click(modifiers=["Alt"])
-    editor = rail.locator(".lf-fab-input")
-    expect(editor).to_be_focused()
-    editor.press_sequentially("A comment whose words must come back")
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    page.keyboard.press("Control+Enter")
-    holding(page, held, 1, "the refused rail comment")
-    expect(rail.locator(".lf-page-thread")).to_have_count(1)
-    ask = rail.get_by_role("button", name="Which route? · Waiting on you", exact=True)
-    expect(ask).to_be_visible()
-    before = ask.bounding_box()
-    held[0].fulfill(
-        status=400,
-        json={
-            "ok": False,
-            "final": True,
-            "attempt": held[0].request.post_data_json["attempt"],
-            "error": "refused rail comment",
-        },
-    )
-    expect(rail.locator(".lf-page-thread")).to_have_count(0)
-    expect(rail.get_by_role("button", name="Open thread", exact=False)).to_have_count(0)
-    assert ask.bounding_box() == before
-    rail.get_by_role("button", name="Show updated annotations", exact=True).click()
-    expect(rail.locator(".lf-ar-entry")).to_have_count(0)
-    page.locator("#subject").click(modifiers=["Alt"])
-    expect(editor).to_be_visible()
-    expect(editor).to_be_focused()
-    expect(editor).to_have_js_property("value", "A comment whose words must come back")
-    consume_browser_errors(page, "400")
 
 
 @pytest.mark.parametrize("position", ["sticky", "sticky-ancestor", "fixed"])

@@ -1791,13 +1791,13 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
             );
             if (!candidate) return present(model);
             if (failures > 0) {
+              const attempt = failures--;
               await present(model);
-              if (failures === 2) {
+              if (attempt === 2) {
                 window.failedCandidatePresented = true;
                 await failedCandidate;
               }
-              failures -= 1;
-              window.completeListFailures = 2 - failures;
+              window.completeListFailures = (window.completeListFailures ?? 0) + 1;
               throw new Error('injected complete-list failure');
             }
             if (!window.threadRetryReleased) {
@@ -1862,7 +1862,9 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         selected.locator(".lf-thread-summary").click()
         expect(selected).to_have_attribute("open", "")
     elif place == "leave-displaced-title":
-        expect(page.locator(".lf-thread[open] > .lf-thread-summary")).to_be_focused()
+        expect(
+            page.locator('[data-withdrawn="selected-thread"] button')
+        ).to_be_focused()
         page_comment(page)
     page.evaluate("window.releaseFirstListFailure()")
     page.wait_for_function(
@@ -1898,6 +1900,10 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
     ) == [6, 14, "backward"]
     assert "thread" in page.evaluate("window.readLeafPresentation().pending")
+    # The restored card must stand for a frame before retrying its withdrawal;
+    # the choice that dismissed the failed candidate cannot hide a later jump.
+    page.evaluate("lfShiftsJudged()")
+    restored_top = page.evaluate("window.keptPanel.getBoundingClientRect().top")
 
     # The retry paints the whole candidate again and then reaches the independently
     # held frozen-widget preparation. Only that complete reading may commit.
@@ -1939,6 +1945,211 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         kept["id"],
     ), "successful list retry replaced a committed panel card, seat, or editor"
     expect(editor).to_have_js_property("value", "draft survives sibling rollback")
+    if place == "choose-earlier":
+        expect(page.locator('[data-withdrawn="selected-thread"]')).to_have_count(1)
+        assert page.evaluate(
+            "window.keptPanel.getBoundingClientRect().top"
+        ) == pytest.approx(restored_top, abs=0.1)
+    expected_errors = (
+        []
+        if place == "choose-earlier"
+        else [
+            (
+                "leaf: Presentation failed: Thread list presentation retry failed: "
+                "injected complete-list failure; injected complete-list failure"
+            )
+        ]
+    )
+    errors = take_browser_errors(page)
+    assert [error.splitlines()[0] for error in errors] == expected_errors, errors
+
+
+@pytest.mark.parametrize("place", ["closed", "selected", "scrolled", "scaled"])
+def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, place):
+    """Absent threads retain room, never live controls or semantic membership."""
+    selected = place not in {"closed", "scaled"}
+    url = serve(
+        leaf_page(
+            "Withdrawn thread",
+            '<h1>Review</h1><p id="one">First passage.</p><p id="two">Next passage.</p>',
+        ),
+        layer_registry=PAGE_DECLARATION,
+        layer_widgets={"lf-local.js": PAGE_WIDGET},
+    )
+    first = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "first-thread",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "one"},
+            "text": "The conversation that will be withdrawn."
+            + (
+                "\n\n"
+                + "\n\n".join(
+                    f"Paragraph {i}: A long conversation stays readable while the panel scrolls."
+                    for i in range(28)
+                )
+                if place == "scrolled"
+                else ""
+            ),
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "next-thread",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "two"},
+            "text": "The conversation that stays.",
+        },
+    )
+    if place == "scrolled":
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "id": "long-reply",
+                "author": "agent",
+                "revision": 1,
+                "parent": first["id"],
+                "text": "\n\n".join(
+                    f"Paragraph {i}: The full conversation remains available as the reader scrolls."
+                    for i in range(28)
+                ),
+            },
+        )
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "id": "widget-reply",
+                "author": "agent",
+                "revision": 1,
+                "parent": first["id"],
+                "text": "A frozen control in the withdrawn thread.",
+                "markup": '<lf-local id="withdraw-widget" choice="idle"></lf-local>',
+            },
+        )
+    page = open_page(browser, live_url(url))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    if place == "scaled":
+        page.add_style_tag(
+            content=".lf-thread-panel { transform:scale(1.2); transform-origin:top right; }"
+        )
+        assert (
+            page.locator(".lf-thread-panel").evaluate(
+                "node => getComputedStyle(node).transform"
+            )
+            == "matrix(1.2, 0, 0, 1.2, 0, 0)"
+        )
+    first_card = page.locator('.lf-threads > [data-id="first-thread"]')
+    next_card = page.locator('.lf-threads > [data-id="next-thread"]')
+    (first_card if selected else next_card).locator(".lf-thread-summary").click()
+    if place == "scrolled":
+        write(
+            first_card.locator(":scope > .lf-thread-reply leaf-text"),
+            "A draft for this conversation",
+        )
+        page.evaluate(
+            "window.withdrawnWidget = document.querySelector('#withdraw-widget')"
+        )
+        panel = page.locator("leaf-thread-list")
+        box = panel.bounding_box()
+        page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        page.mouse.wheel(0, 600)
+        page.wait_for_function(
+            "document.querySelector('leaf-thread-list').scrollTop > 0"
+        )
+        scroll_settled(page, "leaf-thread-list")
+        assert first_card.evaluate(
+            "node => node.getBoundingClientRect().top < node.parentElement.getBoundingClientRect().top"
+        )
+    rendered(page)
+    allocation = first_card.evaluate("node => node.getBoundingClientRect().height")
+    position = next_card.evaluate("node => node.getBoundingClientRect().top")
+    page.evaluate(
+        "() => { window.survivingCard = document.querySelector('.lf-threads > [data-id=next-thread]'); }"
+    )
+    if place == "scrolled":
+        for reply in ["long-reply", "widget-reply"]:
+            append_carried_log_record(
+                serve.page_dir, {"kind": "undo", "author": "agent", "undoes": reply}
+            )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "undo",
+            "id": "withdraw-first",
+            "author": "user",
+            "revision": 1,
+            "undoes": first["id"],
+        },
+    )
+    told(page)
+    withdrawn = page.locator('[data-withdrawn="first-thread"]')
+    expect(withdrawn).to_contain_text("Thread withdrawn")
+    expect(first_card).to_have_count(0)
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
+    expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
+    assert withdrawn.evaluate(
+        "node => node.getBoundingClientRect().height"
+    ) == pytest.approx(allocation, abs=0.1)
+    assert next_card.evaluate(
+        "node => node.getBoundingClientRect().top"
+    ) == pytest.approx(position, abs=0.1)
+    assert next_card.evaluate("node => node === window.survivingCard")
+    if selected:
+        expect(withdrawn.locator("button")).to_be_focused()
+        expect(next_card).not_to_have_attribute("open", "")
+        assert withdrawn.locator("button").evaluate("""node => {
+            const box = node.getBoundingClientRect();
+            const panel = node.closest('leaf-thread-list').getBoundingClientRect();
+            return box.top >= panel.top && box.bottom <= panel.bottom;
+        }""")
+    else:
+        expect(next_card.locator(".lf-thread-summary")).to_be_focused()
+        expect(next_card).to_have_attribute("open", "")
+    if place == "scrolled":
+        assert page.evaluate(
+            "window.withdrawnWidget && !window.withdrawnWidget.isConnected"
+        )
+        # The subject has left the document: its editor ends, while the draft's
+        # independent saved owner keeps the words for a genuine return.
+        page.evaluate("lfWordsJudged()")
+        assert take_browser_errors(page) == [
+            'typed words left the screen without a key or press: "A draft for this conversation" in leaf-text.lf-ui'
+        ]
+    # A view change or choosing another conversation releases retained news too.
+    if place == "scaled":
+        find = page.get_by_role("searchbox", name="Find in threads")
+        find.fill("stays")
+        rendered(page)
+        expect(withdrawn).to_have_count(0)
+        expect(find).to_be_focused()
+        find.press("Escape")
+    elif place == "selected":
+        page.keyboard.press("t")
+    else:
+        withdrawn.get_by_role("button", name="Dismiss").focus()
+        page.keyboard.press("Enter")
+    rendered(page)
+    expect(withdrawn).to_have_count(0)
+    expect(next_card).to_have_attribute("open", "")
+    expect(next_card.locator(".lf-thread-summary")).to_be_focused()
+
+    if place == "scrolled":
+        assert (
+            page.evaluate("""async () => {
+            const {loadDraft} = await window.__lfRuntimeImport('/runtime/drafts.js');
+            return loadDraft('reply:first-thread');
+        }""")
+            == "A draft for this conversation"
+        )
 
 
 def test_an_unavailable_list_preserves_the_selected_conversation(browser, serve):
@@ -2086,10 +2297,6 @@ def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
             "leaf: Presentation failed: Thread list presentation retry failed: "
             "injected refusal; injected refusal"
         ),
-        "leaf: State presentation failed: Thread list presentation retry failed: "
-        "injected refusal; injected refusal",
-        "leaf: read failed: Thread list presentation retry failed: "
-        "injected refusal; injected refusal",
     )
     expect(page.locator('[data-id="arriving"]')).to_have_count(0)
 
@@ -2561,7 +2768,11 @@ def package_workspace(serve, *, before_reader="", primary=True):
                 else ""
             ),
         ),
-        layer_registry=json.loads((companion / "registry.json").read_text()),
+        layer_registry={
+            "lf-conversation-workspace": json.loads(
+                (companion / "registry.json").read_text()
+            )["lf-conversation-workspace"]
+        },
         layer_widgets={
             "lf-conversation-workspace.js": (
                 companion / "widgets/lf-conversation-workspace.js"
@@ -2855,7 +3066,11 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
     from render_harness import ROOT
 
     companion = ROOT / "examples/developer/feature-gallery.page"
-    registry = json.loads((companion / "registry.json").read_text())
+    registry = {
+        "lf-conversation-workspace": json.loads(
+            (companion / "registry.json").read_text()
+        )["lf-conversation-workspace"]
+    }
     registry["lf-nested-reader"] = {
         "description": "A declared nested physical reader stage.",
         "type": "object",

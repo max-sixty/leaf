@@ -35,6 +35,7 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
     "A **bold &amp; repeated word300** and `one & two`.",
     "- [x] **word300**\n- [ ] Next",
     "https://example.com before reader@example.com and word300.",
+    "`AGENTS.md` and example.com before **word300** and https://AGENTS.md.",
     "<div>\n**word300**\n</div>",
     "| First | Second |\n| --- | --- |\n| other | **word300** |",
     "\\* literal, &amp; then word300 and *later*.",
@@ -85,12 +86,23 @@ test("Markdown body readings share file dialect, safe destinations and native st
   const cases = JSON.parse(
     readFileSync(new URL("../markdown_body_cases.json", import.meta.url)),
   );
-  for (const { source, words } of cases)
+  for (const { source, words, links } of cases) {
+    const body = document.createElement("div");
+    body.innerHTML = renderMarkdown(source);
+    assert.deepEqual(
+      [...body.querySelectorAll("a")].map((link) => ({
+        text: link.textContent,
+        href: link.getAttribute("href"),
+      })),
+      links,
+      source,
+    );
     assert.equal(
-      renderedWords(renderMarkdown(source)).replace(/\s+/g, " ").trim(),
+      renderedWords(body.innerHTML).replace(/\s+/g, " ").trim(),
       words,
       source,
     );
+  }
   const body = document.createElement("div");
   body.innerHTML = renderMarkdown("<div>\n**bold**\n</div>\n\n<div>\nHeading\n---");
   assert.equal(

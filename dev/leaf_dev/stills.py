@@ -269,7 +269,7 @@ def progress_messages(page: Page) -> None:
     page.locator("#bg-gallery-tabs").get_by_role(
         "tab", name="Threads", exact=True
     ).click()
-    page.locator('#bg-panel-presets [data-view="updates"]').click()
+    page.locator('#bg-panel-presets [data-view="progress"]').click()
     frame = page.frame_locator("#bg-panel-sample iframe")
     frame.locator(
         '.lf-thread[data-id="bg-progress-question"] .lf-summary-expand'
@@ -474,17 +474,6 @@ def gallery_plans(page: Page) -> None:
     """Planned work beside observed history, using authored stable section identity."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
     page.locator("#bg-plans-and-history").scroll_into_view_if_needed()
-
-
-def gallery_page_annotations(page: Page) -> None:
-    """The practice window's page-owned annotation rail, at the height its rows take."""
-    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
-    page.locator("#bg-page-annotations-sample").evaluate(
-        "el => el.scrollIntoView({block: 'start'})"
-    )
-    page.frame_locator("#bg-page-annotations-sample iframe").locator(
-        "lf-annotation-rail"
-    ).evaluate("el => el.scrollIntoView({block: 'end'})")
 
 
 def theme_hierarchy(page: Page) -> None:
@@ -715,71 +704,6 @@ def draft_edit(page: Page) -> None:
     page.locator("#rn-cli .lf-draft-body").click()
     page.keyboard.press("Tab")
     page.locator("#rn-cli .lf-draft-edit").focus()
-
-
-DRIVERS: dict[str, Callable[[Page], None]] = {
-    drive.__name__.replace("_", "-"): drive
-    for drive in (
-        at_rest,
-        tab_by_keyboard,
-        tab_by_pointer,
-        boxed_tab_by_keyboard,
-        drawing_comment,
-        drawing_photo_comment,
-        share_link,
-        diff_filter,
-        playground_text,
-        banner_more,
-        playground_choice,
-        card_by_pointer,
-        card_by_keyboard,
-        card_more_room,
-        card_reply,
-        card_reply_large,
-        card_reply_resolved,
-        threads_panel,
-        progress_messages,
-        progress_messages_expanded,
-        image_preview,
-        retained_quote,
-        retained_quote_full,
-        screenshot_comparison,
-        panel_by_keyboard,
-        composer,
-        composer_long,
-        composer_sent,
-        composer_sent_zoomed,
-        card_reply_long,
-        panel_reply_long,
-        page_comment_long,
-        option_long,
-        options_in_pane,
-        ask_by_keyboard,
-        card_grabbed,
-        code_note,
-        frame_edges,
-        theme_hierarchy,
-        gallery_metrics,
-        gallery_plans,
-        wide_passage,
-        multiline_passage,
-        code_copy_by_pointer,
-        code_copy_by_keyboard,
-        diff_path_by_keyboard,
-        diff_file_reply,
-        code_source_by_touch,
-        pane_focused,
-        aim_cut_by_pane,
-        element_thread,
-        more_menu,
-        versions_menu,
-        go_to,
-        contents_by_keyboard,
-        widget_inline_hints,
-        draft_edit,
-        hub_workers,
-    )
-}
 
 
 def playground_controls(page: Page) -> None:
@@ -1023,6 +947,17 @@ STATES = (
         contents_by_keyboard,
         scheme="dark",
     ),
+    # Where the margin has no room for the map, and where a coarse pointer keeps the
+    # sidebar's contents in the flow, at a roomy width and on a phone.
+    State("contents-narrow", "developer/feature-gallery", at_rest, viewport=(900, 900)),
+    State("contents-coarse", "developer/feature-gallery", at_rest, touch=True),
+    State(
+        "contents-phone",
+        "developer/feature-gallery",
+        at_rest,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("playground-controls", "notification-playground", playground_controls),
     State(
         "playground-controls-phone",
@@ -1056,11 +991,6 @@ STATES = (
     State("frame-edges", "developer/feature-gallery", frame_edges),
     State("gallery-metrics", "developer/feature-gallery", gallery_metrics),
     State("gallery-plans", "developer/feature-gallery", gallery_plans),
-    State(
-        "gallery-page-annotations",
-        "developer/feature-gallery",
-        gallery_page_annotations,
-    ),
     State("gallery-theme", "developer/feature-gallery", theme_hierarchy),
     State(
         "gallery-theme-dark",
@@ -1105,6 +1035,12 @@ STATES = (
     State("plan-dark", "review-a-plan", at_rest, scheme="dark"),
     State("plan-beside", "review-a-plan", at_rest, viewport=BESIDE),
     State("plan-card", "review-a-plan", card_by_pointer),
+    State(
+        "plan-card-message-width",
+        "review-a-plan",
+        card_by_pointer,
+        viewport=(1920, 900),
+    ),
     State("plan-card-keyboard", "review-a-plan", card_by_keyboard),
     State("plan-card-keyboard-dark", "review-a-plan", card_by_keyboard, scheme="dark"),
     State("plan-card-reply", "review-a-plan", card_reply),
@@ -1286,6 +1222,11 @@ STATES = (
     State("sort-pane-dark", "rust-sort", pane_focused, scheme="dark"),
     State("sort-aim-cut", "rust-sort", aim_cut_by_pane),
 )
+
+# Every state's input by name, for `leaf-dev probe --do drive:NAME`.
+DRIVERS: dict[str, Callable[[Page], None]] = {
+    state.drive.__name__.replace("_", "-"): state.drive for state in STATES
+}
 
 
 def capture(browser, address: str, state: State, path: Path) -> dict | None:

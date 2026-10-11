@@ -47,6 +47,8 @@
 import {
   atLayoutPrecision,
   frameFor,
+  holdFocus,
+  html,
   inChrome,
   keeps,
   landingInsets,
@@ -55,10 +57,11 @@ import {
   once,
   PAGE_INTERFACE,
   PRESENTATION,
-  relabel,
+  render,
+  repeat,
   scrollerFor,
+  scrollLimit,
   sizeObserver,
-  setChildren,
   whileConnected,
   wrote,
 } from "/runtime/widget-api.js";
@@ -73,8 +76,6 @@ customElements.define(
     #main;
     #nav;
     #rows;
-    #list;
-    #start;
     #lens = null;
     #lensMotion = null;
     #lensInputs = "";
@@ -106,59 +107,21 @@ customElements.define(
     };
 
     connectedCallback() {
-      if (once(this)) this.#build();
-      else {
-        const main = this.closest("main");
-        if (main === this.#main && scrollerFor(this) === this.#scroller) return;
-        // Moving to another reading region changes the resources, even if the
-        // arrival batch keeps this element connected throughout the move.
-        this.#stopWatching?.();
-        this.#main = main;
-        if (main) this.#reconcile();
-      }
-      if (!this.#nav || !this.#main) return;
+      const main = this.closest("main");
+      if (!once(this) && main === this.#main && scrollerFor(this) === this.#scroller)
+        return;
+      // Moving to another reading region changes the resources, even if the
+      // arrival batch keeps this element connected throughout the move.
+      this.#stopWatching?.();
+      this.#main = main;
+      if (!main) return;
+      this.#reconcile();
       this.#stopWatching = whileConnected(this, (signal) => this.#watch(signal));
     }
 
-    #build() {
-      this.#main = this.closest("main");
-      if (!this.#main) return;
-
-      this.#nav = document.createElement("nav");
-      this.#nav.className = "lf-toc-nav lf-ui";
-      this.#nav.dataset.lfGen = "1";
-      this.#nav.setAttribute("aria-label", "On this page");
-
-      const heading = document.createElement("p");
-      heading.className = "lf-toc-heading";
-      relabel(heading, "On this page", { says: true });
-
-      this.#rows = document.createElement("div");
-      this.#rows.className = "lf-toc-rows";
-      const lens = document.createElement("span");
-      lens.className = "lf-toc-window";
-      lens.setAttribute("aria-hidden", "true");
-
-      const row = document.createElement("div");
-      row.className = "lf-toc-start";
-      row.dataset.lfDepth = "0";
-      const link = document.createElement("a");
-      row.append(link);
-      this.#start = { row, link };
-      this.#list = document.createElement("ol");
-      if ("ScrollTimeline" in globalThis) {
-        this.#lens = lens;
-        this.#rows.append(lens);
-      }
-      this.#rows.append(this.#start.row, this.#list);
-      this.#nav.append(heading, this.#rows);
-      this.append(this.#nav);
-      this.#reconcile();
-    }
-
     // Authored revisions retain this widget when its own markup did not change.
-    // Re-read the outline at activation, retaining each surviving link by its title
-    // or address. The shared child reconciler preserves focus and native node state.
+    // Lit retains rows by the heading's authored id or node identity. A destination
+    // may serve several headings, and grouping can change it without changing a row.
     #reconcile() {
       const maxLevel = Number(this.getAttribute("max-level") ?? 6);
       const headings = [...this.#main.querySelectorAll(HEADING_SELECTOR)]
@@ -177,46 +140,72 @@ customElements.define(
           ? this.#main
           : this.#targetFor(this.#main, 0);
       const previous = this.#sections.map(({ destination }) => destination);
-      const available = new Set(this.#sections.slice(1));
       const floor = Math.min(
         ...headings.map(({ heading }) => Number(heading.localName.slice(1))),
       );
-      const items = headings.map(({ heading, label }, index) => {
-        const destination = this.#destinationFor(heading, index + 1);
-        let item = [...available].find(
-          (held) =>
-            held.heading === heading ||
-            (heading.id && held.heading.id === heading.id) ||
-            held.destination.id === destination.id,
-        );
-        if (item) available.delete(item);
-        else {
-          const row = document.createElement("li");
-          const link = document.createElement("a");
-          row.append(link);
-          item = { row, link };
-        }
-        item.heading = heading;
-        item.destination = destination;
-        keeps(
-          item.row,
-          "data-lf-depth",
-          String(Math.min(Number(heading.localName.slice(1)) - floor, 4)),
-        );
-        keeps(item.link, "href", `#${destination.id}`);
-        if (item.link.textContent !== label) item.link.textContent = label;
-        return item;
-      });
-      this.#start.destination = startDestination;
-      keeps(this.#start.link, "href", `#${startDestination.id}`);
+      const items = headings.map(({ heading, label }, index) => ({
+        heading,
+        label,
+        destination: this.#destinationFor(heading, index + 1),
+        depth: Math.min(Number(heading.localName.slice(1)) - floor, 4),
+      }));
       const title = (pageTitle ? wrote(pageTitle).trim() : "") || "Top";
-      if (this.#start.link.textContent !== title) this.#start.link.textContent = title;
-      this.#sections = headings.length ? [this.#start, ...items] : [];
-      this.toggleAttribute("data-lf-toc-empty", !headings.length);
-      setChildren(
-        this.#list,
-        items.map(({ row }) => row),
+      const focused = this.#sections.find(
+        ({ link }) => link === document.activeElement,
       );
+      const restore = focused && holdFocus(this.#nav);
+      const lens =
+        "ScrollTimeline" in globalThis
+          ? html`<span class="lf-toc-window" aria-hidden="true"></span>`
+          : "";
+      const outline = repeat(
+        items,
+        ({ heading }) => heading.id || heading,
+        ({ label, destination, depth }) => html`
+          <li data-lf-depth=${depth}>
+            <a href=${`#${destination.id}`}>${label}</a>
+          </li>
+        `,
+      );
+      render(
+        html`
+          <nav class="lf-toc-nav lf-ui" data-lf-gen="1" aria-label="On this page">
+            <p class="lf-toc-heading" data-lf-gen="1" data-lf-said>On this page</p>
+            <div class="lf-toc-rows">
+              ${lens}
+              <div class="lf-toc-start" data-lf-depth="0">
+                <a href=${`#${startDestination.id}`}>${title}</a>
+              </div>
+              <ol>
+                ${outline}
+              </ol>
+            </div>
+          </nav>
+        `,
+        this,
+      );
+      this.#nav = this.querySelector(".lf-toc-nav");
+      this.#rows = this.#nav.querySelector(".lf-toc-rows");
+      this.#lens = this.#rows.querySelector(".lf-toc-window");
+      const rows = [...this.#rows.querySelectorAll(".lf-toc-start, ol > li")];
+      this.#sections = headings.length
+        ? [{ destination: startDestination }, ...items].map((item, index) => ({
+            ...item,
+            row: rows[index],
+            link: rows[index].querySelector("a"),
+          }))
+        : [];
+      // A new key still represents the user's place when its heading or destination
+      // survives. The template renderer already retains focus through keyed moves.
+      if (restore) {
+        const continuation =
+          this.#sections.find(({ heading }) => heading === focused.heading) ??
+          this.#sections.find(
+            ({ destination }) => destination.id === focused.destination.id,
+          );
+        restore(continuation?.link);
+      }
+      this.toggleAttribute("data-lf-toc-empty", !headings.length);
       this.#observeDestinations(previous);
     }
 
@@ -535,10 +524,7 @@ customElements.define(
       this.#positions.forEach((position, index) => {
         if (this.#shown[index] && position <= threshold) current = index;
       });
-      if (
-        this.#scroller.scrollTop >=
-        this.#scroller.scrollHeight - this.#scroller.clientHeight - 1
-      )
+      if (this.#scroller.scrollTop >= scrollLimit(this.#scroller) - 1)
         current = this.#shown.findLastIndex(Boolean);
       const link = this.#sections[current].link;
       if (link === this.#currentLink) return;
@@ -552,7 +538,7 @@ customElements.define(
     #standLens(clear) {
       if (!this.#lens) return;
       const scroller = this.#scroller;
-      const reach = scroller.scrollHeight - scroller.clientHeight;
+      const reach = scrollLimit(scroller);
       const band = scroller.clientHeight - clear.top - clear.bottom;
       const inputs = `${reach} ${band} ${clear.top}`;
       if (inputs === this.#lensInputs) return;

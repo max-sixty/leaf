@@ -60,18 +60,21 @@ test("semantic publisher ownership closes every browser framework import path", 
   );
 });
 
-// The raw publisher is private to every module, semantic-state.js included, so it
-// carries the other message on each path the named one is read along.
-test("the raw publisher stays private on every path that names it", () => {
-  const raw = "The raw publisher is private to the semantic application.";
+// The modules behind the facade are its own, so the facade is the only edge into the
+// framework: a deep path is refused whatever it names, semantic-state.js included.
+test("a module behind the browser framework's facade is not an import path", () => {
+  const facade =
+    "Import browser framework capabilities from its facade, vendor/browser-runtime.js.";
   for (const source of [
-    "import {createApplicationPublisher} from '../vendor/browser-runtime.js'",
-    "export {createApplicationPublisher} from '../vendor/browser-runtime.js'",
+    "import {createApplicationPublisher} from '../vendor/browser-runtime/snapshot.js'",
+    "import {createSemanticApplication} from '../vendor/browser-runtime/application.js'",
+    "export {createSemanticApplication} from '../vendor/browser-runtime/application.js'",
+    "const {createSemanticApplication} = await import('../vendor/browser-runtime/application.js')",
   ]) {
-    assert.deepEqual(reportsFor(source), [raw]);
+    assert.deepEqual(reportsFor(source), [facade]);
     assert.deepEqual(
       reportsFor(source, "skills/leaf/assets/runtime/semantic-state.js"),
-      [raw],
+      [facade],
     );
   }
 });

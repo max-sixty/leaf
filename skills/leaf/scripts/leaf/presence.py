@@ -178,6 +178,12 @@ def neighbor_candidates() -> tuple:
 def other_leaves(page_dir: Path) -> list:
     """Live neighboring pages, from their own compact canonical publications.
 
+    A closed page is not one of them. Its server stays up so the page stays
+    readable, a standing one for good, so nothing else would ever drop its row, and
+    a count the user glances at to find who needs them would become a tally of
+    everything that has run here. This page's own row is never in the list, so a
+    user looking at a closed page still sees it.
+
     Each candidate costs its server lease/service and one disposable row read.
     Never open another page's log, document, or projection. A row belongs to
     the server incarnation that computed it; absent or older rows stay absent.
@@ -203,7 +209,7 @@ def other_leaves(page_dir: Path) -> list:
             if info is None:
                 continue
             row = read_row(candidate, info, record=record)
-            if row is not None:
+            if row is not None and row["activity"]["kind"] != "closed":
                 others.append(
                     {
                         **row,
@@ -279,7 +285,7 @@ def presence_with_activity(
         "claim_session": claim.get("id") if claim else None,
         # Opaque identity of the claiming session's current turn on this page.
         # An opened delivery names this value; equality, rather than timestamps,
-        # is what says that exact user move is in the turn running now.
+        # is what says that exact update is in the turn running now.
         "claim_turn": claim.get("turn") if claim else None,
         # When the claiming session's last turn ended, or None while none has.
         # A `working` claim older than this is one that no later turn renewed

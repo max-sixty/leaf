@@ -185,7 +185,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
     wait_until_ready(page)
     result = page.evaluate(
         """async () => {
-        const {TEXT_BLOCK, pageRange, pageText} = await window.__lfRuntimeImport('/runtime/passages.js');
+        const {TEXT_BLOCK, pageRange} = await window.__lfRuntimeImport('/runtime/passages.js');
         const {anchorForRange, resolveAnchor} =
             await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
         const {nextRender, renderingSettled} =
@@ -267,7 +267,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
                 continue;
             }
             const anchor = anchorForRange(range);
-            const resolved = resolveAnchor(anchor, pageText());
+            const resolved = resolveAnchor(anchor);
             // A cross-cell selection remains a real native selection and a writable
             // comment. It must not acquire an exact semantic highlight by ignoring
             // the same fences file capture respects. Generated wordless faces and
@@ -3172,11 +3172,11 @@ def thread_a_press_opened(page):
     The preview card the press opens places itself and only then hands over focus, from
     the placement promise `deferThreadPreviewFocus` waits on — so the thread arrives a
     frame after the press rather than inside it. This states that ordering rather than
-    reading across it. The wait's own timeout is short, and it answers None so a caller
-    still reports which thread opened instead of raising over the reading.
+    reading across it. It answers None rather than raising, so a caller still reports
+    which thread opened instead of raising over the reading.
     """
     try:
-        page.wait_for_function(f"() => {FOCUSED_THREAD} != null", timeout=5000)
+        page.wait_for_function(f"() => {FOCUSED_THREAD} != null")
     except PlaywrightTimeout:
         return None
     return page.evaluate(f"() => {FOCUSED_THREAD}.innerText")
@@ -6767,28 +6767,33 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
 def test_shadow_staging_replaces_all_nodes_without_disturbing_a_retained_editor(
     browser, serve
 ):
-    """Text and comments leave the stage; a retained control keeps its caret."""
+    """Staging retains a Lit container and its editor while other nodes leave."""
     page = open_page(browser, serve(DIFF_PAGE))
     result = page.evaluate(
         """async () => {
-          const {shadowStage} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {html, render, shadowStage} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const host = document.querySelector('lf-diff');
+          const container = document.createElement('div');
           const input = document.createElement('input');
           input.value = 'draft reply';
+          const paint = text => render(html`<p>${text}</p>${input}`, container);
+          paint('Before restaging');
           const old = document.createElement('p');
           old.textContent = 'old reading';
-          shadowStage(host, [old, document.createComment('old stage'), input]);
+          shadowStage(host, [old, document.createComment('old stage'), container]);
           input.focus();
           input.setSelectionRange(2, 5);
           const next = document.createElement('p');
           next.textContent = 'new reading';
-          shadowStage(host, [next, input]);
+          shadowStage(host, [next, container]);
+          paint('After restaging');
           return {
             text: [...host.shadowRoot.childNodes]
               .filter(node => node.localName === 'p')
               .map(node => node.textContent),
             comments: [...host.shadowRoot.childNodes]
               .filter(node => node.nodeType === Node.COMMENT_NODE).length,
+            rendered: container.querySelector('p').textContent,
             focused: host.shadowRoot.activeElement === input,
             value: input.value,
             selection: [input.selectionStart, input.selectionEnd],
@@ -6798,6 +6803,7 @@ def test_shadow_staging_replaces_all_nodes_without_disturbing_a_retained_editor(
     assert result == {
         "text": ["new reading"],
         "comments": 0,
+        "rendered": "After restaging",
         "focused": True,
         "value": "draft reply",
         "selection": [2, 5],

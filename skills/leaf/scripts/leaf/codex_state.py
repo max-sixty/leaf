@@ -266,7 +266,7 @@ def delivery_turn(session_id: str) -> str | None:
     Use the same dated activity reading as the page, so an interrupted or stale
     turn never holds the idle queue indefinitely. Claims derive the current
     provider turn from the session lifecycle; delivery hooks renew it and offer
-    feedback. Read outside the delivery lock: capture takes a page transaction
+    updates. Read outside the delivery lock: capture takes a page transaction
     before that lock.
     """
     observed = hook_turn(session_id)

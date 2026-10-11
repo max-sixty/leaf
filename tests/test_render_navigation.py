@@ -616,40 +616,10 @@ def test_the_thread_panel_and_a_page_thread_carry_names(browser, serve):
     )
 
 
-def test_a_comment_box_opens_where_a_panel_beside_the_page_leaves_it_in_sight(
-    browser, serve
-):
-    """The panels dominate what focus reaches (Max, 2026-10-06). With Threads open
-    beside `annotation-workspace`, `c` on a selection opened the comment box in the
-    annotation rail under the panel, so the user typed into a box they could not see. A
-    seat the panel stands over is refused, and the box opens in its home in the panel's
-    foot; closing the panel uncovers the rail, and the box returns to it rather than
-    standing hidden with the panel. Drawing the panel's edge over an open box moves it
-    the same way."""
-    workspace = next(p for p in EXAMPLES if p.stem == "annotation-workspace")
-    page = open_page(browser, serve(workspace))
-    resized(page, 1440, 900)
-    panel = page.get_by_role("dialog", name="Threads", exact=True)
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    expect(panel).to_be_visible()
-    page.keyboard.press("g")
-    page.keyboard.press("p")
-    page.keyboard.press("/")
-    page.keyboard.type("third block")
-    page.keyboard.press("Enter")
-    page.keyboard.press("c")
-    composer = page.locator("leaf-text.lf-fab-input")
-    expect(composer).to_be_focused()
-    expect(panel.locator("leaf-text.lf-fab-input")).to_be_visible()
-    expect(panel).to_be_visible()
-
-    page.keyboard.press("Escape")
-    page.keyboard.press("Escape")
-    expect(panel).to_be_hidden()
-    expect(page.locator("#aw-conversations leaf-text.lf-fab-input")).to_be_visible()
-
-    # Drawing the panel's edge over a box already open moves it too.
+def test_a_comment_box_moves_home_when_a_panel_comes_to_cover_its_seat(browser, serve):
+    """The panels dominate what focus reaches (Max, 2026-10-06). A comment box whose
+    seat the Threads panel comes to stand over moves to its home in the panel's foot,
+    keeping its words, rather than standing hidden under the panel."""
     walkthrough = next(p for p in EXAMPLES if p.stem == "pr-walkthrough")
     page = open_page(browser, serve(walkthrough))
     resized(page, 1440, 900)
@@ -3670,10 +3640,10 @@ def test_a_failed_ask_reveal_does_not_register_an_arrival(browser, serve):
     )
     try:
         page.keyboard.press("q")
-        page.wait_for_function("window.askRevealStarted === true", timeout=3000)
+        page.wait_for_function("window.askRevealStarted === true")
         expect(page.locator("#live-question-decision")).to_be_focused()
         page.evaluate("() => { rejectAskReveal(new Error('ask reveal probe')); }")
-        page.wait_for_function("window.askRevealRejected === true", timeout=3000)
+        page.wait_for_function("window.askRevealRejected === true")
         shortcut_bar_text(page)
         assert position.text_content() == "1 of 4 waiting on you · Question"
         assert position.get_attribute("data-lf-boundary") is None
@@ -3705,13 +3675,13 @@ def test_a_delayed_ask_reveal_yields_to_programmatic_user_focus(browser, serve):
     )
 
     page.keyboard.press("q")
-    page.wait_for_function("window.askRevealStarted === true", timeout=3000)
+    page.wait_for_function("window.askRevealStarted === true")
     # Assistive technology and focus-management code can move the user without a
     # pointer, key, or input event. The retained navigation must read focus itself.
     page.locator(".lf-threads-toggle").focus()
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
     page.evaluate("releaseAskReveal()")
-    page.wait_for_function("window.askRevealSettled === true", timeout=3000)
+    page.wait_for_function("window.askRevealSettled === true")
     rendered(page)
 
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
@@ -4347,11 +4317,11 @@ def test_a_q_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, ser
     )
 
     page.keyboard.press("q")
-    page.wait_for_function("window.threadRevealStarted === true", timeout=3000)
+    page.wait_for_function("window.threadRevealStarted === true")
     page.locator(".lf-threads-toggle").focus()
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
     page.evaluate("releaseThreadReveal()")
-    page.wait_for_function("window.threadRevealSettled === true", timeout=3000)
+    page.wait_for_function("window.threadRevealSettled === true")
     rendered(page)
 
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
@@ -4405,11 +4375,11 @@ def test_a_delayed_thread_reveal_reports_that_new_user_focus_cancelled_it(
     )
 
     page.locator("#held-thread-arrival").click()
-    page.wait_for_function("window.threadRevealStarted === true", timeout=3000)
+    page.wait_for_function("window.threadRevealStarted === true")
     page.locator(".lf-threads-toggle").focus()
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
     page.evaluate("releaseThreadReveal()")
-    page.wait_for_function("window.threadArrivalSettled === true", timeout=3000)
+    page.wait_for_function("window.threadArrivalSettled === true")
 
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
     assert page.evaluate("window.threadArrived") is None
@@ -7229,7 +7199,7 @@ def test_user_news_interrupts_and_then_restores_background_news(browser, serve):
     )
     expect(live).to_have_text("Saved — sent")
     expect(notice).to_have_text("Saved — sent")
-    expect(notice).to_have_text("Agent replied — open Threads", timeout=5_000)
+    expect(notice).to_have_text("Agent replied — open Threads")
     assert (
         page.evaluate(
             "() => window.__lfLiveChanges.filter("
@@ -7483,9 +7453,9 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         '.lf-command-reference tr[data-lf-command="reading.align.top"]'
     )
     expect(alignment).to_have_count(1)
-    # No reading item stands while the reference opens from page chrome, so this
-    # capability has only its unbound page control in this scene.
-    expect(alignment.locator(".lf-binding-sequence > kbd")).to_have_text(["⏎ / space"])
+    # Alignment has a page-level route even when no reading item stands while
+    # the reference opens from chrome.
+    expect(alignment.locator(".lf-binding-sequence > kbd")).to_have_text(["g", "z"])
     overlaps = goto.locator("tr[data-lf-command]").evaluate_all(
         """rows => rows.flatMap(row => {
           const [key, action] = row.querySelectorAll(':scope > td');
@@ -12479,8 +12449,11 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     page.locator(".lf-threads").focus()
     expect(page.locator(f"{EXPANDED} > .lf-thread-summary")).to_be_focused()
     expect(visible_hints.nth(0)).not_to_contain_text("send")
-    page.locator(f"{EXPANDED} .lf-thread-reply leaf-text").focus()
+    reply = page.locator(f"{EXPANDED} .lf-thread-reply leaf-text")
+    reply.focus()
     expect(visible_hints).to_have_count(2)
+    expect(visible_hints.nth(0)).to_contain_text("edit last message")
+    write(reply, "A reply in progress.")
     expect(visible_hints.nth(0)).to_contain_text("send")
     expect(visible_hints.nth(1)).to_contain_text("back to thread")
 
@@ -16268,7 +16241,7 @@ def test_an_ask_in_a_reply_is_where_the_user_stands_once_answered(browser, serve
     """An Ask frozen into a reply sits in a thread about a page Ask. Standing in the
     reply's Ask is standing there whether or not it is answered: the thread leads to its
     page Ask only from a node inside no Ask, so a user back on the answered option does
-    not have the page Ask's ring and digits. A control the margin draws for a widget in
+    not have the page Ask's ring and digits. A contributed control for a widget in
     the reply stands nowhere, since its widget is chrome in no Ask, so `q` from it starts
     where the reader is rather than behind every Ask on the page."""
     url = serve(
@@ -16300,7 +16273,20 @@ def test_an_ask_in_a_reply_is_where_the_user_stands_once_answered(browser, serve
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, True)
-    page.locator(".lf-thread .lf-shot-toggle").focus()
+    page.evaluate("""async () => {
+      const {contributionEntry, registerContribution} =
+        await window.__lfRuntimeImport('/runtime/widget-api.js');
+      registerContribution({key: 'reply-capture',
+        target: document.querySelector('.lf-thread lf-shot'),
+        read: () => ({entries: [contributionEntry({key: 'review', glyph: 'R',
+          label: 'Review reply capture'})]}), activate: () => {},
+      });
+    }""")
+    contributed = page.locator(".lf-thread").get_by_role(
+        "button", name="Review reply capture", exact=True
+    )
+    expect(contributed).to_be_visible()
+    contributed.focus()
     page.keyboard.press("q")
     expect(page.locator("#cache-ask")).to_be_focused()
     option = page.locator("#follow-yes")

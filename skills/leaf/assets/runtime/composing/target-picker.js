@@ -18,8 +18,8 @@ import {
 } from "../passages.js";
 import { bannerFoot, shownBox, shownParts } from "../geometry.js";
 import { repaint } from "../repaint.js";
-import { union } from "../rect.js";
-import { anchorFor } from "../anchor-names.js";
+import { intersect, union } from "../rect.js";
+import { anchorFor } from "../css-anchors.js";
 import { paintSet } from "../target-paint-geometry.js";
 import {
   handBack,
@@ -563,12 +563,7 @@ export function createTargetPicker({
         target: owner,
         held: true,
         anchor,
-        rect: {
-          left: Math.max(box.left, own.left),
-          top: Math.max(box.top, own.top),
-          right: Math.min(box.right, own.right),
-          bottom: Math.min(box.bottom, own.bottom),
-        },
+        rect: intersect(box, own),
       })),
     );
   }

@@ -1,3 +1,4 @@
+import {move as leafMove} from "/runtime/dom-move.js";
 /**!
  * Sortable 1.15.7
  * @author	RubaXa   <trash@rubaxa.org>
@@ -1752,9 +1753,9 @@ Sortable.prototype = /** @lends Sortable.prototype */{
         dragOverEvent('revert');
         if (!Sortable.eventCanceled) {
           if (nextEl) {
-            rootEl.moveBefore(dragEl, nextEl);
+            leafMove(rootEl, dragEl, nextEl);
           } else {
-            rootEl.moveBefore(dragEl, null);
+            leafMove(rootEl, dragEl, null);
           }
         }
         return completed(true);
@@ -1779,9 +1780,9 @@ Sortable.prototype = /** @lends Sortable.prototype */{
           capture();
           if (elLastChild && elLastChild.nextSibling) {
             // the last draggable element is not the last node
-            el.moveBefore(dragEl, elLastChild.nextSibling);
+            leafMove(el, dragEl, elLastChild.nextSibling);
           } else {
-            el.moveBefore(dragEl, null);
+            leafMove(el, dragEl, null);
           }
           parentEl = el; // actualization
 
@@ -1798,7 +1799,7 @@ Sortable.prototype = /** @lends Sortable.prototype */{
         targetRect = getRect(target);
         if (_onMove(rootEl, el, dragEl, dragRect, target, targetRect, evt, false) !== false) {
           capture();
-          el.moveBefore(dragEl, firstChild);
+          leafMove(el, dragEl, firstChild);
           parentEl = el; // actualization
 
           changed();
@@ -1846,9 +1847,9 @@ Sortable.prototype = /** @lends Sortable.prototype */{
           setTimeout(_unsilent, 30);
           capture();
           if (after && !nextSibling) {
-            el.moveBefore(dragEl, null);
+            leafMove(el, dragEl, null);
           } else {
-            target.parentNode.moveBefore(dragEl, after ? nextSibling : target);
+            leafMove(target.parentNode, dragEl, after ? nextSibling : target);
           }
 
           // Undo chrome's scroll adjustment (has no effect on other browsers)
@@ -2654,9 +2655,9 @@ Revert.prototype = {
     }
     var nextSibling = getChild(this.sortable.el, this.startIndex, this.options);
     if (nextSibling) {
-      this.sortable.el.moveBefore(dragEl, nextSibling);
+      leafMove(this.sortable.el, dragEl, nextSibling);
     } else {
-      this.sortable.el.moveBefore(dragEl, null);
+      leafMove(this.sortable.el, dragEl, null);
     }
     this.sortable.animateAll();
     if (putSortable) {

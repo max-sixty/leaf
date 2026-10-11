@@ -94,7 +94,7 @@ import {
   carriedAnchor,
   nameAnchor,
   scrollsWith,
-} from "/runtime/anchor-names.js";
+} from "/runtime/css-anchors.js";
 
 const rows = new Map();
 // A contents target's first shown part can leave while its declaration remains.
@@ -337,8 +337,9 @@ function restingRail() {
 // inside it if a pointing gesture named one (pointed-place.js): the row standing there
 // now where one is shown, else where a rail row would stand at rest, `--rail-hang` off
 // `main`'s edge and one entry wide, and nothing where the rail does not stand beside
-// `target`, whose rows are pins placed as they come. A comment's surfaces keep it clear
-// (comment-placement.js), so the row a sent comment brings stays in view.
+// `target`, whose rows are pins placed as they come. comment-placement.js keeps this
+// row clear when the full preferred message width fits beyond it; otherwise the
+// message takes priority over marker clearance.
 export function marginSpot(target, point = null) {
   for (const [row, options] of rows)
     if (
@@ -959,11 +960,11 @@ export function unregisterMarginRow(row) {
   scheduleMarginLayout();
 }
 
+// A style property written, or removed for null. The platform makes no write of a
+// value the property already holds (keeps.js).
 function setStyle(row, property, value) {
-  if (value === null) {
-    if (row.style.getPropertyValue(property)) row.style.removeProperty(property);
-  } else if (row.style.getPropertyValue(property) !== value)
-    row.style.setProperty(property, value);
+  if (value === null) row.style.removeProperty(property);
+  else row.style.setProperty(property, value);
 }
 
 // Whether a row has somewhere to stand: its target renders, its scrollers leave some of

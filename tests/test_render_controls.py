@@ -1640,7 +1640,7 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
         "button", name="Reset", exact=True
     )
     reset.click()
-    expect(reset).to_be_enabled(timeout=30000)
+    expect(reset).to_be_enabled()
     expect(views["overview"].locator(".lf-thread-panel")).to_be_visible()
     expect(views["overview"].locator(".lf-thread:not([hidden])")).to_have_count(3)
     reset.focus()
@@ -1698,7 +1698,7 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
         ("you", "2be2443f0bb6cc49fc86b52f340e6073", 2, "Workshop room photo"),
         ("resolved", "bab3cdfcfb8c02aacbb27da731de947a", 1, "Projector map"),
         ("summary", "9ee465bb3f9c1fa309ea9cb1767fa365", 4, "Afternoon workshop"),
-        ("updates", "bg-progress-question", 4, "Schedule checks"),
+        ("progress", "bg-progress-question", 4, "Schedule checks"),
         (
             "overview",
             "72e031c5bf0d485ba9054628e09869d4",
@@ -1716,7 +1716,7 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
         expect(topic).to_be_visible()
         expect(topic).to_have_text(title)
         assert topic.evaluate("element => element.getBoundingClientRect().width") > 40
-        if view == "updates":
+        if view == "progress":
             card = frame.locator(f'.lf-thread[data-id="{thread}"]')
             checkpoint = card.locator(".lf-thread-checkpoint")
             expect(checkpoint.locator(".lf-summary-label")).to_have_count(0)
@@ -1799,48 +1799,6 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
     expect(
         frame.locator(".lf-thread[open]:not([hidden]) .lf-thread-topic")
     ).to_have_text("Projector map")
-
-
-def test_gallery_page_annotation_sample_owns_its_child_mode(browser, serve):
-    """Native practice comments and decisions use a rail without changing the parent."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
-    parent_before = events_model.read_events(serve.page_dir)
-    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
-    child = page.frame_locator("#bg-page-annotations-sample iframe")
-    expect(child.locator("body")).to_have_attribute("data-annotations", "page")
-    rail = child.locator("lf-annotation-rail")
-    expect(rail).to_be_visible()
-    assert (
-        child.locator(
-            ".lf-margin-projection,.lf-margin-preview,.lf-visual-marks"
-        ).count()
-        == 0
-    )
-    assert page.locator("body").get_attribute("data-annotations") != "page"
-    resources = child.locator("body").evaluate(
-        "() => performance.getEntriesByType('resource').map(e => new URL(e.name).pathname)"
-    )
-    assert not [path for path in resources if "/runtime/annotation-overlay/" in path]
-    child.locator("#bg-page-annotations-finding").click(modifiers=["Alt"])
-    editor = rail.locator(".lf-fab-input")
-    expect(editor).to_be_focused()
-    editor.press_sequentially("A comment in this practice window")
-    editor.press("Control+Enter")
-    expect(
-        rail.locator(".lf-msg").filter(has_text="A comment in this practice window")
-    ).to_be_visible()
-    option = child.locator("#bg-page-annotations-short")
-    option.click()
-    expect(option.get_by_role("checkbox")).to_be_checked()
-    expect(child.locator(".lf-shortcut-bar")).to_contain_text("undo")
-    option.press("z")
-    expect(option.get_by_role("checkbox")).not_to_be_checked()
-    assert events_model.read_events(serve.page_dir) == parent_before
-    page.locator("#bg-page-annotations-sample").get_by_role(
-        "button", name="Reset", exact=True
-    ).click()
-    expect(child.locator("body")).to_have_attribute("data-annotations", "page")
-    expect(child.locator(".lf-page-thread")).to_have_count(0)
 
 
 def test_sample_fixture_history_presents_before_ready_and_returns_on_reset(
@@ -2013,7 +1971,6 @@ def test_sample_host_view_changes_leave_its_scroll_and_keyboard_position(
             completed += 1
             expect(page.locator("#completed")).to_have_text(str(completed))
             child = frame.element_handle().content_frame()
-            rendered(child)
             expect(button).to_be_focused()
             assert page.evaluate("scrollY") == before
             panel = child.locator(".lf-thread-panel")
@@ -3668,7 +3625,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
             detail,
             dot: document.querySelector('.lf-banner .lf-dot'),
             text: [...detail.childNodes].find(
-              (node) => node.nodeType === Node.TEXT_NODE,
+              (node) => node.nodeType === Node.TEXT_NODE && node.data.trim(),
             ),
           };
           return window.__lfStatusNodes.text.data;
@@ -3865,48 +3822,13 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     )
 
 
-def test_banner_status_lit_owner_moves_one_native_surface_between_layouts(
-    browser, serve
-):
-    """Publication and ordinary status are two layouts of one retained surface."""
+def test_banner_status_keeps_publication_links_outside_its_disclosure(browser, serve):
+    """Publication links remain ordinary links; status keeps its native disclosure."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
-    owner = page.locator("leaf-banner-status.lf-banner-status")
-    expect(owner).to_have_count(1)
     page.evaluate(
         """() => {
-          const owner = document.querySelector('leaf-banner-status');
-          window.__lfStatusSurface = {
-            owner,
-            button: owner.querySelector('.lf-status-button'),
-            detail: owner.querySelector('.lf-status-detail'),
-            dot: owner.querySelector('.lf-dot'),
-            text: owner.querySelector('.lf-status-text'),
-          };
-          window.__lfStatusSurfaceSnapshot = () => {
-            const nodes = window.__lfStatusSurface;
-            const link = nodes.owner.querySelector('.lf-publication-install');
-            return {
-              ownerCount: document.querySelectorAll('leaf-banner-status').length,
-              button: nodes.button === document.querySelector('.lf-status-button'),
-              detail: nodes.detail === document.querySelector('.lf-status-detail'),
-              dot: nodes.dot === document.querySelector('.lf-banner .lf-dot'),
-              text: nodes.text === document.querySelector('.lf-status-text'),
-              buttonConnected: nodes.button.isConnected,
-              buttonParent: nodes.button.parentElement === nodes.owner,
-              buttonChildren: nodes.button.querySelectorAll(
-                '.lf-dot, .lf-status-text'
-              ).length,
-              dotParent: nodes.dot.parentElement.className,
-              // The words stand in one box with a passing notice, which moves whole.
-              textParent: nodes.text.parentElement.parentElement.className,
-              detailParent: nodes.detail.parentElement === nodes.owner,
-              detailOpen: nodes.detail.matches(':popover-open'),
-              detailText: nodes.detail.textContent,
-              statusText: nodes.text.textContent,
-              linkCount: nodes.owner.querySelectorAll('.lf-publication-install').length,
-              linkInButton: !!link?.closest('.lf-status-button'),
-            };
-          };
+          window.__lfStatusOwner = document.querySelector('leaf-banner-status');
+          window.__lfStatusDetail = document.querySelector('.lf-status-detail');
         }"""
     )
     door = page.locator(".lf-status-button")
@@ -3916,88 +3838,47 @@ def test_banner_status_lit_owner_moves_one_native_surface_between_layouts(
     expect(detail).to_be_visible()
     expect(detail).to_be_focused()
 
-    published = page.evaluate(
-        """() => {
-          window.__lfStatusSurface.owner.present(Object.freeze({
-            tone: '',
-            summary: '',
-            explanation: 'Published copy Install Leaf',
-            publication: Object.freeze({
-              copy: 'Published copy ',
-              install: 'Install Leaf',
-              installUrl: '/#install',
-            }),
-          }));
-          return window.__lfStatusSurfaceSnapshot();
-        }"""
-    )
-    assert published == {
-        "ownerCount": 1,
-        "button": False,
-        "detail": True,
-        "dot": True,
-        "text": True,
-        "buttonConnected": False,
-        "buttonParent": False,
-        "buttonChildren": 0,
-        "dotParent": "lf-banner-status",
-        "textParent": "lf-banner-status",
-        "detailParent": True,
-        "detailOpen": False,
-        "detailText": "Published copy Install Leaf",
-        "statusText": "Published copy Install Leaf",
-        "linkCount": 1,
-        "linkInButton": False,
-    }, f"the publication layout duplicated or orphaned its native surface: {published}"
+    for _ in range(2):
+        page.evaluate(
+            """() => window.__lfStatusOwner.present(Object.freeze({
+              tone: '', summary: '', queues: '', queuesWidest: '',
+              explanation: 'Published copy Install Leaf',
+              publication: Object.freeze({
+                copy: 'Published copy ', install: 'Install Leaf',
+                installUrl: '/#install',
+              }),
+            }))"""
+        )
+        expect(door).to_have_count(0)
+        expect(detail).to_be_hidden()
+        expect(page.locator(".lf-status-text")).to_have_text(
+            "Published copy Install Leaf"
+        )
+        link = page.get_by_role("link", name="Install Leaf", exact=True)
+        expect(link).to_have_attribute("href", "/#install")
+        assert not link.evaluate("node => !!node.closest('button')")
+        assert page.evaluate(
+            "window.__lfStatusDetail === document.querySelector('.lf-status-detail')"
+        ), "changing the layout replaced the native disclosure"
 
-    ordinary = page.evaluate(
-        """() => {
-          window.__lfStatusSurface.owner.present(Object.freeze({
-            tone: 'offline',
-            summary: 'Server offline',
-            explanation: 'Server offline detail',
-            publication: null,
-          }));
-          return window.__lfStatusSurfaceSnapshot();
-        }"""
-    )
-    assert ordinary == {
-        "ownerCount": 1,
-        "button": True,
-        "detail": True,
-        "dot": True,
-        "text": True,
-        "buttonConnected": True,
-        "buttonParent": True,
-        "buttonChildren": 2,
-        "dotParent": "lf-status-button",
-        "textParent": "lf-status-button",
-        "detailParent": True,
-        "detailOpen": False,
-        "detailText": "Server offline detail",
-        "statusText": "Server offline",
-        "linkCount": 0,
-        "linkInButton": False,
-    }, f"the ordinary layout failed to reclaim its retained controls: {ordinary}"
-
-    published_again = page.evaluate(
-        """() => {
-          window.__lfStatusSurface.owner.present(Object.freeze({
-            tone: '',
-            summary: '',
-            explanation: 'Published copy Install Leaf',
-            publication: Object.freeze({
-              copy: 'Published copy ',
-              install: 'Install Leaf',
-              installUrl: '/#install',
-            }),
-          }));
-          return window.__lfStatusSurfaceSnapshot();
-        }"""
-    )
-    assert published_again == published, (
-        f"returning to publication created a parallel status surface: {published_again}"
-    )
+        page.evaluate(
+            """() => window.__lfStatusOwner.present(Object.freeze({
+              tone: 'offline', summary: 'Server offline', queues: '', queuesWidest: '',
+              explanation: 'Server offline detail', publication: null,
+            }))"""
+        )
+        expect(page.locator(".lf-publication-install")).to_have_count(0)
+        expect(door).to_have_text("Server offline")
+        expect(door).to_have_attribute("popovertarget", "lf-status-detail")
+        expect(door).to_have_attribute("aria-expanded", "false")
+        door.focus()
+        page.keyboard.press("Enter")
+        expect(detail).to_be_visible()
+        expect(detail).to_be_focused()
+        expect(detail).to_have_text("Server offline detail")
+        page.keyboard.press("Escape")
+        expect(detail).to_be_hidden()
+        expect(door).to_be_focused()
 
 
 WEBSITE_LINE = (
@@ -5127,9 +5008,11 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
                 }"""
         )
         for item in ("toolbar", "ring"):
+            # Centered flex boxes round to device pixels independently of the
+            # banner's stated height; subpixel overhang is not a clipped aim.
             assert (
-                geometry[item]["top"] >= geometry["banner"]["top"] - 0.01
-                and geometry[item]["bottom"] <= geometry["banner"]["bottom"] + 0.01
+                geometry[item]["top"] >= geometry["banner"]["top"] - 1
+                and geometry[item]["bottom"] <= geometry["banner"]["bottom"] + 1
             ), f"the wide coarse {item} escaped its banner at {width}px: {geometry}"
 
     # The browser's root is Leaf's page scrollport, and native touch beginning in
@@ -5457,6 +5340,10 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
     page.evaluate(DEFINE_BOXES)
     control = page.locator(archetype["target"])
     expect(control).to_be_visible()
+    # Playwright's click may scroll its target into view. Finish that navigation
+    # before holding the positions the press itself must preserve.
+    control.scroll_into_view_if_needed()
+    page_at_rest(page)
     before = control.evaluate(NEIGHBOURHOOD, NEIGHBOUR)
     assert before["names"], f"{archetype['name']} has no neighbouring control to hold"
 
@@ -5476,6 +5363,35 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
         f"pressing the {archetype['name']} control moved its neighbours:\n  "
         + "\n  ".join(moved)
     )
+
+
+def test_the_neighbour_reading_detects_a_whole_row_moving_on_press(browser):
+    """Moving the containing row must not cancel a control's screen displacement."""
+    page = browser.unwatched.new_page()
+    page.set_viewport_size({"width": 800, "height": 600})
+    page.set_content("""
+      <div class="lf-playground-actions">
+        <button id="move" onclick="this.parentElement.style.transform =
+          this.parentElement.style.transform ? 'translate(2000px, 24px)' :
+            'translate(32px, 24px)'">Move row</button>
+        <button>Neighbour</button>
+      </div>
+    """)
+    page.evaluate(DEFINE_BOXES)
+    before = page.locator("#move").evaluate(NEIGHBOURHOOD, NEIGHBOUR)
+    assert before["names"] == ['button "Neighbour"']
+    assert displaced(before, page.evaluate("() => window.__lfBoxes()")) == []
+
+    page.locator("#move").click()
+    assert displaced(before, page.evaluate("() => window.__lfBoxes()")) == [
+        'button "Neighbour" moved by [32, 24, 0, 0] (left, top, width, height)'
+    ]
+    # Moving beyond the viewport is displacement too, not hiding the control.
+    page.locator("#move").click()
+    assert page.get_by_role("button", name="Neighbour").bounding_box()["x"] > 800
+    assert displaced(before, page.evaluate("() => window.__lfBoxes()")) == [
+        'button "Neighbour" moved by [2000, 24, 0, 0] (left, top, width, height)'
+    ]
 
 
 def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
@@ -5969,6 +5885,42 @@ def test_a_phone_shows_a_notice_in_the_banner_s_status_words(browser, serve):
     expect(notice).to_be_hidden()
     expect(words).to_have_css("opacity", "1")
 
+    # Once the gesture's acknowledgement has faded, background news owns its own
+    # rendering. A shorter successor keeps the same first-line seat and press.
+    page.evaluate("""async () => {
+      window.noticeOwner = await window.__lfRuntimeImport('/runtime/notifications.js');
+      noticeOwner.notice('A shared draft sent to the agent', {background: true});
+    }""")
+    expect(notice).to_have_text("A shared draft sent to the agent")
+    expect(notice).to_be_visible()
+    rendered(page)
+    fragments = """node => {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      return [...range.getClientRects()].map(rect => ({x: rect.x, y: rect.y}));
+    }"""
+    long_lines = notice.evaluate(fragments)
+    assert len(long_lines) == 2, long_lines
+    press_before = press.bounding_box()
+    page.evaluate("""() => {
+      noticeOwner.notice('New conversation sent', {background: true});
+    }""")
+    expect(notice).to_have_text("New conversation sent")
+    rendered(page)
+    short_lines = notice.evaluate(fragments)
+    assert len(short_lines) == 1, short_lines
+    assert short_lines[0] == pytest.approx(long_lines[0], abs=0.5), (
+        long_lines,
+        short_lines,
+    )
+    press_after = press.bounding_box()
+    # The sentence may grow rightward; its leading edge and vertical aim stay put.
+    for edge in ("x", "y", "height"):
+        assert press_after[edge] == pytest.approx(press_before[edge], abs=0.5), (
+            press_before,
+            press_after,
+        )
+
 
 def test_a_recorded_move_is_acknowledged_in_the_status_and_nowhere_else(browser, serve):
     """The page has one place for brief news. A gesture's acknowledgement used to arrive
@@ -6007,7 +5959,7 @@ def test_a_recorded_move_is_acknowledged_in_the_status_and_nowhere_else(browser,
     round_trip(page)
 
     # The line's own words come back once the notice has had its moment.
-    expect(status).to_be_visible(timeout=6_000)
+    expect(status).to_be_visible()
     expect(notice).to_be_hidden()
 
 
@@ -6283,10 +6235,7 @@ def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
                 row["title"]: (row["activity"]["kind"], row["activity"]["detail"])
                 for row in state["others"]
             }
-            == {
-                "The closing leaf": ("closed", ""),
-                "The other leaf": ("working", "recording the demo"),
-            }
+            == {"The other leaf": ("working", "recording the demo")}
         ),
     )
     held = page.evaluate(
@@ -6626,9 +6575,8 @@ def test_a_failed_leaves_restore_keeps_application_presentation_pending(
     )
     told(
         page,
-        until=lambda state: any(
-            row["title"] == "The closing leaf" and row["activity"]["kind"] == "closed"
-            for row in state["others"]
+        until=lambda state: all(
+            row["title"] != "The closing leaf" for row in state["others"]
         ),
     )
     page.wait_for_function(
@@ -7548,17 +7496,12 @@ def test_a_walk_down_the_drawer_stops_clear_of_the_shortcut_bar_text(
 
 
 def test_a_walk_down_the_queue_stops_clear_of_the_shortcut_bar_text(browser, serve):
-    """The pages drawer's reading above, made of the drawer beside it. The room is one
-    fact — the shortcut bar stands in the corner both lists reach — and it was written to one
-    list, so the Asks list's walk parked its last row 47px under the line. Nothing said
-    so, because no example ships enough Asks to fill a drawer and the walk that would have
-    shown it had only ever been made down the other one.
+    """A covering Questions panel keeps the last row above the shortcut bar.
 
-    So both lists end above the same band (`--lf-bottom-bar-h`), and this is the half of that the
-    leaves reading could not cover: a fact stated per drawer is a fact the second drawer
-    goes without, and the second drawer is the one nobody looks at."""
+    Beside a live page the bar ends at the panel's edge, so only the covering
+    posture exercises the clearance shared with the Pages drawer."""
     page = open_page(browser, serve(MANY_ASKS_PAGE))
-    resized(page, 900, 420)
+    resized(page, 480, 420)
     banner_control(page, ".lf-queue").click()
     rows = page.locator("button.lf-queue-row")
     expect(rows).to_have_count(24)
@@ -7653,6 +7596,25 @@ def test_a_scroll_box_inside_a_widgets_shadow_tree_takes_the_keyboard(browser, s
     assert all(item["tab"] == -1 for item in fitted), (
         "a diff that fits added a keyboard stop with nowhere to scroll"
     )
+
+
+def test_a_hidden_control_does_not_take_a_scroll_boxes_keyboard_route(browser, serve):
+    markup = leaf_page(
+        "Hidden control in scroll box",
+        '<h1>Review</h1><a id="before" href="#scroll">Read code</a>'
+        '<div id="scroll" style="width:220px; overflow-x:auto; white-space:nowrap">'
+        '<button style="visibility:hidden">Unavailable</button>'
+        "<span>alpha_function_name = compute_the_overly_long_value(first_argument, second_argument)</span>"
+        "</div>",
+    )
+    page = open_page(browser, serve(markup))
+    box = page.locator("#scroll")
+    assert box.evaluate("el => el.scrollWidth > el.clientWidth")
+    expect(box).to_have_attribute("tabindex", "0")
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(box).to_be_focused()
+    assert box.evaluate("el => el.matches(':focus-visible')")
 
 
 def test_a_comment_on_a_scrolling_box_leaves_its_tab_stop_alone(browser, serve):
@@ -8994,7 +8956,7 @@ RING_CASES = (
                 ("lf-option > .lf-pick", "options-row"),
                 (
                     any_owner_entry("suggestion", "accept") + ":visible",
-                    ("ask", "margin-entry"),
+                    "margin-entry",
                 ),
                 (".lf-draft-edit", "draft-editor"),
             ),
@@ -9166,7 +9128,6 @@ RING_EXAMPLE_FILES = {example.stem: example for example in (*EXAMPLES, FEATURE_G
 # control or one of its ancestors. Mark the exact carrier before reading the composed
 # paint so an unrelated ring with the same name cannot credit the sample.
 RING_REMOTE_CARRIER = {
-    "ask": None,
     "target-hint": ".lf-target-picker-hint.lf-current",
     # A pane draws its focused body's band inset over the body's cell (theme.css).
     "pane-body": '[data-lf-reading-role="pane"]:has(> :focus-visible)',
@@ -9599,7 +9560,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                     rendered(page)
                     open_containing_thread(target)
                     page.keyboard.press("Tab")
-                    target.focus(timeout=5_000)
+                    target.focus()
                     # A note on the details shelf is reached from the element that
                     # names it (details-shelf.js), never by Tab, and is focused here as
                     # a screen reader moving to it would focus it.
@@ -9619,17 +9580,6 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                         unseen.add(f"{where}: {lost}")
                 for ring_name in expected & RING_REMOTE_CARRIER.keys():
                     carrier_selector = RING_REMOTE_CARRIER[ring_name]
-                    if ring_name == "ask":
-                        ask_id = target.evaluate(
-                            """async node => {
-                              const { contributionEntrySource } = await window.__lfRuntimeImport(
-                                '/runtime/contribution-controls.js'
-                              );
-                              return contributionEntrySource(node)?.id ?? null;
-                            }"""
-                        )
-                        assert ask_id, f"{selector} {where} names no ask carrier"
-                        carrier_selector = f'[id="{ask_id}"]'
                     page.locator(carrier_selector).evaluate(
                         "node => node.setAttribute('data-lf-ring-sample', '')"
                     )
@@ -10196,3 +10146,137 @@ def test_a_reference_command_finishes_its_gesture_before_a_newer_control(
         expect(page.locator(".lf-fab-input")).to_be_focused()
         expect(page.locator("#origin")).to_have_class(re.compile("lf-projected-mark"))
     assert page.evaluate("scrollY") == before
+
+
+@pytest.mark.parametrize("native_move", [True, False])
+@pytest.mark.parametrize("renderer", ["children", "lit"])
+def test_retained_moves_keep_native_editor_and_frame_state(
+    browser, serve, native_move, renderer
+):
+    """Moves survive named form fields; native moves also retain frame state."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Retained rows",
+                "<h1>Retained rows</h1>"
+                + "".join(
+                    f'<form id="{id}"><input name="moveBefore"><input name="getRootNode">'
+                    '<input name="insertBefore"></form>'
+                    for id in ["rows", "other"]
+                ),
+            )
+        ),
+    )
+    page.evaluate(
+        """async ([nativeMove, renderer]) => {
+      const {repeat} = await window.__lfRuntimeImport('/vendor/browser-runtime.js');
+      const {render} = await window.__lfRuntimeImport('/runtime/dom-children.js');
+      const {orderChildren} = await window.__lfRuntimeImport('/runtime/dom-children.js');
+      const {move, holdFocus} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const rows = document.querySelector('#rows');
+      if (!nativeMove) Element.prototype.moveBefore = undefined;
+      const nodes = ['a', 'b', 'c'].map(id => {
+        const row = document.createElement('div');
+        row.dataset.row = id;
+        row.innerHTML = `<input aria-label="${id}">
+          <iframe title="${id}" srcdoc="<p>Retained frame</p>"></iframe>`;
+        return row;
+      });
+      const paint = nodes => renderer === 'lit'
+        ? render(repeat(nodes, node => node.dataset.row, node => node), rows)
+        : orderChildren(rows, nodes);
+      paint(nodes);
+      const editor = rows.querySelector('[data-row=c] input');
+      window.blurs = 0;
+      editor.addEventListener('blur', () => window.blurs++);
+      editor.addEventListener('keydown', event => {
+        if (event.key === 'ArrowUp' && event.altKey) {
+          event.preventDefault();
+          const restore = holdFocus(rows);
+          paint([nodes[2], nodes[0], nodes[1]]);
+          restore?.();
+        } else if (event.key === 'ArrowDown' && event.altKey) {
+          event.preventDefault();
+          const restore = holdFocus(rows);
+          const other = document.querySelector('#other');
+          if (renderer === 'lit') render(nodes[2], other);
+          else move(other, editor.closest('[data-row]'), null);
+          restore?.();
+        }
+      });
+    }""",
+        [native_move, renderer],
+    )
+    editor = page.get_by_role("textbox", name="c", exact=True)
+    editor.fill("unfinished words")
+    editor.evaluate("node => node.setSelectionRange(3, 9, 'backward')")
+    frame = page.locator("[data-row=c] iframe")
+    expect(page.frame_locator("[data-row=c] iframe").locator("p")).to_have_text(
+        "Retained frame"
+    )
+    frame.evaluate("node => window.heldDocument = node.contentDocument")
+    moves = [("Alt+ArrowUp", "#rows")]
+    if native_move:
+        moves.append(("Alt+ArrowDown", "#other"))
+    for key, parent in moves:
+        page.keyboard.press(key)
+        expect(page.locator(f"{parent} > [data-row=c]")).to_have_count(1)
+        if key == "Alt+ArrowUp":
+            expect(page.locator("#rows > [data-row]").first).to_have_attribute(
+                "data-row", "c"
+            )
+        expect(editor).to_be_focused()
+        expect(editor).to_have_value("unfinished words")
+        assert editor.evaluate(
+            "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
+        ) == [3, 9, "backward"]
+        if native_move:
+            assert page.evaluate("window.blurs") == 0
+            assert frame.evaluate(
+                "node => node.contentDocument === window.heldDocument"
+            )
+        else:
+            assert page.evaluate("window.blurs") > 0
+    assert page.evaluate(
+        """async () => {
+      const {selectionBackward} = await window.__lfRuntimeImport('/runtime/passages.js');
+      const form = document.querySelector('#rows');
+      const first = document.createElement('label'), last = document.createElement('label');
+      first.textContent = 'First'; last.textContent = 'Second';
+      form.prepend(first); form.append(last);
+      const selection = getSelection();
+      selection.setBaseAndExtent(first.firstChild, 0, last.firstChild, 6);
+      return [selection.getRangeAt(0).commonAncestorContainer === form,
+              selectionBackward(selection)];
+    }"""
+    ) == [True, False]
+
+
+def test_named_form_controls_leave_shadow_scroll_and_standing_readings_available(
+    browser, serve
+):
+    page = open_page(browser, serve(leaf_page("Named forms", "<h1>Named forms</h1>")))
+    page.evaluate(
+        """async () => {
+      const {watchArrivalsIn, watchScrolls} = await window.__lfRuntimeImport('/runtime/arrivals.js');
+      const host = document.createElement('div');
+      document.querySelector('main').append(host);
+      const stage = host.attachShadow({mode: 'open'});
+      stage.innerHTML = '<form style="height:40px;overflow:auto"><input name="getRootNode"><p style="height:200px">Scrollable words</p></form>';
+      const form = stage.querySelector('form');
+      watchArrivalsIn(stage);
+      watchScrolls(event => { if (event.target === form) window.namedFormScrolled = true; });
+      form.scrollTop = 50;
+    }"""
+    )
+    page.wait_for_function("window.namedFormScrolled === true")
+    assert (
+        page.evaluate(
+            """async () => {
+      const {standsOn} = await window.__lfRuntimeImport('/runtime/focus.js');
+      return standsOn(document.querySelector('main > div').shadowRoot.querySelector('form'));
+    }"""
+        )
+        is False
+    )

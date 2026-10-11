@@ -4726,6 +4726,33 @@ customElements.define('lf-feed', class extends HTMLElement {
     )
     assert withdrawn["undoes"] == marked["id"]
 
+    # A put-away draft follows the subject too: after selecting another passage opens
+    # its empty box and a replacement re-mints the row's anchor, aiming at the row again
+    # brings its stored words back.
+    row.click(modifiers=["Alt"])
+    expect(draft).to_be_focused()
+    write(draft, "Hold this hidden draft.")
+    page.keyboard.press("Escape")
+    page.locator("#title").click(click_count=3)
+    expect(draft).to_be_visible()
+    expect(draft).to_have_js_property("value", "")
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "deployments",
+        {
+            "rows": [
+                {"id": "b", "label": "Beta", "updated": 1},
+                {"id": "a", "label": "Alpha", "updated": 2},
+            ]
+        },
+    )
+    replaced = source_revision(serve.page_dir, "deployments")
+    assert replaced != current
+    expect(row).to_have_attribute("data-lf-source-revision", replaced)
+    row.click(modifiers=["Alt"])
+    expect(draft).to_be_focused()
+    expect(draft).to_have_js_property("value", "Hold this hidden draft.")
+
 
 @pytest.mark.parametrize(
     "failure",

@@ -18,7 +18,7 @@
    and the panel's visible control share the same exact-message arrival. Ordinary
    `u` remains paired with `d` in whichever reading region the user stands in. */
 import { nextRender, sizeObserver } from "../rendering.js";
-import { containingView, presented, seenRect } from "../geometry.js";
+import { containingView, holdingFrames, presented, seenRect } from "../geometry.js";
 import { intersect } from "../rect.js";
 import { SLIDE_END } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
@@ -75,7 +75,7 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
   const sizes = sizeObserver(() => scheduleScan());
   const frameWatches = [];
   let committedThreads = [];
-  let presented = false;
+  let threadsPresented = false;
   let presentationGeneration = 0;
   let visitGeneration = 0;
   let scheduled = false;
@@ -125,7 +125,11 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
   };
 
   function scan(sampleBand) {
-    if (!presented || document.visibilityState !== "visible" || !document.hasFocus())
+    if (
+      !threadsPresented ||
+      document.visibilityState !== "visible" ||
+      !document.hasFocus()
+    )
       return;
     const band = sampleBand ?? containingView();
     if (!band || sampleBand?.visible === false) return;
@@ -233,16 +237,10 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
     );
     // What a containing page shows of this one changes without a scroll or resize
     // inside it: the owner scrolls a frame taller than its viewport through the band
-    // (`containingView`), and moving the frame changes it without any scroll at all. Watch
-    // each containing page's scrolling and each frame in its owner's viewport.
-    for (let current = window; !sampleVisibility() && current !== current.top;) {
-      let frame;
-      try {
-        frame = current.frameElement;
-      } catch {
-        break;
-      }
-      if (!frame) break;
+    // (`containingView`), moving the frame changes it without any scroll at all, and a
+    // surface the owner closes or slides away uncovers it. Watch each containing page
+    // for what this page watches in itself, and each frame in its owner's viewport.
+    for (const frame of sampleVisibility() ? [] : holdingFrames()) {
       const owner = frame.ownerDocument.defaultView;
       const observer = new owner.IntersectionObserver(scheduleScan, {
         threshold: [0, 1],
@@ -250,12 +248,15 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
       observer.observe(frame);
       owner.addEventListener("scroll", scheduleScan, true);
       owner.addEventListener("resize", scheduleScan);
+      owner.document.addEventListener("close", scheduleScan, true);
+      owner.document.addEventListener(SLIDE_END, scheduleScan, true);
       frameWatches.push(() => {
         observer.disconnect();
         owner.removeEventListener("scroll", scheduleScan, true);
         owner.removeEventListener("resize", scheduleScan);
+        owner.document.removeEventListener("close", scheduleScan, true);
+        owner.document.removeEventListener(SLIDE_END, scheduleScan, true);
       });
-      current = owner;
     }
     addEventListener(
       "pagehide",
@@ -294,7 +295,7 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
       .then(() => {
         if (generation !== presentationGeneration) return;
         committedThreads = threads;
-        presented = true;
+        threadsPresented = true;
         const unread = unreadIn(threads);
         const current = new Set(unread.map(({ item }) => keyOf(item)));
         for (const key of refusedThisVisit)
@@ -316,12 +317,12 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
   function begin() {
     presentationGeneration++;
     exposureGeneration++;
-    presented = false;
+    threadsPresented = false;
   }
 
   function abort() {
     presentationGeneration++;
-    presented = false;
+    threadsPresented = false;
     resetExposure();
   }
 

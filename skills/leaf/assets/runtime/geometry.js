@@ -45,8 +45,9 @@ import { watchScrolls } from "./arrivals.js";
      of the box it belongs to;
    - `clippedContents` when the subject has no element box of its own;
    - `placeBox` and `clippedPlace` for a destination that is an element or a Range;
-   - `presented`, `frameView` and `containingView` for whether the page puts a box
-     before the user at all, and what the pages holding this one show of its window.
+   - `presented`, `frameView`, `containingView` and `holdingFrames` for whether the
+     page puts a box before the user at all, what the pages holding this one show of
+     its window, and which frames hold it.
 
    `skipped` is asked first by a reading that can leave out a box the browser is not
    drawing, since reading one in skipped content forces that content's style and layout.
@@ -462,23 +463,30 @@ export const scrollContainer = (box) =>
 // at the parent of the outermost: inside a sideways scroller the value counts from that
 // scroller, and the headers over `scroller`'s band are those outside it. A header's
 // holder puts the stacked value on a box that does not scroll (theme.css, at `--lf-top`).
-const edgeInset = (el, scroller, slot, padding) => {
-  if (!scrollContainer(scroller) || el === scroller) return 0;
+const slotHolder = (el, scroller) => {
   let at = el;
   for (let box = el; box && box !== scroller; box = upFrom(box))
     if (box.nodeType === 1 && scrolls(box)) at = upFrom(box);
+  return at;
+};
+// The inset read at `at`, the box where the slot counts from `scroller`.
+const insetAt = (at, scroller, slot, padding) => {
   const read = (box) =>
     Number.parseFloat(getComputedStyle(box).getPropertyValue(slot)) || 0;
   const inset = at?.nodeType === 1 ? read(at) : 0;
   if (inset <= read(scroller)) return 0;
   return (Number.parseFloat(getComputedStyle(scroller)[padding]) || 0) + inset;
 };
-export const headerInset = (el, scroller) =>
-  edgeInset(el, scroller, "--lf-top", "paddingTop");
+const TOP = ["--lf-top", "paddingTop"];
+const FOOT = ["--lf-bottom", "paddingBottom"];
+const edgeInset = (el, scroller, edge) =>
+  !scrollContainer(scroller) || el === scroller
+    ? 0
+    : insetAt(slotHolder(el, scroller), scroller, ...edge);
+export const headerInset = (el, scroller) => edgeInset(el, scroller, TOP);
 // The same reading at the foot, for a box sticking there (`--lf-bottom`, theme.css):
 // how far above the bottom of `scroller`'s band the view of `el` ends.
-const footerInset = (el, scroller) =>
-  edgeInset(el, scroller, "--lf-bottom", "paddingBottom");
+const footerInset = (el, scroller) => edgeInset(el, scroller, FOOT);
 export function visibleBand(scroller, item = null) {
   const band = shownBand(scroller);
   if (!band || !item) return band;
@@ -729,6 +737,13 @@ Object.defineProperty(document, FRAME_VIEW, {
     return within ? frameView(frame, within) : null;
   },
 });
+// The frames holding this page, innermost first, as far as same-origin holders reach.
+export function* holdingFrames() {
+  for (let frame = window.frameElement; frame;) {
+    yield frame;
+    frame = frame.ownerDocument.defaultView.frameElement;
+  }
+}
 export function containingView() {
   const frame = window.frameElement;
   if (!frame) return window === window.top ? layoutWindow() : null;
@@ -994,10 +1009,11 @@ function clipWalk(item, clips, held) {
   // declared shadow stage is still clipped by that host and by the page containers
   // outside it; stopping at the ShadowRoot would let chrome paint where the package
   // itself cannot.
-  // The box just inside each scroller, where the sticky headers over its top and footers
-  // over its foot are read (`headerInset`, `footerInset`): the item at its own scroller,
-  // and the scroller below at each one further out.
-  let inner = item;
+  // Where the sticky headers over each scroller's top and footers over its foot are read
+  // (`headerInset`, `footerInset`): the item, until a box that scrolls starts the slots
+  // again for what it holds, and that box's parent from there out. The walk passes every
+  // such box on its way, so it carries the place rather than climbing to it at each cut.
+  let holder = item;
   let escaped = false,
     containing = null;
   const cuts = [];
@@ -1025,8 +1041,8 @@ function clipWalk(item, clips, held) {
     }
     if (escaped && a === containing) escaped = false;
     if (!escaped && (held || a !== item) && c.band) {
-      const covered = c.band.top + headerInset(inner, a);
-      const footed = c.band.bottom - footerInset(inner, a);
+      const covered = c.band.top + (c.scrolls ? insetAt(holder, a, ...TOP) : 0);
+      const footed = c.band.bottom - (c.scrolls ? insetAt(holder, a, ...FOOT) : 0);
       cuts.push({
         box: a,
         axes: c.axes,
@@ -1039,8 +1055,8 @@ function clipWalk(item, clips, held) {
               ? { ...c.band, top: covered, bottom: footed }
               : c.band,
       });
-      if (c.scrolls) inner = a;
     }
+    if (c.scrolls) holder = upFrom(a);
     if (!escaped && c.positioned) {
       escaped = true;
       containing = c.block;

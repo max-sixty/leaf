@@ -57,6 +57,7 @@ from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
+from leaf.refusals import Refused
 from leaf.registry.storage import load_registry
 from leaf.revision_artifact import active_enclosing
 from leaf.served_state import page as served_page
@@ -1006,7 +1007,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     def init_result():
         try:
             vendoring_model.cmd_init(page_dir, selected=(*page_packages(), "./.leaf"))
-        except SystemExit as error:
+        except Refused as error:
             return str(error)
         return None
 
@@ -1100,8 +1101,8 @@ def _report_without_upgrade(registry):
     registry["lf-test-task"]["x-upgrade"] = False
 
 
-def _user_verb_update(registry):
-    registry["lf-options"]["x-state"]["choose"]["update"] = True
+def _user_verb_report(registry):
+    registry["lf-options"]["x-state"]["choose"]["report"] = True
 
 
 def _agent_verb_answers(registry):

@@ -482,10 +482,15 @@ export function mountApplication(dependencies) {
     composition: dependencies.compositionSurface,
     reveal: openPageThread,
   };
-  let annotationRegistration = null;
-  const consumeAnnotations = (owner, render) => {
+  // data-annotations=page is the one switch that hands presentation to the page: both
+  // page consumers refuse a document that keeps Leaf's own margin.
+  const requirePageAnnotations = () => {
     if (annotationMode !== "page")
       throw new Error("Page annotation presentation requires data-annotations=page");
+  };
+  let annotationRegistration = null;
+  const consumeAnnotations = (owner, render) => {
+    requirePageAnnotations();
     if (annotationRegistration)
       throw new Error("The document already has a page annotation view");
     const registration = Symbol("page annotation view");
@@ -502,8 +507,10 @@ export function mountApplication(dependencies) {
   };
   const placeThreads = (owner, render) =>
     registerConsumer(owner, render, threadSurfaceCommands);
-  const placePageThreads = (owner, render) =>
-    registerPageConsumer(owner, render, threadSurfaceCommands);
+  const placePageThreads = (owner, render) => {
+    requirePageAnnotations();
+    return registerPageConsumer(owner, render, threadSurfaceCommands);
+  };
   const mountThreadViews = (owner, render) =>
     registerMirrorConsumer(owner, render, { commands: inlineView });
 

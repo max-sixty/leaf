@@ -187,30 +187,39 @@ what fails and what still works.
 
 ### State-preserving content reordering (review #22)
 
-- **Impact: functional; support decision open.** Reordering retained content
-  calls `moveBefore` without a capability check. On an engine without that API,
-  the reorder throws `TypeError: parent.moveBefore is not a function`. This is
-  more than a layout difference. A page that has not reached that operation may
-  still render; Leaf currently has no explanatory startup refusal.
-- **Owner:** [`order` in `dom-children.js`](../skills/leaf/assets/runtime/dom-children.js),
-  shared by authored revisions and renderer child reconciliation.
-- **Browser support, checked 2026-10-08:** Chrome/Edge 133+ and Firefox 144+
+- **Impact: state preservation; functional fallback implemented.** Retained-node
+  reordering uses [`move` in `dom-move.js`](../skills/leaf/assets/runtime/dom-move.js).
+  Within one composed root it uses `moveBefore` when available; new nodes,
+  cross-root transfers, and engines without the API use `insertBefore`.
+- **Consumers:** authored revisions and renderer child reconciliation, board
+  placement, and the vendored Sortable move sites. The Sortable adaptation fails
+  if its pinned upstream seams change.
+- **Browser support, checked 2026-10-10:** Chrome/Edge 133+ and Firefox 144+
   support the API. Safari, including iOS Safari, is listed as unsupported in
   [MDN's compatibility data](https://developer.mozilla.org/en-US/docs/Web/API/Element/moveBefore#browser_compatibility).
   The [WebKit implementation tracker](https://bugs.webkit.org/show_bug.cgi?id=281223)
-  remains open.
-- **Observed:** Playwright 1.63.0's WebKit 26.6 lacks the API, and a connected
-  reorder through Leaf's `setChildren` throws and fails to reorder. The Codex
-  browser pane tested on the same date reports Chrome 155 and exposes the API;
-  it is distinct from the WebKit test browser.
-- **Reason for the dependency:** native moves preserve embedded iframe documents
-  and focus. Removing and reinserting the same node can reset that browser state,
-  so an `insertBefore` fallback cannot provide the same guarantee. See the
+  tracks the missing native capability.
+- **Observed:** the focused browser test
+  `test_retained_moves_keep_native_editor_and_frame_state` exercises retained-node
+  ordering and direct placement in Chrome, including named form controls. Native
+  moves retain focus, caret, typed text, and the embedded iframe document without a
+  blur. Disabling the capability exercises ordinary insertion with explicit focus
+  retention. Playwright's WebKit 26.6 has no `moveBefore`; a direct probe confirms
+  retained nodes reorder and a new fragment arrives through the shared primitive.
+- **Lit adoption skipped:** adapting lit-html's keyed and child-part move seams
+  preserves editor and iframe state in Chrome, but exposes a pre-existing passive
+  thread-withdrawal jump. In the complete-list rollback journey, withdrawing the
+  selected thread and opening the fallback moves the surviving closed card up
+  34px with the list at scroll zero. The original Lit bundle paints the same jump,
+  but its detach/reinsert behavior prevents Chrome from reporting it as a shift.
+  Native Lit moves must wait for a coherent policy for the departed allocation;
+  adding a fold or weakening the stability check does not preserve that reading.
+- **Fallback limit:** insertion reorders content but can blur a focused descendant
+  and reload an iframe. Lit continues to use ordinary insertion in every browser,
+  so Leaf's focus-holding `render` wrapper remains; it restores focus and caret,
+  but cannot preserve iframe documents. The native guarantee for Leaf's retained
+  moves is described in the
   [API's state-preservation contract](https://developer.mozilla.org/en-US/docs/Web/API/Element/moveBefore#description).
-- **Next decision:** retain the native capability requirement with a clear
-  explanation in unsupported browsers, or redesign content placement to preserve
-  state without it. Requiring the capability is the current recommendation;
-  a blanket Safari exclusion has not been approved or implemented.
 
 To check the installed test engine without downloading a browser:
 

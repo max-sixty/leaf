@@ -3,11 +3,11 @@
 A task is something owed, and its `owner` says by whom: the agent or the user. How
 it ends follows from its owner and what it stands on, so no field records it.
 
-The agent's tasks are in the log. An item on the agent's queue is either a user move
-it owes an answer, whose id is the move's event id (`workflows`), or a task it
+The agent's tasks are in the log. An item on the agent's queue is either an update
+it owes an answer, whose id is the update's event id (`workflows`), or a task it
 opened. Working always names one of them: `leaf task start` writes a `start` event
 naming the item with the line the banner shows, and the item is in hand, running,
-from then on. An ephemeral reply to a move the agent owes writes the same start, its
+from then on. An ephemeral reply to an update the agent owes writes the same start, its
 text the line (`take_in_hand`), so the words the user reads in the thread and the
 Working line are one write.
 
@@ -20,11 +20,11 @@ and the work stays on the agent in one write. Either stands until a
 where the result is or why there is none, or until a stamped version that names its
 widget with `--completes` ends it `done`, the note citing that version. A reply, a
 resolution, another version, or the end of the session that opened it leaves it
-open: that is what a task adds over a move, which its answer settles. Work that
+open: that is what a task adds over an update, which its answer settles. Work that
 outlasts the turn that took it on, such as a worker's build, a CI wait, or a change
 promised for the next version, so stays on the agent's side: an open task holds its
 thread `waiting` (`served_state.browser`), counts under `on_agent` in `page state`,
-and is named in the banner. Work no user move asked for, such as writing or revising
+and is named in the banner. Work no update asked for, such as writing or revising
 the page on the agent's own initiative, is a task the agent opens on the page or the
 widget or section it concerns; housekeeping, such as re-vendoring or restarting the
 server, owes the user nothing and is no item.
@@ -37,13 +37,13 @@ source-message id; that withdraws the request without recording a user answer.
 A stamped document declaring `lf-review=sign-off` adds an approval Question
 for that exact public version; only its unwithdrawn approval answers it.
 
-A start lasts until its item ends: a task's end, or for a move the reply or stamped
+A start lasts until its item ends: a task's end, or for an update the reply or stamped
 version that answers it (`workflows.canonical_workflows`), and it holds its item
 only for the turn that wrote it. It names that turn, and once the turn ends with the
 item still running, the activity fold reads it stalled (`activity`). A later start on
 the same item replaces it, which is how the next turn takes the item in hand again.
 A `waiting` or `idle` declaration puts down every start written before it: the
-moves those started are no longer in hand, and the tasks stay open with nothing
+updates those started are no longer in hand, and the tasks stay open with nothing
 running on them. The put-down is a `put_down` event in the log, which `leaf status`
 writes ahead of the declaration whenever a start stands (`put_down`), so admission,
 which reads only the document and the log, sees it as every other reader does. A
@@ -51,9 +51,9 @@ start on a page declared `idle` reopens the page with a bare `waiting` after it,
 which writes no `put_down`.
 
 The door admits the agent's `task` event on a live page widget that declares
-`x-work` or holds an unsettled move (`work.widget_seat_error`), on any element of
+`x-work` or holds an unsettled action (`work.widget_seat_error`), on any element of
 the page, or on the page, and a task on the user on any of those, a widget needing
-no seat; a start on an open task of the agent's or a move
+no seat; a start on an open task of the agent's or an update
 the agent owes; and an end of an open task, the user's only of one the agent opened
 on them (`task_error`). `TaskReading` holds the log's tasks, starts and endings
 for one event basis, and `WorkReading.page_tasks` attaches thread and activity
@@ -66,12 +66,12 @@ change a lot (notes/what-needs-you/). Change them freely; nothing outside this
 repository depends on them.
 """
 
-import sys
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 
 from .events import note_settlements, taken_back
+from .refusals import Refused
 from .thread_context import thread_names
 
 # What `task open` takes for the page as a whole; any other id names a widget or an
@@ -264,7 +264,7 @@ def task_error(
     Explicit work stands on an admitted widget, page element or page; work on a
     thread is opened by the reply that promises it (`task_reading`), which the
     schema keeps off a `task` event. A start names an open agent task or
-    an owed move. Either side can end explicit work within its ownership rules.
+    an owed update. Either side can end explicit work within its ownership rules.
     An agent end may also withdraw an open prose Question by canonical id or source
     message id, while widget Questions remain owned by their declared state.
     """
@@ -345,12 +345,12 @@ def cmd_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
                 or page_element(page_dir, subject)
             )
             if named is None:
-                sys.exit(
+                raise Refused(
                     f"{subject!r} names no widget or element on this page; "
                     f"`{PAGE_SUBJECT}` names the page as a whole"
                 )
             if named["kind"] == "thread":
-                sys.exit(
+                raise Refused(
                     f"{subject!r} is in a thread, where a reply asks the user "
                     "(`--question`) or promises your work (`--task <title>`): "
                     "`leaf response reply <answer.ref>`, or `leaf thread reply "
@@ -388,7 +388,7 @@ def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
     `identity`, within `page`, an open `service.PageTransaction`; the record.
 
     The start names the claimant's turn when the posting session holds the page, which
-    is what lets that turn end over the move it started (`activity.started_in_turn`)
+    is what lets that turn end over the update it started (`activity.started_in_turn`)
     and what ends the start's hold with the turn. Another session's start names none: a
     Claude Code subagent runs as its parent's session, so workers leave starts to the
     session driving the page. `leaf task start` writes this explicit event. Addressed ephemeral replies
@@ -420,7 +420,7 @@ def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
 
 
 def cmd_start(page_dir: Path, item: str, text: str) -> dict:
-    """Take `item`, a move's event id or an open task's id, in hand for this turn with
+    """Take `item`, an update's event id or an open task's id, in hand for this turn with
     `text` as its line (`take_in_hand`); the record."""
     from .harness import message_identity
     from .leases import contract_writer
@@ -428,7 +428,7 @@ def cmd_start(page_dir: Path, item: str, text: str) -> dict:
     from .service import PageTransaction
 
     if error := start_line_error(text):
-        sys.exit(error)
+        raise Refused(error)
 
     @contract_writer
     def write(page_dir: Path) -> dict:

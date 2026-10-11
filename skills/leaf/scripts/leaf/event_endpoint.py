@@ -85,7 +85,7 @@ def accept_event(
     """Validate and append one browser record, then return its current state."""
     status, answer = _receive_event(page_dir, event)
     # Admission has released its transaction before this reader takes a fresh one.
-    # A refusal also restores the tab from current truth, including other tabs' moves.
+    # A refusal also restores the tab from current truth, including other tabs' updates.
     return status, {**answer, "state": state()}
 
 

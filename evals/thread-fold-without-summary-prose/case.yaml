@@ -5,7 +5,7 @@
 # the candidate scored 1/1 on each harness with --label and explicit empty --text.
 description: thread-fold-without-summary-prose
 metadata:
-  purpose: Fold earlier thread updates under a requested label without summary prose, preserving their originals.
+  purpose: Fold earlier progress messages under a requested label without summary prose, preserving their originals.
   tags:
   - threads
 vars:
@@ -18,14 +18,14 @@ vars:
     progress-two (agent): "The label row changes height. I'm testing a fixed row."
     final-answer (agent): "The label row keeps its height now. Desktop and phone checked."
 
-    Fold only the two progress updates behind a disclosure labeled "Previous
-    updates". Do not add retrospective summary prose. Keep both originals
+    Fold only the two progress messages behind a disclosure labeled "Previous
+    progress messages". Do not add retrospective summary prose. Keep both originals
     retrievable and leave the user's request and final answer visible.
 
     Nothing here can execute writes. Read the relevant Leaf instructions, then
     reply with the exact one-line CLI command you would run.
 assert:
 - type: regex
-  metric: folds-original-updates-without-prose
+  metric: folds-original-messages-without-prose
   value: >-
-    (?:^|\n)[^\n]*\bleaf\s+thread\s+summarize\b(?=[^\n]*--from(?:=|\s+)['"]?progress-one\b)(?=[^\n]*--through(?:=|\s+)['"]?progress-two\b)(?=[^\n]*--label(?:=|\s+)(?:'Previous updates'|"Previous updates"))(?=[^\n]*--text(?:=|\s+)(?:''|""))[^\n]*
+    (?:^|\n)[^\n]*\bleaf\s+thread\s+summarize\b(?=[^\n]*--from(?:=|\s+)['"]?progress-one\b)(?=[^\n]*--through(?:=|\s+)['"]?progress-two\b)(?=[^\n]*--label(?:=|\s+)(?:'Previous progress messages'|"Previous progress messages"))(?=[^\n]*--text(?:=|\s+)(?:''|""))[^\n]*

@@ -31,7 +31,7 @@ export function semanticNewsReading(root) {
   };
 }
 
-// Unread agent content, oldest move first. A failure reply is unread content too, but
+// Unread agent content, oldest first. A failure reply is unread content too, but
 // its news is the failed response's, announced from its workflow.
 function unreadContent(threadView) {
   return threadView.threads

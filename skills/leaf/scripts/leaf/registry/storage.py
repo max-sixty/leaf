@@ -1,7 +1,6 @@
 """Vendored registry storage and page lookup."""
 
 import re
-import sys
 from collections.abc import Collection
 from datetime import datetime
 from pathlib import Path
@@ -9,6 +8,7 @@ from pathlib import Path
 from leaf.files import file_stamp, latest_revision, read_json
 from leaf.page_memory import Slot, memo
 
+from ..refusals import Refused
 from .contract import RegistryError, read_registry_declarations
 from .layer import required_layer_declarations, validate_event_contracts
 
@@ -242,7 +242,7 @@ def require_registry(page_dir: Path) -> dict:
     """The active revision's vocabulary, or the candidate before first activation."""
     registry = active_registry(page_dir)
     if registry is None:
-        sys.exit(f"no registry.json in {page_dir}; run `leaf page init` first")
+        raise Refused(f"no registry.json in {page_dir}; run `leaf page init` first")
     return registry
 
 

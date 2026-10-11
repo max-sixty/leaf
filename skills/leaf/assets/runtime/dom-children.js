@@ -2,15 +2,31 @@
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 import { render as renderTemplate } from "/vendor/browser-runtime.js";
 import { holdFocus } from "./focus.js";
+import { move } from "./dom-move.js";
 
 const detach = (node) => node.remove();
 
-// Keyed template moves preserve the native editor that the user stands in.
+// Lit uses ordinary insertion, so keyed reorders still need their editor restored.
 export function render(value, container, options) {
   const restore = holdFocus(container);
   const part = renderTemplate(value, container, options);
   restore?.();
   return part;
+}
+
+// Destructive replacement ends any template ownership, including directives. Lit's
+// public RootPart.setConnected(false) disposes that lifetime, but render() has no
+// public reset API. Its pinned, deliberately unminified cache key must be discarded
+// with the markers so either native or template recovery can start afresh. A bounded
+// render stores its cache on renderBefore, a direct child, rather than the container.
+export function replaceChildren(container, ...nodes) {
+  for (const owner of [container, ...container.childNodes]) {
+    const part = owner._$litPart$;
+    if (!part || (owner !== container && part.parentNode !== container)) continue;
+    part.setConnected(false);
+    delete owner._$litPart$;
+  }
+  container.replaceChildren(...nodes);
 }
 
 // Make `parent`'s children `nodes`, in order, without moving a node already in place.
@@ -49,8 +65,7 @@ export function setRenderedChildren(parent, nodes) {
 
 // Put `nodes` in order under `parent`, walking past the children `passed` names, and
 // moving only a node that is not already where it belongs. A retained move within one
-// shadow-including tree preserves the browser's own state, including iframe documents
-// and editor focus. New nodes and nodes adopted from another tree arrive by insertion.
+// shadow-including tree preserves native state where the browser supports it (`move`).
 function order(parent, nodes, passed = () => false) {
   let cursor = parent.firstChild;
   for (const node of nodes) {
@@ -59,9 +74,7 @@ function order(parent, nodes, passed = () => false) {
       cursor = cursor.nextSibling;
       continue;
     }
-    if (node.getRootNode({ composed: true }) === parent.getRootNode({ composed: true }))
-      parent.moveBefore(node, cursor);
-    else parent.insertBefore(node, cursor);
+    move(parent, node, cursor);
   }
 }
 

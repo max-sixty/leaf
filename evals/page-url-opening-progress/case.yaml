@@ -2,7 +2,7 @@
 # the old instructions repeated the URL in 2/2 runs; the repair omitted it in 2/2.
 description: page-url-opening-progress
 metadata:
-  purpose: 'Handoff: an opening progress update after a page handoff does not repeat its URL.'
+  purpose: 'Handoff: an opening progress message after a page handoff does not repeat its URL.'
   tags:
   - handoff
 vars:
@@ -16,7 +16,7 @@ vars:
     The user now says: "Actually fix Leaf: why can't I select the text in
     'Plan room for the whole thread'? Is something in our code stopping selection?"
     You will investigate and fix the shared control next. Write your opening
-    intermediate progress update, before the first investigation tool call.
+    intermediate progress message, before the first investigation tool call.
     The implementation and final response will follow later.
 
     Use the leaf skill for the page workflow. Read whatever instructions you need.
@@ -28,7 +28,7 @@ assert:
 - type: llm-rubric
   metric: progress-message
   value: |
-    Pass only if the reply is an opening progress update saying the agent will
+    Pass only if the reply is an opening progress message saying the agent will
     investigate or fix the reported selection problem. It must not claim the
-    fix is already complete, refuse the task, or replace the update with an
+    fix is already complete, refuse the task, or replace the message with an
     explanation of the instructions.

@@ -32,7 +32,6 @@ release or end. The owning session's process restart preserves it.
 import json
 import re
 import secrets
-import sys
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, nullcontext
@@ -43,6 +42,7 @@ from xml.etree import ElementTree
 from .files import read_json
 from .harness import claim_harness, session_harness
 from .machine import state_home
+from .refusals import Refused
 from .schema import CURSOR_FILE, WIDGET_KINDS
 from .service import (
     PageTransaction,
@@ -282,7 +282,7 @@ def response_address(reference: str) -> dict:
     for address in response_addresses(payload):
         if address["ref"] == reference:
             return address
-    sys.exit(f"unknown response reference {reference!r}")
+    raise Refused(f"unknown response reference {reference!r}")
 
 
 def stream_reply_target(payload: dict) -> dict | None:
@@ -453,10 +453,10 @@ def read_delivery(delivery_id: str) -> dict:
     try:
         path = delivery_path(delivery_id)
     except ValueError as error:
-        raise SystemExit(str(error)) from error
+        raise Refused(str(error)) from error
     payload = read_json(path)
     if payload is None:
-        sys.exit(f"unknown delivery {delivery_id!r}")
+        raise Refused(f"unknown delivery {delivery_id!r}")
     if not readable_delivery(payload, delivery_id):
         raise RuntimeError(f"delivery {delivery_id!r} has an invalid envelope")
     return payload
@@ -492,11 +492,11 @@ def delivery_reading(payload: dict, *, part: int = 1) -> dict:
     serialized = json.dumps(reading, indent=2, ensure_ascii=False)
     if len(serialized.encode("utf-8")) + 1 <= READ_BYTES:
         if part != 1:
-            raise ValueError("this delivery has only one part")
+            raise Refused("this delivery has only one part")
         return reading
     count = (len(serialized) + READ_CHARS - 1) // READ_CHARS
     if not 1 <= part <= count:
-        raise ValueError(f"delivery part must be between 1 and {count}")
+        raise Refused(f"delivery part must be between 1 and {count}")
     return {
         "id": payload["id"],
         "part": part,
@@ -523,8 +523,12 @@ def cmd_delivery_read(delivery_id: str, *, part: int = 1) -> None:
 
 
 def cmd_delivery_ack(delivery_id: str) -> None:
-    """Accept the reader's attestation that every part reached its context."""
-    receive_delivery(delivery_id)
+    """Accept the reader's attestation that every part reached its context. A page
+    the delivery names that has gone refuses it in the system's own words."""
+    try:
+        receive_delivery(delivery_id)
+    except FileNotFoundError as error:
+        raise Refused(str(error)) from error
 
 
 def pickup_receipts(
@@ -576,7 +580,7 @@ def record_pickup(
     reads at its next step, whether or not that step has come. A batch the harness
     holds to add later, as a queue or a steer waiting behind a running tool, is not
     opened until it is added. ``failed`` means the harness
-    gave up on the moves with the named ``failure`` and no answer is coming.
+    gave up on the updates with the named ``failure`` and no answer is coming.
     Queued and opened are transport evidence, not authored work claims. A queued
     transition may therefore be followed by an opened transition for the same
     events, while a retry of the same transition appends nothing.
@@ -620,7 +624,7 @@ def record_pickup(
     )
 
 
-class ReceiptRefused(RuntimeError):
+class ReceiptRefused(Refused):
     """Captured input no longer belongs to this receiver or page log."""
 
 

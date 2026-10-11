@@ -1,6 +1,7 @@
 /* Fixed status allocation leaves the filename and editor still during delayed
  * writes. Normal writes and completion paint no status at all. Only this widget's
  * shadow stage receives these rules; CodeMirror owns its editing presentation. */
+:scope:host(lf-file-editor) .lf-file-editor-view { display: contents; }
 :scope:host(lf-file-editor) .lf-file-editor-head {
   display: flex; align-items: center; gap: .5rem 1rem;
   padding: .5rem 1rem; border-bottom: 1px solid var(--border-2);

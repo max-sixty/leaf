@@ -80,6 +80,7 @@ from leaf_dev.thread_snapshot_plugin import (
 )
 from model_folds import leaf_page
 from PIL import Image
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 
@@ -1305,47 +1306,58 @@ def judge_watches():
     Chrome hands a frame's shifts to the observer only after it paints, so a test whose
     last act moves the page or takes words away would end before the report. Judgement
     waits for that evidence with a hang deadline; elapsed time cannot count as a
-    completed paint. Scripts-disabled pages have no script-driven sensors to judge.
+    completed paint. A detached frame has no further paint to judge; native frame
+    lifetime, rather than protocol error text, releases its pending read. Scripts-disabled
+    pages have no script-driven sensors to judge.
     `conftest.py` calls this as the test body returns, while the
     pages' servers still answer: a page left painting
     after its server is gone lets its failed fetches reach the console."""
     for page, _ in _BROWSER_PROBLEM_LISTS or ():
         if not page.is_closed() and page.lf_java_script_enabled:
             for frame in page.frames:
-                frame.evaluate(
-                    """ancestorsDrawn => {
-                        const judgement = window.lfWatchJudgement = {
-                          ancestorsDrawn, complete: false, error: null,
-                        };
-                        Promise.resolve().then(async () => {
-                          await window.lfShiftsJudged?.();
-                          await window.lfWordsJudged?.();
-                        }).then(() => { judgement.complete = true; },
-                          error => { judgement.error = error; });
-                    }""",
-                    _frame_owners_drawn(frame),
-                )
-                deadline = (
-                    time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
-                )
-                while True:
-                    complete = frame.evaluate(
-                        """ancestorsDrawn => {
-                            const judgement = window.lfWatchJudgement;
-                            judgement.ancestorsDrawn = ancestorsDrawn;
-                            if (judgement.error) throw judgement.error;
-                            return judgement.complete;
-                        }""",
-                        _frame_owners_drawn(frame),
-                    )
-                    if complete:
-                        break
-                    if time.monotonic() >= deadline:
-                        raise PlaywrightTimeout(
-                            f"health sensors did not drain: {frame.url}"
-                        )
-                    page.wait_for_timeout(100)
-                frame.evaluate("delete window.lfWatchJudgement")
+                try:
+                    _judge_frame_watches(frame)
+                except PlaywrightError:
+                    # Enumeration owns no frame lifetime: a sample or its page can
+                    # disappear across any subsequent protocol request. Native
+                    # lifetime facts release it; every live-frame failure propagates.
+                    if not frame.is_detached() and not page.is_closed():
+                        raise
+
+
+def _judge_frame_watches(frame):
+    """Drain a frame while its page owns it; the caller handles native detachment."""
+    page = frame.page
+    frame.evaluate(
+        """ancestorsDrawn => {
+            const judgement = window.lfWatchJudgement = {
+              ancestorsDrawn, complete: false, error: null,
+            };
+            Promise.resolve().then(async () => {
+              await window.lfShiftsJudged?.();
+              await window.lfWordsJudged?.();
+            }).then(() => { judgement.complete = true; },
+              error => { judgement.error = error; });
+        }""",
+        _frame_owners_drawn(frame),
+    )
+    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
+    while True:
+        complete = frame.evaluate(
+            """ancestorsDrawn => {
+                const judgement = window.lfWatchJudgement;
+                judgement.ancestorsDrawn = ancestorsDrawn;
+                if (judgement.error) throw judgement.error;
+                return judgement.complete;
+            }""",
+            _frame_owners_drawn(frame),
+        )
+        if complete:
+            break
+        if time.monotonic() >= deadline:
+            raise PlaywrightTimeout(f"health sensors did not drain: {frame.url}")
+        page.wait_for_timeout(100)
+    frame.evaluate("delete window.lfWatchJudgement")
 
 
 def _frame_owners_drawn(frame):
@@ -1460,14 +1472,12 @@ def take_browser_errors(page):
 def reported_browser_errors(page, *expected):
     """Wait for the complete report a fault draws, then consume it.
 
-    One fault is reported by every boundary that carried it, and the later words can be
-    separated from the first by whatever the page does on the way: the feed names a read
-    whose application failed only once the queued projection retry that application left
-    behind has finished presenting. A list read at the moment the first word lands is a
-    report still arriving, so an equality assertion over it turns the gap between the
-    boundaries into a race. This waits for the inventory the caller names before taking
-    it, and a problem past that inventory still reaches the browser fixture's own
-    reading.
+    One exception is reported once, but one injected fault can raise several, and the
+    later reports can be separated from the first by whatever the page does on the way.
+    A list read at the moment the first word lands may be a report still arriving, so
+    an equality assertion over it turns that gap into a race. This waits for the
+    inventory the caller names before taking it, and a problem past that inventory
+    still reaches the browser fixture's own reading.
 
     The wait is a Playwright call rather than a sleep, because the sync driver hands
     console messages to this process only while it is inside one."""

@@ -17,7 +17,7 @@ export interface ActionSpec {
   unit: string;
   record?: StateRecord;
   writer?: "user" | "agent";
-  update?: boolean;
+  report?: boolean;
   creates?: { child: string; [key: string]: unknown };
   detail?: object | boolean;
 }

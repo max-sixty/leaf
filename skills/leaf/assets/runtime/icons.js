@@ -2,7 +2,7 @@
    module: composing/selection.js builds its response button with an icon as it
    evaluates. */
 
-import { html } from "../vendor/browser-runtime.js";
+import { html, render } from "../vendor/browser-runtime.js";
 
 // Built-in margin entry faces use one stroked, currentColor icon vocabulary. Reaction tokens
 // are authored content and may supply emoji; structural Leaf faces keep their line
@@ -16,10 +16,6 @@ const ICONS = {
     '<path d="M3 5.25h8.5M9.25 3l2.25 2.25L9.25 7.5M13 10.75H4.5M6.75 8.5 4.5 10.75 6.75 13"/>',
   check: '<path d="m3 8.25 3.15 3.15L13 4.75"/>',
   comment: '<path d="M3 3.25h10v7H7.25L4 12.75v-2H3z"/>',
-  "compare-before":
-    '<circle cx="8" cy="8" r="5.5"/><path d="M8 2.5a5.5 5.5 0 0 0 0 11Z" fill="currentColor" stroke="none"/>',
-  "compare-after":
-    '<circle cx="8" cy="8" r="5.5"/><path d="M8 2.5a5.5 5.5 0 0 1 0 11Z" fill="currentColor" stroke="none"/>',
   cross: '<path d="m4 4 8 8M12 4l-8 8"/>',
   dot: '<circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"/>',
   edit: '<path d="m3.25 10.75-.5 2.5 2.5-.5 6.9-6.9-2-2zM9.25 4.75l2 2"/>',
@@ -63,12 +59,7 @@ export function iconTemplate(icon, className = "lf-margin-entry-icon") {
 }
 
 export function iconElement(icon, className = "lf-margin-entry-icon") {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", "0 0 16 16");
-  svg.setAttribute("focusable", "false");
-  svg.setAttribute("aria-hidden", "true");
-  svg.classList.add(className);
-  svg.dataset.lfIcon = icon;
-  svg.innerHTML = iconMarkup(icon);
-  return svg;
+  const holder = document.createDocumentFragment();
+  render(iconTemplate(icon, className), holder);
+  return holder.querySelector("svg");
 }

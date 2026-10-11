@@ -106,6 +106,7 @@ from leaf import thread_context as thread_context_model
 from leaf import thread_titles
 from leaf import vendoring as vendoring_model
 from leaf.detached import StartRefused
+from leaf.refusals import Refused
 from leaf.registry import contract as registry_contract
 from leaf.registry import storage as registry_storage
 from leaf.served_state import browser as browser_served_model
@@ -4605,7 +4606,7 @@ def test_provider_reservation_refuses_unaddressed_competing_writes(page_dir):
             }
         }
     )
-    with pytest.raises(SystemExit, match="answered by this turn's messages"):
+    with pytest.raises(Refused, match="answered by this turn's messages"):
         thread_model.post_reply(
             page_dir,
             comment["id"],
@@ -4641,7 +4642,7 @@ def test_a_delivery_reserves_its_final_before_provider_execution(page_dir):
 
     thread_model.reserve_delivery_reply("codex-thread", "delivery-1", target)
 
-    with pytest.raises(SystemExit, match="answered by this turn's messages"):
+    with pytest.raises(Refused, match="answered by this turn's messages"):
         thread_model.post_reply(
             page_dir,
             comment["id"],
@@ -4679,7 +4680,7 @@ def test_a_delivery_bound_final_cannot_append_after_claim_transfer(page_dir):
 
     error = stream.finish("completed", "Stale answer")
 
-    assert isinstance(error, RuntimeError)
+    assert isinstance(error, delivery_model.ReceiptRefused)
     assert not any(
         event["kind"] == "reply" for event in events_model.read_events(page_dir)
     )
@@ -4720,7 +4721,7 @@ def test_a_streamed_final_rejects_invalid_source_without_stranding_the_draft(pag
 
     error = stream.finish("completed", "I made the change.")
 
-    assert isinstance(error, SystemExit)
+    assert isinstance(error, Refused)
     reply = files_model.read_json(page_dir / "status.json")["stream"]["reply"]
     assert (reply["state"], reply["text"], reply["settles"]) == (
         "failed",
@@ -5778,7 +5779,7 @@ def test_a_terminated_page_server_stops_its_title_server(
     ],
 )
 def test_codex_activity_rejects_nonlocal_or_invalid_app_servers(endpoint):
-    with pytest.raises(RuntimeError, match="local|valid"):
+    with pytest.raises(Refused, match="local|valid"):
         codex_model.check_app_server_endpoint(endpoint)
 
 
@@ -6890,7 +6891,7 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
     assert browser_thread["summaries"] == [projected]
 
 
-@pytest.mark.parametrize("label", [None, "Previous updates"])
+@pytest.mark.parametrize("label", [None, "Previous progress messages"])
 def test_summary_cli_can_fold_without_prose_only_when_explicit(page_dir, label):
     root = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Fix the layout."}
@@ -6947,7 +6948,7 @@ def test_summary_cli_can_fold_without_prose_only_when_explicit(page_dir, label):
     ]
 
     # Allowing an empty summary body must not admit an empty reply.
-    with pytest.raises(SystemExit, match="empty text"):
+    with pytest.raises(Refused, match="empty text"):
         thread_model.post_reply(page_dir, root["id"], "", None, for_event=root["id"])
 
 
@@ -8114,7 +8115,7 @@ def test_receipt_refuses_a_delivery_from_a_replaced_log(page_dir):
     )
     [replacement] = events_model.read_events(page_dir)
     assert replacement["seq"] == payload["batches"][0]["through_seq"]
-    with pytest.raises(RuntimeError):
+    with pytest.raises(delivery_model.ReceiptRefused):
         delivery_model.receive_delivery(payload["id"])
     assert files_model.read_json(page_dir / "cursor.json") is None
     assert events_model.read_events(page_dir) == [replacement]
@@ -10896,7 +10897,7 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
     [payload] = attempted
     [(path, queue)] = codex_records("codex-thread")
     assert queue["state"] == "offering"
-    with pytest.raises(SystemExit, match="answered by this turn's messages"):
+    with pytest.raises(Refused, match="answered by this turn's messages"):
         thread_model.post_reply(
             page,
             comment["id"],
@@ -16905,7 +16906,7 @@ def test_a_claim_takes_the_job_lifetime_only_for_the_jobs_own_session(
     assert "job" not in service_model.page_claim(page_dir)
 
     (job / "state.json").unlink()
-    with pytest.raises(SystemExit, match="names no job record"):
+    with pytest.raises(Refused, match="names no job record"):
         service_model.claim_page(page_dir)
 
 
@@ -20769,7 +20770,7 @@ def test_explicit_answer_survives_a_provider_ending_without_final_text(
         page_dir, events_model.read_events(page_dir)
     )
     assert thread_model.post_response(target["ref"], "Retry", question=True) == answer
-    with pytest.raises(SystemExit, match="different declaration"):
+    with pytest.raises(Refused, match="different declaration"):
         thread_model.post_response(target["ref"], "Retry", task="Promise it")
 
 
@@ -20787,7 +20788,7 @@ def test_addressed_progress_is_one_atomic_message_and_work_start(page_dir):
     assert tasks_model.item_starts(events)[comment["id"]]["id"] == progress["id"]
     assert comment["id"] in delivery_model.current_responses(page_dir, events)
     # A proactive command cannot infer which pending input this progress means.
-    with pytest.raises(SystemExit, match="requires a response"):
+    with pytest.raises(Refused, match="requires a response"):
         thread_model.post_reply(
             page_dir, comment["id"], "Proactive", "", for_event=None, ephemeral=True
         )
@@ -20938,7 +20939,7 @@ def test_explicit_reply_refusal_reaches_its_author_before_commit(page_dir, inval
         "title": {"title": ""},
     }[invalid]
     before = events_model.read_events(page_dir)
-    with pytest.raises(SystemExit):
+    with pytest.raises(Refused):
         thread_model.post_response(
             target["ref"], "Invalid", identity=identity, **options
         )
@@ -20975,7 +20976,7 @@ def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_d
     reference = response_reference(page_dir, action)
     for options in ({}, {"ephemeral": True}, {"failure": "unavailable"}):
         before = events_model.read_events(page_dir)
-        with pytest.raises(SystemExit, match="requires.*not a reply"):
+        with pytest.raises(Refused, match="requires.*not a reply"):
             thread_model.post_response(reference, "This is not a revision.", **options)
         assert events_model.read_events(page_dir) == before
     started = tasks_model.cmd_start(
@@ -21025,7 +21026,7 @@ def test_retry_identity_cannot_take_current_provider_custody(
         if retry == "same"
         else "another-retry"
     )
-    with pytest.raises(SystemExit, match="leaf response reply"):
+    with pytest.raises(Refused, match="leaf response reply"):
         thread_model.post_reply(
             page_dir,
             comment["id"],
@@ -21079,7 +21080,7 @@ def test_retry_identity_cannot_take_current_provider_custody(
 
 def test_failure_reply_is_refused_while_provider_still_owns_the_answer(page_dir):
     comment, target, delivery_id, stream = _reserved_author_response(page_dir)
-    with pytest.raises(SystemExit, match="leaf response reply"):
+    with pytest.raises(Refused, match="leaf response reply"):
         thread_model.post_response(
             target["ref"],
             "No answer is coming.",

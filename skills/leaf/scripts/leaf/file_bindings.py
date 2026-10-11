@@ -18,6 +18,7 @@ from stat import S_ISREG
 
 from .files import read_json
 from .leases import page_locked
+from .refusals import Refused
 from .schema import FILE_BINDINGS_FILE, HTML_NAME
 from .state import flocked, replace_bytes, state_home_path, write_json
 
@@ -25,8 +26,8 @@ MAX_FILE_BYTES = 256 * 1024
 BINDING_ID = re.compile(HTML_NAME)
 
 
-class FileBindingError(ValueError):
-    """An expected refusal, suitable for a CLI or HTTP response."""
+class FileBindingError(Refused):
+    """A file access this page's grants do not allow, or the file refuses."""
 
 
 class StaleFileError(FileBindingError):
@@ -102,19 +103,25 @@ def _snapshot(path: Path, raw: bytes) -> dict:
 
 
 def bind_file(page_dir: Path, binding: str, file: Path) -> dict:
-    """Grant this page read/write access to one existing canonical text path."""
+    """Grant this page read/write access to one existing canonical text path.
+
+    The author named the path, so a path the system cannot reach is refused in the
+    system's own words, path included."""
     if not BINDING_ID.fullmatch(binding):
         raise FileBindingError(
             "Binding id must start with a lowercase letter and use lowercase letters, digits or -."
         )
-    path = file.expanduser().resolve(strict=True)
-    if path == (page_dir / FILE_BINDINGS_FILE).resolve():
-        raise FileBindingError("A page cannot edit its own file access grants.")
-    with page_locked(page_dir):
-        snapshot = _read(path)
-        bindings = _bindings(page_dir)
-        bindings[binding] = str(path)
-        write_json(page_dir / FILE_BINDINGS_FILE, {"bindings": bindings})
+    try:
+        path = file.expanduser().resolve(strict=True)
+        if path == (page_dir / FILE_BINDINGS_FILE).resolve():
+            raise FileBindingError("A page cannot edit its own file access grants.")
+        with page_locked(page_dir):
+            snapshot = _read(path)
+            bindings = _bindings(page_dir)
+            bindings[binding] = str(path)
+            write_json(page_dir / FILE_BINDINGS_FILE, {"bindings": bindings})
+    except OSError as error:
+        raise FileBindingError(str(error)) from error
     return snapshot
 
 

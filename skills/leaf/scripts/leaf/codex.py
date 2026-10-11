@@ -70,6 +70,7 @@ from .delivery import (
 from .files import read_json
 from .harness import Harness
 from .leases import sessions_home
+from .refusals import Refused
 from .service import (
     PageTransaction,
     delivery_reply_attempt,
@@ -152,16 +153,16 @@ def app_server_socket_path(endpoint: str) -> Path | None:
         parsed = urlsplit(endpoint)
         hostname = parsed.hostname
     except ValueError as error:
-        raise RuntimeError("--app-server needs a valid local endpoint") from error
+        raise Refused("--app-server needs a valid local endpoint") from error
     if parsed.query or parsed.fragment or parsed.username or parsed.password:
-        raise RuntimeError("--app-server needs a local WebSocket or Unix endpoint")
+        raise Refused("--app-server needs a local WebSocket or Unix endpoint")
     if parsed.scheme == "ws" and hostname in {"127.0.0.1", "::1", "localhost"}:
         return None
     if parsed.scheme == "unix" and not parsed.netloc and parsed.path:
         path = Path(parsed.path)
         if path.is_absolute():
             return path
-    raise RuntimeError(
+    raise Refused(
         "--app-server needs a local loopback ws:// endpoint or an absolute "
         "unix:/// socket"
     )
@@ -218,9 +219,9 @@ def _wait_for_app_server(path: Path, process: subprocess.Popen, log) -> None:
         if process.poll() is not None:
             log.seek(0)
             detail = log.read().decode(errors="replace").strip()
-            raise RuntimeError(detail or "Codex App Server exited before it was ready")
+            raise Refused(detail or "Codex App Server exited before it was ready")
         time.sleep(0.05)
-    raise RuntimeError("Codex App Server did not become ready")
+    raise Refused("Codex App Server did not become ready")
 
 
 @contextmanager
@@ -1020,7 +1021,7 @@ class AppServerReplyStream:
                     self._commit(completed_text)
                     committed = True
                     return None
-                except (OSError, RuntimeError, SystemExit, ValueError) as error:
+                except (OSError, Refused) as error:
                     self._set_state("failed", completed_text)
                     return error
             self._set_state(

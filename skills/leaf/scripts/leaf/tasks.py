@@ -63,12 +63,12 @@ change a lot (notes/what-needs-you/). Change them freely; nothing outside this
 repository depends on them.
 """
 
-import sys
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 
 from .events import note_settlements, taken_back
+from .refusals import Refused
 
 OUTCOMES = ("done", "failed", "dropped")
 
@@ -353,7 +353,7 @@ def cmd_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
                 or page_element(page_dir, subject)
             )
             if named is None:
-                sys.exit(
+                raise Refused(
                     f"{subject!r} names no thread, widget or element on this page; "
                     f"`{PAGE_SUBJECT}` names the page as a whole"
                 )
@@ -429,7 +429,7 @@ def cmd_start(page_dir: Path, item: str, text: str) -> dict:
     from .service import PageTransaction
 
     if error := start_line_error(text):
-        sys.exit(error)
+        raise Refused(error)
 
     @contract_writer
     def write(page_dir: Path) -> dict:

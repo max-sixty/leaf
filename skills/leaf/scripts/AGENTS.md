@@ -9,8 +9,12 @@ Each module owns one concern and states its contract in its header. Callers impo
 the owning module directly; a subpackage's initializer is only a marker, never a
 second API.
 
+Domain code refuses by raising `refusals.Refused` or a subclass; only a process or
+transport boundary exits, prints, or answers HTTP.
+
 ## Owners
 
+- `refusals`: the one refusal exception and the reason it carries;
 - `files`, `revisioning`, `revision_artifact`, `revision_delivery`: atomic page
   files, immutable revisions, their captured inputs and held readings, and delivery
   URLs;

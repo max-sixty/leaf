@@ -10,7 +10,6 @@ import html
 import json
 import re
 import secrets
-import sys
 import time
 from collections.abc import Mapping
 from dataclasses import replace
@@ -54,6 +53,7 @@ from .layer import foreign_runtime
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .passages import SourceReading
+from .refusals import Refused
 from .registry.storage import layer_metadata, require_registry
 from .render_checks import PROBE_SOURCES
 from .revision_artifact import (
@@ -286,6 +286,14 @@ class PageEndpoint:
         # Set when the route names a child capability, including a revoked one.
         # The opaque child must be able to read refusals and faults as HTTP too.
         self.sample_request = False
+        # The endpoint a sample's child answers inside (`SampleEndpoint`); None for
+        # the authored page.
+        self.parent: PageEndpoint | None = None
+        # A POST's body and the refusal reading it earned, which `_answer` reads only
+        # once the request is authorized. Empty until then, so a fault met before
+        # that still answers in the route's shape.
+        self.posted = {}
+        self.posted_error: str | None = None
 
     @property
     def layer(self) -> str:
@@ -299,8 +307,8 @@ class PageEndpoint:
     def interaction_owner(self) -> "PageEndpoint":
         """The durable authored page retaining every descendant sample's trace."""
         owner = self
-        while (parent := getattr(owner, "parent", None)) is not None:
-            owner = parent
+        while owner.parent is not None:
+            owner = owner.parent
         return owner
 
     def respond(self) -> Response:
@@ -323,7 +331,7 @@ class PageEndpoint:
         # query strings (including the access key) and request bodies out of it.
         if (
             self.page_dir is not None
-            and getattr(self, "parent", None) is None
+            and self.parent is None
             and not (self.housekeeping and answer.status_code < 400)
         ):
             try:
@@ -715,8 +723,6 @@ class PageEndpoint:
             answered = self._select_page()
             if answered is not None:
                 return answered
-            if prepare:
-                self.posted, self.posted_error = {}, None
             sample_answer = self._sample_request()
             if sample_answer is not None:
                 return sample_answer
@@ -774,14 +780,14 @@ class PageEndpoint:
         child = SampleEndpoint(
             self.request,
             self.server,
+            parent=self,
+            path=inside or "/",
+            passive=sample.passive,
+            asset_root=sample.asset_root,
             page_dir=sample.directory,
             layer_identity=sample.layer,
             page_root=f"{self.page_root}/api/samples/{segment}",
         )
-        child.path = inside or "/"
-        child.parent = self
-        child.passive = sample.passive
-        child.asset_root = sample.asset_root
         with sample.lock:
             if sample.closed:
                 return self._not_found()
@@ -1261,6 +1267,24 @@ class PageEndpoint:
 class SampleEndpoint(PageEndpoint):
     """A normal child page authorized by its scoped, unguessable route."""
 
+    def __init__(
+        self,
+        request: Request,
+        server,
+        *,
+        parent: PageEndpoint,
+        path: str,
+        passive: bool,
+        asset_root: str | None,
+        **binding,
+    ) -> None:
+        super().__init__(request, server, **binding)
+        self.parent = parent
+        # The address inside the child, below the capability its parent matched.
+        self.path = path
+        self.passive = passive
+        self.asset_root = asset_root
+
     def authorized(self) -> bool:
         return True
 
@@ -1306,7 +1330,7 @@ def page_endpoint(
     The layer identity and the preview reading are read once here rather than per
     request: they are facts about the vendored page this server was started over. So
     is whether this Leaf can serve that page at all: every one-page server, durable
-    or temporary, passes here before it binds, and exits naming the re-vendor when
+    or temporary, passes here before it binds, and refuses naming the re-vendor when
     the page's runtime came from another Leaf (`foreign_runtime`).
     The key has no default: every server over a page directory is reachable by
     whatever reached the machine, so there is no construction that should quietly go
@@ -1317,7 +1341,7 @@ def page_endpoint(
         else layer_metadata(page_dir)
     )
     if refusal := foreign_runtime(page_dir, identity):
-        sys.exit(refusal)
+        raise Refused(refusal)
     return partial(
         endpoint,
         page_dir=page_dir,

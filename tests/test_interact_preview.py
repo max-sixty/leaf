@@ -1797,6 +1797,7 @@ def test_a_preview_captures_acquisition_before_an_accepted_commit_is_interrupted
 def test_private_startup_keeps_previous_owner_until_acceptance(
     page_dir, monkeypatch, refusal
 ):
+    from leaf.detached import StartRefused
     from leaf.hosting import claim_and_start, cmd_stop
     from leaf.service import page_claim
     from leaf.state import end_session, ensure_session
@@ -1811,7 +1812,7 @@ def test_private_startup_keeps_previous_owner_until_acceptance(
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "candidate")
     try:
-        expected = ValueError if refusal == "abort_reuse" else RuntimeError
+        expected = ValueError if refusal == "abort_reuse" else StartRefused
         with pytest.raises(expected), claim_and_start(page_dir) as prepared:
             assert prepared.claim["acquisition"] != previous["acquisition"]
             assert page_claim(page_dir) == previous

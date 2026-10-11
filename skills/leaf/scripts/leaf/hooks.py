@@ -37,6 +37,7 @@ session; `harness.hook_harness` says why neither comes from the environment."""
 import time
 
 from .leases import mark_hooks, mark_step_hook
+from .refusals import Refused
 from .service import claim_records, owned_pages
 from .state import (
     advance_turn,
@@ -218,7 +219,9 @@ def main(harness: str, *, watch: bool = False) -> None:
     try:
         payload = json.load(sys.stdin)
     except json.JSONDecodeError as error:
-        sys.exit(f"hook expects the harness's JSON payload on stdin ({error.msg})")
+        raise Refused(
+            f"hook expects the harness's JSON payload on stdin ({error.msg})"
+        ) from error
     if watch:
         from .leases import release_on_termination
 

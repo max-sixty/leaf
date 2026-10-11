@@ -9,6 +9,9 @@ page. That invocation, and the same with `--watch` after it, enter the dependenc
 hook owner before importing Click or registering other commands. Help and every other
 invocation use the CLI, whose `prog_name` stays `leaf` for both entry forms.
 `leaf session-end` delegates to the same cleanup owner in a managed interpreter.
+
+The hook entry ends a refusal (`refusals.Refused`) here, printing its reason and
+exiting 1, as the CLI's `LeafGroup` does for every command.
 """
 
 import sys
@@ -27,8 +30,12 @@ def main() -> None:
         and args[3:] in ([], ["--watch"])
     ):
         from leaf.hooks import main as hook
+        from leaf.refusals import Refused
 
-        hook(args[2], watch=args[3:] == ["--watch"])
+        try:
+            hook(args[2], watch=args[3:] == ["--watch"])
+        except Refused as error:
+            sys.exit(str(error))
         return
     from leaf.cli import cli
 

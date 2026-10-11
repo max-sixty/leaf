@@ -20,6 +20,7 @@ from .files import revision_path
 from .passages import page_passages
 from .projection import FrozenThreadReading, retirement_outcomes
 from .questions import collection
+from .refusals import Refused
 from .registry.reactions import described
 from .registry.storage import layer_metadata, require_registry
 from .revision_artifact import active_enclosing
@@ -491,15 +492,13 @@ def _write_page_state(
         subject = page_subject(page_dir, events, target)
         if subject is None:
             held = logged_id(events, target, current_responses(page_dir, events))
-            raise SystemExit(
+            raise Refused(
                 f"{target!r} names no thread or widget on this page"
                 + (f"; {held}" if held else "")
             )
     if subject is not None and subject["kind"] == "widget":
         if after is not None or limit is not None:
-            raise SystemExit(
-                f"{target!r} is a widget; --after and --limit page a thread"
-            )
+            raise Refused(f"{target!r} is a widget; --after and --limit page a thread")
         state = _widget_state(
             state, page_dir, subject["id"], active_enclosing(page_dir)
         )
@@ -510,7 +509,7 @@ def _write_page_state(
             None,
         )
         if selected is None:
-            raise SystemExit(f"{target!r} names no thread or widget on this page")
+            raise Refused(f"{target!r} names no thread or widget on this page")
         # A thread is listed only where the page has a document, so the readings
         # stand here.
         thread_reading = reading.thread

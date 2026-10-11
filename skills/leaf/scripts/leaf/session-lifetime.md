@@ -22,7 +22,7 @@ second fold.
 | the harness runs Leaf's hooks for this session | `sessions/<session>.hooks` | every Leaf hook the harness runs for the session | removed by its SessionEnd hook |
 | acknowledgement cursor | `cursor.json` | whatever confirms the complete delivery reached its durable consumer: a Claude Code or Pi hook once it has published an inline delivery, the session's explicit `leaf delivery ack` after a pointer reading, `leaf wait --ack` after a printed one, or the Codex adapter | when its seq is past the log's end, or a fresh log replaces the one it named; monotonic within one log |
 | pickup transition | a `pickup` event in `events.jsonl` | the adapter records `queued` when Codex accepts a batch it does not observe; whatever puts the batch into a turn records `opened` with session and turn identity: a direct `leaf wait --ack` confirmation, an inline hook's or a pointer reader's explicit confirmation of a Claude Code or Pi hook delivery, the prompt hook re-presenting an acknowledged unanswered update, or an App Server turn start | never; each event/phase/session/turn transition is idempotent |
-| page claim: unique acquisition, session generation, display name, harness | `~/.local/state/leaf/claims/<page-key>.json`; the session partition holds a symlink locator to it | `server start` from an agent harness; references the session lifetime publication | `released` is set, the referenced generation ended or was replaced, or the shared harness lifetime is gone: the pid, the background job's directory, or the desktop Codex chat's validated native transcript at the path in its session record; archive moves that source and delete removes it |
+| page claim: unique acquisition, session generation, display name, harness | `~/.local/state/leaf/claims/<page-key>.json`; the session partition holds a symlink locator to it | `server start` from an agent harness; references the session lifetime publication | the referenced generation ended or was replaced, or the shared harness lifetime is gone: the pid, the background job's directory, or the desktop Codex chat's validated native transcript at the path in its session record; archive moves that source and delete removes it |
 | service lifetime | `service.json` | `server start` at launch: session, or standing | `leaf server stop`; a session server also retires when no live claim holds it |
 | Codex delivery record | `sessions/<session>.deliveries/` in the state home | the detached adapter or an embedded App Server harness | an unaccepted record is inactive while the session owns no page; an accepted record moves under `history/` after every batch is receipted; a record, live or archived, goes at the next scan that finds its pages all gone: its own task's reading, its next archiving, or any Codex adapter's retirement, which scans every task's records and removes a directory it empties |
 | Codex adapter log | `sessions/<session>.codex.log` | the detached adapter's own output, begun afresh when serving or `leaf codex start` starts a new adapter | removed when the adapter retires owning no page; a run that ended any other way leaves it for the next start of that task |
@@ -318,9 +318,9 @@ Resume and prompt hooks inspect the session's retained claims, including those w
 ownership has expired. An enabled session service with inactive ownership or no
 exact live server lease emits a reconnect notice with `leaf server start <page>`,
 which restores serving and the delivery of updates. The notice also covers the orphan
-grace period, while the old listener may still be running. Explicit releases,
-stopped services, standing services, developer previews, and pages another session
-claimed are excluded.
+grace period, while the old listener may still be running. Stopped services,
+standing services, developer previews, and pages another session claimed are
+excluded.
 
 `reconnect.py` reserves one notice per harness/session/page in
 `sessions/<session>.<harness>.reconnect`. This notification record survives SessionEnd
@@ -535,15 +535,15 @@ retire for lack of pages during that handoff. An existing direct wait is honored
 
 Taking new input from a page needs the session's claim active, but recording what
 the session's task already took or answered there — a receipt, a turn's final
-answer, a failure answer — needs only that the claim still names the session,
-unreleased, while the session has not ended (`service.claim_names_session`). A
+answer, a failure answer — needs only that the claim still names the session
+and the session has not ended (`service.claim_names_session`). A
 restart begins the session's new generation before it publishes that generation's
 claim, and a task holding several pages claims them back one at a time, so an
 App Server client reading the task back after a restart meets claims that name an older
 generation of its own session. Refusing there would retire an accepted batch
 without advancing the page's cursor, so its input would be delivered again once
 the page is claimed, and would lose the turn's answer. Another session's claim
-or a release still refuses.
+or the session's end still refuses.
 `server run` prepares the same delivery before binding in the foreground. Standing
 and temporary serves prepare no delivery. `leaf codex start` prepares the adapter
 under its start lock and then publishes the page claim, without serving.
@@ -600,7 +600,7 @@ delivery route. The session record owns the one validated `transcript_path`;
 lifetime records only `chat: true`. Missing source evidence refuses a new desktop
 start. An existing
 chat keeps its server, preview and adapter across inactivity and unload; archival
-or deletion of its native source, release and transfer retire ownership.
+or deletion of its native source and transfer retire ownership.
 Process-backed harness sessions invalidate their generation at `SessionEnd`.
 
 Desktop user previews also detach their input watcher from the launching command.
@@ -615,6 +615,6 @@ lost ownership, without touching page files just to renew itself.
 The detached Codex adapter follows active session/page ownership, including when
 all owned pages declare idle. Idle pages deliver no input and direct waits end;
 a later start or waiting declaration resumes delivery through the existing adapter. The adapter
-waits for page news while idle and retires once ownership ends through release,
-transfer, chat archival/deletion or a process-backed SessionEnd. Serving a closed page therefore
+waits for page news while idle and retires once ownership ends through transfer,
+chat archival/deletion or a process-backed SessionEnd. Serving a closed page therefore
 does not lose its adapter before the agent's next declaration.

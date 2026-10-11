@@ -66,11 +66,7 @@ LEAF_SITE_RELEASE="$release" uv run --project "$repo_root" leaf-dev site
   "$wrangler" "${deploy_arguments[@]}"
 )
 
-deadline=$((SECONDS + 900))
-until uv run --project "$repo_root" leaf-dev verify-site "$origin" \
-  --release "$release"; do
-  ((SECONDS < deadline)) || exit 1
-  sleep 10
-done
+uv run --project "$repo_root" leaf-dev verify-site "$origin" \
+  --release "$release" --wait 900
 uv run --project "$repo_root" leaf-dev journey "$origin" \
   --release "$release"

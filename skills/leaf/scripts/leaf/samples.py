@@ -18,17 +18,12 @@ from threading import Lock
 
 from .data import source_file
 from .page_memory import PageMemory, memory_of
-from .revision_artifact import (
-    RevisionArtifact,
-    read_artifact,
-    read_revision,
-    write_artifact,
-)
+from .revision_artifact import write_artifact
 from .revisioning import activate_source
 from .sample_content import initial_sample_history, page_sample_history
 from .schema import DATA_DIR, DATA_FILE
+from .served_state.service import SampleInputs
 from .state import now_iso, write_json
-from .structure import SourceDocument
 from .thread_context import thread_structure, widget_messages
 
 
@@ -65,17 +60,15 @@ class Samples:
     def create(
         self,
         parent: Path,
-        artifact: RevisionArtifact,
-        document: SourceDocument,
-        events: list,
-        data: dict,
+        inputs: SampleInputs,
         template_id: str,
         passive: bool,
         asset_root: str | None,
-        *,
-        available_revisions,
-        snapshot=None,
     ) -> str:
+        artifact = inputs.artifact
+        document = inputs.readings[inputs.revision].document
+        events = inputs.events
+        data = inputs.data
         template = next(
             (
                 sample
@@ -86,7 +79,9 @@ class Samples:
         )
         if template is None:
             raise ValueError(f"unknown sample template {template_id!r}")
-        parent_history = page_sample_history(document, events, available_revisions)
+        parent_history = page_sample_history(
+            document, events, inputs.available_revisions
+        )
         seeded = initial_sample_history(
             parent,
             document,
@@ -130,28 +125,23 @@ class Samples:
                 []
                 if "data-sample-events" in template["attrs"]
                 else sorted(
-                    {event["revision"] for event in seeded if event.get("markup")}
+                    {
+                        event["revision"]
+                        for event in seeded
+                        if event.get("markup")
+                        and event["revision"] in inputs.available_revisions
+                    }
                 )
             )
             revision_map = {
                 revision: index for index, revision in enumerate(revisions, 1)
             }
             for revision, copied in revision_map.items():
-                source_artifact = (
-                    snapshot.artifacts[revision]
-                    if snapshot is not None
-                    else read_artifact(parent, revision)
-                )
-                source_reading = (
-                    snapshot.context.revision(revision)
-                    if snapshot is not None
-                    else read_revision(parent, revision)
-                )
                 write_artifact(
                     child,
                     copied,
-                    source_artifact,
-                    source_reading,
+                    inputs.artifacts[revision],
+                    inputs.readings[revision],
                 )
             current_revision = len(revisions) + 1
             for event in seeded:

@@ -1655,6 +1655,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "author": "agent",
             "agent": "Claude",
             "parent": "c1",
+            "revision": 1,
             "text": "reversibility",
             "markup": '<lf-diagram id="why"><pre>graph LR\n  A --> B</pre></lf-diagram>',
         },

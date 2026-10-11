@@ -1367,6 +1367,20 @@ def test_historical_deferred_reads_keep_the_document_contract_with_current_kerne
     deferred = json.loads(response.read())
     deferred_status = response.status
     deferred_layer = response.getheader("Leaf-Layer")
+    comment = {
+        "kind": "comment",
+        "revision": first.revision,
+        "text": "Historical passage, current transport.",
+        "anchor": {"section": "flow"},
+    }
+    status, raw = fetch(
+        f"{server}/api/event",
+        data=json.dumps(comment).encode(),
+        layer=second_layer,
+        headers={"Leaf-View-Revision": str(first.revision)},
+    )
+    assert status == 200
+    assert json.loads(raw)["state"]["events"][-1]["text"] == comment["text"]
     connection.request(
         "GET",
         f"/api/view?revision={first.revision}&through_seq={historical['events'][-1]['seq']}&t="
@@ -4558,9 +4572,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
         active["revision"],
         url=active["url"],
     )
-    projection = served_service.PageStateService(
-        page_dir, page_snapshot=snapshot
-    ).page_state()
+    projection = served_service.PageStateService(page_dir, source=snapshot).page_state()
 
     append_carried_log_record(
         page_dir,
@@ -4579,9 +4591,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
     )
     publish(page_dir)
 
-    after = served_service.PageStateService(
-        page_dir, page_snapshot=snapshot
-    ).page_state()
+    after = served_service.PageStateService(page_dir, source=snapshot).page_state()
     assert after["active"] == projection["active"]
     assert after["events"] == projection["events"]
     assert after["data"] == projection["data"]
@@ -4645,7 +4655,7 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
         active["revision"],
         url=active["url"],
     )
-    service = served_service.PageStateService(page_dir, page_snapshot=snapshot)
+    service = served_service.PageStateService(page_dir, source=snapshot)
     before = service.page_state()
     [gesture] = [
         row for row in before["browser"]["history"] if row["id"] == picked["id"]
@@ -5957,7 +5967,7 @@ def test_the_live_document_keeps_its_revision_and_version_in_one_transaction(
                 publishing_model.cmd_stamp(page_dir, "Concurrent publication")
             return answer
 
-    monkeypatch.setattr(http_model, "PageTransaction", ConcurrentPublication)
+    monkeypatch.setattr(served_service, "PageTransaction", ConcurrentPublication)
     status, body = fetch(f"{server}/")
     assert status == 200
     document = body.decode()

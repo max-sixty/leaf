@@ -3759,6 +3759,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
     board = append_carried_log_record(
         serve.page_dir,
         {
+            "revision": 1,
             "kind": "reply",
             "author": "agent",
             "parent": root,

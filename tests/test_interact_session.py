@@ -831,6 +831,7 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
     append_carried_log_record(
         page_dir,
         {
+            "revision": 1,
             "kind": "reply",
             "author": "agent",
             "parent": asked["id"],
@@ -7947,6 +7948,7 @@ def test_the_envelope_stops_growing_with_the_thread(page_dir, capsys):
         agent = append_carried_log_record(
             page_dir,
             {
+                "revision": 1,
                 "kind": "reply",
                 "author": "agent",
                 "parent": parent,
@@ -7995,6 +7997,7 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
     asked = append_carried_log_record(
         page_dir,
         {
+            "revision": 1,
             "kind": "reply",
             "author": "agent",
             "parent": root["id"],

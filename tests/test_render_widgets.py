@@ -13568,8 +13568,10 @@ def test_an_excerpt_shows_and_answers_to_its_source_line_numbers(browser, serve)
     its notes. Everything that points into the block — `hi`, a note's `at`, a driver's
     indication — names lines by those numbers. A left-out number addresses the elided
     row standing for it, so a note placed there is that row's caption, and a number
-    outside the block addresses nothing. A copied excerpt is the quoted source and the
-    authored notes, never the numbers or the elided rows' counts."""
+    outside the block addresses nothing. A body longer than its ranges goes on counting,
+    and a note past either end stands at the block's foot rather than leaving the page.
+    A copied excerpt is the quoted source and the authored notes, never the numbers or
+    the elided rows' counts."""
     url = serve(
         leaf_page(
             "excerpt",
@@ -13586,6 +13588,13 @@ fn merge_sort()
 </pre>
 <lf-note at="1551">One run per pass.</lf-note>
 <lf-note id="gap" at="1520">Setup, left out.</lf-note>
+</lf-code>
+<lf-code id="short" lines="10-11"><pre>
+one
+two
+three
+</pre>
+<lf-note id="far" at="99">Past the end.</lf-note>
 </lf-code>
 <lf-pointer id="film" for="walk"></lf-pointer>
 """,
@@ -13611,6 +13620,12 @@ fn merge_sort()
         ["note"],
         ['"1552"', False],
     ]
+    short = page.locator("#short pre > *")
+    expect(short).to_have_count(4)
+    assert short.evaluate_all(
+        """rs => rs.map(r => r.localName === 'lf-note' ? r.id
+                   : getComputedStyle(r, '::before').content)"""
+    ) == ['"10"', '"11"', '"12"', "far"]
 
     code_x, note_x = page.evaluate(
         """() => {

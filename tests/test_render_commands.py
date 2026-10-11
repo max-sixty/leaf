@@ -1430,7 +1430,11 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
               row.id = 'unreachable-row';
               row.className = 'lf-ui';
               row.innerHTML = '<strong>Session cookies</strong>';
-              option.prepend(shown, row);
+              const button = document.createElement('button');
+              button.id = 'unreachable-button';
+              button.setAttribute('data-lf-said', '');
+              button.textContent = 'Lax, host-only';
+              option.prepend(shown, row, button);
 
               // A visible control and an otherwise identical one below an
               // unscrollable clip keep the control-reachability field non-vacuous.
@@ -1457,13 +1461,22 @@ def test_render_reports_words_a_widget_puts_out_of_reach(browser, serve):
     page = open_page(primed_browser, serve(CARRIED_PAGE))
     assert (
         page.locator(
-            "#native-link, #hidden-note, #shown-note, #unreachable-row"
+            "#native-link, #hidden-note, #shown-note, #unreachable-row, "
+            "#unreachable-button"
         ).count()
-        == 4
+        == 5
     )
     assert page.locator("#hidden-note").is_hidden()
     assert page.locator("#shown-offer, #clipped-offer").count() == 2
     assert page.locator("#shown-offer").is_visible()
+    # A label inside a form control no marker can reach is the suite's question of
+    # Leaf's own modules (`test_page_fixture_renders`), not the gate's.
+    assert render_checks_model.evaluate_probe(page, "wordsInFormControls") == [
+        (
+            '<lf-option id=c-lax> says "Lax, host-only" inside a form control, where '
+            "no selection can reach it"
+        )
+    ]
     page.close()
 
     found = render_gate_model.render_version(

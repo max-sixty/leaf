@@ -71,9 +71,10 @@ PROSE_TAGS = {"p", "h1", "h2", "h3", "h4", "h5", "h6"}
 SECTIONING_TAGS = {"section", "article", "main", "body"}
 # The allocations a page occurrence may state, each attribute with the values it takes:
 # a block's width in the page's flow, whether it bounds its own height, the height in
-# CSS pixels of a widget that draws into a box of a stated height (x-height), and, on
-# `body` alone, the selected annotation presentation and whether the page claims the
-# overlay rail or keeps that margin for its own residents.
+# CSS pixels of a widget that draws into a box of a stated height (x-height), and, read
+# from `body`, the selected annotation presentation and whether the page claims the
+# overlay rail or keeps that margin for its own residents. Delivery honours a width,
+# bound or height only where it means something (`authored_on`, schema.DECLARED_MARKS).
 AUTHORED_ALLOCATIONS = {
     "data-width": ("column", "wide", "available"),
     "data-bound": ("start", "end"),

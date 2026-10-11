@@ -201,14 +201,12 @@ def fragment_style_errors(parser: SourceDocument) -> list:
     """A message may not dress the document it is put into.
 
     A version's <style> is the page's own, and the gates a version answers to read
-    it as such — syntax, the column it may not overflow, the presentation
-    properties the theme keeps. A fragment has no page of its own: the runtime
+    it as such — its syntax and the column it may not overflow. A fragment has no page of its own: the runtime
     parses an agent's reply markup into a template and moves those nodes into the
     message body, where a <style> among them becomes a document stylesheet like
     any other. `<style>main h1 { color: red !important }</style>` in a reply was
     accepted here and repainted the version's own heading, past every gate the
-    same rule in a version answers to; an inline `!important` on a protected
-    property outranked the theme's first cascade layer the same way.
+    same rule in a version answers to.
 
     Nothing is lost by refusing them. The layer already dresses a widget an agent
     sends — that is what an element declaration and its theme rules are for — and a rule

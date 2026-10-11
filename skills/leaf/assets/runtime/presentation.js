@@ -490,9 +490,11 @@ export function markDeclared(root) {
       for (const el of elementsIn(root, tag))
         keeps(el, paint, declared === true ? "" : declared);
     }
+    // Message markup is all content (`authored_on`, schema.DECLARED_MARKS), so only a
+    // mark held to declaring tags asks which tag an occurrence is.
     if (authored)
       for (const el of elementsIn(root, `[${authored}]`))
-        if (!mark.declared_only || tags.includes(el.localName))
+        if (mark.authored_on !== "declared" || tags.includes(el.localName))
           keeps(el, paint, el.getAttribute(authored));
   }
 }

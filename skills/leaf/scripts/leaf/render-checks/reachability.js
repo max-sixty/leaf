@@ -289,3 +289,23 @@ function unreachableWords() {
   }
   return [...new Set(found)];
 }
+
+// A declared label inside a form control is out of reach whatever it is marked: Chrome
+// starts no pointer selection inside one, which is why `offer` builds a press as a span
+// wearing role="button". A widget module reaching for <button> anyway puts its label
+// where no selection can go. The suite asks it of Leaf's own widgets over the shipped
+// pages; an authored page has never been found doing it.
+export function wordsInFormControls() {
+  const form = `button, ${TEXT_BOX}, input, select`;
+  return [...document.querySelectorAll("[data-lf-said]")]
+    .filter((el) => el.closest(form))
+    .map((el) => {
+      let widget = el;
+      while (widget && !widget.tagName.startsWith("LF-")) widget = widget.parentElement;
+      return widget
+        ? `${at(widget)} says ${JSON.stringify(el.textContent.trim().slice(0, 40))} ` +
+            `inside a form control, where no selection can reach it`
+        : null;
+    })
+    .filter(Boolean);
+}

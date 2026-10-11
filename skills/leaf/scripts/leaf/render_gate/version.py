@@ -76,8 +76,7 @@ def _render_version_attempt(
     there would outline nothing and the Question walk would travel to the top of the page,
     the page scrolling sideways, content set past the column and out into the margin,
     a table that scrolls sideways with a cell in it wrapped,
-    words the user can read and can't select, words drawn on top of other words, code
-    coloured in an ink the user cannot tell from the code around it — each
+    words the user can read and can't select, words drawn on top of other words — each
     in both color schemes at wide and compact viewports, because the dark theme and
     responsive layout are real CSS nobody otherwise renders — plus, in one scheme at
     each viewport, a word the registry promised that never reached

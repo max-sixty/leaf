@@ -3191,9 +3191,10 @@ def test_page_fixture_renders(browser, serve, source):
     And nothing the runtime adds stands among the elements the page wrote, where it
     would change which child the page's own rules find first, last, or next.
 
-    Code the page shows reads at 4.5:1 or better in both schemes. The syntax palette is
-    the theme's, so the suite holds it over the shipped pages rather than the gate
-    asking it of every authored one.
+    Code the page shows reads at 4.5:1 or better in both schemes, and no widget puts a
+    declared label inside a form control, where no selection reaches it. Both are the
+    layer's own, the syntax palette and its widget modules, so the suite holds them over
+    the shipped pages rather than the gate asking them of every authored one.
 
     Then the page is scrolled (`scroll_findings`), on the same page the probes read,
     since both want the page as a reader first opens it."""
@@ -3228,6 +3229,8 @@ def test_page_fixture_renders(browser, serve, source):
             for u in render_checks_model.evaluate_probe(page, "unreadSyntax")
         ]
     assert unread == [], unread
+    said = render_checks_model.evaluate_probe(page, "wordsInFormControls")
+    assert said == [], said
 
 
 # The page's longest scroller, the one its reader spends the scroll in.

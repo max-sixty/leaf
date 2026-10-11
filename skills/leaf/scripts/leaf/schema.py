@@ -439,10 +439,12 @@ ATTRIBUTE_KEYS = (
 # one member at a time (x-views). Neither a stylesheet nor the prepaint, which runs
 # before the registry has loaded (`runtime/prepaint.js`), can read the registry, so
 # each is painted where a selector can ask. `authored` is
-# the attribute an occurrence writes to override its tag's or idiom's declaration;
-# `declared_only` says it overrides only there, so on an element whose tag declares
-# no such mark it is inert: a stated height reserves room for a module's drawing, and
-# a block no module draws into would be clipped to it for good.
+# the attribute an occurrence writes to override its tag's or idiom's declaration, and
+# `authored_on` where that override means something, so elsewhere it is inert:
+# `content`, a block inside `main`, since the room and the bound size a block in the
+# page's flow and on `main` or `body` would size the page itself; `declared`, an element
+# whose tag declares the mark, since a stated height reserves room for a module's
+# drawing and a block no module draws into would be clipped to it for good.
 # `message` says
 # whether the mark holds in a thread's message too:
 # each is the element's own fact wherever it renders, except the room and the margin
@@ -464,17 +466,23 @@ DECLARED_MARKS = {
     "x-space": {
         "paint": "data-lf-space",
         "authored": "data-width",
+        "authored_on": "content",
         "message": False,
         "idiom": True,
     },
     "x-inline": {"paint": "data-lf-inline", "message": True},
     "x-exhibit": {"paint": "data-lf-exhibit", "message": True},
-    "x-bound": {"paint": "data-lf-bound", "authored": "data-bound", "message": True},
+    "x-bound": {
+        "paint": "data-lf-bound",
+        "authored": "data-bound",
+        "authored_on": "content",
+        "message": True,
+    },
     "x-height": {
         "paint": "data-lf-height",
         "authored": "data-height",
+        "authored_on": "declared",
         "message": True,
-        "declared_only": True,
     },
     "x-reading-role": {"paint": "data-lf-reading-role", "message": True},
     "x-resident": {"paint": "data-lf-resident", "message": False},

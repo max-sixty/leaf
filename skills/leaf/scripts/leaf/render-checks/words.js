@@ -211,7 +211,7 @@ export function coveredWords({
 
 // Inspect the theme's actual token paint, including declared widget shadow roots.
 // Shiki supplies styles; page CSS resolves their variables. A theme may intentionally
-// give a token the surrounding ink, so the gate checks legibility rather than requiring
+// give a token the surrounding ink, so the suite checks legibility rather than requiring
 // every syntax category to look different. Group identical styles by painted surface.
 //
 // What a colour is comes back from the browser painting it, not from a parse of how it

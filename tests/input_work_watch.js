@@ -146,6 +146,33 @@
       : null;
   };
 
+  // A summary's activation opens its details after the click's listeners, and the
+  // browser announces that in a toggle task of its own, coalescing every flip since the
+  // last one. The first toggle after an activation settles it, whatever it says: its
+  // listeners answer to the activating input only where it announces an opening and
+  // the click was not cancelled. Any other toggle, such as an open the click's own
+  // listener made and its activation then closed, expires the activation, so a later
+  // opening a script makes has no activating input. Each details recorded here is
+  // watched directly, so expiry needs no listener of the page's.
+  const watchedDetails = new WeakSet();
+  const settleToggle = (event) => {
+    if (sources.has(event)) return;
+    const details = event.composedPath()[0];
+    const activation = opening.get(details);
+    if (!activation) return;
+    opening.delete(details);
+    if (event.newState === "open" && !activation.click.defaultPrevented)
+      sources.set(event, activation.source);
+  };
+  const recordOpening = (details, activation) => {
+    opening.set(details, activation);
+    if (watchedDetails.has(details)) return;
+    watchedDetails.add(details);
+    nativeAdd.call(details, "toggle", (event) => {
+      if (event.isTrusted) settleToggle(event);
+    });
+  };
+
   const handlerOriginals = new WeakMap();
   const handlerWrappers = new WeakMap();
   const handler = (callback) => {
@@ -211,7 +238,7 @@
     const details =
       source.event.type === "click" ? activatedDetails(source.node) : null;
     if (details?.open) closes.add(details);
-    else if (details) opening.set(details, { source, click: source.event });
+    else if (details) recordOpening(details, { source, click: source.event });
     if (closes.size) nativeDefaults.set(source, closes);
     task(() => {
       // The dispatch is over. A native await continuation since dispatch is not owned by
@@ -244,22 +271,8 @@
     return source;
   };
   const eventSource = (event) => {
+    if (event.isTrusted && event.type === "toggle") settleToggle(event);
     if (sources.has(event)) return sources.get(event);
-    // A summary's activation opens its details after the click's listeners, and the
-    // browser announces that in a toggle task of its own. The listeners that task runs
-    // answer to the click whose activation opened it, unless the click was cancelled
-    // and opened nothing; a details a script opened has no activating input.
-    if (event.isTrusted && event.type === "toggle" && event.newState === "open") {
-      const details = event.composedPath()[0];
-      const activation = opening.get(details);
-      if (activation) {
-        opening.delete(details);
-        if (!activation.click.defaultPrevented) {
-          sources.set(event, activation.source);
-          return activation.source;
-        }
-      }
-    }
     // EditContext's trusted textupdate does not travel through a DOM capture path.
     // Its attached element owns rendering. Expose the field a composed DOM event
     // would expose outside its closed shadow roots, without consulting the runtime.
@@ -414,7 +427,7 @@
       if (event.isTrusted) return;
       const source = current();
       const details = source && activatedDetails(event.composedPath()[0]);
-      if (details && !details.open) opening.set(details, { source, click: event });
+      if (details && !details.open) recordOpening(details, { source, click: event });
     },
     true,
   );

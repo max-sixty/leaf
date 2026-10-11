@@ -3105,7 +3105,8 @@ def test_an_ask_walk_glides_within_a_view_and_opens_other_tabs_at_the_question(
             frame for frame in trace["frames"] if frame["source"] == "source-answer"
         ]
         assert arrived, trace
-        assert all(abs(frame["top"] - (edge + 5)) <= 3 for frame in arrived), trace
+        # The first paint can precede the focus margin's 5 px adjustment.
+        assert all(edge - 3 <= frame["top"] <= edge + 8 for frame in arrived), trace
 
     for key, target, tab in [("q", "second", "Second"), ("Shift+q", "first", "First")]:
         before = page.evaluate("scrollY")
@@ -3142,7 +3143,8 @@ def test_an_ask_walk_glides_within_a_view_and_opens_other_tabs_at_the_question(
         )
         arrived = [frame for frame in trace["frames"] if frame["selected"] == target]
         assert arrived, trace
-        assert all(abs(frame["top"] - (edge + 5)) <= 3 for frame in arrived), trace
+        # The new view paints at the edge before focus adds its 5 px margin.
+        assert all(edge - 3 <= frame["top"] <= edge + 8 for frame in arrived), trace
         assert trace["cues"] == [0 if reduced else 1], trace
         top = page.locator(f"#ask-{target}").bounding_box()["y"]
         assert top == pytest.approx(edge + 5, abs=3), (top, edge)

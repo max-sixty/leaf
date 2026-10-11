@@ -334,9 +334,9 @@ def test_a_website_example_names_its_limited_agent(browser, serve):
     ) == ["/examples/", "/#install"]
     expect(page.locator(".lf-status-button .lf-publication-install")).to_have_count(0)
     expect(status).to_have_attribute("title", " ".join(status.text_content().split()))
-    assert page.locator(".lf-banner .lf-dot").evaluate(
-        "dot => [...dot.classList]"
-    ) == ["lf-dot"]
+    assert page.locator(".lf-banner .lf-dot").evaluate("dot => [...dot.classList]") == [
+        "lf-dot"
+    ]
 
 
 @pytest.mark.parametrize("outcome", ["presented", "abandoned", "offline"])

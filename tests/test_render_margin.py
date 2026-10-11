@@ -7891,7 +7891,7 @@ def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):
 
 # Where a card and its reply stand: the card's edges, the first turn's top, the reply's
 # edges and scroll (its first line stands at its top only while it is unscrolled), and
-# Send's top, beside the window's foot the card stops at.
+# The visible action's top, beside the window's foot the card stops at.
 CARD_AND_REPLY = """async () => {
   const card = document.querySelector('.lf-margin-preview');
   const box = card.getBoundingClientRect();
@@ -7901,7 +7901,7 @@ CARD_AND_REPLY = """async () => {
   return {cardTop: box.top, cardBottom: box.bottom,
           turn: card.querySelector('.lf-msg').getBoundingClientRect().top,
           editorTop: reply.top, editorBottom: reply.bottom, scrolled: editor.scrollTop,
-          send: card.querySelector('.lf-thread-reply .lf-compose-submit')
+          send: card.querySelector('.lf-thread-reply .lf-compose-field > button:not([hidden])')
             .getBoundingClientRect().top,
           placement: card.dataset.lfThreadPlacement,
           foot: geometry.shownWindow({gap: 8}).bottom};
@@ -8000,7 +8000,7 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
     rendered(page)
     expect(preview.locator(".lf-page-thread")).to_be_focused()
     expect(preview).to_be_visible()
-    assert send.evaluate(
+    assert preview.locator(".lf-compose-field > button:visible").evaluate(
         "button => button.getBoundingClientRect().top"
     ) == pytest.approx(pressed, abs=0.5)
     sent = page.evaluate(CARD_AND_REPLY)
@@ -8553,7 +8553,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     assert len(selected) > 10 and selected in words.inner_text(), selected
 
     thread.get_by_role("textbox", name="Reply", exact=True).click()
-    send = preview.get_by_role("button", name="Send")
+    send = preview.locator(".lf-compose-field > button:visible")
     send.focus()
     page.evaluate("() => dispatchEvent(new Event('resize'))")
     expect(send).to_be_focused()

@@ -2927,6 +2927,69 @@ INTERACTION_PLAYBACK_PAGE = leaf_page(
 </style>""",
 )
 
+
+@pytest.mark.parametrize("failure", ["load", "command"])
+def test_gallery_reports_child_errors_named_abort_error(browser, serve, failure):
+    """An authored exception keeps its meaning across the opaque sample port."""
+    page = browser.new_page(reduced_motion="reduce")
+    source = INTERACTION_PLAYBACK_PAGE
+    files = {}
+    if failure == "load":
+        source = source.replace(
+            '<template id="demo-accept-page" data-sample>',
+            '<template id="demo-accept-page" data-sample>'
+            '<script defer crossorigin="anonymous" src="/page/gallery-fault.js"></script>',
+        )
+        files["gallery-fault.js"] = """
+throw Object.assign(new Error('Gallery child failed'), {name: 'AbortError'});
+"""
+    page.goto(serve(source, page_files=files))
+    if failure == "command":
+        expect(page.locator("[data-interaction-frame]")).to_have_attribute(
+            "data-interaction-ready", ""
+        )
+        child = page.frame(name="interaction-accept")
+        child.evaluate("""async () => {
+          const {registerSampleCommand} = await __lfRuntimeImport('/runtime/sample-child.js');
+          registerSampleCommand('gallery.viewport', () => {
+            throw Object.assign(new Error('Gallery child failed'), {name: 'AbortError'});
+          });
+        }""")
+        page.locator("[data-interaction-viewport-select]").select_option("1")
+    expect(page.locator(".lf-interaction-status")).to_have_text("Could not play")
+    expect(page.locator("[data-interaction-toggle]")).to_be_disabled()
+    rendered(page)
+    consume_browser_errors(page, "Gallery child failed")
+
+
+def test_departing_gallery_cancels_pending_samples_without_reporting_failure(
+    browser, serve
+):
+    """Departure cancels loading even while the old document's nodes remain connected."""
+    page = browser.new_page()
+    held = []
+    page.route("**/api/samples", lambda route: held.append(route))
+    page.goto(serve(INTERACTION_PLAYBACK_PAGE))
+    holding(page, held, 1, "the gallery's sample allocation")
+    page.evaluate("window.dispatchEvent(new PageTransitionEvent('pagehide'))")
+    assert page.locator("[data-interaction-demo]").evaluate(
+        "figure => figure.isConnected"
+    )
+    response = held[0].fetch()
+    held[0].fulfill(response=response)
+    page.evaluate("""async () => {
+        const {whenArrived} = await window.__lfRuntimeImport('/runtime/presentation.js');
+        await whenArrived();
+    }""")
+    rendered(page)
+    expect(page.locator(".lf-interaction-status")).not_to_have_text("Could not play")
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "error"
+    ]
+
+
 SIGNOFF_STABILITY_PAGE = LONG_PAGE.replace(
     "<title>long</title>",
     '<title>long</title><meta name="lf-review" content="sign-off">',
@@ -4988,15 +5051,16 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
     page.get_by_role("button", name="Close threads").tap()
     panel_settled(page, open=False)
 
-    # The page comment card's Send is the compact control a finger presses to start a
-    # page thread.
+    # The page comment's empty action and Send both keep a finger-sized aim.
     page_comment(page)
-    send = page.locator(".lf-page-comment-card .lf-general button")
-    expect(send).to_be_visible()
-    box = send.bounding_box()
-    assert box["width"] >= 43.9 and box["height"] >= 43.9, (
-        f"the page comment card's Send kept a mouse-sized aim: {box}"
-    )
+    for words in ("", "Review this page"):
+        write(page.locator(".lf-page-comment-card leaf-text"), words)
+        action = page.locator(".lf-page-comment-card .lf-general button:visible")
+        expect(action).to_be_visible()
+        box = action.bounding_box()
+        assert box["width"] >= 43.9 and box["height"] >= 43.9, (
+            f"the page comment card's action kept a mouse-sized aim: {box}"
+        )
     page.keyboard.press("Escape")
     expect(page.locator(".lf-page-comment-card")).to_be_hidden()
 
@@ -8243,7 +8307,9 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
     assert boxes["first"]["bottom"] <= boxes["height"] - insets["bottom"] + 1, boxes
 
 
-def test_the_page_comment_card_keeps_its_send_inside_the_side_safe_area(browser, serve):
+def test_the_page_comment_card_keeps_its_action_inside_the_side_safe_area(
+    browser, serve
+):
     """The page comment card stays inside both unsafe side edges, on a phone where it
     spans the window and beside it where it hangs from its control."""
     page = open_page(browser, serve(LONG_PAGE))
@@ -8256,6 +8322,9 @@ def test_the_page_comment_card_keeps_its_send_inside_the_side_safe_area(browser,
     for width in (500, 420):
         resized(page, width, 700)
         page_comment(page)
+        expect(
+            page.locator(".lf-page-comment-card .lf-general button:visible")
+        ).to_be_visible()
         boxes = page.evaluate(
             """() => {
               const rect = selector => {
@@ -8263,12 +8332,12 @@ def test_the_page_comment_card_keeps_its_send_inside_the_side_safe_area(browser,
                 return {left: r.left, right: r.right, top: r.top, bottom: r.bottom};
               };
               return {card: rect('.lf-page-comment-card'),
-                      send: rect('.lf-page-comment-card .lf-general button'),
+                      action: rect('.lf-page-comment-card .lf-general button:not([hidden])'),
                       viewport: {width: innerWidth, height: innerHeight}};
             }"""
         )
-        assert boxes["send"]["right"] <= boxes["viewport"]["width"] - 31 + 1, (
-            f"the page comment card's Send sat under the side safe area at {width}px: "
+        assert boxes["action"]["right"] <= boxes["viewport"]["width"] - 31 + 1, (
+            f"the page comment card's action sat under the side safe area at {width}px: "
             f"{boxes}"
         )
         assert boxes["card"]["left"] >= 23 - 1, (

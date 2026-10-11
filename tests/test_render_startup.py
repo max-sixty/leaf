@@ -3269,7 +3269,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
 
     write(page_comment(page), "Newest **snapshot**")
     with sending(page, "the newer comment"):
-        page.locator(".lf-page-comment-card .lf-general button").click()
+        page.locator(".lf-page-comment-card .lf-general .lf-compose-submit").click()
 
     old_route.fulfill(json=old_state)
     page.title()  # let the old response join the shared import before releasing it
@@ -3396,7 +3396,7 @@ def test_more_than_six_live_documents_share_an_origin_without_stalling(browser, 
         last = pages[-1]
         write(page_comment(last), "All eight views are live.")
         with sending(last, "the eighth view's comment"):
-            last.locator(".lf-page-comment-card .lf-general button").click()
+            last.locator(".lf-page-comment-card .lf-general .lf-compose-submit").click()
         assert any(
             event.get("text") == "All eight views are live."
             for event in events_model.read_events(serve.page_dir)

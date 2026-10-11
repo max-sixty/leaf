@@ -410,6 +410,7 @@ export class ThreadView {
     if (surface === "outlet" || surface === "panel")
       new MutationObserver(() => {
         if (this.node.open) this.#model?.news?.open();
+        else this.#reply?.cancelDictation();
       }).observe(this.node, { attributeFilter: ["open"] });
     this.node.addEventListener("animationend", () => {
       this.node.classList.toggle("grow", false);
@@ -1340,10 +1341,16 @@ export class ThreadView {
     if (panel)
       input.lfRevealReply = () =>
         this.#commands.listRoot.revealNavigation(this.#model.id);
-    if (!panel) return { node: row, dispose: lifetime.dispose };
+    if (!panel)
+      return {
+        node: row,
+        cancelDictation: lifetime.cancelDictation,
+        dispose: lifetime.dispose,
+      };
     replyRowSizes.observe(row);
     return {
       node: row,
+      cancelDictation: lifetime.cancelDictation,
       dispose: () => {
         replyRowSizes.unobserve(row);
         lifetime.dispose();
@@ -1463,6 +1470,7 @@ export class ThreadView {
   }
 
   retire() {
+    this.#reply?.cancelDictation();
     for (const view of this.#messages.values()) view.retire();
   }
 

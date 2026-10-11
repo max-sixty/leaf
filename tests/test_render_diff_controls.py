@@ -378,8 +378,8 @@ def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serv
     # until it resolves, so it cannot start a parallel deferred request.
     page.keyboard.press("Tab")
     expect(retry).to_be_focused()
-    with page.expect_request("**/api/deferred*"):
-        page.keyboard.press("Enter")
+    page.keyboard.press("Enter")
+    holding(page, pending, 1, "the first deferred retry")
     assert len(attempts) == 2 and len(pending) == 1
     expect(retry).to_have_attribute("aria-disabled", "true")
     expect(retry).to_be_focused()
@@ -399,8 +399,8 @@ def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serv
 
     # If the user tabs away during another pending retry, its failure must leave
     # focus at the newer control instead of restoring the old Retry button.
-    with page.expect_request("**/api/deferred*"):
-        page.keyboard.press("Enter")
+    page.keyboard.press("Enter")
+    holding(page, pending, 1, "the second deferred retry")
     assert len(attempts) == 3 and len(pending) == 1
     expect(retry).to_have_attribute("aria-disabled", "true")
     page.keyboard.press("Tab")
@@ -433,7 +433,10 @@ def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serv
     assert len(attempts) == 4
 
 
-def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(browser, serve):
+@pytest.mark.parametrize("defer_first", [False, True])
+def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(
+    browser, serve, defer_first
+):
     """Repeated basenames remain identifiable before tapping their source rows."""
     names = ("dispatch", "improving-instructions", "todos")
     patch = "".join(
@@ -455,6 +458,25 @@ def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(browser, 
     )
     page = open_page(browser, url, context=context)
     page.evaluate("document.fonts.ready")
+    if defer_first:
+        # Hold the first file's preparation after the native disclosure opens.
+        # This orders insertion after the tap's settled frame without a delay.
+        page.evaluate("""() => {
+      const diff = document.querySelector('#patch');
+      const original = diff.prepareEntry;
+      let release;
+      window.lfDiffPreparation = {
+        release: () => release(),
+      };
+      diff.prepareEntry = async function(...args) {
+        if (args[1].path.endsWith('/dispatch/CLAUDE.md')) {
+          const held = new Promise(resolve => { release = resolve; });
+          window.lfDiffPreparationStarted = true;
+          await held;
+        }
+        return original.apply(this, args);
+      };
+    }""")
     headers = page.locator("#patch .lf-diff-head")
     expect(headers).to_have_count(3)
     for head, name in zip(headers.all(), names, strict=True):
@@ -477,6 +499,10 @@ def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(browser, 
         head.tap()
         file = head.locator("..")
         expect(file).to_have_attribute("open", "")
+        if defer_first and name == "dispatch":
+            page.wait_for_function("window.lfDiffPreparationStarted === true")
+            rendered(page)
+            page.evaluate("window.lfDiffPreparation.release()")
         expect(file.locator("[data-line]").last).to_contain_text("new = True")
         head.tap()
         expect(file).not_to_have_attribute("open", "")

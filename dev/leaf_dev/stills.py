@@ -191,13 +191,18 @@ def card_more_room(page: Page) -> None:
     page.set_viewport_size({"width": 1440, "height": 600})
 
 
-def card_reply(page: Page) -> None:
-    """The first margin card with a reply being typed."""
+def card_reply_empty(page: Page) -> None:
+    """The first margin card's empty reply, ready for typing or dictation."""
     card_by_keyboard(page)
     page.keyboard.press("Enter")
     page.wait_for_function(
         "() => document.activeElement?.matches('.lf-margin-preview leaf-text')"
     )
+
+
+def card_reply(page: Page) -> None:
+    """The first margin card with a reply being typed."""
+    card_reply_empty(page)
     page.keyboard.insert_text("A reply being drafted, long enough to wrap onto a line")
 
 
@@ -338,8 +343,8 @@ def panel_by_keyboard(page: Page) -> None:
     )
 
 
-def composer(page: Page) -> None:
-    """A comment being typed on a passage selected by pointer."""
+def composer_empty(page: Page) -> None:
+    """An empty comment on a passage selected by pointer."""
     box = page.locator("#triage-lede").bounding_box()
     y = box["y"] + 10
     page.mouse.move(box["x"] + 2, y)
@@ -352,7 +357,18 @@ def composer(page: Page) -> None:
         page.get_by_role("button", name="Comment on selection").click()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer leaf-text").focus()
+
+
+def composer(page: Page) -> None:
+    """A comment being typed on a passage selected by pointer."""
+    composer_empty(page)
     page.keyboard.insert_text("A comment being drafted on the selected words")
+
+
+def page_comment_empty(page: Page) -> None:
+    """The page comment card's empty field and trailing action."""
+    page.keyboard.press("c")
+    expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
 
 
 def composer_space(page: Page) -> None:
@@ -1127,9 +1143,27 @@ STATES = (
         "plan-panel-reply-long-dark", "review-a-plan", panel_reply_long, scheme="dark"
     ),
     State("plan-page-comment-long", "review-a-plan", page_comment_long),
+    State(
+        "plan-page-comment-empty",
+        "review-a-plan",
+        page_comment_empty,
+        region=".lf-page-comment-card",
+    ),
+    State(
+        "plan-card-reply-empty",
+        "review-a-plan",
+        card_reply_empty,
+        region=".lf-margin-preview .lf-thread-reply",
+    ),
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
     State("triage", "triage-board", at_rest),
     State("triage-composer", "triage-board", composer),
+    State(
+        "triage-composer-empty",
+        "triage-board",
+        composer_empty,
+        region=".lf-composer .lf-compose-field",
+    ),
     State("triage-composer-space", "triage-board", composer_space, viewport=(362, 900)),
     State("triage-composer-long", "triage-board", composer_long),
     State("triage-composer-long-dark", "triage-board", composer_long, scheme="dark"),

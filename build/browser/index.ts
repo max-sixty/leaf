@@ -8,5 +8,3 @@ export {
   describeFailure,
   PRESENTATION_HELD,
 } from "./presentation.js";
-export type { EpochPresenter } from "./presentation.js";
-export type { ApplicationSnapshot, Immutable, SnapshotReading } from "./snapshot.js";

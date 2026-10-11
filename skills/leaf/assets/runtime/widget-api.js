@@ -103,7 +103,7 @@ export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
 export { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
 export { HOLDS_WORD } from "./held-word.js";
-export { PRESS, labelOf, submitBindings, submitLabel } from "./keyboard/bindings.js";
+export { PRESS, labelOf } from "./keyboard/bindings.js";
 export {
   commandScope,
   keys as commands,
@@ -180,7 +180,7 @@ export {
   wrote,
 } from "./passages.js";
 export { ago, clocked, clockValue, quietSince, shortAgo } from "./presence.js";
-export { shallowSigs } from "./application.js";
+export { shallowSigs } from "./projection/presentation.js";
 export { shadowStage } from "./shadow-stage.js";
 export { inBaseLayer } from "./stylesheets.js";
 export { revisionLabel, annotationMode } from "./context.js";
@@ -224,8 +224,7 @@ export {
   tokenLines,
 } from "./syntax.js";
 export { bodyText, dataBody, failSoft, once } from "./widget-upgrade.js";
-export { watchUpdates } from "./application.js";
-export { saidAt, updateSequence, watchHistory } from "./updates.js";
+export { saidAt, updateSequence, watchHistory, watchUpdates } from "./updates.js";
 export {
   HIDDEN,
   LAYOUT,

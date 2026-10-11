@@ -165,7 +165,7 @@ interface WireProjection {
 
 /** A request and its contained answer. The source owns the canonical value;
  * identity includes its kind so authored ids and message ids cannot collide. */
-export interface QuestionRecord {
+interface QuestionRecord {
   id: string;
   source: { kind: "widget" | "reply"; id: string; tag?: string }
     | { kind: "approval"; version: number };
@@ -185,7 +185,7 @@ interface WireQuestions {
 
 /** One served workflow, as `served_state.browser.served_workflows` serializes it;
  * `AuthoritativeState.workflows` lists them strongest first. */
-export interface WireWorkflow {
+interface WireWorkflow {
   id: string;
   seq: number;
   revision: number | null;
@@ -299,7 +299,7 @@ export interface WidgetDescriptor {
   quoted: boolean;
 }
 
-export interface AuthoritativeState {
+interface AuthoritativeState {
   taken: number;
   layer: { generation: string };
   active: { revision: number; version?: number | null; label?: string | null };

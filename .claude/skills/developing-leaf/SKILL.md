@@ -26,6 +26,11 @@ jq 'select(has("lf-shot"))."lf-shot"' \
   skills/leaf/assets/registry.json skills/leaf/packages/*/registry.json
 ```
 
+A fact both runtimes use is owned by one language and consumed as data, or generated
+from the registry (`skills/leaf/assets/AGENTS.md`, "Facts both runtimes know"). When
+writing or reviewing a change that adds a parity fixture or a test that scans one
+language's source for the other's names, ask why the fact is not generated.
+
 ## Review a UI change
 
 For browser API and rendering support, maintain

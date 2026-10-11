@@ -27,7 +27,7 @@ const taskItem = (task) => ({
   ends: task.ends,
 });
 
-export const questionItem = (question) => ({
+const questionItem = (question) => ({
   kind: "question",
   id: question.id,
   owner: "user",

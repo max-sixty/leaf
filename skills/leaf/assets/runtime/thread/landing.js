@@ -228,7 +228,7 @@ pageScope("text entry", {
 // landing its title would take the user away from the turn they were answering, so it
 // is a `return` the list leaves where it is. One that fits is a `move`, which the list
 // lands whole in view (`onStanding` below) as local scrolling reveals its title.
-export function standOnThread(thread) {
+function standOnThread(thread) {
   if (fitsWhole(thread)) {
     focusThread(thread, "move");
     scrollIntoView(threadFocusStop(thread), { block: "nearest" });

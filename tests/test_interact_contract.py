@@ -1218,7 +1218,7 @@ def test_a_bare_re_vendor_replaces_a_broken_vendored_registry(page_dir):
 def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
     """The preview holds replacement back; its writer finishes before the test
     releases the page, including when a preview assertion fails."""
-    before = registry_storage.layer_generation(page_dir)
+    before = registry_storage.layer_metadata(page_dir)["generation"]
     theme = page_dir / "theme.css"
     theme.write_text(theme.read_text() + "\n/* repair this installed edit */\n")
     init_waiting = threading.Event()
@@ -1246,9 +1246,9 @@ def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
                 bool,
                 failure="Re-vendoring did not attempt the preview lock",
             )
-            assert registry_storage.layer_generation(page_dir) == before
+            assert registry_storage.layer_metadata(page_dir)["generation"] == before
         initing.result()
-    assert registry_storage.layer_generation(page_dir) != before
+    assert registry_storage.layer_metadata(page_dir)["generation"] != before
 
 
 def test_revendoring_serializes_with_a_browser_action_entering_the_log(

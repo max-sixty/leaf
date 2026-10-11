@@ -45,6 +45,8 @@ const handed = new Map();
 // Boxes that are not a line of their own: laid out within one, or drawing no box.
 const WITHIN_A_LINE = /^(inline|contents$)/;
 
+// The row a press on `node` points at inside `target`, or null for none.
+//
 // The line `node` lies on inside `target`: the nearest element around it that lays out
 // as a line or a block of its own, short of the target itself. Words, a link or code
 // inline in the target's own lines have none, and neither does a drawing's shape, whose
@@ -58,7 +60,7 @@ const WITHIN_A_LINE = /^(inline|contents$)/;
 // standing as a second one pushed below it. First is read off the document, as nothing
 // drawn coming before it in the target, so no reflow, zoom or font moves a comment
 // between the two rows.
-function rowIn(target, node) {
+export function pointInto(target, node) {
   let at = node?.nodeType === Node.ELEMENT_NODE ? node : (node?.parentElement ?? null);
   if (!target || target instanceof SVGElement || !at || !under(at, target)) return null;
   let line = null;
@@ -91,9 +93,6 @@ const drawn = (node) =>
       !inChrome(node) &&
       node.checkVisibility() &&
       [...node.getClientRects()].some((box) => box.width && box.height);
-
-// The row a press on `node` points at inside `target`, or null for none.
-export const pointInto = rowIn;
 
 // A point still standing inside `target` with a box to stand by, or null.
 export function standingPoint(target, point) {
@@ -136,7 +135,10 @@ export function placePoints(threads, known, text) {
     if (!element && point.passage && point.readFor !== text) {
       point.readFor = text;
       const found = resolveAnchor(point.passage, text);
-      element = standingPoint(target, rowIn(target, targetSegments(found)[0]?.node));
+      element = standingPoint(
+        target,
+        pointInto(target, targetSegments(found)[0]?.node),
+      );
       if (element) point.element = element;
     }
     if (element)

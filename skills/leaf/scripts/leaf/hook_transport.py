@@ -234,11 +234,6 @@ def remedies(
     return reasons
 
 
-def unattended_pages(session_id: str) -> list[tuple[str, str | None]]:
-    """Read and format the session's current debt, without state transitions."""
-    return remedies(read_plans(session_id))
-
-
 def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
     """Record a prompt's entry of already-receipted debt as a separate transition.
 

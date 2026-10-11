@@ -79,7 +79,7 @@ export function placeOf(node) {
 // Where the user stands now: where focus stands, or else the end of the selection, a
 // caret a click left included, since a click that placed one is the user saying where
 // they are.
-export const standingPlace = () =>
+const standingPlace = () =>
   placeOf(documentFocused()) ?? placeOf(getSelection()?.focusNode);
 
 // A page walk still has an origin when focus and selection name no page place. Order

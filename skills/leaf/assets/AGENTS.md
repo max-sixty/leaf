@@ -430,6 +430,17 @@ restores its standing by declared id. A hold, which defers the revision, is for 
 gesture that is not a value: an open composer, a drag, an unresolved delivery, an
 open menu.
 
+### Facts both runtimes know
+
+A fact Python and the browser both use, such as an event kind, a registry key, or the
+languages a page can highlight, has one home, so the two runtimes cannot disagree
+about it. Either one language owns it and the other receives it as data, as the
+browser receives the server's folds in `/api/state`, or both are generated from the
+registry, as `build/vendor.py` writes `runtime/syntax-languages.js` from
+`$languages`. A parity fixture or a test that scans one language's source for the
+other's names keeps two copies in step instead, so in review a new one is a flag
+that asks why the fact is not generated.
+
 ## Startup and presentation
 
 `leaf.js` boots in this order, each step relying on those before it:

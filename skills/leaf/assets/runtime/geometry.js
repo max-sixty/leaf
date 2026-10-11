@@ -702,7 +702,7 @@ export const startsAt = (item, clips) => {
 };
 // The clips standing over a box, applied to it. Taken apart from shownRect because the two
 // readings above and a painted Range want the same walk over different boxes.
-export const clippedRect = (box, item, clips) => clipped(box, item, clips, false);
+const clippedRect = (box, item, clips) => clipped(box, item, clips, false);
 // What cuts paint standing over an item's `box`, by the plane each cut stands in.
 // `plane` is the one the paint stands in: the window's where a fixed box escapes every
 // clip around it, and the page's otherwise, which the root scroll carries. `bands` are

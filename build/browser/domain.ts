@@ -31,7 +31,7 @@ export interface ContentVersion {
   message: string;
   version: string;
 }
-export type MessageEvent = CompleteUnion<EventMap["comment"] | EventMap["reply"]>;
+type MessageEvent = CompleteUnion<EventMap["comment"] | EventMap["reply"]>;
 export type LocalMessage = Extract<Command, { kind: "comment" | "reply" }> & {
   id: string;
   author: string;
@@ -39,7 +39,7 @@ export type LocalMessage = Extract<Command, { kind: "comment" | "reply" }> & {
   pending: true;
   plainText: string;
 };
-export type StreamingMessage = {
+type StreamingMessage = {
   id: string;
   attempt: string;
   kind: "reply";

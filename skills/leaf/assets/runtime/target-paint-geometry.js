@@ -194,7 +194,7 @@ export function paintStand(box = null) {
 // (`scrollsWith`), or that box's own parts where `el` draws none. An anchor positions a
 // box only where it is laid out before that box, earlier in the document and outside
 // the top layer; null otherwise, and where the browser has no anchors.
-export function anchoredBy(el, root) {
+function anchoredBy(el, root) {
   const anchor = anchorElement(el);
   if (!reaches(anchor, root)) return null;
   return anchor === el ||
@@ -321,7 +321,7 @@ const cut = ({ x, y }) => {
 // be and every frame's holder can be, else in motion layers, and answers how its boxes
 // stand (`standBox`): anchored, or written from `origin`, the client point the carrier's
 // corner stood at as `placed` was measured.
-export function standIn(stand, placed, anchored) {
+function standIn(stand, placed, anchored) {
   const { levels, fixed } = placed;
   const anchors = levels.map(({ holder }) => holder && anchoredBy(holder, stand.root));
   anchored &&= levels.every(({ holder }, i) => !holder || anchors[i]);

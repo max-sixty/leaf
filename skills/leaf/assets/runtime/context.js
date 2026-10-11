@@ -58,19 +58,20 @@ export const runtimeResource = (path) => {
   return resource + located.hash;
 };
 
+// The shown document is the live active revision, which speaks by its own label.
+const showsActive = () =>
+  readApplication().document.live &&
+  runtime.currentRevision === runtime.active?.revision;
+
 export const runtime = {
   get active() {
     return readApplication().authoritative?.active ?? null;
-  },
-  get activity() {
-    return readApplication().effective.activity;
   },
   get browser() {
     return readApplication().authoritative?.browser ?? null;
   },
   get currentLabel() {
-    return readApplication().document.live &&
-      runtime.currentRevision === runtime.active?.revision
+    return showsActive()
       ? runtime.active.label
       : runtime.currentStamp === null
         ? null
@@ -80,16 +81,12 @@ export const runtime = {
     return readApplication().document.revision;
   },
   get currentStamp() {
-    return readApplication().document.live &&
-      runtime.currentRevision === runtime.active?.revision
+    return showsActive()
       ? runtime.active.version
       : (readApplication().document.stamp ?? null);
   },
   get data() {
     return readApplication().data;
-  },
-  get events() {
-    return readApplication().authoritative?.events ?? [];
   },
   get lastEventSeq() {
     return readApplication().authoritative?.browser.basis.through_seq ?? null;

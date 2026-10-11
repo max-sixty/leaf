@@ -25,7 +25,7 @@ export const MAX_DRAWING_FRAME_DEPTH = 32;
 export const MAX_DRAWING_POINTS = 256;
 export const DRAWING_COORDINATE_LIMIT = 33554432;
 export const MAX_DRAWING_SAYS_LENGTH = 500; // code points
-export const DRAWING_SCHEMES = ["light", "dark"];
+const DRAWING_SCHEMES = ["light", "dark"];
 
 const bounded = (coordinate) =>
   Number.isFinite(coordinate) &&

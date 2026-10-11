@@ -2025,7 +2025,7 @@ class _SnapshotDumper(yaml.SafeDumper):
     def best_width(self, width):
         self._best_width = width
 
-    def increase_indent(self, flow=False, indentless=False):
+    def increase_indent(self, flow=False, **_indentless):
         # A list sits indented under its key, as a person writes one.
         return super().increase_indent(flow, False)
 
@@ -2094,7 +2094,7 @@ def yaml_document(header: str, cases: dict) -> YamlDocument:
 class _YamlSnapshotHandler(BaseSnapshotHandler):
     FILE = "snapshot.yaml"
 
-    def __init__(self, handler_options, pytest_config, tw):
+    def __init__(self, *_configuration):
         pass
 
     def save(self, folder, obj):
@@ -2109,7 +2109,7 @@ class _YamlSnapshotHandler(BaseSnapshotHandler):
     def compare(self, current_obj, recorded_obj):
         return current_obj == recorded_obj
 
-    def show_differences(self, current_obj, recorded_obj, has_markup, use_ddiff):
+    def show_differences(self, current_obj, recorded_obj, *_presentation):
         return list(
             difflib.unified_diff(
                 recorded_obj.splitlines(),

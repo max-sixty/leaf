@@ -975,9 +975,8 @@ RESTORED_PROSE = "".join(
 def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
     browser, serve, saved, wide, window, contained
 ):
-    """Returning users do not watch saved auxiliary chrome move the document: a restored
-    surface stands over the page, so the paragraph they were reading stands at the same
-    place from the first paint, before the runtime has loaded, to presentation."""
+    """Restored auxiliary chrome leaves a page's first-paint geometry alone; an
+    isolated sample starts without inheriting its host's saved chrome."""
     if contained and wide:
         pytest.skip("a sample's child page is the column its template writes")
     surface = saved["lf-auxiliary-surface"]
@@ -991,11 +990,6 @@ def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
         )
     url = serve(leaf_page("Restored surface", content, layout="wide" if wide else None))
     context = browser.new_context(viewport={"width": window, "height": 900})
-    if contained:
-        host = context.new_page()
-        host.goto(url, wait_until="load")
-        expect(host.get_by_role("button", name="Reset", exact=True)).to_be_enabled()
-        url = host.locator("#practice iframe").get_attribute("src")
     priming = context.new_page()
     priming.goto(url, wait_until="load")
     priming.evaluate(
@@ -1006,6 +1000,22 @@ def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
         saved,
     )
     priming.close()
+
+    if contained:
+        host = context.new_page()
+        host.goto(url, wait_until="load")
+        wait_until_ready(
+            host.locator("#practice iframe").element_handle().content_frame()
+        )
+        expect(host.locator("body")).to_have_attribute(
+            "data-lf-auxiliary-surface", surface
+        )
+        child = host.frame_locator("#practice iframe")
+        expect(child.locator("body")).not_to_have_attribute(
+            "data-lf-auxiliary-surface", surface
+        )
+        context.close()
+        return
 
     held = []
     page = context.new_page()
@@ -1724,7 +1734,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
 
 
 def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
-    """Core page visuals paint after upgrade while agent state still waits."""
+    """Optional page interface preparation holds the first widget upgrade."""
     url = serve(FEATURE_GALLERY)
     held = []
     release_state = False
@@ -1750,30 +1760,27 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
 
     page.route("**/api/state*", hold_parent_state)
     page.goto(url, wait_until="load")
-    page.wait_for_function("() => window.releaseHeldPageInterface !== undefined")
+    holding(page, held, 1, "the first state response")
     expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")
-    assert held, "the positive control did not hold the first state response"
     gallery = page.locator("#bg-interactions")
     expect(gallery).to_have_attribute("data-interaction-installed", "1")
     controls = gallery.locator(".lf-interaction-controls")
     expect(controls).to_have_count(1)
     expect(controls).to_be_hidden()
+    expect(page.locator(".lf-status-detail")).to_contain_text("Connecting")
+    release_state = True
+    for route in held:
+        route.continue_()
+    page.wait_for_function("() => window.releaseHeldPageInterface !== undefined")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")
+    expect(controls).to_be_hidden()
     page.evaluate("releaseHeldPageInterface()")
-    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    wait_until_ready(page)
     page.locator("#bg-gallery-tabs").get_by_role(
         "tab", name="Interactions", exact=True
     ).click()
     expect(controls).to_be_visible()
-    expect(page.locator(".lf-status-detail")).to_have_text(re.compile(r"^Connecting"))
-
-    release_state = True
-    for route in held:
-        route.continue_()
-    wait_until_ready(page)
-    expect(controls).to_be_visible()
-    expect(page.locator(".lf-status-detail")).not_to_have_text(
-        re.compile(r"^Connecting")
-    )
+    expect(page.locator(".lf-status-detail")).not_to_contain_text("Connecting")
 
 
 def test_playground_joins_initial_widget_settlement(browser, serve):
@@ -4741,6 +4748,33 @@ customElements.define('lf-feed', class extends HTMLElement {
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "undo"
     )
     assert withdrawn["undoes"] == marked["id"]
+
+    # A put-away draft follows the subject too: after selecting another passage opens
+    # its empty box and a replacement re-mints the row's anchor, aiming at the row again
+    # brings its stored words back.
+    row.click(modifiers=["Alt"])
+    expect(draft).to_be_focused()
+    write(draft, "Hold this hidden draft.")
+    page.keyboard.press("Escape")
+    page.locator("#title").click(click_count=3)
+    expect(draft).to_be_visible()
+    expect(draft).to_have_js_property("value", "")
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "deployments",
+        {
+            "rows": [
+                {"id": "b", "label": "Beta", "updated": 1},
+                {"id": "a", "label": "Alpha", "updated": 2},
+            ]
+        },
+    )
+    replaced = source_revision(serve.page_dir, "deployments")
+    assert replaced != current
+    expect(row).to_have_attribute("data-lf-source-revision", replaced)
+    row.click(modifiers=["Alt"])
+    expect(draft).to_be_focused()
+    expect(draft).to_have_js_property("value", "Hold this hidden draft.")
 
 
 @pytest.mark.parametrize(

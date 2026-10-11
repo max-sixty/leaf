@@ -92,12 +92,6 @@ export const tabStore = initialTabStore;
 const views = (holder) => holder.ownerDocument.documentElement.lfViews;
 export const openingView = (holder, members) => views(holder).opening(holder, members);
 export const keepView = (holder, member) => views(holder).keep(holder, member);
-// What the author wrote: the early coordinator restores original widget sources
-// before copying and takes off its marks and delivery's placeholders (version.js).
-export const unmarkedCopy = (node) =>
-  (
-    node.ownerDocument?.documentElement?.lfInitial ?? document.documentElement.lfInitial
-  ).authoredCopy(node);
 export const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
 // The delivery declares a child page's private user scope. Bootstrap reads the
 // same fact before this module loads; neither derives it from the viewed revision.

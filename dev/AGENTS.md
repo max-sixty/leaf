@@ -52,6 +52,10 @@ reaches a module by importing it from this package, never through `sys.path`,
   `revision`, so new demo assets cannot replace a runtime's reviewed expectations.
 - `suite.py` runs a selection of the suite in a checkout and reads each test's
   outcome from pytest's junit report, refusing a selection pytest would not run.
+- `suite_profile.py` is the pytest plugin that gives each test a junit `profile`
+  property, its phases and its time in Playwright's sync API by method and caller, and
+  `leaf-dev suite-profile DIR` reads that report, with the py-spy stacks and process
+  CPU CI records beside it, into where a run's worker time went.
 - `leaf-dev flake NODEID...` runs tests from the working tree as 18 copies, six at a
   time, and prints every failure's message, since a load flake never shows serially.
   It snapshots the candidate once; each copy owns its checkout and test output.

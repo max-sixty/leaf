@@ -45,6 +45,7 @@ import { repaint } from "./repaint.js";
 import { afterScript } from "./rendering.js";
 import {
   deepFocus,
+  drawn,
   focusDestination,
   onStanding,
   readCaret,
@@ -445,8 +446,7 @@ overflowMenu.addEventListener("lf-reveal", (event) => {
 // displaced by a gesture step while its card stays open. Neither can take focus.
 // Null means the toolbar offers no way in, which happens only off the banner.
 export function bannerControlDoor(control = overflowBtn) {
-  if (control.isConnected && control.checkVisibility({ visibilityProperty: true }))
-    return control;
+  if (drawn(control)) return control;
   const menu = control.closest(".lf-banner-menu");
   if (menu?.lfInvoker?.checkVisibility()) return menu.lfInvoker;
   return bannerActions.contains(control) && overflowBtn.checkVisibility()

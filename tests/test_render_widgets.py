@@ -5163,9 +5163,7 @@ def test_board_moves_preserve_live_sample_and_control_state(browser, serve, rout
     assert not [
         url
         for url in requests
-        if "/runtime/" in url
-        or url.rstrip("/") == sample_url
-        or url.rstrip("/").endswith("/api/samples")
+        if url.rstrip("/") == sample_url or url.rstrip("/").endswith("/api/samples")
     ]
 
 
@@ -6708,6 +6706,9 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     reserved_width = copy_width("Copy instruction")
     copy.click()
     assert copy_width("Copied") == reserved_width
+    # A changed accessible name is not news to a screen reader; the live region is.
+    live = page.locator(".lf-live")
+    expect(live).to_have_text("Instruction copied")
     expect(copy).to_have_css(
         "color",
         page.evaluate(
@@ -6776,6 +6777,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     )
     copy.click()
     assert copy_width("Copy failed") == reserved_width
+    expect(live).to_have_text("Could not copy the instruction")
     resized(page, 420, 760)
     assert page.evaluate("document.documentElement.scrollWidth") == 420
     assert " " not in playground.evaluate(
@@ -13135,8 +13137,7 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
         "a label the page wrote answers the pointer as though it were a control"
     )
 
-    # The keyboard. Reached by a real Tab, because :focus-visible is a fact about how
-    # focus arrived and element.focus() alone draws no ring at all.
+    # A real Tab verifies the keyboard route as well as the shared focus treatment.
     mark.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")

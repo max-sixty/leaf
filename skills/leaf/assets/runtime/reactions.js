@@ -20,7 +20,7 @@
    The margin form shows the declared reaction margin entries together within the six-item
    budget. Comment retains its separate `c` route. The digit register and visible
    choices therefore name the same complete set. The choices do not widen the rail or
-   open a separate palette below the target. The compact response bar's More controller
+   open a separate palette below the target. The compact response bar's disclosure controller
    owns its state, focus return, and geometry independently.
    Thread reactions remain in their thread-owned strip. The event still
    carries its durable authored anchor, while
@@ -73,7 +73,7 @@ import {
   pageCommand,
   pageScope,
 } from "./keyboard/register.js";
-import { PRESS } from "./keyboard/bindings.js";
+import { PRESS, rowArrows } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { anchorLabel } from "./thread/messages.js";
 import { reactionsAt, tokenChoices } from "./thread/model.js";
@@ -455,8 +455,9 @@ export function createReactionController({
     const choices = responseChoices(reactSurface);
     if (!choices.length) return;
     const at = choices.indexOf(focused());
-    const backward =
-      binding === "ArrowLeft" || binding === "ArrowUp" || binding === "Shift+Tab";
+    const backward = [rowArrows(choices[0])[0], "ArrowUp", "Shift+Tab"].includes(
+      binding,
+    );
     const next =
       at < 0
         ? backward

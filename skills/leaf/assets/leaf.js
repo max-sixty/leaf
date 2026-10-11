@@ -29,13 +29,14 @@ import {
   PRESENTATION,
 } from "./runtime/presentation.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented } from "./runtime/page-paint.js";
-import { nextFrame, renderingSettled } from "./runtime/rendering.js";
+import { nextFrame, renderingState } from "./runtime/rendering.js";
 import { observeQueuedWork } from "./runtime/queued-work.js";
 import { mountApplication } from "./runtime/application.js";
 import { approvalBlockingQuestions } from "./runtime/questions/model.js";
 import { beginRead } from "./runtime/state-feed.js";
 import {
   applicationState,
+  observeWidgetPreparations,
   whenApplicationPresented,
 } from "./runtime/semantic-state.js";
 import { createEngagement } from "./runtime/composing/engagement.js";
@@ -199,14 +200,16 @@ holdArrivingBounds();
 // it. Keep the synchronous validation seam on Leaf's own bootstrap element so render
 // checks can inspect either distribution without turning it into a package API. These
 // scene readings answer different questions: which readiness fact the page has yet to state
-// (`pageReadiness`), and whether its chrome and geometry have caught up with the input
-// handled since, and which native layers currently expose reading and controls.
-// Job lifecycle tracing binds at enqueue without replacing any rendering callback.
+// (`pageReadiness`), whether its counted queue or complete finite preparation has
+// settled (`renderingState`), and which native layers expose reading and controls.
+// Job lifecycle tracing binds at enqueue without replacing any rendering callback, and
+// widget preparation tracing at each declaration and its settlement.
 const validationEntry = document.querySelector("script[data-lf-entry]");
 if (validationEntry) {
   validationEntry.lfReadiness = pageReadiness;
-  validationEntry.lfRenderingSettled = renderingSettled;
+  validationEntry.lfRenderingState = renderingState;
   validationEntry.lfObserveQueuedWork = observeQueuedWork;
+  validationEntry.lfObserveWidgetPreparations = observeWidgetPreparations;
   validationEntry.lfNativeLayers = nativeLayers;
 }
 

@@ -96,8 +96,10 @@ receive semantic state through `widgetController`, without a LitElement widget
 base or a reactive copy of that state.
 
 Templates own generated containers or bounded ranges, rather than authored
-children. Retain concrete native nodes with `setChildren` for rows holding
-iframes or editors: `repeat` currently moves rows by disconnecting them.
+children. Key rows with `repeat` to retain their nodes across reorders. Leaf's Lit
+build uses the shared move primitive, preserving focus and iframe state where the
+browser supports `moveBefore`; ordinary insertion on other engines still needs
+the focus hold described in **Focus, motion, and travel**, and may reload iframes.
 
 Once `render(template, container)` owns a container, update its children through
 `render` so Lit retains its markers and disconnects removed directives. `failSoft`
@@ -302,6 +304,14 @@ itself at Back or Forward to one of them by claiming that traversal with
 the entry was left at (`runtime/history.js`), unless the element the entry's fragment
 names is no longer shown: that one reaches the widget holding it shut as `lf-reveal`
 and lands on it, as a followed link to it does.
+A widget that asks which of its parts a fragment names, as a traversal claim does,
+reads it with `fragmentTarget(hash)`, as Leaf's own arrival does: it finds ids inside
+shadow trees and names nothing for content a revision settled away, so the widget
+opens the part the landing goes to.
+
+A handler that takes over a press, as a link that travels to a source line does, acts
+only on `plainPress(event)`: the primary button with no modifier. A modified press
+keeps its platform meaning, such as a new tab or a context menu.
 
 A sticky header, a sticky box over the top of its scroller, has a stated height, sticks
 at `var(--lf-top)`, and adds its height to `--lf-top` for what it stands over. Its
@@ -370,8 +380,10 @@ its element is in nested overflow.
 
 A module that moves, hides, or replaces nodes the user may be standing in, as a reorder or
 a re-render does, calls `holdFocus(scope)` before the change and the function it returns
-after it. Moving a focused node drops its focus to the page body; the returned function
-puts the user back on that node, with its caret, or on the first drawn stand-in it is
+after it. Same-root retained moves, including keyed Lit reorders, preserve native state
+where the browser supports `moveBefore`. The focus hold covers ordinary insertion,
+hiding and replacement: its returned function puts the user back on the node, with its
+caret, or on the first drawn stand-in it is
 passed, such as the replacement keyed on the same identity. It does nothing once focus was
 placed elsewhere in the meantime, and `holdFocus` returns `null` where the user stands
 outside `scope`. A list of keyed items passes `holdFocus(list, { key })`, naming the
@@ -666,6 +678,9 @@ const actions = commandScope("In a classifier", [
 commands(classifier, actions);
 ```
 
+Arrows that step along a row of controls follow its text direction: `rowArrows(node)`
+returns `[back, ahead]`, which is `["ArrowRight", "ArrowLeft"]` in right-to-left text.
+
 For a native button, `control` and `run` declare one activation path: Leaf invokes
 `run` for both its click and its keyboard command, and paints native disabled state
 from `when`. Remove a separate button click listener and disabled painter. Call
@@ -897,8 +912,8 @@ placement use `move(parent, node, before)`, with `null` to append. Within one
 composed root it uses native `moveBefore` where available, preserving focus, caret
 and iframe documents. Otherwise it uses `insertBefore`, which can reset that state. Leaf's public
 `render(template, container)` restores editor focus and caret after Lit renders;
-`repeat(records, keyOf, template)` retains keyed template rows, but Lit's ordinary
-insertion can reset iframe documents even in browsers with native moves. Leave
+`repeat(records, keyOf, template)` retains keyed template rows under the native-state
+rules in **Template rendering**. Leave
 native disclosure, editor and scroll state with the retained nodes. When the
 application owns a native property the user also changes,
 bind it with `live`, such as `.value=${live(value)}` or `.checked=${live(checked)}`:

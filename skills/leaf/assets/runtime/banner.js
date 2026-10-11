@@ -268,7 +268,7 @@ function paintTab() {
   const url = iconUrl(getComputedStyle(bannerStatus.dot).backgroundColor);
   // Written only on change: an unchanged poll must not hand the browser its icon again
   // every two seconds.
-  if (tabLink.getAttribute("href") !== url) tabLink.setAttribute("href", url);
+  keeps(tabLink, "href", url);
 }
 // Summary and explanation share the canonical activity reading. The complete wording
 // remains available to pointer, keyboard, and touch through the native disclosure;

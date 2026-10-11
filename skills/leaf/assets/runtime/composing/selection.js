@@ -38,7 +38,7 @@ import { anchorForRange } from "../anchor-resolution.js";
 import { THREAD } from "../thread/selectors.js";
 import { keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
-import { PRESS } from "../keyboard/bindings.js";
+import { PRESS, rowArrows } from "../keyboard/bindings.js";
 import {
   onStanding,
   takesLetters,
@@ -57,12 +57,15 @@ import { sentDrawing, validDrawing } from "./drawing-record.js";
 import { commitPoint } from "../pointed-place.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";
-import { iconElement } from "../icons.js";
 
 // The floating field immediately accepts a comment on the target the user named.
-// Other responses, Tab from the field, or `e` while it stands unfocused, unfolds every response
+// Tab from the field, or `e` while it stands unfocused, unfolds every other response
 // the target offers. The field is the group's stable primary control; reaction
 // vocabulary changes the choices, not the disclosure or the field's place.
+// The comment field deliberately has one primary action: Dictate when available while empty,
+// Send with words, including on phones. Suggest and
+// reactions retain keyboard routes; reconsidering a pointer or touch disclosure is
+// a product decision ("Touch routes" in keyboard/AGENTS.md).
 // One affordance, raised only where the user has already pointed: a native text
 // selection or an explicit Comment target gesture on an item or visual part.
 export const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
@@ -85,13 +88,6 @@ export const fabOptions = el("span", "lf-response-options");
 fabOptions.id = "lf-response-options";
 fabOptions.setAttribute("role", "group");
 fabOptions.setAttribute("aria-label", "Other responses");
-const fabMore = el("button", "lf-ui lf-icon-action lf-fab-more");
-fabMore.type = "button";
-fabMore.setAttribute("aria-label", "Other responses");
-fabMore.title = "Other responses";
-fabMore.setAttribute("aria-controls", fabOptions.id);
-fabMore.setAttribute("aria-expanded", "false");
-fabMore.append(iconElement("more", "lf-action-icon"));
 const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
   icon: "edit",
   label: "Suggest",
@@ -337,8 +333,9 @@ export function createSelectionComposer({
     const choices = tabbing && field ? [field, ...options] : options;
     if (!choices.length) return;
     const at = choices.indexOf(focused());
-    const backward =
-      binding === "Shift+Tab" || binding === "ArrowLeft" || binding === "ArrowUp";
+    const backward = ["Shift+Tab", rowArrows(choices[0])[0], "ArrowUp"].includes(
+      binding,
+    );
     const next =
       at < 0
         ? backward
@@ -379,7 +376,6 @@ export function createSelectionComposer({
     }
     if (next) setReact(false);
     responseOptionsOpen = next;
-    keeps(fabMore, "aria-expanded", String(next));
     fabBar.classList.toggle("lf-response-open", next);
     if (place && fabAnchorAt()) showFab(fabAnchorAt());
     if (next && focus) focusResponseOption(focus);
@@ -398,8 +394,6 @@ export function createSelectionComposer({
     );
     if (responseOptionsOpen && !responseOptionsAvailable())
       setResponseOptions(false, { place: false });
-    keepsHidden(fabMore, !responseOptionsAvailable());
-    fabBar.toggleAttribute("data-lf-other-responses", responseOptionsAvailable());
   }
 
   function resetResponseOptions() {
@@ -412,6 +406,7 @@ export function createSelectionComposer({
   // a guard testing for one of them ran on every mousedown in the page and swallowed the
   // click. Painting hangs off the same call, so the mark and the box are up together.
   function showComposer(open) {
+    if (!open) syncComposer?.cancelDictation();
     // Hiding keeps the words and used to say nothing at all, so a press on the banner took
     // the box off screen with the user's sentence in it and left no sign the sentence
     // still existed — recoverable only by reselecting that exact passage on that exact
@@ -760,8 +755,6 @@ export function createSelectionComposer({
         }
       },
     });
-    composerInput.closest(".lf-compose-field").append(fabMore);
-    fabMore.onclick = () => setResponseOptions(!responseOptionsOpen);
     suggestCheck.onchange = () => setSuggestionMode(suggestCheck.checked);
     fabSuggest.onclick = () => setSuggestionMode(!suggestCheck.checked);
     onStanding((node) => {

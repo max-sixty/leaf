@@ -12,7 +12,9 @@ the smallest set that exposes distinct plausible failures beyond existing covera
 Retain a broad sweep only when its extra samples catch a failure that representative
 states or transitions miss; an investigation's sampling grid is not itself a regression
 requirement. Every run pays for the test's compute, so weigh the additional cost against
-the additional coverage. When a high-level browser test is slow, or fails on timing or
+the additional coverage. Each CI `test` job's summary says where its run's time went, by
+file, phase, Playwright call and the suite's own functions; `leaf-dev suite-profile`
+prints the same from the job's `pytest-results-*` artifact. When a high-level browser test is slow, or fails on timing or
 geometry outside its contract, repair its arrangement or move its contract to the lower
 boundary.
 
@@ -152,10 +154,10 @@ A test over prose compares it with something the machine states: a shown command
 against the click tree, an `x-` key against the guide, a table against its registry.
 Leave wording with no machine side to review.
 
-Focus evidence starts in keyboard modality: press `Tab` to the exact stop and require
-`:focus-visible`, or `:focus` on the runtime's text field (`leaf-text`), a host that
-delegates focus and so never matches `:focus-visible` in Chrome; `element.focus()` alone
-is not that evidence.
+Focus rings show actual focus regardless of input route. Exercise real clicks and
+keyboard arrivals when testing that shared treatment, require `:focus`, and compare
+the resulting paint. A keyboard navigation test still reaches its exact stop with
+`Tab` or its declared command; `element.focus()` alone does not prove that route.
 `RELEASE_FOCUS` (`render_harness.py`) resets the sequential starting point; `blur()` keeps
 it; `document.body.focus()` does nothing, since body holds no stop. Read
 a ring's actual paint through `RINGS_DRAWN` and `ring_faults`, because an ancestor or
@@ -279,7 +281,10 @@ do not expose their input context to JavaScript instrumentation. A native sensor
 fixture captures its DOM commit callback with `lfInputWork.capture` during the
 trusted handler and invokes that callback after `await`; the capture states the
 cause instead of guessing among concurrent operations. Leaf's draft sends put words
-away synchronously before awaiting delivery.
+away synchronously before awaiting delivery. The `toggle` a summary's activation
+announces belongs to the input whose click, trusted or dispatched by its work, opened
+it. A widget preparation (`lfObserveWidgetPreparations`) carries the input whose work
+declared it to its landing, which that input owns in the shift watch.
 
 Private document-channel endpoints publish `lfDocumentPort` on the bootstrap
 element before their first message. The harness enrolls those endpoints in input

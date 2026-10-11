@@ -33,6 +33,7 @@ COMMANDS = {
     "setup": "setup",
     "site": "site",
     "stills": "stills",
+    "suite-profile": "suite_profile",
     "thread-snapshots": "thread_snapshots",
     "trace-server": "trace_server",
     "verify-site": "verify_site",

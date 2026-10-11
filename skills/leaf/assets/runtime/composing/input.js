@@ -4,6 +4,11 @@
 // action button and placeholder current, prevent parallel submissions of one local
 // surface (an impatient second click), and submit with Enter on a physical keyboard. A
 // press on a submit control is that Enter, pressed from the box.
+// Where native speech recognition is available, an empty comment offers a microphone
+// in Send's place. Dictation uses the same draft and send contract in every surface:
+// empty-field status stays in the placeholder, words keep their place, and the mic's
+// face carries listening. Sending and explicit closing retire capture before the
+// draft can change; Escape keeps its existing close-and-keep-draft meaning.
 // Shift+Enter inserts a line, the field's own binding; on touch keyboards Enter does too.
 // Mod+Enter remains another route to submit. The field grows with its words, within the
 // room supplied by floating placement; script does not derive its height from its text. When the surface
@@ -34,7 +39,12 @@
 import { rememberWriting } from "../drafts.js";
 import { keys, paintKeys } from "../keyboard/scopes.js";
 import { keeps, keepsHidden, keepsText } from "../keeps.js";
-import { advertisesKeys, submitBindings, submitLabel } from "../keyboard/bindings.js";
+import {
+  advertisesKeys,
+  submitBindings,
+  submitLabel,
+  PRESS,
+} from "../keyboard/bindings.js";
 import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
 import { announce, notice } from "../notifications.js";
 import { iconElement, iconTemplate } from "../icons.js";
@@ -43,6 +53,8 @@ import { LitElement, html } from "../../vendor/browser-runtime.js";
 import "./text-field.js";
 import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
 import { focusDestination, focused } from "../focus.js";
+import { whileConnected } from "../arrivals.js";
+import { applicationState } from "../semantic-state.js";
 
 const inputDrafts = new WeakMap();
 
@@ -232,6 +244,29 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     visibleHint.append(hintLabel, hintKey);
     field.append(ta);
     (submitIn ?? field).append(sendBtn);
+    const Recognition =
+      globalThis.SpeechRecognition ?? globalThis.webkitSpeechRecognition;
+    const mic =
+      Recognition && icon === "send" && !submitIn
+        ? document.createElement("button")
+        : null;
+    let dictation = null;
+    let loadingDictation = false;
+    let dictationGeneration = 0;
+    let loadingFailure = "";
+    let stopDictationRevision = null;
+    const dictationPhase = () =>
+      loadingDictation ? "starting" : (dictation?.phase ?? "idle");
+    const dictationStatus = () =>
+      loadingDictation
+        ? "Starting microphone…"
+        : loadingFailure || dictation?.status || "";
+    if (mic) {
+      mic.type = "button";
+      mic.className = "lf-btn lf-icon-action lf-compose-dictate";
+      mic.append(iconElement("microphone", "lf-action-icon"));
+      field.append(mic);
+    }
     // These two are the press's whole face, and the theme keys the glyph's colour on the
     // pair, so a box cannot be handed a send button dressed as something else. `primary`
     // is a different face: it dresses the press's own box, which is the hit target and
@@ -329,6 +364,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       );
     };
     const hydrate = (value) => {
+      cancelDictation();
       const restored = readAttachedMedia(value);
       attachedMedia = restored.paths;
       ta.value = restored.text;
@@ -368,10 +404,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
           : contextualHint?.box === ta
             ? contextualHint.label
             : "";
-      const word = label();
-      const placeholder = suffix ? `${word} ${suffix}` : word;
+      const status = dictationStatus();
+      const word = status || label();
+      const placeholder = suffix && !status ? `${word} ${suffix}` : word;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
-      if (suffix) {
+      if (suffix && !status) {
         keepsText(hintLabel, word);
         keepsText(hintKey, suffix);
         if (visibleHint.parentNode !== ta) ta.append(visibleHint);
@@ -384,15 +421,60 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // These native input actions keep their focus seat while refusing a send.
       keeps(sendBtn, "aria-disabled", !canSend());
       if (altBtn) keeps(altBtn, "aria-disabled", !canSend());
+      if (mic) {
+        const phase = dictationPhase();
+        const live = phase === "starting" || phase === "listening";
+        const failed = loadingFailure || dictation?.failure;
+        const action = live
+          ? "Stop dictation"
+          : phase === "stopping"
+            ? "Finishing dictation"
+            : failed
+              ? "Retry dictation"
+              : "Dictate";
+        keeps(
+          mic,
+          "data-dictation",
+          phase !== "idle"
+            ? phase
+            : failed && dictation?.failure?.error !== "no-speech"
+              ? "failed"
+              : null,
+        );
+        keeps(mic, "aria-label", action);
+        keeps(mic, "aria-pressed", live);
+        keeps(mic, "aria-description", status || null);
+        keeps(mic, "title", live || !status ? action : `${action} (${status})`);
+      }
     };
     inputPaints.set(ta, paint);
+    let visibilityQueued = false;
+    const paintSubmitVisibility = () => {
+      visibilityQueued = false;
+      if (mic) {
+        const shown = dictationPhase() !== "idle" || !hasContent(draftValue());
+        keepsHidden(mic, !shown);
+        keepsHidden(sendBtn, shown);
+        if (shown && focused() === sendBtn) focusDestination(ta, "return");
+        if (!shown && focused() === mic) focusDestination(ta, "return");
+      }
+      paintKeys();
+    };
     const refresh = () => {
+      if (dictationPhase() === "idle") {
+        stopDictationRevision?.();
+        stopDictationRevision = null;
+      }
       // A button whose visibility follows the draft must join the tab order before
-      // the next key. The rest of its dressing can wait for the shared paint.
+      // the next key. A composer can load an empty draft and then its saved words
+      // in one turn; paint the final choice once at the microtask checkpoint.
       paintOwn();
       if (drawing) renderMedia();
       stale.add(ta);
-      paintKeys();
+      if (!visibilityQueued) {
+        visibilityQueued = true;
+        queueMicrotask(paintSubmitVisibility);
+      }
     };
     const draftChanged = () => {
       save(draftValue());
@@ -405,12 +487,16 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // still holding something — the box said "draft kept" over a comment it had just
     // sent, and the picture rode into the next passage's draft.
     const sync = () => refresh();
+    // Closing belongs to each surface's existing owner, rather than a DOM observer
+    // guessing whether a hidden field is merely outside the viewport.
+    sync.cancelDictation = cancelDictation;
     sync.value = draftValue;
     sync.hasMedia = () => attachedMedia.length > 0;
     // The box takes up the draft it now stands on as it is, with a history of its own:
     // another draft, or this one as another tab left it. The caller's next paint shows
     // it, and shows any change made to it since as a step of that history.
     sync.arrive = () => {
+      cancelDictation();
       arrivals += 1;
       ta.restartHistory();
       shelfSeen = { drawing: drawing?.read() ?? null, media: [...attachedMedia] };
@@ -429,6 +515,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     refresh();
     const submit = async (sender) => {
       if (sending || uploading || busy()) return;
+      cancelDictation();
       // A send key on an empty box answered with silence reads as a send that
       // happened — the blind drive believed exactly that. Say the nothing out loud
       // (the notice announces too).
@@ -446,6 +533,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       }
     };
     ta.addEventListener("input", () => {
+      loadingFailure = "";
+      dictation?.edited();
+      // A user's edit also retires a microphone press still loading its module.
+      if (loadingDictation) cancelDictation();
       draftChanged();
       // A box a thread or seat holds keeps its controls in view as it grows
       // (`followBoxGrowth`). On the user's own keystrokes and nothing else: a send settling
@@ -456,12 +547,80 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     });
     ta.addEventListener("focus", () => readBoxPlace(ta));
     ta.addEventListener("lf-before-edit", () => readBoxPlace(ta), { capture: true });
+    if (mic) {
+      const activateDictation = async () => {
+        if (dictationPhase() === "stopping" || sending || uploading || busy()) return;
+        if (dictationPhase() !== "idle") {
+          if (loadingDictation) cancelDictation();
+          else dictation.stop();
+          return;
+        }
+        focusDestination(ta, "return");
+        const revision = applicationState.read().document.revision;
+        if (!stopDictationRevision)
+          stopDictationRevision = applicationState
+            .select((root) => root.document.revision)
+            .subscribe((next) => {
+              if (next !== revision) cancelDictation();
+            });
+        if (!dictation) {
+          const generation = ++dictationGeneration;
+          loadingDictation = true;
+          loadingFailure = "";
+          refresh();
+          let createDictation;
+          try {
+            ({ createDictation } = await import("./dictation.js"));
+          } catch (error) {
+            if (generation !== dictationGeneration) return;
+            loadingDictation = false;
+            loadingFailure = "Dictation couldn’t start";
+            refresh();
+            announce(loadingFailure);
+            throw error;
+          }
+          if (generation !== dictationGeneration || !ta.isConnected) return;
+          loadingDictation = false;
+          dictation = createDictation({
+            Recognition,
+            language: document.documentElement.lang || navigator.language,
+            read: () => ta.value,
+            write: (words) => ta.edit(words),
+            changed: refresh,
+            announce,
+          });
+        }
+        dictation.start();
+      };
+      keys(mic, "Dictation", [
+        {
+          id: "text.dictate",
+          keys: PRESS,
+          control: mic,
+          description: "Start or stop dictation in this comment box",
+          title: () => (dictationPhase() === "idle" ? "dictate" : "stop dictation"),
+          when: () =>
+            !mic.hidden &&
+            dictationPhase() !== "stopping" &&
+            !sending &&
+            !uploading &&
+            !busy(),
+          run: () => void activateDictation(),
+        },
+      ]);
+      mic.addEventListener("mousedown", (event) => event.preventDefault());
+      whileConnected(ta, (signal) => {
+        window.addEventListener("pagehide", cancelDictation, { signal });
+        return cancelDictation;
+      });
+    }
     // Paste and page capture enter through the same command. It owns delivery and the
     // whole draft's history, and refuses a second upload while the first owns the field.
     // The arrival generation prevents an image reaching another draft when the floating
     // composer moves to another passage before its bytes reach the server.
     sync.addMedia = async (images) => {
       if (!images.length || sending || uploading || busy()) return false;
+      cancelDictation();
       const allowed = allowsMedia();
       if (allowed !== true) {
         notice(allowed);
@@ -575,6 +734,17 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       button.addEventListener("click", () => pressed(sender));
     }
     return sync;
+
+    function cancelDictation() {
+      stopDictationRevision?.();
+      stopDictationRevision = null;
+      dictationGeneration += 1;
+      const loading = loadingDictation;
+      loadingDictation = false;
+      loadingFailure = "";
+      if (dictation) dictation.cancel();
+      else if (loading) refresh();
+    }
   }
 
   return { wireInput, paintInputs };

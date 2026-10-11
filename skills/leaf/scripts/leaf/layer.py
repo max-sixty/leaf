@@ -4,7 +4,6 @@ import hashlib
 import json
 import re
 import subprocess
-import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import NamedTuple
@@ -399,14 +398,16 @@ def payload_server_inputs(root: Path) -> list[Path]:
 
 
 def payload_server_fingerprint() -> str:
-    """Identify the serving inputs and interpreter independently of a Git commit."""
+    """Identify serving inputs independently of a Git commit or Python build.
+
+    A site builds pages on the CI host and serves them from a container with a
+    different interpreter. The vendored event contract depends on the payload's
+    files, not that interpreter's version string.
+    """
     return files_identity(
         {
-            "$python": sys.version.encode(),
-            **{
-                path.relative_to(PLUGIN_ROOT).as_posix(): path.read_bytes()
-                for path in payload_server_inputs(PLUGIN_ROOT)
-            },
+            path.relative_to(PLUGIN_ROOT).as_posix(): path.read_bytes()
+            for path in payload_server_inputs(PLUGIN_ROOT)
         }
     )
 
@@ -436,6 +437,27 @@ def foreign_runtime(page_dir: Path, layer: dict) -> str | None:
         f"{vendored or 'no runtime identity'}, and this Leaf ({PLUGIN_ROOT}) ships "
         f"{running}. Leaf serves and checks a page only against the runtime it "
         f"ships, so re-vendor it with `leaf page init {page_dir}`."
+    )
+
+
+def foreign_event_contract(page_dir: Path, layer: dict) -> str | None:
+    """Why this Leaf cannot admit an event against the page's installed layer.
+
+    Event writers use the page's registry to validate a record, while the fields
+    they author come from this Leaf's Python code. A changed serving contract can
+    make that registry reject a record even when browser runtime bytes agree.
+    """
+    if refusal := foreign_runtime(page_dir, layer):
+        return refusal
+    vendored = layer.get("server")
+    running = payload_server_fingerprint()
+    if vendored == running:
+        return None
+    return (
+        f"{page_dir} was vendored from another Leaf's serving code: its layer names "
+        f"{vendored or 'no server identity'}, and this Leaf ({PLUGIN_ROOT}) ships "
+        f"{running}. Re-vendor it with `leaf page init {page_dir}` before writing "
+        "events."
     )
 
 

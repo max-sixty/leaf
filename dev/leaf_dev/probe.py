@@ -170,8 +170,8 @@ def probe(
       focus:SEL     focus it
       drive:NAME    a `leaf-dev stills` state's input, e.g. card-by-keyboard
 
-    Focus rings draw only once a key has been pressed, so start a keyboard journey
-    with press:Tab or a drive: input that does. --base takes an optional ref, so put
+    Focus rings draw whenever a control holds focus, by click or keyboard arrival.
+    --base takes an optional ref, so put
     SOURCE before it or give it one (--base=REF).
 
     Prints one JSON line per arm: startup phases, resources and diagnostic initial

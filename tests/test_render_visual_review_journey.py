@@ -860,7 +860,8 @@ def test_visual_review_reports_an_image_failure_after_its_peer_has_loaded(
     holding(page, held, 1, "the second selected capture")
     # Finish the first image's layout while its peer is still pending. The
     # later failure cannot borrow that load's invalidation or a stage resize.
-    rendered(page)
+    # The held peer is still a registered preparation, so wait only for paint.
+    rendered(page, facts=("updatesSettled",))
     expect(images.last).to_have_js_property("complete", False)
     assert host.evaluate("node => node.clientHeight") > 1000
     expect(host.locator(".lf-error")).to_have_count(0)

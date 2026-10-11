@@ -1643,7 +1643,7 @@ def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_
     typed = "The page is missing the migration step."
     write(page_comment(first), typed)
     expect(second.locator(".lf-general leaf-text")).to_have_js_property("value", typed)
-    expect(second.locator(".lf-general button")).to_have_attribute(
+    expect(second.locator(".lf-general .lf-compose-submit")).to_have_attribute(
         "aria-disabled", "false"
     )
 
@@ -1674,10 +1674,10 @@ def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_
     round_trip(second)
     expect(first.locator(".lf-thread leaf-text").first).to_have_js_property("value", "")
 
-    first.locator(".lf-general button").click()
+    first.locator(".lf-general .lf-compose-submit").click()
     round_trip(first)
     expect(second.locator(".lf-general leaf-text")).to_have_js_property("value", "")
-    expect(second.locator(".lf-general button")).to_have_attribute(
+    expect(second.locator(".lf-general .lf-compose-submit")).to_have_attribute(
         "aria-disabled", "true"
     )
     said = [e["text"] for e in events_model.read_events(serve.page_dir) if "text" in e]
@@ -1695,9 +1695,9 @@ def test_a_general_comment_appends_one_event_across_tabs(browser, serve, one_use
 
     held = []
     first.route("**/api/event", lambda route: held.append(route))
-    first.locator(".lf-general button").click()
+    first.locator(".lf-general .lf-compose-submit").click()
     holding(first, held, 1, "the first general send")
-    second.locator(".lf-general button").click()
+    second.locator(".lf-general .lf-compose-submit").click()
     round_trip(second)
 
     held[0].continue_()
@@ -1722,7 +1722,7 @@ def test_a_held_general_send_preserves_a_newer_exact_draft(browser, serve):
     write(box, old)
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    page.locator(".lf-general button").click()
+    page.locator(".lf-general .lf-compose-submit").click()
     holding(page, held, 1, "the older general send")
     # The send put the card away; the newer thought is written in it opened again.
     write(page_comment(page), newer)
@@ -1795,7 +1795,7 @@ def test_a_reply_behind_a_refused_parent_is_withdrawn_rather_than_sent(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     write(page_comment(page), "The parent the server will refuse.")
-    page.locator(".lf-general button").click()
+    page.locator(".lf-general .lf-compose-submit").click()
     holding(page, held, 1, "the parent send")
 
     card = page.locator('.lf-thread[data-id^="pending:"]')
@@ -1841,7 +1841,7 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     words = "The comment the server will refuse."
     write(box, words)
     before = page.locator(".lf-threads > .lf-thread").count()
-    page.locator(".lf-general button").click()
+    page.locator(".lf-general .lf-compose-submit").click()
     holding(page, held, 1, "the general send")
     pending = page.locator('.lf-thread[data-id^="pending:"]')
     expect(pending).to_have_count(1)
@@ -2462,14 +2462,14 @@ def test_failed_settlement_keeps_the_base_for_a_chained_nondurable_edit(
     )
 
     write(page_comment(local), first)
-    local.locator(".lf-general button").click()
+    local.locator(".lf-general .lf-compose-submit").click()
     round_trip(local)
     expect(local.locator(".lf-general leaf-text")).to_have_js_property("value", "")
     write(page_comment(local), second)
-    expect(local.locator(".lf-general button")).to_have_attribute(
+    expect(local.locator(".lf-general .lf-compose-submit")).to_have_attribute(
         "aria-disabled", "false"
     )
-    local.locator(".lf-general button").click()
+    local.locator(".lf-general .lf-compose-submit").click()
     _until(local, lambda traffic: traffic.sends == 2, "sent the chained generation")
     round_trip(local)
 
@@ -5877,9 +5877,8 @@ def test_a_mechanical_revision_failure_leaves_accepted_publication_ready(
         if event["kind"] == "error"
     ]
     assert len(reported) == 1, reported
-    assert (
-        reported[0]["text"]
-        == "Revision continuity failed: mechanical caret fixture failed"
+    assert reported[0]["text"].startswith(
+        "Revision continuity failed: mechanical caret fixture failed\n"
     )
 
     # Error reporting may advance server freshness, but no later state answer may

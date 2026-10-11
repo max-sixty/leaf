@@ -1384,4 +1384,4 @@ export function createSemanticApplication({
     },
   });
 }
-// Generated from build/browser/application.ts by npm run build:browser.
+// Generated from build/browser/application.ts by build/browser/build.mjs.

@@ -2791,6 +2791,7 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
         [
             "response",
             "reply",
+            "--done",
             response_reference(d, "c-store"),
             "--text",
             "Depends what you want to keep:",

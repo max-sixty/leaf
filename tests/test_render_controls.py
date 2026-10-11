@@ -3668,7 +3668,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
             detail,
             dot: document.querySelector('.lf-banner .lf-dot'),
             text: [...detail.childNodes].find(
-              (node) => node.nodeType === Node.TEXT_NODE,
+              (node) => node.nodeType === Node.TEXT_NODE && node.data.trim(),
             ),
           };
           return window.__lfStatusNodes.text.data;
@@ -3865,48 +3865,13 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     )
 
 
-def test_banner_status_lit_owner_moves_one_native_surface_between_layouts(
-    browser, serve
-):
-    """Publication and ordinary status are two layouts of one retained surface."""
+def test_banner_status_keeps_publication_links_outside_its_disclosure(browser, serve):
+    """Publication links remain ordinary links; status keeps its native disclosure."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
-    owner = page.locator("leaf-banner-status.lf-banner-status")
-    expect(owner).to_have_count(1)
     page.evaluate(
         """() => {
-          const owner = document.querySelector('leaf-banner-status');
-          window.__lfStatusSurface = {
-            owner,
-            button: owner.querySelector('.lf-status-button'),
-            detail: owner.querySelector('.lf-status-detail'),
-            dot: owner.querySelector('.lf-dot'),
-            text: owner.querySelector('.lf-status-text'),
-          };
-          window.__lfStatusSurfaceSnapshot = () => {
-            const nodes = window.__lfStatusSurface;
-            const link = nodes.owner.querySelector('.lf-publication-install');
-            return {
-              ownerCount: document.querySelectorAll('leaf-banner-status').length,
-              button: nodes.button === document.querySelector('.lf-status-button'),
-              detail: nodes.detail === document.querySelector('.lf-status-detail'),
-              dot: nodes.dot === document.querySelector('.lf-banner .lf-dot'),
-              text: nodes.text === document.querySelector('.lf-status-text'),
-              buttonConnected: nodes.button.isConnected,
-              buttonParent: nodes.button.parentElement === nodes.owner,
-              buttonChildren: nodes.button.querySelectorAll(
-                '.lf-dot, .lf-status-text'
-              ).length,
-              dotParent: nodes.dot.parentElement.className,
-              // The words stand in one box with a passing notice, which moves whole.
-              textParent: nodes.text.parentElement.parentElement.className,
-              detailParent: nodes.detail.parentElement === nodes.owner,
-              detailOpen: nodes.detail.matches(':popover-open'),
-              detailText: nodes.detail.textContent,
-              statusText: nodes.text.textContent,
-              linkCount: nodes.owner.querySelectorAll('.lf-publication-install').length,
-              linkInButton: !!link?.closest('.lf-status-button'),
-            };
-          };
+          window.__lfStatusOwner = document.querySelector('leaf-banner-status');
+          window.__lfStatusDetail = document.querySelector('.lf-status-detail');
         }"""
     )
     door = page.locator(".lf-status-button")
@@ -3916,88 +3881,47 @@ def test_banner_status_lit_owner_moves_one_native_surface_between_layouts(
     expect(detail).to_be_visible()
     expect(detail).to_be_focused()
 
-    published = page.evaluate(
-        """() => {
-          window.__lfStatusSurface.owner.present(Object.freeze({
-            tone: '',
-            summary: '',
-            explanation: 'Published copy Install Leaf',
-            publication: Object.freeze({
-              copy: 'Published copy ',
-              install: 'Install Leaf',
-              installUrl: '/#install',
-            }),
-          }));
-          return window.__lfStatusSurfaceSnapshot();
-        }"""
-    )
-    assert published == {
-        "ownerCount": 1,
-        "button": False,
-        "detail": True,
-        "dot": True,
-        "text": True,
-        "buttonConnected": False,
-        "buttonParent": False,
-        "buttonChildren": 0,
-        "dotParent": "lf-banner-status",
-        "textParent": "lf-banner-status",
-        "detailParent": True,
-        "detailOpen": False,
-        "detailText": "Published copy Install Leaf",
-        "statusText": "Published copy Install Leaf",
-        "linkCount": 1,
-        "linkInButton": False,
-    }, f"the publication layout duplicated or orphaned its native surface: {published}"
+    for _ in range(2):
+        page.evaluate(
+            """() => window.__lfStatusOwner.present(Object.freeze({
+              tone: '', summary: '', queues: '', queuesWidest: '',
+              explanation: 'Published copy Install Leaf',
+              publication: Object.freeze({
+                copy: 'Published copy ', install: 'Install Leaf',
+                installUrl: '/#install',
+              }),
+            }))"""
+        )
+        expect(door).to_have_count(0)
+        expect(detail).to_be_hidden()
+        expect(page.locator(".lf-status-text")).to_have_text(
+            "Published copy Install Leaf"
+        )
+        link = page.get_by_role("link", name="Install Leaf", exact=True)
+        expect(link).to_have_attribute("href", "/#install")
+        assert not link.evaluate("node => !!node.closest('button')")
+        assert page.evaluate(
+            "window.__lfStatusDetail === document.querySelector('.lf-status-detail')"
+        ), "changing the layout replaced the native disclosure"
 
-    ordinary = page.evaluate(
-        """() => {
-          window.__lfStatusSurface.owner.present(Object.freeze({
-            tone: 'offline',
-            summary: 'Server offline',
-            explanation: 'Server offline detail',
-            publication: null,
-          }));
-          return window.__lfStatusSurfaceSnapshot();
-        }"""
-    )
-    assert ordinary == {
-        "ownerCount": 1,
-        "button": True,
-        "detail": True,
-        "dot": True,
-        "text": True,
-        "buttonConnected": True,
-        "buttonParent": True,
-        "buttonChildren": 2,
-        "dotParent": "lf-status-button",
-        "textParent": "lf-status-button",
-        "detailParent": True,
-        "detailOpen": False,
-        "detailText": "Server offline detail",
-        "statusText": "Server offline",
-        "linkCount": 0,
-        "linkInButton": False,
-    }, f"the ordinary layout failed to reclaim its retained controls: {ordinary}"
-
-    published_again = page.evaluate(
-        """() => {
-          window.__lfStatusSurface.owner.present(Object.freeze({
-            tone: '',
-            summary: '',
-            explanation: 'Published copy Install Leaf',
-            publication: Object.freeze({
-              copy: 'Published copy ',
-              install: 'Install Leaf',
-              installUrl: '/#install',
-            }),
-          }));
-          return window.__lfStatusSurfaceSnapshot();
-        }"""
-    )
-    assert published_again == published, (
-        f"returning to publication created a parallel status surface: {published_again}"
-    )
+        page.evaluate(
+            """() => window.__lfStatusOwner.present(Object.freeze({
+              tone: 'offline', summary: 'Server offline', queues: '', queuesWidest: '',
+              explanation: 'Server offline detail', publication: null,
+            }))"""
+        )
+        expect(page.locator(".lf-publication-install")).to_have_count(0)
+        expect(door).to_have_text("Server offline")
+        expect(door).to_have_attribute("popovertarget", "lf-status-detail")
+        expect(door).to_have_attribute("aria-expanded", "false")
+        door.focus()
+        page.keyboard.press("Enter")
+        expect(detail).to_be_visible()
+        expect(detail).to_be_focused()
+        expect(detail).to_have_text("Server offline detail")
+        page.keyboard.press("Escape")
+        expect(detail).to_be_hidden()
+        expect(door).to_be_focused()
 
 
 WEBSITE_LINE = (

@@ -1,8 +1,8 @@
 /* The generated owner of the banner's complete status surface.
  *
  * `banner.js` derives one immutable reading. This synchronous light-DOM Lit view
- * retains the native disclosure controls while placing them in the ordinary and
- * publication layouts; no outside code writes or reparents anything inside it.
+ * retains the native disclosure while painting the ordinary and publication layouts
+ * from one template; no outside code writes or reparents anything inside it.
  *
  * The agent's Tasks count (`queues`) is the view's second box, which the banner places
  * beside the status rather than inside it, so the banner can give it whichever row
@@ -19,8 +19,9 @@
  */
 import { closeNativeLayer } from "./keyboard/layer-stack.js";
 import { html, nothing, render } from "../vendor/browser-runtime.js";
+import { classMap, createRef, ref } from "../vendor/lit.js";
 import { el, reserve } from "./widget-elements.js";
-import { keeps, keepsText } from "./keeps.js";
+import { keeps } from "./keeps.js";
 import { focusDestination } from "./focus.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
@@ -39,46 +40,30 @@ const INITIAL = Object.freeze({
 });
 
 class BannerStatusView extends HTMLElement {
-  #button = el("button", "lf-status-button");
-  #detail = el("div", "lf-ui lf-status-detail");
-  #dot = el("span", "lf-dot");
+  #button = createRef();
+  #detail = createRef();
+  #dot = createRef();
   #onToggle = null;
+  #notice = { message: "", visible: false };
+  #model = null;
   #queues = el("button", "lf-status-queues");
   #queuesWidest = "";
   #queuesReserved = "";
-  #text = el("span", "lf-status-text");
-  // A passing notice, which takes the words' place on a phone (chrome.css,
-  // `--lf-notice-seat`). It stands over them in one box, so the press and its accessible
-  // name stay the status's; the live region has already spoken the notice.
-  #notice = el("span", "lf-status-notice");
-  #words = el("span", "lf-status-words");
 
   constructor() {
     super();
-    this.#notice.setAttribute("aria-hidden", "true");
-    this.#words.append(this.#text, this.#notice);
-    this.#button.type = "button";
-    this.#button.setAttribute("aria-expanded", "false");
-    this.#button.setAttribute("aria-describedby", "lf-status-detail");
     this.#queues.type = "button";
     this.#queues.title = "Show or hide the agent's tasks and your questions";
     this.#queues.setAttribute("aria-controls", "lf-queue");
-    this.#detail.id = "lf-status-detail";
-    this.#detail.tabIndex = -1;
-    this.#detail.setAttribute("popover", "auto");
-    this.#detail.setAttribute("role", "group");
-    this.#detail.setAttribute("aria-label", "Page status");
-    this.#button.popoverTargetElement = this.#detail;
-    this.#detail.lfInvoker = this.#button;
-    this.#detail.addEventListener("toggle", (event) => {
-      const open = event.newState === "open";
-      keeps(this.#button, "aria-expanded", open);
-      // Focus the scrollable explanation so keyboard users can reach long details.
-      if (open && document.activeElement === this.#button)
-        focusDestination(this.#detail, "move");
-      this.#onToggle?.();
-    });
   }
+
+  #toggled = (event) => {
+    // Focus the scrollable explanation so keyboard users can reach long details.
+    if (event.newState === "open" && document.activeElement === this.#button.value)
+      focusDestination(this.#detail.value, "move");
+    this.#paint();
+    this.#onToggle?.();
+  };
 
   configure({ onToggle }) {
     this.#onToggle = onToggle;
@@ -86,7 +71,7 @@ class BannerStatusView extends HTMLElement {
   }
 
   get dot() {
-    return this.#dot;
+    return this.#dot.value;
   }
 
   get queues() {
@@ -94,9 +79,10 @@ class BannerStatusView extends HTMLElement {
   }
 
   // The notice keeps its words after it fades, so the stylesheet alone decides what shows.
-  presentNotice({ message, visible }) {
-    keepsText(this.#notice, message);
-    keeps(this, "data-lf-notice", visible ? "" : null);
+  presentNotice(notice) {
+    this.#notice = notice;
+    keeps(this, "data-lf-notice", notice.visible ? "" : null);
+    this.#paint();
   }
 
   present(model) {
@@ -105,42 +91,12 @@ class BannerStatusView extends HTMLElement {
       (model.publication && !Object.isFrozen(model.publication))
     )
       throw new Error("Banner status presentation models must be immutable");
-    if (model.publication && this.#detail.matches(":popover-open"))
-      closeNativeLayer(this.#detail);
-
-    this.#queues.toggleAttribute("hidden", !model.queues);
-    keeps(this.#dot, "class", "lf-dot" + (model.tone ? " " + model.tone : ""));
-    keeps(this.#button, "title", model.explanation);
-    keeps(this.#text, "title", model.explanation);
-    render(model.explanation, this.#detail);
-
-    if (model.publication) {
-      // Relinquish the ordinary Lit seat before its retained nodes move into the
-      // publication row. Returning to it can then claim them afresh rather than
-      // trusting a part whose nodes another container has moved.
-      render(nothing, this.#button);
-      render(html`${this.#dot}${this.#words}${this.#detail}`, this);
-      render(
-        html`<span class="lf-publication-copy">${model.publication.copy}</span>${
-            model.publication.examplesUrl
-              ? html`<a
-                  class="lf-publication-link"
-                  href=${model.publication.examplesUrl}
-                  >${model.publication.examples + " "}</a
-                >`
-              : nothing
-          }<a class="lf-publication-install" href=${model.publication.installUrl}
-            >${model.publication.install}</a
-          >`,
-        this.#text,
-      );
-      return;
-    }
-
-    render(html`${this.#button}${this.#detail}`, this);
-    render(html`${this.#dot}${this.#words}`, this.#button);
-    render(model.summary, this.#text);
+    if (model.publication && this.#detail.value?.matches(":popover-open"))
+      closeNativeLayer(this.#detail.value);
+    this.#model = model;
+    this.#paint();
     render(model.queues, this.#queues);
+    this.#queues.toggleAttribute("hidden", !model.queues);
     // The reservation only grows: its digits are tabular, so the longest counts yet
     // shown are the widest, and a box that shrank back would move them on the next.
     if (model.queues) {
@@ -158,6 +114,65 @@ class BannerStatusView extends HTMLElement {
         reserve(this.#queues, [reserved]);
       }
     }
+  }
+
+  #paint() {
+    const model = this.#model;
+    const publication = model.publication;
+    const dot = html`<span
+      class=${classMap({ "lf-dot": true, [model.tone]: Boolean(model.tone) })}
+      ${ref(this.#dot)}
+    ></span>`;
+    const words = (text) =>
+      html`<span class="lf-status-words"
+        ><span class="lf-status-text" title=${model.explanation}>${text}</span
+        ><span class="lf-status-notice" aria-hidden="true"
+          >${this.#notice.message}</span
+        ></span
+      >`;
+    const summary = publication
+      ? html`<span class="lf-publication-copy">${publication.copy}</span>${
+            publication.examplesUrl
+              ? html`<a class="lf-publication-link" href=${publication.examplesUrl}
+                  >${publication.examples + " "}</a
+                >`
+              : nothing
+          }<a class="lf-publication-install" href=${publication.installUrl}
+            >${publication.install}</a
+          >`
+      : model.summary;
+    const status = html`${dot}${words(summary)}`;
+    render(
+      html`${
+          publication
+            ? status
+            : html`<button
+                type="button"
+                class="lf-status-button"
+                title=${model.explanation}
+                aria-expanded=${String(Boolean(this.#detail.value?.matches(":popover-open")))}
+                aria-describedby="lf-status-detail"
+                popovertarget="lf-status-detail"
+                ${ref(this.#button)}
+              >
+                ${status}
+              </button>`
+        }
+        <div
+          id="lf-status-detail"
+          class="lf-ui lf-status-detail"
+          tabindex="-1"
+          popover="auto"
+          role="group"
+          aria-label="Page status"
+          @toggle=${this.#toggled}
+          ${ref(this.#detail)}
+        >
+          ${model.explanation}
+        </div>`,
+      this,
+    );
+    this.#detail.value.lfInvoker = this.#button.value ?? null;
   }
 }
 

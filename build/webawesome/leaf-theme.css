@@ -34,10 +34,9 @@
   --wa-color-brand-fill-loud: var(--accent);
   --wa-color-brand-on-loud: light-dark(var(--card), var(--paper));
   --wa-color-focus: var(--accent);
-  /* Leaf draws one focus band and theme.css keeps its thickness in one token, so a
-     vendored control wears that band rather than the vendor's own wider one. */
-  --wa-focus-ring-style: solid;
-  --wa-focus-ring-width: var(--focus-ring-w);
+  /* Leaf's logical focus owner paints the band. The vendor's native focus and open
+     states must not paint another, including during a held label press. */
+  --wa-focus-ring-style: none;
   --wa-form-control-background-color: var(--field);
   --wa-form-control-border-color: var(--border-2);
   --wa-form-control-value-color: var(--ink);
@@ -77,8 +76,9 @@ wa-select::part(combobox) {
 /* Public parts carry the same focus band for pointer and keyboard arrival. Native
    shadow hosts only retarget their internal focus; Leaf's focus owner marks the actual
    input owner with data-lf-focus and the public lf-focus part, and its composed ancestry
-   with data-lf-focus-within. Each control draws one band at that logical destination,
-   including while a label press temporarily moves native focus elsewhere. */
+   with data-lf-focus-within and the public lf-focus-within part. Each control draws
+   one band at that logical destination, including while a label press temporarily
+   moves native focus elsewhere. */
 wa-copy-button::part(lf-focus) {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap);
@@ -92,20 +92,15 @@ wa-comparison::part(lf-focus) {
 
 /* A radio's actual focus owner is its host, rather than a native shadow control.
    The generic band surrounds its full face, label included, for both appearances. */
-wa-radio::part(control) { outline: none; }
 wa-radio[appearance="button"][data-lf-focus] { z-index: 2; }
 
 /* Text and select frames cover their editor and auxiliary controls, including Clear.
    Their native input/button outlines stay off so a group has one focus carrier. */
-wa-input[data-lf-focus-within]::part(base) {
+wa-input::part(base lf-focus-within) {
   outline: var(--focus-ring);
   --lf-focus-ring: text-entry;
 }
-wa-input::part(clear-button):focus,
-wa-input::part(password-toggle-button):focus {
-  outline: none;
-}
-wa-select[data-lf-focus-within]::part(combobox) {
+wa-select::part(combobox lf-focus-within) {
   outline: var(--focus-ring);
   --lf-focus-ring: select;
 }

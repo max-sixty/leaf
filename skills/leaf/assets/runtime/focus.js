@@ -417,35 +417,34 @@ let readings = 0;
 // Paint follows the same standing as keyboard routing. Native :focus also matches
 // retargeting shadow hosts and the intermediate node of a held label press, neither
 // of which receives that input. Dedicated attributes leave component classes with
-// their owners. A public shadow part also exposes the destination as lf-focus,
-// so vendor-part rules consume this same reading rather than native :focus.
+// their owners. Public shadow parts expose both marks too, so vendor-part rules
+// can choose a carrier on the actual focus ancestry rather than its whole host.
 let paintedFocus = null;
 let paintedWithin = new Set();
+function markFocus(node, name, present) {
+  keeps(node, `data-lf-${name}`, present ? "" : null);
+  if (!present) node.part?.remove(`lf-${name}`);
+  else if (
+    node.getRootNode().nodeType === Node.DOCUMENT_FRAGMENT_NODE &&
+    node.hasAttribute("part")
+  )
+    node.part.add(`lf-${name}`);
+}
 function paintFocus(node) {
   const next =
     node === document.body || node === document.documentElement ? null : node;
   if (next !== paintedFocus) {
-    if (paintedFocus) {
-      keeps(paintedFocus, "data-lf-focus", null);
-      if (paintedFocus.part?.contains("lf-focus")) paintedFocus.part.remove("lf-focus");
-    }
-    if (next) {
-      keeps(next, "data-lf-focus", "");
-      if (
-        next.getRootNode().nodeType === Node.DOCUMENT_FRAGMENT_NODE &&
-        next.hasAttribute("part")
-      )
-        next.part.add("lf-focus");
-    }
+    if (paintedFocus) markFocus(paintedFocus, "focus", false);
+    if (next) markFocus(next, "focus", true);
     paintedFocus = next;
   }
   const within = new Set();
   for (let owner = next; owner; owner = renderedParent(owner)) within.add(owner);
   for (const owner of paintedWithin) {
-    if (!within.has(owner)) keeps(owner, "data-lf-focus-within", null);
+    if (!within.has(owner)) markFocus(owner, "focus-within", false);
   }
   for (const owner of within) {
-    if (!paintedWithin.has(owner)) keeps(owner, "data-lf-focus-within", "");
+    if (!paintedWithin.has(owner)) markFocus(owner, "focus-within", true);
   }
   paintedWithin = within;
 }

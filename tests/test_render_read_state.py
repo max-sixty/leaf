@@ -769,7 +769,8 @@ SAMPLE_READER = "a1b2c3d4"
 def _sample_reading_page(browser, serve, body, style):
     """A page holding one live sample whose child page is taller than the window and
     carries one agent message, so the thread panel it opens stands the message near the
-    frame's top. `style` places the sample; the returned child is its page, which keeps
+    frame's top. The authored frame height supplies that viewport independently of
+    child content. `style` places the sample; the returned child is its page, which keeps
     a log and a ledger of trips of its own (`Traffic`)."""
     page = open_page(
         browser,
@@ -785,7 +786,7 @@ def _sample_reading_page(browser, serve, body, style):
   </template>
 </lf-sample>"""
                 ),
-                head=f"<style>{style}</style>",
+                head=f"<style>#read-practice .lf-sample-frame {{ height: 1000px; }} {style}</style>",
             ),
             events=[
                 {

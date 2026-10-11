@@ -2148,6 +2148,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     }
   }
   .lf-shortcut-bar {
+    --lf-shortcut-border: 1px;
+    --lf-shortcut-row-gap: 6px;
+    --lf-shortcut-top: 9px;
+    --lf-shortcut-bottom: calc((var(--lf-bottom-bar-h) + var(--lf-safe-bottom) - var(--lf-key-badge-size)) / 2);
     position: fixed;
     left: 0;
     right: var(--lf-shortcut-bar-right, 0px);
@@ -2156,19 +2160,22 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     pointer-events: none;
     box-sizing: border-box;
     min-height: var(--lf-bottom-bar-h);
-    padding: 9px calc(18px + var(--lf-safe-right) + var(--lf-status-room, 0px)) calc((var(--lf-bottom-bar-h) + var(--lf-safe-bottom) - var(--lf-key-badge-size)) / 2) calc(18px + var(--lf-safe-left));
+    padding: var(--lf-shortcut-top) calc(18px + var(--lf-safe-right) + var(--lf-status-room, 0px)) var(--lf-shortcut-bottom) calc(18px + var(--lf-safe-left));
     display: flex;
     flex-wrap: wrap;
-    gap: 6px 12px;
+    gap: var(--lf-shortcut-row-gap) 12px;
     align-items: center;
     align-content: flex-end;
     color: var(--muted);
     font-size: var(--t-6);
     background: var(--veil);
     backdrop-filter: blur(6px);
-    border-top: 1px solid var(--rule);
+    border-top: var(--lf-shortcut-border) solid var(--rule);
     overflow: hidden;
     white-space: nowrap;
+  }
+  .lf-shortcut-bar[data-lf-expanded=true] {
+    min-height: calc(2 * max(1lh, var(--lf-key-badge-size)) + var(--lf-shortcut-row-gap) + var(--lf-shortcut-top) + var(--lf-shortcut-bottom) + var(--lf-shortcut-border));
   }
   .lf-shortcut-bar[data-lf-over-covering] {
     z-index: var(--lf-z-covering-band);

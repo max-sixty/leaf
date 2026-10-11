@@ -1261,9 +1261,9 @@ def test_an_input_owns_a_widget_preparation_it_began_until_presented(browser, se
     """A press's declared widget preparation is its result, however late it lands.
 
     Opening a closed lf-diff file loads its evidence in a promise the widget presents
-    (`present`), which the rendering loop cannot see. Holding the file's grammar keeps
-    that preparation pending after the loop settles, as a loaded machine does; the files
-    after it still move only for the press that opened it."""
+    (`present`), which the rendering loop cannot see. Holding the file's grammar
+    keeps that preparation pending beyond Chrome's recent-input window while counted
+    rendering is quiet; the later paint still belongs to the press that opened it."""
     patch = "".join(
         f"diff --git a/{name}.md b/{name}.md\n--- a/{name}.md\n+++ b/{name}.md\n"
         "@@ -1 +1 @@\n-old\n+new\n"
@@ -1284,7 +1284,16 @@ def test_an_input_owns_a_widget_preparation_it_began_until_presented(browser, se
     first = page.locator("#patch .lf-diff-file").first
     first.locator(".lf-diff-head").click()
     holding(page, held, 1, "the markdown grammar")
+    # Cross Chrome's recent-input grace with preparation held, then prove the
+    # rendering loop is quiet: only the widget's unfinished presentation owns it.
+    page.wait_for_function(
+        "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
+    )
     rendered(page)
+    assert page.evaluate("""() => {
+      const entry = document.querySelector('script[data-lf-entry]');
+      return [entry.lfApplicationPresented(), entry.lfRenderingSettled()];
+    }""") == [False, True]
     assert (
         page.evaluate(
             "document.querySelector('script[data-lf-entry]').lfReadiness(null, 'presented')"
@@ -1293,6 +1302,9 @@ def test_an_input_owns_a_widget_preparation_it_began_until_presented(browser, se
     )
     held[0].continue_()
     expect(first.locator("[data-line]").last).to_contain_text("new")
+    page.wait_for_function(
+        "document.querySelector('script[data-lf-entry]').lfApplicationPresented()"
+    )
     rendered(page)
     judge_watches()
     assert page.lf_errors == []

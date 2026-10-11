@@ -616,7 +616,11 @@ def test_the_launcher_uses_the_hosts_selected_leaf_for_commands_and_hooks(
     monkeypatch.setenv("LEAF", "leaf")
     monkeypatch.setenv("PATH", f"{launcher.parent}:{os.environ['PATH']}")
     refused = subprocess.run(
-        [launcher, "--version"], capture_output=True, text=True, timeout=5, check=False
+        [launcher, "--version"],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
     )
     assert (refused.returncode, refused.stdout, refused.stderr) == (
         2,

@@ -30,6 +30,8 @@
    leading destinations. More and the current way out never leave, and the reference
    behind More lists every row the line had no room for. The expanded bar, which the user
    unfolds to read the rest of the register, holds two rows under the same trim.
+   That allocation persists when focus removes hints until the user folds the bar;
+   sizing it to its reduced content would move its bounded-reflow boundary.
 
    The line is the bottom bar: one row at the stated `--lf-bottom-bar-h` (theme.css),
    which the document, a full-height workspace, the drawers' lists and the contents map

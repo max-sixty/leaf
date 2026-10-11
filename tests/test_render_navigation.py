@@ -12552,7 +12552,8 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
 def test_expanded_shortcuts_fit_their_region_with_larger_text(browser, serve):
     source = leaf_page(
         "Larger shortcut text",
-        '<h1 id="title">Keep every shortcut readable</h1><p id="words">Words.</p>',
+        '<h1 id="title">Keep every shortcut readable</h1><p id="words">Words.</p>'
+        '<input aria-label="Entry">',
         head="<style>:root { --t-6: 18px; }</style>",
     )
     page = open_page(browser, serve(source))
@@ -12586,6 +12587,22 @@ def test_expanded_shortcuts_fit_their_region_with_larger_text(browser, serve):
             assert hint["right"] <= reading["region"]["right"] + 0.5, reading
     assert counts[0] > counts[1] >= 1, counts
     assert counts[-1] == counts[0], counts
+
+    # Moving into a text field narrows the available hints. The expanded room
+    # stays put until its own Escape explicitly folds it.
+    before = line.bounding_box()
+    page.get_by_role("textbox", name="Entry", exact=True).fill("Continue reading")
+    rendered(page)
+    assert line.bounding_box() == before
+    page.keyboard.press("Escape")
+    rendered(page)
+    expect(line).not_to_have_attribute("data-lf-expanded", "true")
+    assert line.bounding_box()["height"] < before["height"]
+    page.locator("#title").click()
+    page.keyboard.press("?")
+    rendered(page)
+    expect(line).to_have_attribute("data-lf-expanded", "true")
+    assert line.bounding_box() == before
 
 
 def test_the_resting_key_line_leads_from_the_page_to_target_selection(browser, serve):

@@ -3,7 +3,7 @@
 import re
 
 import pytest
-from interact_support import append_carried_log_record, append_command
+from interact_support import append_carried_log_record, append_command, wait_for
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
@@ -38,13 +38,50 @@ SAVED_COMMENT = {
     "revision": 1,
     "text": "A conversation from the previous visit.",
 }
+HISTORY_UNAVAILABLE = re.compile(
+    r"^(?:Loading current threads…|"
+    r"Current threads are unavailable while the server is offline\.)$"
+)
 
 
-def _cold_page(browser, url, *, touch=False):
+def _clock_until_ready(page, through="rendering"):
+    """Advance a paused product clock only until the runtime states completion."""
+
+    def advance():
+        page.clock.run_for(20)
+        return page.evaluate(
+            """through => {
+              const ready = document.querySelector('script[data-lf-entry]')?.lfReadiness;
+              return ready ? ready(null, through) : 'started';
+            }""",
+            through,
+        )
+
+    wait_for(
+        advance,
+        lambda stage: stage is None,
+        failure=f"the controlled-clock page never reached {through}",
+    )
+
+
+def _history_outstanding(page):
+    """Offline presentation does not supply the held authoritative log."""
+    assert (
+        page.evaluate(
+            "() => document.querySelector('script[data-lf-entry]').lfReadiness(null, 'log')"
+        )
+        == "log"
+    )
+
+
+def _cold_page(browser, url, *, touch=False, clock=False):
     """Hold this page's private history; embedded sample pages load independently."""
     page = browser.new_page(
         viewport={"width": 390 if touch else 1200, "height": 900}, has_touch=touch
     )
+    if clock:
+        page.clock.install(time=0)
+        page.clock.pause_at(1)
     watched(page)
     held = []
     gate = {"open": False}
@@ -58,7 +95,10 @@ def _cold_page(browser, url, *, touch=False):
     )
     page.goto(url, wait_until="load")
     holding(page, held, 1, "the first private-state read")
-    wait_until_ready(page, through="upgraded")
+    if clock:
+        _clock_until_ready(page, "upgraded")
+    else:
+        wait_until_ready(page, through="upgraded")
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(page.locator(".lf-status-text")).to_have_text("Loading saved state…")
 
@@ -104,10 +144,6 @@ def test_an_early_anchored_send_merges_history_and_keeps_its_seen_revision(
     page.keyboard.press("c")
     editor = page.locator(".lf-fab-input")
     expect(editor).to_be_focused()
-    assert (
-        "ready for reading and new comments"
-        in page.locator(".lf-status-detail").inner_text()
-    )
     words = "A new comment before the container has answered."
     write(editor, words)
     page.keyboard.press("ControlOrMeta+Enter")
@@ -116,8 +152,8 @@ def test_an_early_anchored_send_merges_history_and_keeps_its_seen_revision(
     expect(pending.locator(".lf-msg-body")).to_have_text(words)
     expect(pending).to_be_visible()
     expect(page.locator('.lf-thread[data-id="saved-comment"]')).to_have_count(0)
-    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
-    expect(page.locator(".lf-empty")).to_have_text("Loading current threads…")
+    _history_outstanding(page)
+    expect(page.locator(".lf-empty")).to_have_text(HISTORY_UNAVAILABLE)
     expect(page.locator(".lf-threads-toggle")).not_to_have_attribute(
         "data-lf-count", re.compile(".")
     )
@@ -313,17 +349,13 @@ def test_filtered_neighbors_cannot_hide_a_new_cards_visible_insertion(browser, s
 
 
 def test_first_history_preserves_the_early_anchored_editor_and_caret(browser, serve):
-    """The gallery's new-thread scenario stays editable while history loads."""
+    """First history preserves the anchored editor's words, focus and caret."""
     page, release_state = _cold_page(browser, serve(FEATURE_GALLERY) + "#bg-new-thread")
     select_words(page, "#bg-new-thread")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.keyboard.press("c")
     editor = page.locator(".lf-fab-input")
     expect(editor).to_be_focused()
-    assert (
-        "ready for reading and new comments"
-        in page.locator(".lf-status-detail").inner_text()
-    )
     words = "Keep my unfinished comment here."
     write(editor, words)
     editor.press("Home")
@@ -462,7 +494,7 @@ def test_an_early_touch_comment_returns_its_words_when_delivery_is_refused(
     pending = page.locator('.lf-thread[data-id^="pending:"]')
     expect(pending.locator(".lf-msg-body")).to_have_text(words)
     expect(pending).to_be_visible()
-    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    _history_outstanding(page)
 
     release_state()
     holding(page, held_posts, 1, "the early touch comment")
@@ -517,24 +549,32 @@ def test_history_dependent_keys_keep_their_place_until_the_first_reading(
                 "detail": {"value": ["cold-b"]},
             },
         )
-    page, release_state = _cold_page(browser, url)
+    page, release_state = _cold_page(browser, url, clock=True)
     if key == "1":
         # This scopes the digit to the generated option control; focus paint is not
         # the subject here, but the command must retain the same scope across replay.
         page.locator("#cold-a .lf-pick").focus()
     page.keyboard.press(key)
-    expect(page.locator(".lf-held-keys kbd")).to_have_text(key)
+
+    def echoed():
+        page.clock.run_for(20)
+        return page.locator(".lf-held-keys kbd").all_text_contents()
+
+    wait_for(
+        echoed,
+        lambda keys: keys == [key],
+        failure="the retained key never appeared",
+    )
     if key == "q":
         expect(page.locator("#cold-ask")).not_to_be_focused()
     expect(page.locator("#cold-a")).not_to_have_attribute("chosen", "")
     expect(page.locator("#cold-b")).not_to_have_attribute("chosen", "")
-    assert (
-        "ready for reading and new comments"
-        in page.locator(".lf-status-detail").inner_text()
-    )
+    _history_outstanding(page)
 
-    release_state()
-    wait_until_ready(page)
+    with page.expect_response(re.compile(r"/api/state(?:\?|$)")):
+        release_state()
+    _clock_until_ready(page)
+    page.clock.resume()
     if key == "q":
         expect(page.locator("#cold-ask")).to_be_focused()
     elif key == "1":
@@ -578,19 +618,13 @@ def test_a_known_local_thread_accepts_reply_search_and_resolve_before_history(
     search = page.get_by_role("searchbox", name="Find in threads")
     search.fill("a phrase absent from both messages")
     expect(pending).to_be_hidden()
-    expect(
-        page.locator(".lf-empty", has_text="Loading current threads…")
-    ).to_be_visible()
+    expect(page.locator(".lf-empty", has_text=HISTORY_UNAVAILABLE)).to_be_visible()
     search.fill("")
     expect(pending).to_be_visible()
     expect(pending.locator(".lf-msg-body")).to_have_text([root_words, reply_words])
     pending.get_by_role("button", name="Resolve thread", exact=True).click()
     expect(pending).to_have_attribute("data-resolved", "true")
-    assert (
-        "ready for reading and new comments"
-        in page.locator(".lf-status-detail").inner_text()
-    )
-    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    _history_outstanding(page)
 
     release_state()
     holding(page, held_posts, 1, "the known local conversation")

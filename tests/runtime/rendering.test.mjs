@@ -65,10 +65,10 @@ test("queued work unsettles at once and settles with the update that runs it", a
 test("finite preparation retires once and owes its final quiet update", async () => {
   const first = holdRendering();
   const second = holdRendering();
-  assert.equal(renderingSettled("queue"), false);
+  assert.equal(renderingSettled({ includePreparations: false }), false);
   for (let i = 0; i < 10; i++) await update();
   assert.equal(
-    renderingSettled("queue"),
+    renderingSettled({ includePreparations: false }),
     true,
     "the counted queue rests while preparation waits",
   );
@@ -77,18 +77,18 @@ test("finite preparation retires once and owes its final quiet update", async ()
 
   let painted = false;
   nextRender(() => (painted = true));
-  assert.equal(renderingSettled("queue"), false);
+  assert.equal(renderingSettled({ includePreparations: false }), false);
   const observer = sizeObserver(() => {});
   await update({ delivering: [observer] });
   assert.equal(painted, true);
   assert.equal(
-    renderingSettled("queue"),
+    renderingSettled({ includePreparations: false }),
     false,
     "the observer still owes a quiet update",
   );
   assert.equal(renderingSettled(), false);
   await update();
-  assert.equal(renderingSettled("queue"), true);
+  assert.equal(renderingSettled({ includePreparations: false }), true);
   assert.equal(
     renderingSettled(),
     false,
@@ -101,13 +101,13 @@ test("finite preparation retires once and owes its final quiet update", async ()
   assert.equal(renderingSettled(), false, "another preparation still stands");
   second();
   assert.equal(
-    renderingSettled("queue"),
+    renderingSettled({ includePreparations: false }),
     false,
     "the preparation's commit owes a quiet update",
   );
   assert.equal(renderingSettled(), false, "the commit has not painted yet");
   await update();
-  assert.equal(renderingSettled("queue"), true);
+  assert.equal(renderingSettled({ includePreparations: false }), true);
   assert.equal(renderingSettled(), true);
 });
 

@@ -1,4 +1,4 @@
-"""The comment field keeps only Send; keys disclose its other responses."""
+"""The comment field keeps one primary action; keys disclose its other responses."""
 
 import json
 
@@ -14,7 +14,7 @@ from test_render_reactions import select_paragraph
 @pytest.mark.parametrize(
     "seat,reactions", [("floating", True), ("inline", True), ("inline", False)]
 )
-def test_comment_has_only_send_and_keys_preserve_its_other_responses(
+def test_comment_has_one_action_and_keys_preserve_its_other_responses(
     browser, serve, touch, width, seat, reactions
 ):
     context = browser.new_context(
@@ -65,7 +65,8 @@ def test_comment_has_only_send_and_keys_preserve_its_other_responses(
     expect(bar.get_by_role("button", name="Other responses", exact=True)).to_have_count(
         0
     )
-    expect(bar.locator(".lf-compose-field button")).to_have_count(1)
+    expect(bar.locator(".lf-compose-field button:visible")).to_have_count(1)
+    expect(bar.locator(".lf-compose-submit")).to_be_visible()
     field.press("Tab")
     if not reactions:
         expect(bar.locator(".lf-response-options")).to_be_hidden()

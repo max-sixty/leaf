@@ -1187,7 +1187,7 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
     holding(page, held, 1, "the markdown grammar")
     paint(page)
     page.wait_for_function(
-        "document.querySelector('script[data-lf-entry]').lfRenderingSettled('queue')"
+        "document.querySelector('script[data-lf-entry]').lfRenderingSettled({includePreparations: false})"
     )
     assert not page.evaluate(
         "document.querySelector('script[data-lf-entry]').lfRenderingSettled()"

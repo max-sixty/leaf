@@ -1,9 +1,9 @@
 /* Leaf's one rendering loop, and its staged completion reading for the page's chrome
    and geometry. `renderingSettled()` waits for finite preparations and the counted
-   queue's quiet update. `renderingSettled("queue")` reads only that queue's quietness:
-   no rendering callback is waiting and the last update produced no size change a Leaf
-   observer heard. A preparation can remain pending while this queue rests. Readiness
-   needs complete settlement; a gesture's counted rendering ends at queue quietness,
+   queue's quiet update. `renderingSettled({ includePreparations: false })` reads only
+   queue quietness: no rendering callback is waiting and the last update produced no
+   size change a Leaf observer heard. A preparation can wait while this queue rests.
+   Readiness needs complete settlement; a gesture's counted rendering ends at queue quietness,
    so unrelated work while its preparation waits does not become that gesture's.
 
    Leaf's rendering callbacks and size observers go through this module: `nextRender`,
@@ -208,12 +208,10 @@ export function sizeObserver(callback, { counted = true } = {}) {
   });
 }
 
-/** Whether counted rendering is quiet, through the queue or complete preparation. */
-export function renderingSettled(through = "complete") {
-  if (through !== "queue" && through !== "complete")
-    throw new TypeError(`no rendering completion stage named ${through}`);
-  return (quiet && (through === "queue" || preparations === 0)) || !rendered();
-}
+// A sensor that tracks each preparation's landing separately reads the rendering pass
+// without waiting for unrelated preparations. Other readers wait for the full result.
+export const renderingSettled = ({ includePreparations = true } = {}) =>
+  (quiet && (!includePreparations || preparations === 0)) || !rendered();
 
 function rendered() {
   if (document.hidden) return false;

@@ -444,17 +444,40 @@ document.addEventListener(
 // costs a printed page its words, and silently. Refusing throws where the widget
 // upgrades, which the console reports and the render gate reads back as a finding
 // — the loud direction, in front of whoever wrote the label.
-export function relabel(node, label, { says } = {}) {
+function markSaid(node, says) {
   if (typeof says !== "boolean" && says !== "echo")
     throw new TypeError(
-      `relabel(${label}): say whether this label is the page speaking — ` +
+      `Say whether this label is the page speaking: ` +
         `true, false, or "echo" for a copy of words it says elsewhere`,
     );
-  keepsText(node, label);
   keeps(node, "data-lf-gen", "1");
   node.toggleAttribute("data-lf-said", says === true);
   node.toggleAttribute("data-lf-echo", says === "echo");
 }
+
+export function relabel(node, label, { says } = {}) {
+  markSaid(node, says);
+  keepsText(node, label);
+}
+
+// Template labels declare the same speech and print contract as `relabel`, while Lit
+// owns their content: `<span ${said("echo")}>${title}</span>`.
+export const said = directive(
+  class extends Directive {
+    constructor(part) {
+      super(part);
+      if (part.type !== PartType.ELEMENT)
+        throw new TypeError("said belongs in a template's element part");
+    }
+    render() {
+      return nothing;
+    }
+    update(part, [says]) {
+      markSaid(part.element, says);
+      return nothing;
+    }
+  },
+);
 
 // A changing label reserves its widest words in its actual computed face. The shared
 // button rule reads --lf-reserved-width as a preferred size; the containing layout may

@@ -123,6 +123,7 @@ export { HOLDS_WORD } from "./held-word.js";
 export { PRESS, labelOf, submitBindings, submitLabel } from "./keyboard/bindings.js";
 export {
   commandScope,
+  commandsOn,
   keys as commands,
   paintKeys,
   saying,
@@ -257,6 +258,7 @@ export {
   quoted,
   reachedForWords,
   relabel,
+  said,
   reserve,
   searchField,
   selectableOffer,

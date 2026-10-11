@@ -5409,6 +5409,8 @@ def editing_read(editor):
         "general",
         "first-message",
         "edit",
+        # A document edit opened and selected in, with no words changed, so no draft.
+        "edit-unchanged",
         "option",
     ],
 )
@@ -5420,7 +5422,7 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
         editor = page_comment(page)
     elif kind == "first-message":
         editor = page.locator("#seat-root > .lf-thread-seat > .lf-say leaf-text")
-    elif kind == "edit":
+    elif kind in {"edit", "edit-unchanged"}:
         page.locator("#draft-root .lf-draft-body").click()
         editor = page.locator("#draft-root leaf-text")
     elif kind == "option":
@@ -5444,7 +5446,8 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
     words = "Kept words with a selected span."
     if kind == "authored":
         words = "\n".join([words] * 200)
-    write(editor, words)
+    if kind != "edit-unchanged":
+        write(editor, words)
     editor.evaluate("el=>el.setSelectionRange(5,10,'backward')")
     before = editing_read(editor)
     if kind == "authored":

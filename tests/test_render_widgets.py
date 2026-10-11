@@ -13135,8 +13135,7 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
         "a label the page wrote answers the pointer as though it were a control"
     )
 
-    # The keyboard. Reached by a real Tab, because :focus-visible is a fact about how
-    # focus arrived and element.focus() alone draws no ring at all.
+    # A real Tab verifies the keyboard route as well as the shared focus treatment.
     mark.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")

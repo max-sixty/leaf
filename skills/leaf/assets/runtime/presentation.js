@@ -181,7 +181,7 @@ const READINESS_STAGES = new Set(READINESS.map(([stage]) => stage));
     The stages: `upgraded`; `log`, some log coverage applied; `state`, the answer the
     reader holds applied; `presented`, the initial milestone and the coordinator's
     current reading; `arrived`, nothing deferred past presentation still outstanding;
-    `rendering`, nothing queued for a rendering update. A reading is a digest with no
+    `rendering`, no finite preparation or queued rendering update remains. A reading is a digest with no
     order, and the server may move past the answer held — a source rewritten, a claim
     aged, a neighbour started — so a page that applied an answer the server took later
     has caught up with it too. A reading names files and presence, not the activity the

@@ -220,12 +220,12 @@ def test_historical_document_and_frozen_replies_keep_their_widget_vocabulary(
     answered_before = "1/2" if engine == "sample" else "2/3"
     expect_asks_answered(page, answered_before)
     page.evaluate("""async () => {
-      window.__vocabularyTestRuntime = (await window.__lfRuntimeImport('/runtime/context.js')).runtime;
+      window.__vocabularyTestRead = (await window.__lfRuntimeImport('/runtime/semantic-state.js')).readApplication;
     }""")
     page.locator("#new-b .lf-pick").click()
     expect(page.locator("#new-b .lf-pick")).to_have_attribute("aria-checked", "true")
     page.wait_for_function(
-        "() => window.__vocabularyTestRuntime.events.some(e => e.widget === 'new' && e.action === 'pick')"
+        "() => window.__vocabularyTestRead().authoritative.events.some(e => e.widget === 'new' && e.action === 'pick')"
     )
     if engine == "sample":
         events = page.evaluate(
@@ -247,7 +247,7 @@ def test_historical_document_and_frozen_replies_keep_their_widget_vocabulary(
         page.locator("#new-b .lf-pick").focus()
     (parent_page if engine == "sample" else page).keyboard.press("z")
     page.wait_for_function(
-        "id => window.__vocabularyTestRuntime.events.some(e => e.kind === 'undo' && e.undoes === id)",
+        "id => window.__vocabularyTestRead().authoritative.events.some(e => e.kind === 'undo' && e.undoes === id)",
         arg=accepted["id"],
     )
     if engine == "sample":

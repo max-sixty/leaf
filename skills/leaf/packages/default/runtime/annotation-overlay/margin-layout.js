@@ -475,7 +475,7 @@ function placeMarginEntryLabel(control) {
 }
 
 const REVEALS_LABEL =
-  ':is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"]), [data-lf-held-word]';
+  ':is(:hover, [data-lf-focus]):not([aria-expanded="true"]), [data-lf-held-word]';
 // Only a label this owner has placed and its control currently reveals paints a
 // footprint. Placement consumers read that same native geometry when the user holds
 // the control, so an arriving row does not make its existing label change sides.

@@ -5737,8 +5737,7 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     # shared rule, which every press in that margin wears: the suggestion family spelled
     # its own once, which is a family stating a fact about a shape the runtime owns.
     #
-    # Reached with real presses, because :focus-visible answers the input device and a
-    # control focused from script wears no ring for any reading to compare.
+    # Real presses verify the keyboard route as well as its focus treatment.
     page.keyboard.press("q")
     suggestion = page.locator("#sug-refill")
     expect(suggestion).to_have_attribute("data-lf-question", "1")
@@ -5801,9 +5800,7 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     # is drawn in while they stand there.
     toggle = page.locator(".lf-threads-toggle")
     toggle.focus()
-    # Back onto it by keyboard, which is what earns the ring: the browser draws
-    # `:focus-visible` off the last input, and a pointer press before this one would
-    # leave the control standing without it.
+    # Return by keyboard to exercise the same focus band through sequential navigation.
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
     expect(toggle).to_be_focused()

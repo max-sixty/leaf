@@ -64,35 +64,35 @@
    basenames instead, so neither can take the whole path allocation. */
 .lf-diff-head > .lf-diff-path > .lf-diff-base { flex-shrink: 0; }
 .lf-diff-head > .lf-diff-stat { flex: none; }
-/* The whole path, while the keyboard stands on the row or a press is held on it
+/* The whole path, while the row has focus or a press is held on it
    (held-word.js), since the path's title shows only to a pointer resting on it. Only a
    row that cuts its path short says it (`data-path-cut`, lf-diff.js), since a path the
    row shows whole would read twice. It is drawn in a box under the row, over the rows
    the row names, so nothing moves and the row keeps its stated height. Under the row,
    the box stays clear of the banner when the row is pinned, and of a finger pressing
    the row from below. It wraps after the path's slashes (`data-path`, lf-diff.js) and
-   ends at the row's end. A press shows it only once held, so a click or a tap that
-   folds the file does not flash it. The row and the file's frame clip what they hold,
-   so both let it out while it shows, and the row rounds its own corners where the
+   ends at the row's end. A press shows it once held; focus shows it at once,
+   whether the user arrived by pointer or keyboard. The row and the file's frame clip
+   what they hold, so both let it out while it shows, and the row rounds its own corners where the
    frame's clip rounded them. The file stands over the files after it meanwhile, whose
    rows and presses would otherwise cover a folded file's box, and keeps its own press
    over its row. */
 :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary { position: relative; }
 .lf-diff-file:has(> .lf-diff-fold > .lf-diff-head[data-path-cut]:is([data-lf-held-word],
-                                                   :focus-visible, .lf-focus-visible)) {
+                                                   [data-lf-focus])) {
                                      z-index: 4; }
-.lf-diff-fold:has(> .lf-diff-head[data-path-cut]:is([data-lf-held-word], :focus-visible,
-                                                    .lf-focus-visible)) {
+.lf-diff-fold:has(> .lf-diff-head[data-path-cut]:is([data-lf-held-word], [data-lf-focus],
+                                                    [data-lf-focus])) {
                                      overflow: visible; }
 :scope:host(.lf-rendered) :where(.lf-diff-file) > details
-  > summary[data-path-cut]:is([data-lf-held-word], :focus-visible, .lf-focus-visible) {
+  > summary[data-path-cut]:is([data-lf-held-word], [data-lf-focus]) {
                                      overflow: visible;
                                      border-start-start-radius: calc(var(--r) - 1px);
                                      border-start-end-radius: calc(var(--r) - 1px); }
 .lf-diff-fold:not([open])
-  > .lf-diff-head[data-path-cut]:is([data-lf-held-word], :focus-visible, .lf-focus-visible) {
+  > .lf-diff-head[data-path-cut]:is([data-lf-held-word], [data-lf-focus]) {
                                      border-radius: calc(var(--r) - 1px); }
-.lf-diff-head[data-path-cut]:is([data-lf-held-word], :focus-visible, .lf-focus-visible)
+.lf-diff-head[data-path-cut]:is([data-lf-held-word], [data-lf-focus])
   > .lf-diff-path::after {
                                      content: attr(data-path) / ""; position: absolute;
                                      z-index: 3; inset-block-start: calc(100% + 4px);
@@ -101,7 +101,7 @@
                                      box-shadow: 0 2px 8px var(--shade);
                                      white-space: normal; overflow-wrap: anywhere;
                                      pointer-events: none; }
-.lf-diff-head[data-lf-held-word]:not(:focus-visible, .lf-focus-visible)
+.lf-diff-head[data-lf-held-word]:not([data-lf-focus])
   > .lf-diff-path::after { animation: lf-diff-held-word 1ms 300ms backwards; }
 @keyframes lf-diff-held-word { from { visibility: hidden; } }
 /* A finger's press on the row reads its path rather than selecting it or opening the
@@ -176,7 +176,7 @@
 .lf-diff-file-actions:empty { display: none; }
 .lf-diff-comment { border-color: transparent; background: transparent; color: var(--muted); }
 .lf-diff-file-comment { --lf-icon-action-hit: var(--lf-diff-action-h); }
-.lf-diff-file-comment:is(:hover, :focus-visible, .lf-focus-visible) {
+.lf-diff-file-comment:is(:hover, [data-lf-focus]) {
   background: var(--chip); color: var(--ink); }
 /* Keep Pierre's compact gutter and row height. The whole number row is a press,
    while its hover mark fits the existing 2ch blank margin, clear of the number.
@@ -192,20 +192,20 @@
   font: 700 13px/1.2 var(--mono); text-align: center; }
 [data-gutter] > :hover > .lf-diff-line-comment,
 [data-gutter] > .lf-diff-line-hover > .lf-diff-line-comment,
-.lf-diff-line-comment:is(:focus-visible, .lf-focus-visible) { opacity: 1; }
+.lf-diff-line-comment[data-lf-focus] { opacity: 1; }
 .lf-diff-filtered { display: none !important; }
 /* The filter field is not listed here. It is a vendored text field, whose Tab stop and
    ringed box are both inside its own shadow root, so a rule on this host would reach
    neither; the shared Web Awesome theme draws and names that band once for every
    package. */
-.lf-diff-comment:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+.lf-diff-comment[data-lf-focus] { outline: var(--focus-ring);
                                                          --lf-focus-ring: diff-tools;
                                                          outline-offset: 1px; }
 /* The file's own row, and the box it opens clips (overflow above), so the ring it wears
    is inset — theme.css's rule for a control packed into something rather than standing
    on its own. Outside, its top run was drawn into the border the details draws and lost
    with it. */
-:scope:host(.lf-rendered) .lf-diff-file > details > summary:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: code-summary;
+:scope:host(.lf-rendered) .lf-diff-file > details > summary[data-lf-focus] { outline: var(--focus-ring); --lf-focus-ring: code-summary;
                                             outline-offset: calc(-1 * var(--focus-ring-w)); }
 /* A row a hunk step lands on (lf-diff.js, `land`), inset for three reasons at once. The
    code box clips what it holds (Pierre's overflow and containment), and a row runs the
@@ -213,7 +213,7 @@
    sides there; each row is positioned, so the row after painted over its lower run; and
    a landing puts the row flush under the pinned header, which covered its upper run.
    Outset, a landed row showed no ring at all. */
-:scope:host(.lf-rendered) [data-content] > [data-line]:is(:focus-visible, .lf-focus-visible) {
+:scope:host(.lf-rendered) [data-content] > [data-line][data-lf-focus] {
                                             outline: var(--focus-ring);
                                             --lf-focus-ring: code-line;
                                             outline-offset: calc(-1 * var(--focus-ring-w)); }
@@ -315,7 +315,7 @@
                           border-radius: 0; overflow-x: auto; color: var(--code-ink); }
 /* The scroll region's tab stop (lf-diff.js): reachable is only half — focus has to
    show where it landed, or the stop reads as Tab going nowhere. */
-:scope:host(.lf-rendered) code[data-code]:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+:scope:host(.lf-rendered) code[data-code][data-lf-focus] { outline: var(--focus-ring);
                           --lf-focus-ring: code-pre-shadow;
                           outline-offset: calc(-1 * var(--focus-ring-w)); }
 /* A Thread occupies one additional Pierre subgrid row. The widget inserts a content

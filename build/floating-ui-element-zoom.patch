@@ -1,0 +1,61 @@
+--- a/node_modules/@floating-ui/dom/dist/floating-ui.dom.mjs
++++ b/node_modules/@floating-ui/dom/dist/floating-ui.dom.mjs
+@@ -147,6 +147,10 @@
+   };
+ }
+
++function getZoomRelativeToOffsetParent(floating, offsetParent) {
++  return (floating.currentCSSZoom || 1) / (isElement(offsetParent) ? offsetParent.currentCSSZoom || 1 : 1);
++}
++
+ function convertOffsetParentRelativeRectToViewportRelativeRect(_ref) {
+   let {
+     elements,
+@@ -173,19 +177,17 @@
+     if (isOffsetParentAnElement) {
+       const offsetRect = getBoundingClientRect(offsetParent);
+       scale = getScale(offsetParent);
+-      offsets.x = offsetRect.x + offsetParent.clientLeft;
+-      offsets.y = offsetRect.y + offsetParent.clientTop;
++      offsets.x = offsetRect.x + offsetParent.clientLeft * scale.x;
++      offsets.y = offsetRect.y + offsetParent.clientTop * scale.y;
+     }
+   }
+   const htmlOffset = documentElement && !isOffsetParentAnElement && !isFixed ? getHTMLOffset(documentElement, scroll) : createCoords(0);
+-  if (!isElement(offsetParent) && elements) {
+-    scale = createCoords(elements.floating.currentCSSZoom || 1);
+-  }
+-  return {
+-    width: rect.width * scale.x,
+-    height: rect.height * scale.y,
+-    x: rect.x * scale.x - scroll.scrollLeft * (isOffsetParentAnElement ? scale.x : 1) + offsets.x + htmlOffset.x,
+-    y: rect.y * scale.y - scroll.scrollTop * (isOffsetParentAnElement ? scale.y : 1) + offsets.y + htmlOffset.y
++  const zoom = elements ? getZoomRelativeToOffsetParent(elements.floating, offsetParent) : 1;
++  return {
++    width: rect.width * scale.x * zoom,
++    height: rect.height * scale.y * zoom,
++    x: rect.x * scale.x * zoom - scroll.scrollLeft * (isOffsetParentAnElement ? scale.x : 1) + offsets.x + htmlOffset.x,
++    y: rect.y * scale.y * zoom - scroll.scrollTop * (isOffsetParentAnElement ? scale.y : 1) + offsets.y + htmlOffset.y
+   };
+ }
+
+@@ -419,7 +421,7 @@
+     offsets.x = getWindowScrollBarX(documentElement);
+   }
+   const htmlOffset = documentElement && !isOffsetParentAnElement && !isFixed ? getHTMLOffset(documentElement, scroll) : createCoords(0);
+-  const zoom = isElement(offsetParent) ? 1 : floating.currentCSSZoom || 1;
++  const zoom = getZoomRelativeToOffsetParent(floating, offsetParent);
+   return {
+     x: (rect.left + scroll.scrollLeft - offsets.x - htmlOffset.x) / zoom,
+     y: (rect.top + scroll.scrollTop - offsets.y - htmlOffset.y) / zoom,
+--- a/node_modules/@floating-ui/core/dist/floating-ui.core.mjs
++++ b/node_modules/@floating-ui/core/dist/floating-ui.core.mjs
+@@ -105,7 +105,7 @@
+   }) : rect);
+   const scaleX = rect.width ? elementClientRect.width / rect.width : 0;
+   const scaleY = rect.height ? elementClientRect.height / rect.height : 0;
+-  const offsetScale = (await (platform.isElement == null ? void 0 : platform.isElement(offsetParent))) && (await (platform.getScale == null ? void 0 : platform.getScale(offsetParent))) || {
++  const offsetScale = {
+     x: scaleX || scaleY || 1,
+     y: scaleY || scaleX || 1
+   };

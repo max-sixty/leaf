@@ -334,6 +334,7 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_its_delivery_reference(
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, asked["id"]),
             "--text",
             "a week",
@@ -380,7 +381,7 @@ def test_a_reply_refused_after_user_resolution_names_the_resolution(page_dir):
 
     refused = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", reference, "--text", "I checked it."],
+        ["response", "reply", "--done", reference, "--text", "I checked it."],
     )
 
     assert refused.exit_code != 0
@@ -413,6 +414,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--markup",
             frozen,
@@ -440,6 +442,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, pressed["id"]),
             "--section",
             pressed["id"],
@@ -1343,6 +1346,7 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, root["id"]),
             "--section",
             "backfill-first",
@@ -1359,6 +1363,7 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, root["id"]),
             "--detach",
             "--text",
@@ -2082,6 +2087,7 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
             [
                 "response",
                 "reply",
+                "--done",
                 response_reference(page_dir, root["id"]),
                 "--text",
                 "fixed in v2",
@@ -2273,6 +2279,7 @@ def test_native_message_markup_shares_admission_and_id_ownership(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, user),
             "--text",
             "Ready.",
@@ -2452,6 +2459,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--text",
             "See:",
@@ -2466,6 +2474,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--text",
             "See:",

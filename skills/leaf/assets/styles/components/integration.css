@@ -61,7 +61,8 @@ pre:hover + .lf-code-copy,
 }
 
 .lf-msg-body a.detached { color: var(--muted-2); text-decoration: underline dashed; cursor: default; }
-.lf-msg-body.lf-suggest-body { white-space: pre-wrap; }
+/* A suggestion's words keep their lines; the body's own markup whitespace keeps none. */
+.lf-suggest-body > .lf-msg-text { white-space: pre-wrap; }
 
 .lf-suggest-label { color: var(--muted-2); }
 

@@ -1,12 +1,17 @@
 """Verify that leaf.page serves one exact, coherent release in a real browser.
 
-    uv run leaf-dev verify-site [TARGET] [--release RELEASE]
+    uv run leaf-dev verify-site [TARGET] [--release RELEASE] [--wait SECONDS]
 
 The release pass loads three pages, holds each to the release `leaf-dev site` built
 (or `--release`), and prints their startup profile. `website-worker` runs it against
 the built site through the local Worker and its page container, printing the Worker's
 log beside a failure; `.github/workflows/publish-site.yaml` runs it there before deploying
 and again against the deployed release.
+
+A deployment activates the Worker at once and rolls its containers out one allocation
+at a time, so a deployed release verifies only once the rollout reaches every page the
+pass reads. `--wait` owns that wait for every deploy: it reruns the whole pass until
+one verifies or its seconds run out, and the last failure is the report.
 
 This module also owns reaching the website for `leaf-dev journey`: a user session
 whose private container serves the release (`agent_session`), the website's adapter
@@ -32,7 +37,9 @@ from urllib.parse import urlencode, urljoin, urlsplit
 
 import click
 import psutil
+from leaf.render_gate.scheme import collect_page_exceptions
 from playwright.sync_api import APIResponse, BrowserContext, Page
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf_dev import ROOT
@@ -107,7 +114,7 @@ def observe_startup(page: Page) -> list[str]:
             failures.append(message.text) if message.type == "error" else None
         ),
     )
-    page.on("pageerror", lambda error: failures.append(str(error)))
+    collect_page_exceptions(page, failures)
     return failures
 
 
@@ -270,7 +277,7 @@ def verify_page(
         f"{state_url} left the edge before interaction",
     )
     activation = activation_url(url, passive_response.json())
-    # No wait here: `publish-site` reruns the whole pass until the release verifies.
+    # No wait here: `--wait` reruns the whole pass until the release verifies.
     activation_response = activation_read(context, activation)
     check(activation_response is not None, f"{activation} {STILL_STARTING}")
     check(
@@ -644,8 +651,9 @@ def local_worker() -> Iterator[tuple[str, str]]:
             copy_working(
                 [
                     "Dockerfile.website",
-                    "worker/package.json",
-                    "worker/package-lock.json",
+                    "package.json",
+                    "pnpm-lock.yaml",
+                    "pnpm-workspace.yaml",
                     "worker/codex-config.toml",
                 ],
                 context,
@@ -714,9 +722,30 @@ def built_release() -> str:
     "--release",
     help="Require this release (default: the one `leaf-dev site` built).",
 )
-def verify_site(target: str, release: str | None) -> None:
+@click.option(
+    "--wait",
+    type=int,
+    default=0,
+    metavar="SECONDS",
+    help="Rerun a failed pass until one verifies or SECONDS pass, as a rollout takes.",
+)
+def verify_site(target: str, release: str | None, wait: int) -> None:
     """Verify a release at TARGET: an origin, or `website-worker` for the built site
     through the local Worker. `leaf-dev journey` runs the agent at either."""
+    deadline = time.monotonic() + wait
+    while True:
+        try:
+            verify_target(target, release)
+            return
+        except (RuntimeError, PlaywrightError) as error:
+            if time.monotonic() >= deadline:
+                raise
+            print(f"Not verified yet, retrying: {error}", flush=True)
+            time.sleep(10)
+
+
+def verify_target(target: str, release: str | None) -> None:
+    """One release pass at TARGET."""
     if target == "website-worker":
         with local_worker() as (origin, built):
             run_verification(

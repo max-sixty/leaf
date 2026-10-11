@@ -49,7 +49,7 @@ export function failSoft(el, err, source) {
   const owner = widgetOf(el);
   const tag = owner.localName;
   const message = err?.message || err;
-  reportPageError(`<${tag}${owner.id ? ` id="${owner.id}"` : ""}> failed: ${message}`);
+  reportPageError(err, `<${tag}${owner.id ? ` id="${owner.id}"` : ""}> failed`);
   showFailure(el, `<${tag}> failed: ${message}`, source);
 }
 

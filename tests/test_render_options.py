@@ -2159,7 +2159,7 @@ def test_a_pick_states_the_whole_set(browser, serve):
     ]
     expect(
         page.locator('[data-lf-margin-for="bracket-decision"] .lf-margin-marker')
-    ).to_have_attribute("data-lf-kinds", "ask")
+    ).to_have_attribute("data-lf-kinds", "question")
 
 
 def test_a_send_waits_for_the_send_before_it(browser, serve):
@@ -2562,11 +2562,17 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
         assert page.locator(f"#{spec}").evaluate("el => el.checkVisibility()"), (
             f"{spec} remained hidden after opening its tabs"
         )
+        # A live sample paints its gutter on the exhibit around its frame, since its
+        # host controls cannot be the table's second caption.
+        painter = page.locator(f"#{spec}").evaluate(
+            "el => el.querySelector(':scope > .lf-sample-view > .lf-sample-exhibit')"
+            " ? `#${el.id} .lf-sample-exhibit` : `#${el.id}`"
+        )
         ink = tuple(
             int(n)
             for n in re.findall(
                 r"\d+",
-                page.locator(f"#{spec}").evaluate(
+                page.locator(painter).evaluate(
                     "el => getComputedStyle(el).borderLeftColor"
                 ),
             )[:3]

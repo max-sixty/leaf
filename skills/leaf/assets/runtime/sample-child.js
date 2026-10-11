@@ -26,7 +26,10 @@ if (child)
       const result = await commands.get(method)(detail);
       child.send({ id, result });
     } catch (error) {
-      child.send({ id, error: { name: error.name, message: error.message } });
+      child.send({
+        id,
+        error: { name: error.name, message: error.message, stack: error.stack },
+      });
     }
   });
 
@@ -41,6 +44,11 @@ if (child) {
       sampleNotice("height", { height });
     }
   };
+  // The containing page's image shows this part of the viewport where the frame stands.
+  registerSampleCommand("image", async ({ x, y, width, height }) => {
+    const { pageImage } = await import("./composing/page-image.js");
+    return pageImage({ x: scrollX + x, y: scrollY + y, width, height });
+  });
   registerSampleCommand("window", async ({ window: asWindow }) => {
     child.settings.window = asWindow;
     document.documentElement.lfInitial.setRuntimeRootAttribute(
@@ -53,7 +61,11 @@ if (child) {
   });
   const inspect = () => {
     const error = document.documentElement.dataset.lfStartupError;
-    if (error) sampleNotice("error", { message: error });
+    if (error)
+      sampleNotice(
+        "error",
+        document.documentElement.lfStartupException ?? { message: error },
+      );
     if (presented || !document.body?.hasAttribute("data-lf-presented")) return;
     presented = true;
     child.present();

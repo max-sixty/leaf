@@ -29,6 +29,7 @@
           height: var(--lf-icon-action-hit); min-width: var(--lf-icon-action-hit);
           min-height: var(--lf-icon-action-hit); padding: 0; display: grid;
           place-items: center; border-radius: var(--r); }
+.lf-icon-action[hidden] { display: none; }
 .lf-action-icon { position: relative; z-index: 1; inline-size: 16px; block-size: 16px;
           overflow: visible; pointer-events: none; fill: none; stroke: currentColor; stroke-width: 1.6;
           stroke-linecap: round; stroke-linejoin: round; }
@@ -39,25 +40,33 @@
 /* Send and resolve are the two glyph actions: a bare glyph in the action's own ink,
    whose ::before is a 28px disc that stays clear at rest and takes the action's tint
    on hover. The hit box around the disc is the icon-action floor above. The glyph's
-   ink outranks the .lf-ui face by coming later. */
-.lf-compose-submit, .lf-resolve.lf-icon-action { border: 0; background: transparent;
-          box-shadow: none; }
-:is(.lf-compose-submit, .lf-resolve.lf-icon-action)::before { content: "";
+   ink outranks the .lf-ui face by coming later. Reopen standing in Resolve's place
+   is the same glyph drawn done, on every surface that seats a thread. */
+.lf-compose-submit, :is(.lf-resolve, .lf-reopen).lf-icon-action { border: 0;
+          background: transparent; box-shadow: none; }
+:is(.lf-compose-submit, .lf-resolve.lf-icon-action, .lf-reopen.lf-icon-action)::before {
+          content: "";
           position: absolute; box-sizing: border-box; inline-size: 28px; block-size: 28px;
           border-radius: var(--r); background: transparent; }
-:is(.lf-compose-submit, .lf-resolve.lf-icon-action):hover { background: transparent;
-          box-shadow: none; }
+:is(.lf-compose-submit, .lf-resolve.lf-icon-action, .lf-reopen.lf-icon-action):hover {
+          background: transparent; box-shadow: none; }
 .lf-compose-submit { position: absolute; z-index: 1; inset-inline-end: 6px;
           inset-block-end: 6px; color: var(--accent); }
 .lf-compose-submit:not(:disabled, [aria-disabled="true"]):hover::before {
           background: var(--accent-tint); }
 .lf-compose-submit:is(:disabled, [aria-disabled="true"]) { opacity: 1; color: var(--muted); }
-.lf-resolve.lf-icon-action { position: relative; flex: none; margin-inline-start: auto;
-          color: var(--ink); }
+:is(.lf-resolve, .lf-reopen).lf-icon-action { position: relative; flex: none;
+          margin-inline-start: auto; color: var(--ink); }
 .lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover { color: var(--ok-ink); }
 .lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover::before {
           background: var(--ok-tint); }
-.lf-resolve.lf-icon-action .lf-action-icon { inline-size: 15px; block-size: 15px; }
+:is(.lf-resolve, .lf-reopen).lf-icon-action .lf-action-icon { inline-size: 15px;
+          block-size: 15px; }
+.lf-reopen.lf-icon-action { color: var(--ok-ink); }
+.lf-reopen.lf-icon-action::before { background: var(--ok-tint); }
+/* Drawn done at rest, so the press shows on hover as a deeper disc. */
+.lf-reopen.lf-icon-action:not([aria-disabled="true"]):hover::before {
+          background: color-mix(in srgb, var(--ok-ink) 18%, var(--ok-tint)); }
 /* Every composition input renders the same attachment shelf, including inputs seated
    in widget shadow trees. Surfaces set its allocation and thumbnail size; the shelf
    owns its controls, image inspection face, and drawing paint here. */
@@ -120,6 +129,41 @@ button.lf-media-open { cursor: zoom-in; }
 .lf-thread-reply { display: block; margin-top: var(--sp-3); min-width: 0; }
 :is(.lf-thread-reply, .lf-fab-bar) .lf-compose-field {
           --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px); }
+/* A message's rewrite stands where its words did. The words keep their place, size and
+   wrapping: the field around them takes no room, and its box is painted around them,
+   reaching into the message's inset and the room between turns to the reply box's own
+   edges, so opening and closing it moves nothing. Its ring is drawn inside the box,
+   which a margin card's transcript would otherwise clip. Cancel and Save stand at the
+   message's head (`.lf-msg-edit-actions`). */
+.lf-msg-editor { display: block; min-width: 0; font: inherit; }
+.lf-msg-editor > .lf-compose-field { isolation: isolate; }
+.lf-msg-editor > .lf-compose-field::before { content: ""; position: absolute; z-index: -1;
+          inset: -4px 0 -4px calc(-1 * var(--lf-thread-text-inset));
+          border: 1px solid var(--border-2); border-radius: var(--r); background: var(--card);
+          pointer-events: none; }
+.lf-msg-editor > .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus))::before {
+          outline: var(--focus-ring); --lf-focus-ring: text-box;
+          outline-offset: calc(-1 * var(--focus-ring-w)); border-color: transparent; }
+.lf-msg-editor > .lf-compose-field > leaf-text:not(.lf-fab-input) { display: block;
+          min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0;
+          background: transparent; color: var(--ink); font: inherit;
+          max-height: none; overflow: visible; --lf-field-end-room: 0px; }
+.lf-msg-editor > .lf-compose-field > leaf-text:is(:focus, .lf-focus) { outline: none; }
+/* Its foot stands for its last line, whose height a reveal clears above it. */
+.lf-msg-edit-foot { display: block; block-size: 0; scroll-margin-block-start: 1lh; }
+/* Cancel and Save take the message's head while it is open, where its Edit control stood
+   and with its face, as words: a glyph there would read as the thread's own Resolve
+   beside them. Save keeps its press's ink. */
+.lf-msg-edit-actions { position: absolute; z-index: 2; position-anchor: --lf-msg-head;
+          inset-block-start: anchor(center); inset-inline-end: anchor(right); translate: 0 -50%;
+          display: inline-flex; gap: 4px; }
+.lf-msg-edit-actions > .lf-msg-control { position: static; translate: none; opacity: 1;
+          block-size: max(24px, var(--aim-floor)); min-width: 0; min-height: 0;
+          font: 600 var(--t-6)/1 var(--sans); }
+.lf-msg-edit-actions > .lf-msg-edit-cancel { inline-size: max(52px, var(--aim-floor)); }
+.lf-msg-edit-actions > .lf-msg-edit-save { inline-size: max(40px, var(--aim-floor)); }
+.lf-msg-edit-actions > .lf-msg-edit-save::before { display: none; }
+.lf-msg-edit-actions > .lf-msg-edit-save:not([aria-disabled="true"]) { color: var(--accent); }
 
 
   :is(.lf-fab-bar, .lf-margin-preview) { --lf-response-height: max(32px, var(--aim-floor)); }
@@ -129,7 +173,12 @@ button.lf-media-open { cursor: zoom-in; }
   :is(.lf-fab-bar, .lf-margin-preview) {
     --lf-thread-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
     --lf-comment-text-pad-end: var(--lf-thread-text-inset);
-    --lf-comment-send-room: var(--lf-icon-action-hit);
+    --lf-comment-send-inset: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
+    /* The text inset already clears part of Send. Reserve only the rest of its
+       hit box, rather than counting that shared room twice. */
+    --lf-comment-action-room: var(--lf-icon-action-hit);
+    --lf-comment-send-room: calc(var(--lf-comment-action-room) + var(--lf-comment-send-inset)
+      - var(--lf-comment-text-pad-end));
   }
   .lf-fab-bar .lf-compose-field, .lf-response-control {
     --lf-compose-pad-block: calc(var(--lf-thread-text-pad-block) - 1px);
@@ -163,8 +212,17 @@ button.lf-media-open { cursor: zoom-in; }
     --lf-field-end-room: var(--lf-comment-send-room);
     overflow-y: auto; }
   .lf-fab-bar .lf-compose-submit {
-    inset-inline-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2);
-    inset-block-end: calc((var(--lf-response-height) - var(--lf-icon-action-hit)) / 2); }
+    inset-inline-end: var(--lf-comment-send-inset);
+    inset-block-end: var(--lf-comment-send-inset); }
+  /* The field keeps its full box while both actions occupy its trailing corner. */
+  .lf-fab-bar[data-lf-other-responses] {
+    --lf-comment-action-room: calc(2 * var(--lf-icon-action-hit)); }
+  .lf-fab-bar[data-lf-other-responses] .lf-compose-submit {
+    inset-inline-end: calc(var(--lf-comment-send-inset) + var(--lf-icon-action-hit)); }
+  .lf-fab-more { position: absolute; border: 0; background: transparent; color: var(--muted);
+    inset-inline-end: var(--lf-comment-send-inset);
+    inset-block-end: var(--lf-comment-send-inset); }
+  .lf-fab-more:hover { color: var(--ink); background: var(--chip); }
   .lf-response-action { min-width: max(30px, var(--aim-floor)); padding-inline: 9px;
     display: inline-flex; align-items: center; justify-content: center; gap: 0;
     white-space: nowrap; cursor: pointer; }
@@ -213,6 +271,8 @@ button.lf-media-open { cursor: zoom-in; }
           > :not(.lf-compose-field, .lf-composer-media) { display: none !important; }
 .lf-fab-bar[data-lf-presentation="inline"] leaf-text.lf-fab-input {
   display: block; max-width: none; max-height: 50vh; margin: 0; }
+.lf-fab-bar[data-lf-presentation="inline"].lf-response-open > .lf-response-options {
+  flex-basis: 100%; }
 .lf-fab-bar .lf-composer-media {
           flex: none; max-width: 148px; padding: 0; }
 .lf-fab-bar .lf-composer-media:has(> .lf-composer-drawing) {

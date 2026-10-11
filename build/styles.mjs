@@ -55,7 +55,7 @@ for (const [source, output] of entries) {
         },
       },
     ],
-    banner: { css: `/* Generated from ${source} by npm run build:styles. */` },
+    banner: { css: `/* Generated from ${source} by build/styles.mjs. */` },
   });
   if (result.warnings.length)
     throw new Error(
@@ -72,4 +72,4 @@ for (const [source, output] of entries) {
   } else await writeFile(resolve(root, output), css);
 }
 if (stale.length)
-  throw new Error(`Stale stylesheets; run npm run build:styles:\n${stale.join("\n")}`);
+  throw new Error(`Stale stylesheets; run pnpm run build:styles:\n${stale.join("\n")}`);

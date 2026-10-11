@@ -78,7 +78,7 @@ def test_user_prompt_names_the_latest_question_content_version(page_dir):
             "author": "agent",
             "parent": root["id"],
             "responds": root["id"],
-            "awaits": True,
+            "question": True,
             "text": "First question?",
         },
     )
@@ -102,7 +102,7 @@ def test_user_prompt_names_the_latest_question_content_version(page_dir):
             "id": "second-question",
             "author": "agent",
             "parent": first["id"],
-            "awaits": True,
+            "question": True,
             "text": "Second question?",
         },
     )

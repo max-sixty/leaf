@@ -19,11 +19,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
-          cache: npm
-      - run: npm ci
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - run: uv run playwright install --with-deps chromium --only-shell
       - name: Verify installation, native custom packages and offline export
         run: uv run pytest tests/test_distribution.py -q

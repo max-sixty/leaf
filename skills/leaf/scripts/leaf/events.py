@@ -1,5 +1,7 @@
 """Pure folds over the append-only event model."""
 
+from itertools import groupby
+
 from leaf.schema import MESSAGE_KINDS, UNDOABLE_KINDS
 
 
@@ -66,6 +68,25 @@ def spoken_turns(thread: dict) -> list:
 def conversation_turns(thread: dict) -> list:
     """Spoken messages that participate in the exchange, excluding progress updates."""
     return [message for message in spoken_turns(thread) if not message.get("ephemeral")]
+
+
+def exchange(thread: dict) -> list:
+    """The conversation's turns and the user's revisions of its messages, in log order.
+
+    A user's `edit` hands the thread to the agent as a reply would, under the edit's
+    id, while every surface shows it as the message's new wording rather than a
+    message beside it (`build_threads`, ``revisions``). So only who owes the next word
+    reads it (`unanswered_turns`, `workflows`); what a thread says, and what a question
+    asked since a message waits on, read the messages (`conversation_turns`). An
+    agent's edit corrects its own words and hands nothing over, so it is no turn."""
+    return sorted(
+        [*conversation_turns(thread), *thread["revisions"]], key=lambda m: m["seq"]
+    )
+
+
+def turn_message(turn: dict) -> str:
+    """The message a turn is shown as: a revision's message, else the turn's own."""
+    return turn["message"] if turn["kind"] == "edit" else turn["id"]
 
 
 def bare_reaction(thread: dict) -> bool:
@@ -217,6 +238,9 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     version rewrote, until a reply chooses the thread's place again.
     A new spoken reply resumes the thread; reactions and failure receipts
     leave its closure standing. A later resolution closes it again.
+    ``revisions`` holds the user's edits in log order, each with ``was``, the words
+    it replaced: each shows as its message's wording and stands in the exchange as a
+    turn of its own (`exchange`), so it resumes the thread as a reply does.
 
     Each thread is keyed by, and carries as ``id``, the id of the message that
     opened it: the name every Question, workflow, summary, and title uses for it.
@@ -257,6 +281,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 "detached_from": None,
                 "rewritten_from": None,
                 "msgs": [message],
+                "revisions": [],
                 "resolved": None,
             }
             threads[e["id"]] = thread
@@ -282,8 +307,22 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             continue
         if e["kind"] == "edit":
             if message := messages.get(e["message"]):
+                # The user rewriting their words speaks again, as a reply would: the
+                # agent owes the new wording an answer, and a closed thread opens. The
+                # revision keeps the words it replaced, which answers already given
+                # were about.
+                if e["author"] != "agent":
+                    thread = thread_for[e["message"]]
+                    thread["revisions"].append({**e, "was": message["text"]})
+                    thread["resolved"] = None
+                # The message says when it was last rewritten, and what it said before,
+                # so a reader of the thread alone sees which answers were about other
+                # words.
+                message["edited"] = {
+                    **{key: e[key] for key in ("id", "seq", "ts")},
+                    "was": message["text"],
+                }
                 message["text"] = e["text"]
-                message["edited"] = {key: e[key] for key in ("id", "seq", "ts")}
             continue
         if e["kind"] == "reply":
             # A reply whose message the log lost opens the thread that message would
@@ -308,6 +347,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                     "detached_from": None,
                     "rewritten_from": None,
                     "msgs": [],
+                    "revisions": [],
                     "resolved": None,
                 }
                 threads[e["parent"]] = thread
@@ -365,43 +405,58 @@ def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
     return result
 
 
-def _ephemeral_ranges(thread: dict, covered: set) -> list[dict]:
-    """Completed contiguous runs of progress, preserving intervening conversation.
+def progress_completions(thread: dict) -> dict[str, dict]:
+    """The ordinary agent reply that supersedes each completed progress message.
 
-    A user message breaks a run but does not complete progress. The next ordinary
-    agent reply completes all pending runs. Its identity is also the presentation
-    dependency: a renderer holding that reply must hold its folds with it.
+    The next non-failure agent reply completes all pending progress in its thread.
+    Reactions and user messages do not complete it. Presentation and unread share
+    this relation independently of explicit summaries and read acknowledgements.
     """
     pending = []
-    run = []
-    ranges = []
+    completed = {}
     for message in spoken_turns(thread):
-        if message.get("ephemeral") and message["id"] not in covered:
-            run.append(message)
+        if message.get("ephemeral"):
+            pending.append(message["id"])
             continue
-        if run:
-            pending.append(run)
-            run = []
         if (
-            message.get("ephemeral")
-            or message["kind"] != "reply"
+            message["kind"] != "reply"
             or message["author"] != "agent"
             or message.get("failure")
         ):
             continue
-        for group in pending:
-            ranges.append(
-                {
-                    "id": f"ephemeral:{group[0]['id']}:{message['id']}",
-                    "seq": message["seq"],
-                    "from": group[0]["id"],
-                    "through": group[-1]["id"],
-                    "text": "",
-                    "label": "Previous updates",
-                    "trigger": message["id"],
-                }
-            )
+        completed.update((identity, message) for identity in pending)
         pending = []
+    return completed
+
+
+def _ephemeral_ranges(thread: dict, covered: set) -> list[dict]:
+    """Contiguous completed progress outside explicit summaries, split by conversation.
+
+    The completing reply is also the presentation dependency: a renderer holding
+    that reply must hold its folds with it.
+    """
+    completed = progress_completions(thread)
+    ranges = []
+    for reply, messages in groupby(
+        spoken_turns(thread),
+        key=lambda message: (
+            None if message["id"] in covered else completed.get(message["id"])
+        ),
+    ):
+        if reply is None:
+            continue
+        group = list(messages)
+        ranges.append(
+            {
+                "id": f"ephemeral:{group[0]['id']}:{reply['id']}",
+                "seq": reply["seq"],
+                "from": group[0]["id"],
+                "through": group[-1]["id"],
+                "text": "",
+                "label": "Previous updates",
+                "trigger": reply["id"],
+            }
+        )
     return ranges
 
 
@@ -500,8 +555,9 @@ def unanswered_turns(thread: dict) -> list[dict]:
     Turns, not marks: a reaction is a mark on a message rather than a word in the
     thread, so an `ok` the user puts on the agent's answer does not hand the thread
     back, and a reaction nobody has replied to is no thread at all. Resolution does
-    not enter here; `awaits_agent` adds it."""
-    turns = conversation_turns(thread)
+    not enter here; `awaits_agent` adds it. A user's revision is a turn here
+    (`exchange`)."""
+    turns = exchange(thread)
     floor = -1
     newest_before = None
     for index, message in enumerate(turns):

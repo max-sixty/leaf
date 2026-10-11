@@ -697,6 +697,7 @@ def test_reply_validates_widget_markup(page_dir):
             [
                 "response",
                 "reply",
+                "--done",
                 response_reference(page_dir, "c1"),
                 "--text",
                 "See:",
@@ -739,6 +740,7 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
             [
                 "response",
                 "reply",
+                "--done",
                 response_reference(page_dir, "c1"),
                 "--text",
                 "Choose:",
@@ -771,7 +773,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
 
     def reply(markup, *, for_event=None, to="c1"):
         route = (
-            ["response", "reply", response_reference(page_dir, for_event)]
+            ["response", "reply", "--done", response_reference(page_dir, for_event)]
             if for_event
             else ["thread", "reply", str(page_dir), to]
         )
@@ -874,6 +876,7 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--text",
             "Pick:",
@@ -944,6 +947,7 @@ def test_the_wire_ships_a_message_as_logged(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--text",
             "Fixed in `poll()`.",
@@ -987,7 +991,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
     answered = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", reference, "--text", "The work is ready."],
+        ["response", "reply", "--done", reference, "--text", "The work is ready."],
     )
     assert answered.exit_code == 0, answered.output
     assert json.loads(answered.output)["responds"] == "c1"
@@ -1077,6 +1081,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
         [
             "response",
             "reply",
+            "--done",
             reference,
             "--text",
             "The schedule works.",
@@ -1110,6 +1115,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, root["id"]),
             "--text",
             "Complete.",
@@ -1124,7 +1130,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
             root["id"],
             "--text",
             "Which store?",
-            "--awaits",
+            "--question",
         ],
     )
     duplicate = CliRunner().invoke(
@@ -1143,7 +1149,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
                 '<lf-option id="store-a"><strong>A</strong></lf-option>'
                 "</lf-options></lf-ask>"
             ),
-            "--awaits",
+            "--question",
         ],
     )
     aggregate = CliRunner().invoke(
@@ -1160,7 +1166,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
                 '<lf-test-tasks id="reply-plan"><lf-test-task id="reply-task" status="review">'
                 "<strong>Review</strong></lf-test-task></lf-test-tasks>"
             ),
-            "--awaits",
+            "--question",
         ],
     )
     assert answered.exit_code == 0, answered.output
@@ -1169,9 +1175,9 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
     assert "reply markup already declares" in duplicate.output
     assert aggregate.exit_code == 0, aggregate.output
     replies = [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
-    assert "awaits" not in replies[0]
-    assert replies[1]["awaits"] is True
-    assert replies[2]["awaits"] is True
+    assert "question" not in replies[0]
+    assert replies[1]["question"] is True
+    assert replies[2]["question"] is True
 
 
 def test_an_agent_edits_predecessor_messages_without_rewriting_history(
@@ -1208,6 +1214,7 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, user["id"]),
             "--text",
             "The crawl is paused.",
@@ -1324,6 +1331,238 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
     assert unidentified.exit_code == 0, unidentified.output
     assert before_unidentified_edit[-1]["id"] == sessionless["id"]
     assert json.loads(unidentified.output)["message"] == sessionless["id"]
+
+
+def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
+    """The user rewriting their message speaks again, under the edit's id.
+
+    The thread shows the new wording in place of the old, and the agent owes it an
+    answer as it would a reply: addressed to the message the edit rewrote, delivered
+    with the wording it replaced, settled by a reply naming the edit, and reopening a
+    thread the user had closed. Only the words the user wrote are theirs to revise.
+    """
+    from leaf import delivery as delivery_model
+    from leaf.event_log import EventRefused
+
+    publish(page_dir)
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+
+    def reply_for(event_id, text):
+        result = CliRunner().invoke(
+            cli_model.cli,
+            [
+                "response",
+                "reply",
+                "--done",
+                response_reference(page_dir, event_id),
+                "--text",
+                text,
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        return json.loads(result.output)
+
+    def owed_answers():
+        state = state_json(page_dir)
+        standing = set(state["activity"]["obligations"])
+        return [
+            (item["input"], item["message"], item["answer"])
+            for item in state["workflows"]
+            if item["id"] in standing
+        ]
+
+    asked = append_command(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Chart 2024."},
+    )
+    answer = reply_for(asked["id"], "Charted 2024.")
+    assert owed_answers() == []
+
+    edit = append_command(
+        page_dir,
+        {
+            "kind": "edit",
+            "author": "user",
+            "message": asked["id"],
+            "text": "Chart 2025.",
+        },
+    )
+    assert edit["attention"] is True
+    assert owed_answers() == [
+        (
+            edit["id"],
+            asked["id"],
+            {"kind": "reply", "to": asked["id"], "for": edit["id"]},
+        )
+    ]
+    with service_model.PageTransaction(page_dir) as page:
+        stored = next(event for event in page.events if event["id"] == edit["id"])
+        delivered = delivery_model.freeze_delivery(
+            [delivery_model.batch_data(page_dir, page, [stored])]
+        )
+    [batch] = delivered["batches"]
+    [event] = batch["events"]
+    assert (event["text"], event["was"]) == ("Chart 2025.", "Chart 2024.")
+    assert any("rewrote" in batch["handling"][ref] for ref in event["handling"])
+    [thread] = batch["threads"]
+    assert [m["text"] for m in thread["messages"]] == ["Chart 2025.", "Charted 2024."]
+
+    settled = reply_for(edit["id"], "Charted 2025 instead.")
+    assert (settled["parent"], settled["responds"]) == (asked["id"], edit["id"])
+    assert owed_answers() == []
+
+    append_command(
+        page_dir, {"kind": "resolve", "author": "user", "parent": asked["id"]}
+    )
+    again = append_command(
+        page_dir,
+        {
+            "kind": "edit",
+            "author": "user",
+            "message": asked["id"],
+            "text": "Chart both.",
+        },
+    )
+    [thread] = state_json(page_dir)["threads"]
+    assert thread["resolved"] is None
+    assert [item[0] for item in owed_answers()] == [again["id"]]
+
+    # A question asked after the rewritten words stays the user's: a rewrite up the
+    # thread is owed an answer, and answers nothing asked since.
+    asking = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "response",
+            "reply",
+            response_reference(page_dir, again["id"]),
+            "--text",
+            "Which year goes first?",
+            "--question",
+        ],
+    )
+    assert asking.exit_code == 0, asking.output
+    typo = append_command(
+        page_dir,
+        {
+            "kind": "edit",
+            "author": "user",
+            "message": asked["id"],
+            "text": "Chart both!",
+        },
+    )
+    [thread] = state_json(page_dir)["threads"]
+    assert thread["attention"]["kind"] == "needs_user", thread["attention"]
+    assert [item[0] for item in owed_answers()] == [typo["id"]]
+
+    reaction = append_command(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": answer["id"], "token": "keep"},
+    )
+    before = events_model.read_events(page_dir)
+    for target, refusal in [
+        (answer["id"], "is not user-authored"),
+        (reaction["id"], "has no words to revise"),
+        ("no-such-message", "unknown message"),
+    ]:
+        with pytest.raises(EventRefused, match=refusal):
+            append_command(
+                page_dir,
+                {"kind": "edit", "author": "user", "message": target, "text": "x"},
+            )
+    assert events_model.read_events(page_dir) == before
+
+
+def test_a_rewritten_message_stays_out_of_the_suggested_summary(page_dir, monkeypatch):
+    """The newest exchange stays verbatim when the user rewrites its words.
+
+    A long thread's digest suggests folding all but its last two messages; rewriting
+    the newest user message is a turn the agent owes, and it moves no message into
+    that range."""
+    from leaf.revision_artifact import active_enclosing
+    from leaf.thread_context import batch_threads
+
+    publish(page_dir)
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    opened = append_command(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "U1"},
+    )
+    said = opened
+    for n in (1, 2, 3):
+        result = CliRunner().invoke(
+            cli_model.cli,
+            [
+                "response",
+                "reply",
+                "--done",
+                response_reference(page_dir, said["id"]),
+                "--text",
+                f"A{n}",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        if n < 3:
+            said = append_command(
+                page_dir,
+                {
+                    "kind": "reply",
+                    "author": "user",
+                    "parent": opened["id"],
+                    "text": f"U{n + 1}",
+                },
+            )
+
+    def suggested(event):
+        with service_model.PageTransaction(page_dir) as page:
+            [digest] = batch_threads(page.events, [event], active_enclosing(page_dir))
+            text = {item["id"]: item.get("text") for item in page.events}
+        hint = digest["summary_hint"]
+        return text[hint["from"]], text[hint["through"]]
+
+    assert suggested(said) == ("U1", "A2")
+    rewrite = append_command(
+        page_dir,
+        {"kind": "edit", "author": "user", "message": said["id"], "text": "U3 again"},
+    )
+    assert suggested(rewrite) == ("U1", "A2")
+
+
+def test_a_rewrite_lands_only_on_the_words_it_was_written_over(page_dir):
+    """A tab still drawing a message's old words opened its rewrite on them, and its
+    save silently replaced the newer rewrite another tab had made. A rewrite names the
+    revision it was written over, and the door refuses it once that revision is not the
+    message's latest, telling the user to edit again. Words the message already says are
+    no rewrite."""
+    publish(page_dir)
+    said = append_command(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "North."},
+    )
+
+    def rewrite(text, base):
+        return append_command(
+            page_dir,
+            {
+                "kind": "edit",
+                "author": "user",
+                "message": said["id"],
+                "text": text,
+                "base": base,
+            },
+        )
+
+    south = rewrite("South.", said["id"])
+    with pytest.raises(events_model.EventRefused) as stale:
+        rewrite("East.", said["id"])
+    assert stale.value.user == "The message changed while you edited it; edit it again."
+    west = rewrite("West.", south["id"])
+    with pytest.raises(events_model.EventRefused):
+        rewrite("West.", west["id"])
+    thread = event_folds_model.build_threads(events_model.read_events(page_dir), {})[
+        said["id"]
+    ]
+    assert [message["text"] for message in thread["msgs"]] == ["West."]
+    assert thread["msgs"][0]["edited"]["was"] == "South."
 
 
 def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
@@ -1551,6 +1790,7 @@ def test_reply_markup_uses_the_captured_registry_after_candidate_files_disappear
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--text",
             "plain answer, x < y",
@@ -1764,6 +2004,7 @@ def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, root),
             "--text",
             "The terrace works.",

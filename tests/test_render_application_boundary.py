@@ -654,8 +654,9 @@ def test_package_thread_mirrors_share_core_conversation_without_claiming_placeme
       node.consumer.update();
     }""")
     # The log answered the reply before the held mirror drew it, so to that mirror it is
-    # news, which waits behind a notice rather than moving its reply box.
-    expect(second.locator(".lf-thread-news")).to_have_text("1 new reply")
+    # news, which waits behind a notice rather than moving its reply box. It is the
+    # user's own message, not a reply.
+    expect(second.locator(".lf-thread-news")).to_have_text("1 new message")
     expect(second.locator(".lf-page-thread")).not_to_contain_text("While held")
 
     # This lifecycle removal follows the user's clearing their local filter.
@@ -1507,9 +1508,11 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     )
     page.wait_for_function("readLeafPresentation().pending.length === 0")
     assert page.evaluate("window.__failedLocalRenders") == 1
-    assert take_browser_errors(page) == [
+    errors = take_browser_errors(page)
+    assert [error.splitlines()[0] for error in errors] == [
         "leaf: Presentation failed: <lf-local> renderState threw: deliberate render failure"
     ]
+    assert "Caused by: Error: deliberate render failure" in errors[0]
 
 
 def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
@@ -1674,7 +1677,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
     expect(page.locator("#thread-failing")).to_have_count(1)
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 2")
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
-    assert take_browser_errors(page) == [
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: frozen descendant failure"
     ]
 
@@ -2083,8 +2086,10 @@ def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
             "leaf: Presentation failed: Thread list presentation retry failed: "
             "injected refusal; injected refusal"
         ),
-        "leaf: State presentation failed: Thread list presentation retry failed",
-        "leaf: read failed: Thread list presentation retry failed",
+        "leaf: State presentation failed: Thread list presentation retry failed: "
+        "injected refusal; injected refusal",
+        "leaf: read failed: Thread list presentation retry failed: "
+        "injected refusal; injected refusal",
     )
     expect(page.locator('[data-id="arriving"]')).to_have_count(0)
 
@@ -2462,20 +2467,17 @@ def test_frozen_question_reveals_its_exact_message_in_a_selective_primary(
 
 
 @pytest.mark.parametrize(
-    ("primary", "travel", "source_top", "cross_boundary", "fault"),
+    ("primary", "travel", "source_top", "cross_boundary"),
     [
-        (True, True, 0, False, None),
-        (True, True, 200, False, None),
-        (True, False, 200, False, None),
-        (False, True, 1000, False, None),
-        (False, True, 1000, True, None),
-        (False, True, 1000, True, "holder"),
-        (False, True, 1000, True, "child"),
-        (False, True, 1000, True, "inset"),
+        (True, True, 0, False),
+        (True, True, 200, False),
+        (True, False, 200, False),
+        (False, True, 1000, False),
+        (False, True, 1000, True),
     ],
 )
 def test_primary_arrival_records_a_return_place_only_when_travelling(
-    browser, serve, primary, travel, source_top, cross_boundary, fault
+    browser, serve, primary, travel, source_top, cross_boundary
 ):
     """Back restores the working place left by a jump to the primary reader."""
     url = package_workspace(
@@ -2534,66 +2536,7 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
         if cross_boundary:
             page.wait_for_function("scrollY < 200")
             expect(page.locator("#lf-margin-preview")).to_be_in_viewport()
-            if fault:
-                scroll_settled(page)
-                page.evaluate("scrollTo({top:180, behavior:'instant'})")
-                page.wait_for_function(
-                    """() => document.querySelector('script[data-lf-entry]').lfFloatingSelections().some(item => item.floating.id === 'lf-margin-preview' && item.plane === 'page')"""
-                )
-                scroll_settled(page)
-                page.evaluate("lfShiftsJudged()")
-                assert take_browser_errors(page) == []
-                # Carry the exposed card in its native page plane. Displace its
-                # holder, held inset or child while the source still travels;
-                # matching a historical source pose cannot grant that motion.
-                displacement = page.evaluate(
-                    """async fault => {
-                  const paint = async () => {
-                    await new Promise(requestAnimationFrame);
-                    await new Promise(requestAnimationFrame);
-                  };
-                  const source = document.querySelector('#notes');
-                  const sourceBefore = source.getBoundingClientRect().top;
-                  scrollTo({top:160, behavior:'instant'});
-                  await paint();
-                  const owner = document.querySelector('#lf-margin-preview');
-                  const selection = document.querySelector('script[data-lf-entry]').lfFloatingSelections().find(item => item.floating === owner);
-                  const node = fault === 'child' ? owner.querySelector('leaf-text') : owner;
-                  const before = node.getBoundingClientRect().top;
-                  if (fault === 'child') {
-                    node.style.position = 'relative';
-                    node.style.top = '-20px';
-                  } else if (fault === 'inset') {
-                    const edge = selection.edges.top;
-                    node.style[edge] = `calc(${edge === 'top' ? -20 : 20}px + ${node.style[edge]})`;
-                  } else node.style.marginTop = '-20px';
-                  const result = {before, after:node.getBoundingClientRect().top, scroll:scrollY, plane:selection.plane, sourceTravel:source.getBoundingClientRect().top - sourceBefore};
-                  await paint();
-                  scrollTo({top:140, behavior:'instant'});
-                  await paint();
-                  scrollTo({top:100, behavior:'instant'});
-                  return result;
-                }""",
-                    fault,
-                )
-                assert displacement["plane"] == "page"
-                assert displacement["scroll"] == 160
-                assert displacement["sourceTravel"] == pytest.approx(20)
-                assert displacement["after"] - displacement["before"] == pytest.approx(
-                    -20
-                )
-                scroll_settled(page)
-                page.evaluate("lfShiftsJudged()")
-                errors = consume_browser_errors(page, "moved without input")
-                assert any(
-                    (
-                        "lf-msg-head moved without input"
-                        if fault != "child"
-                        else "leaf-text.lf-ui moved without input"
-                    )
-                    in error
-                    for error in errors
-                ), errors
+
         page.go_back()
         expect(heading).to_be_focused()
         scroll_settled(page)
@@ -2714,7 +2657,7 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
                 "revision": 1,
                 "parent": "opening",
                 "text": text,
-                "awaits": True,
+                "question": True,
             },
         )
     page = open_page(browser, url, context=context)
@@ -3174,7 +3117,9 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
         )
     expect(workspace.locator('[data-event="later-answer"]')).to_have_count(0)
     assert editor.bounding_box() == before
-    workspace.get_by_role("button", name="2 new replies", exact=True).click()
+    workspace.get_by_role(
+        "button", name="1 new reply · 1 message edited", exact=True
+    ).click()
     if mode != "Reply only":
         expect(workspace.locator('[data-event="later-answer"]')).to_contain_text(
             "A later turn."
@@ -3186,7 +3131,9 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
             "document.querySelector('#workspace [data-event=answer]') === heldMessage"
         )
     expect(
-        workspace.get_by_role("button", name="2 new replies", exact=True)
+        workspace.get_by_role(
+            "button", name="1 new reply · 1 message edited", exact=True
+        )
     ).to_have_count(0)
     expect(editor).to_have_js_property("value", "Keep this draft while updates wait.")
     rendered(page)

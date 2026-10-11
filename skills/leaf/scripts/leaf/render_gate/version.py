@@ -231,7 +231,7 @@ def render_version(
         except PlaywrightError as error:
             failure = (
                 "the browser gate failed while running its probe module: "
-                + str(error).strip().splitlines()[0]
+                + str(error).strip()
             )
             return RenderReading([failure], [], [], []), [], False
 

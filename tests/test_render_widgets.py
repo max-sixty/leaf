@@ -13329,8 +13329,9 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
     """A file's row gives way from its folders, and its title reaches only a pointer
     resting on it. The keyboard standing on the row, and a finger held on it, read the
     whole path in a box under the row, a folded file's too, over the next file's row.
-    Releasing the hold folds the file, as a tap does, and a tap shows nothing. A row
-    that shows its whole path at the width it has now shows no box and has no title."""
+    Releasing the hold folds the file, as a tap does. Touch focus keeps the path
+    visible until it leaves. A row that shows its whole path at the width it has
+    now shows no box and has no title."""
     path = "plugins/worktrunk/skills/worktrunk/reference/config/deeply/nested/file.md"
     patch = "".join(
         f"diff --git a/{name} b/{name}\n--- a/{name}\n+++ b/{name}\n"
@@ -13419,11 +13420,17 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
     touch("touchEnd")
     rendered(page)
     assert head.evaluate(read)["open"] is False, "the release folds the file"
+    expect(head).to_have_attribute("data-lf-focus", "")
+    assert head.evaluate(read)["word"] == whole
+    page.evaluate(RELEASE_FOCUS)
     assert head.evaluate(read)["word"] is None
 
     page.touchscreen.tap(point["x"], point["y"])
     rendered(page)
     assert head.evaluate(read)["open"] is True, "a tap unfolds it"
+    expect(head).to_have_attribute("data-lf-focus", "")
+    assert head.evaluate(read)["word"] == whole
+    page.evaluate(RELEASE_FOCUS)
     assert head.evaluate(read)["word"] is None
 
     # A row that shows its whole path shows no box and has no title, and a row's box

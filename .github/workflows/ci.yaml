@@ -60,6 +60,9 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       PYTEST_ADDOPTS: --durations=25 --durations-min=1
+      # py-spy's sampling rate, which `leaf-dev suite-profile` reads to turn samples
+      # into minutes.
+      PY_SPY_RATE: 2
 
     steps:
       # A pull request's checkout is its merge commit, whose first parent is the base:
@@ -122,11 +125,11 @@ jobs:
         background: true
         # The profilers write beside the junit report: `cpu-by-command.txt` is `sa`'s
         # table of every process that ran meanwhile, and `stacks.txt` holds one line
-        # per distinct stack and sample count at 5 Hz, rooted at its process, for
+        # per distinct stack and sample count, rooted at its process, for
         # `leaf-dev suite-profile`, speedscope or flamegraph.pl. py-spy follows the
-        # process tree from `uv run` once it has a child, and stops when it exits. At
-        # 20 Hz it took a tenth of the run's CPU; 5 Hz still samples the workers'
-        # functions thousands of times an hour.
+        # process tree from `uv run` once it has a child, and stops when it exits. Its
+        # cost scales with the rate: 20 Hz took 10% of a run's CPU, 5 Hz 4.5%. At 2 Hz
+        # each worker's stack is still sampled 7,200 times an hour.
         run: |
           mkdir -p .tmp/test-results
           sudo touch /var/log/account/suite
@@ -138,7 +141,7 @@ jobs:
             sleep 0.1
           done
           uvx py-spy@0.4.2 record --pid "$tests" --subprocesses --idle --nonblocking \
-            --function --rate 5 --format raw --output .tmp/test-results/stacks.txt &
+            --function --rate "$PY_SPY_RATE" --format raw --output .tmp/test-results/stacks.txt &
           profiler=$!
           wait "$tests" && status=0 || status=$?
           wait "$profiler" || echo "py-spy exited with $?"

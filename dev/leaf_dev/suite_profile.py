@@ -38,7 +38,6 @@ from leaf_dev import ROOT
 
 PLAYWRIGHT_DIR = f"{os.sep}playwright{os.sep}"
 PHASES = ("setup", "call", "teardown")
-SAMPLE_RATE = 5  # py-spy's `--rate` in CI's `test` job
 # py-spy's raw format: one stack per line, `;`-separated frames and its sample count,
 # rooted at its process and that process's ancestors, `process PID:"COMMAND LINE"`.
 # A command line can hold `;` and newlines, so a record runs to the count that ends
@@ -121,8 +120,14 @@ def pytest_runtest_makereport(item, call):
 @click.argument(
     "directory", type=click.Path(exists=True, file_okay=False, path_type=Path)
 )
+@click.option(
+    "--rate",
+    type=float,
+    envvar="PY_SPY_RATE",
+    help="py-spy's samples per second in `stacks.txt` (CI's `PY_SPY_RATE`).",
+)
 @click.option("--top", default=20, show_default=True, help="Rows per table.")
-def suite_profile(directory: Path, top: int) -> None:
+def suite_profile(directory: Path, rate: float | None, top: int) -> None:
     """Print where one suite run's worker time went, from the results in DIRECTORY:
     `results.xml` with this module's `profile` properties, and, where present,
     py-spy's `stacks.txt` and `sa`'s `cpu-by-command.txt`. CI's `test` job uploads
@@ -130,7 +135,11 @@ def suite_profile(directory: Path, top: int) -> None:
     cases = read_cases(directory / "results.xml")
     report_cases(cases, top)
     if (stacks := directory / "stacks.txt").exists():
-        report_stacks(stacks, top)
+        if rate is None:
+            raise click.UsageError(
+                "stacks.txt needs --rate, the rate py-spy sampled at"
+            )
+        report_stacks(stacks, rate, top)
     if (cpu := directory / "cpu-by-command.txt").exists():
         lines = cpu.read_text().splitlines()
         section("CPU by command (sa: calls, real and CPU minutes)")
@@ -225,7 +234,7 @@ def report_cases(cases: list[dict], top: int) -> None:
     )
 
 
-def report_stacks(path: Path, top: int) -> None:
+def report_stacks(path: Path, rate: float, top: int) -> None:
     """The suite's own Python in py-spy's samples of the test protocol: inclusive
     minutes by function, and the innermost frame each sample was in. The protocol's
     stack is off the thread while Playwright's event loop runs, so these minutes
@@ -243,17 +252,17 @@ def report_stacks(path: Path, top: int) -> None:
                 inclusive[frame] += samples
         innermost[frames[-1]] += samples
     section(
-        f"Sampled stacks: {minutes(inside / SAMPLE_RATE)} minutes of the test "
+        f"Sampled stacks: {minutes(inside / rate)} minutes of the test "
         "protocol outside Playwright"
     )
     table(
         ("minutes", "inclusive, by function"),
-        [(minutes(n / SAMPLE_RATE), f) for f, n in inclusive.most_common(top)],
+        [(minutes(n / rate), f) for f, n in inclusive.most_common(top)],
     )
     section("Innermost frame")
     table(
         ("minutes", "innermost frame"),
-        [(minutes(n / SAMPLE_RATE), f) for f, n in innermost.most_common(top)],
+        [(minutes(n / rate), f) for f, n in innermost.most_common(top)],
     )
 
 

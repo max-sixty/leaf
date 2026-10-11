@@ -65,16 +65,49 @@ test("queued work unsettles at once and settles with the update that runs it", a
 test("finite preparation retires once and owes its final quiet update", async () => {
   const first = holdRendering();
   const second = holdRendering();
+  assert.equal(renderingSettled("queue"), false);
   for (let i = 0; i < 10; i++) await update();
+  assert.equal(
+    renderingSettled("queue"),
+    true,
+    "the counted queue rests while preparation waits",
+  );
   assert.equal(renderingSettled(), false);
   assert.equal(queued.size, 0, "a pending preparation does not poll frames");
+
+  let painted = false;
+  nextRender(() => (painted = true));
+  assert.equal(renderingSettled("queue"), false);
+  const observer = sizeObserver(() => {});
+  await update({ delivering: [observer] });
+  assert.equal(painted, true);
+  assert.equal(
+    renderingSettled("queue"),
+    false,
+    "the observer still owes a quiet update",
+  );
+  assert.equal(renderingSettled(), false);
+  await update();
+  assert.equal(renderingSettled("queue"), true);
+  assert.equal(
+    renderingSettled(),
+    false,
+    "queue quietness does not retire preparation",
+  );
+
   first();
   first();
   await update();
   assert.equal(renderingSettled(), false, "another preparation still stands");
   second();
+  assert.equal(
+    renderingSettled("queue"),
+    false,
+    "the preparation's commit owes a quiet update",
+  );
   assert.equal(renderingSettled(), false, "the commit has not painted yet");
   await update();
+  assert.equal(renderingSettled("queue"), true);
   assert.equal(renderingSettled(), true);
 });
 

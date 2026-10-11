@@ -135,8 +135,11 @@
   // Native media sources and nodes detached during a reading can have no computed
   // length. Keep that absence stable; NaN would disagree with itself every frame.
   const pixels = (value) => (/^-?[\d.]+px$/.test(value) ? parseFloat(value) : null);
+  // A preparation owns only its source-bound landing below. Waiting for its full
+  // settlement here would give the input every unrelated move while it waits.
   const settled = () =>
-    document.querySelector("script[data-lf-entry]")?.lfRenderingSettled?.() ?? true;
+    document.querySelector("script[data-lf-entry]")?.lfRenderingSettled?.("queue") ??
+    true;
   // An animation that can move a box: one of its keyframes sets a geometric property.
   const moves = (animation) =>
     animation.effect

@@ -1162,8 +1162,8 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
     the press owns nothing while it waits.
 
     Opening a closed lf-diff file loads its evidence in a promise the widget presents
-    (`present`), which the rendering loop cannot see. Holding the file's grammar keeps
-    that preparation pending after the loop settles, as a loaded machine does."""
+    (`present`). Holding the grammar keeps complete rendering pending while its
+    counted queue rests, as a loaded machine does."""
     patch = "".join(
         f"diff --git a/{name}.md b/{name}.md\n--- a/{name}.md\n+++ b/{name}.md\n"
         "@@ -1 +1 @@\n-old\n+new\n"
@@ -1185,7 +1185,13 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
     control = page.locator("#control")
     first.locator(".lf-diff-head").click()
     holding(page, held, 1, "the markdown grammar")
-    rendered(page)
+    paint(page)
+    page.wait_for_function(
+        "document.querySelector('script[data-lf-entry]').lfRenderingSettled('queue')"
+    )
+    assert not page.evaluate(
+        "document.querySelector('script[data-lf-entry]').lfRenderingSettled()"
+    )
     assert (
         page.evaluate(
             "document.querySelector('script[data-lf-entry]').lfReadiness(null, 'presented')"
@@ -1194,7 +1200,7 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
     )
     # While the preparation waits, the press owns no other movement on the page.
     control.evaluate("node => node.style.marginTop = '40px'")
-    rendered(page)
+    paint(page)
     judge_watches()
     consume_browser_errors(page, "button#control moved without input")
 
@@ -1260,7 +1266,7 @@ def test_a_preparation_no_input_began_lands_passive(browser, serve, pressed):
     page.locator(pressed).click()
     answer[0].fulfill(status=204)
     holding(page, grammar, 1, "the markdown grammar")
-    rendered(page)
+    paint(page)
     judge_watches()
     assert page.lf_errors == []
 
@@ -1326,7 +1332,7 @@ def test_an_activation_that_opens_nothing_leaves_a_later_open_passive(
         "document.querySelector('#patch').shadowRoot.querySelector('details').open = true"
     )
     holding(page, grammar, 1, "the markdown grammar")
-    rendered(page)
+    paint(page)
     grammar[0].continue_()
     expect(page.locator("#patch [data-line]").last).to_contain_text("new")
     rendered(page)

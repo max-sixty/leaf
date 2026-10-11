@@ -139,9 +139,12 @@ wt step diff | jq -Rs . | leaf data set <page> review-patch
 Rerun the pipeline with the same source id to refresh the open page; the widget's
 markup stays as written.
 
-The raw form transfers and renders the whole patch. For a large patch whose files
-should load only when opened, the `unified-diff` contract's producer instructions
-describe the optional file manifest:
+`lf-diff` accepts textual entries with `@@` hunks and exact path-only renames.
+If the comparison includes binary, mode-only, copy, or empty added/deleted files,
+describe those changes in prose and supply only supported entries to the widget.
+The raw form transfers and renders the whole supported patch. For a large supported
+patch whose files should load only when opened, the `unified-diff` contract's
+producer instructions describe the optional file manifest:
 
 ```bash
 leaf page instructions <page> --contract unified-diff | jq -er '.producer'

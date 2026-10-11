@@ -1,5 +1,6 @@
-"""Page and neighboring-leaf presence readings, and the one message they call
-for: to a claimant whose input nothing will carry (`nudge_unwatched`)."""
+"""Page and neighboring-leaf presence readings, and the two writes that follow
+from them: the user-attention lease (`renew_viewed`) and the one message to a
+claimant whose input nothing will carry (`nudge_unwatched`)."""
 
 import hashlib
 import json
@@ -37,12 +38,15 @@ from .service import (
     read_status,
     unacknowledged,
 )
-from .state import now_iso
+from .state import now_iso, write_json
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. Readers share one observation for two seconds, while
 # a changed page file invalidates it immediately.
 PRESENCE_CACHE_S = 2.0
+# How stale the user-attention lease may grow while a visible tab keeps asking for
+# news before the next ask renews it.
+VIEWED_RENEW_S = 30
 # (row-directory stamp, producer publications): the machine's, so one slot.
 _candidates = ((), ())
 _candidates_lock = threading.Lock()
@@ -293,7 +297,7 @@ def presence_with_activity(
         # nobody has ever viewed — which used to be indistinguishable from one the
         # user studied and left. Hidden tabs stop their freshness reads, so this records
         # user attention rather than tab lifetime.
-        "viewed": (read_json(page_dir / VIEWED_FILE) or {"t": None})["t"],
+        "viewed": _viewed_at(page_dir),
         # Where the claimant is working (claim_page), for the drawer's hover: what
         # tells one leaf from another is the work behind it, and neither the title
         # nor the page directory says which that is. It outlives the session that
@@ -395,3 +399,17 @@ def nudge_unwatched(page: PageTransaction) -> None:
         and claim_harness(claim).nudge(page_dir)
     ):
         page.note_messaged(mark)
+
+
+def _viewed_at(page_dir: Path) -> float | None:
+    """When a browser last had the page visible, or None for a page nobody has
+    ever viewed."""
+    return (read_json(page_dir / VIEWED_FILE) or {"t": None})["t"]
+
+
+def renew_viewed(page_dir: Path) -> None:
+    """Renew the user-attention lease for a visible tab asking for news, at most
+    once per VIEWED_RENEW_S."""
+    viewed, now = _viewed_at(page_dir), time.time()
+    if viewed is None or now - viewed > VIEWED_RENEW_S:
+        write_json(page_dir / VIEWED_FILE, {"t": now})

@@ -86,7 +86,7 @@ const state = (taken, events = []) => ({
         basis: { revision: 1, through_seq: events.length },
         coverage: [],
         undo: [],
-        updates: [],
+        reports: [],
         published_at: null,
         document: {
           questions: noQuestions(),
@@ -741,7 +741,7 @@ test("semantic epochs include visible revision facts but not transport metadata"
   const revisionFacts = structuredClone(asked);
   revisionFacts.taken = 3;
   revisionFacts.browser.views[1].published_at = "2026-09-12T10:00:00-07:00";
-  revisionFacts.browser.views[1].updates = [
+  revisionFacts.browser.views[1].reports = [
     {
       id: "report-1",
       target: { kind: "widget", id: "choice" },
@@ -947,7 +947,7 @@ test("receipt adoption keeps attempts until presentation proof and preserves dep
   app.present([accepted]);
   app.release(new Set(["first"]));
   assert.equal(decision(app), null);
-  assert.equal(app.nameUndo("undo", [accepted]), true);
+  assert.equal(app.nameUndo("undo"), true);
   assert.equal(app.entry("undo").event.undoes, "e1");
 });
 
@@ -1393,7 +1393,7 @@ test("the publisher carries the server's Ask reading, page asks before thread as
   assert.equal(decision(app), "accept");
 });
 
-test("a standing report supplies desired widget state", () => {
+test("an unsettled report supplies desired widget state", () => {
   const valueSpec = {
     unit: "widget",
     record: { kind: "value", attr: "choice" },

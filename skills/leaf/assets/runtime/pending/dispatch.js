@@ -5,7 +5,7 @@
 import { actionForWidget, isThreadEvent } from "./model.js";
 import { createPendingLedger } from "./state.js";
 import { applicationState, readApplication } from "../semantic-state.js";
-import { newAttempt } from "../drafts.js";
+import { randomId } from "../ids.js";
 import { saidNow } from "../presence.js";
 import { messageText } from "../thread/messages.js";
 
@@ -53,13 +53,13 @@ function widgetCommand(command) {
 }
 
 /** @typedef {{
- * afterEnqueue: (entry: import("./state.js").DeliveryHandle) => Promise<unknown>,
+ * afterEnqueue: (entry: import("./state.js").DeliveryHandle) => void,
  * withdraw: (event: UndoCandidate) => Promise<Event | null> | null,
  * onCollision: (attempt: string | undefined) => void,
  * }} DispatchDependencies */
 export function createCommandDispatch() {
   const ledger = createPendingLedger({
-    newAttempt,
+    newAttempt: randomId,
     enqueue: (event) =>
       applicationState.enqueue(
         event,
@@ -81,10 +81,11 @@ export function createCommandDispatch() {
       onCollision(event.attempt);
       return null;
     }
-    return Object.freeze({ answer: entry.answer, presentation: afterEnqueue(entry) });
+    afterEnqueue(entry);
+    return entry.answer;
   };
   /** @param {PendingCommand} event */
-  const post = (event) => startPost(event)?.answer ?? Promise.resolve(null);
+  const post = (event) => startPost(event) ?? Promise.resolve(null);
   /** @param {WidgetDescriptor} descriptor @param {unknown} input */
   const dispatchWidget = (descriptor, input) => {
     const command = widgetCommand(input);
@@ -102,7 +103,7 @@ export function createCommandDispatch() {
     }
     const revision = readApplication().document.revision;
     if (revision === null || !reading.actions[command.verb]?.available) return null;
-    return startPost(actionForWidget(descriptor, command, revision))?.answer ?? null;
+    return startPost(actionForWidget(descriptor, command, revision));
   };
   return Object.freeze({
     ledger,

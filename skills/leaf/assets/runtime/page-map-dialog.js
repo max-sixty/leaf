@@ -54,9 +54,9 @@ import {
 } from "./banner-toolbar.js";
 import {
   clearContributionControls,
-  presentContributionHost,
+  contributionHost,
+  contributionReceipts,
   syncContributionAgentWorkflow,
-  syncContributionTurn,
   trackContributionControl,
 } from "./contribution-controls.js";
 import { contributionSource } from "./contributions.js";
@@ -123,6 +123,7 @@ export function createPageMapDialog({
 }) {
   const { targetFor } = inventory;
   let entries = [];
+  let groups = [];
   let target = null;
   let trackedOffers = new Set();
 
@@ -196,23 +197,32 @@ export function createPageMapDialog({
     });
   }
 
-  function presentSheetControl(control, action, actions) {
-    if (!control) return;
-    const { entry, offered, record } = action;
-    presentContributionHost(control, record, {
-      accessibleLabel: [record.accessibleLabel, record.context]
-        .filter(Boolean)
-        .join(", "),
-      relatedControlIds: relatedControlIds(action, actions),
-    });
-    const workflow = entry.workflowCarrier;
-    const receipt =
-      workflow?.key === record.key && workflow.owner === record.owner
-        ? workflow.receipt
-        : record.workflowReceipt;
-    syncContributionAgentWorkflow(control, receipt);
-    trackContributionControl(contributionSource(offered), "map", record.key, control);
-  }
+  const sheetHost = (action, actions) =>
+    contributionHost(
+      action.record,
+      {
+        accessibleLabel: [action.record.accessibleLabel, action.record.context]
+          .filter(Boolean)
+          .join(", "),
+        relatedControlIds: relatedControlIds(action, actions),
+      },
+      (control) => {
+        const { entry, offered, record } = action;
+        const workflow = entry.workflowCarrier;
+        syncContributionAgentWorkflow(
+          control,
+          workflow?.key === record.key && workflow.owner === record.owner
+            ? workflow.receipt
+            : record.workflowReceipt,
+        );
+        trackContributionControl(
+          contributionSource(offered),
+          "map",
+          record.key,
+          control,
+        );
+      },
+    );
 
   const sheetItemTemplate = (action) => html`
     <button
@@ -221,7 +231,7 @@ export function createPageMapDialog({
       data-lf-map-key=${action.key}
       data-lf-map-item=${action.item.id}
       aria-label=${[action.label, action.context].filter(Boolean).join(", ")}
-      .lfMapAction=${action}
+      ${contributionReceipts(action.item.workflowReceipt, Boolean(action.item.userAttention))}
       @click=${() => activateItem(action.item, action.entry)}
     >
       ${sheetFace(action)}
@@ -242,7 +252,7 @@ export function createPageMapDialog({
     return ids;
   }
 
-  const sheetControlTemplate = (action) => {
+  const sheetControlTemplate = (action, actions) => {
     const body = sheetFace(action);
     if (action.record.behavior === "status")
       return html`<span
@@ -250,7 +260,7 @@ export function createPageMapDialog({
         class="lf-page-map-action"
         data-lf-map-key=${action.key}
         data-lf-map-margin-entry=${action.key}
-        .lfMapAction=${action}
+        ${sheetHost(action, actions)}
         >${body}</span
       >`;
     return html`<button
@@ -259,7 +269,7 @@ export function createPageMapDialog({
       class="lf-page-map-action"
       data-lf-map-key=${action.key}
       data-lf-map-margin-entry=${action.key}
-      .lfMapAction=${action}
+      ${sheetHost(action, actions)}
       @click=${(event) => activateSheetControl(event, action)}
     >
       ${body}
@@ -280,7 +290,7 @@ export function createPageMapDialog({
           (action) =>
             action.kind === "item"
               ? sheetItemTemplate(action)
-              : sheetControlTemplate(action),
+              : sheetControlTemplate(action, group.actions),
         )}
       </div>
     </section>
@@ -301,11 +311,7 @@ export function createPageMapDialog({
         return [entry.key, passage ? says(passage) : ""];
       }),
     );
-    const groups = marginMapGroups(
-      entries,
-      (item) => KINDS[item.kind],
-      searchTextByKey,
-    );
+    groups = marginMapGroups(entries, (item) => KINDS[item.kind], searchTextByKey);
     render(
       html`${repeat(
         groups,
@@ -320,15 +326,6 @@ export function createPageMapDialog({
     for (const offered of trackedOffers)
       if (!liveOffers.has(offered))
         clearContributionControls(offered, "map", new Set());
-    const groupsByKey = new Map(groups.map((group) => [group.key, group]));
-    for (const control of dialogList.querySelectorAll(".lf-page-map-action")) {
-      const action = control.lfMapAction;
-      if (action.kind === "item") {
-        syncContributionAgentWorkflow(control, action.item.workflowReceipt);
-        syncContributionTurn(control, Boolean(action.item.userAttention));
-      } else
-        presentSheetControl(control, action, groupsByKey.get(action.entry.key).actions);
-    }
     for (const group of groups) {
       for (const offered of group.entry.offers)
         clearContributionControls(
@@ -388,19 +385,22 @@ export function createPageMapDialog({
         dialogList.scrollTop += groupBox.bottom - listBox.bottom;
     }
     const spilled = focusSpill ? openedFrom?.lfFirstSpilledOption : null;
-    const destination = focusSpill
-      ? [...(group?.querySelectorAll(".lf-page-map-action") ?? [])].find(
-          (button) =>
-            (button.lfMapAction?.record &&
-              button.lfMapAction.record.key === spilled?.record?.key &&
-              button.lfMapAction.record.owner === spilled?.record?.owner) ||
-            spilled?.choice?.items.some(
-              (item) =>
-                button.lfMapAction?.item &&
-                contributionItemKey(button.lfMapAction.item) ===
-                  contributionItemKey(item),
-            ),
+    const spilledAction = focusSpill
+      ? groups[index]?.actions.find(
+          (action) =>
+            (action.kind === "control" &&
+              action.record.key === spilled?.record?.key &&
+              action.record.owner === spilled?.record?.owner) ||
+            (action.kind === "item" &&
+              spilled?.choice?.items.some(
+                (item) =>
+                  contributionItemKey(action.item) === contributionItemKey(item),
+              )),
         )
+      : null;
+    const destination = focusSpill
+      ? spilledAction &&
+        group?.querySelector(`[data-lf-map-key="${CSS.escape(spilledAction.key)}"]`)
       : group?.querySelector(".lf-page-map-action");
     focusDestination(
       destination ??

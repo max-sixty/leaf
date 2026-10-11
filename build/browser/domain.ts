@@ -7,7 +7,7 @@ import type {
   BrowserCommand,
   CompleteUnion,
 } from "./event-contract.js";
-export type { Event, EventMap, BrowserCommand };
+export type { Event, BrowserCommand };
 import type { Immutable } from "./snapshot.ts";
 export type StateRecord =
   | { kind: "body" }
@@ -17,7 +17,7 @@ export interface ActionSpec {
   unit: string;
   record?: StateRecord;
   writer?: "user" | "agent";
-  update?: boolean;
+  report?: boolean;
   creates?: { child: string; [key: string]: unknown };
   detail?: object | boolean;
 }
@@ -31,7 +31,7 @@ export interface ContentVersion {
   message: string;
   version: string;
 }
-export type MessageEvent = CompleteUnion<EventMap["comment"] | EventMap["reply"]>;
+type MessageEvent = CompleteUnion<EventMap["comment"] | EventMap["reply"]>;
 export type LocalMessage = Extract<Command, { kind: "comment" | "reply" }> & {
   id: string;
   author: string;
@@ -39,7 +39,7 @@ export type LocalMessage = Extract<Command, { kind: "comment" | "reply" }> & {
   pending: true;
   plainText: string;
 };
-export type StreamingMessage = {
+type StreamingMessage = {
   id: string;
   attempt: string;
   key: string;

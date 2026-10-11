@@ -17,7 +17,7 @@ export type Immutable<T> =
         ? { readonly [K in keyof T]: Immutable<T[K]> }
         : T;
 
-export interface ApplicationSnapshot {
+interface ApplicationSnapshot {
   readonly document: unknown;
   readonly authoritative: unknown;
   readonly unresolved: readonly unknown[];
@@ -25,7 +25,7 @@ export interface ApplicationSnapshot {
   readonly semanticEpoch: number;
 }
 
-export interface SnapshotReading<T> {
+interface SnapshotReading<T> {
   read(): T;
   subscribe(listener: (value: T) => void): () => void;
 }

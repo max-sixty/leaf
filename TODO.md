@@ -71,8 +71,9 @@ has tried; settle that before building it.
   (2026-10-06): the panels dominate focus, so moving focus never closes or changes a
   standing panel, focus never lands on page content a panel covers, and Threads still
   stands beside a full-width workspace. A comment box already refuses a covered seat
-  (`underOccluder`, geometry.js). Tab still walks onto `annotation-workspace`'s rail
-  under Threads, or the Questions panel that shares its right edge, at 1440×900. Making what a panel covers inert was built and withdrawn: it left the visible
+  (`underOccluder`, geometry.js). Tab walked onto page content under Threads, or the
+  Questions panel that shares its right edge, at 1440×900 on an example since retired;
+  no surviving page has been checked for it. Making what a panel covers inert was built and withdrawn: it left the visible
   part of a partly covered element dead to clicks and selection, and focus still reached
   chrome markers, sample frames, overflowing children and content an attribute revealed.
   Decide between laying the page out in the width a panel leaves beside it, which
@@ -269,12 +270,12 @@ that changes size after first paint, with its cause.
   a synchronous source reading, or whether a summary can serve the reader who came
   to read it. The activity feed now opens log-sized rows deliberately and holds later
   growth with `HeldReading`.
-- **Decide the contents' form before first paint.** `lf-toc` changes size because the
-  margin pass decides after first paint whether it is the fixed map in the margin or
-  the outline in the flow (`data-lf-margin`, `margin-layout.js`), from the room
-  it measures at that point. A held summary does not answer that cause. Check first whether a
-  container or media query on the space beside the column can make the same decision
-  in CSS.
+- **Draw the contents before first paint.** `lf-toc` is written empty and builds its
+  list from the page's headings as its module upgrades, so it first paints with no box
+  and then takes its full one (`tests/known_widget_findings.py`). Residency
+  (`data-lf-margin`, prepaint.js) already decides its form before that paint; what is
+  left is an initial renderer (`lfInitial.register`) that draws the list from the
+  authored headings.
 - **Check that margin markers paint in place in their first frame.** The shift watch
   exempts the page until it is presented (`tests/shift_watch.js`), and #1603 records
   startup shifts only as diagnostics, so a marker drawn in the wrong place in its first
@@ -417,9 +418,10 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Product and harness ideas
 
-- **Learn how users prefer to dictate comments.** Observe whether people use
-  browser dictation, OS dictation, or their own dictation app. Defer a microphone
-  button until an unmet need justifies the extra visual noise in Leaf's text boxes.
+- **Link filenames to their repository context.** When a page or thread knows the
+  repository and revision, offer a GitHub source link for a filename such as
+  `AGENTS.md` rather than treating it as a web domain. Establish how that context
+  reaches Markdown before inferring a destination from the filename alone.
 
 - **Assess whether automatic measurement freshness is useful (#7 in the simplification audit).**
   Keep the current `lf-num` source/write-time reminder for now. Look for cases where

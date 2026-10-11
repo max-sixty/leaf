@@ -71,6 +71,7 @@ from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
+from leaf.refusals import Refused
 from leaf.registry.storage import read_page_registry, require_registry
 from leaf.render_gate import readings as render_gate_readings
 from leaf.served_state.context import read_page
@@ -159,7 +160,7 @@ def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
             )
         finally:
             release.set()
-        with pytest.raises(SystemExit, match="missing.js"):
+        with pytest.raises(Refused, match="missing.js"):
             replacing.result(timeout=STATED_TIMEOUT)
         activated = activating.result(timeout=STATED_TIMEOUT)
     assert activated.revision == first and not activated.created
@@ -176,7 +177,7 @@ def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
     assert artifact_model.read_artifact(page_dir, first).resources[
         "/page/a.js"
     ].data == (b"export const a = 1;")
-    with pytest.raises(SystemExit, match="authored inputs changed"):
+    with pytest.raises(Refused, match="authored inputs changed"):
         publishing_model.cmd_stamp(
             page_dir, "Stale", from_directory=candidate, if_source=expected
         )
@@ -2357,7 +2358,7 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
         page_dir,
         {"kind": "comment", "id": "c1", "author": "agent", "revision": 1, "text": "?"},
     )
-    with pytest.raises(SystemExit) as refused:
+    with pytest.raises(Refused) as refused:
         thread_model.post_reply(
             page_dir,
             "c1",
@@ -2368,7 +2369,7 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
         )
     assert "'r1' does not match" in str(refused.value)
 
-    with pytest.raises(SystemExit) as unknown_widget:
+    with pytest.raises(Refused) as unknown_widget:
         thread_model.cmd_report(page_dir, "no-such-widget", "status", ())
     assert "unknown report widget 'no-such-widget'" in str(unknown_widget.value)
 
@@ -2994,7 +2995,7 @@ def test_absorption_is_by_id_never_inferred_from_markup(page_dir):
     _tasks_version(page_dir, "done")
     result = check(page_dir)
     assert result.exit_code == 0, result.output
-    assert state_json(page_dir)["updates"][0]["disposition"] == "effective"
+    assert state_json(page_dir)["reports"][0]["disposition"] == "effective"
 
 
 def test_user_added_words_do_not_become_liveness_coordinates(page_dir):
@@ -4408,8 +4409,8 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
 
 
 def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
-    """A standing report updates task status without creating user work, stands in
-    the canonical update feed, and remains there as settled history when a note
+    """An unsettled report changes task status without creating user work, appears
+    in the canonical report feed, and remains there as settled history when a note
     absorbs it."""
     tasks = (
         '<lf-test-tasks id="work"><lf-test-task id="t-parser" status="review">'
@@ -4434,7 +4435,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
     )
     state = state_json(page_dir)
     assert questions_on_you(state) == []
-    assert state["updates"] == [
+    assert state["reports"] == [
         {
             "id": rep["id"],
             "target": {"kind": "widget", "id": "t-parser"},
@@ -4473,7 +4474,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
         },
     )
     state = state_json(page_dir)
-    assert state["updates"] == [
+    assert state["reports"] == [
         {
             "id": rep["id"],
             "target": {"kind": "widget", "id": "t-parser"},
@@ -4492,7 +4493,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
     assert questions_on_you(state) == []
 
 
-def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
+def test_report_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
     """Reports are ordered by the log, so equal second-precision timestamps cannot
     reverse their known causal order."""
     task = (
@@ -4528,8 +4529,8 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
         },
     )
 
-    updates = state_json(page_dir)["updates"]
-    assert [(update["source"], update["id"]) for update in updates] == [
+    reports = state_json(page_dir)["reports"]
+    assert [(report["source"], report["id"]) for report in reports] == [
         ("report", first["id"]),
         ("report", second["id"]),
     ]
@@ -5044,6 +5045,176 @@ def test_held_revision_readings_stay_within_their_source_budget(page_dir, monkey
         assert artifact_model.read_revision(page_dir, revisions[0]) is not readings[0]
 
 
+def test_question_history_survives_parse_eviction_and_new_revisions(
+    page_dir, monkeypatch
+):
+    """A retry or new version reuses completed historical registration work.
+
+    A history larger than the parse cache used to parse every predecessor on every
+    read. Count parses rather than time, so contention cannot change the result.
+    """
+    from leaf.work_reading import WorkReading
+
+    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    for edit in range(4):
+        (page_dir / "index.html").write_text(
+            (source if edit == 0 else source.replace(" choose", "")).replace(
+                "</main>", f"<p>edit {edit}</p></main>"
+            )
+        )
+        activated = revisioning_model.activate_source(page_dir)
+        assert activated.error is None, activated.error
+
+    monkeypatch.setattr(artifact_model._Readings, "BUDGET", 1)
+    parsed = []
+    native = artifact_model.SourceDocument
+
+    def counted(data):
+        parsed.append(data)
+        return native(data)
+
+    monkeypatch.setattr(artifact_model, "SourceDocument", counted)
+
+    def read():
+        revisions = files_model.list_revisions(page_dir)
+        events = events_model.read_events(page_dir)
+        reading = artifact_model.read_revision(page_dir, revisions[-1])
+        page = projection_model.page_reading(
+            reading,
+            events,
+            revisions[-1],
+            revisions=revisions,
+            revision_reader=lambda revision: artifact_model.read_revision(
+                page_dir, revision
+            ),
+        )
+        return WorkReading(events, reading.registry, page).document.questions
+
+    with fresh_process():
+        initial = read()
+        assert len(parsed) == 4
+        assert initial["all"][0]["status"] == "withdrawn"
+        parsed.clear()
+        assert read() == initial
+        assert len(parsed) <= 1  # the active revision may have been evicted
+        (page_dir / "index.html").write_text(
+            source.replace(" choose", "").replace("</main>", "<p>new</p></main>")
+        )
+        activated = revisioning_model.activate_source(page_dir)
+        assert activated.error is None, activated.error
+        parsed.clear()
+        assert read() == initial
+        assert len(parsed) <= 1
+        kept = page_memory_model.memo(page_dir, artifact_model._CompactReadings)
+        assert kept.size <= kept.BUDGET
+
+
+def test_data_history_survives_parse_eviction_with_captured_scopes_and_contracts(
+    page_dir, monkeypatch
+):
+    """Repeated source checks reuse history without changing binding identity.
+
+    Nested samples retain their own id spaces, old layers retain their contracts,
+    and a newly captured layer owns the current producer's binding.
+    """
+    declare_data_input(
+        page_dir, "project-feed", {"type": "array"}, contract="rows", activate=False
+    )
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    source = (
+        (page_dir / "index.html")
+        .read_text()
+        .replace(
+            "</main>",
+            '<lf-sample id="outer" window><template id="outer-page" data-sample>'
+            '<lf-sample id="inner" window><template id="inner-page" data-sample>'
+            '<lf-test-data id="test-data" source="project-feed"></lf-test-data>'
+            "</template></lf-sample></template></lf-sample></main>",
+        )
+    )
+    for revision in range(1, 4):
+        write_revision(page_dir, revision, source.encode())
+    registry["$data"]["contracts"]["current-rows"] = registry["$data"]["contracts"][
+        "rows"
+    ]
+    registry["lf-test-data"]["x-data"]["data"]["contract"] = "current-rows"
+    registry_path.write_text(json.dumps(registry))
+    write_revision(page_dir, 4, source.encode())
+    append_command(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "frozen-data",
+            "revision": 1,
+            "author": "agent",
+            "text": "The captured feed.",
+            "markup": '<lf-test-data id="reply-data" source="project-feed"></lf-test-data>',
+        },
+    )
+    events = events_model.read_events(page_dir)
+    monkeypatch.setattr(artifact_model._Readings, "BUDGET", 1)
+    parsed = []
+    native = artifact_model.SourceDocument
+
+    def counted(data):
+        parsed.append(data)
+        return native(data)
+
+    monkeypatch.setattr(artifact_model, "SourceDocument", counted)
+
+    def read():
+        """The same immutable binding readings serve checks and producer inventory."""
+        documents = data_contracts_model.page_data_document_readings(
+            page_dir, events, registry
+        )
+        bindings, errors = data_contracts_model.merge_data_document_readings(documents)
+        return documents, bindings, errors
+
+    with fresh_process():
+        documents, bindings, errors = read()
+        assert len(parsed) == 4
+        assert bindings == {"project-feed": "current-rows"} and errors == []
+        assert [
+            data_contracts_model.declared_data_bindings(records, captured)[0][
+                "project-feed"
+            ]
+            for records, label, captured in documents
+            if label in {"revision r1", "revision r4", "event 'frozen-data' markup"}
+        ] == ["rows", "rows", "current-rows"]
+        expected = {
+            "project-feed": {
+                "contract": "current-rows",
+                "consumers": [
+                    {"widget": "test-data", "input": "data", "document": label}
+                    for label in (
+                        "revision r4 sample 'outer-page' sample 'inner-page'",
+                        "revision r4",
+                    )
+                ],
+            }
+        }
+        parsed.clear()
+        assert read() == (documents, bindings, errors)
+        assert (
+            data_contracts_model.page_data_binding_inventory(page_dir, registry, events)
+            == expected
+        )
+        assert parsed == []
+        write_revision(page_dir, 5, source.encode())
+        parsed.clear()
+        assert read()[1:] == (bindings, errors)
+        expected["project-feed"]["consumers"].extend(
+            {**consumer, "document": consumer["document"].replace("r4", "r5")}
+            for consumer in expected["project-feed"]["consumers"][:]
+        )
+        assert (
+            data_contracts_model.page_data_binding_inventory(page_dir, registry, events)
+            == expected
+        )
+        assert len(parsed) <= 1
+
+
 def test_a_process_keeps_the_pages_it_read_most_recently(page_dir):
     """A process keeps what it read of the last few pages it read, so one that reads
     many, such as the website or a test worker, holds a bounded amount however many
@@ -5236,6 +5407,8 @@ def test_a_unified_diff_capture_refuses_a_line_range(tmp_path):
 def test_markdown_body_file_words_match_the_shared_browser_dialect(case):
     from html import escape
 
+    import turbohtml
+
     document = structure_model.SourceDocument(
         f'<main><lf-draft id="note"><pre>{escape(case["source"])}</pre></lf-draft></main>'
     )
@@ -5247,6 +5420,10 @@ def test_markdown_body_file_words_match_the_shared_browser_dialect(case):
         }
     }
     assert passages_model.page_passages(document, registry).text == case["words"]
+    rendered = turbohtml.parse(passages_model.markdown_markup(case["source"]))
+    assert [
+        {"text": link.text, "href": link.attrs["href"]} for link in rendered.select("a")
+    ] == case["links"]
 
 
 @pytest.mark.parametrize("source", ["    code", "A ", "A\n", "A  \nB", "\nA"])

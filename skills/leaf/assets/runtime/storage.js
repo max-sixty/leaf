@@ -17,12 +17,32 @@ export const LIVE_ROOT = PAGE_PATH.endsWith("/");
 // has no server and no link, so no root: the file is the page.
 export const PAGE_ROOT =
   document.querySelector('link[rel="canonical"][data-lf-runtime]')?.href ?? null;
+// How a server delivered this document: the runtime script it adds to every document it
+// serves (http.py) names the layer and release the document belongs to, the probe its
+// source answers, and a keyed transport's share address. An interactive export carries
+// no such script. Its own marker (context.js) shares only `data-lf-entry`, the seam a
+// harness finds either delivery by.
+const served = document.querySelector(
+  "script[data-lf-runtime][data-lf-server]",
+)?.dataset;
+export const DELIVERY = Object.freeze({
+  layer: served?.lfLayer,
+  release: served?.lfRelease,
+  probe: served?.lfProbe,
+});
+// The public website declares the release it serves; a local server declares none.
+export const WEBSITE_DELIVERY = DELIVERY.release !== undefined;
+// Where a delivered document's layer, and so its captured resources, is addressed: the
+// directory its registry probe names, the revision's own root, as the document writes
+// it. Empty where nothing declared one, and the layer is at the document's own root.
+export const layerRoot = (doc) =>
+  doc
+    .querySelector("script[data-lf-runtime][data-lf-probe]")
+    ?.dataset.lfProbe.replace(/registry\.json$/, "") ?? "";
 // A keyed transport declares its share address even on a cookie-authorized reload.
 // Samples and the public website have no share address. Preserve the current
 // version path, query and passage while taking access from the transport's URL.
-export const SHARE_ROOT = document.querySelector(
-  "script[data-lf-runtime][data-lf-server]",
-)?.dataset.lfShareUrl;
+export const SHARE_ROOT = served?.lfShareUrl;
 export function shareUrl() {
   const url = new URL(SHARE_ROOT);
   url.pathname = location.pathname;
@@ -72,12 +92,6 @@ export const tabStore = initialTabStore;
 const views = (holder) => holder.ownerDocument.documentElement.lfViews;
 export const openingView = (holder, members) => views(holder).opening(holder, members);
 export const keepView = (holder, member) => views(holder).keep(holder, member);
-// What the author wrote: the early coordinator restores original widget sources
-// before copying and takes off its marks and delivery's placeholders (version.js).
-export const unmarkedCopy = (node) =>
-  (
-    node.ownerDocument?.documentElement?.lfInitial ?? document.documentElement.lfInitial
-  ).authoredCopy(node);
 export const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
 // The delivery declares a child page's private user scope. Bootstrap reads the
 // same fact before this module loads; neither derives it from the viewed revision.

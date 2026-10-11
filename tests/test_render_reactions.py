@@ -1783,7 +1783,7 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     expect(control).to_have_count(1)
     page.evaluate(
         """() => {
-          const oldPart = document.querySelector('#flow g[data-id="S"]');
+          const oldPart = document.querySelector('#flow').visualParts.get('node:S').element;
           const newPart = oldPart.cloneNode(true);
           // Marked, so the rebuild is a different part and not the same one written
           // again.
@@ -1795,7 +1795,7 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
           });
         }"""
     )
-    part = page.locator('#flow g[data-id="S"][data-rebuilt]')
+    part = page.locator("#flow [data-rebuilt]")
     expect(part).not_to_be_in_viewport()
     page.locator("#folded").evaluate("fold => { fold.open = false; }")
 
@@ -2021,10 +2021,14 @@ def test_dragging_a_diagram_label_keeps_the_passage_and_plain_click_dismisses_it
     )
 
     expect(page.locator(".lf-fab-bar")).to_be_visible()
-    assert "Start request" in pending_text(page)
+    # Mermaid may wrap the label across lines. The drag targets one visual line,
+    # so the browser's native selection is the passage this gesture must keep.
+    selected = " ".join(page.evaluate("() => getSelection().toString()").split())
+    assert selected
+    assert selected in pending_text(page)
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
     expect(page.locator(".lf-fab-bar")).to_have_attribute(
-        "aria-label", re.compile("Start request")
+        "aria-label", re.compile(re.escape(selected))
     )
 
     # Repeating the same drag still counts as a selection gesture even though the final
@@ -2037,9 +2041,10 @@ def test_dragging_a_diagram_label_keeps_the_passage_and_plain_click_dismisses_it
     )
     # The repeated drag remains a native selection and restores its response surface.
     page.wait_for_function(
-        "() => [...(CSS.highlights.get('lf-pending') ?? [])].some(r => r.toString().includes('Start request'))"
+        "text => [...(CSS.highlights.get('lf-pending') ?? [])].some(r => r.toString().includes(text))",
+        arg=selected,
     )
-    assert "Start request" in pending_text(page)
+    assert selected in pending_text(page)
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
 
     # Plain click keeps its native meaning: it collapses the selection and the response

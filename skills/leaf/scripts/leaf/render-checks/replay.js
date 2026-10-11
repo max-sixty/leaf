@@ -1,5 +1,8 @@
-import { shallowSigs } from "/runtime/widget-api.js";
-import { exceptionText, validationWidgetStates } from "/runtime/check-api.js";
+import {
+  exceptionText,
+  shallowSigs,
+  validationWidgetStates,
+} from "/runtime/check-api.js";
 import { at } from "./locate.js";
 
 // The complete renderer must be idempotent. Invoke it directly rather than the

@@ -10,6 +10,7 @@ from copy import deepcopy
 from pathlib import Path
 
 from leaf.files import file_stamp, next_reading, read_json
+from leaf.refusals import Refused
 from leaf.schema import CURSOR_FILE
 from leaf.state import EVENTS_FILE, flocked, now_iso
 
@@ -44,34 +45,14 @@ def jsonl_line(event: dict) -> str:
     return line
 
 
-class EventRefused(ValueError):
+class EventRefused(Refused):
     """The append door turned one event down, with what to do about it.
 
     Raised by `event_contracts.append_admitted`, the one door every writer
-    appends through. It lives beside the log rather than beside the gates so that
-    a layer between a writer and the file — `contract_writer`, which answers a
-    command's refusal — can name one without importing the contracts. `user` is
-    what the browser shows the person whose gesture it was: the reason itself,
-    unless the gate worded it for them (`Refusal`)."""
-
-    def __init__(self, reason: str):
-        super().__init__(reason)
-        self.user = getattr(reason, "user", reason)
+    appends through, and answered by the browser's endpoint as an event rejection."""
 
 
-class Refusal(str):
-    """A gate's reason with separate words for the user whose gesture it refuses,
-    where the reason names internals that user never sees."""
-
-    user: str
-
-    def __new__(cls, reason: str, user: str):
-        refusal = super().__new__(cls, reason)
-        refusal.user = user
-        return refusal
-
-
-class AttemptConflict(ValueError):
+class AttemptConflict(Refused):
     """One browser attempt was reused for a different event payload."""
 
 
@@ -285,4 +266,4 @@ def cmd_events(page_dir: Path, after: int, *, follow: bool = False) -> None:
         os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
         sys.exit(0)
     except FileNotFoundError as error:
-        sys.exit(str(error))
+        raise Refused(str(error))

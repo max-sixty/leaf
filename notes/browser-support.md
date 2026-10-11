@@ -62,6 +62,24 @@ what fails and what still works.
 
 ## Known gaps
 
+### Browser dictation in comment boxes
+
+- **Owner:** `runtime/composing/input.js` and `runtime/composing/dictation.js`.
+  Empty comment and reply boxes offer dictation only when the browser exposes
+  `SpeechRecognition` or `webkitSpeechRecognition`.
+- **Compatibility checked 2026-10-11:** [MDN marks speech recognition as limited
+  availability](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition).
+  Availability of the interface does not establish microphone permission or
+  access to the browser's recognition service.
+- **Observed:** installed Chrome 155.0.8059.39 exposes the interface and begins
+  listening. A standalone test with synthetic microphone audio ended with
+  `no-speech`; successful real transcription remains unverified. The Codex
+  embedded browser reported `network` in the user's trial. Deterministic native
+  event tests separately cover transcripts, failure recovery and cancellation.
+- **Disposition:** progressive enhancement. Browsers without the interface keep
+  ordinary typing and Send. A failed attempt stays inside the empty field; words
+  already heard remain editable and sendable.
+
 ### Native focus and scrolling inside samples
 
 - **Impact: functional; Leaf-owned navigation is contained.** An opaque
@@ -187,30 +205,41 @@ what fails and what still works.
 
 ### State-preserving content reordering (review #22)
 
-- **Impact: functional; support decision open.** Reordering retained content
-  calls `moveBefore` without a capability check. On an engine without that API,
-  the reorder throws `TypeError: parent.moveBefore is not a function`. This is
-  more than a layout difference. A page that has not reached that operation may
-  still render; Leaf currently has no explanatory startup refusal.
-- **Owner:** [`order` in `dom-children.js`](../skills/leaf/assets/runtime/dom-children.js),
-  shared by authored revisions and renderer child reconciliation.
-- **Browser support, checked 2026-10-08:** Chrome/Edge 133+ and Firefox 144+
+- **Impact: state preservation; functional fallback implemented.** Retained-node
+  reordering uses [`move` in `dom-move.js`](../skills/leaf/assets/runtime/dom-move.js).
+  Within one composed root it uses `moveBefore` when available; new nodes,
+  cross-root transfers, and engines without the API use `insertBefore`.
+- **Consumers:** authored revisions and renderer child reconciliation, board
+  placement, the vendored Sortable move sites, and lit-html’s keyed and child-part
+  insertions. Both vendor adaptations fail if their pinned upstream seams change.
+- **Browser support, checked 2026-10-10:** Chrome/Edge 133+ and Firefox 144+
   support the API. Safari, including iOS Safari, is listed as unsupported in
   [MDN's compatibility data](https://developer.mozilla.org/en-US/docs/Web/API/Element/moveBefore#browser_compatibility).
   The [WebKit implementation tracker](https://bugs.webkit.org/show_bug.cgi?id=281223)
-  remains open.
-- **Observed:** Playwright 1.63.0's WebKit 26.6 lacks the API, and a connected
-  reorder through Leaf's `setChildren` throws and fails to reorder. The Codex
-  browser pane tested on the same date reports Chrome 155 and exposes the API;
-  it is distinct from the WebKit test browser.
-- **Reason for the dependency:** native moves preserve embedded iframe documents
-  and focus. Removing and reinserting the same node can reset that browser state,
-  so an `insertBefore` fallback cannot provide the same guarantee. See the
+  tracks the missing native capability.
+- **Observed:** the focused browser test
+  `test_retained_moves_keep_native_editor_and_frame_state` exercises retained-node
+  ordering and direct placement in Chrome, including named form controls. Native
+  moves retain focus, caret, typed text, and the embedded iframe document without a
+  blur. Disabling the capability exercises ordinary insertion with explicit focus
+  retention. Playwright's WebKit 26.6 has no `moveBefore`; a direct probe confirms
+  retained nodes reorder and a new fragment arrives through the shared primitive.
+- **Lit adoption:** `build/browser/build.mjs` routes keyed and child-part moves
+  through the shared primitive, including the initial root marker so named form
+  controls cannot shadow native insertion. The Chrome test above exercises both
+  child reconciliation and Lit rendering, with native moves and forced fallback.
+  The thread list retains the measured allocation of a passively withdrawn root
+  while its removal would disturb the reader. It disconnects the former content
+  and shows “Thread withdrawn” with Dismiss; counts and navigation reflect current
+  threads. Selection stays with that allocation until dismissal, another choice,
+  a view change, or safe departure. Complete-list rollback restores native content
+  and editors from the same committed reading.
+- **Fallback limit:** insertion reorders content but can blur a focused descendant
+  and reload an iframe. Leaf’s focus-holding `render` wrapper remains for these
+  engines; it restores focus and caret,
+  but cannot preserve iframe documents. The native guarantee for Leaf's retained
+  moves is described in the
   [API's state-preservation contract](https://developer.mozilla.org/en-US/docs/Web/API/Element/moveBefore#description).
-- **Next decision:** retain the native capability requirement with a clear
-  explanation in unsupported browsers, or redesign content placement to preserve
-  state without it. Requiring the capability is the current recommendation;
-  a blanket Safari exclusion has not been approved or implemented.
 
 To check the installed test engine without downloading a browser:
 

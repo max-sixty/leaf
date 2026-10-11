@@ -94,7 +94,19 @@ export function registerContribution({ key, target, source = target, read, activ
     throw new TypeError("A contribution needs a read function");
   if (activate !== undefined && typeof activate !== "function")
     throw new TypeError("A contribution needs an activate function");
-  const offered = { key: owner, target, source, read, activate, reading: null };
+  // A target is an element or a function returning the one that anchors the action
+  // now; consumers call it each time, so a function target follows its live anchor.
+  const targetOf = typeof target === "function" ? target : () => target;
+  const sourceOf =
+    source === target ? targetOf : typeof source === "function" ? source : () => source;
+  const offered = {
+    key: owner,
+    target: targetOf,
+    source: sourceOf,
+    read,
+    activate,
+    reading: null,
+  };
   publishReading(offered);
   contributions.add(offered);
   changed();

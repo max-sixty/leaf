@@ -9,6 +9,17 @@ export const overlaps = (a, b) =>
 // Whether two boxes share any column: they would collide if they stood level.
 export const overlapsAcross = (a, b) => a.left < b.right && b.left < a.right;
 
+// The part of `a` inside `b`, cut only on the axes given. Where the edges cross the result
+// has no area (`hasArea`); callers that need an empty box as nothing ask that.
+const BOTH = { x: true, y: true };
+export const intersect = (a, b, axes = BOTH) => ({
+  left: axes.x ? Math.max(a.left, b.left) : a.left,
+  top: axes.y ? Math.max(a.top, b.top) : a.top,
+  right: axes.x ? Math.min(a.right, b.right) : a.right,
+  bottom: axes.y ? Math.min(a.bottom, b.bottom) : a.bottom,
+});
+export const hasArea = (box) => box.right > box.left && box.bottom > box.top;
+
 // The box that covers every one of some boxes, or null for none.
 export function union(boxes) {
   if (!boxes.length) return null;

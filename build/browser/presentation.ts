@@ -10,15 +10,15 @@
 
 import { signal } from "@preact/signals-core";
 
-export type PresentationOutcome = "presented" | "superseded";
-export type PresentationStatus = "committed" | "failed";
+type PresentationOutcome = "presented" | "superseded";
+type PresentationStatus = "committed" | "failed";
 
-export interface PresentationPublication<DocumentToken extends object> {
+interface PresentationPublication<DocumentToken extends object> {
   readonly document: DocumentToken;
   readonly semanticEpoch: number;
 }
 
-export interface PresentationCommit<
+interface PresentationCommit<
   DocumentToken extends object,
   Region,
   Renderer extends object,
@@ -36,7 +36,7 @@ export interface PresentationCommit<
   readonly proof: Proof | undefined;
 }
 
-export interface PresentationReading<DocumentToken extends object, Region> {
+interface PresentationReading<DocumentToken extends object, Region> {
   readonly document: DocumentToken | null;
   readonly semanticEpoch: number;
   readonly presentedEpoch: number;
@@ -44,7 +44,7 @@ export interface PresentationReading<DocumentToken extends object, Region> {
   readonly pending: readonly Region[];
 }
 
-export interface PresentationHandle<Value, Proof> {
+interface PresentationHandle<Value, Proof> {
   present(
     value: Value,
     completion: PromiseLike<Proof> | Proof,
@@ -608,7 +608,7 @@ export function createPresentationCoordinator<
  */
 export const PRESENTATION_HELD = Symbol("presentation held");
 
-export interface EpochPresenter<Value> {
+interface EpochPresenter<Value> {
   /** Claim this value's ticket now and paint it on the pass that follows. */
   sync(value: Value): Promise<void>;
   /** Retire this renderer: release what it holds and leave the region to its successor. */

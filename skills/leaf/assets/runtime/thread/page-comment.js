@@ -175,6 +175,9 @@ export function createPageComment({
       },
     });
     sync();
+    card.addEventListener("beforetoggle", (event) => {
+      if (event.newState === "closed") sync.cancelDictation();
+    });
     stops.push(
       mirrorDraft(input, sync, "general", {
         resume: () => ({ where: input, input: () => input, open }),
@@ -192,6 +195,7 @@ export function createPageComment({
     sync: () => sync(),
     mount,
     dispose: () => {
+      sync.cancelDictation?.();
       for (const stop of stops) stop();
     },
   };

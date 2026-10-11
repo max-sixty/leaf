@@ -6202,12 +6202,15 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
 
 
 def test_widget_errors_keep_exception_evidence(browser, serve):
-    """The user sees a short error while the agent retains the actual throw site."""
+    """A failed Lit paint can recover; the agent retains the actual throw site."""
     page = open_page(browser, data_projection_page(serve))
     page.evaluate(
         """async () => {
           const {failSoft} = await window.__lfRuntimeImport('/runtime/widget-upgrade.js');
+          const {html, render} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const widget = document.querySelector('lf-feed');
+          window.paintRecoveredWidget = text => render(html`<p>${text}</p>`, widget);
+          window.paintRecoveredWidget('Before failure');
           function widgetProjection() { throw new TypeError('projection rejected'); }
           let error;
           try { widgetProjection(); } catch (caught) { error = caught; }
@@ -6231,6 +6234,9 @@ def test_widget_errors_keep_exception_evidence(browser, serve):
         if event["kind"] == "error"
     ]
     assert any("widgetProjection" in error for error in agent_errors), agent_errors
+    page.evaluate("window.paintRecoveredWidget('Recovered reading')")
+    expect(page.locator("lf-feed")).to_have_text("Recovered reading")
+    expect(page.locator("lf-feed .lf-error")).to_have_count(0)
 
 
 def test_unchanged_source_waits_for_its_inflight_render(browser, serve):

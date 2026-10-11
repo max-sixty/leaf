@@ -9,5 +9,25 @@
     "x-shadow": true,
     "x-upgrade": true,
     "x-example": "<lf-conversation-workspace id=\"reader-example\"></lf-conversation-workspace>"
+  },
+  "lf-margin-entry-gallery": {
+    "description": "A developer exhibit of page-edge controls and status indicators across their supported states.",
+    "x-instructions": "Use this only in the feature gallery. Ordinary pages demonstrate controls through the live widgets that own them.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "required": [
+      "id"
+    ],
+    "additionalProperties": false,
+    "x-content": "empty",
+    "x-exhibit": true,
+    "x-upgrade": true,
+    "x-example": "<lf-margin-entry-gallery id=\"margin-entry-gallery\"></lf-margin-entry-gallery>",
+    "x-initial": "/page/margin-entry-gallery-initial.js"
   }
 }

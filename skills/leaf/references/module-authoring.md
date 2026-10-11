@@ -86,6 +86,17 @@ user outside it waits on the page rather than on a widget it would have to know 
 A declared `x-shadow` widget gets the same transition protection when it builds its root
 with `shadowStage`.
 
+## Template containers
+
+Once `render(template, container)` owns a container, update its children through
+`render` so Lit retains its markers and disconnects removed directives. `failSoft`
+resets the container and renders an error box; a later template render replaces
+that box. It also supports native recovery and repeated failures.
+
+`shadowStage(host, nodes)` owns the shadow root's structure and styles. For a
+template, stage a concrete container with `shadowStage(host, [container])` and
+call `render(template, container)`. Retain that container on later stage updates.
+
 ## What a behavior module owes
 
 A behavior module follows these rules:
@@ -180,10 +191,14 @@ validated source markup; `state` is that baseline with admitted and unresolved r
 folded over it; `thread.heldBy` is the `id` of the open, admitted Thread whose root
 holds this widget, or `null`. Each `actions` entry carries its availability and
 exact history or Undo candidates. Guard every optimistic mutation with its entry's
-availability; `dispatch()` repeats the same check.
+availability; `dispatch()` repeats the same check. Before document adoption, the
+snapshot can lack authored and state values; while `defer()` holds presentation, it
+can be newer than the rendered view. Draw auxiliary semantic UI from the complete
+reading passed to `subscribe`, retaining it across local control repaints.
 
-Call `subscribe(callback)` once during the widget's initialization. It invokes
-immediately while connected and returns cleanup for retiring the callback itself.
+Call `subscribe(callback)` once during the widget's initialization. It calls the
+callback with the complete reading while connected and returns cleanup for retiring
+the callback itself. A node connecting before document adoption waits for that reading.
 The controller retains callbacks across removal: it stops semantic updates and releases
 presentation regions while detached, then paints the latest reading and restores
 preparation proof when the same owner reconnects. No unsubscribe or resubscribe belongs

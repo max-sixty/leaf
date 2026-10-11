@@ -4,7 +4,6 @@ import ipaddress
 import os
 import re
 import secrets
-import sys
 import time
 from pathlib import Path
 
@@ -13,6 +12,7 @@ from .files import read_json
 from .leases import lock_is_held
 from .machine import state_home
 from .page_memory import memory_of
+from .refusals import Refused
 from .schema import (
     ORPHAN_GRACE_SECS,
     PREVIEW_FILE,
@@ -187,7 +187,7 @@ def page_access(page_dir: Path, host: str | None = None) -> dict:
             ipaddress.ip_address(host)
         except ValueError:
             if not re.fullmatch(r"[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?", host):
-                sys.exit(
+                raise Refused(
                     f"--host {host}: not a hostname or IP address "
                     "(no scheme, no port — leaf picks the port)"
                 )

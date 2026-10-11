@@ -7606,6 +7606,25 @@ def test_a_scroll_box_inside_a_widgets_shadow_tree_takes_the_keyboard(browser, s
     )
 
 
+def test_a_hidden_control_does_not_take_a_scroll_boxes_keyboard_route(browser, serve):
+    markup = leaf_page(
+        "Hidden control in scroll box",
+        '<h1>Review</h1><a id="before" href="#scroll">Read code</a>'
+        '<div id="scroll" style="width:220px; overflow-x:auto; white-space:nowrap">'
+        '<button style="visibility:hidden">Unavailable</button>'
+        "<span>alpha_function_name = compute_the_overly_long_value(first_argument, second_argument)</span>"
+        "</div>",
+    )
+    page = open_page(browser, serve(markup))
+    box = page.locator("#scroll")
+    assert box.evaluate("el => el.scrollWidth > el.clientWidth")
+    expect(box).to_have_attribute("tabindex", "0")
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(box).to_be_focused()
+    assert box.evaluate("el => el.matches(':focus-visible')")
+
+
 def test_a_comment_on_a_scrolling_box_leaves_its_tab_stop_alone(browser, serve):
     """A box already holding a control of its own needs no stop of the sweep's: the
     user reaches what is out of sight through the control. A comment on the box adds

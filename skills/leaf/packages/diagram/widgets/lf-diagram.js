@@ -167,7 +167,7 @@ customElements.define(
         // needs the reason without copying the authored body into the log.
         const reportError =
           err?.name === "UnknownDiagramError"
-            ? new Error("No diagram type detected matching given configuration")
+            ? "No diagram type detected matching given configuration"
             : err;
         failSoft(this, reportError, source);
       }

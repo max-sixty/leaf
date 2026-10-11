@@ -147,7 +147,9 @@ def _projected_verbatim(document, registry, projection, authored_ids, source):
     ).verbatim
 
 
-def _expected_verbatim(markup, events, registry, here, registry_for_revision):
+def _expected_verbatim(
+    markup, events, registry, here, registry_for_revision, available_revisions
+):
     """Expected preserving-owner readings in the page and frozen thread.
 
     Page actions are bounded by the immutable revision being rendered. Frozen message
@@ -162,7 +164,11 @@ def _expected_verbatim(markup, events, registry, here, registry_for_revision):
         page.document.ids,
         ("page", None),
     )
-    thread = frozen_thread_reading(events, registry_for_revision)
+    thread = frozen_thread_reading(
+        events,
+        registry_for_revision,
+        available_revisions=available_revisions,
+    )
     for event_id, fragment in thread.structure.fragments.items():
         expected.update(
             _projected_verbatim(
@@ -186,6 +192,7 @@ def _verbatim_findings(context: _SchemeContext) -> list[str]:
         context.registry,
         context.here,
         context.registry_for_revision,
+        {int(revision) for revision in context.state["vocabularies"]},
     )
     findings = []
     for reading in shown:

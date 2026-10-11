@@ -51,7 +51,7 @@ from leaf.revision_delivery import (
 )
 from leaf.served_state.service import PageStateService
 from leaf.structure import UTF8_BOM, SourceDocument
-from leaf.thread_context import logged_fragment
+from leaf.thread_context import effective_thread_events, logged_fragment
 
 ResourceReader = Callable[[str], Resource]
 
@@ -305,9 +305,11 @@ def export_document(
         str(publication): "/revisions/" + artifact_name(publication, captured)
         for publication, captured in publications.items()
     }
+    events = effective_thread_events(state["events"], publications)
+    state = {**state, "events": events}
     markup = {publication: [] for publication in publications}
     markup[revision].append(document)
-    for event in state["events"]:
+    for event in events:
         if event.get("markup"):
             markup[event["revision"]].append(logged_fragment(event))
     resources, pending = _export_resources(

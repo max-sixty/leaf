@@ -4374,6 +4374,251 @@ def test_a_resolution_from_elsewhere_moves_nothing_after_a_diff_thread(browser, 
     expect(thread).not_to_have_attribute("open", "")
 
 
+def long_diff_thread(serve):
+    """Serve a diff long enough for its file header to stick, with a user's thread on
+    its first line, and return the page's URL and the thread's id."""
+    lines = "".join(f" line {number}\n" for number in range(2, 80))
+    url = serve(
+        leaf_page(
+            "a long diff thread",
+            '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'
+            "<pre></pre></lf-diff><p>Reading the paragraph after the diff.</p>",
+        )
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1,79 +1,79 @@\n"
+        f'-return "old"\n+return "new"\n{lines}',
+    )
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Keep this check beside the changed line.",
+            "anchor": {
+                "section": "patch",
+                "datum": '["app.py","new",1]',
+                "source": "review-patch",
+                "source_revision": source_revision(serve.page_dir, "review-patch"),
+            },
+        },
+    )["id"]
+    return url, root
+
+
+@pytest.mark.parametrize("foot", ["under the banner", "under the file header"])
+def test_diff_news_waits_only_where_its_growth_would_be_seen(browser, serve, foot):
+    """A diff thread's new reply waits only where its growth would move what is seen.
+
+    A reply grows the thread at its last message's foot. With that foot under the
+    banner, scroll anchoring takes the growth into what was scrolled past, so the reply
+    shows at once. With it under the diff's stuck file header, which reaches lower than
+    the landing band the page anchors in, the growth would push down the lines below
+    the header, so the reply waits behind its notice, and shows once a scroll carries
+    the thread under the banner. Either way the line the user reads stays put."""
+    url, root = long_diff_thread(serve)
+    page = open_page(browser, url)
+    resized(page, 1280, 800)
+    thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    expect(thread).to_be_visible()
+    header = page.locator("lf-diff .lf-diff-file > details > summary")
+    read = page.locator("lf-diff [data-line]").filter(has_text="line 30")
+
+    last = thread.locator(".lf-msg").last
+
+    def stand(node, below_banner):
+        """Scroll `node`'s foot to `below_banner` px below the banner's foot, and
+        return the banner's foot and the root's landing band top."""
+        return node.evaluate(
+            """async (node, offset) => {
+              const {bannerFoot} = await window.__lfRuntimeImport('/runtime/geometry.js');
+              scrollBy({top: node.getBoundingClientRect().bottom - bannerFoot() - offset,
+                behavior: 'instant'});
+              const root = getComputedStyle(document.documentElement);
+              return {banner: bannerFoot(), landing: parseFloat(root.scrollPaddingTop)};
+            }""",
+            below_banner,
+        )
+
+    chrome = stand(last, -8 if foot == "under the banner" else 24)
+    rendered(page)
+    box = last.bounding_box()
+    foot_at = box["y"] + box["height"]
+    if foot == "under the file header":
+        header_box = header.bounding_box()
+        header_foot = header_box["y"] + header_box["height"]
+        assert chrome["landing"] < foot_at < header_foot, (chrome, foot_at, header_foot)
+    else:
+        assert foot_at < chrome["banner"], (chrome, foot_at)
+    # Chrome reports no shift within 500ms of input, so the news lands after it.
+    page.wait_for_function(
+        "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
+    )
+    before = read.bounding_box()
+    append_agent_reply(
+        serve.page_dir, root, "The guard now covers the replacement path."
+    )
+    told(page)
+    rendered(page)
+    notice = thread.get_by_role("button", name="1 new reply", exact=True)
+    messages = thread.locator(".lf-msg")
+    if foot == "under the banner":
+        expect(messages).to_have_count(2)
+        expect(notice).to_have_count(0)
+    else:
+        expect(notice).to_have_count(1)
+        expect(messages).to_have_count(1)
+    assert read.bounding_box() == before
+
+    if foot == "under the file header":
+        # Released once growth anywhere in the thread would move nothing seen.
+        stand(thread, -8)
+        expect(messages).to_have_count(2)
+        expect(notice).to_have_count(0)
+
+
+def test_growth_is_seen_only_below_where_scroll_anchoring_holds(browser, serve):
+    """Scroll anchoring keeps still the first box in the root's landing band, which
+    starts a gap below the banner. A paragraph ending in that gap grows into what was
+    scrolled past, so growth after it is not seen; one ending below the band's top
+    pushes down what follows it, so growth after it is."""
+    paragraphs = "".join(
+        f'<p id="p{number}">Paragraph {number} of the reading.</p>'
+        for number in range(60)
+    )
+    page = open_page(browser, serve(leaf_page("anchoring gap", paragraphs)))
+    resized(page, 1280, 800)
+    readings = page.evaluate(
+        """async () => {
+          const {bannerFoot, growthAfterIsSeen} =
+            await window.__lfRuntimeImport('/runtime/geometry.js');
+          const landing = parseFloat(
+            getComputedStyle(document.documentElement).scrollPaddingTop);
+          const frame = () => new Promise(requestAnimationFrame);
+          const read = async (foot) => {
+            const grown = document.getElementById('p20');
+            const next = document.getElementById('p21');
+            scrollBy({top: grown.getBoundingClientRect().bottom - foot,
+              behavior: 'instant'});
+            await frame();
+            const seen = growthAfterIsSeen(grown);
+            const before = next.getBoundingClientRect().top;
+            grown.style.paddingBottom = '40px';
+            await frame();
+            const moved = next.getBoundingClientRect().top - before;
+            grown.style.paddingBottom = '';
+            await frame();
+            return {foot, seen, moved};
+          };
+          const banner = bannerFoot();
+          return {banner, landing,
+            gap: await read((banner + landing) / 2),
+            band: await read(landing + 6)};
+        }"""
+    )
+    assert readings["banner"] < readings["landing"], readings
+    assert readings["gap"] == {**readings["gap"], "seen": False}, readings
+    assert abs(readings["gap"]["moved"]) < 1, readings
+    assert readings["band"] == {**readings["band"], "seen": True}, readings
+    assert readings["band"]["moved"] > 30, readings
+
+
+def test_an_agent_settling_a_diff_thread_above_the_screen_moves_nothing_below(
+    browser, serve
+):
+    """A diff thread folds shut when the agent resolves it and opens when it reopens
+    it. Above the screen, either change is scroll anchoring's to absorb, so the line
+    the user reads stays put, though each also changes what the thread holds."""
+    url, root = long_diff_thread(serve)
+    page = open_page(browser, url)
+    resized(page, 1280, 800)
+    thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    expect(thread).to_be_visible()
+    read = page.locator("lf-diff [data-line]").filter(has_text="line 30")
+    thread.evaluate(
+        "node => scrollBy({top: node.getBoundingClientRect().bottom + 100,"
+        " behavior: 'instant'})"
+    )
+    rendered(page)
+    before = read.bounding_box()["y"]
+    for kind, opened in [("resolve", False), ("unresolve", True)]:
+        append_carried_log_record(
+            serve.page_dir,
+            {"kind": kind, "author": "agent", "agent": "Codex", "parent": root},
+        )
+        told(page)
+        rendered(page)
+        expect(thread).to_have_js_property("open", opened)
+        # Anchoring lands the scroll on a device pixel, so the line may settle a
+        # fraction of one from where it stood.
+        assert read.bounding_box()["y"] == pytest.approx(before, abs=0.5), kind
+
+
+def test_a_reaction_list_closes_once_its_trigger_is_out_of_sight(browser, serve):
+    """An open reaction list hangs from its trigger, so it closes once none of the
+    trigger is in front of the user: scrolled under the banner, still in the window."""
+    url, root = long_diff_thread(serve)
+    append_agent_reply(
+        serve.page_dir, root, "The guard now covers the replacement path."
+    )
+    page = open_page(browser, url)
+    resized(page, 1280, 800)
+    message = page.locator(
+        f'lf-diff .lf-page-thread[data-thread="{root}"] .lf-msg.agent'
+    )
+    message.hover()
+    trigger = message.locator(".lf-react-trigger")
+    trigger.click()
+    strip = message.locator(":scope > .lf-react-strip")
+    expect(strip).to_contain_class("lf-react-open")
+    banner = trigger.evaluate(
+        """async trigger => {
+          const {bannerFoot} = await window.__lfRuntimeImport('/runtime/geometry.js');
+          scrollBy({top: trigger.getBoundingClientRect().bottom - bannerFoot() + 4,
+            behavior: 'instant'});
+          return bannerFoot();
+        }"""
+    )
+    box = trigger.bounding_box()
+    assert 0 < box["y"] and box["y"] + box["height"] < banner, (box, banner)
+    expect(strip).not_to_contain_class("lf-react-open")
+    expect(page.locator(".lf-react-palette:popover-open")).to_have_count(0)
+
+
+def test_a_reaction_list_opens_from_a_trigger_under_the_thread_panel(browser, serve):
+    """The reaction list stands in the top layer, above the thread panel, so `e` on a
+    reply whose trigger the panel stands over opens it and leaves it open."""
+    url, root = long_diff_thread(serve)
+    append_agent_reply(
+        serve.page_dir, root, "The guard now covers the replacement path."
+    )
+    page = open_page(browser, url)
+    resized(page, 1280, 800)
+    thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    expect(thread).to_be_visible()
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    message = thread.locator(".lf-msg.agent")
+    covered = message.locator(".lf-react-trigger").evaluate(
+        """trigger => {
+          const box = trigger.getBoundingClientRect();
+          const at = document.elementFromPoint((box.left + box.right) / 2,
+            (box.top + box.bottom) / 2);
+          return Boolean(at?.closest('.lf-thread-panel'));
+        }"""
+    )
+    assert covered, "the panel does not stand over the trigger, so this proves nothing"
+    thread.locator(".lf-msg").first.click()
+    page.keyboard.press("e")
+    strip = message.locator(":scope > .lf-react-strip")
+    expect(strip).to_contain_class("lf-react-open")
+    rendered(page)
+    expect(strip).to_contain_class("lf-react-open")
+
+
 @pytest.mark.watch_shifts
 @pytest.mark.parametrize("replies", [3, 14])
 def test_a_summary_from_elsewhere_moves_nothing_in_an_open_panel_card(

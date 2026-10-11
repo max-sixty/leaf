@@ -32,6 +32,7 @@ from leaf.schema import agent_name
 from leaf.structure import SourceDocument
 from leaf.thread_context import (
     ThreadStructure,
+    effective_thread_events,
     thread_names,
     thread_structure,
     thread_widgets,
@@ -379,6 +380,7 @@ def frozen_thread_reading(
     events: list,
     registry_for_revision: Callable[[int], dict],
     *,
+    available_revisions: Iterable[int],
     withdrawn: set | None = None,
 ) -> FrozenThreadReading:
     """Read each immutable fragment under the vocabulary that admitted it.
@@ -388,11 +390,17 @@ def frozen_thread_reading(
     conversation is live. Each publication uses the canonical state fold over the
     whole thread window; only its authored widget universe differs.
     """
-    structure = thread_structure(events)
-    by_name = thread_names(events)
+    effective_events = effective_thread_events(events, available_revisions)
     message_revisions = {
-        event["id"]: event["revision"] for event in events if event.get("markup")
+        event["id"]: event["revision"]
+        for event in effective_events
+        if event.get("markup")
     }
+    # A frozen island exists only while its captured publication exists in the
+    # current inventory. Keep the log event and its prose; only its unavailable
+    # authored markup loses meaning.
+    structure = thread_structure(effective_events)
+    by_name = thread_names(events)
     publications = {}
     for revision in dict.fromkeys(message_revisions.values()):
         fragments = {

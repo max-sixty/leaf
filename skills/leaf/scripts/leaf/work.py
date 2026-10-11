@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from .files import latest_revision
+from .files import latest_revision, list_revisions
 from .passages import page_passages
 from .projection import (
     PageReading,
@@ -12,7 +12,13 @@ from .projection import (
 from .questions import quoted_in
 from .registry.storage import require_registry
 from .revision_artifact import read_revision
-from .thread_context import id_subject, thread_names, thread_structure, thread_widgets
+from .thread_context import (
+    effective_thread_events,
+    id_subject,
+    thread_names,
+    thread_structure,
+    thread_widgets,
+)
 
 
 def widget_seat_error(page: PageReading, widget: str, moves: list[dict]) -> str | None:
@@ -62,6 +68,7 @@ def page_subject(page_dir: Path, events: list, name: str) -> dict | None:
     if revision is None:
         return id_subject(events, set(), {}, {}, name)
     registry = require_registry(page_dir)
+    events = effective_thread_events(events, list_revisions(page_dir))
     return id_subject(
         events,
         {

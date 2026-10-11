@@ -16,7 +16,6 @@ from leaf.projection import (
 )
 from leaf.questions import answer_verbs, answering_action, asking, replayed_attrs
 from leaf.registry.contract import state_definition
-from leaf.thread_context import thread_structure
 
 
 class AdmissionReadings:
@@ -47,6 +46,7 @@ class AdmissionReadings:
             self.registry,
             self.page(revisions[-1]) if revisions else None,
             registry_for_revision=self.view.registry,
+            available_revisions=revisions,
             thread=self.thread,
             log=self.log,
         )
@@ -54,7 +54,10 @@ class AdmissionReadings:
     @cached_property
     def thread(self):
         return frozen_thread_reading(
-            self.events, self.view.registry, withdrawn=self.log.withdrawn
+            self.events,
+            self.view.registry,
+            available_revisions=self.view.revisions,
+            withdrawn=self.log.withdrawn,
         )
 
     def page(self, revision: int):
@@ -163,11 +166,11 @@ def admit_widget_event(sender, event: dict, readings: AdmissionReadings) -> dict
     """Stamp server-owned meaning after command validation, under the append lock.
 
     `sender` is the authored document of the revision the command names."""
-    events, registry = readings.events, readings.registry
+    registry = readings.registry
     record = sender.by_id.get(event["widget"])
     scope = "page"
     if record is None:
-        record = thread_structure(events).by_id[event["widget"]]
+        record = readings.thread.by_id[event["widget"]]
         scope = "thread"
     entry = registry[record["tag"]]
     admitted = dict(event)

@@ -13,7 +13,11 @@ from leaf.registry.storage import require_registry
 from leaf.revision_artifact import read_revision
 from leaf.schema import MESSAGE_KINDS
 from leaf.structure import SourceDocument
-from leaf.thread_context import thread_names, thread_structure
+from leaf.thread_context import (
+    effective_thread_events,
+    thread_names,
+    thread_structure,
+)
 
 from .instances import reference_errors, thread_markup_contract_errors
 from .markup import (
@@ -152,6 +156,7 @@ def check_markup(
     wrong."""
     frag = SourceDocument(markup)
     revisions = list_revisions(page_dir)
+    effective_events = effective_thread_events(events, revisions)
     if reading is None:
         reading = (
             read_revision(page_dir, revisions[-1])
@@ -163,7 +168,7 @@ def check_markup(
     extra_errors = data_binding_errors(
         page_dir,
         registry,
-        events,
+        effective_events,
         incoming=[(frag, f"incoming {kind} markup")],
     )
     if error := message_markup_error(
@@ -175,6 +180,7 @@ def check_markup(
         page,
         version_ids(page_dir),
         extra_errors,
+        effective_events=effective_events,
     ):
         sys.exit(error)
     return frag
@@ -189,6 +195,8 @@ def message_markup_error(
     page: SourceDocument,
     prior_ids: set[str],
     extra_errors: list[str],
+    *,
+    effective_events: list | None = None,
 ) -> str | None:
     """The shared message-fragment gate for a stored or newly constructed page.
 
@@ -209,8 +217,11 @@ def message_markup_error(
         )
     if names := id_errors(frag):
         return f"{kind} markup: " + "; ".join(names)
-    thread = thread_structure(events)
-    clash = sorted(frag.ids & (prior_ids | page.ids | thread.ids))
+    thread = thread_structure(
+        effective_events if effective_events is not None else events
+    )
+    reserved = thread_structure(events)
+    clash = sorted(frag.ids & (prior_ids | page.ids | reserved.ids))
     if clash:
         return f"{kind} markup ids already taken by the page or an earlier message: {json_value(clash)}"
     if reference_errs := reference_errors(

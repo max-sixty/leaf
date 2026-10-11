@@ -14,6 +14,7 @@ from .events import build_threads, standing_approvals
 from .projection import frozen_thread_reading
 from .questions import collection, thread_question_readings, thread_questions
 from .tasks import TaskReading
+from .thread_context import effective_thread_events
 
 
 class WorkReading:
@@ -24,10 +25,12 @@ class WorkReading:
         page=None,
         *,
         registry_for_revision,
+        available_revisions,
         thread=None,
         log=None,
     ):
         self.registry_for_revision = registry_for_revision
+        self.available_revisions = frozenset(available_revisions)
         self.events = events
         self.registry = registry
         self.page = page
@@ -36,11 +39,12 @@ class WorkReading:
 
     @cached_property
     def threads(self) -> dict:
-        return build_threads(
-            self.events,
+        threads = build_threads(
+            self.effective_events,
             self.page.within if self.page is not None else {},
             withdrawn=self.log.withdrawn,
         )
+        return threads
 
     @cached_property
     def thread(self):
@@ -48,9 +52,17 @@ class WorkReading:
             self._thread
             if self._thread is not None
             else frozen_thread_reading(
-                self.events, self.registry_for_revision, withdrawn=self.log.withdrawn
+                self.events,
+                self.registry_for_revision,
+                available_revisions=self.available_revisions,
+                withdrawn=self.log.withdrawn,
             )
         )
+
+    @cached_property
+    def effective_events(self) -> list:
+        """The event history as this page's available frozen islands read it."""
+        return effective_thread_events(self.events, self.available_revisions)
 
     @cached_property
     def widget_questions(self) -> dict:

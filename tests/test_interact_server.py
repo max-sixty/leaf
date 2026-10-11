@@ -671,6 +671,17 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
             "text": "Frozen seed",
         },
     )
+    reply = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "revision": 1,
+            "parent": "aabb0011",
+            "text": "Frozen widget",
+            "markup": '<lf-code id="frozen-sample-code" language="python"><pre>held</pre></lf-code>',
+        },
+    )
     data_model.cmd_data_set(page_dir, "builds", ["checked"])
     template = '<template id="practice" data-sample data-sample-threads="aabb0011"><h1>Frozen child</h1></template>'
     document = structure_model.SourceDocument(
@@ -678,6 +689,12 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
     )
     # The checked candidate is r2, absent from the mutable page's revision files.
     snapshot = page_snapshot_model.capture_page_snapshot(page_dir, document, 2, url="/")
+    marker = files_model.revision_path(page_dir, 1)
+    # The preview already holds the revision inventory and bundle. Removing only
+    # the mutable directory's marker makes a fresh disk inventory omit r1 while
+    # leaving the captured resources readable for the child allocation.
+    marker.unlink()
+    assert files_model.list_revisions(page_dir) == []
     append_carried_log_record(
         page_dir,
         {
@@ -718,7 +735,16 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
             == snapshot.context.stored_data()["sources"]["builds"]
         )
         assert state["data"]["sources"]["builds"]["value"] == ["checked"]
-        assert [event["text"] for event in state["events"]] == ["Frozen seed"]
+        assert [event["text"] for event in state["events"]] == [
+            "Frozen seed",
+            "Frozen widget",
+        ]
+        assert (
+            next(event for event in state["events"] if event["id"] == reply["id"])[
+                "markup"
+            ]
+            == reply["markup"]
+        )
         for path in ("/api/event", "/api/media"):
             assert fetch(preview.origin + path, data=b"{}")[0] == 403
         assert (
@@ -730,7 +756,7 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
         )
     assert event_model.read_events(page_dir) == parent_events
     assert read_page_data(page_dir)["sources"]["builds"]["value"] == ["later"]
-    assert files_model.list_revisions(page_dir) == [1]
+    assert files_model.list_revisions(page_dir) == []
 
 
 def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page_dir):

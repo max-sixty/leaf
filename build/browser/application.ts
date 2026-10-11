@@ -277,7 +277,7 @@ export interface SemanticDocument {
       [name: string]: unknown;
     }
   > & {
-    $reactions?: { tokens: Record<string, {glyph: string; means?: string}> };
+    $reactions?: { tokens: Record<string, {glyph: string}> };
   };
   authored: AuthoredMap;
   descriptors: ReadonlyMap<string, WidgetDescriptor>;

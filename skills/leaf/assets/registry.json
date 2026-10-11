@@ -162,7 +162,7 @@
               "token"
             ]
           },
-          "text": "A reaction is a mark, not a question. Read the token and the `means` its package gives, if any, and act on it if it calls for a change; reply only if its meaning is unclear. Once the page reflects it, close it with `leaf thread resolve <page> <event-id>`. It never blocks publishing a version, and it does not wait on an answer."
+          "text": "A reaction is a mark, not a question. Read the token and act on it if it calls for a change; reply only if its meaning is unclear. Once the page reflects it, close it with `leaf thread resolve <page> <event-id>`. It never blocks publishing a version, and it does not wait on an answer."
         }
       ],
       "reply": [
@@ -1257,7 +1257,7 @@
     "steps": 5
   },
   "$reactions": {
-    "description": "The reaction vocabulary: the one-press words a user can put on a passage, an element, a message in a thread, or the page whole, each recorded as a `comment` or `reply` carrying `token` in place of `text` ($events). The kernel declares the namespace and no word; the default package ships the working set, and any selected package reshapes it merge-patch style: an entry under a token's name replaces that token, a new name adds one, `null` removes one. Core never names or interprets a token. Everything a consumer needs rides the entry: `glyph` is the mark of at most four Unicode code points the page paints for it — including one emoji — in the margin, in the reaction list, and on a thread's strip; optional `means` lets a package explain a specialized vocabulary to off-page users without making prose part of Leaf's default tokens; `settles`, where true, says a reaction of this kind standing on the latest agent message of a thread takes that thread out of \"waiting on you\" — a projection rule the panel reads, never a second event. POST refuses a token outside the merged set, the way $languages gates a language name. Tokens stand independently on one target; reaction lists and their optional digit accelerators follow this declared order, so a digit survives any layer's renaming without changing a chip's label.",
+    "description": "The reaction vocabulary: the one-press words a user can put on a passage, an element, a message in a thread, or the page whole, each recorded as a `comment` or `reply` carrying `token` in place of `text` ($events). The kernel declares the namespace and no word; the default package ships the working set, and any selected package reshapes it merge-patch style: an entry under a token's name replaces that token, a new name adds one, `null` removes one. Core never names or interprets a token. Everything a consumer needs rides the entry: `glyph` is the mark of at most four Unicode code points the page paints for it — including one emoji — in the margin, in the reaction list, and on a thread's strip; `settles`, where true, says a reaction of this kind standing on the latest agent message of a thread takes that thread out of \"waiting on you\" — a projection rule the panel reads, never a second event. POST refuses a token outside the merged set, the way $languages gates a language name. Tokens stand independently on one target; reaction lists and their optional digit accelerators follow this declared order, so a digit survives any layer's renaming without changing a chip's label.",
     "tokens": {}
   },
   "$tones": {

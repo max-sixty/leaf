@@ -86,13 +86,22 @@ class _Document:
 class GestureWords:
     """Readings of each document a page's gestures name, parsed once per document.
 
-    `registry` is the active one, which frozen thread markup reads under for the
-    page's whole lifetime; a page revision keeps the registry captured with it."""
+    `registry` reads the active page; a frozen thread fragment reads the registry
+    captured with its available publication, and an unavailable page revision has
+    no document to lend a gesture."""
 
-    def __init__(self, events: list, registry: dict, revisions: RevisionReader):
+    def __init__(
+        self,
+        events: list,
+        registry: dict,
+        revisions: RevisionReader,
+        *,
+        available_revisions,
+    ):
         self.events = events
         self.registry = registry
         self.revisions = revisions
+        self.available_revisions = available_revisions
         self.by_id = {event["id"]: event for event in events}
         self._documents: dict[tuple[str, int], _Document] = {}
 
@@ -101,7 +110,9 @@ class GestureWords:
             return None
         document = event_document(event)
         if document["kind"] == "thread":
-            message = widget_messages(self.thread.structure)[event["widget"]]
+            message = widget_messages(self.thread.structure).get(event["widget"])
+            if message is None:
+                return None
             revision = self.thread.message_revisions[message]
             key = ("thread", revision)
             if key not in self._documents:
@@ -116,6 +127,8 @@ class GestureWords:
                 )
         else:
             revision = document["revision"]
+            if revision not in self.available_revisions:
+                return None
             key = ("page", revision)
             if key not in self._documents:
                 reading = self.revisions(revision)
@@ -127,7 +140,9 @@ class GestureWords:
     @cached_property
     def thread(self):
         return frozen_thread_reading(
-            self.events, lambda revision: self.revisions(revision).registry
+            self.events,
+            lambda revision: self.revisions(revision).registry,
+            available_revisions=self.available_revisions,
         )
 
     @cached_property
@@ -168,7 +183,10 @@ class GestureWords:
         )
         if not creates:
             return None
-        entry = self._document(creator).registry.get(creator["meaning"]["creates"], {})
+        document = self._document(creator)
+        if document is None:
+            return None
+        entry = document.registry.get(creator["meaning"]["creates"], {})
         words = creator["detail"][creates["words"]]
         return collapse(shown_words(words, entry, added=True))
 

@@ -546,7 +546,7 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
         dependency_path,
         javascript_imports,
     )
-    from .validation.compatibility import incoming_registry
+    from .validation.composition import incoming_registry
 
     protected = kernel_runtime_paths()
     private_modules = {"/leaf.js", *(f"/runtime/{name}" for name in protected)} - {

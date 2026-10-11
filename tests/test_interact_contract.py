@@ -2488,18 +2488,7 @@ def test_data_binding_inventory_keeps_each_documents_captured_registry(
     bootstrap = data_contracts_model.page_data_binding_inventory(
         tmp_path / "bootstrap", registry, [{**events[0], "revision": None}]
     )
-    assert bootstrap == {
-        "reply-feed": {
-            "contract": "local-files",
-            "consumers": [
-                {
-                    "widget": "reply-data",
-                    "input": "renamed",
-                    "document": "event 'frozen-feed' markup",
-                }
-            ],
-        }
-    }
+    assert bootstrap == {}
 
 
 @pytest.mark.parametrize("change", ["description", "empty-resources"])
@@ -5025,9 +5014,17 @@ def test_sample_references_see_only_selected_threads(
 def test_sample_checks_available_history_beside_forward_thread_references(
     page_dir,
 ):
+    (page_dir / "index.html").write_text(PAGE)
+    assert revisioning_model.activate_source(page_dir).revision == 1
     append_carried_log_record(
         page_dir,
-        {"kind": "comment", "id": "aabb0011", "author": "user", "text": "A question"},
+        {
+            "kind": "comment",
+            "id": "aabb0011",
+            "author": "user",
+            "revision": 1,
+            "text": "A question",
+        },
     )
     append_carried_log_record(
         page_dir,
@@ -5035,6 +5032,7 @@ def test_sample_checks_available_history_beside_forward_thread_references(
             "kind": "reply",
             "parent": "aabb0011",
             "author": "agent",
+            "revision": 1,
             "text": "An answer",
             "markup": '<lf-code id="duplicate" language="python"><pre>1</pre></lf-code>',
         },
@@ -5978,7 +5976,11 @@ def test_frozen_replies_keep_their_publications_command_and_question_meanings():
 
     def questions():
         return thread_question_readings(
-            log, set(), reading=frozen_thread_reading(log, page.registry)
+            log,
+            set(),
+            reading=frozen_thread_reading(
+                log, page.registry, available_revisions=page.revisions
+            ),
         )
 
     assert [question["source"]["id"] for question in questions()["user"]] == [
@@ -6039,7 +6041,9 @@ def test_frozen_replies_keep_their_publications_command_and_question_meanings():
 
     append("undo", undoes=chosen["id"])
     assert [question["source"]["id"] for question in questions()["user"]] == ["old"]
-    reading = frozen_thread_reading(log, page.registry)
+    reading = frozen_thread_reading(
+        log, page.registry, available_revisions=page.revisions
+    )
     assert [
         (event["widget"], event["action"])
         for event, _ in reading.projection.actions.values()

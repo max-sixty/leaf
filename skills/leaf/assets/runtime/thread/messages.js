@@ -206,7 +206,6 @@ export function messageReading(
       drawing: Boolean(message.drawing),
       token: message.token ?? null,
       glyph: token?.glyph ?? "",
-      meaning: token?.means ?? null,
       authored: message.body.kind === "authored",
     }),
     panel,
@@ -453,9 +452,7 @@ export class MessageView {
   #body(body) {
     if (body.kind === "reaction")
       return html`<div class="lf-msg-text">
-        <span class="lf-react-said" title=${body.meaning ?? nothing}
-          >${`${body.glyph} ${body.token}`.trim()}</span
-        >
+        <span class="lf-react-said">${`${body.glyph} ${body.token}`.trim()}</span>
       </div>`;
     if (body.kind === "suggestion")
       return html`<div class="lf-msg-text" .textContent=${body.text}></div>`;

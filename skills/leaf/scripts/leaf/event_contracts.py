@@ -14,8 +14,8 @@ from leaf.event_meaning import (
     admit_widget_event,
     direct_dependencies,
 )
-from leaf.events import build_threads, spoken_turns, taken_back, undo_error
-from leaf.files import version_revisions
+from leaf.events import build_threads, spoken_turns, undo_error
+from leaf.files import version_descriptors, version_revisions
 from leaf.page_view import CandidatePageView, PageView
 from leaf.projection import (
     RANK,
@@ -39,10 +39,14 @@ from leaf.registry.schema import json_value, schema_error
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
 from leaf.structure import review_mode
 from leaf.tasks import task_error
-from leaf.thread_context import thread_structure, widget_messages
+from leaf.thread_context import (
+    effective_thread_events,
+    thread_structure,
+    widget_messages,
+)
 from leaf.work import widget_seat_error
 from leaf.work_reading import WorkReading
-from leaf.workflows import admission_tasks, admission_workflows, obligation_reading
+from leaf.workflows import obligation_reading
 
 # The envelope the append lease itself assigns. Admission validates the complete
 # record, so pre-admission shape checks supply representative envelope fields.
@@ -487,7 +491,9 @@ def admitting_registry(view, event: dict, events: list) -> dict:
         else event.get("revision")
     )
     if event.get("kind") == "action" and isinstance(event.get("widget"), str):
-        owner = widget_messages(thread_structure(events)).get(event["widget"])
+        owner = widget_messages(
+            thread_structure(effective_thread_events(events, revisions))
+        ).get(event["widget"])
         if owner is not None:
             revision = next(
                 logged["revision"] for logged in events if logged["id"] == owner
@@ -514,7 +520,14 @@ def _approval_error(view, event: dict, events: list, registry: dict):
     """Why a sign-off cannot record approval of the version it names."""
     if event["kind"] != "done":
         return None
-    revision = version_revisions(events).get(event["version"])
+    revision = next(
+        (
+            stamp["revision"]
+            for stamp in version_descriptors(events, view.revisions)
+            if stamp["version"] == event["version"]
+        ),
+        None,
+    )
     if revision is None:
         return f"v{event['version']} is not a stamped version"
     document = view.document(revision)
@@ -525,7 +538,13 @@ def _approval_error(view, event: dict, events: list, registry: dict):
             "approval to record"
         )
     page = AdmissionReadings(view, events, registry).page(revision)
-    work = WorkReading(events, registry, page, registry_for_revision=view.registry)
+    work = WorkReading(
+        events,
+        registry,
+        page,
+        registry_for_revision=view.registry,
+        available_revisions=view.revisions,
+    )
     unanswered = [
         *(
             question
@@ -658,7 +677,7 @@ def _edit_error(event: dict, events: list) -> str | None:
 def _thread_presentation_error(view, event: dict, events: list) -> str | None:
     if event["kind"] not in {"summary", "thread_title"}:
         return None
-    threads = build_threads(events, view.within, withdrawn=taken_back(events))
+    threads = build_threads(events, view.within)
     thread = threads.get(event["thread"])
     if thread is None:
         return f"unknown thread {event['thread']!r}"
@@ -714,11 +733,11 @@ def admission_error(
         or _reanchor_error(view, event, events)
         or read_contract_error(event, events)
         or _withdrawal_error(view, event, events, readings)
-        or _task_error(view, event, events, readings)
+        or _task_error(view, event, readings)
     )
 
 
-def _task_error(view, event: dict, events: list, readings) -> str | None:
+def _task_error(view, event: dict, readings) -> str | None:
     """A task stands on an open thread, a widget that seats work or an element, or the
     page. Task endings also admit an agent withdrawal of a prose Question; a
     start names explicit agent work or an owed move (`tasks.task_error`)."""
@@ -731,7 +750,7 @@ def _task_error(view, event: dict, events: list, readings) -> str | None:
         event = start
     elif event["kind"] not in {"task", "task_end"}:
         return None
-    workflows = admission_workflows(readings)[0] if event["kind"] != "task_end" else []
+    workflows = readings.work.workflows if event["kind"] != "task_end" else []
     if progress_parent is not None and not any(
         item["input"] == event["item"]
         and item["next_actor"] == "agent"
@@ -779,7 +798,7 @@ def _task_error(view, event: dict, events: list, readings) -> str | None:
         element_error=element_error,
         user_widget_error=user_widget_error,
         owed=owed,
-        tasks=lambda: admission_tasks(readings),
+        tasks=lambda: [task for half in readings.work.page_tasks() for task in half],
         questions=lambda: readings.work.all_questions["all"],
     )
 

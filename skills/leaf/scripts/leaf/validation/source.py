@@ -10,12 +10,17 @@ from leaf.data_contracts import (
     measurement_lag,
     working_data_document_readings,
 )
+from leaf.files import list_revisions
 from leaf.passages import SourceReading
 from leaf.registry.contract import RegistryError
 from leaf.registry.schema import json_value
 from leaf.registry.storage import read_page_registry
 from leaf.revision_artifact import ArtifactError, RevisionArtifact, capture_artifact
-from leaf.sample_content import initial_sample_events
+from leaf.sample_content import (
+    SampleHistory,
+    initial_sample_history,
+    page_sample_history,
+)
 from leaf.schema import VENDORED_FILES
 from leaf.structure import LF_META, SourceDocument, links_with_rel, script_kind
 from leaf.styles import (
@@ -26,15 +31,9 @@ from leaf.styles import (
 )
 from leaf.thread_context import thread_ids, thread_structure
 from leaf.validation.instances import (
-    addressable_instance_errors,
-    declared_word_errors,
-    layout_errors,
-    line_ref_errors,
-    question_context_errors,
+    instance_errors,
     reference_errors,
     suggestion_errors,
-    visual_part_errors,
-    widget_errors,
 )
 from leaf.validation.markup import (
     authored_allocation_errors,
@@ -167,19 +166,12 @@ def _instance_errors(
     thread_ids: set[str],
 ) -> list[str]:
     """Validate authored instances against their document's event and id namespace."""
-    errors = []
     if registry is None:
-        return errors
-    errors.extend(widget_errors(parser.lf_elements, registry))
-    errors.extend(layout_errors(parser.lf_elements, registry))
-    errors.extend(visual_part_errors(parser.lf_elements, registry))
-    errors.extend(addressable_instance_errors(parser.lf_elements, registry))
-    errors.extend(question_context_errors(parser.lf_elements, registry))
+        return []
+    errors = instance_errors(parser.lf_elements, registry)
     errors.extend(
         reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
     )
-    errors.extend(declared_word_errors(parser.lf_elements, registry))
-    errors.extend(line_ref_errors(parser.lf_elements, registry))
     errors.extend(suggestion_errors(parser.lf_elements, registry, thread_ids))
     taken = sorted(parser.ids & thread_structure(events).ids)
     if taken:
@@ -276,8 +268,10 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
         thread_ids(events),
     )
     errors.extend(document_errors)
-    documents = [(document, events, "")]
-    for parent, parent_events, parent_name in documents:
+    documents = [
+        (document, page_sample_history(document, events, list_revisions(page_dir)), "")
+    ]
+    for parent, parent_history, parent_name in documents:
         for sample in parent.samples:
             name = parent_name + f"sample {sample['attrs'].get('id', '<unnamed>')!r}: "
             child = sample["document"]
@@ -286,17 +280,23 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
             # whatever the log holds — so the child checked here is the child
             # allocation would build from this document and this history.
             try:
-                child_events = (
-                    initial_sample_events(
-                        page_dir, parent, parent_events, sample, registry, contracts
+                child_history = (
+                    initial_sample_history(
+                        page_dir,
+                        parent,
+                        parent_history,
+                        sample,
+                        registry,
+                        contracts,
                     )
                     if registry is not None
-                    else []
+                    else SampleHistory([], {})
                 )
             except ValueError as error:
                 errors.append(name + str(error))
-                child_events = []
-            documents.append((child, child_events, name))
+                child_history = SampleHistory([], {})
+            child_events = child_history.events
+            documents.append((child, child_history, name))
             child_readings = initial_data_document_readings(
                 child, child_events, registry
             )

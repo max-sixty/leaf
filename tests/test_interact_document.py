@@ -42,6 +42,7 @@ from interact_support import (
     fresh_process,
     lock_contention,
     model_layer,
+    page_state,
     publish,
     questions_on_you,
     read_page_data,
@@ -57,6 +58,7 @@ from leaf import data as data_model
 from leaf import data_contracts as data_contracts_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
+from leaf import event_meaning as event_meaning_model
 from leaf import files as files_model
 from leaf import leases as leases_model
 from leaf import page_memory as page_memory_model
@@ -75,7 +77,7 @@ from leaf.registry.storage import read_page_registry, require_registry
 from leaf.render_gate import readings as render_gate_readings
 from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
-from leaf.validation import compatibility as validation_model
+from leaf.validation import composition as validation_model
 from leaf.validation.source import check_source
 from leaf.validation.source_history import predecessor_reading
 from leaf_dev.example_data import captured_value, patch_manifest
@@ -590,6 +592,148 @@ def test_obsolete_capture_identities_are_never_rebound_to_new_publications(page_
         events = events_model.read_events(page_dir)
         assert events[: len(original)] == original
         assert events[-1]["revision"] == 2 and events[-1]["version"] == 2
+
+
+def test_obsolete_capture_with_frozen_reply_is_absent_from_page_state(page_dir):
+    """An unavailable publication drops its frozen widget island, not its prose."""
+    assert revisioning_model.activate_source(page_dir).revision == 1
+    parent = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Choose."},
+    )
+    reply = thread_model.post_reply(
+        page_dir,
+        parent["id"],
+        "The captured choice is here.",
+        '<lf-options id="frozen-options" choose>'
+        '<lf-option id="frozen-option">Keep</lf-option></lf-options>',
+        for_event=parent["id"],
+    )
+    marker = files_model.revision_path(page_dir, 1)
+    (page_dir / "index.html").write_text(PAGE.replace("Plan", "Updated plan"))
+    assert revisioning_model.activate_source(page_dir).revision == 2
+    marker.unlink()
+    assert files_model.list_revisions(page_dir) == [2]
+    current_parent = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 2,
+            "text": "Keep the current capture.",
+        },
+    )
+    current = thread_model.post_reply(
+        page_dir,
+        current_parent["id"],
+        "This capture is still available.",
+        '<lf-code id="current-capture" language="python"><pre>2</pre></lf-code>',
+        for_event=current_parent["id"],
+    )
+
+    with fresh_process():
+        state = page_state(page_dir)
+        browser = state["browser"]
+
+    threads = {thread["id"]: thread for thread in browser["thread"]["threads"]}
+    obsolete = threads[parent["id"]]
+    assert [message["text"] for message in obsolete["msgs"]] == [
+        "Choose.",
+        "The captured choice is here.",
+    ]
+    assert "markup" not in obsolete["msgs"][1]
+    assert "markup" not in next(
+        event for event in state["events"] if event["id"] == reply["id"]
+    )
+    current_thread = threads[current_parent["id"]]
+    current_message = next(
+        message for message in current_thread["msgs"] if message["id"] == current["id"]
+    )
+    assert current_message["markup"] == current["markup"]
+    readings = data_contracts_model.page_data_document_readings(
+        page_dir, events_model.read_events(page_dir), {}
+    )
+    assert [
+        label for _elements, label, _registry in readings if label.startswith("event ")
+    ] == [f"event {current['id']!r} markup"]
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</main>", '<p id="frozen-options">Reused id.</p></main>')
+    )
+    refused = check(page_dir)
+    assert refused.exit_code != 0
+    assert 'ids already taken by message markup: ["frozen-options"]' in refused.output
+
+
+def test_unavailable_capture_id_stays_reserved_in_selected_sample_threads(page_dir):
+    """A carried answer cannot settle a child widget reusing its retired owner id."""
+    (page_dir / "index.html").write_text(PAGE)
+    assert revisioning_model.activate_source(page_dir).revision == 1
+    parent = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Can we use this proposal?",
+        },
+    )
+    thread_model.post_reply(
+        page_dir,
+        parent["id"],
+        "Here is the proposal.",
+        '<lf-ask id="proposal-ask"><h3>Choose this proposal</h3>'
+        '<lf-options id="sug-reserved" choose multiple>'
+        '<lf-option id="proposal-copy">Keep this.</lf-option>'
+        "</lf-options></lf-ask>",
+        for_event=parent["id"],
+    )
+    registry = require_registry(page_dir)
+    answer = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "sug-reserved",
+            "action": "choose",
+            "detail": {"value": ["proposal-copy"]},
+            "meaning": {
+                **event_meaning_model.state_meaning(
+                    {
+                        "widget": "sug-reserved",
+                        "action": "choose",
+                        "detail": {"value": ["proposal-copy"]},
+                    },
+                    registry["lf-options"],
+                    "thread",
+                    "lf-options",
+                ),
+                "answer": parent["id"],
+            },
+        },
+    )
+    assert answer["meaning"]["answer"] == parent["id"]
+    marker = files_model.revision_path(page_dir, 1)
+    marker.unlink()
+    assert files_model.list_revisions(page_dir) == []
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</main>",
+            f'<template id="practice" data-sample data-sample-threads="{parent["id"]}">'
+            '<lf-ask id="child-ask"><h3>Choose</h3>'
+            '<lf-options id="sug-reserved" choose multiple>'
+            '<lf-option id="child-proposal">A new proposal.</lf-option>'
+            "</lf-options></lf-ask></template></main>",
+        )
+    )
+
+    refused = check(page_dir)
+
+    assert refused.exit_code != 0
+    assert (
+        "sample 'practice': ids already taken by message markup: [\"sug-reserved\"]"
+        in refused.output
+    )
 
 
 def test_revision_inventory_retains_duplicate_current_capture_refusal(page_dir):
@@ -5404,7 +5548,12 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
     ]
 
     expected = render_gate_readings._expected_verbatim(
-        page, events, registry, here=1, registry_for_revision=lambda revision: registry
+        page,
+        events,
+        registry,
+        here=1,
+        registry_for_revision=lambda revision: registry,
+        available_revisions={1},
     )
 
     assert expected == {
@@ -5457,6 +5606,7 @@ def test_projected_verbatim_includes_generated_children():
         registry,
         here=1,
         registry_for_revision=lambda revision: registry,
+        available_revisions={1},
     )
 
     assert expected == {("page", None, 0): [{"text": "Authored item. Generated item."}]}

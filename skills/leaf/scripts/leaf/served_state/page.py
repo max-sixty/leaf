@@ -111,11 +111,9 @@ def read_served_page(
         "activity": activity,
         "workflows": workflows,
         "browser": browser,
-        # As logged: a message's text is Markdown the page's vendored runtime renders,
-        # and its markup is the fragment the CLI gate validated. The wire adds nothing,
-        # so the only vocabulary a page's frozen layer has to keep speaking is the
-        # log's own, which $events already stamps.
-        "events": context.events,
+        # As read: message prose remains while frozen markup is selected only from
+        # publications this transaction still holds. The log on disk stays append-only.
+        "events": context.work.durable.effective_events,
         **({"preview": preview} if preview else {}),
         **({"publication": publication} if publication else {}),
     }

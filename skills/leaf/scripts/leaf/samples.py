@@ -25,7 +25,7 @@ from .revision_artifact import (
     write_artifact,
 )
 from .revisioning import activate_source
-from .sample_content import initial_sample_events
+from .sample_content import initial_sample_history, page_sample_history
 from .schema import DATA_DIR, DATA_FILE
 from .state import now_iso, write_json
 from .structure import SourceDocument
@@ -72,6 +72,9 @@ class Samples:
         template_id: str,
         passive: bool,
         asset_root: str | None,
+        *,
+        available_revisions,
+        snapshot=None,
     ) -> str:
         template = next(
             (
@@ -83,14 +86,15 @@ class Samples:
         )
         if template is None:
             raise ValueError(f"unknown sample template {template_id!r}")
-        seeded = initial_sample_events(
+        parent_history = page_sample_history(document, events, available_revisions)
+        seeded = initial_sample_history(
             parent,
             document,
-            events,
+            parent_history,
             template,
             artifact.registry,
             {name: reading["contract"] for name, reading in data["sources"].items()},
-        )
+        ).events
         source = template["document"].data
         temporary = TemporaryDirectory(prefix="leaf-sample-")
         child = Path(temporary.name)
@@ -133,11 +137,21 @@ class Samples:
                 revision: index for index, revision in enumerate(revisions, 1)
             }
             for revision, copied in revision_map.items():
+                source_artifact = (
+                    snapshot.artifacts[revision]
+                    if snapshot is not None
+                    else read_artifact(parent, revision)
+                )
+                source_reading = (
+                    snapshot.context.revision(revision)
+                    if snapshot is not None
+                    else read_revision(parent, revision)
+                )
                 write_artifact(
                     child,
                     copied,
-                    read_artifact(parent, revision),
-                    read_revision(parent, revision),
+                    source_artifact,
+                    source_reading,
                 )
             current_revision = len(revisions) + 1
             for event in seeded:

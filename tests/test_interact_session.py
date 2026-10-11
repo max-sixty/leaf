@@ -989,7 +989,9 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
         ),
     ]
     # Only which thread the board widget stands in matters here.
-    frozen = projection_model.FrozenThreadReading(None, {}, {}, {"board": "root"}, None)
+    frozen = projection_model.FrozenThreadReading(
+        None, {}, {}, {"board": "root"}, None, {}, {}
+    )
     for workflows, expected in cases:
         threads = [{"id": "root", "resolved": None, "user_prompt": None}]
         browser_served_model._apply_thread_attention(
@@ -1088,7 +1090,7 @@ def test_served_workflows_list_the_strongest_first():
             ["back", "working"],
         ),
     ]
-    frozen = projection_model.FrozenThreadReading(None, {}, {}, {}, None)
+    frozen = projection_model.FrozenThreadReading(None, {}, {}, {}, None, {}, {})
     for workflows, expected in cases:
         served = work_served_model.served_workflows(workflows, frozen)
         assert [item["id"] for item in served] == expected

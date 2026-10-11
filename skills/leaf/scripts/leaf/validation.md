@@ -9,7 +9,7 @@ directly:
   check`, activation, `page stamp`, and `page init` all run ("Static validation");
 - message markup an agent hands in at `admission.check_markup`, which applies the same
   structure and vocabulary checks to an HTML fragment, with or without widgets;
-- a layer `page init` would vendor at `compatibility.incoming_registry`;
+- a layer `page init` would vendor at `composition.incoming_registry`;
 - what only a browser can see at `page check --render` ("Browser validation").
 
 ## Static validation
@@ -70,12 +70,15 @@ report.
 
 An ordinary document's thread namespace is the thread ids its log holds,
 including a thread whose opening comment the log lost. A sample template's
-namespace comes from its initial history. `sample_content.initial_sample_events`
-constructs it once for both static validation and allocation. `data-sample-events`
-names an inline inert JSON script in the captured parent document: its ordinary event
-commands are admitted against the child, including file-side anchor capture and the
-shared message-markup gate. The resulting history defines the child's thread namespace
-before presentation and never writes the parent's log.
+namespace comes from its initial history. `sample_content.initial_sample_history`
+constructs its effective events and reserved widget identities once for both static
+validation and allocation. An unavailable captured island contributes no markup,
+while its raw identity remains reserved anywhere its selected thread history carries
+an action that could name it. `data-sample-events` names an inline inert JSON script
+in the captured parent document: its ordinary event commands are admitted against
+the child, including file-side anchor capture and the shared message-markup gate.
+The resulting history defines the child's thread namespace before presentation and
+never writes the parent's log.
 
 Alternatively, `data-sample-threads` selects from the parent's available history.
 A first version may name threads whose seed log has not been written yet; a thread

@@ -11,6 +11,7 @@ history, not a second state store: subsequent gestures use the ordinary log.
 import json
 from copy import deepcopy
 from pathlib import Path
+from typing import NamedTuple
 
 from .anchor_capture import capture_anchor
 from .data_contracts import data_document_errors, initial_data_document_readings
@@ -21,13 +22,81 @@ from .projection import generated_children, retirement_outcomes, rewritten_bodie
 from .registry.schema import aware_instant, json_value
 from .state import now_iso
 from .structure import SourceDocument
-from .thread_context import sample_events, thread_structure
+from .thread_context import (
+    effective_thread_events,
+    sample_events,
+    thread_memberships,
+    thread_names,
+    thread_structure,
+    thread_widgets,
+    widget_messages,
+)
 from .validation.admission import message_markup_error
 from .validation.markup import text_media_errors
 
 
 def _non_json_number(value: str):
     raise ValueError(f"{value} is not a JSON number")
+
+
+class SampleHistory(NamedTuple):
+    """Selected events and the widget identities their carried actions reserve."""
+
+    events: list[dict]
+    reserved_ids_by_thread: dict[str, frozenset[str]]
+
+
+def page_sample_history(
+    parent: SourceDocument, events: list, available_revisions
+) -> SampleHistory:
+    """Read stored history for samples against the page's current inventory."""
+    return SampleHistory(
+        effective_thread_events(events, available_revisions),
+        _reserved_thread_ids(parent, events),
+    )
+
+
+def _reserved_thread_ids(
+    parent: SourceDocument, events: list[dict]
+) -> dict[str, frozenset[str]]:
+    """Names reserved by frozen widgets, including actions copied by an answer."""
+    names = thread_names(events)
+    structure = thread_structure(events)
+    memberships = thread_memberships(
+        events, names, thread_widgets(structure, names), parent.within
+    )
+    messages = widget_messages(structure)
+    reserved = {}
+    for event in events:
+        if event.get("markup"):
+            ids = structure.fragments[event["id"]].ids
+        elif (
+            event["kind"] == "action"
+            and isinstance(event.get("meaning"), dict)
+            and event["meaning"].get("scope") == "thread"
+        ):
+            message = messages.get(event.get("widget"))
+            if message is None:
+                continue
+            ids = structure.fragments[message].ids
+        else:
+            continue
+        for thread in memberships[event["id"]]:
+            reserved.setdefault(thread, set()).update(ids)
+    return {thread: frozenset(ids) for thread, ids in reserved.items()}
+
+
+def _child_sample_history(
+    parent: SourceDocument, history: SampleHistory, selected: set[str]
+) -> SampleHistory:
+    """Select effective events and their raw namespace reservations together."""
+    events = sample_events(parent, history.events, selected)
+    reserved = {
+        thread: history.reserved_ids_by_thread[thread]
+        for thread in selected
+        if thread in history.reserved_ids_by_thread
+    }
+    return SampleHistory(events, reserved)
 
 
 def _fixture_anchor(anchor: dict, readings: AdmissionReadings) -> dict:
@@ -78,25 +147,29 @@ def _fixture_anchor(anchor: dict, readings: AdmissionReadings) -> dict:
     return {**authored, **captured}
 
 
-def initial_sample_events(
+def initial_sample_history(
     page_dir: Path,
     parent: SourceDocument,
-    parent_events: list,
+    parent_history: SampleHistory,
     template: dict,
     registry: dict,
     contracts: dict,
-) -> list[dict]:
-    """Construct the child's admitted log without mutating any captured input."""
+) -> SampleHistory:
+    """Construct the child's admitted history without mutating captured input."""
     attrs = template["attrs"]
     reference = attrs.get("data-sample-events")
     if "data-sample-events" not in attrs:
         selected = set(attrs.get("data-sample-threads", "").split())
-        return [
-            {**event, "seq": seq}
-            for seq, event in enumerate(
-                sample_events(parent, parent_events, selected), 1
+        history = _child_sample_history(parent, parent_history, selected)
+        reserved = set().union(*history.reserved_ids_by_thread.values())
+        if clash := template["document"].ids & reserved:
+            raise ValueError(
+                "ids already taken by message markup: " + json_value(sorted(clash))
             )
-        ]
+        return SampleHistory(
+            [{**event, "seq": seq} for seq, event in enumerate(history.events, 1)],
+            history.reserved_ids_by_thread,
+        )
     if "data-sample-threads" in attrs:
         raise ValueError(
             "use either data-sample-events or data-sample-threads, not both"
@@ -197,4 +270,4 @@ def initial_sample_events(
             raise ValueError(
                 f"data-sample-events {reference!r}, event {seq}: {error}"
             ) from error
-    return events
+    return SampleHistory(events, _reserved_thread_ids(parent, events))

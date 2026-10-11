@@ -171,6 +171,24 @@ def thread_structure(events: list) -> ThreadStructure:
     return ThreadStructure(ids, by_id, fragments)
 
 
+def effective_thread_events(events: list, available_revisions) -> list:
+    """The log as read against the publications this page currently holds.
+
+    A message remains, including its prose and identity, when its captured
+    publication is unavailable. Only the authored markup island disappears.
+    The source log is never rewritten.
+    """
+    available = frozenset(available_revisions)
+    return [
+        (
+            {key: value for key, value in event.items() if key != "markup"}
+            if event.get("markup") and event.get("revision") not in available
+            else event
+        )
+        for event in events
+    ]
+
+
 def widget_messages(structure: ThreadStructure) -> dict:
     """Widget id → the message whose immutable markup declares it."""
     return {

@@ -252,8 +252,9 @@ Page state contains separate canonical `questions` and explicit `tasks`; its
 `queues.on_you` and `queues.on_agent` select those records with response obligations
 and delivery retries for the panel. `jq` only selects these fields; do not reconstruct
 membership from events or widget state. Each queue item names its `id`, `kind`,
-`subject`, and `thread`. A Question contains its prompt, typed answer and lifecycle; widget state owns its answer. Read a thread
-with `leaf page state <page> <message-id>` for its messages. For a page widget, read
+`subject`, and `thread`. A Question contains its prompt, typed answer and lifecycle;
+widget state owns its answer. Read a thread with `leaf page state <page> <message-id>`
+for its messages. For a page widget, read
 `leaf page state <page>`'s `active.file` and the identified widget in that HTML;
 the widget-specific state command reports its state and metadata. The reading
 covers the active document and admitted log, not unsent browser drafts or a tab

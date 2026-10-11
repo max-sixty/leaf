@@ -791,7 +791,7 @@ def title_event(thread: str, title: str, identity: dict) -> dict:
 def name_untitled(page, thread: str, title: str, identity: dict) -> dict | None:
     """Append `thread`'s first title in the voice of `identity`, within the caller's
     page transaction, or nothing where it has one: a name given once stands until
-    someone renames the thread on purpose (`cmd_title`)."""
+    someone renames the thread on purpose (`cmd_edit`)."""
     if (
         build_threads(page.events, active_enclosing(page.page_dir))[thread]["title"]
         is not None

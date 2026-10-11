@@ -1222,8 +1222,8 @@ Questions, including rows whose obligation record carries no explicit title.
 `queueActions.open(key)` resolves the current row and follows Leaf's arrival.
 It resolves to `false` for an unavailable row. `queueActions.done(key)` returns
 an admission promise only for a current `onYou` work task, which is one the agent
-opened on the user; otherwise it returns `null`. A widget Question ends through its widget and a
-prose Question through a reply or settling reaction. An approval Question ends
+opened on the user; otherwise it returns `null`. A widget Question ends through its
+widget and a prose Question through a reply or settling reaction. An approval Question ends
 through its stamped version's banner approval. Done removes its work task
 optimistically, a duplicate cannot send again, and refusal restores the admitted
 reading. The server remains final for all actions. Collections retain their shape

@@ -99,7 +99,7 @@ def _caller():
 
 
 @pytest.hookimpl(wrapper=True)
-def pytest_runtest_protocol(item):
+def pytest_runtest_protocol():
     global _calls
     _calls = {}
     try:

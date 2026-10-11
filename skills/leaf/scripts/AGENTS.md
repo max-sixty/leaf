@@ -38,19 +38,19 @@ transport boundary exits, prints, or answers HTTP.
 - `page_snapshot`: the transaction-consistent reading one browser preview serves;
 - `agent_state`, `read_state`, `gesture_words`, `history`, `transcript`: agent-facing
   page and thread readings, what the user has not read, what a gesture's ids say,
-  newest moves for `x-history`, and the Markdown export;
+  newest events for `x-history`, and the Markdown export;
 - `thread_context`, `thread`: thread identity, frozen markup, delivery context,
   thread writes, and reply reservations;
 - `work_reading`: the transaction-scoped durable work reading shared by admission,
   serving and delivery;
-- `workflows`, `activity`: unsettled user moves with their evidence, and the
+- `workflows`, `activity`: unsettled updates with their evidence, and the
   page-level fold over workflows, tasks, starts, status, claim, turn, and watcher;
 - `questions`: the canonical inventory of widget and prose Questions, including typed
   answers, completion, withdrawal and attention, which every surface selects;
 - `work`: the subjects work stands on: what an id names, which widgets seat a task,
   and which widget tasks a version would leave without a target;
 - `tasks` (experimental, expected to change a lot): explicit committed work on either
-  side, held by the log until ended, and the `start` that takes a move or task in
+  side, held by the log until ended, and the `start` that takes an update or task in
   hand; their folds, admission gate, and `leaf task`. Questions never become Tasks;
 - `delivery`, `session`, `hooks`, `hook_transport`, `harness`: the delivery envelope
   and its receipt, status and the `leaf wait` watch, the harness hooks' entry, the
@@ -98,7 +98,8 @@ Within `served_state/`, `context` owns the live or captured inputs every fold re
 `wire` serializes one declared fold, `thread` and `document`
 own their scoped readings, `browser` assembles the requested views, `page` composes
 the served response, `reading` names filesystem changes for freshness reads, and
-`service` owns the page transaction every route reads through.
+`service` owns the page source every route reads through (the live directory, or a
+`page_snapshot` capture) and its state transaction.
 
 Within `render_gate/`, `scheme` owns one browser and color lifecycle, `readings` owns
 the probe readings and their findings, `version` owns retry policy, `page_code` owns

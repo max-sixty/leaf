@@ -287,8 +287,9 @@ def test_sample_file_editor_resize_keeps_classic_scrollbars_inside_its_document(
     child = frame.element_handle().content_frame()
     editor = child.get_by_role("textbox", name="File contents", exact=True)
     expect(editor).to_have_attribute("aria-readonly", "true")
-    expect(child.locator(".lf-file-editor-explanation")).not_to_be_empty()
-    consume_browser_errors(page, f"400 {child.url}api/files/notes")
+    expect(child.locator(".lf-file-editor-explanation")).to_have_text(
+        "No file is bound as 'notes'."
+    )
     editor.click()
     expect(editor).to_be_focused()
     assert child.evaluate("innerHeight - visualViewport.height") > 1

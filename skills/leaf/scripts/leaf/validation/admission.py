@@ -75,7 +75,7 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
     The CLI names several kinds of id with bare strings — an element id anchors a
     thread, a message id answers one, and a delivered event id addresses the response
     it owes — and nothing about a value says which namespace it came from. An agent
-    holding the id of the move it was handed reaches for whichever writer it is using,
+    holding the id of the update it was handed reaches for whichever writer it is using,
     and a refusal that only repeats the value leaves it nothing to change but the
     guess. So every writer that refuses an id says what the log holds it as, and where
     it goes instead.

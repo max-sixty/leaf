@@ -1683,10 +1683,8 @@ leaf-text.lf-fab-input {
 :host-context(html[data-lf-draw-mode]):host-context(main) * {
   cursor: crosshair !important;
 }
-:host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat,
-:host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat *,
-:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-offer],
-:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-offer] * {
+:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-runtime],
+:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-runtime] * {
   cursor: auto !important;
 }
 :root {

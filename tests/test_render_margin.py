@@ -152,7 +152,7 @@ ACTION_ON_ASK = {
             "unit": "widget",
             "record": {"kind": "attribute", "attr": "chosen"},
             "creates": None,
-            "update": False,
+            "report": False,
             "detail": {
                 "type": "object",
                 "properties": {
@@ -4006,7 +4006,7 @@ def test_page_map_only_origins_do_not_count_as_margin_entries(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     origin = page.get_by_role(
-        "button", name=re.compile(r"^Open reported update: Reported update")
+        "button", name=re.compile(r"^Open reported state: Reported state")
     )
     origin.focus()
     page.keyboard.press("Enter")
@@ -5448,7 +5448,7 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
 
 
 def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, serve):
-    """The gallery's middle-width rail clears its pin and holds the whole card."""
+    """A middle-width margin gives marker clearance to the message's width."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     page.emulate_media(reduced_motion="reduce")
     # Keep the title comparison centred so this width exercises the middle rail.
@@ -5478,7 +5478,13 @@ def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, s
     assert geometry["wordsRight"] < geometry["pinRight"], geometry
     assert geometry["minimum"] <= room_past_pin < geometry["preferred"], geometry
     assert geometry["placement"] == "right", geometry
-    assert geometry["cardLeft"] >= geometry["pinRight"] + 8 - 0.5, geometry
+    assert geometry["cardLeft"] == pytest.approx(geometry["wordsRight"] + 8, abs=0.5), (
+        geometry
+    )
+    # A compact marker can end inside the gap beside the words, especially with
+    # Linux's narrower fonts. Width priority removes the marker's clearance; it
+    # need not cover that marker's painted pixels.
+    assert geometry["cardWidth"] > room_past_pin, geometry
     assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
         geometry
     )
@@ -7018,10 +7024,11 @@ def test_the_first_rail_allocation_matches_its_native_row(browser, serve):
 
 
 @pytest.mark.parametrize("width", [1440, 1920, 2400])
-def test_a_margin_card_clears_its_row_where_its_minimum_fits(browser, serve, width):
-    """Where the room past the margin row holds the card's minimum, the card
-    stands clear of the row. Otherwise it stands beside the words, over the row.
-    Short of its preferred measure it takes the room to the visible edge."""
+def test_a_margin_card_clears_its_row_without_sacrificing_message_width(
+    browser, serve, width
+):
+    """Only a full-width message leaves the margin row clear; a narrower message
+    uses the row's space and reaches the visible edge."""
     page = open_page(browser, serve(ASK_PAGE, events=[PARAGRAPH_ON_ASK]))
     resized(page, width, 900)
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
@@ -7036,15 +7043,15 @@ def test_a_margin_card_clears_its_row_where_its_minimum_fits(browser, serve, wid
           const box = card.getBoundingClientRect();
           return {controlsRight: controls.right, cardLeft: box.left,
                   cardRight: box.right, viewport: innerWidth,
-                  minimum: parseFloat(getComputedStyle(card)
-                    .getPropertyValue('--thread-card-min'))};
+                  preferred: parseFloat(getComputedStyle(card)
+                    .getPropertyValue('--thread-card'))};
         }"""
     )
     past = (
         geometry["viewport"] - 8 - (geometry["controlsRight"] + 8)
-        >= geometry["minimum"]
+        >= geometry["preferred"]
     )
-    assert past == (width != 1440), geometry
+    assert past == (width == 2400), geometry
     assert geometry["cardLeft"] == pytest.approx(
         (geometry["controlsRight"] if past else page.evaluate(WORDS_RIGHT)) + 8,
         abs=0.5,
@@ -7623,9 +7630,7 @@ def test_a_second_press_into_a_standing_card_leaves_one_level_to_take_off(
     leave_card_by_its_target(page)
 
 
-# Read the card with the selected target's whole control cluster. A card the rail cannot
-# hold beside that cluster keeps it clear, takes the card's minimum measure, and puts
-# its right edge on the visible edge, so it crosses the column by only what the rail lacks.
+# Read the card alongside its target, control cluster, and available message width.
 THREAD_CARD_GEOMETRY = """() => {
   const main = document.querySelector('main').getBoundingClientRect();
   const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
@@ -7734,8 +7739,8 @@ def test_a_sent_comment_keeps_its_text_viewport(browser, serve, text, zoom):
 def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
     browser, serve, wrapping
 ):
-    """An accepted comment preserves the real editor frame and wrapping, beside
-    or over either page shape, while its reply and neighboring controls remain usable."""
+    """An accepted comment preserves its editor frame, wrapping and reply, using
+    the marker strip where clearing it would narrow the message."""
     sidebar_page = ASK_PAGE.replace(
         '<main class="layout-column">',
         '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
@@ -7791,12 +7796,14 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
         "textbox", name="Reply", exact=True
     ).click()
 
-    # With room to spare, the carried frame stays clear of the target controls.
+    # At this width clearing the controls would narrow the message. Both the
+    # editor and its sent card use that space, retaining the editor's frame.
     wide = page.evaluate(THREAD_CARD_GEOMETRY)
     assert wide["minimum"] <= wide["cardWidth"] <= wide["preferred"], wide
     assert wide["replyWidth"] >= 160, wide
     assert wide["cardLeft"] == pytest.approx(editor_start, abs=0.5), wide
-    assert wide["cardLeft"] > wide["controlsRight"], wide
+    assert wide["cardLeft"] == pytest.approx(wide["wordsRight"] + 8, abs=0.5), wide
+    assert wide["cardLeft"] < wide["controlsRight"], wide
 
 
 def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):

@@ -114,14 +114,13 @@ A behavior module follows these rules:
 - Read UI based on element geometry synchronously from `PRESENTATION` for its
   first paint, then through normal layout signals. Reconcile UI derived from
   authored structure at `PAGE_INTERFACE`, at startup and each in-place revision
-  activation. Retain surviving nodes with `setChildren` to preserve focus and
-  native view state.
+  activation. Retain surviving nodes with `setChildren` (the rendering contract
+  below describes its native-state guarantees).
 - Use `nextRender`/`cancelRender` for paints and `sizeObserver` for size
   observation, so checks and tests wait for that work too. `nextRender` runs in
   the current rendering callback's frame, or in the next frame when called
   elsewhere. Use `nextFrame` for a step that must run in a later frame, such as
-  an animation tick. A playback loop keeps `requestAnimationFrame`, so playing
-  does not prevent the page from settling.
+  an animation tick.
 - Use `afterScript(callback)` to coalesce a stable callback at the current
   script's microtask checkpoint when synchronous updates yield one final
   mechanical reading.
@@ -445,9 +444,8 @@ state. `reducedMotion()`, `scrollBehavior()`, and `onMotionPreferenceChange()` a
 same preference where a module has to branch on it. `foldDuration()` reads how long a
 unit takes to leave from the document-root `--lf-motion-fold` stylesheet input; a widget
 retiring one calls that reader rather than choosing a number or caching a value.
-`flashDuration()` and `agentArrivalDuration()` read the corresponding shared cues.
-These typed time inputs accept CSS calculations and are set on the document root,
-including when the animated element lives in a shadow tree. Spend
+The `--lf-motion-*` time inputs accept CSS calculations and are set on the document
+root, including when the animated element lives in a shadow tree. Spend
 a duration only on letting the eye follow a box from where it was to where it is. A result
 the module can already draw is drawn in the gesture rather than after a wait.
 
@@ -786,7 +784,7 @@ omitting the attribute keeps the visual as one target.
 
 ## Projection subscriptions
 
-Register `watchQuestions`, `watchUpdates`, `watchHistory`, and `watchThreads` once for each
+Register `watchQuestions`, `watchReports`, `watchHistory`, and `watchThreads` once for each
 owner. They coalesce reads at the script's microtask checkpoint, pause while the owner
 is absent, and read the latest projection when it returns, even when unchanged.
 Moving the owner within one mutation batch retains its subscription. Their returned
@@ -854,7 +852,7 @@ a grab or removing hoisted dialog content, belongs in `disconnectedCallback`.
 checks connection again before painting. Returning permits fresh scheduling; it does
 not replay cancelled work.
 
-Time readings made synchronously in controller, `watchData`, `watchUpdates`, and
+Time readings made synchronously in controller, `watchData`, `watchReports`, and
 `watchHistory` callbacks subscribe that paint to Leaf's shared clock. Calls to `ago`,
 `shortAgo` and `quietSince` refresh the callback only when their result changes. `ago(ts)`
 says how long ago `ts` was as the page words it everywhere ("2h ago"), and `shortAgo(ts)`
@@ -877,11 +875,15 @@ redeliver unchanged data to keep a timestamp current.
 `revision`. An unchanged source keeps that origin when another source changes.
 
 The renderer owns its nodes and their placement. Use `setChildren(parent, nodes)`
-for retained native nodes: it moves only what is out of place and preserves focus
-and caret in a row it moves. Leaf's public `render(template, container)` applies
-Lit templates with the same focus protection; `repeat(records, keyOf, template)`
-retains keyed template rows. Leave native disclosure, editor and scroll state with
-the retained nodes. When the application owns a native property the user also changes,
+for retained native nodes: it moves only what is out of place. For an individual
+placement use `move(parent, node, before)`, with `null` to append. Within one
+composed root it uses native `moveBefore` where available, preserving focus, caret
+and iframe documents. Otherwise it uses `insertBefore`, which can reset that state. Leaf's public
+`render(template, container)` restores editor focus and caret after Lit renders;
+`repeat(records, keyOf, template)` retains keyed template rows, but Lit's ordinary
+insertion can reset iframe documents even in browsers with native moves. Leave
+native disclosure, editor and scroll state with the retained nodes. When the
+application owns a native property the user also changes,
 bind it with `live`, such as `.value=${live(value)}` or `.checked=${live(checked)}`:
 it compares the live DOM value and restores the authoritative value even when that
 value equals the previous template input, as when a gesture is refused. Do not bind

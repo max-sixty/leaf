@@ -88,7 +88,7 @@ def id_subject(
 
     A thread is named by its own id, any message in it, a widget frozen into its
     markup, or any other event whose history it is part of
-    (`thread_memberships`). An event on a page widget, a move or a worker's report,
+    (`thread_memberships`). An event on a page widget, an action or a worker's report,
     names that widget, and an undo names what the gesture it withdraws named. A page id cannot collide with any of these:
     `validation.markup.id_errors` refuses an authored id in the shape the log mints,
     and message markup and versions refuse each other's ids."""
@@ -246,7 +246,7 @@ def thread_memberships(
     resolution still comes from `build_threads`; membership says which raw
     records explain that fold rather than becoming another state projection.
     Read state and the history feed read the direct relation, `event_threads`:
-    a move the user made in a thread, rather than every thread it changed.
+    an update the user made in a thread, rather than every thread it changed.
     """
     memberships: dict[str, list[str]] = {}
     settled_by_coordinate: dict[tuple, list[str]] = {}

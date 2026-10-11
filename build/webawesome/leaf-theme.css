@@ -12,6 +12,17 @@
 ) {
   color-scheme: inherit;
   --wa-font-family-body: var(--sans);
+  /* Controls inherit typography through their hosts. Reset the surrounding prose's
+     face without overriding the component's size, weight, line height or state ink. */
+  font-family: var(--wa-font-family-body);
+  font-style: normal;
+  font-variant: normal;
+  font-stretch: normal;
+  font-feature-settings: normal;
+  font-variation-settings: normal;
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-transform: none;
   --wa-color-surface-raised: var(--card);
   --wa-color-surface-default: var(--field);
   --wa-color-surface-lowered: var(--card);

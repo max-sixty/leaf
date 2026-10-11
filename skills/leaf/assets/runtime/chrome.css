@@ -85,9 +85,7 @@ html[data-lf-draw-mode] main * {
   cursor: crosshair !important;
 }
 html[data-lf-draw-mode] main [data-lf-runtime],
-html[data-lf-draw-mode] main [data-lf-runtime] *,
-html[data-lf-draw-mode] main [data-lf-offer],
-html[data-lf-draw-mode] main [data-lf-offer] * {
+html[data-lf-draw-mode] main [data-lf-runtime] * {
   cursor: auto !important;
 }
 .lf-react-mark {
@@ -423,6 +421,12 @@ html[data-lf-draw-mode] main [data-lf-offer] * {
     color: var(--ink);
   }
   @container style(--lf-notice-seat: banner) {
+    .lf-status-words {
+      min-block-size: 2.5em;
+    }
+    .lf-status-notice {
+      align-self: start;
+    }
     .lf-banner-status[data-lf-notice] .lf-status-notice {
       display: -webkit-box;
     }

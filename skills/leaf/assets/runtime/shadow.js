@@ -68,7 +68,8 @@ export const under = (node, root) => {
 // questions, which the platform answers only within one tree, are asked of this.
 export const hostIn = (node, root) => {
   let at = node;
-  while (at && at.getRootNode() !== root) at = shadowHost(at.getRootNode());
+  while (at && Node.prototype.getRootNode.call(at) !== root)
+    at = shadowHost(Node.prototype.getRootNode.call(at));
   return at;
 };
 

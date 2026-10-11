@@ -166,6 +166,14 @@ write a raw document only when source structure is the subject. `initialized_pag
 lends one prepared page per composition shape, with runtime and vendor hard-linked in;
 a test of initialization runs `page init` itself.
 
+Reuse the `browser` and `serve` fixtures for ordinary browser tests. Each pytest
+worker shares one Playwright driver and Chromium browser; test contexts and page
+directories isolate mutable state, and page servers run inside the worker. Fixture
+teardown owns their cleanup. Add a separate browser or subprocess when its engine,
+configuration, process boundary or lifetime is part of the behavior being tested.
+Worker counts multiply these runtimes across every concurrent suite; increasing
+parallelism needs a measured benefit on the shared host (root `AGENTS.md`).
+
 ### Processes and servers
 
 Many runs of the suite share one machine, from different worktrees and sessions, each

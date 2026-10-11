@@ -6235,10 +6235,7 @@ def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
                 row["title"]: (row["activity"]["kind"], row["activity"]["detail"])
                 for row in state["others"]
             }
-            == {
-                "The closing leaf": ("closed", ""),
-                "The other leaf": ("working", "recording the demo"),
-            }
+            == {"The other leaf": ("working", "recording the demo")}
         ),
     )
     held = page.evaluate(
@@ -6578,9 +6575,8 @@ def test_a_failed_leaves_restore_keeps_application_presentation_pending(
     )
     told(
         page,
-        until=lambda state: any(
-            row["title"] == "The closing leaf" and row["activity"]["kind"] == "closed"
-            for row in state["others"]
+        until=lambda state: all(
+            row["title"] != "The closing leaf" for row in state["others"]
         ),
     )
     page.wait_for_function(
@@ -7500,17 +7496,12 @@ def test_a_walk_down_the_drawer_stops_clear_of_the_shortcut_bar_text(
 
 
 def test_a_walk_down_the_queue_stops_clear_of_the_shortcut_bar_text(browser, serve):
-    """The pages drawer's reading above, made of the drawer beside it. The room is one
-    fact — the shortcut bar stands in the corner both lists reach — and it was written to one
-    list, so the Asks list's walk parked its last row 47px under the line. Nothing said
-    so, because no example ships enough Asks to fill a drawer and the walk that would have
-    shown it had only ever been made down the other one.
+    """A covering Questions panel keeps the last row above the shortcut bar.
 
-    So both lists end above the same band (`--lf-bottom-bar-h`), and this is the half of that the
-    leaves reading could not cover: a fact stated per drawer is a fact the second drawer
-    goes without, and the second drawer is the one nobody looks at."""
+    Beside a live page the bar ends at the panel's edge, so only the covering
+    posture exercises the clearance shared with the Pages drawer."""
     page = open_page(browser, serve(MANY_ASKS_PAGE))
-    resized(page, 900, 420)
+    resized(page, 480, 420)
     banner_control(page, ".lf-queue").click()
     rows = page.locator("button.lf-queue-row")
     expect(rows).to_have_count(24)

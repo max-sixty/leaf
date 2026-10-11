@@ -21,7 +21,7 @@
 // preparation it began (`observeWidgetPreparations`) works on in a promise the loop
 // cannot see; the gesture owns that preparation's landing, as a rendering from the
 // task that settles it until the loop settles again, and nothing while it waits. It
-// began one only if it was aimed inside the declaring widget while its rendering ran.
+// began one only when its declaration carries that input's exact callback source.
 // Native effects it began retain only their sampled displacement within their
 // own subtree; their continued lifetime never owns unrelated page movement.
 // Native scroll effects belong to their retained scroll source, regardless of the
@@ -1139,6 +1139,7 @@
   // and of each element holding it at the key; the animations already moving any of
   // them; and until when the typing rule reads it.
   const renderings = [];
+  const inputRenderings = new WeakMap();
   let open = null;
   // The typing rule stops reading the open rendering, which runs on.
   const unwatch = () => {
@@ -1154,8 +1155,7 @@
     }
     open = null;
   };
-  // `target` is the node the input was aimed at, where it has one.
-  const begin = (start, typing = null, own = new Set(), target = null) => {
+  const begin = (start, typing = null, own = new Set(), event = null) => {
     end();
     open = {
       start,
@@ -1165,26 +1165,20 @@
       told: false,
       last: false,
       typing,
-      target,
+      event,
     };
     renderings.push(open);
+    if (event) inputRenderings.set(event, open);
   };
   // The renderings preparations' landings opened, each running until the loop settles
-  // as an input's own does. A preparation is an input's only where that input was aimed
-  // inside the widget that declared it, in the rendered tree, and was declared while
-  // that input's rendering, or a landing it owns, still ran. Overlap alone is not
-  // cause: a preparation a timer, news or another widget's input started stays passive.
+  // as an input's own does. The canonical callback source identifies the input that
+  // began each preparation; sharing a widget or overlapping its rendering is no cause.
   const landing = new Set();
   const preparing = new WeakMap();
-  const aimedInside = (rendering, widget) => {
-    for (let at = rendering?.target; at; at = up(at)) if (at === widget) return true;
-    return false;
-  };
   const prepared = (phase, preparation) => {
     if (phase === "begin") {
-      const owner = [open, ...[...landing].reverse()].find((rendering) =>
-        aimedInside(rendering, preparation.owner),
-      );
+      const source = window.lfInputWork.current();
+      const owner = source && inputRenderings.get(source.event);
       if (owner) preparing.set(preparation, owner);
       return;
     }
@@ -1199,7 +1193,7 @@
       told: false,
       last: false,
       typing: owner.typing,
-      target: owner.target,
+      event: owner.event,
     };
     landing.add(rendering);
     renderings.push(rendering);
@@ -1259,7 +1253,7 @@
     nativeFrame(tick);
   };
   nativeFrame(tick);
-  window.lfInputWork.subscribeEdits(({ node: field }) => {
+  window.lfInputWork.subscribeEdits(({ node: field, event }) => {
     const holding = [];
     for (let at = field; at instanceof Element; at = up(at)) holding.push(at);
     const start = nativePerformance.now();
@@ -1287,7 +1281,7 @@
         until: Infinity,
       },
       new Set(),
-      field,
+      event,
     );
   });
   // A viewport resize is input, and its new size is the fact. Chrome lays out the
@@ -1323,7 +1317,7 @@
       nativePerformance.now(),
       null,
       presses.get(event.pointerId) ?? new Set(),
-      event.composedPath()[0] ?? null,
+      event,
     );
     if (event.type === "click") presses.delete(event.pointerId);
   };

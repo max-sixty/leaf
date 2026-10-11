@@ -1157,7 +1157,10 @@ def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve, wo
     consume_browser_errors(page, "button#control moved without input")
 
 
-def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, serve):
+@pytest.mark.parametrize("route", ["pointer", "keyboard"])
+def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(
+    browser, serve, route
+):
     """A press's declared widget preparation is its result, however late it lands, and
     the press owns nothing while it waits.
 
@@ -1183,7 +1186,11 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
     page.route("**/vendor/syntax/markdown.js", lambda route: held.append(route))
     first = page.locator("#patch .lf-diff-file").first
     control = page.locator("#control")
-    first.locator(".lf-diff-head").click()
+    if route == "pointer":
+        first.locator(".lf-diff-head").click()
+    else:
+        first.locator(".lf-diff-head").focus()
+        page.keyboard.press("Enter")
     holding(page, held, 1, "the markdown grammar")
     rendered(page)
     assert (
@@ -1216,13 +1223,21 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
     assert any("in shadow of lf-diff#patch" in error for error in moved), moved
 
 
-def test_a_preparation_no_input_aimed_at_lands_passive(browser, serve):
-    """Overlapping an input's rendering does not make a preparation that input's.
+@pytest.mark.parametrize(
+    "input_at",
+    ["outside", "same-widget", "same-disclosure", "same-disclosure-attr-node"],
+)
+def test_a_preparation_no_input_began_lands_passive(browser, serve, input_at):
+    """Overlapping an input's rendering or widget does not make its preparation input's.
 
-    A press outside the diff keeps its counted work running until a response the page
-    asked for before the press opens a diff file; that file's landing, once the press
-    has settled, moves the control after it without input."""
+    A press outside the diff, on its second file's header, or a prevented press on the
+    first keeps counted work running until a response requested before the press opens
+    the first file. Its passive landing moves the control once the press settles."""
     patch = "diff --git a/first.md b/first.md\n--- a/first.md\n+++ b/first.md\n"
+    patch += "@@ -1 +1 @@\n-old\n+new\n"
+    patch += (
+        "diff --git a/second.txt b/second.txt\n--- a/second.txt\n+++ b/second.txt\n"
+    )
     patch += "@@ -1 +1 @@\n-old\n+new\n"
     page = open_page(
         browser,
@@ -1238,19 +1253,38 @@ def test_a_preparation_no_input_aimed_at_lands_passive(browser, serve):
     answer, grammar = [], []
     page.route("**/held-answer", lambda route: answer.append(route))
     page.route("**/vendor/syntax/markdown.js", lambda route: grammar.append(route))
-    page.evaluate("""async () => {
+    page.evaluate(
+        """async inputAt => {
       const {nextFrame} = await window.__lfRuntimeImport('/runtime/rendering.js');
-      const details = document.querySelector('#patch').shadowRoot.querySelector('details');
-      const opens = () => { details.open = true; };
+      const root = document.querySelector('#patch').shadowRoot;
+      const details = root.querySelector('details');
+      const opens = () => {
+        if (inputAt === 'same-disclosure-attr-node')
+          details.setAttributeNode(document.createAttribute('open'));
+        else if (inputAt === 'same-disclosure') details.setAttribute('open', '');
+        else details.open = true;
+      };
       fetch('/held-answer').then(opens, opens);
-      document.querySelector('#press').addEventListener('click', () => {
+      const press = inputAt === 'outside' ? document.querySelector('#press')
+        : root.querySelectorAll('.lf-diff-head')[inputAt === 'same-widget' ? 1 : 0];
+      press.addEventListener('click', event => {
+        if (inputAt.startsWith('same-disclosure')) event.preventDefault();
         let after = 0;
         const work = () => { if (!details.open || ++after < 3) nextFrame(work); };
         nextFrame(work);
       }, {once: true});
-    }""")
+    }""",
+        input_at,
+    )
     holding(page, answer, 1, "the page's own request")
-    page.locator("#press").click()
+    if input_at == "outside":
+        page.locator("#press").click()
+    else:
+        page.locator("#patch .lf-diff-head").nth(
+            1 if input_at == "same-widget" else 0
+        ).click()
+    if input_at.startswith("same-disclosure"):
+        assert not page.locator("#patch details").first.evaluate("node => node.open")
     answer[0].fulfill(status=204)
     holding(page, grammar, 1, "the markdown grammar")
     rendered(page)
@@ -1258,11 +1292,42 @@ def test_a_preparation_no_input_aimed_at_lands_passive(browser, serve):
     assert page.lf_errors == []
 
     grammar[0].continue_()
-    expect(page.locator("#patch [data-line]").last).to_contain_text("new")
+    expect(
+        page.locator("#patch .lf-diff-file").first.locator("[data-line]").last
+    ).to_contain_text("new")
     rendered(page)
     judge_watches()
     moved = consume_browser_errors(page, "moved without input")
     assert any(error.startswith("button#control ") for error in moved), moved
+
+
+def test_a_delivered_disclosure_toggle_releases_its_input_source(browser):
+    """Native delivery retires input ownership even without a wrapped page listener."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<details ontoggle="window.nativeToggles=(window.nativeToggles ?? 0)+1">'
+            "<summary>Open</summary>Content</details>"
+        )
+    )
+    paint(page)
+    page.locator("summary").click()
+    page.wait_for_function("window.nativeToggles === 1")
+    page.evaluate("""() => {
+      const details = document.querySelector('details');
+      details.ontoggle = () => {
+        window.propertyToggleSource = lfInputWork.current()?.event.type ?? null;
+      };
+      details.addEventListener('toggle', () => {
+        window.passiveToggleSource = lfInputWork.current()?.event.type ?? null;
+      });
+      details.attributes.removeNamedItem('open');
+    }""")
+    page.wait_for_function("window.passiveToggleSource !== undefined")
+    assert page.evaluate(
+        "[window.passiveToggleSource, window.propertyToggleSource]"
+    ) == [None, None]
 
 
 def test_shift_judgement_waits_for_paint_instead_of_a_time_cap(browser):

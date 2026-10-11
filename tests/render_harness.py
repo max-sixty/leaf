@@ -1317,7 +1317,9 @@ def _judge_frame_watches(frame):
             break
         if time.monotonic() >= deadline:
             raise PlaywrightTimeout(f"health sensors did not drain: {frame.url}")
-        page.wait_for_timeout(100)
+        # Judgement usually completes within a frame or two; a 100ms poll cost most
+        # browser tests a tenth of a second.
+        page.wait_for_timeout(10)
     frame.evaluate("delete window.lfWatchJudgement")
 
 

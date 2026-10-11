@@ -433,13 +433,19 @@ export function shownBand(el) {
 // A box scrolls, for these readings, when its computed overflow makes it a scroll
 // container: `auto` and `scroll`, and `hidden` too, which a script or a landing can
 // scroll though the user cannot, and which is the scroller a sticky box inside it sticks
-// in. The runtime marks every such box from the same predicate (reach.js, `paintSlot`),
-// and asks it of what a motion scrolls and which boxes scroll what they hold
-// (scroll-motion.js, `scrollContainer` and `scrollsContent`).
+// in. The runtime asks it of what a motion scrolls and which boxes scroll what they
+// hold (scroll-motion.js, `scrollsContent`), and of the boxes that hold sticky headers
+// (`scrollContainer`). `userScrollport` is the same test without `hidden`: what the
+// user, rather than a script, can scroll, which keyboard stops and edge marks read
+// (reach.js, `paintSlot`).
 export const scrollport = (overflow) => /^(auto|scroll|hidden)$/.test(overflow);
+export const userScrollport = (overflow) => /^(auto|scroll)$/.test(overflow);
 export const scrollsBy = ({ overflowX, overflowY }) =>
   scrollport(overflowX) || scrollport(overflowY);
 const scrolls = (el) => scrollsBy(getComputedStyle(el));
+// A scroll container: the document's own scroller, or a box whose overflow scrolls.
+export const scrollContainer = (box) =>
+  box === box.ownerDocument.scrollingElement || scrolls(box);
 // How far below the top of `scroller`'s band the view of `el` starts, past the sticky
 // headers stuck over it. Each header adds its stated height to `--lf-top` for what it
 // stands over (theme.css), so where the `--lf-top` computed at `el` exceeds the
@@ -453,9 +459,8 @@ const scrolls = (el) => scrollsBy(getComputedStyle(el));
 // containment) has none over it. A box that scrolls starts `--lf-top` again for what it
 // holds, so it is read where it stands, at its parent; a header's holder puts the
 // stacked value on a box that does not scroll (theme.css, at `--lf-top`).
-const holdsHeaders = (el) => el === el.ownerDocument?.scrollingElement || scrolls(el);
 const edgeInset = (el, scroller, slot, padding) => {
-  if (!holdsHeaders(scroller) || el === scroller) return 0;
+  if (!scrollContainer(scroller) || el === scroller) return 0;
   const at = el.nodeType === 1 && scrolls(el) ? upFrom(el) : el;
   const read = (box) =>
     Number.parseFloat(getComputedStyle(box).getPropertyValue(slot)) || 0;
@@ -505,7 +510,7 @@ export function stuckBox(node) {
 // box that clips what it holds, as a tab strip does, still sticks in that scroller.
 function sticks(sticky) {
   let scroller = renderedParent(sticky);
-  while (scroller?.nodeType === 1 && !holdsHeaders(scroller))
+  while (scroller?.nodeType === 1 && !scrollContainer(scroller))
     scroller = renderedParent(scroller);
   if (scroller?.nodeType !== 1) return false;
   const band = shownBand(scroller);
@@ -839,7 +844,7 @@ function clipWalk(item, clips, held) {
             a.offsetParent !== undefined &&
             ["fixed", "absolute"].includes(getComputedStyle(a).position),
           block: a.offsetParent,
-          scrolls: holdsHeaders(a),
+          scrolls: scrollContainer(a),
         }),
       );
     }

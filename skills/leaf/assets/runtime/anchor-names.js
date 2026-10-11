@@ -5,9 +5,9 @@
  * keyboard intent can refresh it before an observer task. Control departure releases
  * its observation through the same arrivals door as the other chrome owners; its
  * weakly retained binding restores that observation when the control returns. */
-import { pagePlaneRect, shownParts } from "./geometry.js";
+import { pagePlaneRect, scrollContainer, shownParts } from "./geometry.js";
 import { hostIn, renderedParent } from "./shadow.js";
-import { scrollContainer, scrollsContent } from "./scroll-motion.js";
+import { scrollsContent } from "./scroll-motion.js";
 import { watchArrivals } from "./arrivals.js";
 
 // Anchor names are global to their tree, so one per target element, merged with whatever

@@ -26,7 +26,13 @@
    instead (`landing.js`): a visible pinned row or a separate transcript keeps
    the turn the user was reading, even when it is not the latest one. A separate
    transcript opened for reading shows its latest turn (`showLatestTurn`). */
-import { landingBand, seenRect, shownBox, stuckBox } from "../geometry.js";
+import {
+  landingBand,
+  seenRect,
+  shownBox,
+  stuckBox,
+  userScrollport,
+} from "../geometry.js";
 import { focused } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
@@ -54,7 +60,7 @@ export const replyPinned = (reply) => Boolean(reply) && stuckBox(reply) === repl
 // The common transcript is a separate reading region only when its container bounds it.
 const separateTranscript = (held) => {
   const transcript = held.querySelector(":scope > .lf-thread-transcript");
-  return transcript && /^(auto|scroll)$/.test(getComputedStyle(transcript).overflowY)
+  return transcript && userScrollport(getComputedStyle(transcript).overflowY)
     ? transcript
     : null;
 };

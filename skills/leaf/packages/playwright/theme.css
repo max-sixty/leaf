@@ -201,12 +201,13 @@
 .lf-trace-transport-button:hover { background: var(--paper-2); }
 .lf-trace-transport-button:focus-visible { --lf-focus-ring: trace-transport-button; outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-ring-w)); }
 .lf-trace-transport-button:disabled { color: var(--muted); cursor: default; }
-.lf-trace-play { min-inline-size: 86px; background: var(--accent-tint); color: var(--accent); }
+/* One width for Play and Pause, so the readout beside it never moves when playback ends. */
+.lf-trace-play { inline-size: 6.5em; min-inline-size: 86px; background: var(--accent-tint); color: var(--accent); }
 .lf-trace-play > svg:nth-child(2), .lf-trace-play[data-playing] > svg:first-child { display: none; }
 .lf-trace-play[data-playing] > svg:nth-child(2) { display: block; }
 @container (max-width: 480px) {
   .lf-trace-toolbar .lf-trace-position-row { flex-basis: 100%; order: 1; }
-  .lf-trace-play { min-inline-size: var(--lf-trace-control-size); }
+  .lf-trace-play { inline-size: var(--lf-trace-control-size); min-inline-size: var(--lf-trace-control-size); }
   .lf-trace-play > span { display: none; }
   .lf-trace-selection { font-size: var(--lf-trace-small-type); }
   /* Lane names give way to the time scale on narrow screens. */

@@ -2614,7 +2614,12 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
     timeline.focus()
     for _ in range(100):
         timeline.press("ArrowRight")
-        if widget.locator(".lf-trace-selection").inner_text() == "Captured frame":
+        # A frame of another size reads "Image from …" until its Viewer commits.
+        if (
+            widget.locator(".lf-trace-selection")
+            .inner_text()
+            .endswith("Captured frame")
+        ):
             break
     else:
         raise AssertionError("No captured frame after the populated checkpoint")

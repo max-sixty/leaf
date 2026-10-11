@@ -462,13 +462,14 @@ customElements.define(
       // During playback a plain image shows each capture in time; the inspectable
       // Viewer surface takes over again when playback stops.
       this.playbackImage = el("img", "lf-trace-playback-image");
+      // The canvas is the part; the Viewer image names it to assistive tech.
       this.playbackImage.alt = "";
+      this.playbackImage.setAttribute("aria-hidden", "true");
       this.inputBadge.hidden =
         this.inputPoint.hidden =
         this.playbackImage.hidden =
           true;
       this.imageViewport.append(this.missingImage, ...this.#overlays());
-      this.playbackImage.alt = "";
       this.#timeline = new RecordingTimeline(this.timeline, {
         quoted: quoted(this),
         onSeek: (time, final) => this.#seek(time, final),
@@ -1288,7 +1289,6 @@ customElements.define(
           this.#playbackWanted = null;
           const layer = this.playbackImage;
           keeps(layer, "src", loader.src);
-          keeps(layer, "alt", this.#targets.get(this.#id("image", image.id)).label);
           this.#playbackId = image.id;
           this.#placePlayback();
           keepsHidden(this.playbackImage, false);
@@ -1322,7 +1322,8 @@ customElements.define(
       ) {
         const fresh = el("img", "lf-trace-playback-image");
         fresh.hidden = layer.hidden;
-        fresh.alt = layer.alt;
+        fresh.alt = "";
+        fresh.setAttribute("aria-hidden", "true");
         fresh.src = layer.src;
         layer.remove();
         this.playbackImage = layer = fresh;
@@ -1500,11 +1501,13 @@ customElements.define(
             },
             moved: () => {
               this.#rememberPictureView(pending.viewer);
+              this.#placePlayback();
               this.#drawInput();
               this.#parts.update();
             },
             zoomed: () => {
               this.#rememberPictureView(pending.viewer);
+              this.#placePlayback();
               this.#imageZoom();
               this.#drawInput();
               this.#parts.update();

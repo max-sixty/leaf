@@ -1,11 +1,10 @@
+import { says, textNodesUnder } from "/runtime/widget-api.js";
 import {
   quoteFrom,
-  says,
-  textNodesUnder,
   upFrom,
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,
-} from "/runtime/widget-api.js";
+} from "/runtime/check-api.js";
 import { at, place } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 

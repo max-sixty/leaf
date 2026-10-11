@@ -1,12 +1,10 @@
+import { inChrome, matchesWhen, quoted, textNodesUnder } from "/runtime/widget-api.js";
 import {
   ADDRESSABLE,
-  inChrome,
-  matchesWhen,
-  quoted,
-  textNodesUnder,
+  unrevealedVisualParts,
   upFrom,
-} from "/runtime/widget-api.js";
-import { unrevealedVisualParts, visualPartProblems } from "/runtime/check-api.js";
+  visualPartProblems,
+} from "/runtime/check-api.js";
 import { openRoots } from "./open-roots.js";
 
 const PAINT_PROBE = "--_leaf-render-paint-value";

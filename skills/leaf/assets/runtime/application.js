@@ -20,10 +20,7 @@ import { paintKeys } from "./keyboard/scopes.js";
 import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
 import { createDelivery, deliverBookkeeping } from "./delivery.js";
-import {
-  createProjectionPresentation,
-  shallowSigs as projectionShallowSigs,
-} from "./projection/presentation.js";
+import { createProjectionPresentation } from "./projection/presentation.js";
 import { createProjectionCommands } from "./projection/commands.js";
 import { createDataProjection } from "./projection/data.js";
 import { createThreadPresentation } from "./thread/presentation.js";
@@ -561,7 +558,6 @@ export function mountApplication(dependencies) {
         readQuestions().all,
       );
     },
-    shallowSigs: projectionShallowSigs,
     startFeed: feed.startFeed,
     wireInput: dependencies.wireInput,
   };
@@ -608,7 +604,6 @@ export const queueActions = Object.freeze({
   open: (...args) => app().queueActions.open(...args),
   done: (...args) => app().queueActions.done(...args),
 });
-export const shallowSigs = (...args) => app().shallowSigs(...args);
 export const startFeed = (...args) => app().startFeed(...args);
 export const unaccountedGesture = (...args) => app().unaccountedGesture(...args);
 export const undoable = (...args) => app().undoable(...args);

@@ -9,7 +9,7 @@
  *
  * Written once, for the reason `open-roots.js` is: a probe that names elements its own
  * way reports the same box under two names. */
-import { ADDRESSABLE } from "/runtime/widget-api.js";
+import { ADDRESSABLE } from "/runtime/check-api.js";
 
 const tag = (el) => `<${el.localName}${el.matches(ADDRESSABLE) ? " id=" + el.id : ""}>`;
 

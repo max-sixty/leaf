@@ -12,7 +12,7 @@ from contextlib import contextmanager
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from leaf.render_gate.scheme import collect_page_exceptions
+from leaf.render_gate.scheme import collect_page_errors
 
 from leaf_dev.browser import chrome, tab
 
@@ -67,13 +67,7 @@ def gate(page: Path, widths: dict) -> dict:
         for name, (viewport, _) in widths.items():
             with tab(browser, viewport=viewport, touch=name == "phone") as view:
                 errors = []
-                collect_page_exceptions(view, errors)
-                view.on(
-                    "console",
-                    lambda message, errors=errors: (
-                        errors.append(message.text) if message.type == "error" else None
-                    ),
-                )
+                collect_page_errors(view, errors)
                 load(view, url)
                 overflow = view.evaluate(
                     "document.documentElement.scrollWidth > innerWidth + 1"

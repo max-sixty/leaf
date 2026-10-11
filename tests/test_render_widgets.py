@@ -13420,6 +13420,7 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
     touch("touchEnd")
     rendered(page)
     assert head.evaluate(read)["open"] is False, "the release folds the file"
+    expect(head).to_be_focused()
     expect(head).to_have_attribute("data-lf-focus", "")
     assert head.evaluate(read)["word"] == whole
     page.evaluate(RELEASE_FOCUS)
@@ -13428,6 +13429,7 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
     page.touchscreen.tap(point["x"], point["y"])
     rendered(page)
     assert head.evaluate(read)["open"] is True, "a tap unfolds it"
+    expect(head).to_be_focused()
     expect(head).to_have_attribute("data-lf-focus", "")
     assert head.evaluate(read)["word"] == whole
     page.evaluate(RELEASE_FOCUS)

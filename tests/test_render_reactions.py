@@ -595,6 +595,7 @@ def test_a_target_hint_opens_comment_and_a_token_seats_only_its_glyph(browser, s
     assert sent["token"] == "prioritize" and sent["anchor"] == {"section": "prose"}
     shown = painted(page, [["prose", "prioritize"]])
     assert shown["projected"] == 0 and shown["washed"] == "", shown
+    expect(page.locator("#prose")).to_be_focused()
     expect(page.locator("#prose")).to_have_attribute("data-lf-focus", "")
     expect(page.locator("#prose")).to_have_css("outline-style", "solid")
     page.evaluate(RELEASE_FOCUS)

@@ -958,6 +958,16 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
     # at rest, since a hover state read against a resting one compares nothing.
     page.mouse.move(4, 4)
 
+    # The slotted shortcut hint keeps the text field's muted placeholder ink.
+    # Typography shared with sent messages must not turn an empty hint into prose.
+    hint_ink = """hint => [getComputedStyle(hint).color,
+        getComputedStyle(hint.querySelector('kbd')).color]"""
+    hint = page.locator(".lf-fab-input .lf-compose-placeholder")
+    expect(hint).to_be_visible()
+    assert len(set(hint.evaluate(hint_ink))) == 1
+    page.locator(".lf-fab-input").click()
+    assert len(set(hint.evaluate(hint_ink))) == 1
+
     family = """el => { const s = getComputedStyle(el);
         return Object.fromEntries(["font-family", "font-size",
             "border-top-width", "border-top-style",
@@ -977,7 +987,7 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
         f"the response bar speaks in the document's voice: {raised['font-family']}"
     )
     assert (
-        page.locator(".lf-fab-input").evaluate("el => getComputedStyle(el).boxShadow")
+        page.locator(".lf-fab-input").evaluate("el => getComputedStyle(el).filter")
         != "none"
     ), "the field that floats over the page says nothing about its elevation"
 

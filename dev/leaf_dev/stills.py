@@ -319,8 +319,8 @@ def panel_by_keyboard(page: Page) -> None:
     )
 
 
-def composer(page: Page) -> None:
-    """A comment being typed on a passage selected by pointer."""
+def composer_empty(page: Page) -> None:
+    """An empty anchored comment opened by selecting a passage."""
     box = page.locator("#triage-lede").bounding_box()
     y = box["y"] + 10
     page.mouse.move(box["x"] + 2, y)
@@ -331,9 +331,21 @@ def composer(page: Page) -> None:
     # arrives on a later frame, so the pointer decides, not whether it is there yet.
     if page.evaluate("matchMedia('(pointer: coarse)').matches"):
         page.get_by_role("button", name="Comment on selection").click()
+
+
+def composer(page: Page) -> None:
+    """A comment being typed on a passage selected by pointer."""
+    composer_empty(page)
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer leaf-text").focus()
     page.keyboard.insert_text("A comment being drafted on the selected words")
+
+
+def page_comment_empty(page: Page) -> None:
+    """The page comment's empty hint and resting frame after tabbing out."""
+    page.locator(".lf-banner-actions > .lf-page-comment").click()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
 
 
 def composer_space(page: Page) -> None:
@@ -1166,9 +1178,32 @@ STATES = (
         "plan-panel-reply-long-dark", "review-a-plan", panel_reply_long, scheme="dark"
     ),
     State("plan-page-comment-long", "review-a-plan", page_comment_long),
+    State(
+        "plan-page-comment-empty",
+        "review-a-plan",
+        page_comment_empty,
+        region=".lf-page-comment-card",
+    ),
+    State(
+        "plan-page-comment-empty-dark",
+        "review-a-plan",
+        page_comment_empty,
+        scheme="dark",
+        region=".lf-page-comment-card",
+    ),
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
     State("triage", "triage-board", at_rest),
     State("triage-composer", "triage-board", composer),
+    State(
+        "triage-composer-empty", "triage-board", composer_empty, region=".lf-fab-bar"
+    ),
+    State(
+        "triage-composer-empty-dark",
+        "triage-board",
+        composer_empty,
+        scheme="dark",
+        region=".lf-fab-bar",
+    ),
     State("triage-composer-space", "triage-board", composer_space, viewport=(362, 900)),
     State("triage-composer-long", "triage-board", composer_long),
     State("triage-composer-long-dark", "triage-board", composer_long, scheme="dark"),

@@ -672,7 +672,6 @@ button.lf-thread-notice:is(:focus-visible, .lf-focus-visible) {
   --pre-inset: 10px;
 }
 leaf-text.lf-fab-input,
-.lf-fab-bar .lf-compose-placeholder,
 .lf-msg-body {
   font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans);
   color: var(--ink);
@@ -1382,16 +1381,22 @@ button.lf-media-open {
 .lf-composer-media-item > .lf-media-open:is(:focus-visible, .lf-focus-visible) {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
-.lf-comment-box > .lf-compose-field {
+.lf-comment-box > .lf-compose-field,
+.lf-response-control {
   border: 1px solid var(--border-2);
   border-radius: var(--r);
   background: var(--card);
 }
-.lf-comment-box > .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus)) {
+.lf-comment-box > .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus)),
+.lf-response-control:is(:focus, :focus-visible, .lf-focus, .lf-focus-visible) {
   outline: var(--focus-ring);
   --lf-focus-ring: text-box;
   outline-offset: 0;
   border-color: transparent;
+}
+.lf-page-comment-card,
+.lf-response-control {
+  filter: drop-shadow(0 2px 8px var(--shade));
 }
 .lf-comment-box > .lf-compose-field > leaf-text {
   padding: var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);
@@ -1508,20 +1513,10 @@ button.lf-media-open {
 .lf-response-control {
   box-sizing: border-box;
   min-height: var(--lf-response-height);
-  border: 1px solid var(--border-2);
-  background: var(--card);
-  border-radius: var(--r);
   color: var(--ink-2);
   font-weight: 400;
   line-height: inherit;
   padding-block: var(--lf-compose-pad-block);
-  box-shadow: 0 2px 8px var(--shade);
-}
-.lf-response-control:is(:focus, :focus-visible, .lf-focus, .lf-focus-visible) {
-  outline: none;
-  --lf-focus-ring: response-control;
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
-  box-shadow: var(--focus-shadow), 0 2px 8px var(--shade);
 }
 leaf-text.lf-fab-input {
   width: 100%;
@@ -1664,7 +1659,7 @@ leaf-text.lf-fab-input {
   .lf-response-control:is(:focus, :focus-visible, .lf-focus, .lf-focus-visible) {
     outline: var(--focus-ring-w) solid Highlight;
     outline-offset: 2px;
-    box-shadow: none;
+    filter: none;
   }
 }
 

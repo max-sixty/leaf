@@ -2289,14 +2289,6 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     }
     assert set(held) == {"<table id=deep-t>", "<table id=nest-t>"}, held
     assert "give <lf-ask id=nest> the data-width" in held["<table id=nest-t>"], held
-    # On a wide page a granted box holding only text keeps the prose's left edge, so
-    # the room it does not use costs the reader nothing.
-    unused = lambda p: {
-        finding["at"]
-        for finding in render_checks_model.evaluate_probe(p, "misplacedBoxes")
-        if finding["kind"] == "unused"
-    }
-    assert not unused(page)
 
     column = open_page(browser, serve(leaf_page("Column", body)))
     resized(column, 1726, 900)
@@ -2309,10 +2301,6 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
         for finding in render_checks_model.evaluate_probe(column, "misplacedBoxes")
         if finding["kind"] == "held"
     ]
-    # On a column page the granted Ask and callout hold only text and an option list,
-    # so their growth stands that text off the column; the Ask whose own table takes
-    # the room is not named.
-    assert unused(column) == {"<lf-ask id=granted>", "<aside id=granted-c>"}
 
 
 def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):

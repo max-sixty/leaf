@@ -464,51 +464,6 @@ export function misplacedBoxes() {
           `give ${at(outer)} the data-width`,
       );
   }
-  // And a breakout nothing in it needs. A block the page grants `data-width` grows out
-  // of the column on both sides, while its prose keeps the measure from the block's
-  // start, so a Question or callout holding only text and an option list stands that
-  // growth off the column the paragraphs around it share, with the room beyond it
-  // empty. A block uses the room when what it holds spans wider than the column it
-  // grew out of: a chart wider than the prose, a board's columns, or a Question's
-  // options track standing beside its premise. Asked only of the page's own
-  // `data-width`, since a registry default is answered for where it is declared.
-  for (const el of main.querySelectorAll(BREAKOUT)) {
-    if (!el.hasAttribute("data-width") || !el.checkVisibility()) continue;
-    if ([...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.data.trim()))
-      continue;
-    const holder = el.parentElement;
-    const hs = getComputedStyle(holder);
-    const h = holder.getBoundingClientRect();
-    const start = h.left + parseFloat(hs.paddingLeft) + parseFloat(hs.borderLeftWidth);
-    const end = h.right - parseFloat(hs.paddingRight) - parseFloat(hs.borderRightWidth);
-    const column = Math.min(end - start, parseFloat(hs.getPropertyValue("--col"))) + 1;
-    const spans = [...el.children]
-      .filter(
-        (c) =>
-          c.checkVisibility() &&
-          !["absolute", "fixed"].includes(getComputedStyle(c).position),
-      )
-      .map((c) => c.getBoundingClientRect());
-    if (
-      !spans.length ||
-      Math.max(...spans.map((r) => r.right)) - Math.min(...spans.map((r) => r.left)) >
-        column
-    )
-      continue;
-    const b = el.getBoundingClientRect();
-    const off = Math.round(
-      getComputedStyle(el).direction === "rtl" ? b.right - end : start - b.left,
-    );
-    if (off > 1)
-      report(
-        el,
-        "unused",
-        `${at(el)} asks for data-width="${el.getAttribute("data-width")}" but holds ` +
-          `nothing wider than the column it grew out of, so what it holds starts ${off}px ` +
-          `off the column — drop the data-width, which is for a block holding a chart, ` +
-          `table or other surface that needs the room`,
-      );
-  }
   // The room being the page's own box is not the whole of what a wide widget owes,
   // because the page hangs things in that box. A sidenote stands a gutter off the
   // column, while the strip it is reserved out of comes off the far edge of the page —

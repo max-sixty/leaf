@@ -251,6 +251,47 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     assert historical.resources["/leaf.js"].data == artifact.resources["/leaf.js"].data
 
 
+def test_a_first_revision_shares_the_page_layer_and_outlives_a_re_vendor(page_dir):
+    """A page's first revision links the layer files `page init` wrote rather than
+    writing and syncing a copy of each, and a re-vendor, which replaces those files
+    by rename, leaves the revision's bytes as they were. Only an exact layer file is
+    shared: the registry a capture holds differs from the page's file, and an
+    authored file may be rewritten in place, so both are written."""
+    (page_dir / "page").mkdir(exist_ok=True)
+    (page_dir / "page" / "app.js").write_text("window.result = 1;")
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</head>", '<script type="module" src="/page/app.js"></script></head>'
+        )
+    )
+    first = revisioning_model.activate_source(page_dir)
+    assert first.error is None, first.error
+    captured = (
+        files_model.revision_path(page_dir, first.revision).with_suffix("")
+        / "resources"
+    )
+    generation = "runtime/layer-generation.js"
+    for layer_file in ("leaf.js", "theme.css", generation, "widgets/lf-options.js"):
+        assert (captured / layer_file).stat().st_ino == (
+            page_dir / layer_file
+        ).stat().st_ino, layer_file
+    for written in ("registry.json", "page/app.js"):
+        assert (captured / written).stat().st_ino != (
+            page_dir / written
+        ).stat().st_ino, written
+    artifact = artifact_model.read_artifact(page_dir, first.revision)
+    assert (captured / "registry.json").read_bytes() == (
+        artifact.resources["/registry.json"].data
+    )
+
+    held = (captured / generation).read_bytes()
+    (page_dir / "runtime" / "obsolete.js").write_text("export {};\n")
+    revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    assert revendored.exit_code == 0, revendored.output
+    assert (page_dir / generation).read_bytes() != held
+    assert (captured / generation).read_bytes() == held
+
+
 def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     """What a standing document cannot take on in place, and nothing else.
 

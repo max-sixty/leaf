@@ -14,8 +14,9 @@ other page files and the external state listed below.
   revisions/rN-H/ captures index.html, manifest.json, registry, and every dependency
   needed to deliver that revision. The complete bundle is durable before the marker
   appears. Identical artifacts reuse a revision; changed inputs create one. A bundle
-  hard-links each resource whose bytes the previous revision captured, so its files
-  share inodes and are never written in place. See
+  hard-links each resource whose bytes the previous revision captured, or else the
+  page's own layer file holding those bytes, so neither is ever written in place;
+  `page init` replaces layer files by rename (`revision_artifact.stage_artifact`). See
   “Revision delivery” below for document replacement and widget retention.
 
 - `/versions/v1.html…` — virtual public addresses. Each `note` event maps a version to

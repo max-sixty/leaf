@@ -90,7 +90,6 @@ from render_harness import (
     any_draft_control,
     any_owner_entry,
     any_suggestion_control,
-    consume_browser_errors,
     expect_asks_answered,
     expect_comment_notes,
     held_frames,
@@ -102,6 +101,7 @@ from render_harness import (
     opened_tab,
     page_comment,
     panel_settled,
+    refuse,
     resized,
     root_overflow,
     round_trip,
@@ -5000,26 +5000,19 @@ def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, ser
     expect(live).to_contain_text("Claude is waiting for approval")
     leases_model.release_lease(lease)
 
-    held = []
-
-    def refuse_state(route):
-        held.append(route)
-        route.fulfill(status=503, body="down")
-
-    page.route("**/api/**", refuse_state)
+    page.route("**/api/**", refuse)
     try:
         # A healthy page never asks without news, so give it one: the read that follows
         # is the one the route refuses.
         nudge(serve.page_dir)
         expect(page.locator(".lf-banner .lf-dot.offline")).to_be_visible()
-        offline = page.locator(".lf-status-detail").text_content()
+        offline = " ".join(page.locator(".lf-status-detail").text_content().split())
         assert offline.startswith("Server offline"), (
             f"the banner's offline line has moved: {offline!r}"
         )
         expect(live).to_have_text(offline)
     finally:
         page.unroute("**/api/**")
-    consume_browser_errors(page, "503")
 
 
 def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(

@@ -10451,6 +10451,43 @@ def test_editor_caret_hold_releases_after_unchanged_selection(browser, serve):
     assert field.evaluate("node => [node.selectionStart, node.selectionEnd]") == [9, 9]
 
 
+def test_unfocused_editor_move_leaves_later_selection_alone(browser, serve):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Editor caret",
+                "<h1>Editor caret</h1><div id='first'></div><div id='second'></div>",
+            )
+        ),
+    )
+    page.evaluate("""() => new Promise(resolve => {
+      const field = document.createElement('leaf-text');
+      field.value = 'Intentional selection';
+      document.querySelector('#first').append(field);
+      document.addEventListener('selectionchange', () => queueMicrotask(resolve), {once: true});
+      field.focus();
+      field.setSelectionRange(4, 4);
+    })""")
+    held = page.evaluate("""() => {
+      const field = document.querySelector('#first leaf-text');
+      field.blur();
+      const unfocused = !field.matches(':focus');
+      document.querySelector('#second').append(field);
+      return [field.selectionStart, unfocused];
+    }""")
+    assert held == [4, True]
+    editor = page.locator("#second leaf-text")
+    page.evaluate("""() => new Promise(resolve => {
+      document.addEventListener('selectionchange', () => queueMicrotask(resolve), {once: true});
+      const field = document.querySelector('#second leaf-text');
+      field.focus();
+      field.setSelectionRange(9, 9);
+    })""")
+    expect(editor).to_be_focused()
+    assert editor.evaluate("node => [node.selectionStart, node.selectionEnd]") == [9, 9]
+
+
 def test_named_form_controls_leave_shadow_scroll_and_standing_readings_available(
     browser, serve
 ):

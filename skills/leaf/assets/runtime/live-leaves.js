@@ -3,7 +3,7 @@ import { clocked } from "./presence.js";
 import { pagePresented } from "./presentation.js";
 import { liveLeavesList, drawerIsOpen, othersPanel } from "./drawers.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
-import { activityFacts, countResponses } from "./banner.js";
+import { activityFacts } from "./banner.js";
 import { rowWalk } from "./walk-position.js";
 
 let others = [];
@@ -92,31 +92,16 @@ function rowPresence(entry) {
 // overlap, so a title left on the line would answer the hover most likely to be asking
 // this question — a user pointing at the words that ran out of room — with the one
 // part of the account they can already read.
-const activityAccount = ({ counts }) => {
-  const parts = [];
-  if (counts.active) parts.push(`${countResponses(counts.active)} being worked on`);
-  if (counts.handling)
-    parts.push(`${countResponses(counts.handling)} owed on picked-up updates`);
-  if (counts.queued)
-    parts.push(`${countResponses(counts.queued)} owed on queued updates`);
-  if (counts.picked_up)
-    parts.push(
-      `${countResponses(counts.picked_up)} owed on picked-up updates; no current turn observed`,
-    );
-  if (counts.pending)
-    parts.push(`${countResponses(counts.pending)} owed on updates awaiting delivery`);
-  return parts.length ? parts.join("; ") : null;
-};
-
 const rowAccount = (entry, title, line) =>
   [
     title,
     entry.session_cwd,
     line,
-    // The same canonical agent obligations the line summarizes, expanded for the
+    // The rest of the canonical agent obligations the line summarizes, expanded for the
     // row's hover. A raw cursor count cannot say whether those words are queued,
-    // opened in this turn, or still waiting for delivery.
-    activityAccount(entry.activity),
+    // opened in this turn, or still waiting for delivery; the line already says the
+    // queued and pending ones.
+    activityFacts(entry).owed.join("; "),
   ]
     .filter(Boolean)
     .join("\n");

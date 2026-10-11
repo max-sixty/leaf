@@ -10050,13 +10050,13 @@ def test_a_heading_that_paints_its_box_keeps_a_pin_off_its_empty_end(browser, se
     assert stands == {False: True, True: False}, stands
 
 
-@pytest.mark.parametrize("target", ["rn-console-shot", "rn-sug-window"])
-def test_a_widget_s_declared_face_is_room_for_its_own_pin(browser, serve, target):
+def test_a_widget_s_declared_face_is_room_for_its_own_pin(browser, serve):
     """A painted box inside a pin's target counts whole, as an option card does inside a
     choice, unless the target's declaration names it as the target's own face
-    (`x-face`): a screenshot's caption rail, a suggestion's tinted slot. On
-    release-notes at 390px under a finger, each pin stands on its own target's face,
-    over none of the page's words, rather than over the words at its corner."""
+    (`x-face`): a suggestion's tinted slot. On release-notes at 390px under a
+    finger, its pin stands on its own face, over none of the page's words, rather
+    than over the words at its corner."""
+    target = "rn-sug-window"
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )

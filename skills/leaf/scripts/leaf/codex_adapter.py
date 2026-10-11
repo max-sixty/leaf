@@ -1,7 +1,7 @@
 """The detached process that carries Leaf delivery into later turns of one Codex task.
 
 Serving a claimed page, or explicitly running `leaf codex start`, leaves this
-process running behind the turn that started it, so a user's later moves reach
+process running behind the turn that started it, so a user's later updates reach
 the same Codex task instead of waiting for the agent to ask again. It owns the session watch: it captures each batch into the
 task's delivery record, offers one delivery at a time, and reconciles the receipt its
 page is owed however that delivery was taken.

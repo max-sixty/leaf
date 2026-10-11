@@ -18,7 +18,7 @@ A browser at the live root follows new revisions; a browser pinned to
 ## Sign-off and ending
 
 To finish, handle every event in the complete delivered batch and write the answer
-each acknowledged move's `answer` names (`references/event-batches.md`). A
+each acknowledged update's `answer` names (`references/event-batches.md`). A
 finished record, including a quick page that became one, ends on a stamped final
 revision that honors standing Questions and reports. An unstamped quick page can go idle directly.
 Idling ends the interaction but does not delete the page directory.
@@ -30,7 +30,7 @@ leaf status <page> idle
 ```
 
 `idle` is the explicit end of the agent side and refuses pending events or an
-acknowledged move still owed its answer. It removes the page from the watch, and
+acknowledged update still owed its answer. It removes the page from the watch, and
 idling the last watched page ends the watcher. It is not a server stop:
 `references/serving-pages.md`, "Page lifetime", says which servers end with the
 session, and a standing page is not idled because one session's work on it is over.

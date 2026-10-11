@@ -61,7 +61,7 @@
      is a move within it, such as Escape out of its reply box onto its title or going to
      a Question it already shows;
    - acting in it (`gesturedOn`): a reply, a reaction on one of its messages, settling
-     it, a move on a widget one of them holds, or a thread they start in the seat, which
+     it, an action on a widget one of them holds, or a thread they start in the seat, which
      answers what came before it and so follows it;
    - changing the panel's view, which moves its cards anyway.
 
@@ -104,7 +104,7 @@ import { onStanding, focused } from "../focus.js";
 import { readingIsContinuous } from "../reading-continuity.js";
 
 // Whether this page's ledger holds a gesture of the user's on `thread`: one of its
-// messages, a reply or a settlement naming one, a move on a widget one of them holds, an
+// messages, a reply or a settlement naming one, an action on a widget one of them holds, an
 // undo of any of those, which stands where the gesture it takes back stood, or the
 // refusal that takes one back, which stays in the ledger until the reading it restores
 // is drawn. Their words from another tab, or a turn a seat first draws after the log

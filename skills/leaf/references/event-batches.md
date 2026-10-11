@@ -68,11 +68,11 @@ retry key `attempt`, then adds these delivery readings:
   many-to-many: it provides context and never partitions or duplicates the event.
 - `answer`, when present, freezes the answer the event owed at capture: its
   `kind` (`reply` or `markup`) with its immutable response reference.
-  `leaf page state` lists the current move's obligation; the delivered reference
+  `leaf page state` lists the current update's obligation; the delivered reference
   retains the exact captured page and input. The
   event's `handling` clauses say how to write it. Until the answer is written,
   `leaf status idle` refuses, and the Stop hook holds the turn open unless that turn
-  started the move (`references/conversation-loop.md`, "Long-running work").
+  started the update (`references/conversation-loop.md`, "Long-running work").
   The writer checks whether the response is still current. A `reply` carries `to`, the captured thread address,
   and `for`, the exact input; `leaf response reply <answer.ref>` writes it.
   [Threads](threads.md) owns rich authoring on the reference, including preparation
@@ -109,8 +109,8 @@ Confirm a printed delivery only after every part is in context, following its
 own receipt. A pointer reading requires explicit confirmation; rereading never
 acknowledges it. Commands state the next step and any recovery needed.
 
-Receipt records **Picked up** in the current turn; it does not answer the move.
-A progress update in its thread or `leaf task start <page> <event-id>` records
+Receipt records **Picked up** in the current turn; it does not answer the update.
+A progress message in its thread or `leaf task start <page> <event-id>` records
 **Working** while it remains outstanding ([conversation loop](conversation-loop.md#when-to-write)).
 
 `leaf wait` observes ownership already held. Use `leaf page claim <page>` for an
@@ -121,8 +121,8 @@ diagnostic. Receipt commands refuse input that no longer belongs to their receiv
 ## After the batch
 
 Write every still-current `answer` with the operation its kind names, starting each
-move whose work you take on as its `handling` clauses say
+update whose work you take on as its `handling` clauses say
 (`references/conversation-loop.md`, "When to write"), then re-enter the harness's
-wait loop: `leaf status … waiting` after every obligation has been answered and the user owns the next move, and a started
+wait loop: `leaf status … waiting` after every obligation has been answered and the next step is the user's, and a started
 item while you continue.
 `page state` lists every standing reaction under `reactions`.

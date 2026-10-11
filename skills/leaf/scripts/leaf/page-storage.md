@@ -210,8 +210,8 @@ digest is available; `../../assets/runtime/version.js` owns the resulting instal
 `leaf page events --after`; it is distinct from the acknowledgement cursor.
 
 The page's document is not repeated in the reading: an agent reads the HTML at
-`active.file` beside `state`, which lists each standing user move by widget, unit and
-verb with the detail it carries, so where the two differ the page shows the move.
+`active.file` beside `state`, which lists each standing user action by widget, unit and
+verb with the detail it carries, so where the two differ the page shows the action.
 `data_bindings` names each bound source and the widgets that read it, and
 `data/<source>.json` holds its value.
 

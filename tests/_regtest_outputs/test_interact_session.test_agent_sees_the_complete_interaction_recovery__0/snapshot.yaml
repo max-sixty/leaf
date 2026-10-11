@@ -44,10 +44,10 @@ delivered at prompt:
             When the event asks for work, say in its thread what you will do before
             any other command, including reading the source it concerns: `leaf response
             reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
-            The user reads it in the thread at once, and it takes the move in hand:
-            the move reads Working, and the line stands in the banner until you
-            answer. Do the work and put its result on the page, with whatever shows
-            it (captures, a figure, the numbers), then answer with `leaf response
+            The user reads it in the thread at once, and it takes the update in
+            hand: the update reads Working, and the line stands in the banner until
+            you answer. Do the work and put its result on the page, with whatever
+            shows it (captures, a figure, the numbers), then answer with `leaf response
             reply <answer.ref> < reply.md`: what changed, in a sentence or two,
             linking the section that shows it. When the event asks for no work,
             as a question may not, answer it with that reply at once. The page carries

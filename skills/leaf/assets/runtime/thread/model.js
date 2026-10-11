@@ -343,7 +343,7 @@ export function readThreadRecords(
         unread: unreadMessages.has(message.id),
         key: message.attempt ?? message.id,
         body,
-        // The message's own input and the moves on widgets frozen into it, in the
+        // The message's own input and the actions on widgets frozen into it, in the
         // published order `strongestWorkflow` reads.
         workflows: workflows.filter(
           (workflow) =>

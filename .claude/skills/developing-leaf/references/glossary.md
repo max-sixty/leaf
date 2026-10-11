@@ -20,7 +20,7 @@ and implementation terms retain their exact spelling when the reader needs them.
 | Term | Meaning and visible use |
 |---|---|
 | **Page** | The document the user reads and acts on. Use *page* in prose and commands; *page instance* below identifies its durable directory |
-| **Update** | A user input of any kind, or a mixed collection of inputs: “Your updates are saved”. Where its kind is known, name the **comment**, **reply**, **choice**, **reaction** or **approval** instead |
+| **Update** | A user input of any kind, or a mixed collection of inputs: “Your updates are saved”. Where its kind is known, name the **comment**, **reply**, **choice**, **reaction** or **approval** instead; in protocol text a widget's is an **action**, after its event kind. Not *move*, *feedback*, or *input* as a count noun (“an input”, “inputs”); *input* stays only as a mass noun (“waiting for input”) |
 | **Response** | Aggregate work owed to user input when its required kind is not available: “2 responses owed”. Where the kind is known, name the **answer** or **reply** instead |
 | **Answer** | The current value within a Question, or the response satisfying a user update. A Question contains its own answer; there is no separate Answer identity or collection. Use choice, reply or revision where its kind is known |
 | **Reply** | A message in a conversation, including an answer or a proactive message. A reply owed by the agent is separate from delivery and work: the Questions panel calls message obligations **replies** and revision obligations **answers** until they arrive |

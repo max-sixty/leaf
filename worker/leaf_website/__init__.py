@@ -34,7 +34,7 @@ from leaf.codex import (
     app_server_connect,
     app_server_handshake,
     app_server_request,
-    delivery_owed_moves,
+    delivery_owed_updates,
     open_app_server_delivery,
     prepare_codex_delivery,
     start_app_server_delivery,
@@ -598,7 +598,7 @@ class HostedTurn(CarriedTurn):
         claims no more than the absence of an answer, because that is all this
         observed.
         """
-        targets = delivery_owed_moves(read_delivery(self.delivery_id))
+        targets = delivery_owed_updates(read_delivery(self.delivery_id))
         settled = 0
         swept = False
         try:

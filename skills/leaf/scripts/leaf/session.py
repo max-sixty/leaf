@@ -54,7 +54,7 @@ STOP_HOOK_S = 20
 
 def cmd_waiting(page_dir: Path, detail: str) -> tuple[dict, list[dict]]:
     """Declare the page waiting on its user, putting down every start that stands
-    (`tasks.put_down`), and return the declaration, with the user moves still owed an
+    (`tasks.put_down`), and return the declaration, with the updates still owed an
     answer, which the page goes on showing over it."""
     from .revisioning import activate_source
     from .served_state.work import live_work
@@ -75,7 +75,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
     owed one — unread, or read and left. The watcher's whole batch, not the
     user-facing count, so a worker's report cannot be left standing as
     provisional state forever either. The answers it holds the page for are
-    `activity.blocking_obligations`, a started move's included: the Stop hook lets
+    `activity.blocking_obligations`, a started update's included: the Stop hook lets
     the turn that started one end over it, but closing the page answers nothing. It
     holds the page for every open task too, which only its ending discharges.
     The check and the transition share the log lock, so an event arriving
@@ -151,7 +151,7 @@ class Watch:
     `watch_state` is ownership/lifetime; `lost` separately says the server is
     down with nothing left to bring it back: never served, or dead after a
     revival that did not hold. A stopped service is not lost: `server stop` is
-    the agent's own move, and `page init` stops a served page to re-vendor it and
+    the agent's own choice, and `page init` stops a served page to re-vendor it and
     starts it again, so the wait watches a disabled service without reviving it.
 
     Between passes native subscriptions follow this session's claim partition,
@@ -422,7 +422,7 @@ def wait_acknowledgement(harness: Harness | None) -> Callable[[str], str]:
     def acknowledge(delivery_id: str) -> str:
         return (
             "Whoever ran the `leaf wait` that printed this delivery acknowledges "
-            "it; until then the user's moves read Sent rather than Picked up. If "
+            "it; until then the user's updates read Sent rather than Picked up. If "
             f"the output was cut off, reread it with `leaf delivery read {delivery_id}`. "
             "Follow any `next` commands before confirming. If you handle it, "
             "acknowledge before any other "
@@ -602,7 +602,7 @@ def wake_inputs(page: PageTransaction, batch: list[dict]) -> list[dict]:
     workflow. A completed receipt advances the cursor, so handed input is already
     absent from this unreceived batch. An opened record without the completed
     cursor write does not prove delivery. Other admitted attention (including
-    reports, errors, reactions and widget moves) remains
+    reports, errors, reactions and widget actions) remains
     transport input, independent of whether it carries a response obligation.
     """
     from .served_state.work import live_work

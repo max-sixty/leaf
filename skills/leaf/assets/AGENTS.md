@@ -241,7 +241,7 @@ one-sided borders and reflexive cards, tints, gradients, or soft shadows.
 Each Thread's `unread` and `attention` are single readings that every surface
 painting them consumes, so the Threads toggle, filters, panel, margin entry, and
 Page Map change together. Workflow state rides the existing semantic control
-rather than competing with attention for color. Green marks a move the user owes;
+rather than competing with attention for color. Green marks the user's turn;
 other thread controls stay blue. Pickup and work use status words, with one brief
 pulse when work begins that a repaint never replays. Reading is bookkeeping and
 never moves the user.

@@ -10,7 +10,7 @@ You author a live HTML page for the user, whose directions override your choices
 of content and presentation. The user reads, comments on exact passages, and acts
 through widgets while you revise it in place. Write the page, check it, hand over
 its URL with a status saying what you want back, and wait.
-Answer each delivered user move on the page and in its thread, stamp checkpoints,
+Answer each delivered update on the page and in its thread, stamp checkpoints,
 and idle the page when it is finished.
 
 Anything you need from the user must appear in **Questions**. Zero Questions
@@ -145,7 +145,7 @@ on `main` or a block arranges each of these, and the page's own CSS adjusts it;
 `references/page-authoring.md`, "Composing a page", owns the concrete choices, and
 `references/authoring-questions.md` owns where each Question goes.
 
-Include only controls and gestures that advance the user's task. Widget moves,
+Include only controls and gestures that advance the user's task. Widget actions,
 resolutions and sign-offs can be undone; sent words remain in the log.
 
 ## Keep the user current

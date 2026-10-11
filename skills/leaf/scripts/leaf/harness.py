@@ -229,7 +229,7 @@ class Harness:
         as the comment is admitted (`thread_titles`), or None where it cannot.
 
         Only a harness whose model any process on the machine can ask has one. The
-        website's host names the thread instead, as the move opening it is
+        website's host names the thread instead, as the update opening it is
         dispatched to it, since only it can reach the App Server it owns."""
         return None
 

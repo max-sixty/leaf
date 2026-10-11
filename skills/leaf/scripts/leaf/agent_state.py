@@ -234,7 +234,7 @@ def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
 
 def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> dict:
     """The page reading narrowed to one widget on the page and what it holds: its
-    element, the moves and reports standing on it or on anything inside it, the
+    element, the actions and reports standing on it or on anything inside it, the
     workflows there, the updates aimed at them, the explicit tasks open on them,
     and the canonical Questions sourced by them."""
 
@@ -359,7 +359,7 @@ def queues(
             "subject": workflow["subject"],
             "thread": workflow["thread"],
         }
-        # A move handed back in a thread is that thread's item above.
+        # An update handed back in a thread is that thread's item above.
         if workflow["next_actor"] == "user":
             if workflow["thread"] is None:
                 on_you.append({"kind": "recovery", **item})
@@ -468,7 +468,7 @@ def _write_page_state(
         served_threads = {
             thread["id"]: thread for thread in browser["thread"]["threads"]
         }
-        # The user's side between their moves: which of your messages they have not
+        # The user's side between their updates: which of your messages they have not
         # taken in yet, at their current content version.
         for thread in state["threads"]:
             thread["unread"] = [

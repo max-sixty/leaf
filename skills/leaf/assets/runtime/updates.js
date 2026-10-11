@@ -87,7 +87,7 @@ export const saidAt = (el) =>
   closestAcross(el, ".lf-msg")?.querySelector(":scope > .lf-msg-head time")?.dateTime ||
   publishedAt();
 
-// The server's history reading: the newest moves, newest first, each already carrying
+// The server's history reading: the newest events, newest first, each already carrying
 // its thread, whether it was undone, and a gesture's words as its own document had
 // them. The server sends it only to a page holding a widget that declares
 // `x-history`; elsewhere the callback reads an empty feed. The second argument names

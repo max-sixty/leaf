@@ -1,21 +1,21 @@
 """Canonical workflows for exact user inputs and proactive subject work.
 
-A workflow is one unsettled user move the user has handed over, and it
+A workflow is one unsettled update the user has handed over, and it
 answers two separate questions about it. `stage` is delivery progress: how far
-the move has reached the agent (Sent, Queued, Picked up, Working, Replying),
+the update has reached the agent (Sent, Queued, Picked up, Working, Replying),
 which the margin, the Page Map and a thread's receipt report for every such
-move. `answer` is the obligation: the addressed operation the agent owes the
-move, or null when it owes nothing. Every consumer that holds the agent to
+update. `answer` is the obligation: the addressed operation the agent owes the
+update, or null when it owes nothing. Every consumer that holds the agent to
 something — delivery handling, `page state`, activity counts, the Stop hook,
 `leaf status idle`, and the banner's counts — reads `answer` here rather than
-deciding again what the agent owes. The rule is single: a move with an answer
+deciding again what the agent owes. The rule is single: an update with an answer
 is owed until that answer is written, and a null answer holds nobody. How long
-an owed move holds the agent's turn is `activity.turn_obligations`'s to say.
+an owed update holds the agent's turn is `activity.turn_obligations`'s to say.
 
 Answers are one of:
 
-- `{"kind": "reply", "to": <message>, "for": <event>}` — a thread input, or a
-  move in an answered Question in frozen thread markup, answered through its exact delivery reference by `leaf response reply`;
+- `{"kind": "reply", "to": <message>, "for": <event>}` — a thread message, or an
+  action in an answered Question in frozen thread markup, answered through its exact delivery reference by `leaf response reply`;
   Final-message custody is independent of the operation: `activity` adds
   `writer: "turn"` and its attempt while the provider's reply binding stands.
   Delivery captures the same writer policy ahead of that binding, and emits an
@@ -26,30 +26,30 @@ Answers are one of:
   widget's answered Question and the authored markup does not yet record, answered by
   a stamped version that writes it in.
 
-Two kinds of move have workflows with no answer of their own. A user input a
-newer input in the same thread covers is answered through the newest, whose one
-answer settles both. A widget move that answers no Question, such as an edit to a
+Two kinds of update have workflows with no answer of their own. An update a
+newer one in the same thread covers is answered through the newest, whose one
+answer settles both. A widget action that answers no Question, such as an edit to a
 user-owned draft or a moved card, owes nothing: the log carries it onto later
 readings of its document, and `page check` holds the next version to any part
 of it that version must write. Its receipt stands until that document takes it
 in: on the page, until the markup records it or a later version supersedes it
 (`page_action_unsettled`); in frozen thread markup, which no version rewrites,
 until the agent's next spoken turn in that thread or a resolution after it.
-Delivery is separate from workflows. Admission records whether a user's move
+Delivery is separate from workflows. Admission records whether a user's update
 changes outstanding Questions, pending answers, work in hand or approval; delivery keeps
 that decision even after these workflows settle.
 
-A user move on a widget whose own Question the user has not finished answering — a
-pick before the Done its group declares, a move before a queue is empty —
+A user action on a widget whose own Question the user has not finished answering — a
+pick before the Done its group declares, an action before a queue is empty —
 has not been handed over yet, so it is no workflow at all: the user is still
-composing the answer, and the finishing move carries the receipt. Once the Question is
-answered, every move on that widget is owed; canonical Questions own that reading.
+composing the answer, and the finishing action carries the receipt. Once the Question is
+answered, every action on that widget is owed; canonical Questions own that reading.
 
-A harness that gives up on a move writes the failure its answer takes
+A harness that gives up on an update writes the failure its answer takes
 (`thread.fail_answer`), each carrying `failure`: a reply in the
-thread, or a failed pickup of a page move. Either leaves the move a workflow
+thread, or a failed pickup of a page action. Either leaves the update a workflow
 answered with a failed response, whose next actor is the user, until the user
-moves again or the markup records the move anyway.
+acts again or the markup records the action anyway.
 """
 
 from .events import (
@@ -84,8 +84,8 @@ def obligation_reading(readings) -> dict:
     """The outstanding Questions and explicit tasks on the user, answers and work in hand a
     gesture can change.
 
-    Delivery progress, receipt-only moves and presentation are absent. Work in hand,
-    a move the agent started or a task it opened on a thread or widget, also holds the
+    Delivery progress, receipt-only updates and presentation are absent. Work in hand,
+    an update the agent started or a task it opened on a thread or widget, also holds the
     standing widget inputs on its subject, even while a Question is being composed:
     changing a pick under ongoing work changes that work before Done. Admission
     compares this reading on either side of the append and stores the result.
@@ -167,13 +167,13 @@ def page_action_unsettled(
 ) -> bool:
     """Whether one standing page action is still unsettled.
 
-    An owed move — part of an answered Question — settles when the authored markup
+    An owed action — part of an answered Question — settles when the authored markup
     records it. The note of a later version settles the rest: a verb with no
-    authored record form, whose note is the document's answer to it, and a move
+    authored record form, whose note is the document's answer to it, and an action
     that owed nothing, which that version has taken in whether or not its markup
-    records it. The version must follow the move in the log and supersede the
+    records it. The version must follow the action in the log and supersede the
     revision it was made on; a note stamped over the very revision the user
-    acted on was written before the move reached anyone.
+    acted on was written before the action reached anyone.
     """
     _widget, unit, _verb = coordinate
     byid = page.document.by_id
@@ -206,18 +206,18 @@ def canonical_workflows(
 ) -> list[dict]:
     """The unsettled user inputs and strongest evidence held for each.
 
-    A standing start (`tasks.item_starts`) holds a move it names, and a start running
-    on an open task over a widget holds that widget's moves delivered before it, as
+    A standing start (`tasks.item_starts`) holds an update it names, and a start running
+    on an open task over a widget holds that widget's actions delivered before it, as
     the work the task answers. A `put_down` in the log, which `leaf status waiting`
-    and `idle` write, ends every start before it, so the moves they named are no
+    and `idle` write, ends every start before it, so the updates they named are no
     longer in hand. The workflow names the start holding it as `held_by`,
     which `activity` takes off before serving.
 
     This is one interaction-scoped projection over the document and log: append
     means Sent, queue acceptance means Queued, entry into an exact agent turn
-    means Picked up, and a `start` naming the move means Working
+    means Picked up, and a `start` naming the update means Working
     (`tasks.item_starts`). Replies
-    and authored state settle the source move, so the workflow disappears instead
+    and authored state settle the source update, so the workflow disappears instead
     of becoming a second outcome surface; a failed response instead keeps an
     answered workflow whose next actor is the user. Consecutive inputs retain distinct
     workflows even though the thread's single response obligation is
@@ -266,8 +266,8 @@ def canonical_workflows(
         )
 
     def holding(source: dict, target: dict, delivered: int) -> dict | None:
-        """The start that holds this move: its own, or the newest start on a task over
-        its widget written once the move was delivered."""
+        """The start that holds this update: its own, or the newest start on a task over
+        its widget written once the update was delivered."""
         if source["id"] in starts:
             return starts[source["id"]]
         if target["kind"] != "widget":
@@ -290,8 +290,8 @@ def canonical_workflows(
         answer: dict | None,
         covering: list[dict],
     ) -> dict:
-        """One move's workflow. `covering` are the starts that take it in hand for the
-        turn that wrote them, which is how the Stop hook tells a move the open turn
+        """One update's workflow. `covering` are the starts that take it in hand for the
+        turn that wrote them, which is how the Stop hook tells an update the open turn
         has started (`activity.started_in_turn`): the one holding it, and in a thread
         every start on an input the thread's one reply answers."""
         delivery = deliveries.get(source["id"], {})
@@ -356,7 +356,7 @@ def canonical_workflows(
         }
 
     def failed(source: dict, target: dict, coordinate: list[str], record: dict) -> dict:
-        """The move a harness failure record returned to the user: answered, with a
+        """The update a harness failure record returned to the user: answered, with a
         failed response, and the user's to send again."""
         returned = workflow(source, target, coordinate, answer=None, covering=[])
         returned.update(
@@ -431,13 +431,13 @@ def canonical_workflows(
                 )
             )
 
-    # Every widget move the user has handed over keeps its delivery receipt until
+    # Every widget action the user has handed over keeps its delivery receipt until
     # it settles, whether the widget stands in the page or was frozen into thread
-    # markup, and only a move in an answered Question is owed an answer. A move on a Question
-    # the user is still answering has not been handed over, so it has no receipt
-    # until the finishing move carries one. The two documents differ only in what
-    # settles a move and which operation answers an owed one.
-    def page_move(coordinate: tuple, source: dict, spec: dict, owed: bool):
+    # markup, and only an action in an answered Question is owed an answer. An action on a
+    # Question the user is still answering has not been handed over, so it has no receipt
+    # until the finishing action carries one. The two documents differ only in what
+    # settles an action and which operation answers an owed one.
+    def page_action(coordinate: tuple, source: dict, spec: dict, owed: bool):
         unsettled = page_action_unsettled(
             coordinate,
             source,
@@ -447,14 +447,14 @@ def canonical_workflows(
         )
         return unsettled, {"kind": "markup", "action": source["id"]} if owed else None
 
-    def thread_move(_coordinate: tuple, source: dict, _spec: dict, owed: bool):
+    def thread_action(_coordinate: tuple, source: dict, _spec: dict, owed: bool):
         # No later authored document absorbs frozen markup, so the thread's next
-        # spoken agent turn is what settles a move there: the reply addressed to an
-        # owed move, and for a move that owes nothing any agent turn after it, which
-        # has taken the move in as a later version takes in a page move. A reaction
+        # spoken agent turn is what settles an action there: the reply addressed to an
+        # owed action, and for an action that owes nothing any agent turn after it, which
+        # has taken the action in as a later version takes in a page action. A reaction
         # is no turn, and a harness's failure reply says no answer is coming rather
-        # than answering. The resolution standing over the thread settles the moves
-        # made before it, and the answer that resolved it; a move made after it is
+        # than answering. The resolution standing over the thread settles the actions
+        # made before it, and the answer that resolved it; an action made after it is
         # delivered like any other and keeps its receipt.
         thread_id = thread_reading.thread_by_widget.get(source["widget"])
         thread = threads.get(thread_id)
@@ -483,15 +483,15 @@ def canonical_workflows(
     }
     documents = []
     if page is not None:
-        documents.append((page.projection, page_move))
+        documents.append((page.projection, page_action))
     if thread_reading is not None:
         documents.append(
             (
                 thread_reading.projection,
-                thread_move,
+                thread_action,
             )
         )
-    moves = []
+    actions = []
     for projection, settlement in documents:
         for coordinate, (source, spec) in projection.actions.items():
             if source["author"] != "user":
@@ -501,7 +501,7 @@ def canonical_workflows(
                 continue
             owed = question is not None and question["status"] == "answered"
             unsettled, answer = settlement(coordinate, source, spec, owed)
-            moves.append(
+            actions.append(
                 (
                     source,
                     {"kind": "widget", "id": source["widget"]},
@@ -511,21 +511,21 @@ def canonical_workflows(
                 )
             )
 
-    # One receipt per widget and unit, for the user's newest move on it. A tick and
+    # One receipt per widget and unit, for the user's newest action on it. A tick and
     # the Done press that followed are two verbs on one unit, and each minted a line:
-    # the thread showed "✓ Sent · just now" twice under one question. The later move
+    # the thread showed "✓ Sent · just now" twice under one question. The later action
     # supersedes the earlier for what the user is owed — that the press landed.
     # Units stay apart: two moved cards, two reviewed files, are two subjects with a
     # margin entry each in the margin.
     newest: dict[tuple[str, str], dict] = {}
-    for source, target, coordinate, _unsettled, _answer in moves:
+    for source, target, coordinate, _unsettled, _answer in actions:
         key = (target["id"], coordinate[1])
         if key not in newest or source["seq"] > newest[key]["seq"]:
             newest[key] = source
-    # A harness that gave up on an owed move recorded the failure its answer takes — a
-    # failed pickup for a page move, a failure reply for a frozen one — which hands
-    # the move back to the user until the move settles or a newer move replaces it.
-    for source, target, coordinate, unsettled, answer in moves:
+    # A harness that gave up on an owed action recorded the failure its answer takes — a
+    # failed pickup for a page action, a failure reply for a frozen one — which hands
+    # the action back to the user until the action settles or a newer action replaces it.
+    for source, target, coordinate, unsettled, answer in actions:
         if not unsettled or newest[(target["id"], coordinate[1])] is not source:
             continue
         if answer is not None and (

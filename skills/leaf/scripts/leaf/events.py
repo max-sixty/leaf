@@ -194,7 +194,7 @@ def undo_error(
 
     A reaction is the one message a user takes back rather than answers,
     and only while it still paints: once a turn answers it the withdrawal
-    would orphan those words, and the user's move is in the thread that
+    would orphan those words, and the user's update is in the thread that
     turn opened; once its thread is resolved, resolve being its floor, there
     is nothing left to take back. The browser offers exactly the gestures
     this reading admits (`served_state.document.browser_undo_candidates`).
@@ -506,7 +506,7 @@ def unanswered_turns(thread: dict) -> list[dict]:
     settles every input accumulated through it, and a later input starts a fresh
     batch. Until then each input stays owed, and answering an older one removes
     only that input while the newer address stays owed. Mere log order is not
-    settlement: an agent answering an older frozen-widget move after newer user
+    settlement: an agent answering an older frozen-widget action after newer user
     input leaves that newer input with the agent.
 
     Not the agent, rather than the user: `author` is an open string on every message

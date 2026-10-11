@@ -18,7 +18,7 @@ UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done", "task_end"}
 MESSAGE_KINDS = {"comment", "reply"}
 # The kinds a widget owns, admitted against the page's registry before they append.
 WIDGET_KINDS = {"action", "report"}
-# The operations that settle a user move the agent owes, as `workflows` and
+# The operations that settle an update the agent owes, as `workflows` and
 # `activity` address them and `$events.answering` explains them. Reply writer custody
 # is separate: a provider turn may own its opening and final messages.
 ANSWER_KINDS = ("reply", "markup")

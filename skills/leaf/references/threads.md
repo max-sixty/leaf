@@ -133,7 +133,7 @@ When a revision rewrites a quoted passage, preserve every affected open thread,
 including threads you are not answering this turn. `leaf page check` lists each
 quote that no longer identifies one passage. Activation moves those threads to
 their own surviving sections automatically, recording an anchor transition without
-adding a message or answering an outstanding move. A surviving unique quote keeps
+adding a message or answering an outstanding update. A surviving unique quote keeps
 its precise attachment; repeated words require unique stored context.
 
 Prefer the passage that replaced the quote when you know it: move the thread onto
@@ -188,14 +188,14 @@ Use the captured response reference for progress on an owed input too.
 
 ### Progress updates
 
-Use `--ephemeral` for an interim update that is useful while work is underway:
+Use `--ephemeral` for interim progress that is useful while work is underway:
 
 ```bash
 leaf response reply <answer.ref> --ephemeral --text "Checking the keyboard route."
 ```
 
-This posts progress without answering the input. Progress on a move you owe also
-takes that move in hand, as `leaf task start` does, with the update as its
+This posts progress without answering the update. Progress on an update you owe also
+takes that update in hand, as `leaf task start` does, with the progress text as its
 **Working** line beside the thread and in the banner, so it is one line.
 [Conversation loop](conversation-loop.md#when-to-write), "When to write", makes
 the first one your first command after a delivery. A proactive progress update

@@ -57,7 +57,7 @@ def is_reaction(event: dict) -> bool:
 
 
 def spoken_turns(thread: dict) -> list:
-    """Messages with words, including retained ephemeral updates.
+    """Messages with words, including retained progress messages.
 
     Reactions are marks rather than words. Presentation ranges include ephemeral
     messages; semantic turn-taking reads :func:`conversation_turns` instead.
@@ -66,7 +66,7 @@ def spoken_turns(thread: dict) -> list:
 
 
 def conversation_turns(thread: dict) -> list:
-    """Spoken messages that participate in the exchange, excluding progress updates."""
+    """Spoken messages that participate in the exchange, excluding progress messages."""
     return [message for message in spoken_turns(thread) if not message.get("ephemeral")]
 
 
@@ -379,7 +379,7 @@ def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
 
     Summaries replace overlapping summaries whole. Editing a covered message
     invalidates a summary containing prose. A fold without prose keeps showing the
-    revised originals. Ephemeral updates acquire a fold when the next ordinary
+    revised originals. Progress messages acquire a fold when the next ordinary
     agent reply arrives. Explicit summaries own any overlap with these derived
     folds; no extra event is written. The original messages remain the authority.
     """
@@ -453,7 +453,7 @@ def _ephemeral_ranges(thread: dict, covered: set) -> list[dict]:
                 "from": group[0]["id"],
                 "through": group[-1]["id"],
                 "text": "",
-                "label": "Previous updates",
+                "label": "Previous progress messages",
                 "trigger": reply["id"],
             }
         )

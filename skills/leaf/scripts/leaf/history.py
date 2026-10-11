@@ -75,7 +75,7 @@ def _report(event: dict, words: GestureWords) -> dict:
     return {
         "widget": event["widget"],
         "value": value if value is not None else event["action"],
-        "excerpt": event["detail"]["text"] if spec.get("update") else None,
+        "excerpt": event["detail"]["text"] if spec.get("report") else None,
     }
 
 

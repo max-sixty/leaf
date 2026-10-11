@@ -269,7 +269,7 @@ def progress_messages(page: Page) -> None:
     page.locator("#bg-gallery-tabs").get_by_role(
         "tab", name="Threads", exact=True
     ).click()
-    page.locator('#bg-panel-presets [data-view="updates"]').click()
+    page.locator('#bg-panel-presets [data-view="progress"]').click()
     frame = page.frame_locator("#bg-panel-sample iframe")
     frame.locator(
         '.lf-thread[data-id="bg-progress-question"] .lf-summary-expand'

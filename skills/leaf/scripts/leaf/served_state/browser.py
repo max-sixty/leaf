@@ -8,7 +8,7 @@ from ..files import stamped_version
 from ..gesture_words import GestureWords, RevisionReader
 from ..history import history, wants_history
 from ..passages import SourceReading
-from ..projection import FrozenThreadReading, canonical_updates, page_reading
+from ..projection import FrozenThreadReading, canonical_reports, page_reading
 from .context import PageRead
 from .document import browser_document, browser_undo_candidates
 from .thread import browser_thread
@@ -198,7 +198,7 @@ def browser_state(
         views[str(revision)] = {
             "basis": {"revision": revision, "through_seq": through_seq},
             "document": document,
-            "updates": canonical_updates(projection),
+            "reports": canonical_reports(projection),
             "undo": browser_undo_candidates(
                 events,
                 reading,

@@ -79,7 +79,7 @@ leaf response reply <answer.ref> --ephemeral --text "<what you will do, in a lin
 The user reads it at once, and it takes the update in hand: the update reads
 **Working** with that line beside its thread and in the banner, and the
 progress line folds into the progress disclosure when your answer arrives
-([progress updates](threads.md#progress-updates)). Take any other item in hand,
+([progress messages](threads.md#progress-messages)). Take any other item in hand,
 such as a task or an action on a page widget, which has no thread, with a start:
 
 ```bash
@@ -88,7 +88,7 @@ leaf task start <page> <id> "reading the reconnect traces" && <command>
 
 Take the item in hand again whenever the user would describe what you are doing
 differently: a new phase such as reading, editing, testing, or waiting on a result.
-Another progress update in the thread says it to the user there; a start changes
+Another progress message in the thread says it to the user there; a start changes
 only the line, and folding it into the command that begins the step costs no extra
 tool call. Name the operation and its subject in one sentence; "Working on it"
 tells the user nothing the banner's dot does not already say.
@@ -138,7 +138,7 @@ waiting. For an informational page with no Question, leave it empty; the
 banner then invites the user to select text to comment. Name the gesture available
 to the user and hand over by the selected harness contract. From the first handoff
 on, include
-the exact page URL in every turn's final response; intermediate progress updates
+the exact page URL in every turn's final response; intermediate progress messages
 do not repeat it. An export hands over its file URL, and a harness that already
 presents the page uses its own handoff surface.
 

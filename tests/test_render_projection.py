@@ -5942,7 +5942,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     """The agent channel, end to end in the browser: a `leaf page report`
     reaches the open page on the next poll and paints as provisional news — the status
     attribute moves, the parent's done-fraction recounts, and Page Map identifies a
-    Reported update rather than the user's change. Task status remains work
+    Reported state rather than the user's change. Task status remains work
     state and never creates a user request. Then the version that answers the report
     by id takes the page back: replay skips a report the note named, so the overruling
     version's own state is what renders, with no provisional mark left on it. Last, the
@@ -5970,7 +5970,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     report_reading = page.get_by_role(
-        "button", name=re.compile(r"^Open reported update: Reported update")
+        "button", name=re.compile(r"^Open reported state: Reported state")
     )
     expect(report_reading).to_be_visible()
     page.keyboard.press("Escape")
@@ -6193,14 +6193,14 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     expect(wren.locator(".lf-cold")).to_have_text("quiet")
 
 
-def test_the_update_feed_reads_reports_by_typed_target(browser, serve):
+def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
     """Worker reports reach widgets through one typed reading. The work the agent has
-    in hand is no update: it is the workflows' Working stage and the tasks' starts."""
+    in hand is no report: it is the workflows' Working stage and the tasks' starts."""
     page = open_page(browser, live_url(serve(ROSTER_PAGE)))
     d = serve.page_dir
     # Event ids and authored element ids belong to different identity spaces. Give
     # the thread and widget the same spelling so only the typed target can separate
-    # their updates; a bare id or target lookup by store would merge them.
+    # their reports; a bare id or target lookup by store would merge them.
     thread = append_carried_log_record(
         d,
         {
@@ -6234,10 +6234,10 @@ def test_the_update_feed_reads_reports_by_typed_target(browser, serve):
     assert started.exit_code == 0, started.output
     told(page)
 
-    updates = page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).updateSequence()"
+    reports = page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).reportSequence()"
     )
-    by_source = {update["source"]: update for update in updates}
+    by_source = {report["source"]: report for report in reports}
     assert set(by_source) == {"report"}
     assert by_source["report"] == {
         "id": by_source["report"]["id"],
@@ -6258,18 +6258,18 @@ def test_the_update_feed_reads_reports_by_typed_target(browser, serve):
         """async () => {
             const feed = await window.__lfRuntimeImport('/runtime/widget-api.js');
             return {
-                widget: feed.updateSequence(document.querySelector('#ag-wren')),
-                thread: feed.updateSequence({kind: 'thread', id: 'ag-wren'}),
+                widget: feed.reportSequence(document.querySelector('#ag-wren')),
+                thread: feed.reportSequence({kind: 'thread', id: 'ag-wren'}),
                 bare: (() => {
-                    try { feed.updateSequence('ag-wren'); }
+                    try { feed.reportSequence('ag-wren'); }
                     catch (error) { return `${error.name}: ${error.message}`; }
                 })(),
             };
         }"""
     )
-    assert [update["source"] for update in targeted["widget"]] == ["report"]
+    assert [report["source"] for report in targeted["widget"]] == ["report"]
     assert targeted["thread"] == []
-    assert targeted["bare"].startswith("TypeError: update target must be")
+    assert targeted["bare"].startswith("TypeError: report target must be")
     expect(page.locator("#ag-wren .lf-doing")).to_have_text("checking the mount prices")
 
     # A version note settles the report.
@@ -6287,10 +6287,10 @@ def test_the_update_feed_reads_reports_by_typed_target(browser, serve):
     stamp_page(d, ROSTER_PAGE, "recorded")
     wait_for_revision(page, 2)
 
-    updates = page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).updateSequence()"
+    reports = page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).reportSequence()"
     )
-    by_source = {update["source"]: update for update in updates}
+    by_source = {report["source"]: report for report in reports}
     assert by_source["report"]["disposition"] == "settled"
     expect(page.locator("#ag-wren .lf-doing")).to_have_count(0)
 
@@ -6392,9 +6392,9 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
           const owner = document.getElementById('ag-wren');
           window.__proofClock = 0;
           window.__proofReads = [];
-          window.__proofWatching = api.watchUpdates(owner, updates => {
+          window.__proofWatching = api.watchReports(owner, reports => {
             clockValue(() => window.__proofClock);
-            window.__proofReads.push(updates.map(update => update.text));
+            window.__proofReads.push(reports.map(report => report.text));
           });
           window.__proofTick = async () => {
             window.__proofClock += 1;
@@ -6402,7 +6402,7 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
           };
           window.__proofPending = () => {
             const proof = readApplicationPresentation();
-            return api.updateSequence(owner).some(update => update.text === 'held report') &&
+            return api.reportSequence(owner).some(report => report.text === 'held report') &&
               proof.pending.some(region => region.startsWith('widget:ag-wren:')) &&
               !proof.pending.includes('projection:chrome');
           };
@@ -9842,7 +9842,7 @@ def test_activity_holds_arrivals_until_the_reader_reveals_them(browser, serve, t
         },
     )
     told(page)
-    expect(control).to_have_text("1 new update")
+    expect(control).to_have_text("Show 1 new")
     expect(page.locator("#feed .lf-activity-row")).to_have_count(2)
     assert line.bounding_box()["y"] == pytest.approx(before["y"], abs=0.5)
     assert control.bounding_box() == trigger
@@ -9887,7 +9887,7 @@ def test_activity_holds_arrivals_until_the_reader_reveals_them(browser, serve, t
     )
     wait_for_revision(page, 2)
     expect(control).to_have_attribute("aria-expanded", "true")
-    expect(control).to_have_text("1 new update")
+    expect(control).to_have_text("Show 1 new")
     assert line.bounding_box()["y"] == pytest.approx(before_revision["y"], abs=0.5)
     # Changing executable inputs replaces the document, rather than patching it.
     page.add_init_script("""
@@ -9964,7 +9964,7 @@ def test_activity_prints_complete_history_even_when_closed_or_held(browser, serv
         },
     )
     told(page)
-    expect(control).to_have_text("1 new update")
+    expect(control).to_have_text("Show 1 new")
     expect(page.locator("#feed .lf-activity-row")).to_have_count(1)
     page.emulate_media(media="print")
     expect(page.locator("#feed .lf-activity-row")).to_have_count(2)
@@ -9972,7 +9972,7 @@ def test_activity_prints_complete_history_even_when_closed_or_held(browser, serv
         "A held record for paper."
     )
     page.emulate_media(media="screen")
-    expect(control).to_have_text("1 new update")
+    expect(control).to_have_text("Show 1 new")
     expect(page.locator("#feed .lf-activity-row")).to_have_count(1)
 
     control.click()

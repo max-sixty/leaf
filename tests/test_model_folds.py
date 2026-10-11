@@ -118,7 +118,7 @@ def test_folds_without_summary_prose_keep_corrected_originals():
                 "thread": "e1",
                 "from": "e1",
                 "through": "e2",
-                "label": "Previous updates",
+                "label": "Previous progress messages",
                 "text": "",
             },
             {
@@ -138,7 +138,7 @@ def test_folds_without_summary_prose_keep_corrected_originals():
     [fold] = thread["summaries"]
     assert (fold["covers"], fold["label"], fold["text"]) == (
         ["e1", "e2"],
-        "Previous updates",
+        "Previous progress messages",
         "",
     )
     assert [message["text"] for message in thread["msgs"]] == [
@@ -189,8 +189,8 @@ def test_ephemeral_updates_wait_for_an_answer_and_preserve_user_interjections():
         (fold["covers"], fold["label"], fold["text"], fold["trigger"])
         for fold in completed["summaries"]
     ] == [
-        (["e2"], "Previous updates", "", "e5"),
-        (["e4"], "Previous updates", "", "e5"),
+        (["e2"], "Previous progress messages", "", "e5"),
+        (["e4"], "Previous progress messages", "", "e5"),
     ]
     assert [message["text"] for message in completed["msgs"]] == [
         "Check the schedule.",
@@ -474,7 +474,7 @@ def test_question_lifecycle_selects_current_prompt_and_preserves_first_settlemen
         return model.reading(HUB, events)
 
     add("comment", "first", text="Which route?")
-    add("reply", "update", parent="first", text="Checking.")
+    add("reply", "checking", parent="first", text="Checking.")
     add("reply", "progress", parent="first", text="Still checking.", ephemeral=True)
     state = add("reply", "second", parent="first", text="Which colour?", question=True)
     assert model.threads(state)["first"]["user_prompt"] == {
@@ -571,9 +571,9 @@ def test_frozen_ask_attention_comes_from_its_widget_without_a_prose_task():
     )
 
 
-def test_summary_protects_the_unanswered_question_after_later_agent_updates():
+def test_summary_protects_the_unanswered_question_after_later_agent_messages():
     """A summary cannot hide the question the user owes merely because a newer
-    agent update is the last turn. Protection selects the canonical prompt."""
+    agent message is the last turn. Protection selects the canonical prompt."""
     state = model.reading(
         HUB,
         (

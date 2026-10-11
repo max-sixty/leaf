@@ -127,7 +127,7 @@ watcher's claim record, and identity is the session id, because a display name i
 anyone's to choose. A command run outside a harness session has no voice, so its
 event carries neither field. Every reading that shows an agent's event names it
 through `schema.agent_name`, which gives such an event the name `Agent`. Every
-agent-authored thread message, closing event, margin update, and activity row the
+agent-authored thread message, closing event, margin entry, and activity row the
 browser receives carries that name as `agent`, and the browser shows it as served.
 
 Admission stamps `attention`: whether the input changes Questions on the user or
@@ -210,7 +210,7 @@ differently.
 Recorded effects own their payload schema (`registry.contract.detail_schema`):
 `detail.value` carries a body's string, an attribute set's ids, or the scalar
 attribute's own schema. Positions require `{unit, value, rank}` for the moved
-item, destination and rank key. `update: true` on an agent verb adds required
+item, destination and rank key. `report: true` on an agent verb adds required
 nonempty `detail.text`. Custom verbs without a record keep their declared detail
 schema. All payloads are closed objects.
 
@@ -298,7 +298,7 @@ rule `workflows.py` states for page actions.
 
 An open structural Question anywhere in an unresolved thread keeps it awaiting the
 user after later prose or a settling reaction. Without one, the latest unanswered
-prose question determines the obligation. Later agent updates leave it standing.
+prose question determines the obligation. Later agent messages leave it open.
 A user turn answers every question before it; a reaction whose token declares
 `settles` answers only the question it names, so an older unanswered question may
 become current again. Neither answer resolves the thread. `questions.thread_questions`
@@ -375,7 +375,7 @@ them:
   carries `start: {item, turn?}` naming that exact delivered update, with its text
   as the line. `tasks.start_reading` reads this and explicit starts alike, so
   progress history and work in hand are one durable fact. The next ordinary agent reply in
-  its thread derives empty-prose “Previous updates” folds over the preceding
+  its thread derives empty-prose “Previous progress messages” folds over the preceding
   uncovered contiguous runs of ephemeral messages, including a single message.
   User messages break those runs and remain outside them. Explicit summaries own
   overlapping ranges. Each derived fold names its completing reply as `trigger`,

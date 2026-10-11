@@ -280,7 +280,7 @@ customElements.define(
           ? `Show activity${arrived ? ` · ${arrived} new` : ""}`
           : news
             ? arrived
-              ? `${arrived} new ${arrived === 1 ? "update" : "updates"}`
+              ? `Show ${arrived} new`
               : "Activity changed"
             : "Hide activity",
       );

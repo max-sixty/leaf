@@ -224,8 +224,8 @@ export {
   tokenLines,
 } from "./syntax.js";
 export { bodyText, dataBody, failSoft, once } from "./widget-upgrade.js";
-export { watchUpdates } from "./application.js";
-export { saidAt, updateSequence, watchHistory } from "./updates.js";
+export { watchReports } from "./application.js";
+export { saidAt, reportSequence, watchHistory } from "./reports.js";
 export {
   HIDDEN,
   LAYOUT,

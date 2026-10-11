@@ -14,7 +14,7 @@ from ..projection import (
     canonical_updates,
     page_reading,
 )
-from ..questions import approval_blocking, closed_thread, collection
+from ..questions import approval_blocking, answer_verbs, closed_thread, collection
 from ..registry.contract import state_definition, state_specs
 from ..thread_context import event_threads
 from ..schema import WIDGET_KINDS
@@ -105,18 +105,25 @@ def _apply_thread_attention(
 
 def _closes(
     pages: list[tuple[dict, dict, StateProjection]], names: dict
-) -> dict[str, str]:
-    """Each widget an answer on would close a thread, and that thread
-    (`questions.closed_thread`). `pages` are each document's records by id, registry
-    and projection; `names` resolves a thread name. The browser places a move it has
-    not sent yet in the thread it would close by this, as `event_threads` places a
-    logged one by its admitted meaning."""
+) -> dict[str, dict]:
+    """Each widget an answer on would close a thread (`questions.closed_thread`):
+    that thread, the verbs that answer (`questions.answer_verbs`), and the outcome
+    that withdraws the request instead (`x-withdrawn-as`), which closes nothing.
+    `pages` are each document's records by id, registry and projection; `names`
+    resolves a thread name. The browser places a move it has not sent yet in the
+    thread it would close by this, as `event_threads` places a logged one by its
+    admitted meaning (`event_meaning.answer_meaning`)."""
     closes = {}
     for by_id, registry, projection in pages:
         for widget, record in by_id.items():
-            name = closed_thread(record, registry.get(record["tag"], {}), projection)
+            entry = registry.get(record["tag"], {})
+            name = closed_thread(record, entry, projection)
             if name and (thread := names.get(name)):
-                closes[widget] = thread
+                closes[widget] = {
+                    "thread": thread,
+                    "verbs": sorted(answer_verbs(entry)),
+                    "withdrawn_as": entry.get("x-withdrawn-as"),
+                }
     return closes
 
 
@@ -182,6 +189,10 @@ def browser_state(
     )
     thread, thread_reading = browser_thread(durable, work.live_reply)
     thread_projection = thread_reading.projection
+    # Frozen markup reads under the active registry for the page's whole lifetime.
+    thread["state_definitions"] = _state_definitions(
+        active_registry, thread_reading.by_id.values()
+    )
 
     views = {}
     documents = {}
@@ -238,8 +249,7 @@ def browser_state(
         views[str(revision)] = {
             "basis": {"revision": revision, "through_seq": through_seq},
             "state_definitions": _state_definitions(
-                page.registry,
-                [*page.document.by_id.values(), *thread_reading.by_id.values()],
+                page.registry, page.document.by_id.values()
             ),
             "closes": _closes(
                 [

@@ -670,7 +670,16 @@ test("a move that would close a thread concerns that thread, before and after th
   };
   app.enqueue({ ...decide, attempt: "accept" }, "now");
   assert.deepEqual(app.read().effective.thread.gestured, ["e1"]);
-  app.refuse("accept");
+
+  // Rejecting it withdraws the request and closes nothing, as the log will file it.
+  const rejecting = createSemanticApplication();
+  rejecting.identify(1);
+  rejecting.adopt(served);
+  rejecting.enqueue(
+    { ...decide, detail: { outcome: "reject" }, attempt: "reject" },
+    "now",
+  );
+  assert.deepEqual(rejecting.read().effective.thread.gestured, []);
 
   // Taking back the logged acceptance concerns the thread it closed.
   const logged = servedReading("suggestion accepted");

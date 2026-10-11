@@ -4,7 +4,7 @@
  * readings. The existing pure folds derive every published projection synchronously.
  * Promises, rendering instances, and proof of presentation stay outside this owner.
  */
-import { createApplicationPublisher } from "./snapshot.ts";
+import { createApplicationPublisher, type Immutable } from "./snapshot.ts";
 import {
   foldProjection,
   foldedValue,
@@ -340,12 +340,17 @@ export interface AuthoritativeState {
         updates: object[];
         published_at: string | null;
         queues: WireQueues;
-        /** The thread an answer on each widget would close (`questions.closed_thread`). */
-        closes: Record<string, string>;
+        /** For each widget an answer on would close a thread: that thread, the verbs
+         * that answer, and the outcome that withdraws the request instead
+         * (`served_state.browser._closes`). */
+        closes: Record<
+          string,
+          { thread: string; verbs: string[]; withdrawn_as: string | null }
+        >;
         /** The Questions approving this version waits on (`questions.approval_blocking`). */
         approval_blocking: string[];
-        /** Each tag's user verbs' admitted definitions under this version's registry
-         * (`registry.contract.state_definition`). */
+        /** Each page tag's user verbs' admitted definitions under this version's
+         * registry (`registry.contract.state_definition`). */
         state_definitions: Record<string, Record<string, unknown>>;
       }
     >;
@@ -354,6 +359,8 @@ export interface AuthoritativeState {
       projection: WireProjection;
       questions: WireQuestions;
       approval_history: Event[];
+      /** The frozen markup's user verbs' definitions, under the active registry. */
+      state_definitions: Record<string, Record<string, unknown>>;
     };
     receipts: Event[];
     /** The threads each logged event belongs to (`thread_context.event_threads`). */
@@ -532,6 +539,22 @@ function localTasks(
   };
 }
 
+// A user verb's definition as the server admits it where the widget stands: the
+// view's for a page widget, the frozen thread's for one an agent sent.
+function servedDefinition(
+  state: Immutable<AuthoritativeState> | null,
+  view: Immutable<PageView> | null | undefined,
+  descriptor: Immutable<WidgetDescriptor> | undefined,
+  verb: string,
+) {
+  if (!descriptor) return undefined;
+  const definitions =
+    descriptor.document.kind === "thread"
+      ? state?.browser.thread.state_definitions
+      : view?.state_definitions;
+  return definitions?.[descriptor.tag]?.[verb];
+}
+
 const NO_QUEUES: WireQueues = { on_you: [], on_agent: [], done: [] };
 
 /* What is on the user, what is on the agent, and what is done: the view's served
@@ -554,8 +577,12 @@ function localQueues(
   const open = new Set(tasks.open.map((task) => task.id));
   const ended = new Set(tasks.ended.map((task) => task.id));
   const byThread = new Map(threads.map((thread) => [thread.id, thread]));
+  // The forward sends still in flight; a refused one is the user's retry, below.
   const sending = workflows.filter(
-    (workflow) => workflow.stage === "sending" && workflow.subject.kind === "thread",
+    (workflow) =>
+      workflow.stage === "sending" &&
+      workflow.next_actor === "agent" &&
+      workflow.subject.kind === "thread",
   );
   const resent = new Set(sending.map((workflow) => workflow.thread));
   const retrying = (thread: string) => {
@@ -828,8 +855,12 @@ export function createSemanticApplication({
     // cannot be compared directly.
     const compatiblePending = (projection: NonNullable<LedgerEntry["projection"]>) => {
       const operation = projection.kind === "undo" ? projection.target : projection;
-      const descriptor = document.descriptors.get(operation.e.widget);
-      const current = descriptor && view?.state_definitions[descriptor.tag]?.[operation.e.action];
+      const current = servedDefinition(
+        state,
+        view,
+        document.descriptors.get(operation.e.widget),
+        operation.e.action,
+      );
       return Boolean(current) && sameStateDefinition(operation.e.meaning?.state, current);
     };
     const localProjections = local.flatMap((entry) => {
@@ -914,8 +945,9 @@ export function createSemanticApplication({
     };
     // Every thread a gesture concerns, as `thread_context.event_threads` will file it
     // once the log has it: the thread it stands in, and the thread a move would close
-    // (the view's `closes`); an undo concerns the threads the gesture it takes back
-    // did, this tab's own entry or, once logged, the log's (`event_threads`).
+    // (the view's `closes`), unless its outcome withdraws the request; an undo
+    // concerns the threads the gesture it takes back did, this tab's own entry or,
+    // once logged, the log's (`event_threads`).
     const threadsOfEntry = (entry: LedgerEntry): string[] => {
       const { event } = entry;
       if (event.kind === "undo") {
@@ -926,7 +958,14 @@ export function createSemanticApplication({
           ? threadsOfEntry(target)
           : (state?.browser.event_threads[event.undoes] ?? []);
       }
-      const closes = event.kind === "action" ? view?.closes[event.widget] : undefined;
+      const closing = event.kind === "action" ? view?.closes[event.widget] : undefined;
+      const closes =
+        closing &&
+        event.kind === "action" &&
+        closing.verbs.includes(event.action) &&
+        event.detail["outcome"] !== closing.withdrawn_as
+          ? closing.thread
+          : null;
       return [threadOfEntry(entry), closes].filter((id): id is string => Boolean(id));
     };
     // A refused send or move is the user's to retry from the thread it stood in.
@@ -1366,8 +1405,13 @@ export function createSemanticApplication({
       // The verb's definition as the shown version admits it, which the move is
       // drawn under until a revision defines the verb differently.
       const definition =
-        event.kind === "action" && widget
-          ? before.effective.view?.state_definitions[widget.tag]?.[event.action]
+        event.kind === "action"
+          ? servedDefinition(
+              before.authoritative,
+              before.effective.view,
+              before.document.descriptors.get(event.widget),
+              event.action,
+            )
           : undefined;
       const unit =
         event.kind === "action" && spec

@@ -12,11 +12,13 @@ assertions always consume this checkout's server rather than a recorded copy.
 """
 
 import json
+from pathlib import Path
 
 from interact_support import model_layer
 from leaf.event_log import EventRefused
 from leaf.passages import SourceReading
 from leaf.projection import StateProjection, authored_rank, question_value
+from leaf.registry.contract import state_definition
 from leaf.structure import SourceDocument
 from model_folds import NOW, UNCLAIMED, leaf_page, served_reading
 
@@ -156,6 +158,7 @@ def build() -> dict:
         "workflow": workflows["e4"],
         "gestures": gesture_sequence(),
         "question_item": _served_question_item(),
+        "state_definitions": state_definition_cases(),
         "readings": {
             # A required approval of the exact stamped document, with no other
             # Questions. Keep the whole browser reading for local approval folds.
@@ -333,6 +336,24 @@ def _served_question_item() -> dict:
         for item in state["browser"]["views"]["1"]["queues"]["on_you"]
         if item["kind"] == "question"
     )
+
+
+def state_definition_cases() -> list[dict]:
+    """Each case in `state_definition_cases.json` as two definitions the server
+    serves (`registry.contract.state_definition`), which the browser compares as
+    `same_state_definition` does."""
+    cases = json.loads((Path(__file__).with_name("state_definition_cases.json")).read_text())
+    return [
+        {
+            "id": case["id"],
+            "definitions": [
+                state_definition("lf-local", {}, {"unit": "widget", "detail": case[key]})
+                for key in ("before", "after")
+            ],
+            "same": case["same"],
+        }
+        for case in cases
+    ]
 
 
 def question_value_cases():

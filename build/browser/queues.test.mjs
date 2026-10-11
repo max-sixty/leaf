@@ -59,11 +59,16 @@ test("a follow-up sent in a thread stands for the answer it was owed", () => {
   assert.equal(answers[0].thread, owed.thread);
   assert.equal(published(app).onAgent.at(-1).kind, "task");
   app.refuse("a3");
-  // A refused follow-up leaves the thread the user's to send again.
+  // A refused follow-up leaves the thread the user's to send again, and the answer
+  // it was owed back on the agent.
   assert.ok(
     published(app).onYou.some(
       (item) => item.kind === "recovery" && item.thread === owed.thread,
     ),
+  );
+  assert.deepEqual(
+    kinds(published(app).onAgent.filter((item) => item.kind === "answer")),
+    [["answer", owed.id]],
   );
 });
 

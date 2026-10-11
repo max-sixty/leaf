@@ -3,7 +3,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { initialRender, initialOrigin } from "/runtime/initial-render.js";
-import { tabStore, unmarkedCopy } from "/runtime/storage.js";
+import { unmarkedCopy } from "/runtime/initial-render.js";
+import { tabStore } from "/runtime/storage.js";
 import { adoptRegistry } from "/runtime/registry.js";
 import {
   rememberAuthoredParents,

@@ -21,7 +21,7 @@ import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
 import { createDelivery, deliverBookkeeping } from "./delivery.js";
 import { createProjectionPresentation } from "./projection/presentation.js";
-import { createProjectionCommands } from "./projection/commands.js";
+import { createUndo } from "./undo.js";
 import { createDataProjection } from "./projection/data.js";
 import { createThreadPresentation } from "./thread/presentation.js";
 import { createAnnotationInventory } from "./annotation-inventory.js";
@@ -167,14 +167,14 @@ export function mountApplication(dependencies) {
 
   commandDispatch.mount({
     afterEnqueue,
-    withdraw: (candidate) => projectionCommands.withdraw(candidate),
+    withdraw: (candidate) => undo.withdraw(candidate),
     onCollision: (attempt) =>
       notice(`Couldn't send — attempt ${attempt} is already in use`),
   });
 
   const { post, dispatchWidget } = commandDispatch;
 
-  const projectionCommands = createProjectionCommands({
+  const undo = createUndo({
     post,
     stateApplying,
     unaccountedGesture: engagement.unaccountedGesture,
@@ -198,7 +198,7 @@ export function mountApplication(dependencies) {
 
   const threadActions = createThreadActions({
     post,
-    withdraw: projectionCommands.withdraw,
+    withdraw: undo.withdraw,
     sendReaction: dependencies.sendReaction,
     currentRevision: () => runtime.currentRevision,
     open: (...args) => threadDestinations.openPageThread(...args),
@@ -217,7 +217,7 @@ export function mountApplication(dependencies) {
   const settlementView = {
     pendingEntries: ledger.snapshot,
     actions: threadActions,
-    retainReversal: projectionCommands.retainReversal,
+    retainReversal: undo.retainReversal,
   };
   const reactionView = {
     registerSurface: dependencies.registerReactSurface,
@@ -517,7 +517,7 @@ export function mountApplication(dependencies) {
   };
 
   application = {
-    ...projectionCommands,
+    ...undo,
     watchReports: observeReports,
     ...engagement,
     approvalBlockingQuestions,

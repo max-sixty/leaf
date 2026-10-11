@@ -24,8 +24,7 @@ export function createInlineContributions({ targetPath }) {
   function present() {
     const grouped = new Map();
     for (const offered of contributionEntries()) {
-      const target =
-        typeof offered.target === "function" ? offered.target() : offered.target;
+      const target = offered.target();
       if (
         !target?.isConnected ||
         !inChrome(target) ||

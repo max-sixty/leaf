@@ -91,7 +91,7 @@ import {
 import { repaint } from "../repaint.js";
 import { walkPosition } from "../walk-position.js";
 import { declareBottomBar } from "../geometry.js";
-import { pagePresented } from "../presentation.js";
+import { pagePresented } from "../page-paint.js";
 import { closeLayer, focusDestination } from "../focus.js";
 import {
   BANNER_CONTROL_RANK,

@@ -72,12 +72,13 @@ toggle left under the press, and moves nothing else.
 The rail and a pin are different kinds. The rail is room: a strip right of `main`
 that sits wherever the window has room for it. It never moves, narrows, or indents
 the column, and `data-rail` on `body` withholds or reserves it (`content-layout.js`).
-Only the left resident and the notes move the column over (`settleResidency` there). A pin,
+Only the left resident and the notes move the column over (prepaint.js `residency`,
+which `scheduleResidency` there runs). A pin,
 a passage mark, and everything else in the annotation layer is an overlay: it covers
 what lies under it and takes no room. No rule pads, indents,
 widens, or reflows a block, heading, or line to clear a pin, and nothing moves when a
 marker arrives, leaves, or changes place, including a marker that always accompanies
-its target, such as an Ask's. Reserved room would make the page's geometry depend on
+its target, such as a Question's. Reserved room would make the page's geometry depend on
 which markers stand and where, which is what the overlay exists to avoid. Where a pin
 covers something the user needs, the answers are `o` (or More's Hide annotations
 under a finger) and a better placement (`TODO.md`), never room made for it.
@@ -166,7 +167,7 @@ hold to changes in existing messages, reactions, folds, settlement and active
 compositions. A thread the agent starts in a seat also waits there; a thread that
 would open a seat of its own, as on a diff line with no thread, waits in the margin behind its marker
 (`thread/held-news.js`). It shows once a gesture of theirs takes them to it: opening
-the notice or the thread, walking to the thread or one of its Asks, or acting there. In
+the notice or the thread, walking to the thread or one of its Questions, or acting there. In
 the Threads panel, a card news takes out of the view, as another actor resolving its
 thread under Open does, stays where it stands, holding the news behind that notice
 and, once shown, in the shape it stood in, until its going would move nothing the
@@ -309,12 +310,13 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | --- | --- |
 | Composition and semantic publication | `application.js`, `semantic-state.js`, `context.js` |
 | Delivery, accepted state, and wakeups | `delivery.js`, `state-application.js`, `state-feed.js`, `layer-client.js`, `traffic.js` |
+| Undo and withdrawal | `undo.js` |
 | State models and projection | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `questions/model.js`, `queues.js` |
 | Widget capture and lifecycle | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js` |
 | Vocabulary and public helpers | `registry.js`, `widget-api.js`, `widget-elements.js` |
 | External data | `data.js`, `projection/data.js`, `projection/authored.js` |
 | Revision installs and continuity | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js` |
-| Repaint and geometry | `rendering.js`, `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `scroll-motion.js`, `rect.js`, `pointer.js` |
+| Repaint and geometry | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `scroll-motion.js`, `css-anchors.js`, `rect.js`, `pointer.js` |
 | Chrome and available room | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js` |
 | Reading regions and scrolling | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
 | Keyboard | `keyboard/AGENTS.md` |
@@ -549,6 +551,10 @@ states and crops the ones that changed (`/developing-leaf`, "Prove and hand off 
 visible change").
 
 ## Working on the runtime
+
+`../references/module-authoring.md`, "Template rendering", owns template timing
+and container ownership. Paints whose contract requires the current turn use the
+public `render`; `LitElement` belongs only to faces that permit its microtask delay.
 
 `build/browser/build.mjs` compiles the TypeScript foundation into
 `vendor/browser-runtime.js` and the modules beside it in `vendor/browser-runtime/`,

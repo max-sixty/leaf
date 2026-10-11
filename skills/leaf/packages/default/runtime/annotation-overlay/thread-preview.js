@@ -32,7 +32,8 @@
    and target landing; the card keeps Send's focus on the thread that received it. */
 import { atScrollEnd, scrollToEnd } from "/runtime/scrolling.js";
 import { cancelRender, nextRender } from "/runtime/rendering.js";
-import { labelWords, spokenSubject } from "/runtime/contribution-model.js";
+import { spokenSubject } from "/runtime/contribution-model.js";
+import { labelWords } from "/runtime/words.js";
 import { THREAD_CARD } from "./margin-layout.js";
 import { mapButton } from "/runtime/page-map-dialog.js";
 import { focusDestination, holdFocus, onStanding, focused } from "/runtime/focus.js";
@@ -302,7 +303,7 @@ export function createThreadPreview({
   // reading and writing. A scroll that only carries a fitting card writes nothing;
   // clipped contents receive newly available room without requiring a complete fit.
   function measureThreadCard(room, cap, reading) {
-    preview.style.setProperty("--lf-thread-width", `${room}px`);
+    preview.style.setProperty("--lf-thread-width", layoutPx(room));
     const worn = parseFloat(preview.style.getPropertyValue("--lf-thread-max-height"));
     const height = preview.offsetHeight;
     const overflow = [
@@ -310,7 +311,7 @@ export function createThreadPreview({
       ...previewList.querySelectorAll(REPLY_BOX),
     ].some((box) => box && box.scrollHeight > box.clientHeight + 0.5);
     if (!(worn >= 0) || cap < height - 0.5 || (overflow && cap > height + 0.5))
-      preview.style.setProperty("--lf-thread-max-height", `${cap}px`);
+      preview.style.setProperty("--lf-thread-max-height", layoutPx(cap));
     if (reading?.latest) showLatestTurn(previewSession.transcript);
     else if (reading?.end) scrollToEnd(previewSession.transcript);
     return preview.getBoundingClientRect().height;
@@ -457,7 +458,7 @@ export function createThreadPreview({
             const room = Math.min(cardMeasure(), width);
             preview.style.setProperty(
               "--lf-thread-min-width",
-              `${Math.min(cardMinimum(), room)}px`,
+              layoutPx(Math.min(cardMinimum(), room)),
             );
             // Choosing its spot, the card is capped by the boundary alone, and slides
             // inside it rather than shrinking. Held, it has the room from its held edge

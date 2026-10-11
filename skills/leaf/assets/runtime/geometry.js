@@ -2,7 +2,14 @@
  * window the page shows, and the one conversion from viewport boxes to
  * document-positioned chrome. */
 import { renderedParent, uiInside, under, upFrom } from "./shadow.js";
-import { overlaps, overlapsAcross, union, clippingAxes } from "./rect.js";
+import {
+  clippingAxes,
+  hasArea,
+  intersect,
+  overlaps,
+  overlapsAcross,
+  union,
+} from "./rect.js";
 import { cancelRender, nextRender } from "./rendering.js";
 import { watchScrolls } from "./arrivals.js";
 
@@ -432,13 +439,19 @@ export function shownBand(el) {
 // A box scrolls, for these readings, when its computed overflow makes it a scroll
 // container: `auto` and `scroll`, and `hidden` too, which a script or a landing can
 // scroll though the user cannot, and which is the scroller a sticky box inside it sticks
-// in. The runtime marks every such box from the same predicate (reach.js, `paintSlot`),
-// and asks it of what a motion scrolls and which boxes scroll what they hold
-// (scroll-motion.js, `scrollContainer` and `scrollsContent`).
+// in. The runtime asks it of what a motion scrolls and which boxes scroll what they
+// hold (scroll-motion.js, `scrollsContent`), and of the boxes that hold sticky headers
+// (`scrollContainer`). `userScrollport` is the same test without `hidden`: what the
+// user, rather than a script, can scroll, which keyboard stops and edge marks read
+// (reach.js, `paintSlot`).
 export const scrollport = (overflow) => /^(auto|scroll|hidden)$/.test(overflow);
+export const userScrollport = (overflow) => /^(auto|scroll)$/.test(overflow);
 export const scrollsBy = ({ overflowX, overflowY }) =>
   scrollport(overflowX) || scrollport(overflowY);
 const scrolls = (el) => scrollsBy(getComputedStyle(el));
+// A scroll container: the document's own scroller, or a box whose overflow scrolls.
+export const scrollContainer = (box) =>
+  box === box.ownerDocument.scrollingElement || scrolls(box);
 // How far below the top of `scroller`'s band the view of `el` starts, past the sticky
 // headers stuck over it. Each header adds its stated height to `--lf-top` for what it
 // stands over (theme.css), so where the `--lf-top` computed at `el` exceeds the
@@ -452,9 +465,8 @@ const scrolls = (el) => scrollsBy(getComputedStyle(el));
 // containment) has none over it. A box that scrolls starts `--lf-top` again for what it
 // holds, so it is read where it stands, at its parent; a header's holder puts the
 // stacked value on a box that does not scroll (theme.css, at `--lf-top`).
-const holdsHeaders = (el) => el === el.ownerDocument?.scrollingElement || scrolls(el);
 const edgeInset = (el, scroller, slot, padding) => {
-  if (!holdsHeaders(scroller) || el === scroller) return 0;
+  if (!scrollContainer(scroller) || el === scroller) return 0;
   const at = el.nodeType === 1 && scrolls(el) ? upFrom(el) : el;
   const read = (box) =>
     Number.parseFloat(getComputedStyle(box).getPropertyValue(slot)) || 0;
@@ -504,7 +516,7 @@ export function stuckBox(node) {
 // box that clips what it holds, as a tab strip does, still sticks in that scroller.
 function sticks(sticky) {
   let scroller = renderedParent(sticky);
-  while (scroller?.nodeType === 1 && !holdsHeaders(scroller))
+  while (scroller?.nodeType === 1 && !scrollContainer(scroller))
     scroller = renderedParent(scroller);
   if (scroller?.nodeType !== 1) return false;
   const band = shownBand(scroller);
@@ -588,17 +600,10 @@ export const skipped = (el) =>
 // the element directly and centred the top of the document. One answer to "where is
 // this element", so there is no second way to ask.
 export function shownBox(el) {
-  if (el === document.scrollingElement)
-    return {
-      x: 0,
-      y: 0,
-      left: 0,
-      top: 0,
-      right: document.documentElement.clientWidth,
-      bottom: document.documentElement.clientHeight,
-      width: document.documentElement.clientWidth,
-      height: document.documentElement.clientHeight,
-    };
+  if (el === document.scrollingElement) {
+    const { left, top, right, bottom } = shownBand(el);
+    return new DOMRect(left, top, right - left, bottom - top);
+  }
   const r = el.getBoundingClientRect();
   if (r.width || r.height) return r;
   const contents = document.createRange();
@@ -881,10 +886,9 @@ function clipped(box, item, clips, held, inWindow = true) {
 // band is the window, which cuts nothing there, and only a header stuck over its top
 // does.
 function cutBy(box, cuts, root, inWindow) {
-  let left = inWindow ? Math.max(box.left, 0) : box.left,
-    top = inWindow ? Math.max(box.top, 0) : box.top,
-    right = inWindow ? Math.min(box.right, innerWidth) : box.right,
-    bottom = inWindow ? Math.min(box.bottom, innerHeight) : box.bottom;
+  let shown = inWindow
+    ? intersect(box, { left: 0, top: 0, right: innerWidth, bottom: innerHeight })
+    : box;
   for (const { box: cut, band, axes, covered } of cuts) {
     if (!band) return null;
     const edges =
@@ -896,16 +900,10 @@ function cutBy(box, cuts, root, inWindow) {
             bottom: Infinity,
           }
         : band;
-    if (axes.x) {
-      left = Math.max(left, edges.left);
-      right = Math.min(right, edges.right);
-    }
-    if (axes.y) {
-      top = Math.max(top, edges.top);
-      bottom = Math.min(bottom, edges.bottom);
-    }
+    shown = intersect(shown, edges, axes);
   }
-  return right > left && bottom > top ? { left, top, right, bottom } : null;
+  const { left, top, right, bottom } = shown;
+  return hasArea(shown) ? { left, top, right, bottom } : null;
 }
 // The clips standing over an item, innermost first: each ancestor whose band cuts it,
 // with that band less the headers stuck over its top and the footers over its foot, and
@@ -948,7 +946,7 @@ function clipWalk(item, clips, held) {
             a.offsetParent !== undefined &&
             ["fixed", "absolute"].includes(getComputedStyle(a).position),
           block: a.offsetParent,
-          scrolls: holdsHeaders(a),
+          scrolls: scrollContainer(a),
         }),
       );
     }
@@ -994,6 +992,10 @@ function clipWalk(item, clips, held) {
 const occluders = new Set();
 // An occluder on its way out (motion.js, `slide`) covers nothing the user is reading past.
 export const LEAVING = "data-lf-leaving";
+// Whether a declared occluder stands now: rendered, and not on its way out. A
+// disconnected surface has no box, so `checkVisibility` answers for that too.
+const standsNow = (surface) =>
+  !surface.hasAttribute(LEAVING) && surface.checkVisibility();
 // Where an occluder stands, not where its slide has carried it this frame: every declared
 // occluder is fixed to the window, so its offset box is its viewport box without the
 // slide's transform.
@@ -1015,12 +1017,7 @@ export function rightCover() {
   const edge = document.documentElement.clientWidth;
   let left = Infinity;
   for (const surface of occluders) {
-    if (
-      !surface.isConnected ||
-      surface.hasAttribute(LEAVING) ||
-      !surface.checkVisibility()
-    )
-      continue;
+    if (!standsNow(surface)) continue;
     const box = standingBox(surface);
     if (box.left > 0 && box.right >= edge - 1) left = Math.min(left, box.left);
   }
@@ -1045,13 +1042,7 @@ export const clipsPastSurfaces = () => clipsPast(occluders);
 // where the landing will bring it into view.
 export function hides(surface, where) {
   const holder = placeHolder(where);
-  if (
-    !holder ||
-    !occluders.has(surface) ||
-    surface.hasAttribute(LEAVING) ||
-    !surface.checkVisibility()
-  )
-    return false;
+  if (!holder || !occluders.has(surface) || !standsNow(surface)) return false;
   if (under(holder, surface) || stackLevel(holder) >= stackLevel(surface)) return false;
   const box = where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
   const seen =
@@ -1092,12 +1083,7 @@ function standingOccluders(clips) {
   if (standing) return standing;
   const past = clips.get(PAST);
   standing = [...occluders]
-    .filter(
-      (surface) =>
-        surface.isConnected &&
-        !surface.hasAttribute(LEAVING) &&
-        surface.checkVisibility(),
-    )
+    .filter(standsNow)
     .filter((surface) => !past?.has(surface))
     .map((surface) => ({
       surface,

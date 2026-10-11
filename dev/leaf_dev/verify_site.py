@@ -944,8 +944,8 @@ def local_worker() -> Iterator[LocalWorker]:
             copy_working(
                 [
                     "Dockerfile.website",
-                    "worker/package.json",
-                    "worker/package-lock.json",
+                    "package.json",
+                    "package-lock.json",
                     "worker/codex-config.toml",
                 ],
                 context,

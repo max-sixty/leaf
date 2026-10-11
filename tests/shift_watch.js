@@ -83,15 +83,17 @@
 // emulated media tests change; this frame's own visibility; and the calls that
 // restyle without a DOM write (custom states, constructed and adopted sheets,
 // form-control values, ranges and validity, CSSOM declarations/rules/media and
-// adopted-sheet array mutations, animation mutators). Native input creation also flushes style to discover default-input
-// effects (such as checkbox preactivation). That forced discovery depends on these
-// mutation announcements: pending passive style must be discovered in its own
-// callback before a later input can flush its native default. Borrowed methods announce
-// the document their receiver changes, including a constructed sheet's construction
-// document. Hidden owner layout can settle without an event in its child, so a
-// document whose paint is withheld always reads completely. Every VERIFY-th unannounced
-// frame, and the first one once the fixture asks for the test's verdict, reads
-// completely and fails the test where any reading differs, naming the innermost
+// adopted-sheet array mutations, animation mutators). Native input creation also
+// flushes style to discover default-input effects (such as checkbox preactivation).
+// That forced discovery depends on these mutation announcements: pending passive
+// style must be discovered in its own callback before a later input can flush its
+// native default. Borrowed methods announce the document their receiver changes,
+// including a constructed sheet's construction document. A child cannot observe
+// every change in its embedding page, so child-frame readings remain complete.
+// Hidden owner layout can settle without an event in its document, so a document
+// whose paint is withheld also reads completely. Every VERIFY-th unannounced frame,
+// and the first one once the fixture asks for the test's verdict, reads completely
+// and fails where any reading differs, naming the innermost
 // node that changed, so a source missing from this list is found rather than
 // leaving the readings between entries stale. A page that writes while it is read
 // announces its change by that write. A change to this gate runs the suite with
@@ -1041,13 +1043,15 @@
     const animations = allAnimations();
     const running = animations.some(({ playState }) => playState === "running");
     if (writes.takeRecords().length) announce();
-    // A hidden owner's native layout can settle after its visibility transition,
-    // without a child resize event or a document-local mutation. Read that layout
-    // completely while paint is withheld; visible documents retain announcement reuse.
+    // Embedding-page changes need not announce themselves in a child, including
+    // a hide before the driver's visibility fact arrives across an opaque boundary.
+    // Hidden layout can also settle after its visibility transition. Both require
+    // complete readings; visible top-level documents retain announcement reuse.
     const drawn = drawing();
     const announced =
       !drawn ||
       unread ||
+      window !== top ||
       drawn !== wasDrawn ||
       running ||
       wasRunning ||

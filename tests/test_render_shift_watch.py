@@ -1371,37 +1371,47 @@ def test_cross_realm_changes_keep_owner_readings_complete(
 
 
 @pytest.mark.parametrize(
-    "when",
+    "when, opaque",
     [
-        "already-hidden",
-        "hidden-during-drain",
-        "resize-during-drain",
-        "resize-after-hidden-drain",
-        "opaque-resize-after-hidden-drain",
-        "same-origin-before-driver",
-        "cssom-during-drain",
+        pytest.param("already-hidden", False, id="already-hidden"),
+        pytest.param("hidden-during-drain", False, id="hidden-during-drain"),
+        pytest.param("resize-during-drain", False, id="resize-during-drain"),
+        pytest.param("resize-during-drain", True, id="opaque-resize-during-drain"),
+        pytest.param(
+            "resize-after-hidden-drain", False, id="resize-after-hidden-drain"
+        ),
+        pytest.param(
+            "resize-after-hidden-drain", True, id="opaque-resize-after-hidden-drain"
+        ),
+        pytest.param(
+            "same-origin-before-driver", False, id="same-origin-before-driver"
+        ),
+        pytest.param("cssom-during-drain", False, id="cssom-during-drain"),
     ],
 )
-def test_a_hidden_frame_judges_existing_records_without_awaiting_paint(browser, when):
+def test_a_hidden_frame_judges_existing_records_without_awaiting_paint(
+    browser, when, opaque
+):
     page = field_page(browser)
     page.set_viewport_size({"width": 900, "height": 600})
     page.evaluate(
-        """when => {
+        """({when, opaque}) => {
       const style = document.createElement('style');
       style.textContent = '@media(max-width:600px){iframe{display:none}}';
       document.head.append(style);
       const frame = document.createElement('iframe');
       if (when === 'already-hidden') frame.style.display = 'none';
-      if (when === 'opaque-resize-after-hidden-drain') frame.sandbox = 'allow-scripts';
+      if (opaque) frame.setAttribute('sandbox', 'allow-scripts');
       frame.srcdoc = '<!doctype html><body><button>Hidden control</button></body>';
       document.body.append(frame);
     }""",
-        when,
+        {"when": when, "opaque": opaque},
     )
+    page.frame_locator("iframe").locator("button").wait_for(state="attached")
     frame = page.frames[1]
-    frame.wait_for_function("document.readyState === 'complete'")
+    drawn = page.locator("iframe").evaluate("frame => frame.checkVisibility()")
     frame.evaluate(
-        """drawn => {
+        """async drawn => {
       const nativeFrame = window.lfWatchPlatform.frame;
       const held = [];
       window.lfWatchPlatform.frame = callback => { held.push(callback); return 0; };
@@ -1409,6 +1419,12 @@ def test_a_hidden_frame_judges_existing_records_without_awaiting_paint(browser, 
         window.lfWatchPlatform.frame = nativeFrame;
         for (const callback of held.splice(0)) nativeFrame(callback);
       };
+      window.readHeldFrame = () => {
+        for (const callback of held.splice(0)) callback(performance.now());
+      };
+      // Holding future registrations leaves previously requested callbacks live.
+      // Let them enter the hold before forcing the next reading to verify itself.
+      if (drawn) await new Promise(nativeFrame);
       // The driver publishes owner visibility; this sensor-level fixture supplies
       // the same fact while holding paint. Opaque-frame integration is above.
       window.lfWatchJudgement = {
@@ -1417,12 +1433,12 @@ def test_a_hidden_frame_judges_existing_records_without_awaiting_paint(browser, 
       window.hiddenJudged = false;
       window.lfShiftsJudged().then(() => window.hiddenJudged = true);
     }""",
-        page.locator("iframe").evaluate("node => node.checkVisibility()"),
+        drawn,
     )
     try:
         if when != "already-hidden":
             assert frame.evaluate("window.hiddenJudged") is False
-            if when.endswith("resize-after-hidden-drain"):
+            if when == "resize-after-hidden-drain":
                 # The owner can withhold paint before the child's native layout
                 # settles. Three checkpoints finish the visibility transition,
                 # its following-frame allowance, and an unchanged reading before
@@ -1442,6 +1458,10 @@ def test_a_hidden_frame_judges_existing_records_without_awaiting_paint(browser, 
                 )
             else:
                 page.evaluate("document.querySelector('iframe').style.display = 'none'")
+        # A queued native callback can run between the parent's hide and the
+        # driver's cross-origin visibility refresh. It still needs a complete read.
+        frame.evaluate("window.readHeldFrame()")
+        drawn = page.locator("iframe").evaluate("frame => frame.checkVisibility()")
         if when == "same-origin-before-driver":
             # A locally readable owner can hide before the driver has published
             # its first visibility fact. Drain directly with native paint held.
@@ -1455,13 +1475,11 @@ def test_a_hidden_frame_judges_existing_records_without_awaiting_paint(browser, 
         else:
             frame.evaluate(
                 "drawn => lfWatchJudgement.ancestorsDrawn = drawn",
-                page.locator("iframe").evaluate("node => node.checkVisibility()"),
+                drawn,
             )
         frame.wait_for_function("window.hiddenJudged === true", polling=100)
-        assert (
-            page.locator("iframe").evaluate("node => node.checkVisibility()") is False
-        )
-        if when.startswith("opaque-"):
+        assert drawn is False
+        if opaque:
             assert frame.evaluate("window.frameElement === null")
     finally:
         frame.evaluate("window.restoreFrame(); delete window.lfWatchJudgement")

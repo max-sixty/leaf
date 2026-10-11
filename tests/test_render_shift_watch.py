@@ -1272,6 +1272,69 @@ def test_a_preparation_no_input_began_lands_passive(browser, serve, pressed):
     assert any(error.startswith("button#control ") for error in moved), moved
 
 
+@pytest.mark.parametrize("cancelled", [True, False], ids=["cancelled", "closed again"])
+def test_an_activation_that_opens_nothing_leaves_a_later_open_passive(
+    browser, serve, cancelled
+):
+    """A summary press that leaves its file shut gives a later opening no input.
+
+    Enter on a file's header either has its click cancelled, so no toggle comes, or
+    has the click's own listener open the file before the activation shuts it again,
+    so the one toggle that comes announces it closed. A script opening the file after
+    either is no input's, and its landing moves the control after it passively."""
+    patch = "diff --git a/first.md b/first.md\n--- a/first.md\n+++ b/first.md\n"
+    patch += "@@ -1 +1 @@\n-old\n+new\n"
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Shut activation",
+                f'<lf-diff id="patch" collapsed><pre>{escape(patch)}</pre></lf-diff>'
+                '<button id="control">Keep this control usable</button>',
+            )
+        ),
+    )
+    grammar = []
+    page.route("**/vendor/syntax/markdown.js", lambda route: grammar.append(route))
+    page.evaluate(
+        """cancelled => {
+      const details = document.querySelector('#patch').shadowRoot.querySelector('details');
+      window.toggles = [];
+      details.addEventListener('toggle', (event) => toggles.push(event.newState));
+      details.querySelector('summary').addEventListener('click', (event) => {
+        if (cancelled) event.preventDefault();
+        else details.open = true;
+      }, {once: true});
+    }""",
+        cancelled,
+    )
+    head = page.locator("#patch .lf-diff-head")
+    head.focus()
+    head.press("Enter")
+    if not cancelled:
+        page.wait_for_function("toggles.length === 1")
+        assert page.evaluate("toggles") == ["closed"]
+    rendered(page)
+    assert page.locator("#patch details").get_attribute("open") is None
+    judge_watches()
+    if not cancelled:
+        # The click's listener restates `open` the activation then takes back.
+        consume_browser_errors(page, "unchanged write: open on details")
+    assert page.lf_errors == []
+
+    page.evaluate(
+        "document.querySelector('#patch').shadowRoot.querySelector('details').open = true"
+    )
+    holding(page, grammar, 1, "the markdown grammar")
+    rendered(page)
+    grammar[0].continue_()
+    expect(page.locator("#patch [data-line]").last).to_contain_text("new")
+    rendered(page)
+    judge_watches()
+    moved = consume_browser_errors(page, "moved without input")
+    assert any(error.startswith("button#control ") for error in moved), moved
+
+
 def test_shift_judgement_waits_for_paint_instead_of_a_time_cap(browser):
     """A held native frame keeps judgment pending; release still reports the fault."""
     page = field_page(browser)

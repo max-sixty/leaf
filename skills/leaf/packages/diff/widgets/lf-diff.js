@@ -755,12 +755,23 @@ async function parsedFiles(source) {
   return files;
 }
 
-function deferredError(details, error) {
+function deferredError(details, error, retry) {
+  const restore = holdFocus(details);
   const box = document.createElement("div");
   box.className = "lf-error";
   box.dataset.lfGen = "1";
   box.textContent = `That file's diff failed to load: ${error?.message || error}`;
+  const button = offer("button", "lf-btn");
+  button.type = "button";
+  button.textContent = "Retry";
+  button.addEventListener("click", () => {
+    if (button.getAttribute("aria-disabled") === "true") return;
+    button.setAttribute("aria-disabled", "true");
+    retry();
+  });
+  box.append(" ", button);
   details.replaceChildren(details.firstElementChild, box);
+  restore?.(button);
 }
 
 customElements.define(
@@ -1247,7 +1258,11 @@ customElements.define(
         entry.failed = true;
         entry.lines = [];
         entry.renderKey = null;
-        deferredError(entry.details, error);
+        deferredError(entry.details, error, () => {
+          if (!entry.failed) return;
+          entry.failed = false;
+          this.present(this.loadEntry(entry));
+        });
         return null;
       }
       const restore =

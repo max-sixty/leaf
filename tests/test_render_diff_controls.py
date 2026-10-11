@@ -6,7 +6,7 @@ import pytest
 from leaf import data as data_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_harness import leaf_page, open_page, write
+from render_harness import leaf_page, open_page, reported_browser_errors, write
 
 
 @pytest.mark.parametrize("width,scheme", [(1280, "light"), (390, "dark")])
@@ -312,3 +312,114 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     write(inline, markdown)
     inline.press("Control+Enter" if touch else "Enter")
     assert reading(diff.locator(".lf-msg-body").first) == physical_reading
+
+
+def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serve):
+    """A recovered network has a visible route to retry the expanded file."""
+    url = serve(
+        leaf_page(
+            "Retry a file diff",
+            '<h1>Retry a file diff</h1><lf-diff id="patch" source="review-patch" '
+            'collapsed><pre></pre></lf-diff><button id="after" '
+            'style="position:fixed;right:1rem;bottom:1rem">After diff</button>',
+        )
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        {
+            "files": [
+                {
+                    "path": "config.py",
+                    "kind": "patch",
+                    "additions": 1,
+                    "deletions": 1,
+                    "patch": """diff --git a/config.py b/config.py
+--- a/config.py
++++ b/config.py
+@@ -1 +1 @@
+-enabled = False
++enabled = True
+""",
+                }
+            ]
+        },
+    )
+    page = open_page(browser, url)
+    attempts = []
+    pending = []
+
+    def fail_until_success(route):
+        attempts.append(route.request.url)
+        if len(attempts) == 1:
+            route.abort("failed")
+        elif len(attempts) < 4:
+            pending.append(route)
+        else:
+            route.continue_()
+
+    page.route("**/api/deferred*", fail_until_success)
+    summary = page.locator("lf-diff summary")
+    with page.expect_event(
+        "requestfailed", lambda request: "/api/deferred" in request.url
+    ) as failed:
+        summary.click()
+    assert failed.value.failure == "net::ERR_FAILED"
+    expect(page.locator("lf-diff .lf-error")).to_contain_text(
+        "That file's diff failed to load: Failed to fetch"
+    )
+    reported_browser_errors(page, "Failed to load resource: net::ERR_FAILED")
+    assert len(attempts) == 1
+
+    retry = page.get_by_role("button", name="Retry")
+    assert retry.count() == 1, "the expanded file needs an in-place retry control"
+
+    # A native Enter retry stays focused while in flight. Another Enter is ignored
+    # until it resolves, so it cannot start a parallel deferred request.
+    page.keyboard.press("Tab")
+    expect(retry).to_be_focused()
+    page.keyboard.press("Enter")
+    assert len(attempts) == 2 and len(pending) == 1
+    expect(retry).to_have_attribute("aria-disabled", "true")
+    expect(retry).to_be_focused()
+    page.keyboard.press("Enter")
+    assert len(attempts) == 2 and len(pending) == 1
+    with page.expect_event(
+        "requestfailed", lambda request: "/api/deferred" in request.url
+    ) as failed:
+        pending.pop().abort("failed")
+    assert failed.value.failure == "net::ERR_FAILED"
+    reported_browser_errors(page, "Failed to load resource: net::ERR_FAILED")
+    retry = page.get_by_role("button", name="Retry")
+    expect(retry).to_be_focused()
+
+    # If the user tabs away during another pending retry, its failure must leave
+    # focus at the newer control instead of restoring the old Retry button.
+    page.keyboard.press("Enter")
+    assert len(attempts) == 3 and len(pending) == 1
+    expect(retry).to_have_attribute("aria-disabled", "true")
+    page.keyboard.press("Tab")
+    after = page.get_by_role("button", name="After diff")
+    expect(after).to_be_focused()
+    with page.expect_event(
+        "requestfailed", lambda request: "/api/deferred" in request.url
+    ) as failed:
+        pending.pop().abort("failed")
+    assert failed.value.failure == "net::ERR_FAILED"
+    reported_browser_errors(page, "Failed to load resource: net::ERR_FAILED")
+    expect(after).to_be_focused()
+
+    # A successful retry falls back to the file disclosure when its error control
+    # is replaced by rendered source.
+    retry = page.get_by_role("button", name="Retry")
+    page.keyboard.press("Shift+Tab")
+    expect(retry).to_be_focused()
+    with page.expect_response(
+        lambda response: "/api/deferred" in response.url and response.status == 200
+    ):
+        page.keyboard.press("Enter")
+    expect(
+        page.locator('lf-diff [data-lf-datum=\'["config.py","new",1]\']')
+    ).to_contain_text("enabled = True")
+    expect(page.locator("lf-diff summary")).to_be_focused()
+    assert len(attempts) == 4

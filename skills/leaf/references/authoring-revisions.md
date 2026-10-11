@@ -11,8 +11,8 @@ widget's tag in the page's `registry.json` when needed.
 When `source.live` is false, the candidate in `index.html` differs from the live
 revision and `source.error` says why; reconcile the candidate by stable id and content
 before editing. `data_bindings` names each external source and the widgets that read
-it, and `data/<source>.json` holds its value; change one with `leaf data set` or by
-rewriting that file. `leaf page state <page> <id>` narrows the reading to what the id
+it, and `data/<source>.json` holds its publication; change its value with
+`leaf data set`. `leaf page state <page> <id>` narrows the reading to what the id
 names: a page widget's element, standing moves, Questions and workflows, or a thread's
 messages with their frozen HTML content, which changes only through that thread.
 

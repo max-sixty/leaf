@@ -103,7 +103,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     grid-column: 1; grid-row: 1; align-self: stretch;
     grid-template-rows: minmax(0, 1fr); }
   .lf-fab-bar:not([data-lf-presentation="inline"]) > .lf-response-options {
-    grid-column: 1 / -1; grid-row: 2; }
+    /* Disclosed actions wrap within the editor's track; their intrinsic width
+       must not move the field or its disclosure out from under the pointer. */
+    contain: inline-size; grid-column: 1 / -1; grid-row: 2; }
   .lf-fab-bar:not([data-lf-presentation="inline"]):has(.lf-composer-media:not([hidden])) {
     grid-template-columns: auto minmax(0, 1fr); }
   .lf-fab-bar:not([data-lf-presentation="inline"]):has(.lf-composer-media:not([hidden]))
@@ -320,6 +322,39 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     inset-block-start: 0; z-index: 1; background-color: var(--lf-msg-ground);
     max-inline-size: calc(100% - var(--lf-margin-controls-width, 0px));
     padding-inline-end: 0; }
+  /* Only the writer's name and the time stick. The head's annotations (a progress
+     disclosure, a delivery receipt, a failure, a suggestion or edited label) belong
+     to the message's opening, so they scroll out with its first line while the name
+     stays. A view timeline on the message (no inset: the transcript's scroll padding
+     is ring room, not where the head sticks) cancels the sticky offset for them over
+     the first two head heights of its exit, which clears a disclosure wrapped onto a
+     second row; past that they stand above the transcript, which clips them. A
+     wrapped one rises under the name and time, which paint over it as the head paints
+     over the words. A focused one stays in the stuck row, where the user can see what
+     they hold. The metadata clips only sideways, for its ellipsis, so a label rises to
+     the card's edge rather than vanishing at the metadata's own top. The rules wait
+     on view timelines: an engine without them would run the animation on the
+     document clock, whose filled end holds the annotations above their row at rest,
+     so it keeps them stuck with the name instead. */
+  @supports (animation-timeline: view()) {
+    .lf-margin-thread .lf-thread-transcript .lf-msg {
+      view-timeline: --lf-msg-exit block; view-timeline-inset: 0px;
+      --lf-msg-annotation-exit: calc(2 * var(--lf-msg-head-height)); }
+    .lf-margin-thread .lf-thread-transcript .lf-msg-meta { overflow: clip visible; }
+    .lf-margin-thread .lf-thread-transcript .lf-msg-head > :is(b, .lf-msg-meta) {
+      position: relative; z-index: 1; background-color: var(--lf-msg-ground); }
+    /* The name's ground spans the gap to the time, which a rising one would show. */
+    .lf-margin-thread .lf-thread-transcript .lf-msg-head > b {
+      padding-inline-end: var(--sp-2); margin-inline-end: calc(-1 * var(--sp-2)); }
+    :is(.lf-margin-thread .lf-thread-transcript .lf-msg-head > :not(b, .lf-msg-meta),
+        .lf-margin-thread .lf-thread-transcript .lf-msg-meta > :not(time)):not(
+        :focus-visible, .lf-focus-visible) {
+      animation: lf-msg-annotation-exit linear both;
+      animation-timeline: --lf-msg-exit;
+      animation-range: exit-crossing 0px exit-crossing var(--lf-msg-annotation-exit); }
+    @keyframes lf-msg-annotation-exit {
+      to { translate: 0 calc(-1 * var(--lf-msg-annotation-exit)); } }
+  }
   @media (forced-colors: active) {
     .lf-margin-preview { border: 1px solid CanvasText; box-shadow: none; }
   }

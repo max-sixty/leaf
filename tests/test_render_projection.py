@@ -186,7 +186,7 @@ def test_page_state_and_browser_share_the_decision_and_bound_sources(browser, se
         assert consumer["widget"] == identity
         stored = data_model.source_file(serve.page_dir, source)
         assert stored == serve.page_dir / inspection["data"]["dir"] / f"{source}.json"
-        assert json.loads(stored.read_text()) == value
+        assert json.loads(stored.read_text())["value"] == value
         widget = page.locator(f"#{identity}")
         expect(widget.locator("code")).to_have_text(value)
         rendered = widget.locator("[data-lf-origin]").evaluate(
@@ -747,7 +747,6 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         {
             "files": [
                 {
-                    "key": "gateway/limits.py",
                     "path": "gateway/limits.py",
                     "kind": "patch",
                     "additions": 4,
@@ -2134,7 +2133,6 @@ def test_a_large_diff_filters_and_navigates_lazy_files(browser, serve):
     manifest = {
         "files": [
             {
-                "key": path,
                 "path": path,
                 "kind": "patch",
                 "additions": 1,
@@ -2616,6 +2614,60 @@ def test_a_revision_keeps_the_paragraph_under_a_focused_stuck_tab(browser, serve
     rendered(page)
     after = reading.evaluate("node => node.getBoundingClientRect().top")
     assert after == pytest.approx(before, abs=4), (before, after)
+
+
+def test_a_revision_keeps_the_pane_read_over_a_pane_holding_offscreen_focus(
+    browser, serve
+):
+    """Focus left in a pane the reader scrolled away from does not name their region.
+
+    Two panes share the page scroller at a narrow width. The reader typed in the
+    first, then scrolled on into the second; a revision adding paragraphs above keeps
+    the paragraph they read in the second where it stood."""
+
+    def source(added):
+        notes = "".join(f"<p>Note {n}, kept with the draft.</p>" for n in range(12))
+        log = "".join(
+            f'<p id="{name}">{name}, long enough to stand as a landmark of its own.</p>'
+            for name in [f"added-{n}" for n in range(added)]
+            + [f"entry-{n}" for n in range(60)]
+        )
+        return leaf_page(
+            f"Two panes {added}",
+            "<style>html { overflow-anchor: none; }</style>"
+            '<lf-pane id="notes" label="Notes"><div>'
+            '<textarea aria-label="Working draft"></textarea>'
+            f'{notes}</div></lf-pane><lf-pane id="log" label="Log"><div>{log}</div></lf-pane>',
+            layout="workspace",
+        )
+
+    page = open_page(browser, live_url(serve(source(0))))
+    resized(page, 390, 760)
+    field = page.get_by_role("textbox", name="Working draft")
+    field.click()
+    page.keyboard.type("Words kept in the notes")
+    rendered(page)
+    page.locator("#entry-30").evaluate(
+        "node => document.scrollingElement.scrollBy({top: node.getBoundingClientRect().top - 200, behavior: 'instant'})"
+    )
+    box = page.locator("#entry-30").bounding_box()
+    page.mouse.move(box["x"] + 20, box["y"] + 5)
+    page.mouse.wheel(0, 40)
+    scroll_settled(page)
+    rendered(page)
+    expect(field).to_be_focused()
+    expect(field).not_to_be_in_viewport()
+    landmark = page.evaluate("""() => [...document.querySelectorAll('#log p')].find(
+        p => p.getBoundingClientRect().top >= 200).id""")
+    reading = page.locator(f"#{landmark}")
+    before = reading.evaluate("node => node.getBoundingClientRect().top")
+    (serve.page_dir / "index.html").write_text(source(5))
+    told(page)
+    expect(page).to_have_title("Two panes 5")
+    rendered(page)
+    expect(field).to_be_focused()
+    after = reading.evaluate("node => node.getBoundingClientRect().top")
+    assert after == pytest.approx(before, abs=4), (landmark, before, after)
 
 
 def test_a_revision_leaves_root_attributes_it_does_not_change_untouched(browser, serve):

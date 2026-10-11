@@ -2,7 +2,8 @@
    goes.
 
    `showThread` addresses a thread, reply or message with `part`; boolean `focus`
-   independently controls taking focus. It clears a narrowing
+   independently controls taking focus, and `scroll: false` leaves the list where it
+   stands. It clears a narrowing
    that hides the destination and finishes an outgoing resolution fold before choosing
    its lifecycle state. A thread reached in the complete panel opens in its reply box;
    the compact margin view opens on its card and reveals that box only when the user
@@ -34,8 +35,13 @@
    supplies the caller-owned return target through `landInThread`. Sending leaves
    focus on the conversation's card or title on every surface (`landSent`). Returning
    to the page is a separate navigation gesture. */
-import { scrollIntoView } from "../landing-scroll.js";
-import { landingBand, seenRect, shownBox, shownWindow } from "../geometry.js";
+import {
+  alreadyShown,
+  fitsWhole,
+  landingRoom,
+  scrollIntoView,
+} from "../landing-scroll.js";
+import { landingBand, shownBox } from "../geometry.js";
 import { documentFocused } from "../keyboard/scopes.js";
 import {
   focusDestination,
@@ -71,12 +77,7 @@ import {
   threadReplyInput,
   threadFocusDestination,
 } from "./focus.js";
-import {
-  fitsWhole,
-  landingTarget,
-  latestTurn,
-  scrollThreadIntoView,
-} from "./reply-landing.js";
+import { landingTarget, latestTurn, scrollThreadIntoView } from "./reply-landing.js";
 
 export { SAY_BOX } from "./selectors.js";
 export { scrollThreadIntoView } from "./reply-landing.js";
@@ -91,14 +92,11 @@ const threadReturns = new WeakMap();
 // attempting to infer line boxes from prose. Landing the thread's end never starts
 // below the latest turn's head, a message or the summary standing for earlier ones: a
 // turn taller than the list is read from its head, with the pinned reply row still
-// standing at the foot. A block landed at the start stands its `scroll-margin-top`
-// below the band's top, clear of the title pinned over it (chrome.css), so that much
-// of the band is not room for it.
+// standing at the foot. A block landed at the start stands clear of the title pinned
+// over it (chrome.css), so the run it promises is measured in the room a landing leaves
+// below that (landing-scroll.js, `landingRoom`).
 const threadLandingStart = (held, target, threadsBox) => {
-  const band = landingBand(threadsBox);
-  if (!band) return null;
-  const room = (node) =>
-    band.bottom - band.top - parseFloat(getComputedStyle(node).scrollMarginTop);
+  if (!landingBand(threadsBox)) return null;
   const targetBox = shownBox(target);
   const last = target === held ? targetBox.bottom : targetBox.top;
   const transcript = held.querySelector(".lf-thread-transcript");
@@ -121,7 +119,7 @@ const threadLandingStart = (held, target, threadsBox) => {
         (getComputedStyle(node).display !== "contents" &&
           box.height > 0 &&
           box.top <= last &&
-          targetBox.bottom - box.top <= room(node)),
+          targetBox.bottom - box.top <= landingRoom(node, target).height),
     )
     .sort((a, b) => a.box.top - b.box.top);
   return candidates[0]?.node ?? null;
@@ -223,17 +221,18 @@ pageScope("text entry", {
 });
 
 // Coming back out of a thread's box onto the thread, by Escape or by a send, is no
-// arrival. A thread too tall to show whole is already on screen around the box, and
+// arrival. A thread too tall to show whole and already shown stands around the box, and
 // landing its title would take the user away from the turn they were answering, so it
-// is a `return` the list leaves where it is. One that fits is a `move`, which the list
-// lands whole in view (`onStanding` below) as local scrolling reveals its title.
+// is a `return` the list leaves where it is. One that fits, or one the user has
+// scrolled out of view since, is a `move`, which the list lands in view (`onStanding`
+// below) as local scrolling reveals its title.
 export function standOnThread(thread) {
-  if (fitsWhole(thread)) {
-    focusThread(thread, "move");
-    scrollIntoView(threadFocusStop(thread), { block: "nearest" });
+  if (!fitsWhole(thread) && alreadyShown(thread)) {
+    focusThread(thread, "return");
     return;
   }
-  focusThread(thread, "return");
+  focusThread(thread, "move");
+  scrollIntoView(threadFocusStop(thread), { block: "nearest" });
 }
 
 // A thread's own keys, live wherever the user stands in one: the card, the message a
@@ -365,6 +364,8 @@ export const landWalkedThread = (thread, threadsBox) =>
 export function wireThreadLanding(threadsBox) {
   const pressedHere = () => pressing()?.path.includes(threadsBox) ?? false;
   let visibleTitle = null;
+  // A title always fits, so it is shown when it lies whole in the band. Read on every
+  // scroll, this takes the band alone rather than `alreadyShown`'s walk of every clip.
   const readVisibleTitle = () => {
     const title = focused();
     const band = landingBand(threadsBox);
@@ -449,6 +450,7 @@ async function showThreadNow(
   revealThread,
   threadsBox,
   mayArrive,
+  scroll,
 ) {
   // A native continuation owns its presented row even after Tab moves standing.
   // The original gesture still gates focus, scrolling, and any later reveal action.
@@ -517,7 +519,7 @@ async function showThreadNow(
   const target = aim.node ?? thread;
   const long = directThread && (target !== thread || aim.block === "end");
   const start = long ? threadLandingStart(thread, target, threadsBox) : null;
-  if (mayArrive())
+  if (scroll && mayArrive())
     scrollIntoView(start ?? target, {
       behavior: scrollBehavior(),
       // A long thread begins at the clean content boundary chosen above. A short card
@@ -546,7 +548,9 @@ async function showThreadNow(
 // It accompanies rather than arrives, so it takes no focus, draws no flash, widens no
 // narrowing that hides the thread, and moves the list only as far as shows it. `ids` are
 // the target's threads: one of them already expanded is where the user is on that
-// target, perhaps mid-reply, so it stays; otherwise the first the list shows expands.
+// target, perhaps mid-reply, so it stays, and so does the list while that thread is
+// already shown; otherwise the first the list shows expands, and lands whole where it
+// fits and from its start where it does not.
 const listedThreads = (ids, threadsBox) =>
   ids
     .map((id) => listNode(id, threadsBox))
@@ -554,15 +558,14 @@ const listedThreads = (ids, threadsBox) =>
 export const accompaniedThread = (ids, threadsBox) =>
   listedThreads(ids, threadsBox).find((node) => node.open) ?? null;
 export function accompanyThread(ids, threadsBox) {
-  const thread =
-    accompaniedThread(ids, threadsBox) ?? listedThreads(ids, threadsBox)[0];
+  const expanded = accompaniedThread(ids, threadsBox);
+  const thread = expanded ?? listedThreads(ids, threadsBox)[0];
   if (!thread) return;
   threadsBox.revealNavigation(thread.dataset.id);
-  const room = landingBand(threadsBox);
-  const fits = !room || shownBox(thread).height <= room.bottom - room.top;
+  if (expanded && alreadyShown(thread)) return;
   scrollIntoView(thread, {
     behavior: scrollBehavior(),
-    block: fits ? "nearest" : "start",
+    block: fitsWhole(thread) ? "nearest" : "start",
   });
 }
 
@@ -573,23 +576,12 @@ export function createThreadLanding({ setPanel, revealThread, threadsBox }) {
     const { box } = prepared;
     box.lfRevealReply?.();
     // Entering a reply is a focus move, not a trip to its thread or passage.
-    // Reveal only the writing area; an already visible box leaves every scroller
-    // where the reader put it, including the transcript inside a margin card. A box
-    // longer than the window along an axis can never show whole there, so partly in
-    // view it is already as shown as it can be: a thread standing in for the control
-    // its render took away jumped to its head, 700px past where the user had pressed.
+    // Reveal only the writing area: a box already shown (landing-scroll.js,
+    // `alreadyShown`) leaves every scroller where the reader put it, including the
+    // transcript inside a margin card, however tall the box.
     bringBackSurfaceOf(box);
     focusDestination(box, "move");
-    const shown = shownBox(box);
-    const visible = seenRect(box, new Map());
-    const room = shownWindow();
-    if (
-      !visible ||
-      (shown.height <= room.height &&
-        (visible.top > shown.top || visible.bottom < shown.bottom)) ||
-      (shown.width <= room.width &&
-        (visible.left > shown.left || visible.right < shown.right))
-    )
+    if (!alreadyShown(box))
       scrollIntoView(box, {
         block: "nearest",
         behavior: "instant",
@@ -606,6 +598,7 @@ export function createThreadLanding({ setPanel, revealThread, threadsBox }) {
       part = "reply",
       focus = true,
       flash = true,
+      scroll = true,
       intent = retainUserIntent({
         source: focused(),
         available: () => threadsBox.isConnected,
@@ -629,6 +622,7 @@ export function createThreadLanding({ setPanel, revealThread, threadsBox }) {
       revealThread,
       threadsBox,
       intent,
+      scroll,
     );
     // Pointer and keyboard routes deliberately discard this ticket. The thread
     // coordinator reports its one failure; the landing result keeps that rejection out

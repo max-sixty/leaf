@@ -68,20 +68,6 @@ from .tasks import (
 )
 
 
-def admission_workflows(readings) -> tuple[list[dict], dict]:
-    """The workflows one admission reads, beside the threads they were folded from:
-    the page's newest revision and the frozen thread document, over the log as it
-    stands."""
-    work = readings.work
-    return work.workflows, work.threads
-
-
-def admission_tasks(readings) -> list[dict]:
-    """Explicit tasks under the transaction's admission vocabulary."""
-    standing, ended = readings.work.page_tasks()
-    return standing + ended
-
-
 def obligation_reading(readings) -> dict:
     """The outstanding Questions and explicit tasks on the user, answers and work in hand a
     gesture can change.

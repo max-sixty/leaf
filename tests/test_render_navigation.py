@@ -963,7 +963,7 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
     left.evaluate("el => el.scrollTop = 300")
     page.locator("#reading-draft").evaluate("el => el.setSelectionRange(4, 4)")
     held = []
-    page.route("**/vendor/agentic-mermaid.esm.js", lambda route: held.append(route))
+    page.route("**/vendor/mermaid.esm.js", lambda route: held.append(route))
     revised = source.replace(
         '<p id="left-start">',
         '<p>Added context.</p><p id="left-start">',
@@ -1018,7 +1018,7 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
     finally:
         for route in held:
             route.continue_()
-        page.unroute("**/vendor/agentic-mermaid.esm.js")
+        page.unroute("**/vendor/mermaid.esm.js")
 
 
 def test_revision_carries_apparatus_when_an_arriving_element_takes_focus(
@@ -3757,7 +3757,7 @@ def test_q_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
             "responds": asked["id"],
             "revision": 1,
             "text": "Weekly or daily?",
-            "awaits": True,
+            "question": True,
         },
     )
     owed = append_carried_log_record(
@@ -3861,27 +3861,26 @@ def test_the_questions_panel_lists_both_queues_and_what_is_done(browser, serve):
         )
 
     asked = said("agent", kind="comment", text="Weekly?", anchor={"section": "cadence"})
-    owed = said(
-        "user", kind="comment", text="Tighten this.", anchor={"section": "notes"}
+    said("user", kind="comment", text="Tighten this.", anchor={"section": "notes"})
+    rebuild = said(
+        "user", kind="comment", text="Rebuild them.", anchor={"section": "notes"}
     )
-    subject = {"kind": "thread", "id": owed["id"]}
     said(
-        "agent", kind="task", owner="agent", subject=subject, title="Rebuild the notes"
+        "agent",
+        kind="reply",
+        parent=rebuild["id"],
+        responds=rebuild["id"],
+        text="Rebuilding them.",
+        task="Rebuild the notes",
     )
     retitle = said("user", kind="comment", text="Retitle it.", anchor={"section": "h"})
-    said(
+    ended = said(
         "agent",
         kind="reply",
         parent=retitle["id"],
         responds=retitle["id"],
-        text="Retitled.",
-    )
-    ended = said(
-        "agent",
-        kind="task",
-        owner="agent",
-        subject={"kind": "thread", "id": retitle["id"]},
-        title="Retitle the release",
+        text="Retitling it.",
+        task="Retitle the release",
     )
     said(
         "agent",
@@ -4331,7 +4330,7 @@ def test_a_q_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, ser
             "responds": asked["id"],
             "revision": 1,
             "text": "Weekly or daily?",
-            "awaits": True,
+            "question": True,
         },
     )
     page = open_page(browser, url)
@@ -13416,7 +13415,7 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
     page.keyboard.press("c")
     expect(box).to_be_focused()
     expect(box).to_have_attribute("placeholder", re.compile(r"^Comment… .*⏎$"))
-    send = page.locator(".lf-composer > .lf-compose-field > button")
+    send = page.locator(".lf-composer > .lf-compose-field > .lf-compose-submit")
     expect(send.locator('svg[data-lf-icon="send"]')).to_have_count(1)
     expect(page.locator(".lf-composer-row")).to_have_count(0)
     field_box = box.bounding_box()
@@ -13714,6 +13713,35 @@ def test_align_current_thread_stays_in_its_panel_without_travel(browser, serve):
         )
         == before
     )
+
+
+def test_a_box_is_already_shown_whole_where_it_fits_and_in_part_where_it_cannot(
+    browser, serve
+):
+    """A landing that follows the user moves nothing for a box already shown: all of it
+    in view where it fits its room, any of it where it does not. A wrapper clipping only
+    sideways bounds no height, so an editor standing in an `overflow-x: clip` row 20px
+    tall still fits, and 30px of it in view is not yet shown."""
+    source = leaf_page(
+        "Room",
+        '<div style="height:2000px"></div>'
+        '<div style="overflow-x:clip;height:20px"><div id="box" style="height:100px"></div></div>'
+        '<div style="height:2000px"></div><div id="tall" style="height:5000px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    reading = page.evaluate("""async () => {
+      const {alreadyShown, fitsWhole} =
+        await window.__lfRuntimeImport('/runtime/landing-scroll.js');
+      const {shownWindow} = await window.__lfRuntimeImport('/runtime/geometry.js');
+      const partly = (node) => {
+        const top = node.getBoundingClientRect().top - (shownWindow().bottom - 30);
+        scrollBy({top, behavior: 'instant'});
+        return [fitsWhole(node), alreadyShown(node)];
+      };
+      return [partly(document.querySelector('#box')),
+              partly(document.querySelector('#tall'))];
+    }""")
+    assert reading == [[True, False], [False, True]]
 
 
 def test_align_current_tall_block_reveals_its_opening_through_outer_scrollers(
@@ -14186,7 +14214,6 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
         {
             "files": [
                 {
-                    "key": "app.py",
                     "path": "app.py",
                     "kind": "patch",
                     "additions": 1,

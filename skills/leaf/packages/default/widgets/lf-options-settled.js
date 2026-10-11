@@ -9,6 +9,7 @@ import {
   relabel,
   selectableOffer,
   tabStore,
+  whileConnected,
 } from "/runtime/widget-api.js";
 
 const SETTLED_KEY = "lf-settled:";
@@ -20,7 +21,6 @@ export class SettledOptions {
   #title = null;
   #count = null;
   #isOpen = false;
-  #diffEvents = null;
 
   constructor(host, { label }) {
     this.#host = host;
@@ -28,18 +28,11 @@ export class SettledOptions {
   }
 
   connect() {
-    if (!this.#row) this.#build();
-    if (!this.#diffEvents) {
-      this.#diffEvents = new AbortController();
-      document.addEventListener("lf-comparison", () => this.#delta(), {
-        signal: this.#diffEvents.signal,
-      });
-    }
-  }
-
-  disconnect() {
-    this.#diffEvents?.abort();
-    this.#diffEvents = null;
+    if (this.#row) return;
+    this.#build();
+    whileConnected(this.#host, (signal) => {
+      document.addEventListener("lf-comparison", () => this.#delta(), { signal });
+    });
   }
 
   #build() {

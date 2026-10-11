@@ -586,7 +586,14 @@ def test_the_answer_that_settles_a_thread_acknowledges_what_it_said():
     without being made in it shows the user nothing there: neither the undo that
     takes the answer back nor a later decision that supersedes it reads the
     agent's words, so what those words say stays unread."""
-    reply = {"kind": "reply", "author": "agent", "parent": "e1", "text": "Try sug-a."}
+    reply = {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Agent",
+        "session": "session-1",
+        "parent": "e1",
+        "text": "Try sug-a.",
+    }
     edit = {
         "kind": "edit",
         "author": "agent",
@@ -1146,13 +1153,14 @@ def test_init_allows_a_logged_report_the_incoming_layer_no_longer_speaks(page_di
     assert events_model.read_events(page_dir)
 
 
-def test_init_allows_to_orphan_a_logged_visual_anchor(page_dir):
+@pytest.mark.parametrize("parts", ["node:A node:B", "all"])
+def test_init_allows_to_orphan_a_logged_visual_anchor(page_dir, parts):
     """A provider can remove a visual target without deleting its original comment."""
     version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace(
             '<lf-diagram id="flow">',
-            '<lf-diagram id="flow" parts="node:A node:B">',
+            f'<lf-diagram id="flow" parts="{parts}">',
         )
     )
     publish(page_dir)
@@ -2143,19 +2151,19 @@ def test_initial_rendering_has_one_structure_owner(
             "source attribute `source` must be required",
         ),
         (
-            lambda entry: entry["required"].remove("at"),
-            "must be required and declare a date-time string",
+            lambda entry: entry["required"].remove("run"),
+            "must be required and declare a nonempty string",
         ),
         (
-            lambda entry: entry["properties"]["at"].pop("format"),
-            "must be required and declare a date-time string",
+            lambda entry: entry["properties"]["run"].pop("minLength"),
+            "must be required and declare a nonempty string",
         ),
     ],
 )
-def test_a_measured_widget_joins_one_data_input_to_one_aware_instant(
+def test_a_measured_widget_joins_one_data_input_to_one_run_receipt(
     page_dir, change, message
 ):
-    """The generic check cannot infer a widget's source or timestamp. Its registry
+    """The generic check cannot infer a widget's source or write receipt. Its registry
     declaration names both, and the registry door refuses a half-readable join before
     an authored value can silently miss the freshness advisory."""
     registry = json.loads((page_dir / "registry.json").read_text())
@@ -2165,8 +2173,8 @@ def test_a_measured_widget_joins_one_data_input_to_one_aware_instant(
         registry_validation.validate_registry(registry, "test registry")
 
 
-def test_a_measurement_timestamp_cannot_also_be_replay_writable(page_dir):
-    """The capture instant belongs to the authored version. Letting replay write it
+def test_a_measurement_run_cannot_also_be_replay_writable(page_dir):
+    """The run receipt belongs to the authored version. Letting replay write it
     would give the browser a newer freshness boundary than file checks and page state
     read from the immutable document."""
     registry = json.loads((page_dir / "registry.json").read_text())
@@ -2174,15 +2182,15 @@ def test_a_measurement_timestamp_cannot_also_be_replay_writable(page_dir):
     widget["x-upgrade"] = True
     widget["properties"]["restated"] = {"type": "boolean"}
     widget["x-state"] = {
-        "retime": {
+        "repin": {
             "unit": "widget",
-            "record": {"kind": "value", "attr": "at"},
+            "record": {"kind": "value", "attr": "run"},
         }
     }
 
     with pytest.raises(
         registry_contract.RegistryError,
-        match="x-measured timestamp attribute `at` is an authored snapshot instant",
+        match="x-measured run attribute `run` is an authored source receipt",
     ):
         registry_validation.validate_registry(registry, "test registry")
 
@@ -3953,6 +3961,13 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             **owes("reply"),
         },
         "reaction on a message": {"kind": "reply", "token": "+1"},
+        "rewritten message": {"kind": "edit", **titled, **owes("reply")},
+        "rewritten suggestion": {
+            "kind": "edit",
+            "suggestion": True,
+            **titled,
+            **owes("reply"),
+        },
         "pick on the page": {"kind": "action", "meaning": on_page, **owes("markup")},
         "option the user added": {
             "kind": "action",

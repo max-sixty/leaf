@@ -18,6 +18,7 @@ from interact_support import (
     append_command,
     running_http_server,
 )
+from known_widget_findings import KNOWN, PACKAGES
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import hosting as hosting_model
@@ -31,6 +32,7 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
+from leaf.render_gate.widget_quality import own_tags
 from leaf.schema import ELEMENT_ID
 from leaf.validation import compatibility as validation_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -38,6 +40,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import (
     CHANGE_SHAPES_PAGE,
     PANEL_PAGE,
+    SHORT_SUGGESTION,
     panel_comment,
 )
 from render_cases_layout import (
@@ -1275,6 +1278,42 @@ def test_a_probe_module_that_stops_loading_is_a_gate_finding(browser, serve):
     assert failures
     assert all("did not load" in failure for failure in failures)
     assert all("within 500ms" in failure for failure in failures)
+    assert all('File "' not in failure for failure in failures), failures
+
+
+@pytest.mark.parametrize("fault", ["exception", "null"])
+def test_a_failed_probe_import_keeps_its_original_throw_site(browser, serve, fault):
+    thrown = (
+        "new TypeError('probe import rejected')" if fault == "exception" else "null"
+    )
+
+    def failing_probe(page):
+        page.route(
+            "**/checks/index.js",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="text/javascript; charset=utf-8",
+                body=f"function loadBrowserProbes() {{ throw {thrown}; }} loadBrowserProbes();",
+            ),
+        )
+
+    failures = render_gate_model.render_version(
+        primed(browser.unwatched, failing_probe),
+        serve(LONG_PAGE),
+    ).failures
+    assert len(failures) == 2, failures
+    assert all('File "' not in failure for failure in failures), failures
+    if fault == "exception":
+        assert all(
+            "TypeError: probe import rejected" in failure
+            and "loadBrowserProbes" in failure
+            and "checks/index.js:" in failure
+            for failure in failures
+        ), failures
+    else:
+        assert all(
+            "null" in failure and "did not load" not in failure for failure in failures
+        ), failures
 
 
 def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
@@ -2004,6 +2043,56 @@ def test_the_render_gate_resolves_a_part_its_visual_draws_on_reveal(browser, ser
     )
 
 
+def test_visual_reveal_findings_keep_the_throw_site(browser, serve):
+    """A caught package fault is useful evidence, even without a pageerror event."""
+    widgets = visual_widgets(staged=True)
+    widgets["visual-fixture.js"] = widgets["visual-fixture.js"].replace(
+        'if (id !== "inner") return;',
+        'if (id !== "inner") return; null.revealInner();',
+    )
+    failures = render_gate_model.render_version(
+        browser.unwatched,
+        serve(
+            GENERIC_VISUAL_PAGE,
+            layer_registry=GENERIC_VISUAL_LAYER,
+            layer_widgets=widgets,
+        ),
+    ).failures
+    assert len(failures) == 2, failures
+    assert all('File "' not in failure for failure in failures), failures
+    assert all(
+        "could not reveal visual parts" in failure
+        and "TypeError:" in failure
+        and "visual-fixture.js:" in failure
+        and "at reveal" in failure
+        for failure in failures
+    ), failures
+
+
+def test_replay_findings_keep_the_throw_site(browser, serve):
+    """A direct complete-state replay retains the package's original exception."""
+    page = open_page(browser, serve(SHORT_SUGGESTION))
+    page.evaluate("""async () => {
+      const {validationWidgetStates} = await window.__lfRuntimeImport('/runtime/check-api.js');
+      const widget = validationWidgetStates().find(s => s.widget?.renderState).widget;
+      window.restoreReplay = () => { widget.renderState = original; };
+      const original = widget.renderState;
+      widget.renderState = function replayProjection() { throw new TypeError('replay rejected'); };
+    }""")
+    try:
+        findings = render_checks_model.evaluate_probe(page, "relativeReplays")
+    finally:
+        page.evaluate("restoreReplay()")
+    assert len(findings) == 1, findings
+    assert 'File "' not in findings[0], findings
+    assert (
+        "renderState threw when the complete state was rendered a second time: replay rejected"
+        in findings[0]
+    )
+    assert "TypeError: replay rejected" in findings[0]
+    assert "replayProjection" in findings[0]
+
+
 def test_the_render_gate_reads_a_visual_before_revealing_its_parts(browser, serve):
     """Reveals come after every other reading, so a defect in the opening state stands
     even when revealing a part draws it away."""
@@ -2039,14 +2128,14 @@ def test_the_render_gate_rejects_invalid_visual_inventory_records(browser, serve
             layer_widgets=widgets,
         ),
     ).failures
-    assert failures == [
+    assert [failure.splitlines()[0] for failure in failures] == [
         (
             "[light] <lf-test-visual id='missing'> declares addressable visual parts "
             "but its module did not register declared parts absent"
         ),
         (
             "[light] <lf-test-visual id='outside'> declares addressable visual parts "
-            "but its module Visual part outer has no descendant Element surface"
+            "but its module could not read visual parts: Visual part outer has no descendant Element surface"
         ),
         (
             "[dark] <lf-test-visual id='missing'> declares addressable visual parts "
@@ -2054,9 +2143,18 @@ def test_the_render_gate_rejects_invalid_visual_inventory_records(browser, serve
         ),
         (
             "[dark] <lf-test-visual id='outside'> declares addressable visual parts "
-            "but its module Visual part outer has no descendant Element surface"
+            "but its module could not read visual parts: Visual part outer has no descendant Element surface"
         ),
     ]
+
+    inventory_errors = [
+        failure for failure in failures if "could not read visual parts" in failure
+    ]
+    assert len(inventory_errors) == 2, failures
+    assert all(
+        "TypeError:" in failure and "registeredVisualParts" in failure
+        for failure in inventory_errors
+    )
 
 
 def test_the_render_gate_bounds_a_prefixed_inventory_by_its_prefixes(browser, serve):
@@ -2132,30 +2230,165 @@ stateDiagram-v2
     assert render_gate_model.render_version(browser, serve(page)).failures == []
 
 
-def test_a_class_named_for_its_namespace_keeps_its_part(browser, serve):
-    """A namespace and a class inside it can share a name, and the class is the box.
-
-    The renderer writes the same `data-id` on both groups. Treating the pair as an
-    ambiguous id would leave `node:Job` unregistered, which the gate reports against a
-    declared part; `Runner` is the control that registers either way.
-    """
+def test_a_namespaced_class_keeps_its_source_identity(browser, serve):
+    """Class and container inventory comes from the parser, not rendered labels."""
     page = leaf_page(
         "namespaced class",
         """<h1 id="title">Namespaced class</h1>
-<lf-diagram id="model" parts="node:Job node:Runner"><pre>
+<lf-diagram id="model" parts="all"><pre>
 classDiagram
-  namespace Job {
+  namespace Jobs {
     class Job
   }
   Runner --&gt; Job
 </pre></lf-diagram>""",
     )
-    assert render_gate_model.render_version(browser, serve(page)).failures == []
+    url = serve(page)
+    assert render_gate_model.render_version(browser, url).failures == []
+    drawn = open_page(browser, url)
+    assert (
+        drawn.locator("#model").evaluate("e => e.visualParts.get('node:Jobs').label")
+        == "Jobs"
+    )
+
+
+def test_diagram_identity_collisions_fail_before_layout(browser, serve):
+    """A node and its container cannot share the graph identity used by layout."""
+    url = serve(
+        leaf_page(
+            "colliding class",
+            """
+<h1 id="title">Colliding class</h1>
+<lf-diagram id="model"><pre>
+classDiagram
+  namespace Job {
+    class Job
+  }
+</pre></lf-diagram>
+""",
+        )
+    )
+    failures = render_gate_model.render_version(browser.unwatched, url).failures
+    assert (
+        sum(
+            "Mermaid declares diagram identity Job more than once" in f
+            for f in failures
+        )
+        == 2
+    )
+
+
+def test_diagrams_preserve_late_state_labels_and_sequence_titles(browser, serve):
+    """Both sources used to draw successfully while silently dropping their words."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "diagram semantics",
+                """
+<h1 id="title">Diagram semantics</h1>
+<lf-diagram id="life" parts="all"><pre>
+stateDiagram-v2
+  [*] --&gt; A
+  A --&gt; B
+  state "Preparing order" as A
+  state A {
+    Fetch --&gt; Build
+  }
+</pre></lf-diagram>
+<lf-diagram id="exchange" parts="all"><pre>
+sequenceDiagram
+  title Order handshake
+  loop Retry
+    User-&gt;&gt;Server: Submit order
+  end
+  Note right of Server: Checks order
+</pre></lf-diagram>
+<lf-diagram id="relationships" parts="all"><pre>
+erDiagram
+  RUNNER ||--o{ JOB : runs
+</pre></lf-diagram>
+<lf-diagram id="identities" parts="all"><pre>
+flowchart TD
+  123[Start] --&gt; Ω[Done]
+</pre></lf-diagram>
+""",
+            )
+        ),
+    )
+    expect(page.locator("#life svg")).to_contain_text("Preparing order")
+    expect(page.locator("#exchange svg")).to_contain_text("Order handshake")
+    assert set(page.locator("#life").evaluate("e => [...e.visualParts.keys()]")) == {
+        "node:A",
+        "node:B",
+        "node:Fetch",
+        "node:Build",
+    }
+    assert page.locator("#exchange").evaluate("e => [...e.visualParts.keys()]") == [
+        "node:User",
+        "node:Server",
+    ]
+
+    svg = page.locator("#exchange svg").element_handle()
+    for scheme in ("dark", "light"):
+        page.emulate_media(color_scheme=scheme)
+        paint = page.locator("#exchange svg").evaluate("""svg => {
+          const ink = getComputedStyle(svg.querySelector('.messageText')).color;
+          const canvas = document.createElement('canvas');
+          canvas.width = canvas.height = 1;
+          const ctx = canvas.getContext('2d', {willReadFrequently: true});
+          const luminance = color => {
+            ctx.fillStyle = color;
+            ctx.fillRect(0, 0, 1, 1);
+            return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3)
+              .map(c => c / 255)
+              .map(c => c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
+              .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
+          };
+          const actor = svg.querySelector('rect.actor');
+          const targets = [
+            ...[...svg.querySelectorAll('text.actor > tspan, text.loopText > tspan, text.noteText > tspan')]
+              .map(e => [e, actor, 'fill', 4.5]),
+            ...[...document.querySelectorAll('#relationships .edgeLabel .label text, #relationships .edgeLabel .label tspan')]
+              .filter(e => !e.children.length)
+              .map(e => [e, e.closest('.label').querySelector('rect'), 'fill', 4.5]),
+            [document.querySelector('#life rect.outer'), document.querySelector('#life rect.outer'), 'stroke', 3],
+            [document.querySelector('#life circle.state-start'), document.querySelector('#life rect.outer'), 'fill', 3],
+          ];
+          return targets.map(([e, background, property, minimum]) => {
+            const paper = luminance(getComputedStyle(background).fill);
+            const fill = getComputedStyle(e)[property];
+            const text = luminance(fill);
+            const contrast = (Math.max(paper, text) + 0.05) / (Math.min(paper, text) + 0.05);
+            return {text: e.textContent, fill, ink, contrast, minimum};
+          });
+        }""")
+        assert {p["text"] for p in paint} >= {
+            "User",
+            "Server",
+            "[Retry]",
+            "Checks order",
+            "runs",
+        }, paint
+        assert all(
+            (p["minimum"] == 3 or p["fill"] == p["ink"])
+            and p["contrast"] >= p["minimum"]
+            for p in paint
+        ), (
+            scheme,
+            paint,
+        )
+        assert svg.evaluate("e => e === document.querySelector('#exchange svg')")
+
+    assert page.locator("#identities").evaluate("e => [...e.visualParts.keys()]") == [
+        "node:123",
+        "node:Ω",
+    ]
 
 
 DIAGRAM_FAMILIES = {
     "pie": 'pie title Pets\n  "Dogs" : 386\n  "Cats" : 85',
-    "gantt": "gantt\n  dateFormat YYYY-MM-DD\n  section Build\n  Draft :a1, 2026-01-01, 3d\n  Review :after a1, 2d",
+    "gantt": "gantt\n  dateFormat YYYY-MM-DD\n  tickInterval 2day\n  section Build\n  Draft :a1, 2026-01-01, 3d\n  Review :after a1, 2d",
     # A box whose id is several words can never be a part, and still has to draw.
     "mindmap": "mindmap\n  root((Leaf))\n    Big idea\n    Threads",
     "er-quoted-name": 'erDiagram\n  "Line Item" ||--o{ ORDER : in',
@@ -2169,7 +2402,7 @@ DIAGRAM_FAMILIES = {
 
 
 def test_the_gate_passes_what_the_renderer_draws(browser, serve):
-    """Leaf draws what Agentic Mermaid draws, beyond the families its guide documents.
+    """Leaf draws what Mermaid draws, beyond the families its guide documents.
 
     The gate reports a source the renderer cannot draw at all (`UNPARSABLE_DIAGRAM`); a
     family it can draw is no failure, whether or not the guide names it.
@@ -2187,28 +2420,38 @@ def test_the_gate_passes_what_the_renderer_draws(browser, serve):
     assert render_gate_model.render_version(browser, url).failures == []
 
 
-def test_the_render_gate_rejects_an_unresolved_svg_paint_token(browser, serve):
+def test_the_render_gate_rejects_an_unresolved_svg_paint_token(
+    browser, serve, tmp_path, monkeypatch
+):
     """The browser must resolve generated paint against the page's live cascade.
 
-    A missing custom property is valid CSS syntax, so the diagram renderer accepts it
-    and SVG silently falls back to black. The same contract covers widgets frozen into
+    A missing custom property is valid CSS syntax, so a generated SVG silently
+    falls back to black. The same contract covers widgets frozen into
     an agent's reply, which render in the thread panel outside main. A fallback is the
     control: it names an absent property but resolves to a shipped color in both schemes.
     The native SVG is the other control: a gradient reference is valid paint even though
     it is not a color.
     """
+    monkeypatch.chdir(tmp_path)
+    package = tmp_path / ".leaf"
+    add_test_widget(package, "lf-paint", upgrade=True)
+    (package / "widgets" / "lf-paint.js").write_text("""
+import { once } from "/runtime/widget-api.js";
+customElements.define("lf-paint", class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    this.innerHTML = `<svg width="160" height="80" viewBox="0 0 160 80">
+      <rect data-id="missing" width="70" height="70" fill="var(--accent-glow)" />
+      <rect x="80" width="70" height="70" fill="var(--diagram-safe)" />
+    </svg>`;
+  }
+});
+""")
     page = leaf_page(
         "diagram paint",
         """
 <h1 id="title">Diagram paint</h1>
-<lf-diagram id="flow"><pre>
-flowchart LR
-  Missing[Missing] --&gt; Fallback[Fallback]
-  classDef missing fill:var(--accent-glow),stroke:var(--accent),color:var(--ink)
-  classDef fallback fill:var(--diagram-safe),stroke:var(--ok),color:var(--ok-ink)
-  class Missing missing
-  class Fallback fallback
-</pre></lf-diagram>
+<lf-paint id="flow"></lf-paint>
 <svg id="gradient" width="20" height="20" viewBox="0 0 20 20">
   <defs><linearGradient id="blue"><stop stop-color="var(--accent)" /></linearGradient></defs>
   <rect width="20" height="20" fill="var(--diagram-gradient)" />
@@ -2220,7 +2463,7 @@ flowchart LR
 }</style>""",
     )
 
-    url = serve(page)
+    url = serve(page, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     append_carried_log_record(
         serve.page_dir,
         {
@@ -2239,12 +2482,7 @@ flowchart LR
             "parent": "c-paint",
             "revision": 1,
             "text": "Here it is:",
-            "markup": """<lf-diagram id="sent"><pre>
-flowchart LR
-  Missing[Missing]
-  classDef missing fill:var(--accent-glow),stroke:var(--accent),color:var(--ink)
-  class Missing missing
-</pre></lf-diagram>""",
+            "markup": '<lf-paint id="sent"></lf-paint>',
         },
     )
 
@@ -2254,8 +2492,8 @@ flowchart LR
     assert len(unresolved) == 4, failures
     for diagram in ("flow", "sent"):
         expected = (
-            f"<lf-diagram id='{diagram}'> renders fill='var(--accent-glow)' on <rect> "
-            "for data-id='node-shape:Missing'"
+            f"<lf-paint id='{diagram}'> renders fill='var(--accent-glow)' on <rect> "
+            "for data-id='missing'"
         )
         assert sum(expected in failure for failure in unresolved) == 2, unresolved
     assert not any(
@@ -3730,12 +3968,49 @@ def typed_box_findings(page):
     return findings
 
 
+# Each bundled widget's package, which answers for it in `KNOWN`, by tag.
+WIDGET_PACKAGES = {
+    tag: package.name for package in PACKAGES for tag in own_tags(package)
+}
+
+
+def held_scroller_findings(page, source):
+    """Each box in a widget that holds its own height and scrolls inside it
+    (`grows-with-content`, widget_quality.py), in the page and each Leaf document it
+    frames. `package check --render` reads a widget's worked example, which carries no
+    data, so a box that holds its height only once rows arrive goes unseen there; the
+    corpus gives the widgets their data. A widget is one a bundled package or the page's
+    own package declares, and a finding `KNOWN` lists for the widget's package is that
+    defect, wherever it stands. A box the page or a Layout bounds on purpose declares
+    `--lf-holds-height: 1`, as a workspace's panes do. `heldScrollers` writes the page,
+    so it reads a page nothing reads again."""
+    local = source.with_suffix(".page")
+    tags = sorted({*WIDGET_PACKAGES, *(own_tags(local) if local.is_dir() else ())})
+    findings = []
+    for frame in page.frames:
+        if not frame.evaluate(
+            "() => !!document.querySelector('script[data-lf-entry]')"
+        ):
+            continue
+        where = "" if frame == page.main_frame else f" in {urlsplit(frame.url).path}"
+        findings += [
+            f"<{box['tag']} id={box['id']!r}> {box['at']} holds {box['height']}px and "
+            f"scrolls inside it{where}"
+            for box in render_checks_model.evaluate_probe(frame, "heldScrollers", tags)
+            if (box["tag"], "grows-with-content")
+            not in KNOWN.get(WIDGET_PACKAGES.get(box["tag"]), set())
+        ]
+    return findings
+
+
 @pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
 def test_a_still_page_comes_back_from_every_journey_as_it_was(browser, serve, source):
     """A still_page goes through each journey that must leave it as it found it: left
     alone (`rest_findings`), every surface opened and closed (`surface_findings`),
     resized to a phone's width and back (`resize_findings`), and each typed box scrolled
-    away and back (`typed_box_findings`).
+    away and back (`typed_box_findings`). The page those journeys hand back, at the width
+    it opened at, is then read for widgets that hold their height
+    (`held_scroller_findings`), which writes it.
 
     They share one page because each reads only what its own journey changes, and
     the page the journey before handed over is one a reader could have reached.
@@ -3748,6 +4023,7 @@ def test_a_still_page_comes_back_from_every_journey_as_it_was(browser, serve, so
         "closed surfaces": surface_findings(page),
         "resized from the widest": resize_findings(page, RESIZE_PATH),
         "typed boxes": typed_box_findings(page),
+        "held scrollers": held_scroller_findings(page, source),
         "resized from the narrowest": resize_findings(
             still_page(browser, url, width=RESIZE_PATH[-1]), RESIZE_PATH[::-1]
         ),

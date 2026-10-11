@@ -46,9 +46,19 @@
   // more as `lf-startup-fault`, which a served page's bootstrap answers by waiting for
   // a server that can start the page (bootstrap.js); an export has no server to wait
   // for.
-  const fault = (reason, incomplete) => {
+  const fault = (reason, incomplete, error = null) => {
     if (incomplete) root.toggleAttribute("data-lf-interactive", false);
     root.dataset.lfStartupError = reason;
+    // The attribute is the short display reason; this record retains the actual
+    // exception before modules load, including for an opaque sample's private port.
+    root.lfStartupException =
+      error?.message === undefined
+        ? null
+        : {
+            name: error.name,
+            message: error.message,
+            stack: error.stack,
+          };
     window.dispatchEvent(
       new CustomEvent("lf-startup-fault", { detail: { reason, incomplete } }),
     );
@@ -74,12 +84,17 @@
         fault(
           `${event.message || "uncaught error"} (${event.filename || "?"}:${event.lineno ?? "?"})`,
           false,
+          event.error ?? null,
         );
     },
     true,
   );
   window.addEventListener("lf-startup-failed", (event) =>
-    fault(event.detail?.reason || "the page reported it could not start", true),
+    fault(
+      event.detail?.reason || "the page reported it could not start",
+      true,
+      event.detail?.error ?? null,
+    ),
   );
 
   // Which page this document is, as the prefix of what the browser tab keeps for it.

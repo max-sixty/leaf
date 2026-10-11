@@ -2125,7 +2125,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
         "the tinted line is the one that says it, and it says it once"
     )
 
-    appearance = page.evaluate("""() => {
+    appearance = page.evaluate(r"""() => {
       const channels = value => value.match(/[0-9.]+/g).slice(0, 3).map(Number);
       const block = document.querySelector('#walk-code pre');
       const line = document.querySelector('#walk-code .lf-code-line');
@@ -2143,7 +2143,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
         noteRadius: noteStyle.borderRadius,
         noteFont: noteStyle.fontFamily,
         sansFont: getComputedStyle(document.documentElement)
-          .getPropertyValue('--sans').trim(),
+          .getPropertyValue('--sans').trim().replace(/\s+/g, ' '),
         noteInset: {
           left: noteRect.left - blockRect.left,
           right: blockRect.right - noteRect.right,
@@ -2498,7 +2498,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
       };
     }""")
     assert reading["segmentCount"] > 0, "the passage assertion read no diff text"
-    assert reading["saysPath"] and reading["wrotePath"], reading
+    # The parser supplies the visible file path; it was not written into the page.
+    assert reading["saysPath"] and not reading["wrotePath"], reading
     assert reading["saysStat"] and not reading["wroteStat"], reading
     assert reading["lineNumberWords"] == [], (
         f"line number chrome entered the page reading: {reading}"
@@ -2683,8 +2684,13 @@ def test_a_diff_can_start_with_every_file_collapsed(browser, serve):
     details = page.locator("lf-diff details")
     expect(details).to_have_count(3)
     assert details.evaluate_all("items => items.every(item => !item.open)")
+    # A closed file of a patch text renders only when it opens, as a manifest's does.
+    lines = page.locator("lf-diff [data-line]")
+    expect(lines).to_have_count(0)
     details.first.locator("summary").click()
     expect(details.first).to_have_attribute("open", "")
+    expect(details.first.locator("[data-line]").first).to_be_visible()
+    assert lines.count() == details.first.locator("[data-line]").count()
 
 
 def test_a_diff_keeps_source_markup_inert(browser, serve):
@@ -2809,6 +2815,24 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
                 "rename to body-new.js"
             ),
         },
+        {
+            "rendered": False,
+            "error": "<lf-diff> failed: unified diff repeats file path example.js",
+            "source": (
+                "diff --git a/example.js b/example.js\n"
+                "--- a/example.js\n"
+                "+++ b/example.js\n"
+                "@@ -1 +1 @@\n"
+                "-old\n"
+                "+new\n"
+                "diff --git a/example.js b/example.js\n"
+                "--- a/example.js\n"
+                "+++ b/example.js\n"
+                "@@ -1 +1 @@\n"
+                "-new\n"
+                "+newer"
+            ),
+        },
     ]
     identifiers = (
         "wrong-count-diff",
@@ -2817,6 +2841,7 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
         "similarity-only-diff",
         "empty-rename-paths-diff",
         "contradictory-rename-paths-diff",
+        "repeated-path-diff",
     )
     page = open_page(
         browser,
@@ -3602,6 +3627,7 @@ def test_an_ambiguous_revised_passage_keeps_its_section_until_the_agent_moves_it
         [
             "response",
             "reply",
+            "--done",
             response_reference(d, root["id"]),
             "--section",
             "drift",
@@ -3673,6 +3699,7 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
         [
             "response",
             "reply",
+            "--done",
             response_reference(d, root["id"]),
             "--detach",
             "--text",
@@ -5571,7 +5598,6 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
         {
             "files": [
                 {
-                    "key": "app.py",
                     "path": "app.py",
                     "kind": "patch",
                     "additions": 1,
@@ -5930,7 +5956,7 @@ def test_a_drag_across_a_written_diff_line_is_the_passage_c_comments_on(browser,
     the host, and `isCollapsed` says nothing is selected while the words are painted
     selected. Read that way, no Comment field rose over the drag and `c` opened a comment
     on the page with no passage at all. The passage is the composed range the user drew,
-    so the comment carries the words and their neighbours."""
+    so the comment carries those words at the diff line's exact coordinate."""
     patch = (
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
         "@@ -1,2 +1,2 @@\n def route(request):\n"
@@ -5990,7 +6016,7 @@ def test_a_drag_across_a_written_diff_line_is_the_passage_c_comments_on(browser,
     ]
     assert comment["anchor"]["section"] == "patch", comment
     assert comment["anchor"]["quote"] == "request.token.id", comment
-    assert comment["anchor"].get("prefix", "").endswith("tok:{"), comment
+    assert comment["anchor"]["datum"] == '["app.py","new",2]', comment
 
 
 @pytest.mark.parametrize("arrived", ["", "#title"], ids=["plain", "fragment"])
@@ -6203,9 +6229,9 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
         },
     )
     told(page)
-    # The seat holds arrivals that would move the diff on screen behind its notice;
-    # the agent's reply, already read, is not among them.
-    thread.get_by_role("button", name="2 new replies").click()
+    # The seat holds arrivals that would move the diff on screen behind its notice:
+    # the user's own two messages. The agent's reply, already read, is not among them.
+    thread.get_by_role("button", name="2 new messages").click()
     line = ":scope > .lf-msg-head .lf-msg-sending"
     for view, message_attr in ((thread, "data-event"), (panel_thread, "data-mid")):
         expect(
@@ -6309,7 +6335,6 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
 TWO_FILE_MANIFEST = {
     "files": [
         {
-            "key": "first.py",
             "path": "first.py",
             "kind": "patch",
             "additions": 1,
@@ -6323,7 +6348,6 @@ TWO_FILE_MANIFEST = {
 """,
         },
         {
-            "key": "second.py",
             "path": "second.py",
             "kind": "patch",
             "additions": 1,
@@ -6514,7 +6538,6 @@ def test_a_deferred_diff_tracks_each_write_and_retries_a_failed_file(browser, se
         return {
             "files": [
                 {
-                    "key": path,
                     "path": path,
                     "kind": "patch",
                     "additions": 1,
@@ -6585,7 +6608,6 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
     manifest = {
         "files": [
             {
-                "key": "app.py",
                 "path": "app.py",
                 "kind": "patch",
                 "additions": 1,
@@ -6597,9 +6619,7 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
     data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
     prior = source_revision(serve.page_dir, "review-patch")
     page = open_page(browser, url)
-    page.evaluate(
-        "window.priorManifest = document.querySelector('#patch').manifestSnapshot"
-    )
+    page.evaluate("window.priorManifest = document.querySelector('#patch').snapshot")
     replacement = original.replace('return "first"', 'return "replacement"')
     manifest["files"][0]["patch"] = replacement
     data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
@@ -6614,7 +6634,7 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
             stale = error.message;
           }
           const current = await loadDeferred(
-            document.querySelector('#patch').manifestSnapshot, 'app.py'
+            document.querySelector('#patch').snapshot, 'app.py'
           );
           return {stale, current};
         }"""
@@ -6629,7 +6649,7 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
           const {loadDeferred} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
           const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
-          const manifest = document.querySelector('#patch').manifestSnapshot;
+          const manifest = document.querySelector('#patch').snapshot;
           const original = runtime.data;
           const failures = [];
           try {
@@ -6687,7 +6707,6 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
         {
             "files": [
                 {
-                    "key": "second.py",
                     "path": "second.py",
                     "kind": "patch",
                     "additions": 1,

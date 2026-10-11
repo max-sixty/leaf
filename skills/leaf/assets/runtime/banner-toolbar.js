@@ -439,15 +439,18 @@ overflowMenu.addEventListener("lf-reveal", (event) => {
 });
 
 // The node a user can actually put focus on to reach this control: the control
-// itself while it stands on the row, and otherwise the More door holding it. A menu
-// control fails `checkVisibility()` inside a shut popover, and `focus()` on it is a
-// no-op, so a caller that hands the user somewhere has to ask this rather than the
-// control. Null means the toolbar offers no way in, which happens only off the banner.
+// itself while it stands on the row, and otherwise the visible More door. A menu
+// control fails `checkVisibility()` inside a shut popover; a row control can also be
+// displaced by a gesture step while its card stays open. Neither can take focus.
+// Null means the toolbar offers no way in, which happens only off the banner.
 export function bannerControlDoor(control = overflowBtn) {
   if (control.isConnected && control.checkVisibility({ visibilityProperty: true }))
     return control;
   const menu = control.closest(".lf-banner-menu");
-  return menu?.lfInvoker?.checkVisibility() ? menu.lfInvoker : null;
+  if (menu?.lfInvoker?.checkVisibility()) return menu.lfInvoker;
+  return bannerActions.contains(control) && overflowBtn.checkVisibility()
+    ? overflowBtn
+    : null;
 }
 
 // Escape from a layer that opens from a banner control lands on that control, its parent

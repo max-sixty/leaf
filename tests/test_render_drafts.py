@@ -20,6 +20,7 @@ from render_cases_interaction import (
     ASK_PAGE,
     SEATED_QUESTION_PAGE,
     live_url,
+    panel_comment,
 )
 from render_cases_layout import (
     glyph_action_face,
@@ -183,6 +184,81 @@ def test_a_visible_focused_element_is_the_reading_place_until_the_reader_scrolls
     rendered(page)
     expect(field).to_be_focused()
     assert not in_view(), "stale focus displaced the reader's new place"
+
+
+@pytest.mark.parametrize("region", [False, True], ids=["page", "pane"])
+def test_a_page_keeps_its_place_below_the_banner_as_the_window_changes_width(
+    browser, serve, region
+):
+    """The banner takes a second row when the window narrows. The browser's scroll
+    anchoring holds the line the reader landed on where it stood in the window, which is
+    now under the banner; the page moves with the banner instead, in a document as in
+    a pane the page carries, and back again when the window widens. A control the reader
+    has focused at the top of the page, where the browser anchors nothing, stays in view
+    as the words above it rewrap."""
+    lines = "".join(
+        f'<p id="line-{n}">Line {n} of the incident, long enough to rewrap when the '
+        "window narrows to a phone and the banner takes its second row.</p>"
+        for n in range(60)
+    )
+    lines = (
+        f'<lf-pane id="reading" label="Reading"><div>{lines}</div></lf-pane>'
+        if region
+        else lines
+    )
+    question = (
+        '<lf-ask id="ask"><h2>Which way?</h2><lf-options id="way" choose>'
+        '<lf-option id="way-one"><strong>One</strong> the first way.</lf-option>'
+        '<lf-option id="way-two"><strong>Two</strong> the second way.</lf-option>'
+        "</lf-options></lf-ask>"
+    )
+    opening = "".join(
+        f"<p>Paragraph {n} opens the page with enough words that it rewraps to more "
+        "lines when the window narrows, pushing what follows further down.</p>"
+        for n in range(6)
+    )
+    source = leaf_page("Keeping a place", f"{opening}{question}{lines}")
+    page = open_page(browser, serve(source))
+    resized(page, 1280, 800)
+    rendered(page)
+    reading = """async (id) => {
+      const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+      let node = document.getElementById(id) ?? document.activeElement;
+      while (!id && node.shadowRoot?.activeElement) node = node.shadowRoot.activeElement;
+      return {band: landingBand(document.scrollingElement).top,
+              top: node.getBoundingClientRect().top,
+              bottom: node.getBoundingClientRect().bottom};
+    }"""
+
+    page.evaluate("location.hash = 'line-30'")
+    rendered(page)
+    landed = page.evaluate(reading, "line-30")
+    below = landed["top"] - landed["band"]
+    resized(page, 700, 800)
+    rendered(page)
+    narrowed = page.evaluate(reading, "line-30")
+    assert narrowed["band"] > landed["band"], "the banner should take a second row"
+    assert narrowed["top"] - narrowed["band"] == pytest.approx(below, abs=2), narrowed
+    resized(page, 1280, 800)
+    rendered(page)
+    assert page.evaluate(reading, "line-30") == pytest.approx(landed, abs=2)
+
+    page = open_page(browser, serve(source))
+    resized(page, 1280, 1100)
+    rendered(page)
+    page.locator("#way-one").evaluate(
+        """option => [option, ...option.shadowRoot?.querySelectorAll('*') ?? [],
+                     ...option.querySelectorAll('*')].find(node => node.tabIndex >= 0).focus()"""
+    )
+    rendered(page)
+    focused = page.evaluate(reading, None)
+    assert page.evaluate("document.scrollingElement.scrollTop") == 0
+    assert focused["bottom"] < 1100, focused
+    resized(page, 420, 1100)
+    rendered(page)
+    assert page.evaluate(reading, None)["bottom"] < 1100, (
+        "the focused option left the window"
+    )
 
 
 @pytest.mark.parametrize("bounded", [False, True])
@@ -1003,7 +1079,7 @@ def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(
     expect(draft.locator(".lf-draft-body strong")).to_have_text("this")
     expect(draft.locator(".lf-draft-body code")).to_have_text("that")
     expect(draft.locator(".lf-draft-body")).to_have_text(
-        "Keep this and that exactly. A second line."
+        "Keep this and that exactly. A second line.", use_inner_text=True
     )
     edits = [
         event
@@ -5227,7 +5303,7 @@ def test_the_draft_box_is_its_own_door(browser, serve):
     page = open_page(browser, serve(JOURNEY_V1))
     draft = page.locator("#draft-ops")
     body = draft.locator(".lf-draft-body")
-    expect(body).to_have_text(DRAFT_TEXT)
+    expect(body).to_have_text(DRAFT_TEXT, use_inner_text=True)
 
     # A drag across the words takes the words. Read as the selection the user is left
     # holding, which is the thing the door would have destroyed.
@@ -5487,6 +5563,39 @@ def test_executable_revision_preserves_non_editor_thread_standing(browser, serve
         )
         is None
     )
+
+
+def test_executable_revision_keeps_a_reader_who_scrolled_away_from_their_reply(
+    browser, serve
+):
+    """A replaced reply box takes focus back without pulling the reader back to it.
+
+    The reader wrote in a thread at the top of the Threads list, then scrolled the
+    list on with no other input, so the box keeps focus but no longer marks their
+    place (user-place.js, `focusedInView`). A revision that replaces the document
+    returns focus and words to the new box and leaves the list where they read."""
+    url = live_url(serve(editing_revision_source("before")))
+    ids = [panel_comment(serve.page_dir, f"General thread {n}.") for n in range(40)]
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-threads .lf-thread[data-id="{ids[0]}"]')
+    thread.click()
+    reply = thread.locator(".lf-thread-reply leaf-text")
+    words = "Words the reader left to read on."
+    write(reply, words)
+    threads = page.locator(".lf-threads")
+    threads.evaluate("list => { list.scrollTop = list.scrollHeight; }")
+    scroll_settled(page, ".lf-threads")
+    expect(reply).to_be_focused()
+    expect(reply).not_to_be_in_viewport()
+    held = threads.evaluate("list => list.scrollTop")
+    assert held > 0
+    replace_editing_document(page, serve)
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", words)
+    scroll_settled(page, ".lf-threads")
+    assert threads.evaluate("list => list.scrollTop") == pytest.approx(held, abs=2)
 
 
 def test_executable_revision_does_not_restore_a_new_draft_generation(browser, serve):

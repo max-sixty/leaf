@@ -382,6 +382,7 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-banner { --lf-banner-gap: 10px;
     --lf-status-inset-left: 0px; --lf-status-inset-right: 0px;
     position: fixed; top: 0; left: 0; right: 0; z-index: var(--lf-z-banner);
+    box-sizing: border-box; height: var(--lf-banner-h);
     display: flex; flex-wrap: nowrap; align-content: flex-start;
     align-items: center; column-gap: var(--lf-banner-gap); row-gap: 0;
     padding: var(--lf-safe-top) calc(14px + var(--lf-safe-right)) 0
@@ -414,7 +415,6 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
      the status's disclosure meanwhile. */
   @container style(--lf-banner-rows: 2) {
     .lf-banner { flex-wrap: wrap; flex-direction: row-reverse;
-      box-sizing: border-box; height: var(--lf-banner-h);
       clip-path: inset(-100vh -100vw 0); }
     .lf-banner-status { flex-basis: 100%; }
     .lf-banner-actions { flex: 1 1 auto; order: 1; }
@@ -992,8 +992,7 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
     padding: var(--focus-ring-room) var(--lf-list-inset); --lf-block-frame: 1;
     scroll-padding: var(--focus-ring-room) 0;
     --lf-top-start: calc(-1 * var(--focus-ring-room)); --lf-top: var(--lf-top-start);
-    --lf-landing-room-start: var(--focus-ring-room);
-    --lf-landing-room: var(--lf-landing-room-start); }
+    --lf-landing-room-start: var(--focus-ring-room); }
   /* The list holds focus itself only while it shows no thread (thread-list-view.js):
      an empty list, or the last one folding away as it resolves. That folding card is
      positioned, so it paints after the scrollport and an outline on the list itself
@@ -1045,8 +1044,7 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
      unisolated, so what a row raises still stands over the rows after it. */
   .lf-threads > .lf-thread-compact { --lf-top-outer: var(--lf-top); }
   .lf-threads > .lf-thread-compact > .lf-thread-summary {
-    position: sticky; top: var(--lf-top); z-index: var(--lf-thread-title-z);
-    --lf-head-inset: 0px; }
+    position: sticky; top: var(--lf-top); z-index: var(--lf-thread-title-z); }
   .lf-threads > .lf-thread-compact > :not(.lf-thread-summary) {
     --lf-top: calc(var(--lf-top-outer) + var(--lf-thread-title-h)); }
   :is(.lf-threads > .lf-thread-compact > :not(.lf-thread-summary),
@@ -1192,11 +1190,10 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   /* The reply box stands at the card's foot, the edge the fold draws up, so it leaves
      as the fold begins rather than ride that edge. */
   .lf-going > .lf-thread-reply { visibility: hidden; }
-  /* Resolve drawn done: on its way out, and as the Reopen that stands in its place. */
-  :is(.lf-going .lf-resolve, .lf-reopen:has(> .lf-action-icon)) {
-    color: var(--ok-ink); }
-  :is(.lf-going .lf-resolve, .lf-reopen:has(> .lf-action-icon))::before {
-    background: var(--ok-tint); }
+  /* Resolve drawn done on its way out, as the Reopen standing in its place is
+     (shadow.css). */
+  .lf-going .lf-resolve { color: var(--ok-ink); }
+  .lf-going .lf-resolve::before { background: var(--ok-tint); }
   /* Direct navigation cues the same bounded box it revealed: a short card, one
      message, the reply row, or an oversized editor. */
   .lf-thread.flash, .lf-msg.flash, .lf-thread-reply.flash, .lf-thread-reply leaf-text.flash {

@@ -84,6 +84,7 @@ import {
   closeLayer,
 } from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
+import { focusedInView } from "./user-place.js";
 import { patchTree, patchRetains } from "./dom-children.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
 import { commandShortcut } from "./keyboard/control-keys.js";
@@ -105,7 +106,7 @@ import {
   prepareDeclaredMarkdown,
   formatDeclaredMarkdown,
 } from "./markdown.js";
-import { pageScroller } from "./scrolling.js";
+import { moveScrollerBy, pageScroller } from "./scrolling.js";
 import {
   containingReadingRegionFor,
   effectiveScroller,
@@ -1321,6 +1322,9 @@ export function createVersionController({
     return {
       draftEditing,
       replyThread: draftEditing?.mirrored ? heldThreadId() : null,
+      // A replaced reply box takes focus back either way, but is brought into view only
+      // where it marked the user's place (user-place.js, `focusedInView`).
+      replyInView: focusedInView() !== null,
       // Question standing is the fallback for unnamed controls. An exact editor already
       // has a replacement identity, so its parent Question does not also own focus.
       questionStanding: draftEditing ? null : captureQuestionStanding(),
@@ -1334,13 +1338,13 @@ export function createVersionController({
     try {
       await land();
     } catch (error) {
-      reportPageError(`Revision continuity failed: ${error?.message ?? error}`);
+      reportPageError(error, `Revision continuity failed`);
     }
   }
 
   async function restoreEditingContinuity(continuity, currentIntent) {
     if (!currentIntent()) return;
-    const { draftEditing, replyThread, questionStanding } = continuity;
+    const { draftEditing, replyThread, replyInView, questionStanding } = continuity;
     restoreQuestionStanding(questionStanding);
     const mayRestore = restrictUserIntent(currentIntent, () =>
       draftEditingStands(draftEditing),
@@ -1353,7 +1357,9 @@ export function createVersionController({
           // Present that session before its route reads the annotation directory.
           await refreshThread();
           return mayRestore()
-            ? replyDestination(replyThread, openThread, mayRestore)
+            ? replyDestination(replyThread, openThread, mayRestore, {
+                scroll: replyInView,
+              })
             : null;
         })
       : draftEditingDestination(draftEditing, mayRestore.handoff);
@@ -1584,9 +1590,7 @@ export function createVersionController({
       // revision introduces would otherwise reject every later state read for good.
       await preloadWidgets(doc.querySelector("body > main"));
     } catch (error) {
-      reportPageError(
-        `revision ${target.revision} failed to load: ${error?.message ?? error}`,
-      );
+      reportPageError(error, `revision ${target.revision} failed to load`);
       return null;
     }
     return {
@@ -1670,7 +1674,7 @@ export function createVersionController({
     const regions = new Map(readingRegions().map((region) => [region.id, region]));
     const active =
       regions.get(view.activeRegion) ??
-      containingReadingRegionFor(focused()) ??
+      containingReadingRegionFor(focusedInView()) ??
       readingRegionFor(pageReadingBlock());
     if (active) reveal(active.host, currentIntent);
     const restored = new Set();
@@ -1763,12 +1767,15 @@ export function createVersionController({
   // still names its own pane to d/u through userReadingRegion; because the furniture does
   // not live in that pane's scroller, a posture change preserves the outer region that
   // geometrically contains it. The same distinction keeps an inline response outside a
-  // nested region body with the outer scroller that actually carries it.
+  // nested region body with the outer scroller that actually carries it. Focus names the
+  // region only while in view (user-place.js, `focusedInView`): regions sharing the page
+  // scroller restore the active one's reading for it, and a pane the reader scrolled
+  // away from, though it keeps their focus, would take them back to it.
   const activeReadingRegion = (
     candidates = readingRegions(),
     blocks = textBlocks(),
   ) => {
-    const focusedRegion = containingReadingRegionFor(focused());
+    const focusedRegion = containingReadingRegionFor(focusedInView());
     if (focusedRegion && candidates.some(({ id }) => id === focusedRegion.id))
       return focusedRegion;
     const recent = candidates.find(({ id }) => id === recentReadingRegion()?.id);
@@ -1787,14 +1794,19 @@ export function createVersionController({
   // that a box two regions share lands where that one left it. Inside a composition,
   // only the composition's own scrollers are restored: document travel belongs to the
   // navigation that changed it, including native history.
-  function restoreRegions(candidates, currentIntent, owner = null) {
+  function restoreRegions(
+    candidates,
+    currentIntent,
+    owner = null,
+    views = regionViews,
+  ) {
     const active = activeReadingRegion(candidates);
     const ordered = active
       ? [active, ...candidates.filter(({ id }) => id !== active.id)]
       : candidates;
     const restored = new Set();
     for (const region of ordered) {
-      const reading = regionViews.get(region.id);
+      const reading = views.get(region.id);
       const box = effectiveScroller(region);
       if (owner && !under(box, owner)) continue;
       if (!reading || restored.has(box)) continue;
@@ -1809,13 +1821,21 @@ export function createVersionController({
   // restores that reading. A visible focused element is itself a live reading landmark;
   // focus retained on an element the reader scrolled past is not.
   // A composition change in progress owns any shift inside it.
-  function restoreShifted(shifted, currentIntent) {
+  //
+  // The page shifts with the window. The browser's scroll anchoring holds its words where
+  // they stood in the window, but a place stands below the landing band, which moves when
+  // the banner takes another row: the line the user was reading went under it. So the
+  // page moves with its band first, and a region the page carries lands against the new
+  // band from its own record.
+  function restoreShifted(shifted, currentIntent, views) {
     if (compositionChanges.size) return;
     if (!currentIntent()) return;
+    const page = shifted.find(({ region }) => !region);
+    if (page?.band) moveScrollerBy(pageScroller, -page.band);
     const candidates = shifted
       .map(({ region }) => region)
-      .filter((region) => shownRegionBounds(region));
-    restoreRegions(candidates, currentIntent);
+      .filter((region) => region && shownRegionBounds(region));
+    restoreRegions(candidates, currentIntent, null, views);
     recordRegions();
   }
 
@@ -1831,7 +1851,10 @@ export function createVersionController({
     // region and resize what the observer watches, so it waits for the next frame.
     if (phase === "shift") {
       const currentIntent = retainUserIntent();
-      nextRender(() => restoreShifted(shifted, currentIntent));
+      // A resize can cause a scroll event before this frame. Keep the pre-shift
+      // reading now, so that event cannot replace it with the moved geometry.
+      const views = new Map(regionViews);
+      nextRender(() => restoreShifted(shifted, currentIntent, views));
       return;
     }
     // A composition change captures the intact view before hiding any region, and its

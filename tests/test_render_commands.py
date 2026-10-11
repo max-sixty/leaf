@@ -556,7 +556,7 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
 
     Endpoint choice, inspection, and native modified navigation are separate routes;
     closing the viewer returns to the same route without shifting the comparison.
-    A parent inspector can still withdraw the complete rail with controls off.
+    A containing inspector's compare view still withdraws the complete rail.
     """
     shots = {
         "before": solid_png(1200, 600, (210, 220, 235)),
@@ -655,14 +655,18 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
     expect(viewer).not_to_be_visible()
     expect(after).to_be_focused()
 
-    # The canonical inspector API owns both-frame comparison and withdraws the rail.
-    shot.evaluate("node => node.inspect({ mode: 'compare' })")
+    # Parent-owned inspectors select a mode through the widget's inspection API.
+    shot.evaluate("node => node.inspect({mode: 'compare'})")
     expect(comparison).to_have_count(0)
     expect(links.first).not_to_be_visible()
+    box = shot.locator("input.lf-shotflip")
+    expect(box).to_be_checked()
     assert shown_frames(page) == ["before", "after"]
-    shot.evaluate("node => node.inspect({ mode: 'flip' })")
+    shot.evaluate("node => node.inspect({mode: 'flip'})")
     expect(comparison).to_have_count(1)
+    expect(comparison).to_have_attribute("position", "0")
     expect(links.first).to_be_visible()
+    expect(box).to_be_checked()
     page.emulate_media(media="print")
     expect(links.first).not_to_be_visible()
     assert shown_frames(page) == ["before", "after"]
@@ -1756,7 +1760,8 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
     assert broken.returncode == 1, broken.stdout + broken.stderr
     assert "Error: page code reported 2 errors" in broken.stderr
     assert "map is not a function" in broken.stderr
-    assert "/page/film.js:2)" in broken.stderr
+    assert "at paint (" in broken.stderr
+    assert "/page/film.js:2:" in broken.stderr
     assert "Error: the trace never loaded" in broken.stderr
     assert "/page/widgets/lf-loader.js:3" in broken.stderr
 

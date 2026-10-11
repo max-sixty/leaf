@@ -7975,8 +7975,8 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     folded): the words stay on screen where the user can select what no comment
     can anchor to, and the gate must say so. Then the theme goes back and the
     vendored module marks every trial after the controller publishes: on the undecided
-    spare that is a settlement the log never decided, silencing words the user can
-    still see, and the gate must say that too. Both failures render perfectly, which
+    spare that is a settlement the log never decided, styling as settled words the
+    page still reads, and the gate must say that too. Both failures render perfectly, which
     is why each is put back deliberately."""
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)

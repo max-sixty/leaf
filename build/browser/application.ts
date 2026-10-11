@@ -6,11 +6,13 @@
  */
 import { createApplicationPublisher } from "./snapshot.ts";
 import {
+  coordinateOf,
   foldProjection,
   foldedValue,
   foldWidgetStates,
   questionValue,
   isProjectionEntry,
+  stateCoordinate,
 } from "../../skills/leaf/assets/runtime/projection/model.js";
 import {
   stateDefinition,
@@ -366,7 +368,7 @@ function normalizedProjection(
           ))
       )
         continue;
-      const coordinate = JSON.stringify(wire.coordinate);
+      const coordinate = stateCoordinate(...wire.coordinate);
       entries.push({
         coordinate,
         e,
@@ -842,11 +844,11 @@ export function createSemanticApplication({
         subject,
         thread,
         holds_thread: Boolean(turn),
-        // The server's list, where the local fold keys a coordinate by its JSON.
+        // The server's tuple, where the local fold keys a coordinate.
         coordinate: turn
           ? ["thread", thread]
           : entry.projection
-            ? JSON.parse(entry.projection.coordinate)
+            ? coordinateOf(entry.projection.coordinate)
             : null,
         answer: null,
         stage: "sending",
@@ -1221,9 +1223,15 @@ export function createSemanticApplication({
           : null;
       const widget =
         event.kind === "action" ? before.document.authored.get(event.widget) : null;
+      // The widget's own captured declaration, as its reading (`widgetReading`) and the
+      // projection's meaning check read it.
+      const declaration =
+        event.kind === "action"
+          ? before.document.descriptors.get(event.widget)?.declaration
+          : null;
       const spec =
         event.kind === "action" && widget
-          ? before.document.registry[widget.tag]?.["x-state"]?.[event.action]
+          ? declaration?.["x-state"]?.[event.action]
           : null;
       const unit =
         event.kind === "action" && spec
@@ -1247,17 +1255,13 @@ export function createSemanticApplication({
             ? {
                 unit,
                 spec,
-                coordinate: JSON.stringify([event.widget, unit, event.action]),
+                coordinate: stateCoordinate(event.widget, unit, event.action),
                 localOrder,
                 e: {
                   ...event,
                   id: localId,
                   meaning: {
-                    state: stateDefinition(
-                      widget.tag,
-                      before.document.registry[widget.tag],
-                      spec,
-                    ),
+                    state: stateDefinition(widget.tag, declaration, spec),
                   },
                 },
                 value: spec.record ? foldedValue(event, spec.record) : event.action,

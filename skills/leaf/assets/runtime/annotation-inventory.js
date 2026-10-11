@@ -18,7 +18,7 @@ import { elementById, inChrome } from "./passages.js";
 import { addressableLabel, addressableWord } from "./anchor-resolution.js";
 import { threadList } from "./thread/state.js";
 import { threadKey } from "./thread/model.js";
-import { projectionOrigins } from "./projection/model.js";
+import { projectionOrigins, stateCoordinate } from "./projection/model.js";
 import { authoredStates } from "./projection/authored.js";
 import { currentProjection } from "./projection/state.js";
 import { notice } from "./notifications.js";
@@ -267,7 +267,7 @@ export function createAnnotationInventory({
     const groups = new Map();
     const receiptByCoordinate = new Map();
     for (const receipt of visibleWidgetWorkflows()) {
-      receiptByCoordinate.set(JSON.stringify(receipt.coordinate), receipt);
+      receiptByCoordinate.set(stateCoordinate(...receipt.coordinate), receipt);
     }
     for (const thread of threadList()) {
       if (!threadHasDiscussion(thread) || !thread.anchor || claimed(thread.id))

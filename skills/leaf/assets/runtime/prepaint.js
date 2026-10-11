@@ -514,7 +514,21 @@
     return true;
   };
 
+  // The id a URL fragment spells, for location.hash and for a link's href alike, from
+  // the first script on (`named` below) to every module reading a destination
+  // (`anchor-resolution.js`, `fragmentTarget`). A malformed escape keeps its literal
+  // characters rather than making a durable reference unreadable.
+  const fragmentId = (fragment) => {
+    const raw = fragment.slice(1);
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw;
+    }
+  };
+
   root.lfInitial = {
+    fragmentId,
     keepsAttribute,
     setRuntimeRootAttribute,
     runtimeRootAttributes: (node) => new Set(runtimeAttributes.get(node) ?? []),
@@ -589,12 +603,7 @@
   const reloaded = performance.getEntriesByType("navigation")[0]?.type === "reload";
   const named = (members) => {
     if (!location.hash) return null;
-    let target;
-    try {
-      target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
-    } catch {
-      return null;
-    }
+    const target = document.getElementById(fragmentId(location.hash));
     return target && members.find((member) => member.contains(target));
   };
   const kept = (holder, members) => {

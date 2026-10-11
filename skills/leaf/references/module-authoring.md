@@ -270,7 +270,8 @@ itself at Back or Forward to one of them by claiming that traversal with
 `claimTraversals(claim, {signal})`. Every other traversal returns the user to the offset
 the entry was left at (`runtime/history.js`), unless the element the entry's fragment
 names is no longer shown: that one reaches the widget holding it shut as `lf-reveal`
-and lands on it, as a followed link to it does.
+and lands on it, as a followed link to it does. `fragmentTarget(hash)` is the page
+element a fragment names, read as a followed link reads its destination.
 
 A sticky header, a sticky box over the top of its scroller, has a stated height, sticks
 at `var(--lf-top)`, and adds its height to `--lf-top` for what it stands over. Its
@@ -572,7 +573,8 @@ draw a visual part it shows only in another state, opens its containing disclosu
 the addressed element, updates the fragment, and announces the supplied `success` or
 `missing` message. Commands at that focus use the datum's identity. A lazy target may implement
 `lfRevealDatum(key)` to return its hydration promise and `lfDataDatum(key)` to map a
-semantic key to the rendered projected element. When that key is a source location
+semantic key to the rendered projected element, and `lfDatumLabel(key)` to name a datum
+it has not drawn, as its `projectData` label will once it is. When that key is a source location
 rather than the datum's durable identity, translate it to the durable key and read
 `projectedDatum(widget, key)`: it returns the unique current projected element, or
 `null` when missing or ambiguous, including after a reveal replaced its node.

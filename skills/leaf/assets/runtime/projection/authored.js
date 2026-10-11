@@ -137,7 +137,3 @@ export function stageAuthoredStates(root = document, existing = authoredStates()
   }
   return captured;
 }
-
-/** @param {string} owner @param {string} unit @param {string} verb */
-export const stateCoordinate = (owner, unit, verb) =>
-  JSON.stringify([owner, unit, verb]);

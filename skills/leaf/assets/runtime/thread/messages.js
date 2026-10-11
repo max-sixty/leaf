@@ -48,11 +48,12 @@ import {
 } from "../presentation.js";
 import { highlightBlocks } from "../syntax.js";
 import { ago } from "../presence.js";
-import { elementById, pageQueryAll } from "../passages.js";
+import { elementById } from "../passages.js";
 import { designName } from "../design-readings.js";
 import {
   addressableLabel,
   addressableWord,
+  datumLabel,
   visualPartLabel,
 } from "../anchor-resolution.js";
 import { rememberPassageParts } from "../widget-loader.js";
@@ -478,19 +479,6 @@ export class MessageView {
     this.#stopKept = null;
     this.#stopRead?.();
   }
-}
-
-function datumLabel(anchor) {
-  if (!anchor?.section || !anchor.datum) return "";
-  const datum = pageQueryAll("[data-lf-projection][data-lf-datum]").find(
-    (element) =>
-      element.dataset.lfProjection === anchor.section &&
-      (!anchor.source || element.dataset.lfSource === anchor.source) &&
-      (anchor.identity
-        ? element.dataset.lfIdentity === anchor.identity
-        : element.dataset.lfDatum === anchor.datum),
-  );
-  return datum?.dataset.lfDatumLabel?.trim() ?? "";
 }
 
 function coordinateLabel(anchor, about) {

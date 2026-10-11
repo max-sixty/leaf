@@ -9,3 +9,5 @@ export const initialOrigin = (node) => coordinator(node).origin(node) ?? node;
 export const initialParent = (node) => coordinator(node).parent(node);
 export const initialSource = (node) => coordinator(node).reading(node);
 export const restoreInitialSource = (root) => coordinator(root).restoreSource(root);
+export const fragmentId = (fragment) =>
+  document.documentElement.lfInitial.fragmentId(fragment);

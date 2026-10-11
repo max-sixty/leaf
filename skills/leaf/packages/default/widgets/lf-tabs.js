@@ -91,6 +91,7 @@ import {
   tabStore,
   watchQuestions,
   focusDestination,
+  fragmentTarget,
   rove,
   scrollIntoView,
 } from "/runtime/widget-api.js";
@@ -487,20 +488,10 @@ customElements.define(
 
     #panelForLocation(panels, hash = location.hash) {
       if (!this.#root || !hash) return null;
-      const target = this.#targetFor(hash);
+      const target = fragmentTarget(hash);
       return target
         ? (panels.find((panel) => panel === target || panel.contains(target)) ?? null)
         : null;
-    }
-
-    #targetFor(hash) {
-      let id;
-      try {
-        id = decodeURIComponent(hash.slice(1));
-      } catch {
-        return null;
-      }
-      return id ? document.getElementById(id) : null;
     }
 
     #syncRootContext() {

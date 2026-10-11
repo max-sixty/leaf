@@ -5,7 +5,7 @@
 import { declarationFor, elementsDeclaring, layerFact } from "./registry.js";
 import { readQuestions } from "./questions/model.js";
 import { quietSince } from "./presence.js";
-import { quoted } from "./widget-elements.js";
+import { quoted } from "./widget-descriptors.js";
 import { saidAt, updateSequence } from "./updates.js";
 import { widgetController } from "./widget-controller.js";
 import { addressableName } from "./anchor-resolution.js";

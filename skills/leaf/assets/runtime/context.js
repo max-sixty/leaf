@@ -68,9 +68,17 @@ export const runtime = {
   get browser() {
     return readApplication().authoritative?.browser ?? null;
   },
+  // Whether the document shows the active revision. Activation only moves forward
+  // (the publisher refuses an answer whose active revision went back), so a document
+  // showing any other revision is behind it: an older pin, or a tab the agent has
+  // since revised.
+  get showsActive() {
+    return (
+      runtime.active !== null && runtime.currentRevision === runtime.active.revision
+    );
+  },
   get currentLabel() {
-    return readApplication().document.live &&
-      runtime.currentRevision === runtime.active?.revision
+    return readApplication().document.live && runtime.showsActive
       ? runtime.active.label
       : runtime.currentStamp === null
         ? null
@@ -80,8 +88,7 @@ export const runtime = {
     return readApplication().document.revision;
   },
   get currentStamp() {
-    return readApplication().document.live &&
-      runtime.currentRevision === runtime.active?.revision
+    return readApplication().document.live && runtime.showsActive
       ? runtime.active.version
       : (readApplication().document.stamp ?? null);
   },

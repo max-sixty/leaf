@@ -5662,6 +5662,31 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
     expect(page.locator(".lf-thread .lf-quote")).to_have_text("§ app.py · file")
     expect(page.locator(".lf-thread")).to_contain_text("Review this file as a whole.")
 
+    # A thread on a line of the file still unloaded is named as its drawn row would be,
+    # not by the widget holding it.
+    post_event(
+        page,
+        url.rsplit("/versions/", 1)[0] + "/api/event",
+        data={
+            "kind": "comment",
+            "revision": 1,
+            "text": "Check the new line.",
+            "anchor": {
+                "section": "patch",
+                "datum": '["app.py","new",1]',
+                "source": "review-patch",
+                "source_revision": revision,
+            },
+        },
+    )
+    expect(page.locator(".lf-thread")).to_have_count(2)
+    expect(page.locator("lf-diff [data-line-type]")).to_have_count(0)
+    quotes = page.locator(".lf-thread .lf-quote").all_text_contents()
+    assert sorted(" ".join(quote.split()) for quote in quotes) == [
+        "§ app.py · file",
+        "§ app.py · new line 1",
+    ]
+
 
 def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     """The data feed supplies the patch while its line key supplies both comment routes.

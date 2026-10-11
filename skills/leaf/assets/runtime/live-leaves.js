@@ -32,7 +32,7 @@ export const presentLeaves = () => liveLeavesList.present(presentationModel());
 // browser's, a row being a link, and the row says so with no `run` to give. The user
 // arrives here by key — `g L` lands focus on the first neighbour — so the scope names
 // what activating does rather than leaving it to the platform's own contract.
-export const othersLinks = () => [...othersPanel.querySelectorAll("a.lf-others-row")];
+const othersLinks = () => [...othersPanel.querySelectorAll("a.lf-others-row")];
 // Declared once the drawer is in the document (leaf.js): the drawer is drawers.js's, an
 // owner that imports this module back.
 export function declareLeavesKeys() {

@@ -725,9 +725,7 @@ def test_a_widget_task_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
     note = events_model.read_events(page_dir)[-1]
     assert note["settles"] == [{"kind": "task", "id": task["id"]}]
     assert state_json(page_dir)["tasks"] == []
-    [ended] = [
-        item for item in tasks_model.canonical_tasks(events_model.read_events(page_dir))
-    ]
+    [ended] = tasks_model.TaskReading(events_model.read_events(page_dir)).tasks
     assert (ended["state"], ended["outcome"]["detail"]) == ("done", "v4")
     (page_dir / "index.html").write_text(
         WORK_PAGE.replace("<title>t</title>", "<title>t · v4</title>")

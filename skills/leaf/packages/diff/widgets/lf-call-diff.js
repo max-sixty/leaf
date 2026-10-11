@@ -43,12 +43,7 @@ function parse(text) {
       : line.startsWith("- ")
         ? "removed"
         : "unchanged";
-    const displayed =
-      status === "unchanged" && line.startsWith("  ")
-        ? line.slice(2)
-        : status === "unchanged"
-          ? line
-          : line.slice(2);
+    const displayed = meta ? line : line.slice(2);
     const matched = displayed.match(LOCATION);
     if (!meta && !matched)
       throw new Error(

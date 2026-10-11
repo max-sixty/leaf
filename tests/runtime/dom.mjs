@@ -1,4 +1,4 @@
-/* The world a runtime module is imported into by `npm run test:runtime`.
+/* The world a runtime module is imported into by `pnpm run test:runtime`.
 
    A fold needs no browser, but the modules holding folds are written for one: they sit
    in files that also reach for `document`, `customElements`, or a DOM type at module

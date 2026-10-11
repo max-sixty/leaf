@@ -1,5 +1,6 @@
 /* This module owns code tokenization and highlighting. */
 import { runtime } from "./context.js";
+import { reportPageError } from "./layer-client.js";
 import { syntaxLanguages } from "./syntax-languages.js";
 
 const registry = runtime.registry;
@@ -155,10 +156,7 @@ export async function highlightBlocks(root) {
         code.replaceChildren(...synNodes(tokens));
       code.dataset.lfSyntax = lang;
     } catch (err) {
-      console.error(
-        `leaf: <pre><code class="language-${lang}"> failed to highlight`,
-        err,
-      );
+      reportPageError(err, `<pre><code class="language-${lang}"> failed to highlight`);
     } finally {
       tokenizing.delete(code);
     }

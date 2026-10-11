@@ -30,6 +30,7 @@ import {
   threadActions,
   registerReadingRegion,
   setChildren,
+  whileConnected,
 } from "/runtime/widget-api.js";
 
 const make = (tag, className, text = "") => {
@@ -41,7 +42,6 @@ customElements.define(
   class extends HTMLElement {
     #surface = null;
     #annotations = null;
-    #stopReading = null;
     #actionRows = new Map();
     #nextSlot = 0;
     #actionOrder;
@@ -70,30 +70,31 @@ customElements.define(
     };
 
     connectedCallback() {
-      if (once(this)) this.#build();
+      if (!once(this)) return;
+      this.#build();
       if (annotationMode !== "page") return;
-      this.#stopReading ??= registerReadingRegion({
-        id: this.id,
-        host: this,
-        body: this,
+      whileConnected(this, () => {
+        const stopReading = registerReadingRegion({
+          id: this.id,
+          host: this,
+          body: this,
+        });
+        this.#surface = placePageThreads(this, (targets, { collection }) =>
+          this.#present(targets, collection),
+        );
+        this.#annotations = consumeAnnotations(this, (entries, view) =>
+          this.#presentActions(entries, view),
+        );
+        return () => {
+          stopReading();
+          this.#surface.unregister();
+          this.#surface = null;
+          this.#annotations.unregister();
+          this.#annotations = null;
+          this.#actionOrder?.dispose();
+          this.#threadOrder?.dispose();
+        };
       });
-      this.#surface ??= placePageThreads(this, (targets, { collection }) =>
-        this.#present(targets, collection),
-      );
-      this.#annotations ??= consumeAnnotations(this, (entries, view) =>
-        this.#presentActions(entries, view),
-      );
-    }
-
-    disconnectedCallback() {
-      this.#stopReading?.();
-      this.#stopReading = null;
-      this.#surface?.unregister();
-      this.#surface = null;
-      this.#annotations?.unregister();
-      this.#annotations = null;
-      this.#actionOrder?.dispose();
-      this.#threadOrder?.dispose();
     }
 
     #build() {

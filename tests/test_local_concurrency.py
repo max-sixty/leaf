@@ -77,8 +77,8 @@ def test_local_worker_wrapper_announces_independent_bound_ports(tmp_path, spawn)
         for root in roots:
             worker = root / "worker"
             (worker / "src").mkdir(parents=True)
-            (worker / "node_modules").symlink_to(ROOT / "worker" / "node_modules")
-            (worker / "package.json").write_text("{}")
+            (root / "node_modules").symlink_to(ROOT / "node_modules")
+            (root / "package.json").write_text("{}")
             source = worker / "src" / "index.ts"
             source.write_text(
                 'export default { fetch() { return new Response("'

@@ -24,7 +24,7 @@
    title gesture policy, outgoing fold paint and local draft repaint. Surfaces receive
    whole-thread geometry readings rather than descendant nodes. */
 import { nextRender, sizeObserver } from "../rendering.js";
-import { holdFocus, focusDestination, focused } from "../focus.js";
+import { holdFocus, focusDestination, focused, standsOn } from "../focus.js";
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
@@ -560,8 +560,13 @@ export class ThreadView {
   // its reply row and later cards. Existing-message changes and active compositions
   // retain the hold. A pinned reply can absorb growth at the thread's end, but cannot
   // absorb changes above it or settlement replacing the reply itself.
-  newsMoves({ news, changed, folds, appendedAtEnd }) {
+  newsMoves({ news, changed, folds, appendedAtEnd, footFold }) {
     const pinned = replyPinned(this.#reply?.node);
+    // An answer's own fold of the progress run at the thread's end changes only the
+    // thread's foot, as the answer's arrival does, unless the user stands on a message
+    // the fold would put away, by focus or by a selection reaching into it.
+    const foot =
+      footFold && !folds.messages.some((key) => standsOn(this.#messageNode(key)));
     const idleAppend =
       this.#model?.surface === "panel" &&
       this.node.open &&
@@ -570,18 +575,18 @@ export class ThreadView {
       !news.settled &&
       !news.summaries &&
       !changed.size &&
-      !folds.messages.length &&
-      !folds.summaries.length;
+      (foot || (!folds.messages.length && !folds.summaries.length));
     const followed = (pinned && !news.settled) || idleAppend ? this.#foot : null;
     return (
       [
         ...[...changed].map((message) => this.#messageNode(message)),
         (news.appended || news.settled) && this.#foot,
       ].some((node) => node && node !== followed && growthAfterIsSeen(node)) ||
-      [
-        ...folds.messages.map((message) => this.#messageNode(message)),
-        ...folds.summaries.map((summary) => this.#summaryNode(summary)),
-      ].some((node) => node && growthIsSeen(node)) ||
+      (!(idleAppend && foot) &&
+        [
+          ...folds.messages.map((message) => this.#messageNode(message)),
+          ...folds.summaries.map((summary) => this.#summaryNode(summary)),
+        ].some((node) => node && growthIsSeen(node))) ||
       Boolean(news.settled && this.#settlementRow && growthIsSeen(this.#settlementRow))
     );
   }

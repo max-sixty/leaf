@@ -1,9 +1,4 @@
-import {
-  readQuestions,
-  pageScroller,
-  readingPosture,
-  TEXT_BOX,
-} from "/runtime/widget-api.js";
+import { pageScroller, readingPosture, TEXT_BOX } from "/runtime/widget-api.js";
 import {
   readingRegions,
   shownBand,
@@ -48,7 +43,6 @@ export function geometryReading(open) {
     scrollbars: scrollbarClearance(),
     margin: marginResidents(),
     arrangement: arrangedBoxes(open),
-    panes: heldPanes(),
     regions: overflowingRegions(),
     labels: shrunkLabelReading(),
   };
@@ -137,9 +131,8 @@ const AUTHORED_PANE = '[data-lf-reading-role="pane"]:not([data-lf-generated])';
 // which the Layout marks (`--lf-reading-region: layout`, layouts.css). A bounded block
 // declares that it scrolls, and a widget's own regions are its to hold, so neither is
 // here. A workspace the window is too small to hold flows and scrolls as a page, and is
-// no screen. Each comes back with its id, the name every finding uses, how far its
-// body runs past its scrollport, and how many of the Questions still open to the user it
-// holds: a region stacking several is a queue read as one long scroll.
+// no screen. Each comes back with its id, the name every finding uses, and how far its
+// body runs past its scrollport.
 export function overflowingRegions() {
   const main = document.querySelector("body > main.layout-workspace");
   if (
@@ -152,12 +145,6 @@ export function overflowingRegions() {
     (host.parentElement === main &&
       getComputedStyle(host).getPropertyValue("--lf-reading-region").trim() ===
         "layout");
-  // Shown ones only: a queue's closed items hold open Questions too, and a region that
-  // already is the queue is not stacking them.
-  const questions = readQuestions()
-    .user.filter((question) => question.source.kind === "widget")
-    .map((question) => document.getElementById(question.prompt.target))
-    .filter((question) => question?.checkVisibility());
   return readingRegions().flatMap((region) => {
     if (!main.contains(region.host) || !screenRegion(region.host)) return [];
     if (!shownRegionBounds(region) || readingPosture(region) !== "bounded") return [];
@@ -168,8 +155,6 @@ export function overflowingRegions() {
             id: region.id,
             at: element(region.host),
             over: Math.round(over),
-            questions: questions.filter((question) => region.body.contains(question))
-              .length,
           },
         ]
       : [];
@@ -408,60 +393,6 @@ export function misplacedBoxes() {
         el,
         "room",
         `${at(el)} stands ${past}px past the room the page has for a wide widget`,
-      );
-  }
-  // The other way round: a breakout held to the measure. In a flow wider than the
-  // column, a box that keeps the column (a Question, a callout) widens to a breakout among
-  // its own blocks (theme.css); one standing deeper, as a table in a figure inside an
-  // Ask does, stays at the box's width though the flow around the box has the room. A
-  // frame between them holds it on purpose and answers for it, and so does a widget's
-  // member, such as an option, which holds what it carries on its list's terms: only
-  // plain markup between them leaves the block to the box. A box held at the measure by
-  // another, as a callout inside a Question is, is named through the outermost of them,
-  // whose width lets the inner ones widen. On a column page the box fills its holder,
-  // and the breakout grows out of it instead.
-  const content = (el) => {
-    const s = getComputedStyle(el);
-    return (
-      el.getBoundingClientRect().width -
-      ["Left", "Right"].reduce(
-        (sum, side) =>
-          sum + parseFloat(s[`padding${side}`]) + parseFloat(s[`border${side}Width`]),
-        0,
-      )
-    );
-  };
-  const atMeasure = (box) =>
-    box.matches('[data-lf-space="column"]') &&
-    main.contains(box) &&
-    box.getBoundingClientRect().width <=
-      parseFloat(getComputedStyle(box).getPropertyValue("--col")) + 1;
-  const allocated = (el) => el.parentElement.closest("[data-lf-space]");
-  // Whether `outer` holds `inner` as one of its own blocks: only plain markup between
-  // them, none of it a widget's member or a box that draws a frame.
-  const plainly = (inner, outer) => {
-    for (let a = inner.parentElement; a !== outer; a = a.parentElement)
-      if (a.localName.includes("-") || draws(a)) return false;
-    return true;
-  };
-  for (const el of main.querySelectorAll(BREAKOUT)) {
-    if (!el.checkVisibility()) continue;
-    let outer = allocated(el);
-    if (!outer || !atMeasure(outer) || !plainly(el, outer)) continue;
-    if (el.getBoundingClientRect().width > outer.getBoundingClientRect().width + 1)
-      continue;
-    let up = allocated(outer);
-    for (; up && atMeasure(up) && plainly(outer, up); up = allocated(outer)) outer = up;
-    // A box held at the measure by one it is not plainly inside is that box's member,
-    // which holds it on its own terms, so no width given to either would free it.
-    if (up && atMeasure(up)) continue;
-    if (content(outer.parentElement) > outer.getBoundingClientRect().width + 1)
-      report(
-        el,
-        "held",
-        `${at(el)} asks for data-width="${el.getAttribute("data-lf-space")}" but ` +
-          `stands at the reading measure inside ${at(outer)}, which keeps the column — ` +
-          `give ${at(outer)} the data-width`,
       );
   }
   // The room being the page's own box is not the whole of what a wide widget owes,

@@ -73,8 +73,8 @@ const indentColumns = (tokens) => {
   return columns;
 };
 
-// The numbers the body's lines carry, in body order. `page check` holds `lines` to
-// one strictly ascending number per body line (x-numbering), so the two agree here.
+// The numbers the body's lines carry, in body order: the authored `lines` ranges,
+// one number per body line, or 1 to N without them.
 const numbering = (el, count) =>
   el.hasAttribute("lines")
     ? spans(el.getAttribute("lines")).flatMap(([from, to]) =>
@@ -128,8 +128,8 @@ customElements.define(
         // The gutter fits the widest number, so an excerpt from deep in a file keeps
         // its code aligned with its notes.
         pre.style.setProperty("--lf-code-digits", String(numbers.at(-1)).length);
-        // Every note's line has a row: `page check` refuses an `at` outside the
-        // block (x-lines), so there is no leftover to sweep up.
+        // A note stands at the row of the line it names; one naming a line the
+        // block does not show has no row.
         lines.forEach((tokens, i) => {
           const n = numbers[i];
           if (i && n > numbers[i - 1] + 1) {

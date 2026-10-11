@@ -1,8 +1,5 @@
 """Registry-declared markup instance validation."""
 
-import re
-
-from leaf.passages import COLLAPSE_CHARS
 from leaf.projection import enclosing_widgets
 from leaf.questions import asking
 from leaf.registry.contract import (
@@ -65,11 +62,6 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
             instance[name] = True if value in (None, "") and is_flag else (value or "")
         for err in sorted(json_validator(entry).iter_errors(instance), key=str):
             errors.append(f"{where}: {schema_error_message(err)}")
-        if "data-height" in rec["attrs"] and "x-height" not in entry:
-            errors.append(
-                f"{where}: data-height states the height of a widget that draws into "
-                f"its box, and <{tag}> takes the height of what it holds"
-            )
         want_owners = entry.get("x-owners", [])
         if want_owners and rec["parent"] not in want_owners:
             actual = f", found <{rec['parent']}>" if rec["parent"] else ""
@@ -353,108 +345,6 @@ def declared_word_errors(lf_elements: list, registry: dict) -> list:
     return errors
 
 
-LINE_RANGES = re.compile(r"[0-9]+(?:-[0-9]+)?(?:,[0-9]+(?:-[0-9]+)?)*")
-
-
-def _spans(value: str):
-    for part in value.split(","):
-        lo, _, hi = part.partition("-")
-        yield part, int(lo), int(hi) if hi else int(lo)
-
-
-# The whitespace a data body's trim removes: the browser's (JS trimEnd), spelled out
-# because Python's own \s and isspace() disagree with it at U+FEFF, U+0085 and
-# U+001C–001F, and a body ending in one would count a line more or fewer here than
-# lf-code numbers.
-_TRAILING = "".join(COLLAPSE_CHARS)
-
-
-def _body_text(owner: dict) -> str:
-    """A data body as its module reads it (`bodyText`, widget-upgrade.js): leading
-    blank lines and trailing whitespace are the <pre>'s layout, not lines."""
-    return owner.get("body", "").lstrip("\n").rstrip(_TRAILING)
-
-
-def _body_lines(owner: dict) -> int:
-    return _body_text(owner).count("\n") + 1
-
-
-def _numbering(
-    owner: dict, registry: dict
-) -> tuple[str | None, list[tuple[int, int]] | None]:
-    """The x-numbering attribute's reading on a data body's owner, and the ranges of
-    numbers its lines carry: 1..N without one, None when its value is unreadable (the
-    schema's error to report). Ranges rather than the numbers they hold, since an
-    authored range can be as long as its digits allow."""
-    attr = (registry.get(owner.get("tag")) or {}).get("x-numbering")
-    value = owner.get("attrs", {}).get(attr) if attr else None
-    if value is None:
-        return None, [(1, _body_lines(owner))]
-    if not LINE_RANGES.fullmatch(value):
-        return value, None
-    return value, [(lo, hi) for _, lo, hi in _spans(value)]
-
-
-def line_ref_errors(lf_elements: list, registry: dict) -> list:
-    """A body's x-numbering that does not number it, and a declared line reference
-    outside the body it points into. x-numbering gives each line of a data body the
-    number it has in the source it quotes, as ascending ranges; x-lines names the
-    attributes holding line numbers or ranges of the nearest data body — the element's
-    own, or its enclosing data element's (lf-note's `at` anchors in its lf-code) — by
-    those numbers, a line the body leaves out included (it addresses the elided row
-    standing for it). The modules miss silently in both directions — a reversed range
-    paints nothing, a note past the end docks at the block's foot, a numbering one line
-    short leaves the last line unnumbered — and version-to-version drift is exactly how
-    one goes stale, so the door refuses what no user would ever see."""
-    errors = []
-    for rec in lf_elements:
-        entry = registry.get(rec["tag"]) or {}
-        # Shape is the schema's question and already answered (widget_errors reports
-        # a malformed value); this gate owns only the counts and bounds, so a value
-        # it cannot read is one it stands aside from rather than a traceback that
-        # eats every other error.
-        value, ranges = _numbering(rec, registry)
-        if value is not None and ranges is not None:
-            where = at(rec, f'{entry["x-numbering"]}="{value}"')
-            last = None
-            for part, lo, hi in _spans(value):
-                if hi < lo:
-                    errors.append(f"{where}: range {part} runs backwards")
-                elif last is not None and lo <= last:
-                    errors.append(f"{where}: range {part} does not follow line {last}")
-                last = hi
-            numbered = sum(max(0, hi - lo + 1) for lo, hi in ranges)
-            count = _body_lines(rec)
-            if numbered != count:
-                errors.append(
-                    f"{where}: numbers {numbered} lines, but the body has {count}"
-                )
-        for attr in entry.get("x-lines", ()):
-            ref = rec["attrs"].get(attr)
-            if ref is None or not LINE_RANGES.fullmatch(ref):
-                continue
-            body_owner = rec if _body_text(rec) else rec.get("holder") or {}
-            value, ranges = _numbering(body_owner, registry)
-            if ranges is None:
-                continue
-            # A line the body leaves out still has a row: the elided one standing for
-            # its stretch. So a reference may name any number from the first shown
-            # line to the last, and only one past either end misses.
-            first, last = min(lo for lo, _ in ranges), max(hi for _, hi in ranges)
-            where = at(rec, f'{attr}="{ref}"')
-            for part, lo, hi in _spans(ref):
-                if hi < lo:
-                    errors.append(f"{where}: range {part} runs backwards")
-                elif lo < first or hi > last:
-                    errors.append(
-                        f"{where}: line {part} is outside the {ranges[0][1]}-line body"
-                        if value is None
-                        else f"{where}: line {part} is outside the body's "
-                        f'{registry[body_owner["tag"]]["x-numbering"]}="{value}"'
-                    )
-    return errors
-
-
 def suggestion_errors(lf_elements: list, registry: dict, thread_ids: set) -> list:
     """What the registry's schema can't say about a suggestion: it holds at most
     one of each slot and at least one of them, it doesn't nest, and `resolves`
@@ -502,7 +392,6 @@ def instance_errors(lf_elements: list, registry: dict) -> list:
         + addressable_instance_errors(lf_elements, registry)
         + question_context_errors(lf_elements, registry)
         + declared_word_errors(lf_elements, registry)
-        + line_ref_errors(lf_elements, registry)
     )
 
 

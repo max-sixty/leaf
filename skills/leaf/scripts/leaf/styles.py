@@ -143,33 +143,9 @@ def scoped(css: str, root: str) -> str:
     return f"@scope ({root}) {{\n{css}}}\n"
 
 
-PRESENTATION_PROPERTIES = {
-    "all",
-    "display",
-    "visibility",
-}
-
-
 def inline_style_at(inline: dict) -> str:
     """Name one style="" by the element and line an author finds it at."""
     return f"<{inline['tag']} style> (line {inline['line']})"
-
-
-def inline_presentation_override_errors(parser: SourceDocument) -> list:
-    """Inline importance outranks even the theme's first important cascade layer."""
-    errors = []
-    for inline in parser.inline_styles:
-        for declaration in css_block(inline["style"]):
-            if (
-                declaration.type == "declaration"
-                and declaration.important
-                and declaration.lower_name in PRESENTATION_PROPERTIES
-            ):
-                errors.append(
-                    f"{inline_style_at(inline)} makes protected presentation property "
-                    f"{declaration.lower_name} important"
-                )
-    return errors
 
 
 # ---------- page CSS that fights the layout ----------

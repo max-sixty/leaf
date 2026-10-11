@@ -232,11 +232,6 @@ def test_the_render_gate_reports_trapped_margins_as_advice(browser, serve):
 <div id="card" style="padding:16px;--lf-block-frame:1">
   <h2>A deliberately padded card</h2><p>Its inset remains intentional.</p>
 </div>
-<div style="padding:16px;--lf-block-frame:1">
-  <div id="row" style="display:flex;gap:12px">
-    <p>Left.</p><p>Right.</p>
-  </div>
-</div>
 <section id="compact-frame"><h2 style="margin-block:32px 0">Compact inset</h2>Words</section>
 <section id="dark-frame"><h2 style="margin-block:32px 0">Dark inset</h2>Words</section>
 """,
@@ -258,12 +253,6 @@ def test_the_render_gate_reports_trapped_margins_as_advice(browser, serve):
             "drawn frame, or --lf-block-frame: trim for a transparent grouping; "
             "put spacing between "
             "selectable blocks in the parent's gap or outside margins"
-        ),
-        *(
-            f"<div id=row> trims only one item at its {edge} edge while another keeps "
-            "13px of margin. Declare --lf-holds-edge: 1 on this flex or grid row to "
-            "keep its items aligned"
-            for edge in ("above", "below")
         ),
         (
             "[dark] <section id=dark-frame> draws 16px of inset and shows 48px above its <h2>: "
@@ -437,31 +426,11 @@ def test_the_render_gate_fails_a_wide_page_that_scrolls_sideways_only_between_vi
     assert reading.advice == []
 
 
-def _pane_regions(columns: str, media: str) -> str:
-    return leaf_page(
-        "pane regions",
-        """
-  <header><h1>Alerts</h1></header>
-  <div id="regions">
-    <lf-pane id="queue" label="Queue"><div><p>Three alerts wait.</p></div></lf-pane>
-    <lf-pane id="alert" label="Alert"><div><p>Disk pressure on db-2.</p></div></lf-pane>
-  </div>
-""",
-        head=f"""<style>
-#regions {{ display: grid; grid-template-columns: {columns}; }}
-@media {media}
-</style>""",
-        layout="workspace",
-    )
-
-
 def test_a_screen_region_that_runs_past_its_room_gets_advice(browser, serve):
     """A workspace is a screen the reader moves through, so a region of it that has to
     scroll is the exception, and the gate names each one with the swept widths it runs
     past its room at, as advice: the page still passes. Here the detail pane runs past
-    its room and the queue fits, so only the detail is named. Once the detail stacks two
-    open Asks, it is a queue read as one scroll, and the advice names the side-list
-    queue instead."""
+    its room and the queue fits, so only the detail is named."""
     source = leaf_page(
         "screen regions",
         """
@@ -488,48 +457,6 @@ def test_a_screen_region_that_runs_past_its_room_gets_advice(browser, serve):
         advice,
     )
     assert spans and int(spans[1]) < 1200, advice
-    assert "lf-tabs" not in advice, advice
-
-    asks = "".join(
-        f"""<lf-ask id="ask-{n}"><h4>Page on alert {n}?</h4>
-        <lf-options id="choice-{n}" choose>
-          <lf-option id="yes-{n}"><strong>Page</strong> Wake someone.</lf-option>
-          <lf-option id="no-{n}"><strong>Ticket</strong> Wait for morning.</lf-option>
-        </lf-options></lf-ask>"""
-        for n in (1, 2)
-    )
-    queued = source.replace("<p>Disk pressure on db-2.</p>", asks)
-    reading = render_gate_model.render_version(browser, serve(queued, packages=()))
-    (advice,) = [line for line in reading.advice if "past the region" in line]
-    assert "holds 2 open Questions" in advice and 'lf-tabs list="side"' in advice, (
-        advice
-    )
-
-
-STACK = "{ #regions { grid-template-columns: 1fr; } }"
-SPLIT = "{ #regions { grid-template-columns: 1fr 1fr; } }"
-
-
-@pytest.mark.parametrize(
-    ("columns", "media"),
-    [
-        ("1fr 2fr", f"(width < 720px) {STACK}"),
-        ("1fr", f"(width < 900px) {STACK}"),
-        ("1fr", f"(width >= 1800px) {SPLIT}"),
-    ],
-    ids=[
-        "stacks-where-the-layout-flows",
-        "rows-at-every-width",
-        "rows-then-columns-when-ultrawide",
-    ],
-)
-def test_workspace_panes_can_follow_the_authored_grid(browser, serve, columns, media):
-    """Workspace panes can stay in rows or share columns as the authored grid changes."""
-    reading = render_gate_model.render_version(
-        browser, serve(_pane_regions(columns, media), packages=())
-    )
-
-    assert reading.failures == []
 
 
 # Four drawings in the idiom. The first is drawn wider than the column holds, so the fit
@@ -3264,6 +3191,10 @@ def test_page_fixture_renders(browser, serve, source):
     And nothing the runtime adds stands among the elements the page wrote, where it
     would change which child the page's own rules find first, last, or next.
 
+    Code the page shows reads at 4.5:1 or better in both schemes. The syntax palette is
+    the theme's, so the suite holds it over the shipped pages rather than the gate
+    asking it of every authored one.
+
     Then the page is scrolled (`scroll_findings`), on the same page the probes read,
     since both want the page as a reader first opens it."""
     url = serve(source)
@@ -3284,6 +3215,19 @@ def test_page_fixture_renders(browser, serve, source):
     assert stray == [], stray
     following = scroll_findings(page)
     assert following == [], "\n".join(following)
+    unread = []
+    for scheme in ("light", "dark"):
+        page.emulate_media(color_scheme=scheme)
+        # The scheme's colours land through transitions; read where they end.
+        page.evaluate(
+            "() => document.getAnimations().forEach("
+            "(a) => a instanceof CSSTransition && a.finish())"
+        )
+        unread += [
+            f"[{scheme}] {u}"
+            for u in render_checks_model.evaluate_probe(page, "unreadSyntax")
+        ]
+    assert unread == [], unread
 
 
 # The page's longest scroller, the one its reader spends the scroll in.
@@ -4199,10 +4143,6 @@ def test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it(
     assert any(
         f["id"] == "row" and f["edge"] == "above"
         for f in render_checks_model.evaluate_probe(page, "splitEdges")
-    )
-    assert any(
-        "<div id=row> trims only one item at its above edge" in line
-        for line in render_gate_readings.framing_advice(page)
     )
     assert not [
         f

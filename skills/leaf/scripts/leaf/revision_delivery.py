@@ -379,7 +379,9 @@ def mark_declared(
         marks = {}
         for key, mark in DECLARED_MARKS.items():
             declared = next((d[key] for d in declarations if d.get(key)), None)
-            if (authored := mark.get("authored")) in attrs:
+            if (authored := mark.get("authored")) in attrs and (
+                declared or not mark.get("declared_only")
+            ):
                 marks[mark["paint"]] = attrs[authored]
             elif declared:
                 marks[mark["paint"]] = "" if declared is True else str(declared)

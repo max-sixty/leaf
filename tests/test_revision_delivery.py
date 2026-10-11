@@ -765,3 +765,17 @@ def test_source_fallback_marks_derive_from_open_registry_content_declarations():
     assert not "data-lf-verbatim" in soup.find(id="source").attrs
     assert soup.find(id="literal").attrs["data-lf-content"] == "data"
     assert "data-lf-verbatim" in soup.find(id="literal").attrs
+
+
+def test_a_stated_height_holds_only_on_a_widget_that_draws_into_its_box():
+    """A table or a block takes the height of what it holds: a reservation on one would
+    clip its words for good, since no module ever marks it drawn. So `data-height`
+    reserves room only where the tag declares x-height."""
+    source = (
+        '<lf-chart id="chart" data-height="240"></lf-chart>'
+        '<table id="table" data-height="80"><tr><td>A</td></tr></table>'
+    )
+    delivered = mark_declared(source, {"lf-chart": {"x-height": 400}}, {})
+    soup = SourceDocument(delivered).tree
+    assert soup.find(id="chart").attrs["data-lf-height"] == "240"
+    assert "data-lf-height" not in soup.find(id="table").attrs

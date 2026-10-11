@@ -17,10 +17,9 @@ from leaf.registry.storage import read_page_registry
 from leaf.revision_artifact import ArtifactError, RevisionArtifact, capture_artifact
 from leaf.sample_content import initial_sample_events
 from leaf.schema import VENDORED_FILES
-from leaf.structure import LF_META, SourceDocument, links_with_rel, script_kind
+from leaf.structure import LF_META, SourceDocument, script_kind
 from leaf.styles import (
     css_syntax_errors,
-    inline_presentation_override_errors,
     inline_style_at,
     scroller_css_advice,
 )
@@ -120,14 +119,6 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
 
     errors.extend(document_declaration_errors(parser))
 
-    for link in links_with_rel(parser.links, "canonical"):
-        errors.append(
-            f'<link rel="canonical"> (line {link["line"]}): the served document names '
-            "the page root itself, and a page whose head declares a second address "
-            "leaves a crawler to choose between them. Write the title and description; "
-            "the address is delivery's."
-        )
-
     for encoding in parser.encoding_metas:
         errors.append(
             f"<meta charset> (line {encoding['line']}) belongs to delivery; "
@@ -194,7 +185,7 @@ def _presentation_errors(parser) -> list[str]:
         errors.extend(
             css_syntax_errors(inline["style"], inline_style_at(inline), block=True)
         )
-    return errors + inline_presentation_override_errors(parser)
+    return errors
 
 
 def _source_advice(

@@ -140,10 +140,8 @@
           <a href="#x-inline"><code>x-inline</code></a>
           <a href="#x-instructions"><code>x-instructions</code></a>
           <a href="#x-language"><code>x-language</code></a>
-          <a href="#x-lines"><code>x-lines</code></a>
           <a href="#x-measured"><code>x-measured</code></a>
           <a href="#x-name"><code>x-name</code></a>
-          <a href="#x-numbering"><code>x-numbering</code></a>
           <a href="#x-owners"><code>x-owners</code></a>
           <a href="#x-paints"><code>x-paints</code></a>
           <a href="#x-patch"><code>x-patch</code></a>
@@ -395,25 +393,6 @@
               </p>
             </div>
           </section>
-          <section class="reference-entry" id="x-lines">
-            <h3><code>x-lines</code></h3>
-            <div class="reference-copy">
-              <p>
-                Attributes holding line references into the nearest data body — the
-                element's own &lt;pre&gt;, or its enclosing data element's (a note's
-                <code>at</code> names a line of its code block) — which
-                <code>page check</code> refuses outside the body.
-              </p>
-              <details class="reference-more">
-                <summary aria-label="Full x-lines contract">Full contract</summary>
-                <p>
-                  A reference names a line by the number that body's x-numbering gives
-                  it, 1-based when it has none; a number inside a gap the numbering
-                  leaves is in the body.
-                </p>
-              </details>
-            </div>
-          </section>
           <section class="reference-entry" id="x-measured">
             <h3><code>x-measured</code></h3>
             <div class="reference-copy">
@@ -449,24 +428,6 @@
                   title instead, as a column's or a tab's <code>label</code> is. An
                   attribute the element merely shows first, such as a metric's value or
                   a chronology entry's time, is not its title.
-                </p>
-              </details>
-            </div>
-          </section>
-          <section class="reference-entry" id="x-numbering">
-            <h3><code>x-numbering</code></h3>
-            <div class="reference-copy">
-              <p>
-                The attribute giving the source line numbers a data body quotes, as
-                ascending ranges ("1505-1507,1520-1527").
-              </p>
-              <details class="reference-more">
-                <summary aria-label="Full x-numbering contract">Full contract</summary>
-                <p>
-                  <code>page check</code> holds it to one number per body line, counting
-                  the &lt;pre&gt;'s text without its leading blank lines and trailing
-                  whitespace; a gap between ranges is lines the body leaves out, and
-                  every x-lines reference into that body names lines by these numbers.
                 </p>
               </details>
             </div>

@@ -7,14 +7,12 @@ from leaf.passages import block_markdown
 from leaf.registry.schema import json_value
 from leaf.schema import MEDIA_DIR, SERVED_PATH
 from leaf.structure import (
-    PAGE_ALLOCATIONS,
     POINTABLE_TAGS,
     SECTIONING_TAGS,
     SourceDocument,
     allocation_expects,
     links_with_rel,
 )
-from leaf.styles import inline_presentation_override_errors
 
 
 def reserved_marker_errors(parser) -> list:
@@ -172,37 +170,13 @@ def page_boundary_errors(parser: SourceDocument) -> list:
 
 
 def authored_allocation_errors(parser: SourceDocument) -> list:
-    """Authored allocations use the layer's named values, and a page's own allocation
-    stands on its `body`."""
-    return (
-        [
-            f"{at(item, item['attr'] + '=' + json_value(item['value']))} has an invalid value; "
-            f"expected {expected}"
-            for item in parser.authored_allocations
-            if (expected := allocation_expects(item["attr"], item["value"]))
-        ]
-        + [
-            f"{at(item, item['attr'])} states the height of a widget that draws into "
-            f"its box, and <{item['tag']}> is not one: a block takes the height of what "
-            "it holds"
-            for item in parser.authored_allocations
-            if item["attr"] == "data-height" and not item["tag"].startswith("lf-")
-        ]
-        + [
-            f"{at(item, item['attr'])} belongs on <body>, where it says whether the page "
-            f"keeps a rail"
-            for item in parser.authored_allocations
-            if item["attr"] in PAGE_ALLOCATIONS and item["tag"] != "body"
-        ]
-        + [
-            f"{at(item, item['attr'])} sizes a block in the page's flow, and <main> is the "
-            "page: its width is a Layout class on it (layout-wide, layout-sidebar, "
-            "layout-workspace)"
-            for item in parser.authored_allocations
-            if item["attr"] not in PAGE_ALLOCATIONS | {"data-height"}
-            and item["tag"] == "main"
-        ]
-    )
+    """Authored allocations use the layer's named values."""
+    return [
+        f"{at(item, item['attr'] + '=' + json_value(item['value']))} has an invalid value; "
+        f"expected {expected}"
+        for item in parser.authored_allocations
+        if (expected := allocation_expects(item["attr"], item["value"]))
+    ]
 
 
 def unarranged_main(parser: SourceDocument) -> list:
@@ -252,11 +226,7 @@ def fragment_style_errors(parser: SourceDocument) -> list:
             "<link rel=stylesheet> in message markup dresses the whole document it is "
             "put into; the page serves the one vendored theme it was reviewed with"
         )
-    return (
-        errors
-        + authored_allocation_errors(parser)
-        + inline_presentation_override_errors(parser)
-    )
+    return errors + authored_allocation_errors(parser)
 
 
 def media_errors(parser: SourceDocument, page_dir: Path) -> list:

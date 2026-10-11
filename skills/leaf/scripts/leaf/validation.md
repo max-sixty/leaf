@@ -21,7 +21,7 @@ runs after the runtime has read the page, as inline modules, deferred classic sc
 files, or their literal local graphs rooted below `/page/`, never parser-blocking or
 `async` scripts; page-specific presentation appears inline or in captured `/page/`
 stylesheets; anything on another server is named by its http(s) URL and loaded as
-written. The encoding, runtime, theme, page identity, canonical address, and anything
+written. The encoding, runtime, theme, page identity, and anything
 declared about the whole document (a `<base>`, an http-equiv `<meta>`, an import map)
 belong to delivery and are rejected in source, and the last three in message markup
 too, which renders in every revision. Delivery inserts them at the start of
@@ -124,10 +124,7 @@ reported with the widths it spans. The sweep also finds each width where the pag
 margin residents change (`data-lf-margin` on `main`, less the rail), and the readings
 run again there in the light scheme, where each resident has the least room it will
 ever have. It reads, too, how each flex or grid box the page wrote splits its children
-into rows, and the swept widths where that changes, and it fails a workspace whose panes
-stand side by side at the desktop viewport and stack in one column at a width where the
-Layout still fills the window, since stacked there they share one window's height. A
-body of rows at the desktop viewport is a design of rows, whatever a wider window does.
+into rows, and the swept widths where that changes.
 At each swept width it also reads, as advice, each drawing whose fit to its box draws
 labels under 10px and each region of a full-height workspace that runs past its room,
 and reports each unbroken run of widths where one appears, with its reading at the

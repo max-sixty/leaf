@@ -285,7 +285,7 @@ log beside the chart it explains, which the page's `<style>` places:
 ```
 
 Stack the panes below 720px, where the Layout lets the page scroll: panes stacked in a
-wider window still share its one height, and `page check --render` refuses them.
+wider window still share its one height.
 
 `density-working` is a style, not a Layout: on any block it sets smaller type, tighter
 spacing and options as rows, for a surface the reader operates rather than reads down.

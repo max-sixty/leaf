@@ -13,7 +13,6 @@ from .readings import (
     overflowing_region_advice,
     settle_at,
     shrunk_label_advice,
-    stacked_panes,
     sweep,
     swept_overflow,
     unreserved_height_advice,
@@ -90,15 +89,12 @@ def _render_version_attempt(
     slot words disagree with the log's decision (read once: the palettes carry no
     geometry between them), and an SVG paint token that does not resolve to valid paint
     in that scheme. At each viewport and scheme it also reads, as advice, whether a
-    child's margin enlarges an authored box's inset or edge trim misaligns a flex or
-    grid row. Once per version, on the settled desktop page in the light scheme, it
+    child's margin enlarges an authored box's inset. Once per version, on the settled desktop page in the light scheme, it
     reads whether a widget declaring x-height drew at a height its first paint did
     not hold; and then, resizing that loaded page through every width
     from 360px to 1920px, the sideways readings again: a version holds at each of them,
-    not only at the two it renders. There it also reads whether a workspace whose panes
-    stand side by side at the desktop viewport stacks them while the Layout still fills
-    the window, which only the widths between the two viewports show, and, as advice
-    naming the widths each spans, whether a drawing's fit to its box shrinks its labels
+    not only at the two it renders. There it also reads, as advice naming the widths
+    each spans, whether a drawing's fit to its box shrinks its labels
     past reading and whether a region of a screen runs past the room it has. That pass
     also finds each width where the page's margin content changes (a sidebar, contents
     map or note first standing in the margin), and the gate renders the page there too,
@@ -135,7 +131,6 @@ def _render_version_attempt(
         advice.extend(shrunk_label_advice(widths))
         advice.extend(overflowing_region_advice(widths, desktop["height"]))
         swept.extend(swept_overflow(widths, RENDER_VIEWPORTS))
-        swept.extend(stacked_panes(widths, desktop["width"]))
         arrangement.extend(arrangement_changes(widths))
         fixed = {viewport["width"] for viewport in RENDER_VIEWPORTS}
         changes.extend(

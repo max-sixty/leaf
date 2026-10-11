@@ -56,12 +56,13 @@ import { sentDrawing, validDrawing } from "./drawing-record.js";
 import { commitPoint } from "../pointed-place.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";
-import { iconElement } from "../icons.js";
 
 // The floating field immediately accepts a comment on the target the user named.
-// Other responses, Tab from the field, or `e` while it stands unfocused, unfolds every response
+// Tab from the field, or `e` while it stands unfocused, unfolds every other response
 // the target offers. The field is the group's stable primary control; reaction
 // vocabulary changes the choices, not the disclosure or the field's place.
+// The comment field has only its Send action, on every pointer. Suggest and reactions
+// have keyboard routes only; adding a pointer route is an unsettled product choice.
 // One affordance, raised only where the user has already pointed: a native text
 // selection or an explicit Comment target gesture on an item or visual part.
 export const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
@@ -84,13 +85,6 @@ export const fabOptions = el("span", "lf-response-options");
 fabOptions.id = "lf-response-options";
 fabOptions.setAttribute("role", "group");
 fabOptions.setAttribute("aria-label", "Other responses");
-const fabMore = el("button", "lf-ui lf-icon-action lf-fab-more");
-fabMore.type = "button";
-fabMore.setAttribute("aria-label", "Other responses");
-fabMore.title = "Other responses";
-fabMore.setAttribute("aria-controls", fabOptions.id);
-fabMore.setAttribute("aria-expanded", "false");
-fabMore.append(iconElement("more", "lf-action-icon"));
 const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
   icon: "edit",
   label: "Suggest",
@@ -382,7 +376,6 @@ export function createSelectionComposer({
     }
     if (next) setReact(false);
     responseOptionsOpen = next;
-    keeps(fabMore, "aria-expanded", String(next));
     fabBar.classList.toggle("lf-response-open", next);
     if (place && fabAnchorAt()) showFab(fabAnchorAt());
     if (next && focus) focusResponseOption(focus);
@@ -401,8 +394,6 @@ export function createSelectionComposer({
     );
     if (responseOptionsOpen && !responseOptionsAvailable())
       setResponseOptions(false, { place: false });
-    keepsHidden(fabMore, !responseOptionsAvailable());
-    fabBar.toggleAttribute("data-lf-other-responses", responseOptionsAvailable());
   }
 
   function resetResponseOptions() {
@@ -763,8 +754,6 @@ export function createSelectionComposer({
         }
       },
     });
-    composerInput.closest(".lf-compose-field").append(fabMore);
-    fabMore.onclick = () => setResponseOptions(!responseOptionsOpen);
     suggestCheck.onchange = () => setSuggestionMode(suggestCheck.checked);
     fabSuggest.onclick = () => setSuggestionMode(!suggestCheck.checked);
     onStanding((node) => {

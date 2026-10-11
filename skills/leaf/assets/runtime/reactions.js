@@ -20,7 +20,7 @@
    The margin form shows the declared reaction margin entries together within the six-item
    budget. Comment retains its separate `c` route. The digit register and visible
    choices therefore name the same complete set. The choices do not widen the rail or
-   open a separate palette below the target. The compact response bar's More controller
+   open a separate palette below the target. The compact response bar's disclosure controller
    owns its state, focus return, and geometry independently.
    Thread reactions remain in their thread-owned strip. The event still
    carries its durable authored anchor, while

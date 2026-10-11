@@ -84,24 +84,37 @@ Two test-owned failures recur:
 
 ## Fix every failure in a red run
 
-Every failure in the run is the session's, including those earlier runs also hit;
-a tracking issue records a failure but doesn't fix it. Open one pull request per
-cause that no open pull request already covers. For each durable failure, look
-for the pull request that introduced it, first among those merged since the last
-run where the failing check passed and then earlier, since a failure that comes
-and goes can pass after its cause landed. Establish the cause from the failing
-diagnostic and the pull request's context, following **Reading a red suite**.
-Where a pull request introduced it, explain which behavior its author intended
-and why the repair changes the test or the behavior; link it from the fix's
-description.
+The goal is main green. Every failure in the run is the session's, including
+those earlier runs also hit; a tracking issue records a failure but doesn't fix
+it. A session ends at GitHub's six-hour job limit, and a fix left unmerged then
+waits for someone else. Plan the work, including how to group it and what to run
+in parallel, from these facts:
+
+- The complete suite takes hours, so the run is already that old when the session
+  starts, and main has moved since. A failure that no longer reproduces on
+  current main needs no fix.
+- Failures often share a cause, and each pull request costs a CI run, so open
+  one pull request per cause that no open pull request already covers.
+- A pull request's CI takes most of an hour, and the session is free while it
+  runs. Subagents, each in its own worktree, can diagnose or fix separate causes
+  at the same time.
+
+For each durable failure, look for the pull request that introduced it, first
+among those merged since the last run where the failing check passed and then
+earlier, since a failure that comes and goes can pass after its cause landed.
+Establish the cause from the failing diagnostic and the pull request's context,
+following **Reading a red suite**. Where a pull request introduced it, explain
+which behavior its author intended and why the repair changes the test or the
+behavior; link it from the fix's description.
 
 Merge a pull request that fixes tests, without waiting for maintainer approval,
 once each test it claims to fix failed before the change and passes after it
-(a skipped or deleted test has not passed). Run `monitor-ci`'s poll on the exact
-head to a terminal result. If that result is red only because other tests fail,
-merge the verified fix for its subset; handle the other failures separately.
-Pull requests run only the nightly tests they edit, so run the claimed ones
-yourself. GitHub's applying merge rules still govern the merge.
+(a skipped or deleted test has not passed). Pull requests run only the nightly
+tests they edit, so run the claimed ones yourself. The pull request's CI must
+reach a terminal result on the exact head (`monitor-ci`); other causes can be
+worked while it runs. A failure there outside the tests it claims, and not caused
+by its change, neither blocks the merge nor calls for a rerun: fix it like the
+run's other failures. GitHub's applying merge rules still govern the merge.
 
 Merge a fix that is correct but incomplete, and open an issue for what it leaves.
 

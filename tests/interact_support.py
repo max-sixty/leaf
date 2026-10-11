@@ -60,7 +60,7 @@ from leaf import vendoring as vendoring_model
 from leaf.registry.storage import load_registry
 from leaf.revision_artifact import active_enclosing
 from leaf.served_state import page as served_page
-from leaf.validation import compatibility as compatibility_model
+from leaf.validation import composition as composition_model
 from leaf.validation import instances as validation_model
 from pytest_regtest.snapshot_handler import (
     BaseSnapshotHandler,
@@ -182,7 +182,7 @@ def model_layer(*packages: str) -> dict:
     cached per selection, because every stated page asking for the same packages
     is asking for the same registry. Nothing may mutate what this returns.
     """
-    return compatibility_model.incoming_registry(layer_model.layer_inputs(packages))
+    return composition_model.incoming_registry(layer_model.layer_inputs(packages))
 
 
 def queue_board_registry(registry: dict) -> dict:

@@ -378,7 +378,7 @@ requires-dist = [
     { name = "markdown-it-py", specifier = ">=4" },
     { name = "mdit-py-plugins", specifier = ">=0.4" },
     { name = "packaging", specifier = ">=22" },
-    { name = "playwright", specifier = ">=1.51" },
+    { name = "playwright", specifier = ">=1.63" },
     { name = "psutil", specifier = ">=6" },
     { name = "starlette", specifier = ">=0.48" },
     { name = "tinycss2", specifier = ">=1.4" },

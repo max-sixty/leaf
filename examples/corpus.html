@@ -1783,6 +1783,7 @@
         block-size: 100%;
         min-block-size: 0;
         flex: 1 1 0;
+        --lf-holds-height: 1;
       }
       #aw-navigation {
         display: flex;
@@ -1794,7 +1795,6 @@
           grid-template-columns: minmax(0, 1fr);
         }
         #aw-annotations {
-          block-size: clamp(18rem, 55svh, 30rem);
           flex: none;
         }
       }
@@ -7587,7 +7587,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <h3>Page-owned annotations</h3>
             <p>
               Alt-click the recommendation in this practice window to comment. The reply
-              and actions stay in the allocated annotation area. Choose a route, then
+              and actions stay in the page's own annotation area. Choose a route, then
               use Undo to return to the open question.
             </p>
             <lf-sample
@@ -7602,9 +7602,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               >
                 <style>
                   #bg-page-annotations-rail {
-                    display: block;
                     inline-size: 100%;
-                    block-size: 20rem;
                   }
                 </style>
                 <h1>Workshop route</h1>

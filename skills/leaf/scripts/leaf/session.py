@@ -26,8 +26,10 @@ from .harness import Harness, claim_harness, session_harness
 from .leases import release_lease, take_lease, waiter_lease_path
 from .locations import path_location, paths_same
 from .machine import state_home
+from .presence import nudge_unwatched
 from .schema import (
     ANSWER_ASK_INSTRUCTION,
+    MESSAGE_KINDS,
     SERVICE_FILE,
     VIEWED_FILE,
 )
@@ -614,7 +616,7 @@ def wake_inputs(page: PageTransaction, batch: list[dict]) -> list[dict]:
     }
     pending = []
     for event in batch:
-        if event["kind"] in {"comment", "reply"} and event["id"] not in agent_inputs:
+        if event["kind"] in MESSAGE_KINDS and event["id"] not in agent_inputs:
             continue
         pending.append(event)
     return pending
@@ -679,7 +681,5 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
     for page_dir in owned_pages(harness.session):
         with contextlib.suppress(FileNotFoundError), PageTransaction(page_dir) as page:
             if wake_inputs(page, unacknowledged(page.events, page.cursor)):
-                from .event_endpoint import nudge_unwatched
-
                 nudge_unwatched(page)
     return None

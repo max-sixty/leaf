@@ -4,7 +4,7 @@
     <title>How leaf works</title>
     <meta
       name="description"
-      content="The mechanism behind leaf, one part per tab: the loop, updates, revisions, pages, layout, navigation, data, runtime, and phones."
+      content="The mechanism behind leaf, one part per tab: the loop, progress, revisions, pages, layout, navigation, data, runtime, and phones."
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <style>
@@ -16,13 +16,13 @@
         fill: var(--warn-ink);
       }
       #turn-end-check .node.ends rect,
-      #updates-diagram .node.leaf rect,
+      #progress-diagram .node.leaf rect,
       #data-flow .node.computed rect {
         fill: var(--ok-tint);
         stroke: var(--ok);
       }
       #turn-end-check .node.ends :is(text, tspan),
-      #updates-diagram .node.leaf :is(text, tspan),
+      #progress-diagram .node.leaf :is(text, tspan),
       #data-flow .node.computed :is(text, tspan) {
         fill: var(--ok-ink);
       }
@@ -1008,7 +1008,7 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
           </section>
         </lf-tab>
 
-        <lf-tab id="updates" label="Updates">
+        <lf-tab id="progress" label="Progress">
           <section id="progress-seats">
             <h2>Progress messages</h2>
             <p id="progress-lede">
@@ -1204,15 +1204,15 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
             </p>
           </section>
 
-          <section id="updates-map">
-            <h2>Where updates appear</h2>
-            <p id="updates-map-lede">
+          <section id="progress-map">
+            <h2>Where the agent's messages appear</h2>
+            <p id="progress-map-lede">
               The agent writes work declarations, statuses, replies, and version notes.
               Leaf adds observations about delivery and agent activity. The diagram
-              shows where each update appears; starting work puts its line in the banner
+              shows where each one appears; starting work puts its line in the banner
               and beside the update or task being handled.
             </p>
-            <lf-diagram id="updates-diagram" parts="all">
+            <lf-diagram id="progress-diagram" parts="all">
               <pre>
 flowchart LR
   accTitle: Agent commands and visible outcomes

@@ -144,7 +144,8 @@ other page files and the external state listed below.
   use `<state-home>/sessions/<session>.wait`. See [session-lifetime.md](session-lifetime.md).
 
 - `viewed.json` — last visible browser attention, written by the server and absent until
-  first viewed. `http.py` owns throttled renewal; hidden tabs do not renew it.
+  first viewed. `presence.py` owns throttled renewal, which the server runs as a
+  visible tab asks for news; hidden tabs do not renew it.
 
 - `cursor.json` — acknowledged position in this page's event log. Acknowledgement and
   log replacement rules are defined in [session-lifetime.md](session-lifetime.md).

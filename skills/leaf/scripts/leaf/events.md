@@ -11,7 +11,7 @@ page and is not a global identifier. The kinds:
 | --- | --- | --- | --- | --- |
 | `comment` | user or agent | `POST /api/event`, `leaf thread open` | `text`, `drawing`, or `token`; optional `anchor`, `suggestion`, `about: "design"`, `response`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
 | `reply` | user or agent | `POST /api/event`, `leaf response reply`, proactive `leaf thread reply` | `parent`; `text` or `token`; agent `responds` when answering; `question`, a `task` title, `markup`, and a replacement `anchor` or null detachment (CLI only) | answers the exact named obligation without closing its thread; an agent reply may also replace or remove the thread's current location |
-| `edit` | agent | `leaf thread edit` | `message`, `text` | replaces one message's visible text; the original stays in the log |
+| `edit` | user or agent | `POST /api/event`, `leaf thread edit` | `message`, `text`; `base` (browser) | replaces the visible text of one message its own author wrote; the original stays in the log. A user's is a turn the agent answers |
 | `read` | user | `POST /api/event` | `messages: [{message, version}]` | records that this page's one user has read exact current or historical agent-content versions; `$events` declares it bookkeeping, so it adds no thread turn or agent work |
 | `thread_title` | agent | independent first naming or `leaf thread edit --title` | `thread`, `title` | names a thread in the panel; latest title wins without adding a turn or settling work |
 | `reanchor` | page | revision activation | `thread`, `revision`, `anchor: {section} or null` | a passage or visual part no longer resolves; retains the open thread at its surviving section or detaches it without adding a message, answering work or changing attention |
@@ -141,9 +141,9 @@ agent stays input even after the work it withdrew ends.
 Reports and errors always carry attention; agent messages do not. `leaf wait`,
 delivery selection, pickup, the unpicked-input Stop guard and the idle gate read
 that one field through `service.requires_agent_attention`. The pending transport
-count includes only user input among those events. Read marks, edits that answer
-no Question and touch no work in hand, and closing or reopening an answered thread with
-none stay quiet. Either side can open a thread and either side can close one.
+count includes only user input among those events. Read marks, an agent's edits,
+and closing or reopening an answered thread with none stay quiet; a user's edit is a
+turn the agent owes, so it carries attention as a reply does. Either side can open a thread and either side can close one.
 A note's purpose is discharged by being read, and only the user knows that
 happened, so the user ordinarily closes a thread; `leaf thread resolve` is the agent's
 door onto closing, and a thread the agent closed is named as such in the panel
@@ -248,7 +248,7 @@ reaction is not. The original message id names its first content version, and ea
 `edit` id names a new one. A version is read once a `read` event names it — the
 browser posts one after presenting and exposing the visible body, including an
 interactive reply — or once the user moves in its thread after it, the thread the
-move names (`thread_context.event_threads`): a reply or reaction, a resolve or reopen,
+move names (`thread_context.event_threads`): a reply, rewrite or reaction, a resolve or reopen,
 an action on a widget one of the thread's messages carries, or an action
 whose admitted answer closes the thread. A move that changes a thread without naming
 it, such as a later decision on the suggestion that had answered it or an `undo`,
@@ -334,11 +334,28 @@ What each thread command does for its user, and when an agent uses it, is
 `../../references/threads.md`. The door and the fold hold these rules behind
 them:
 
-- `edit` revises an agent-authored comment or reply, including a predecessor
-  session's message, and only its `text`: markup is frozen because a user action may already
-  rest on a widget in it. The original stays in the log with its id, timestamp,
-  author, thread position, and anchor; the panel, wait digests, and the transcript
-  fold the latest text onto it and label it edited.
+- `edit` revises only the `text` of a comment or reply that has text and that its
+  writer wrote: the user's own, or an agent's, including a predecessor session's.
+  Markup is frozen because a user action may already rest on a widget
+  in it, and a reaction or a bare drawing has no text to revise. The original stays
+  in the log with its id, timestamp, author, thread position, and anchor; the panel,
+  wait digests, and the transcript fold the latest text onto it and label it edited,
+  and the message's `edited` names that latest edit and the text it replaced (`was`).
+  Text the message already says is no revision, and is refused. A browser's edit names its `base`, the
+  revision its words were written over (the message's id, or its latest edit's id,
+  which the browser fills in for an edit of its own once the log has answered it), and
+  lands only while that is still the latest, so a tab holding words
+  another tab has since rewritten cannot silently replace them.
+- An agent's `edit` corrects its words and hands nothing over. A user's `edit` is a
+  turn: the fold keeps it in the thread's `revisions`, with `was`, the text it
+  replaced, and `events.exchange` places it among the messages by its own id, so it
+  reopens a resolved thread and owes an answer as a reply would. That answer names
+  the edit as `responds` and the rewritten message as its parent (`workflows`,
+  `turn_message`). Its delivery carries `was`, since the thread's digest reads the new
+  text. Only whose turn it is reads revisions; everything else reads the messages
+  (`events.conversation_turns`). So a question is answered by words standing after
+  it, and a rewrite of a message before an agent's question leaves that question on
+  the user, beside the answer the agent owes the rewrite.
 - A comment or reply's `title` gives its thread a first name atomically with the
   message, and leaves an existing name standing. `thread_title` names or renames an existing thread with a nonblank, single-line
   plain-text title of at most 80 characters. The latest title is projected separately

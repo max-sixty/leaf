@@ -775,23 +775,20 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
     The message event is immutable: the edit points back to it, so the log retains
     every wording while thread folds project the latest one. Markup stays frozen with
     the original message because user actions may already rest on widgets it sent.
+    Admission refuses a message another voice wrote (`event_contracts._edit_error`).
     """
     from leaf.registry.storage import require_registry
 
     body = read_text_arg(page_dir, text)
     with PageTransaction(page_dir) as page:
         require_registry(page_dir)
-        events = page.events
-        target = _message(page_dir, events, to)
-        if target["author"] != "agent":
-            sys.exit(f"message {to!r} is not agent-authored")
-        identity = message_identity()
+        _message(page_dir, page.events, to)
         return append_admitted(
             page,
             {
                 "kind": "edit",
                 "author": "agent",
-                **identity,
+                **message_identity(),
                 "message": to,
                 "text": body,
             },

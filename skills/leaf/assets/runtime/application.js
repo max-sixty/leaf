@@ -44,6 +44,7 @@ import { createReadTracking } from "./thread/read.js";
 import { renderMarginThread } from "./thread/inline.js";
 import { showHeld } from "./thread/held-news.js";
 import { threadBox as buildThreadBox } from "./thread/box.js";
+import { isMessageEvent } from "./pending/model.js";
 import {
   placeThreads as registerConsumer,
   placePageThreads as registerPageConsumer,
@@ -175,7 +176,8 @@ export function mountApplication(dependencies) {
       presentationError = error;
     } finally {
       try {
-        if (entry.message) announce("Message sent");
+        if (isMessageEvent(entry.event)) announce("Message sent");
+        if (entry.event.kind === "edit") announce("Message edited");
         paintKeys();
       } catch (error) {
         presentationError ??= error;
@@ -240,6 +242,7 @@ export function mountApplication(dependencies) {
     actions: threadActions,
     wireInput: dependencies.wireInput,
     landSent: dependencies.landSent,
+    landInThread: dependencies.landInThread,
     changed: refreshThread,
   };
   const settlementView = {

@@ -743,6 +743,99 @@ reaction on a message:
         A reaction on your message. It needs no reply, and Leaf already records
         whether it answers what you asked.
 
+rewritten message:
+  event:
+    kind: edit
+    thread:
+      title: Tuesday backfill
+    answer:
+      kind: reply
+      writer: agent
+  told:
+    - text: >-
+        The user rewrote their message `message` in place: `text` is how it reads
+        now and `was` how it read before, and the thread shows only the new wording.
+        Answer the message as it now reads. Where your earlier answer or work rested
+        on what changed, say what that changes and redo the work it requires; where
+        it changes nothing you did, say so. If `message` opens the thread and the
+        thread's title no longer fits what it now asks, retitle the thread with
+        `leaf thread edit <page> <message> --title "<a few words>"`, so the thread
+        panel names what the thread is about now.
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+      text: >-
+        When the event asks for work, say in its thread what you will do before
+        any other command, including reading the source it concerns: `leaf response
+        reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
+        The user reads it in the thread at once, and it takes the move in hand:
+        the move reads Working, and the line stands in the banner until you answer.
+        Do the work and put its result on the page, with whatever shows it (captures,
+        a figure, the numbers), then answer with `leaf response reply <answer.ref>
+        --done < reply.md`: what changed, in a sentence or two, linking the section
+        that shows it. When the event asks for no work, as a question may not, answer
+        it with that reply at once. The page carries the work, and the thread only
+        the conversation about it. `leaf response reply` checks any saved page edit
+        and makes it live before posting. If a revision removes what the thread
+        is anchored on, move the thread in the reply that reports it with `--section
+        <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if
+        its subject has left the page. Every answer says what it leaves: `--done`
+        when it delivers what was asked, `--question` when its prose asks the user
+        something back, or `--task "<what you owe>"` when it promises work that
+        outlasts this turn, which then stays on you, under the reply's id, until
+        `leaf task end` (`references/conversation-loop.md`, "Long-running work").
+    - text: >-
+        Your reply renders as Markdown in a narrow column: give each point its own
+        short paragraph or list item, link a page section as `[its name](#section-id)`,
+        and fence code or markup.
+
+rewritten suggestion:
+  event:
+    kind: edit
+    suggestion: true
+    thread:
+      title: Tuesday backfill
+    answer:
+      kind: reply
+      writer: agent
+  told:
+    - text: >-
+        The user rewrote their message `message` in place: `text` is how it reads
+        now and `was` how it read before, and the thread shows only the new wording.
+        Answer the message as it now reads. Where your earlier answer or work rested
+        on what changed, say what that changes and redo the work it requires; where
+        it changes nothing you did, say so. If `message` opens the thread and the
+        thread's title no longer fits what it now asks, retitle the thread with
+        `leaf thread edit <page> <message> --title "<a few words>"`, so the thread
+        panel names what the thread is about now.
+    - when: {"required": ["suggestion"], "properties": {"suggestion": {"const": true}}}
+      text: >-
+        The message is a suggestion, so `text` is now the exact replacement it proposes.
+        Apply it verbatim, or reply with your reason for declining.
+    - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
+      text: >-
+        When the event asks for work, say in its thread what you will do before
+        any other command, including reading the source it concerns: `leaf response
+        reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
+        The user reads it in the thread at once, and it takes the move in hand:
+        the move reads Working, and the line stands in the banner until you answer.
+        Do the work and put its result on the page, with whatever shows it (captures,
+        a figure, the numbers), then answer with `leaf response reply <answer.ref>
+        --done < reply.md`: what changed, in a sentence or two, linking the section
+        that shows it. When the event asks for no work, as a question may not, answer
+        it with that reply at once. The page carries the work, and the thread only
+        the conversation about it. `leaf response reply` checks any saved page edit
+        and makes it live before posting. If a revision removes what the thread
+        is anchored on, move the thread in the reply that reports it with `--section
+        <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if
+        its subject has left the page. Every answer says what it leaves: `--done`
+        when it delivers what was asked, `--question` when its prose asks the user
+        something back, or `--task "<what you owe>"` when it promises work that
+        outlasts this turn, which then stays on you, under the reply's id, until
+        `leaf task end` (`references/conversation-loop.md`, "Long-running work").
+    - text: >-
+        Your reply renders as Markdown in a narrow column: give each point its own
+        short paragraph or list item, link a page section as `[its name](#section-id)`,
+        and fence code or markup.
+
 pick on the page:
   event:
     kind: action

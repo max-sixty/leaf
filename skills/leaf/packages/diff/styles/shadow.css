@@ -230,7 +230,7 @@
   :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details {
                               --lf-top: calc(var(--lf-top-outer) + var(--lf-diff-head-h)); }
   :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details > summary { position: sticky;
-                              --lf-top: var(--lf-top-outer); --lf-head-inset: 0px;
+                              --lf-top: var(--lf-top-outer);
                               top: var(--lf-top, 0px); z-index: 2; }
   /* The press with it, as far down the pinned line as it stands at rest: its own gap
      less the 1px border the summary's box starts inside. */

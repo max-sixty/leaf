@@ -116,18 +116,20 @@ export const standingThreadId = () => heldThreadId() ?? pressed;
 // comes back later does not pull the user to it.
 // Replacement resolves through the current route, never another visible mirror of
 // the same draft. Both in-document paint and executable replacement use this admission.
+// `scroll: false` lands the user back in a box they had scrolled away from, moving no
+// scroller to show it.
 export async function replyDestination(
   id,
   open,
   intent,
-  destination = (thread) => thread.querySelector(SAY_BOX),
+  { destination = (thread) => thread.querySelector(SAY_BOX), scroll = true } = {},
 ) {
   const mayReply = restrictUserIntent(intent, () => {
     const standing = allThreads().find((candidate) => candidate.id === id);
     return Boolean(standing && replyAvailable(standing));
   });
   if (!mayReply()) return null;
-  const shown = await open(id, { part: "reply", intent: mayReply });
+  const shown = await open(id, { part: "reply", scroll, intent: mayReply });
   const thread = shown instanceof Element ? closestAcross(shown, THREAD) : null;
   const control = thread && destination(thread);
   if (!control || focused() !== shown || !mayReply()) return null;
@@ -147,6 +149,6 @@ export function holdReply(open) {
   return () =>
     held.restore(() => {
       carried.add(box);
-      return replyDestination(id, open, intent, destination);
+      return replyDestination(id, open, intent, { destination });
     });
 }

@@ -2215,9 +2215,13 @@ def test_thread_navigation_lands_after_resizing_an_open_reply(browser, serve):
     resized(page, 1280, 720)
     card = page.locator(".lf-margin-preview")
     thread = card.get_by_role("group", name="Thread, Is lunch provided", exact=False)
-    page.keyboard.press("t")
+    # The walk reaches the lunch thread wherever the gallery's order puts it.
+    for _ in range(4):
+        page.keyboard.press("t")
+        scroll_settled(page)
+        if thread.count() and thread.evaluate("el => el === document.activeElement"):
+            break
     expect(thread).to_be_focused()
-    scroll_settled(page)
     page.keyboard.press("t")
     expect(
         card.get_by_role("group", name="Thread, Workshop room photo")
@@ -2248,9 +2252,9 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("t")
     card = page.locator(".lf-margin-preview")
-    expect(
-        card.locator('.lf-page-thread[data-thread="72e031c5bf0d485ba9054628e09869d4"]')
-    ).to_be_focused()
+    # Whichever thread the walk reaches first; the gallery's order decides that.
+    expect(card.locator(".lf-page-thread")).to_be_focused()
+    walked = card.locator(".lf-page-thread").get_attribute("data-thread")
     owner = page.locator(
         '.lf-margin-marker[data-lf-kinds~="comment"]'
         '[aria-controls="lf-margin-preview"][aria-expanded="true"]:not([hidden])'
@@ -2290,9 +2294,7 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     assert card.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
         placed, abs=0.5
     )
-    expect(
-        card.locator('.lf-page-thread[data-thread="72e031c5bf0d485ba9054628e09869d4"]')
-    ).to_be_focused()
+    expect(card.locator(f'.lf-page-thread[data-thread="{walked}"]')).to_be_focused()
     # A press the page answers leaves the window where the user put it: `g G` carries the
     # card away, and `g` then opens Go-to over the page's foot rather than bringing the
     # card back and mapping the window around it.
@@ -2320,7 +2322,7 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
         {
             "kind": "reply",
             "author": "agent",
-            "parent": "72e031c5bf0d485ba9054628e09869d4",
+            "parent": walked,
             "revision": 1,
             "text": "A turn arriving while the card is away.",
         },

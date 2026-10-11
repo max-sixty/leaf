@@ -9,6 +9,7 @@ domains: undo in `events` and widget meaning in `event_meaning`.
 """
 
 from leaf.event_log import EventRefused, new_event_id
+from leaf.layer import foreign_event_contract
 from leaf.event_meaning import (
     AdmissionReadings,
     admit_widget_event,
@@ -36,6 +37,7 @@ from leaf.registry.contract import (
 )
 from leaf.registry.kernel import kernel_event_ownership
 from leaf.registry.reactions import reaction_tokens
+from leaf.registry.storage import layer_metadata
 from leaf.registry.schema import json_value, schema_error
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
 from leaf.structure import review_mode
@@ -864,6 +866,10 @@ def append_admitted(page, event: dict, *, view=None) -> dict:
     # have moved past admitting it.
     if accepted := page.matching_attempt(event):
         return accepted
+    if refusal := foreign_event_contract(
+        page.page_dir, layer_metadata(page.page_dir)
+    ):
+        raise EventRefused(refusal)
     return page._append_record(
         admitted_event(
             view if view is not None else PageView(page.page_dir), page.events, event

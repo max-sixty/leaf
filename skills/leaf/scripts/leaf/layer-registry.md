@@ -66,7 +66,11 @@ records its identities under `$layer`:
   `pyproject.toml`, `uv.lock`, and interpreter version. Initialization reads these inputs whether
   invoked directly or by a preview, so a server-only edit requires a new generation
   even when the installed browser files are unchanged. This identity decides
-  re-vendoring; the runtime identity still owns the server's bind check.
+  re-vendoring. Event admission checks both the server and runtime identities
+  before validating a new command against the installed registry, and names
+  `leaf page init` when either belongs to another Leaf. An already admitted
+  attempt remains readable as the same event. The runtime identity also owns
+  the server's bind check.
 
 HTTP responses also identify the serving incarnation in `Leaf-Server`. Every
 document that runs the runtime, served or exported, carries an inline prepaint that

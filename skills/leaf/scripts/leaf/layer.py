@@ -439,6 +439,27 @@ def foreign_runtime(page_dir: Path, layer: dict) -> str | None:
     )
 
 
+def foreign_event_contract(page_dir: Path, layer: dict) -> str | None:
+    """Why this Leaf cannot admit an event against the page's installed layer.
+
+    Event writers use the page's registry to validate a record, while the fields
+    they author come from this Leaf's Python code. A changed serving contract can
+    make that registry reject a record even when browser runtime bytes agree.
+    """
+    if refusal := foreign_runtime(page_dir, layer):
+        return refusal
+    vendored = layer.get("server")
+    running = payload_server_fingerprint()
+    if vendored == running:
+        return None
+    return (
+        f"{page_dir} was vendored from another Leaf's serving code: its layer names "
+        f"{vendored or 'no server identity'}, and this Leaf ({PLUGIN_ROOT}) ships "
+        f"{running}. Re-vendor it with `leaf page init {page_dir}` before writing "
+        "events."
+    )
+
+
 def payload_provenance(*, include_path: bool = False) -> dict:
     """Describe the Leaf payload that is running this command, when its source can.
 

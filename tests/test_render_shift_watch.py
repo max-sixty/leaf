@@ -12,6 +12,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import ASK_PAGE
 from render_harness import (
     consume_browser_errors,
+    holding,
     judge_watches,
     leaf_page,
     open_page,
@@ -1154,6 +1155,184 @@ def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve, wo
     rendered(page)
     judge_watches()
     consume_browser_errors(page, "button#control moved without input")
+
+
+def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, serve):
+    """A press's declared widget preparation is its result, however late it lands, and
+    the press owns nothing while it waits.
+
+    Opening a closed lf-diff file loads its evidence in a promise the widget presents
+    (`present`), which the rendering loop cannot see. Holding the file's grammar keeps
+    that preparation pending after the loop settles, as a loaded machine does."""
+    patch = "".join(
+        f"diff --git a/{name}.md b/{name}.md\n--- a/{name}.md\n+++ b/{name}.md\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+        for name in ("first", "second")
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Preparation",
+                f'<lf-diff id="patch" collapsed><pre>{escape(patch)}</pre></lf-diff>'
+                '<button id="control">Keep this control usable</button>',
+            )
+        ),
+    )
+    held = []
+    page.route("**/vendor/syntax/markdown.js", lambda route: held.append(route))
+    first = page.locator("#patch .lf-diff-file").first
+    control = page.locator("#control")
+    first.locator(".lf-diff-head").click()
+    holding(page, held, 1, "the markdown grammar")
+    rendered(page)
+    assert (
+        page.evaluate(
+            "document.querySelector('script[data-lf-entry]').lfReadiness(null, 'presented')"
+        )
+        == "presented"
+    )
+    # While the preparation waits, the press owns no other movement on the page.
+    control.evaluate("node => node.style.marginTop = '40px'")
+    rendered(page)
+    judge_watches()
+    consume_browser_errors(page, "button#control moved without input")
+
+    # Its landing moves the files and the control after it, for the press.
+    before = control.bounding_box()["y"]
+    held[0].continue_()
+    expect(first.locator("[data-line]").last).to_contain_text("new")
+    rendered(page)
+    assert control.bounding_box()["y"] > before
+    judge_watches()
+    assert page.lf_errors == []
+
+    # Once it has landed, the press owns nothing further. (The watch names each node
+    # once, so this move is the diff's own, which the landing moved for the press.)
+    page.locator("#patch").evaluate("node => node.style.marginTop = '40px'")
+    rendered(page)
+    judge_watches()
+    moved = consume_browser_errors(page, "moved without input")
+    assert any("in shadow of lf-diff#patch" in error for error in moved), moved
+
+
+@pytest.mark.parametrize(
+    "pressed",
+    ["#press", "#patch .lf-diff-search input"],
+    ids=["elsewhere", "in the same widget"],
+)
+def test_a_preparation_no_input_began_lands_passive(browser, serve, pressed):
+    """Neither overlapping an input's rendering nor sharing its widget makes a
+    preparation that input's.
+
+    A press keeps its counted work running until a response the page asked for before
+    the press opens a diff file; that file's landing, once the press has settled, moves
+    the control after it without input, whether the press landed outside the diff or
+    on its own filter field."""
+    patch = "diff --git a/first.md b/first.md\n--- a/first.md\n+++ b/first.md\n"
+    patch += "@@ -1 +1 @@\n-old\n+new\n"
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Passive preparation",
+                '<button id="press">Elsewhere</button>'
+                f'<lf-diff id="patch" collapsed><pre>{escape(patch)}</pre></lf-diff>'
+                '<button id="control">Keep this control usable</button>',
+            )
+        ),
+    )
+    answer, grammar = [], []
+    page.route("**/held-answer", lambda route: answer.append(route))
+    page.route("**/vendor/syntax/markdown.js", lambda route: grammar.append(route))
+    page.evaluate("""async () => {
+      const {nextFrame} = await window.__lfRuntimeImport('/runtime/rendering.js');
+      const details = document.querySelector('#patch').shadowRoot.querySelector('details');
+      const opens = () => { details.open = true; };
+      fetch('/held-answer').then(opens, opens);
+      addEventListener('click', () => {
+        let after = 0;
+        const work = () => { if (!details.open || ++after < 3) nextFrame(work); };
+        nextFrame(work);
+      }, {once: true, capture: true});
+    }""")
+    holding(page, answer, 1, "the page's own request")
+    page.locator(pressed).click()
+    answer[0].fulfill(status=204)
+    holding(page, grammar, 1, "the markdown grammar")
+    rendered(page)
+    judge_watches()
+    assert page.lf_errors == []
+
+    grammar[0].continue_()
+    expect(page.locator("#patch [data-line]").last).to_contain_text("new")
+    rendered(page)
+    judge_watches()
+    moved = consume_browser_errors(page, "moved without input")
+    assert any(error.startswith("button#control ") for error in moved), moved
+
+
+@pytest.mark.parametrize("cancelled", [True, False], ids=["cancelled", "closed again"])
+def test_an_activation_that_opens_nothing_leaves_a_later_open_passive(
+    browser, serve, cancelled
+):
+    """A summary press that leaves its file shut gives a later opening no input.
+
+    Enter on a file's header either has its click cancelled, so no toggle comes, or
+    has the click's own listener open the file before the activation shuts it again,
+    so the one toggle that comes announces it closed. A script opening the file after
+    either is no input's, and its landing moves the control after it passively."""
+    patch = "diff --git a/first.md b/first.md\n--- a/first.md\n+++ b/first.md\n"
+    patch += "@@ -1 +1 @@\n-old\n+new\n"
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Shut activation",
+                f'<lf-diff id="patch" collapsed><pre>{escape(patch)}</pre></lf-diff>'
+                '<button id="control">Keep this control usable</button>',
+            )
+        ),
+    )
+    grammar = []
+    page.route("**/vendor/syntax/markdown.js", lambda route: grammar.append(route))
+    page.evaluate(
+        """cancelled => {
+      const details = document.querySelector('#patch').shadowRoot.querySelector('details');
+      window.toggles = [];
+      details.addEventListener('toggle', (event) => toggles.push(event.newState));
+      details.querySelector('summary').addEventListener('click', (event) => {
+        if (cancelled) event.preventDefault();
+        else details.open = true;
+      }, {once: true});
+    }""",
+        cancelled,
+    )
+    head = page.locator("#patch .lf-diff-head")
+    head.focus()
+    head.press("Enter")
+    if not cancelled:
+        page.wait_for_function("toggles.length === 1")
+        assert page.evaluate("toggles") == ["closed"]
+    rendered(page)
+    assert page.locator("#patch details").get_attribute("open") is None
+    judge_watches()
+    if not cancelled:
+        # The click's listener restates `open` the activation then takes back.
+        consume_browser_errors(page, "unchanged write: open on details")
+    assert page.lf_errors == []
+
+    page.evaluate(
+        "document.querySelector('#patch').shadowRoot.querySelector('details').open = true"
+    )
+    holding(page, grammar, 1, "the markdown grammar")
+    rendered(page)
+    grammar[0].continue_()
+    expect(page.locator("#patch [data-line]").last).to_contain_text("new")
+    rendered(page)
+    judge_watches()
+    moved = consume_browser_errors(page, "moved without input")
+    assert any(error.startswith("button#control ") for error in moved), moved
 
 
 def test_shift_judgement_waits_for_paint_instead_of_a_time_cap(browser):

@@ -7,6 +7,9 @@
 // synchronously before awaiting delivery (drafts.js). A reactive element's update is
 // the exception the watch follows itself: Lit defers it behind a native await, and the
 // request that starts it names its cause (`adoptReactive`).
+// A summary activation that opens its details, by the input's own click or one the
+// input's work dispatched, owns the listeners of the toggle that announces the opening,
+// which the browser dispatches as a task of its own.
 // Native edit starts identify their field through DOM capture or EditContext's
 // attachment; a watch confirms the value that field's input commits.
 // Parent input bridges belong to the child document. Pagehide releases them before
@@ -20,6 +23,8 @@
   const { later: task, microtask, listen, performance: clock } = window.lfWatchPlatform;
   const finishing = new Set();
   const nativeDefaults = new Map();
+  // Closed details a summary's activation opens, and the input that activated each.
+  const opening = new WeakMap();
   const finished = new Set();
   const subscribers = new Set();
   const editSubscribers = new Set();
@@ -129,6 +134,45 @@
     "summary,a[href],audio[controls],button,details,embed,iframe," +
     'img[usemap],img[controls],input:not([type="hidden" i]),label,select,textarea,video[controls]';
 
+  // The details a click on `node` activates: its summary's, where that summary is the
+  // nearest interactive content and its details' own.
+  const activatedDetails = (node) => {
+    const summary = node?.closest?.(nativeActivation);
+    const details = summary?.parentElement;
+    return details?.localName === "details" &&
+      summary.localName === "summary" &&
+      details.querySelector(":scope > summary") === summary
+      ? details
+      : null;
+  };
+
+  // A summary's activation opens its details after the click's listeners, and the
+  // browser announces that in a toggle task of its own, coalescing every flip since the
+  // last one. The first toggle after an activation settles it, whatever it says: its
+  // listeners answer to the activating input only where it announces an opening and
+  // the click was not cancelled. Any other toggle, such as an open the click's own
+  // listener made and its activation then closed, expires the activation, so a later
+  // opening a script makes has no activating input. Each details recorded here is
+  // watched directly, so expiry needs no listener of the page's.
+  const watchedDetails = new WeakSet();
+  const settleToggle = (event) => {
+    if (sources.has(event)) return;
+    const details = event.composedPath()[0];
+    const activation = opening.get(details);
+    if (!activation) return;
+    opening.delete(details);
+    if (event.newState === "open" && !activation.click.defaultPrevented)
+      sources.set(event, activation.source);
+  };
+  const recordOpening = (details, activation) => {
+    opening.set(details, activation);
+    if (watchedDetails.has(details)) return;
+    watchedDetails.add(details);
+    nativeAdd.call(details, "toggle", (event) => {
+      if (event.isTrusted) settleToggle(event);
+    });
+  };
+
   const handlerOriginals = new WeakMap();
   const handlerWrappers = new WeakMap();
   const handler = (callback) => {
@@ -191,15 +235,10 @@
           )
         : [],
     );
-    const summary =
-      source.event.type === "click" ? source.node?.closest?.(nativeActivation) : null;
-    const details = summary?.parentElement;
-    const closesDetails =
-      details?.localName === "details" &&
-      summary.localName === "summary" &&
-      details.querySelector(":scope > summary") === summary &&
-      details.open;
-    if (closesDetails) closes.add(details);
+    const details =
+      source.event.type === "click" ? activatedDetails(source.node) : null;
+    if (details?.open) closes.add(details);
+    else if (details) recordOpening(details, { source, click: source.event });
     if (closes.size) nativeDefaults.set(source, closes);
     task(() => {
       // The dispatch is over. A native await continuation since dispatch is not owned by
@@ -232,6 +271,7 @@
     return source;
   };
   const eventSource = (event) => {
+    if (event.isTrusted && event.type === "toggle") settleToggle(event);
     if (sources.has(event)) return sources.get(event);
     // EditContext's trusted textupdate does not travel through a DOM capture path.
     // Its attached element owns rendering. Expose the field a composed DOM event
@@ -377,6 +417,20 @@
     else connectParent(connect);
     if (view === view.parent) break;
   }
+  // A control may press a summary by dispatching its click from an input's own work,
+  // as a held word's release does (runtime/held-word.js). That click's activation is
+  // the input's; a summary a timer or other passive script clicks opens for none.
+  listen(
+    window,
+    "click",
+    (event) => {
+      if (event.isTrusted) return;
+      const source = current();
+      const details = source && activatedDetails(event.composedPath()[0]);
+      if (details && !details.open) recordOpening(details, { source, click: event });
+    },
+    true,
+  );
   listen(window, "storage", (event) => {
     if (!event.isTrusted) return;
     checkpoint(null);

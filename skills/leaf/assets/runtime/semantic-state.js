@@ -39,8 +39,39 @@ export const attachApplicationPresentation = (region, renderer) =>
 const widgetRegion = (widget, kind) => `widget:${widget}:${kind}`;
 const widgetRegions = (widget) =>
   ["render", "preparation"].map((kind) => widgetRegion(widget, kind));
-export const attachWidgetPresentation = (widget, kind, renderer) =>
-  presentation.attach(widgetRegion(widget, kind), renderer);
+// A widget preparation is work a widget declared it is still doing in a promise, such
+// as lf-diff loading a file the reader opened, which the rendering loop cannot see.
+// Observers hear each declaration as it is made ("begin") and once its completion
+// settles ("settle"), in the task that committed it, under one frozen identity. The
+// declaration runs synchronously in whatever callback declared it, so a render check
+// can read that callback's cause there, and carry it by this identity across the
+// widget's native awaits to the landing: the input that began a preparation owns the
+// movement its landing causes, and nothing that happens while it waits.
+const preparationObservers = new Set();
+/** Observe each widget preparation from its declaration to its settlement. */
+export function observeWidgetPreparations(observer) {
+  preparationObservers.add(observer);
+  return () => preparationObservers.delete(observer);
+}
+export const attachWidgetPresentation = (widget, kind, renderer) => {
+  const handle = presentation.attach(widgetRegion(widget, kind), renderer);
+  if (kind !== "preparation") return handle;
+  return Object.freeze({
+    present(value, completion, failSoft) {
+      const observers = [...preparationObservers];
+      if (observers.length) {
+        const preparation = Object.freeze({ widget });
+        for (const observer of observers) observer("begin", preparation);
+        const settle = () => {
+          for (const observer of observers) observer("settle", preparation);
+        };
+        Promise.resolve(completion).then(settle, settle);
+      }
+      return handle.present(value, completion, failSoft);
+    },
+    disconnect: handle.disconnect,
+  });
+};
 
 // Where a document-wide renderer stands in one presentation pass. The projection
 // materializes provenance words and coordinate chrome inside authored elements, the

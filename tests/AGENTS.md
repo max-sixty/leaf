@@ -12,7 +12,9 @@ the smallest set that exposes distinct plausible failures beyond existing covera
 Retain a broad sweep only when its extra samples catch a failure that representative
 states or transitions miss; an investigation's sampling grid is not itself a regression
 requirement. Every run pays for the test's compute, so weigh the additional cost against
-the additional coverage. When a high-level browser test is slow, or fails on timing or
+the additional coverage. Each CI `test` job's summary says where its run's time went, by
+file, phase, Playwright call and the suite's own functions; `leaf-dev suite-profile`
+prints the same from the job's `pytest-results-*` artifact. When a high-level browser test is slow, or fails on timing or
 geometry outside its contract, repair its arrangement or move its contract to the lower
 boundary.
 
@@ -274,7 +276,10 @@ do not expose their input context to JavaScript instrumentation. A native sensor
 fixture captures its DOM commit callback with `lfInputWork.capture` during the
 trusted handler and invokes that callback after `await`; the capture states the
 cause instead of guessing among concurrent operations. Leaf's draft sends put words
-away synchronously before awaiting delivery.
+away synchronously before awaiting delivery. The `toggle` a summary's activation
+announces belongs to the input whose click, trusted or dispatched by its work, opened
+it. A widget preparation (`lfObserveWidgetPreparations`) carries the input whose work
+declared it to its landing, which that input owns in the shift watch.
 
 Private document-channel endpoints publish `lfDocumentPort` on the bootstrap
 element before their first message. The harness enrolls those endpoints in input

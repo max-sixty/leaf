@@ -5339,6 +5339,10 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
     page.evaluate(DEFINE_BOXES)
     control = page.locator(archetype["target"])
     expect(control).to_be_visible()
+    # Playwright's click may scroll its target into view. Finish that navigation
+    # before holding the positions the press itself must preserve.
+    control.scroll_into_view_if_needed()
+    page_at_rest(page)
     before = control.evaluate(NEIGHBOURHOOD, NEIGHBOUR)
     assert before["names"], f"{archetype['name']} has no neighbouring control to hold"
 
@@ -5358,6 +5362,35 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
         f"pressing the {archetype['name']} control moved its neighbours:\n  "
         + "\n  ".join(moved)
     )
+
+
+def test_the_neighbour_reading_detects_a_whole_row_moving_on_press(browser):
+    """Moving the containing row must not cancel a control's screen displacement."""
+    page = browser.unwatched.new_page()
+    page.set_viewport_size({"width": 800, "height": 600})
+    page.set_content("""
+      <div class="lf-playground-actions">
+        <button id="move" onclick="this.parentElement.style.transform =
+          this.parentElement.style.transform ? 'translate(2000px, 24px)' :
+            'translate(32px, 24px)'">Move row</button>
+        <button>Neighbour</button>
+      </div>
+    """)
+    page.evaluate(DEFINE_BOXES)
+    before = page.locator("#move").evaluate(NEIGHBOURHOOD, NEIGHBOUR)
+    assert before["names"] == ['button "Neighbour"']
+    assert displaced(before, page.evaluate("() => window.__lfBoxes()")) == []
+
+    page.locator("#move").click()
+    assert displaced(before, page.evaluate("() => window.__lfBoxes()")) == [
+        'button "Neighbour" moved by [32, 24, 0, 0] (left, top, width, height)'
+    ]
+    # Moving beyond the viewport is displacement too, not hiding the control.
+    page.locator("#move").click()
+    assert page.get_by_role("button", name="Neighbour").bounding_box()["x"] > 800
+    assert displaced(before, page.evaluate("() => window.__lfBoxes()")) == [
+        'button "Neighbour" moved by [2000, 24, 0, 0] (left, top, width, height)'
+    ]
 
 
 def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):

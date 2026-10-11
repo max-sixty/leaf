@@ -65,12 +65,33 @@ test("queued work unsettles at once and settles with the update that runs it", a
 test("finite preparation retires once and owes its final quiet update", async () => {
   const first = holdRendering();
   const second = holdRendering();
+  assert.equal(renderingState().updatesSettled, false);
   for (let i = 0; i < 10; i++) await update();
-  assert.deepEqual(renderingState(), {
-    updatesSettled: true,
-    preparationsSettled: false,
-  });
+  assert.deepEqual(
+    renderingState(),
+    { updatesSettled: true, preparationsSettled: false },
+    "the counted queue rests while preparation waits",
+  );
   assert.equal(queued.size, 0, "a pending preparation does not poll frames");
+
+  let painted = false;
+  nextRender(() => (painted = true));
+  assert.equal(renderingState().updatesSettled, false);
+  const observer = sizeObserver(() => {});
+  await update({ delivering: [observer] });
+  assert.equal(painted, true);
+  assert.deepEqual(
+    renderingState(),
+    { updatesSettled: false, preparationsSettled: false },
+    "the observer still owes a quiet update",
+  );
+  await update();
+  assert.deepEqual(
+    renderingState(),
+    { updatesSettled: true, preparationsSettled: false },
+    "queue quietness does not retire preparation",
+  );
+
   first();
   first();
   await update();
@@ -82,14 +103,14 @@ test("finite preparation retires once and owes its final quiet update", async ()
   second();
   assert.deepEqual(
     renderingState(),
-    {
-      updatesSettled: false,
-      preparationsSettled: true,
-    },
-    "the commit has not painted yet",
+    { updatesSettled: false, preparationsSettled: true },
+    "the preparation's commit owes a quiet update",
   );
   await update();
-  assert.equal(Object.values(renderingState()).every(Boolean), true);
+  assert.deepEqual(renderingState(), {
+    updatesSettled: true,
+    preparationsSettled: true,
+  });
 });
 
 test("work a callback queues runs before the same update paints", async () => {

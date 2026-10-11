@@ -1383,7 +1383,12 @@ def test_a_thread_the_agent_starts_in_a_page_seat_waits_in_the_row_it_would_foll
     standing in the first-message box keeps it: the thread shows above the box, which
     stays where it stood. Nothing before the ending is input, so the shift watch checks
     that the hold moved nothing."""
-    url = serve(TASK_SEAT_PAGE)
+    # The notice's previous Tab stop stays beside the seat. Returning to the page's
+    # Skip control scrolls the seat away, which correctly releases its held news.
+    source = TASK_SEAT_PAGE.replace(
+        "<lf-test-plan", '<button type="button">Before jobs</button><lf-test-plan', 1
+    )
+    url = serve(source)
     earlier = (
         _seat_comment(serve.page_dir, "user", "Which of these can wait?")
         if beside == "thread"

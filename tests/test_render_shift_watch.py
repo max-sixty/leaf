@@ -1167,8 +1167,8 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(
     the press owns nothing while it waits.
 
     Opening a closed lf-diff file loads its evidence in a promise the widget presents
-    (`present`), which the rendering loop cannot see. Holding the file's grammar keeps
-    that preparation pending after the loop settles, as a loaded machine does."""
+    (`present`). Holding the grammar keeps complete rendering pending while its
+    counted queue rests, as a loaded machine does."""
     patch = "".join(
         f"diff --git a/{name}.md b/{name}.md\n--- a/{name}.md\n+++ b/{name}.md\n"
         "@@ -1 +1 @@\n-old\n+new\n"
@@ -1487,6 +1487,7 @@ def test_an_activation_that_opens_nothing_leaves_a_later_open_passive(
         "document.querySelector('#patch').shadowRoot.querySelector('details').open = true"
     )
     holding(page, grammar, 1, "the markdown grammar")
+    paint(page)
     grammar[0].continue_()
     expect(page.locator("#patch [data-line]").last).to_contain_text("new")
     rendered(page)

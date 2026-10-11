@@ -12,6 +12,7 @@ from interact_support import (
     append_carried_log_record,
     append_command,
     declare_work,
+    element_declaration,
     end_work,
     record_claim,
     wait_for,
@@ -2878,6 +2879,136 @@ diff --git a/gateway/limits.py b/gateway/limits.py
 """,
     head='<meta name="lf-review" content="sign-off">',
 )
+
+
+def test_controls_share_pointer_and_keyboard_focus_rings(browser, serve):
+    """Focus has one ring for native controls, linked carriers, and shadow controls."""
+    declaration = element_declaration("lf-shadow-focus", upgrade=True)
+    declaration["x-shadow"] = True
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Focus routes",
+                """
+<h1 id="focus-heading">Focus routes</h1>
+<p><button class="button" id="focus-button" type="button">Ordinary button</button></p>
+<lf-tabs id="focus-tabs">
+  <lf-tab id="focus-first" label="First">First panel.</lf-tab>
+  <lf-tab id="focus-second" label="Second">Second panel.</lf-tab>
+</lf-tabs>
+<lf-ask id="focus-decision"><h2>Which option?</h2>
+<lf-options id="focus-options" choose>
+  <lf-option id="focus-choice" for="focus-heading">Keep this option.</lf-option>
+  <lf-option id="focus-peer" for="focus-heading">Keep another option.</lf-option>
+</lf-options></lf-ask>
+<lf-shadow-focus id="focus-shadow"><button class="button" type="button">Shadow button</button></lf-shadow-focus>
+""",
+            ),
+            layer_registry={"lf-shadow-focus": declaration},
+            layer_widgets={
+                "lf-shadow-focus.js": """
+import {once, shadowStage} from '/runtime/widget-api.js';
+import '/vendor/webawesome.esm.js';
+customElements.define('lf-shadow-focus', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const select = document.createElement('wa-select');
+    select.label = 'Choose a route';
+    select.withClear = true;
+    select.value = 'first';
+    for (const [value, label] of [['first', 'First route'], ['second', 'Second route']]) {
+      const option = document.createElement('wa-option');
+      option.value = value;
+      option.textContent = label;
+      select.append(option);
+    }
+    shadowStage(this, [...this.childNodes, select]);
+  }
+});
+"""
+            },
+        ),
+    )
+    paint = """el => { const s = getComputedStyle(el); return {
+      style: s.outlineStyle, width: s.outlineWidth, color: s.outlineColor,
+      offset: s.outlineOffset, name: s.getPropertyValue('--lf-focus-ring').trim()
+    }; }"""
+    button = page.locator("#focus-button")
+    tab = page.get_by_role("tab", name="First", exact=True)
+    choice = page.locator("#focus-choice > .lf-pick")
+    shadow_button = page.locator("#focus-shadow").get_by_role(
+        "button", name="Shadow button", exact=True
+    )
+    for control, carrier in (
+        (button, button),
+        (tab, tab.locator(".lf-tab-name")),
+        (choice, page.locator("#focus-choice")),
+        (shadow_button, shadow_button),
+    ):
+        control.click()
+        expect(control).to_be_focused()
+        rendered(page)
+        pointer = carrier.evaluate(paint)
+        assert pointer["style"] == "solid" and pointer["name"] != "none", pointer
+        drawn = rings_drawn(page)
+        samples = [ring for ring in drawn if ring["sample"]]
+        assert len(samples) == 1, drawn
+        assert not ring_faults(drawn, "after pointer arrival")
+
+        # Return by sequential navigation to cover the tab list's roving stop and
+        # the option row's carrier through a real keyboard arrival.
+        page.keyboard.press("Shift+Tab")
+        page.keyboard.press("Tab")
+        expect(control).to_be_focused()
+        rendered(page)
+        assert carrier.evaluate(paint) == pointer
+        drawn = rings_drawn(page)
+        assert len([ring for ring in drawn if ring["sample"]]) == 1, drawn
+        assert not ring_faults(drawn, "after keyboard arrival")
+
+    assert page.locator("#focus-shadow").evaluate(paint)["style"] == "none", (
+        "retargeting focus to the widget host drew a second ring around its button"
+    )
+
+    select = page.locator("#focus-shadow wa-select")
+    combobox = select.get_by_role("combobox")
+    listbox = select.locator('[part~="listbox"]')
+    first = select.get_by_role("option", name="First route", exact=True)
+    second = select.get_by_role("option", name="Second route", exact=True)
+
+    def one_select_ring(control, where):
+        expect(control).to_be_focused()
+        expect(control).to_be_visible()
+        rendered(page)
+        drawn = rings_drawn(page)
+        assert len(drawn) == 1 and drawn[0]["sample"], (where, drawn)
+        assert not ring_faults(drawn, where)
+
+    # The popup's options are slotted beside the combobox. Focus within the select
+    # host must not ring both the combobox and an option outside its ancestry.
+    combobox.click()
+    one_select_ring(first, "after opening the select")
+    page.keyboard.press("ArrowDown")
+    one_select_ring(second, "after moving to the next option")
+    page.keyboard.press("Enter")
+    expect(select).to_have_js_property("value", "second")
+    one_select_ring(combobox, "after choosing an option")
+    expect(listbox).to_be_hidden()
+    combobox.click()
+    one_select_ring(second, "after reopening the select")
+    page.keyboard.press("Escape")
+    one_select_ring(combobox, "after closing the select")
+    expect(listbox).to_be_hidden()
+    select.locator('[part~="clear-button"]').click()
+    expect(select).to_have_js_property("value", None)
+    one_select_ring(combobox, "after clearing the select")
+    shadow_button.click()
+    one_select_ring(shadow_button, "after leaving the select")
+    assert not select.locator('[part~="combobox"]').evaluate(
+        "el => el.part.contains('lf-focus-within')"
+    ), "the field retained its public focus part after focus left"
+
 
 # One interaction demo, the gallery's suggestion replay, under the opt-in that installs
 # the runtime's playback row, laid out as the feature gallery lays that row out. The
@@ -6797,9 +6928,8 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     page = open_page(browser, serve(LONG_PAGE, comments=1))
     toggle = page.locator(".lf-threads-toggle")
     panel = page.locator(".lf-thread-panel")
-    ringed = (
-        "() => document.querySelector('.lf-threads-toggle').matches(':focus-visible')"
-    )
+    ringed = """() => getComputedStyle(document.querySelector('.lf-threads-toggle'))
+      .outlineStyle !== 'none'"""
     top = "() => document.scrollingElement.scrollTop"
     on_body = "() => document.activeElement === document.body"
 
@@ -6809,11 +6939,11 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     scroll_settled(page)
     was = page.evaluate(top)
 
-    # Opened with the pointer, the button holds focus and the browser withholds the ring.
+    # Opened with the pointer, the focused button draws the same ring as a keyboard arrival.
     toggle.click()
     expect(panel).to_be_visible()
     expect(toggle).to_be_focused()
-    assert not page.evaluate(ringed)
+    assert page.evaluate(ringed)
 
     # Closed with the key, the user is back on the page: nothing rings, and Space is
     # the page's again rather than the button's.
@@ -8396,12 +8526,13 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
     plant = """(how) => {
       const box = document.querySelector('main p');
       box.classList.toggle('probe-target', true);
-      for (const name of ['lf-mark-el', 'lf-mark-hover', 'lf-focus-visible'])
+      for (const name of ['lf-mark-el', 'lf-mark-hover'])
         box.classList.toggle(name, false);
+      box.toggleAttribute('data-lf-focus', how === 'focused mark');
       box.style.outline = '';
       box.style.removeProperty('--lf-focus-ring');
       if (how === 'mark') box.classList.add('lf-mark-el', 'lf-mark-hover');
-      if (how === 'focused mark') box.classList.add('lf-mark-el', 'lf-focus-visible');
+      if (how === 'focused mark') box.classList.add('lf-mark-el');
       if (how === 'the ring itself') box.style.outline = 'var(--focus-ring)';
       if (how === 'unregistered focused mark') {
         box.classList.add('lf-mark-el');
@@ -8580,8 +8711,7 @@ def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve)
     url = serve(example, comments=2)
     page = open_page(browser, url)
     page.locator("body").click()
-    # A real press, because `.focus()` alone never raises `:focus-visible` and a control
-    # with no ring is a control with nothing to report about one.
+    # Reach the stop by keyboard before testing what can cover its ring.
     page.locator(".lf-threads-toggle").focus()
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
@@ -9002,7 +9132,7 @@ RING_CASES = (
             ),
             "release-notes": (
                 ("main p.lf-mark-el", "passage-focus"),
-                ('lf-shot .lf-shotcomparison [part~="handle"]', "shot"),
+                ('lf-shot .lf-shotcomparison [part~="handle"]', "comparison-handle"),
                 (".lf-shotcap", "pressable"),
             ),
             "ship-review": ((".lf-reopen", "thread-action"),),
@@ -9162,7 +9292,7 @@ RING_EXAMPLE_FILES = {example.stem: example for example in (*EXAMPLES, FEATURE_G
 RING_REMOTE_CARRIER = {
     "target-hint": ".lf-target-picker-hint.lf-current",
     # A pane draws its focused body's band inset over the body's cell (theme.css).
-    "pane-body": '[data-lf-reading-role="pane"]:has(> :focus-visible)',
+    "pane-body": '[data-lf-reading-role="pane"]:has(> [data-lf-focus])',
 }
 
 
@@ -9280,7 +9410,7 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
         const style = document.createElement('style');
         style.id = 'lf-ring-negative-control';
         style.textContent =
-          '.lf-threads-toggle:focus-visible { outline: none !important;'
+          '.lf-threads-toggle:focus { outline: none !important;'
           + ' box-shadow: none !important; }';
         document.head.append(style);
     }""")

@@ -93,18 +93,18 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   user-select: none;
   -webkit-user-select: none;
 }
-:where(:focus-visible) {
+:where([data-lf-focus]) {
   outline: var(--focus-ring);
   --lf-focus-ring: focus;
   outline-offset: var(--focus-ring-gap);
 }
-:where(:focus) {
+:where([data-lf-focus]) {
   scroll-margin-block: var(--focus-ring-room);
 }
 :where([data-lf-sticks]) {
   --lf-head-inset: 0px;
 }
-:where(:focus) {
+:where([data-lf-focus]) {
   scroll-margin-top: calc(var(--lf-top) - var(--lf-top-covered, var(--lf-top)) + var(--lf-head-inset, calc(var(--focus-ring-room) + var(--lf-landing-room, 0px))) - var(--lf-landing-room, 0px));
 }
 [data-lf-offer]:where(:not([data-lf-offer=""])) {
@@ -117,7 +117,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   cursor: default;
   opacity: .55;
 }
-[data-lf-offer]:where(:not([data-lf-offer=""])):is(:focus-visible, .lf-focus-visible) {
+[data-lf-offer]:where(:not([data-lf-offer=""]))[data-lf-focus] {
   outline: var(--focus-ring);
   --lf-focus-ring: pressable;
   outline-offset: var(--focus-ring-gap);
@@ -174,15 +174,15 @@ summary {
   color: var(--ink);
   overflow-wrap: anywhere;
 }
-.lf-page-thread:is(:focus-within, .lf-focus-within) {
+.lf-page-thread[data-lf-focus-within] {
   outline: none;
   border-radius: var(--r);
   background: var(--focus-surface);
 }
-.lf-page-thread:is(:focus-visible, .lf-focus-visible) {
+.lf-page-thread[data-lf-focus] {
   outline: none;
 }
-.lf-page-thread:is(:focus-visible, .lf-focus-visible)::after {
+.lf-page-thread[data-lf-focus]::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -193,7 +193,7 @@ summary {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 @media (forced-colors: active) {
-  .lf-page-thread:is(:focus-within, .lf-focus-within) {
+  .lf-page-thread[data-lf-focus-within] {
     outline: 2px solid Highlight;
     outline-offset: -2px;
     box-shadow: none;
@@ -397,7 +397,7 @@ summary {
 .lf-summary-originals > .lf-msg {
   margin-block: 8px;
 }
-.lf-thread-disclosure:is(:focus-visible, .lf-focus-visible) {
+.lf-thread-disclosure[data-lf-focus] {
   outline: var(--focus-ring);
   --lf-focus-ring: summary-fold;
   outline-offset: calc(-1 * var(--focus-ring-w));
@@ -492,7 +492,7 @@ button.lf-thread-notice {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-button.lf-thread-notice:is(:focus-visible, .lf-focus-visible) {
+button.lf-thread-notice[data-lf-focus] {
   outline: var(--focus-ring);
   --lf-focus-ring: thread-notice;
   outline-offset: 1px;
@@ -643,7 +643,7 @@ button.lf-thread-notice:is(:focus-visible, .lf-focus-visible) {
 :where(:root, .lf-thread-transcript) tr > :last-child {
   padding-right: 0;
 }
-:where(:root, .lf-thread-transcript) :where(th, td):focus-visible {
+:where(:root, .lf-thread-transcript) :where(th, td)[data-lf-focus] {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 :where(:root, .lf-thread-transcript) th:not([scope=row]) {
@@ -767,7 +767,7 @@ leaf-text.lf-fab-input,
 .lf-page-thread .lf-btn {
   font: inherit;
 }
-.lf-page-thread :is(.lf-btn, summary):is(:focus-visible, .lf-focus-visible) {
+.lf-page-thread :is(.lf-btn, summary)[data-lf-focus] {
   outline: var(--focus-ring);
   outline-offset: 1px;
   --lf-focus-ring: thread;
@@ -807,7 +807,7 @@ leaf-text.lf-fab-input,
     align-items: center;
   }
 }
-.lf-outline-chip:is(:focus-visible, .lf-focus-visible) {
+.lf-outline-chip[data-lf-focus] {
   outline: var(--focus-ring);
   --lf-focus-ring: chip;
   outline-offset: 1px;
@@ -817,7 +817,7 @@ leaf-text.lf-fab-input,
   border: 1px solid transparent;
   background: transparent;
 }
-.lf-msg-control:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded=true]) {
+.lf-msg-control:is(:hover, [data-lf-focus], [aria-expanded=true]) {
   color: var(--ink-2);
   border-color: var(--border-2);
   background: var(--chip);
@@ -834,7 +834,7 @@ leaf-text.lf-fab-input,
   border-color: transparent;
   background: transparent;
 }
-.lf-react:not(.lf-margin-entry):is([aria-pressed=true], :hover, :focus-visible, .lf-focus-visible, [aria-busy=true]) {
+.lf-react:not(.lf-margin-entry):is([aria-pressed=true], :hover, [data-lf-focus], [data-lf-focus], [aria-busy=true]) {
   color: var(--ink-2);
   border-color: var(--border-2);
   background: var(--chip);
@@ -854,7 +854,7 @@ leaf-text.lf-fab-input,
 .lf-react:not(.lf-margin-entry) {
   position: relative;
 }
-.lf-react:not(.lf-margin-entry):is([data-lf-held-word], :focus-visible, .lf-focus-visible)::after {
+.lf-react:not(.lf-margin-entry):is([data-lf-held-word], [data-lf-focus])::after {
   content: attr(aria-label);
   position: absolute;
   z-index: 5;
@@ -935,8 +935,8 @@ leaf-text.lf-fab-input,
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.lf-msg:is(:hover, :focus-within) .lf-msg-control,
-.lf-msg-control:is(:focus-visible, .lf-focus-visible) {
+.lf-msg:is(:hover, [data-lf-focus-within]) .lf-msg-control,
+.lf-msg-control[data-lf-focus] {
   opacity: 1;
 }
 .lf-react-strip {
@@ -1067,7 +1067,7 @@ leaf-text.lf-fab-input,
         #000 calc(100% - var(--lf-more-fade, 24px)),
         var(--lf-more-fade-to, transparent));
   }
-  :is([data-lf-more-before], [data-lf-more-after]):is(:focus-visible, .lf-focus-visible, :has(:is(:focus-visible, .lf-focus-visible))) {
+  :is([data-lf-more-before], [data-lf-more-after]):is([data-lf-focus], :has([data-lf-focus])) {
     -webkit-mask-image: none;
     mask-image: none;
   }
@@ -1121,7 +1121,7 @@ leaf-text.lf-fab-input,
   background: var(--paper);
   border-color: var(--border-2);
 }
-:is(.lf-btn, .button):is(:focus-visible, .lf-focus-visible) {
+:is(.lf-btn, .button)[data-lf-focus] {
   outline: var(--focus-ring);
   --lf-focus-ring: btn;
   outline-offset: 2px;
@@ -1333,7 +1333,7 @@ leaf-text.lf-fab-input,
 button.lf-media-open {
   cursor: zoom-in;
 }
-.lf-media-open:is(:focus-visible, .lf-focus-visible) {
+.lf-media-open[data-lf-focus] {
   outline: var(--focus-ring);
   --lf-focus-ring: media;
   outline-offset: 2px;
@@ -1390,7 +1390,7 @@ button.lf-media-open {
   color: var(--accent);
   background: var(--chip);
 }
-.lf-composer-media-item > button:not(.lf-media-open):is(:focus-visible, .lf-focus-visible) {
+.lf-composer-media-item > button:not(.lf-media-open)[data-lf-focus] {
   outline: var(--focus-ring);
   --lf-focus-ring: composer-media;
   outline-offset: calc(-1 * var(--focus-ring-w));
@@ -1399,7 +1399,7 @@ button.lf-media-open {
   inline-size: 14px;
   block-size: 14px;
 }
-.lf-composer-media-item > .lf-media-open:is(:focus-visible, .lf-focus-visible) {
+.lf-composer-media-item > .lf-media-open[data-lf-focus] {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-comment-box > .lf-compose-field,
@@ -1408,8 +1408,8 @@ button.lf-media-open {
   border-radius: var(--r);
   background: var(--card);
 }
-.lf-comment-box > .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus)),
-.lf-response-control:is(:focus, :focus-visible, .lf-focus, .lf-focus-visible) {
+.lf-comment-box > .lf-compose-field:has(> leaf-text[data-lf-focus]),
+.lf-response-control[data-lf-focus] {
   outline: var(--focus-ring);
   --lf-focus-ring: text-box;
   outline-offset: 0;
@@ -1429,7 +1429,7 @@ button.lf-media-open {
   max-height: 50vh;
   overflow-y: auto;
 }
-.lf-comment-box > .lf-compose-field > leaf-text:is(:focus, .lf-focus) {
+.lf-comment-box > .lf-compose-field > leaf-text[data-lf-focus] {
   outline: none;
 }
 .lf-thread-reply {
@@ -1458,7 +1458,7 @@ button.lf-media-open {
   background: var(--card);
   pointer-events: none;
 }
-.lf-msg-editor > .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus))::before {
+.lf-msg-editor > .lf-compose-field:has(> leaf-text[data-lf-focus])::before {
   outline: var(--focus-ring);
   --lf-focus-ring: text-box;
   outline-offset: calc(-1 * var(--focus-ring-w));
@@ -1478,7 +1478,7 @@ button.lf-media-open {
   overflow: visible;
   --lf-field-end-room: 0px;
 }
-.lf-msg-editor > .lf-compose-field > leaf-text:is(:focus, .lf-focus) {
+.lf-msg-editor > .lf-compose-field > leaf-text[data-lf-focus] {
   outline: none;
 }
 .lf-msg-edit-foot {
@@ -1658,7 +1658,7 @@ leaf-text.lf-fab-input {
   }
 }
 @media (forced-colors: active) {
-  .lf-response-control:is(:focus, :focus-visible, .lf-focus, .lf-focus-visible) {
+  .lf-response-control[data-lf-focus] {
     outline: var(--focus-ring-w) solid Highlight;
     outline-offset: 2px;
     filter: none;
@@ -1705,14 +1705,14 @@ leaf-text.lf-fab-input {
 pre:hover + .lf-code-copy,
 .lf-code-copy-hover,
 .lf-code-copy-focused,
-.lf-code-copy:is(:hover, :focus-within) {
+.lf-code-copy:is(:hover, [data-lf-focus-within]) {
   opacity: 1;
 }
 @media (pointer: coarse), (hover: none) {
   .lf-code-copy {
     opacity: 1;
   }
-  pre:focus + .lf-code-copy,
+  pre[data-lf-focus] + .lf-code-copy,
   .lf-code-copy.lf-code-copy-focused {
     opacity: 0;
     pointer-events: none;
@@ -1732,7 +1732,7 @@ pre:hover + .lf-code-copy,
 .lf-code-copy::part(button):hover {
   color: var(--ink);
 }
-.lf-code-copy::part(button):focus-visible {
+.lf-code-copy::part(lf-focus) {
   outline: var(--focus-ring);
   --lf-focus-ring: code-copy;
 }

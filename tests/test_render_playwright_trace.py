@@ -57,7 +57,9 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         packages=("playwright",),
     )
     directory = serve.page_dir
-    context = browser.new_context(viewport={"width": 390, "height": 520})
+    # A native recording can change viewport size. Exercise that captured extent
+    # explicitly instead of assuming every checkpoint and frame has the same shape.
+    context = browser.new_context(viewport={"width": 390, "height": 293})
     context.tracing.start(
         screenshots=True, snapshots=True, screen_snapshots=True, aria_snapshots=True
     )
@@ -69,6 +71,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         "<button onclick=\"this.nextElementSibling.textContent='Done'\">Review</button>"
         "<output>Pending</output></section>"
     )
+    capture.set_viewport_size({"width": 390, "height": 520})
     capture.get_by_role("button", name="Review").nth(0).click()
     capture.get_by_role("button", name="Review").nth(1).click()
     second_capture = context.new_page()
@@ -261,8 +264,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     # commentable coordinate must be the exact recorded checkpoint or image.
     archive_id = record["archive"]["sha256"]
     navigate_at(timeline, 0)
-    evidence_top = None
-    image_rect = None
+    viewport_rect = None
     for index, (timestamp, kind, identity, name) in enumerate(points):
         if index:
             user.keyboard.press("ArrowRight")
@@ -276,30 +278,37 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         # The timeline replaces evidence, not the viewport it is read in.
         # Checkpoint metadata and its absence on a frame must not carry the image.
         rendered(user)
-        top = widget.locator(".lf-trace-images").bounding_box()["y"]
-        top -= widget.locator(".lf-trace-body").bounding_box()["y"]
-        if evidence_top is None:
-            evidence_top = top
-        assert abs(top - evidence_top) <= 1, (index, kind, top, evidence_top)
+        viewport = widget.locator(".lf-trace-image-viewport")
+        rect = viewport.bounding_box()
+        rect["y"] -= widget.locator(".lf-trace-body").bounding_box()["y"]
+        if viewport_rect is None:
+            viewport_rect = rect
+        assert all(abs(rect[key] - viewport_rect[key]) <= 1 for key in rect), (
+            index,
+            kind,
+            rect,
+            viewport_rect,
+        )
         raster = widget.locator(
             ".lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img"
         )
         if raster.count():
-            rect = raster.bounding_box()
-            rect["y"] -= widget.locator(".lf-trace-body").bounding_box()["y"]
-            if image_rect is None:
-                image_rect = rect
-            # JPEG filmstrip dimensions round the native aspect ratio; at the
-            # same display width that can change the height by up to two pixels.
-            assert all(
-                abs(rect[key] - image_rect[key]) <= (2 if key == "height" else 1)
-                for key in rect
-            ), (
-                index,
-                kind,
-                rect,
-                image_rect,
-            )
+            # Each original fits and centers inside the retained canvas. Native
+            # startup/resize captures may have different proportions and pixel sizes.
+            assert raster.evaluate("""image => {
+                const canvas = image.closest('.lf-trace-canvas');
+                const frame = canvas.getBoundingClientRect();
+                const actual = image.getBoundingClientRect();
+                const width = image.naturalWidth;
+                const height = image.naturalHeight;
+                const scale = Math.min(canvas.clientWidth / width, canvas.clientHeight / height);
+                const expected = {
+                    width: width * scale, height: height * scale,
+                    x: frame.x + canvas.clientLeft + (canvas.clientWidth - width * scale) / 2,
+                    y: frame.y + canvas.clientTop + (canvas.clientHeight - height * scale) / 2,
+                };
+                return Object.entries(expected).every(([key, value]) => Math.abs(actual[key] - value) <= 1);
+            }"""), (index, kind, raster.bounding_box())
     frame_index = next(
         index for index, point in enumerate(points) if point[1] == "image"
     )
@@ -466,7 +475,12 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
 
     expect(frames_toggle).to_be_disabled()
     expect(widget.locator(".lf-trace-selection")).to_contain_text("Captured frame")
-    expect(raster).to_have_js_property("naturalWidth", 390)
+    first_frame = min(frames, key=lambda frame: frame["timestamp"])
+    expect(raster).to_have_attribute(
+        "data-lf-datum", f"trace-{archive_id}-image-{first_frame['id']}"
+    )
+    expect(raster).to_have_js_property("naturalWidth", first_frame["width"])
+    expect(raster).to_have_js_property("naturalHeight", first_frame["height"])
 
     # A frame captured after the last included call is still a useful arrival.
     # Show it as its own timeline point instead of borrowing future pixels for
@@ -1984,7 +1998,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     for color_scheme in ("light", "dark"):
         user.emulate_media(color_scheme=color_scheme)
         cluster.hover()
-        tooltip_body = cluster_tip.locator('[part="body"]')
+        tooltip_body = cluster_tip.locator('[part~="body"]')
         expect(tooltip_body).to_be_visible()
         reading = tooltip_body.evaluate(
             """node => {
@@ -2013,11 +2027,11 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     user.emulate_media(color_scheme="light")
     expect(widget.locator(f'[data-lf-datum="{coordinate}"]')).to_be_visible()
     user.mouse.move(0, 0)
-    expect(cluster_tip.locator('[part="body"]')).to_be_hidden()
+    expect(cluster_tip.locator('[part~="body"]')).to_be_hidden()
     cluster.focus()
     expect(cluster).to_be_focused()
     assert cluster.evaluate("node => node.matches(':focus-visible')")
-    expect(cluster_tip.locator('[part="body"]')).to_be_visible()
+    expect(cluster_tip.locator('[part~="body"]')).to_be_visible()
     user.keyboard.press("Enter")
     rows = widget.locator(".lf-trace-bookmarks")
     expect(rows.locator(".lf-trace-bookmark-list")).to_be_visible()
@@ -2033,10 +2047,10 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     widget.locator('.lf-trace-marker[aria-label^="Moment 3 ·"]').click()
     expect(widget.locator('.lf-trace-marker[aria-label^="Moment 3 ·"]')).to_be_focused()
     first_pin.hover()
-    expect(cluster_tip.locator('[part="body"]')).to_be_visible()
+    expect(cluster_tip.locator('[part~="body"]')).to_be_visible()
     second_pin.hover()
     expect(
-        widget.locator(".lf-trace-tooltip").nth(1).locator('[part="body"]')
+        widget.locator(".lf-trace-tooltip").nth(1).locator('[part~="body"]')
     ).to_be_visible()
     box = first_pin.bounding_box()
     user.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
@@ -2059,10 +2073,10 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     solo_tip = widget.locator(".lf-trace-tooltip").last
     pins.filter(has_text="3").hover()
     expect(solo_tip).to_have_text(f"3 · {labels[2]} · {api_time:.3f} s")
-    expect(solo_tip.locator('[part="body"]')).to_be_visible()
+    expect(solo_tip.locator('[part~="body"]')).to_be_visible()
     expect(widget.locator(f'[data-lf-datum="{api}"]')).to_be_visible()
     user.mouse.move(0, 0)
-    expect(solo_tip.locator('[part="body"]')).to_be_hidden()
+    expect(solo_tip.locator('[part~="body"]')).to_be_hidden()
     cluster.click()
     expect(rows.locator(".lf-trace-bookmark-list")).to_be_visible()
     expect(widget.locator(f'[data-lf-datum="{docs}"]')).to_be_visible()

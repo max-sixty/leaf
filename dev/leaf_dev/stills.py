@@ -516,7 +516,7 @@ def theme_hierarchy(page: Page) -> None:
     summary = page.locator("#bg-theme-support summary")
     for _ in range(12):
         page.keyboard.press("Tab")
-        if summary.evaluate("el => el.matches(':focus-visible')"):
+        if summary.evaluate("el => el.matches(':focus')"):
             break
     else:
         raise AssertionError("Tab did not reach the supporting disclosure")
@@ -585,7 +585,7 @@ def code_copy_by_pointer(page: Page) -> None:
 
 
 def code_copy_by_keyboard(page: Page) -> None:
-    """Code's corner control with the keyboard focus ring visible."""
+    """Code's corner control focused from the keyboard."""
     code_note(page)
     page.keyboard.press("Tab")
     page.locator("lf-code .lf-code-copy").first.get_by_role("button").focus()

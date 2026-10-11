@@ -214,18 +214,21 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * In this file, because a widget declaring x-shadow builds its controls in a tree the
  * document's stylesheet does not reach, and a floor that stopped at the light DOM would
  * be a floor the newest kind of widget is the one to fall through. */
-/* Every keyboard target no rule rings, the page's own among them — a link, a summary, a
+/* Focus identifies the current input destination, regardless of pointer, touch or
+   keyboard arrival. Every focus target no rule rings, the page's own among them — a link, a summary, a
    block the runtime lands the user on — wears the layer's band. At no weight, so each
    rule that rings its own control still wins. Left to the browser these drew its 1px
-   auto ring flush against the words, beside the 2px band on every Leaf control. */
-:where(:focus-visible) { outline: var(--focus-ring); --lf-focus-ring: focus;
+   auto ring flush against the words, beside the 2px band on every Leaf control.
+   focus.js assigns lf-focus from the same logical standing that routes input;
+   retargeting shadow hosts and a label press's intermediate nodes get no band. */
+:where([data-lf-focus]) { outline: var(--focus-ring); --lf-focus-ring: focus;
   outline-offset: var(--focus-ring-gap); }
 /* Where the user stands wears a ring outside its box, so a scroll that brings the focus
    into view, the browser's or a landing's (anchor-travel.js reads it), keeps the ring's
    room at the scroller's edge: an Ask landed at the top of a scrolling pane stood flush
    with it, the top of its ring cut off under the pane's header rule. At no weight, like
    the ring. */
-:where(:focus) { scroll-margin-block: var(--focus-ring-room); }
+:where([data-lf-focus]) { scroll-margin-block: var(--focus-ring-room); }
 /* A control in a stuck sticky header stands where the header sticks, which its
    scroller's landing band can count as covered: the root's band starts
    `--lf-landing-room` below where headers stick under the banner. The browser then
@@ -242,7 +245,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    strip, which the band covers whole, comes out negative by its height, so its names
    count as shown too. */
 :where([data-lf-sticks]) { --lf-head-inset: 0px; }
-:where(:focus) {
+:where([data-lf-focus]) {
   scroll-margin-top: calc(var(--lf-top) - var(--lf-top-covered, var(--lf-top))
     + var(--lf-head-inset, calc(var(--focus-ring-room) + var(--lf-landing-room, 0px)))
     - var(--lf-landing-room, 0px)); }
@@ -251,7 +254,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   box-shadow: var(--offer-hover-shadow); }
 [data-lf-offer]:where(:not([data-lf-offer=""])):is([aria-disabled="true"], :disabled) {
   cursor: default; opacity: .55; }
-[data-lf-offer]:where(:not([data-lf-offer=""])):is(:focus-visible, .lf-focus-visible) {
+[data-lf-offer]:where(:not([data-lf-offer=""]))[data-lf-focus] {
   outline: var(--focus-ring); --lf-focus-ring: pressable;
   outline-offset: var(--focus-ring-gap); }
 /* The floor under every aim the layer offers, stated once for all of them rather
@@ -326,23 +329,23 @@ summary { align-content: center; }
           padding: var(--sp-1);
           font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh);
           color: var(--ink); overflow-wrap: anywhere; }
-.lf-page-thread:is(:focus-within, .lf-focus-within) {
+.lf-page-thread[data-lf-focus-within] {
           outline: none; border-radius: var(--r); background: var(--focus-surface); }
-/* The thread itself holding the keyboard's focus wears the ring, inset over the quiet
+/* The thread itself holding focus wears the ring, inset over the quiet
    ground its containing state paints; chrome.css says the same of the panel's card.
    It is drawn on a pseudo-element over the thread's contents rather than as the
    thread's own outline, which paints with the thread's in-flow content: a positioned
    row inside the thread paints after that, over the ring's bottom run. The
    pseudo-element is positioned too and comes after every row in tree order, so it
    paints over them without a z-index that would also lift it over the page. */
-.lf-page-thread:is(:focus-visible, .lf-focus-visible) { outline: none; }
-.lf-page-thread:is(:focus-visible, .lf-focus-visible)::after { content: "";
+.lf-page-thread[data-lf-focus] { outline: none; }
+.lf-page-thread[data-lf-focus]::after { content: "";
           position: absolute; inset: 0; pointer-events: none;
           border-radius: inherit;
           outline: var(--focus-ring); --lf-focus-ring: page-thread;
           outline-offset: calc(-1 * var(--focus-ring-w)); }
 @media (forced-colors: active) {
-  .lf-page-thread:is(:focus-within, .lf-focus-within) {
+  .lf-page-thread[data-lf-focus-within] {
           outline: 2px solid Highlight; outline-offset: -2px; box-shadow: none; }
 }
 .lf-say { display: none; align-items: flex-end;
@@ -434,7 +437,7 @@ summary { align-content: center; }
 .lf-summary-originals { min-width: 0; }
 .lf-summary-originals[hidden] { display: none; }
 .lf-summary-originals > .lf-msg { margin-block: 8px; }
-.lf-thread-disclosure:is(:focus-visible, .lf-focus-visible) {
+.lf-thread-disclosure[data-lf-focus] {
   outline: var(--focus-ring); --lf-focus-ring: summary-fold;
   outline-offset: calc(-1 * var(--focus-ring-w)); }
 /* Held news and header words spend separate retained allocations. A receipt may
@@ -506,7 +509,7 @@ button.lf-thread-notice { appearance: none; margin: 0; padding: 0;
           border: 0; background: none; cursor: pointer; }
 .lf-thread-notice:hover { box-shadow: none; text-decoration: underline;
           text-underline-offset: 3px; }
-button.lf-thread-notice:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+button.lf-thread-notice[data-lf-focus] { outline: var(--focus-ring);
           --lf-focus-ring: thread-notice; outline-offset: 1px; }
 /* What a seat holds while it would move the page under the reader (thread/held-news.js).
    The rows it appears in already stand at the height of a control beside it: the head

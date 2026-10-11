@@ -125,7 +125,7 @@
           // nested rule is hoisted into a CSSNestedDeclarations, which has one and no
           // selector. The context comes off the parent for the same reason: the layer's
           // one nested ring says
-          // `&:has(> lf-option > .lf-pick:is(:focus-visible, .lf-focus-visible))`
+          // `&:has(> lf-option > .lf-pick[data-lf-focus])`
           // and nothing else, which names no rule anybody can find.
           if (
             rule.style &&

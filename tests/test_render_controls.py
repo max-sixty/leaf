@@ -90,7 +90,6 @@ from render_harness import (
     any_draft_control,
     any_owner_entry,
     any_suggestion_control,
-    consume_browser_errors,
     expect_asks_answered,
     expect_comment_notes,
     held_frames,
@@ -102,6 +101,7 @@ from render_harness import (
     opened_tab,
     page_comment,
     panel_settled,
+    refuse,
     resized,
     root_overflow,
     round_trip,
@@ -5000,10 +5000,7 @@ def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, ser
     expect(live).to_contain_text("Claude is waiting for approval")
     leases_model.release_lease(lease)
 
-    def refuse_state(route):
-        route.abort("aborted")
-
-    page.route("**/api/**", refuse_state)
+    page.route("**/api/**", refuse)
     try:
         # A healthy page never asks without news, so give it one: the read that follows
         # is the one the route refuses.

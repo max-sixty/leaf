@@ -201,8 +201,7 @@ customElements.define(
       cancelRender(this.#fitting);
       const fit = () => {
         const frame = this.#frame;
-        const next = `${this.#heightReading + frame.offsetHeight - frame.clientHeight}px`;
-        if (frame.style.height !== next) frame.style.height = next;
+        frame.style.height = `${this.#heightReading + frame.offsetHeight - frame.clientHeight}px`;
       };
       if (immediate) fit();
       else this.#fitting = nextRender(fit);

@@ -958,11 +958,11 @@ export function unregisterMarginRow(row) {
   scheduleMarginLayout();
 }
 
+// A style property written, or removed for null. The platform makes no write of a
+// value the property already holds (keeps.js).
 function setStyle(row, property, value) {
-  if (value === null) {
-    if (row.style.getPropertyValue(property)) row.style.removeProperty(property);
-  } else if (row.style.getPropertyValue(property) !== value)
-    row.style.setProperty(property, value);
+  if (value === null) row.style.removeProperty(property);
+  else row.style.setProperty(property, value);
 }
 
 // Whether a row has somewhere to stand: its target renders, its scrollers leave some of

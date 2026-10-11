@@ -72,6 +72,7 @@ import {
   sizeObserver,
   watchData,
   widgetController,
+  layoutPx,
 } from "/runtime/widget-api.js";
 
 // Reuse the default package’s selected WebAwesome controls, already shipped with Leaf.
@@ -1605,7 +1606,7 @@ customElements.define(
       const line = cursor.getBoundingClientRect();
       const rail = center.getBoundingClientRect();
       const halfControl = this.#controlSize() / 2;
-      cursor.style.setProperty("--lf-trace-cursor-axis", `${rail.top - line.top}px`);
+      cursor.style.setProperty("--lf-trace-cursor-axis", layoutPx(rail.top - line.top));
       const middle = line.left + line.width / 2;
       const left = middle - rail.left;
       const right = rail.right - middle;
@@ -1615,10 +1616,10 @@ customElements.define(
           : Math.max(0, half - left) - Math.max(0, half - right);
       cursor.style.setProperty(
         "--lf-trace-cursor-hit-shift",
-        `${shift(halfControl)}px`,
+        layoutPx(shift(halfControl)),
       );
       const halfCap = Number.parseFloat(getComputedStyle(cursor, "::before").width) / 2;
-      cursor.style.setProperty("--lf-trace-cursor-cap-shift", `${shift(halfCap)}px`);
+      cursor.style.setProperty("--lf-trace-cursor-cap-shift", layoutPx(shift(halfCap)));
     }
 
     #draw() {

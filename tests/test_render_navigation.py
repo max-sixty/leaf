@@ -616,9 +616,7 @@ def test_the_thread_panel_and_a_page_thread_carry_names(browser, serve):
     )
 
 
-def test_a_comment_box_opens_where_a_panel_beside_the_page_leaves_it_in_sight(
-    browser, serve
-):
+def test_a_comment_box_moves_home_when_a_panel_comes_to_cover_its_seat(browser, serve):
     """The panels dominate what focus reaches (Max, 2026-10-06). A comment box whose
     seat the Threads panel comes to stand over moves to its home in the panel's foot,
     keeping its words, rather than standing hidden under the panel."""

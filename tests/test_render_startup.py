@@ -6416,7 +6416,8 @@ def test_page_annotation_view_seats_questions_and_contributed_controls(browser, 
     """A page that owns its annotations shows Questions and contributed actions in its
     own box: Leaf hands the consumer each entry's items and native controls, and the
     page only arranges them. Activating an item reaches its Question, and a seated
-    control still runs its contribution's action."""
+    control still runs its contribution's action. The view follows the log: an answered
+    Question leaves once the server holds the answer, and Undo brings it back."""
     url = serve(
         leaf_page(
             "Page annotation view",
@@ -6439,7 +6440,7 @@ def test_page_annotation_view_seats_questions_and_contributed_controls(browser, 
         read: () => ({entries: [contributionEntry({key: 'reviewed', behavior: 'action',
           icon: 'dot', label: 'Mark reviewed'})]}),
         activate: (key) => { window.activated = key; }});
-      const {consumeAnnotations} = await __lfRuntimeImport('/runtime/application.js');
+      const {consumeAnnotations} = await __lfRuntimeImport('/runtime/widget-api.js');
       const box = document.querySelector('#review');
       consumeAnnotations(box, (entries, view) => {
         box.replaceChildren();
@@ -6460,7 +6461,9 @@ def test_page_annotation_view_seats_questions_and_contributed_controls(browser, 
       });
     }""")
     review = page.locator("#review")
-    question = review.get_by_role("button", name=re.compile("Which route"))
+    question = review.get_by_role(
+        "button", name="Which route? · Waiting on you", exact=True
+    )
     expect(question).to_be_visible()
     question.click()
     page.wait_for_function("!!document.activeElement?.closest('#choice-question')")
@@ -6468,6 +6471,19 @@ def test_page_annotation_view_seats_questions_and_contributed_controls(browser, 
     expect(contributed).to_be_visible()
     contributed.click()
     page.wait_for_function("window.activated === 'reviewed'")
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.locator("#route-a .lf-pick").click()
+    expect(page.locator("#route-a")).to_have_attribute("chosen", "")
+    expect(question).to_be_visible()
+    holding(page, held, 1, "the optimistic choice")
+    held[0].continue_()
+    page.unroute("**/api/event")
+    expect(question).to_have_count(0)
+    undo(page)
+    expect(page.locator("#route-a")).not_to_have_attribute("chosen", "")
+    expect(question).to_be_visible()
 
 
 def test_page_thread_surface_owns_exact_source_elsewhere_in_main(browser, serve):
@@ -6478,12 +6494,12 @@ def test_page_thread_surface_owns_exact_source_elsewhere_in_main(browser, serve)
       <h1 id="title">Review</h1><p id="subject">The nightly export keeps one file per tenant.</p>
       <aside id="review" aria-label="Review" style="height: 500px; overflow:auto"></aside>
     """,
-        ),
+        ).replace("<body>", '<body data-annotations="page">'),
         anchored=[("subject", "one file per tenant")],
     )
     page = open_page(browser, url)
     page.evaluate("""async () => {
-      const {placePageThreads} = await __lfRuntimeImport('/runtime/application.js');
+      const {placePageThreads} = await __lfRuntimeImport('/runtime/widget-api.js');
       const rail = document.querySelector('#review');
       const outlets = new Map();
       window.pageSurface = placePageThreads(rail, (targets) => {
@@ -6604,7 +6620,7 @@ customElements.define('lf-test-seat', class extends HTMLElement {
       <p id="subject">The nightly export keeps one file per tenant.</p>
       <aside id="review" aria-label="Review" style="height:500px; overflow:auto"></aside>
     """,
-            ),
+            ).replace("<body>", '<body data-annotations="page">'),
             layer_registry={"lf-test-seat": entry},
             layer_widgets={"lf-test-seat.js": module},
             events=events,
@@ -6741,7 +6757,7 @@ customElements.define('lf-test-seat',class extends HTMLElement{
       <p id="subject">An ordinary source.</p><aside id="rail" style="height:300px;overflow:auto"></aside>
       <div id="foreign"></div>
     """,
-            ),
+            ).replace("<body>", '<body data-annotations="page">'),
             layer_registry={"lf-test-seat": entry},
             layer_widgets={"lf-test-seat.js": module},
             events=events,
@@ -6906,7 +6922,7 @@ def test_source_retired_during_required_panel_prepare_is_not_claimed(browser, se
       <button id="retire">Retire the target</button>
       <aside id="rail" style="height:220px;overflow:auto"></aside>
     """,
-            ),
+            ).replace("<body>", '<body data-annotations="page">'),
             anchored=[("subject", None)],
         ),
     )

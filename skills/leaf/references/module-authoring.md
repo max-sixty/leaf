@@ -1222,7 +1222,8 @@ Escape may return focus. Widgets do not receive draft, submission, or event APIs
 ## Page annotation presentation
 
 With `data-annotations="page"` on `body`, one connected Element may register
-`placePageThreads(owner, render)` to nominate page-owned conversation outlets.
+`placePageThreads(owner, render)` to nominate page-owned conversation outlets; both
+registrations in this section throw on a page without it.
 Its callback receives the same admitted target batch and `{signal, collection}` context,
 and returns the same matching outlet array as a widget-local surface. Page targets
 include exact passages and visual details, as well as projected data. The complete
@@ -1259,5 +1260,8 @@ holding layout never authorizes old actions. Both handles provide `read()`,
 `update()` and `unregister()`. Unregister on disconnect. Retain keyed rows and
 hold visible size changes with the shared `HeldReading` mechanism. Hold only layout
 identities and allocations, while updating surviving records and controls immediately;
-retired slots retain space with no interactive descendants. Omitting either consumer
-retains the core Threads and Questions routes.
+retired slots retain space with no interactive descendants. An owner that scrolls
+inside a box of its own is a reading region: a page bounds it with `data-bound`, which
+registers it, and a widget whose theme makes it scroll calls `registerReadingRegion`.
+At narrow widths the owner stays where touch and the keyboard reach it. Omitting either
+consumer retains the core Threads and Questions routes.

@@ -71,8 +71,9 @@ has tried; settle that before building it.
   (2026-10-06): the panels dominate focus, so moving focus never closes or changes a
   standing panel, focus never lands on page content a panel covers, and Threads still
   stands beside a full-width workspace. A comment box already refuses a covered seat
-  (`underOccluder`, geometry.js). Tab still walks onto page content under Threads, or
-  the Questions panel that shares its right edge, at 1440×900. Making what a panel covers inert was built and withdrawn: it left the visible
+  (`underOccluder`, geometry.js). Tab walked onto page content under Threads, or the
+  Questions panel that shares its right edge, at 1440×900 on an example since retired;
+  no surviving page has been checked for it. Making what a panel covers inert was built and withdrawn: it left the visible
   part of a partly covered element dead to clicks and selection, and focus still reached
   chrome markers, sample frames, overflowing children and content an attribute revealed.
   Decide between laying the page out in the width a panel leaves beside it, which

@@ -10433,7 +10433,9 @@ def test_editor_caret_hold_releases_after_unchanged_selection(browser, serve):
     field = page.locator("#seat leaf-text")
     expect(field).to_be_focused()
     # Exercise the reconnect path after the initial focus events have settled.
-    field.evaluate("node => { node.setSelectionRange(4, 4); node.connectedCallback(); }")
+    field.evaluate(
+        "node => { node.setSelectionRange(4, 4); node.connectedCallback(); }"
+    )
     # The first selectionchange leaves the held caret intact. It still consumes
     # the hold, so a later programmatic change belongs to its caller.
     page.evaluate("""() => new Promise(resolve => {

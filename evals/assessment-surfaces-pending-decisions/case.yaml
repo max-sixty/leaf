@@ -120,9 +120,9 @@ variants:
         The latest page state is:
         {"source":{"live":true,"error":null},
          "queues":{"on_you":[
-           {"id":"event-log-q","kind":"task","ends":"reply"},
-           {"id":"registry-q","kind":"task","ends":"reply"}],
-           "on_agent":[{"id":"ci-work","kind":"task","ends":"agent"}]}}
+           {"id":"event-log-q","kind":"task"},
+           {"id":"registry-q","kind":"task"}],
+           "on_agent":[{"id":"ci-work","kind":"task"}]}}
         No work depends on further feedback; comments remain welcome.
 
         Finish this turn while the background CI wait continues. Files and

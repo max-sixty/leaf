@@ -1209,8 +1209,8 @@ command; Questions expose no separate answer collection or answer CRUD API.
 
 `readQueues()` and `watchQueues(owner, callback)` supply the immutable
 `{phase, onYou, onAgent, done}` that the Questions panel and `q` navigation use.
-Question rows have `kind === "question"`, their canonical `question` record and
-`ends` of `widget`, `reply` or `approval`. Explicit work rows have
+Question rows have `kind === "question"` and their canonical `question` record,
+whose `source.kind` is `widget`, `reply` or `approval`. Explicit work rows have
 `kind === "task"`; response
 obligations and delivery retries retain their own kinds. A Question is not also
 a task. Live rows carry their workflow or `null`, plus `offers: {open, done}`
@@ -1221,8 +1221,8 @@ Questions, including rows whose obligation record carries no explicit title.
 
 `queueActions.open(key)` resolves the current row and follows Leaf's arrival.
 It resolves to `false` for an unavailable row. `queueActions.done(key)` returns
-an admission promise only for a current `onYou` work task with `ends === "done"`;
-otherwise it returns `null`. A widget Question ends through its widget and a
+an admission promise only for a current `onYou` work task, which is one the agent
+opened on the user; otherwise it returns `null`. A widget Question ends through its widget and a
 prose Question through a reply or settling reaction. An approval Question ends
 through its stamped version's banner approval. Done removes its work task
 optimistically, a duplicate cannot send again, and refusal restores the admitted

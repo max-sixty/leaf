@@ -1996,6 +1996,12 @@ def test_visual_review_discloses_focus_without_distorting_unsupported_browsers(
     host = case.locator(".lf-vr-shot-host")
     expect(widget).to_have_attribute("data-inspection-scope", "full")
     expect(widget.get_by_role("radiogroup", name="Scope")).to_be_hidden()
+    scope = widget.locator(".lf-vr-scope-group")
+    scope.evaluate("""group => {
+      group.value = 'focus';
+      group.dispatchEvent(new Event('change', {bubbles: true}));
+    }""")
+    expect(scope).to_have_js_property("value", "full")
     expect(host.locator("lf-shot")).to_have_attribute("data-lf-shot-focus", "true")
     expect(host.locator("lf-shot")).to_have_attribute("data-lf-shot-crop", "false")
     image = case.locator(".lf-shotframe img").first.evaluate(
@@ -3881,8 +3887,8 @@ def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, s
 
     assert identities("main > lf-ask", "id") == ["first-ask", "second-ask"]
     assert identities(".lf-queue-row", "data-lf-at") == [
-        "first-ask",
-        "second-ask",
+        "widget:first-options",
+        "widget:second-options",
     ]
 
     stamp_page(serve.page_dir, second, "reverse the questions")
@@ -3890,8 +3896,8 @@ def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, s
 
     assert identities("main > lf-ask", "id") == ["second-ask", "first-ask"]
     assert identities(".lf-queue-row", "data-lf-at") == [
-        "second-ask",
-        "first-ask",
+        "widget:second-options",
+        "widget:first-options",
     ]
 
 

@@ -6898,23 +6898,42 @@ def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, 
         != "rgb(200, 0, 0)"
     )
 
-    # Every frame of the child a Reset makes that draws the note draws it loud.
-    painted = page.locator("#tone-sample").evaluate(
-        """async sample => {
-          const frames = [];
-          let sampling = true;
-          const tick = () => {
-            const note = sample.querySelector('iframe').contentDocument
-              ?.getElementById('child-note');
-            if (note) frames.push(getComputedStyle(note).color);
-            if (sampling) requestAnimationFrame(tick);
-          };
-          requestAnimationFrame(tick);
-          await sample.reset();
+    # The reset child has an opaque origin. Collect its paints there, then request
+    # the whole sequence after Reset completes across the browsing-context boundary.
+    page.add_init_script("""(() => {
+      if (window === top) return;
+      const paints = [];
+      let sampling = true;
+      const tick = () => {
+        const note = document.getElementById('child-note');
+        if (note) paints.push(getComputedStyle(note).color);
+        if (sampling) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+      window.addEventListener('message', event => {
+        if (event.source !== parent || event.data?.type !== 'lf-test-tone-read')
+          return;
+        requestAnimationFrame(() => {
           sampling = false;
-          return frames;
-        }"""
-    )
+          parent.postMessage({type: 'lf-test-tone-paints', paints}, '*');
+        });
+      });
+    })()""")
+    page.locator("#tone-sample").evaluate("sample => sample.reset()")
+    page.locator("#tone-sample").evaluate("""sample => {
+      window.lfTonePaints = null;
+      const frame = sample.querySelector('iframe');
+      const receive = event => {
+        if (event.source !== frame.contentWindow
+            || event.data?.type !== 'lf-test-tone-paints') return;
+        window.lfTonePaints = event.data.paints;
+        window.removeEventListener('message', receive);
+      };
+      window.addEventListener('message', receive);
+      frame.contentWindow.postMessage({type: 'lf-test-tone-read'}, '*');
+    }""")
+    page.wait_for_function("window.lfTonePaints !== null")
+    painted = page.evaluate("window.lfTonePaints")
     assert painted and set(painted) == {"rgb(200, 0, 0)"}
     expect(child.locator(":root")).to_have_attribute("data-playground-tone", "loud")
 
@@ -6979,10 +6998,47 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     page.get_by_role("button", name="Wide", exact=True).click()
     assert values()["width"] == 4
     assert child_button.evaluate(standing), "preset"
+    # Input before the borrowing handoff remains part of the child's current work.
+    child_button.press("a")
+    # Headless page activation retains focus, so exercise the window-loss input
+    # owner directly while the browser keeps the same active control.
+    child_button.evaluate("() => window.dispatchEvent(new Event('blur'))")
     slider = playground.get_by_role("slider", name="Width").bounding_box()
     page.mouse.click(slider["x"] + 2, slider["y"] + slider["height"] / 2)
     assert values()["width"] == 1
+    expect(child_button).to_be_focused()
     assert child_button.evaluate(standing), "slider"
+    page.mouse.move(slider["x"] + 2, slider["y"] + slider["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(
+        slider["x"] + slider["width"] - 2,
+        slider["y"] + slider["height"] / 2,
+        steps=4,
+    )
+    page.mouse.up()
+    assert values()["width"] == 4
+    expect(child_button).to_be_focused()
+    assert child_button.evaluate(standing), "slider drag"
+    sample = page.locator("#ring-sample")
+    hold_restore = """sample => {
+          const restore = sample.restoreStanding;
+          sample.restoreStanding = () => {
+            window.releaseRestore = () => {
+              window.restoreDone = restore.call(sample);
+            };
+            return Promise.resolve(false);
+          };
+        }"""
+    sample.evaluate(hold_restore)
+    page.mouse.click(slider["x"] + 2, slider["y"] + slider["height"] / 2)
+    note = page.get_by_role("textbox", name="Note")
+    note.focus()
+    expect(note).to_be_focused()
+    page.evaluate("window.releaseRestore()")
+    assert page.evaluate("() => window.restoreDone") is False
+    expect(note).to_be_focused()
+    sample.evaluate("sample => delete sample.restoreStanding")
+    child_button.focus()
     playground.locator(".lf-playground-reset").click()
     assert values()["ring"] == "thin"
     assert child_button.evaluate(standing)
@@ -7015,6 +7071,33 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     ).click()
     thin.click()
     expect(thin).to_be_focused()
+
+    # Reset replaces the child whose control held focus. Its new document stands
+    # on nothing, so a parent choice takes focus rather than preserving the frame.
+    child_button.focus()
+    page.wait_for_function("document.querySelector('#ring-sample').focusedContent")
+    sample.evaluate("async sample => await sample.reset()")
+    page.frame_locator("#ring-sample iframe").get_by_text(
+        "The page the candidate"
+    ).click()
+    thin.click()
+    expect(thin).to_be_focused()
+
+    # A later press in the child also supersedes a held parent restoration.
+    child_button.focus()
+    page.wait_for_function("document.querySelector('#ring-sample').focusedContent")
+    sample.evaluate(hold_restore)
+    page.mouse.click(slider["x"] + 2, slider["y"] + slider["height"] / 2)
+    page.frame_locator("#ring-sample iframe").get_by_text(
+        "The page the candidate"
+    ).click()
+    note.focus()
+    sample.locator("iframe").focus()
+    assert child_button.evaluate("() => document.activeElement === document.body")
+    page.evaluate("window.releaseRestore()")
+    assert page.evaluate("() => window.restoreDone") is False
+    assert child_button.evaluate("() => document.activeElement === document.body")
+    sample.evaluate("sample => delete sample.restoreStanding")
 
 
 def test_playground_labels_can_be_selected_without_changing_the_controls(

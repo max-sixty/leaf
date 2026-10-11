@@ -3,6 +3,13 @@
 import { capturePlace, restorePlace } from "./reading-place.js";
 import { cancelRender, nextRender } from "./rendering.js";
 import { retainUserIntent } from "./user-intent.js";
+import {
+  canPlaceFocus,
+  focused,
+  focusDestination,
+  onStanding,
+  onUserInput,
+} from "./focus.js";
 
 const child = document.documentElement.lfSample;
 const commands = new Map();
@@ -39,6 +46,35 @@ if (child)
 
 if (child) {
   let presented = false;
+  // A parent cannot inspect focus in this opaque document. Keep the control while
+  // a parent borrows focus, but report the current standing separately. The native
+  // handoff can pass through the body before blur; capture its intent after the
+  // shared input owner counts the blur after that first body handoff. Window loss
+  // that keeps the active control needs no return. Later input voids a borrowed return, and
+  // another blur cannot renew it before a control stands again.
+  let standing = null;
+  let borrowed = null;
+  onStanding((node) => {
+    if (node && node !== document.body) {
+      standing = node;
+      borrowed = null;
+    }
+    sampleNotice("standing", { focused: Boolean(node && node !== document.body) });
+  });
+  onUserInput((event) => {
+    if (
+      event.type === "blur" &&
+      focused() === document.body &&
+      standing &&
+      borrowed === null
+    )
+      borrowed = retainUserIntent({ source: standing });
+  });
+  registerSampleCommand("restore-standing", () => {
+    if (!standing?.isConnected || !borrowed?.() || !canPlaceFocus()) return false;
+    focusDestination(standing, "return");
+    return document.hasFocus();
+  });
   let embeddedPlace = null;
   let returning = null;
   let restoration = null;

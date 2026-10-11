@@ -1783,7 +1783,7 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     expect(control).to_have_count(1)
     page.evaluate(
         """() => {
-          const oldPart = document.querySelector('#flow g[data-id="S"]');
+          const oldPart = document.querySelector('#flow').visualParts.get('node:S').element;
           const newPart = oldPart.cloneNode(true);
           // Marked, so the rebuild is a different part and not the same one written
           // again.
@@ -1795,7 +1795,7 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
           });
         }"""
     )
-    part = page.locator('#flow g[data-id="S"][data-rebuilt]')
+    part = page.locator("#flow [data-rebuilt]")
     expect(part).not_to_be_in_viewport()
     page.locator("#folded").evaluate("fold => { fold.open = false; }")
 

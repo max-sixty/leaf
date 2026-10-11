@@ -76,6 +76,7 @@ export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place.
 export { render, setChildren, setRenderedChildren } from "./dom-children.js";
 export { readQuestions, watchQuestions } from "./questions/model.js";
+export { comparisonChanges, watchComparison } from "./version.js";
 export { questionWords } from "./questions/answer.js";
 export {
   readWork,

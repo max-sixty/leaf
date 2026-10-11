@@ -210,8 +210,8 @@ what fails and what still works.
   Within one composed root it uses `moveBefore` when available; new nodes,
   cross-root transfers, and engines without the API use `insertBefore`.
 - **Consumers:** authored revisions and renderer child reconciliation, board
-  placement, and the vendored Sortable move sites. The Sortable adaptation fails
-  if its pinned upstream seams change.
+  placement, the vendored Sortable move sites, and lit-html’s keyed and child-part
+  insertions. Both vendor adaptations fail if their pinned upstream seams change.
 - **Browser support, checked 2026-10-10:** Chrome/Edge 133+ and Firefox 144+
   support the API. Safari, including iOS Safari, is listed as unsupported in
   [MDN's compatibility data](https://developer.mozilla.org/en-US/docs/Web/API/Element/moveBefore#browser_compatibility).
@@ -224,17 +224,19 @@ what fails and what still works.
   blur. Disabling the capability exercises ordinary insertion with explicit focus
   retention. Playwright's WebKit 26.6 has no `moveBefore`; a direct probe confirms
   retained nodes reorder and a new fragment arrives through the shared primitive.
-- **Lit adoption skipped:** adapting lit-html's keyed and child-part move seams
-  preserves editor and iframe state in Chrome, but exposes a pre-existing passive
-  thread-withdrawal jump. In the complete-list rollback journey, withdrawing the
-  selected thread and opening the fallback moves the surviving closed card up
-  34px with the list at scroll zero. The original Lit bundle paints the same jump,
-  but its detach/reinsert behavior prevents Chrome from reporting it as a shift.
-  Native Lit moves must wait for a coherent policy for the departed allocation;
-  adding a fold or weakening the stability check does not preserve that reading.
+- **Lit adoption:** `build/browser/build.mjs` routes keyed and child-part moves
+  through the shared primitive, including the initial root marker so named form
+  controls cannot shadow native insertion. The Chrome test above exercises both
+  child reconciliation and Lit rendering, with native moves and forced fallback.
+  The thread list retains the measured allocation of a passively withdrawn root
+  while its removal would disturb the reader. It disconnects the former content
+  and shows “Thread withdrawn” with Dismiss; counts and navigation reflect current
+  threads. Selection stays with that allocation until dismissal, another choice,
+  a view change, or safe departure. Complete-list rollback restores native content
+  and editors from the same committed reading.
 - **Fallback limit:** insertion reorders content but can blur a focused descendant
-  and reload an iframe. Lit continues to use ordinary insertion in every browser,
-  so Leaf's focus-holding `render` wrapper remains; it restores focus and caret,
+  and reload an iframe. Leaf’s focus-holding `render` wrapper remains for these
+  engines; it restores focus and caret,
   but cannot preserve iframe documents. The native guarantee for Leaf's retained
   moves is described in the
   [API's state-preservation contract](https://developer.mozilla.org/en-US/docs/Web/API/Element/moveBefore#description).

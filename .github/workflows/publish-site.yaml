@@ -15,6 +15,14 @@ on:
       # from the kernel and bundled package alike — a change to either
       # is a change to what a visitor loads.
       - 'skills/leaf/**'
+      # The hosted agent installs the complete prepared plugin, including its
+      # harness registrations and skill discovery manifests.
+      - 'hooks/**'
+      - '.agents/plugins/**'
+      - '.claude-plugin/**'
+      - '.codex-plugin/**'
+      - '.claude/skills/developing-leaf/**'
+      - '.claude/skills/ui-sweep/**'
       - 'bin/leaf'
       - 'pyproject.toml'
       - 'uv.lock'
@@ -28,6 +36,7 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - 'Dockerfile.website'
+      - 'Dockerfile.website.dockerignore'
       - '.github/workflows/publish-site.yaml'
   workflow_dispatch:
 

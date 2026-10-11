@@ -18,7 +18,7 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     UV_LINK_MODE=copy \
     LEAF_SITE_ROOT=/app/site \
-    CODEX_HOME=/app/.codex \
+    CODEX_HOME=/codex-home \
     PATH=/codex-bin:/app/.venv/bin:$PATH
 
 COPY --from=codex /codex-bin /codex-bin
@@ -27,16 +27,16 @@ RUN ln -s /codex-bin/rg /usr/local/bin/rg
 # Leaf and its website server come from the installation `leaf-dev site` built its pages
 # with, a prepared one, so a revision a hosted session writes carries the same compiled
 # kernel as a consumer install.
-COPY .tmp/site-install/pyproject.toml .tmp/site-install/uv.lock \
-    .tmp/site-install/leaf-distribution.json ./
-COPY .tmp/site-install/skills/leaf ./skills/leaf
-COPY .tmp/site-install/worker ./worker
+COPY .tmp/site-install/ ./
+# Install the complete prepared plugin before uv creates an environment in this
+# payload: Codex's native installer copies it into the ordinary plugin cache.
+COPY worker/codex-config.toml /codex-home/config.toml
+RUN codex plugin marketplace add /app --json \
+    && codex plugin add leaf@leaf --json
 RUN uv sync --frozen --no-dev --package leaf-website --compile-bytecode \
     && /app/.venv/bin/python -m compileall -q /app/skills/leaf/scripts/leaf \
     && /app/.venv/bin/leaf --version \
     && ln -s /app/.venv/bin/leaf /usr/local/bin/leaf
-
-COPY worker/codex-config.toml /app/.codex/config.toml
 
 COPY .tmp/site ./site
 

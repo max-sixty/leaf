@@ -1984,7 +1984,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     for color_scheme in ("light", "dark"):
         user.emulate_media(color_scheme=color_scheme)
         cluster.hover()
-        tooltip_body = cluster_tip.locator('[part="body"]')
+        tooltip_body = cluster_tip.locator('[part~="body"]')
         expect(tooltip_body).to_be_visible()
         reading = tooltip_body.evaluate(
             """node => {
@@ -2013,11 +2013,11 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     user.emulate_media(color_scheme="light")
     expect(widget.locator(f'[data-lf-datum="{coordinate}"]')).to_be_visible()
     user.mouse.move(0, 0)
-    expect(cluster_tip.locator('[part="body"]')).to_be_hidden()
+    expect(cluster_tip.locator('[part~="body"]')).to_be_hidden()
     cluster.focus()
     expect(cluster).to_be_focused()
     assert cluster.evaluate("node => node.matches(':focus-visible')")
-    expect(cluster_tip.locator('[part="body"]')).to_be_visible()
+    expect(cluster_tip.locator('[part~="body"]')).to_be_visible()
     user.keyboard.press("Enter")
     rows = widget.locator(".lf-trace-bookmarks")
     expect(rows.locator(".lf-trace-bookmark-list")).to_be_visible()
@@ -2033,10 +2033,10 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     widget.locator('.lf-trace-marker[aria-label^="Moment 3 ·"]').click()
     expect(widget.locator('.lf-trace-marker[aria-label^="Moment 3 ·"]')).to_be_focused()
     first_pin.hover()
-    expect(cluster_tip.locator('[part="body"]')).to_be_visible()
+    expect(cluster_tip.locator('[part~="body"]')).to_be_visible()
     second_pin.hover()
     expect(
-        widget.locator(".lf-trace-tooltip").nth(1).locator('[part="body"]')
+        widget.locator(".lf-trace-tooltip").nth(1).locator('[part~="body"]')
     ).to_be_visible()
     box = first_pin.bounding_box()
     user.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
@@ -2059,10 +2059,10 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     solo_tip = widget.locator(".lf-trace-tooltip").last
     pins.filter(has_text="3").hover()
     expect(solo_tip).to_have_text(f"3 · {labels[2]} · {api_time:.3f} s")
-    expect(solo_tip.locator('[part="body"]')).to_be_visible()
+    expect(solo_tip.locator('[part~="body"]')).to_be_visible()
     expect(widget.locator(f'[data-lf-datum="{api}"]')).to_be_visible()
     user.mouse.move(0, 0)
-    expect(solo_tip.locator('[part="body"]')).to_be_hidden()
+    expect(solo_tip.locator('[part~="body"]')).to_be_hidden()
     cluster.click()
     expect(rows.locator(".lf-trace-bookmark-list")).to_be_visible()
     expect(widget.locator(f'[data-lf-datum="{docs}"]')).to_be_visible()

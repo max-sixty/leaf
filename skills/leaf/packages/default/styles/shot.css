@@ -44,11 +44,11 @@
     border-radius: 50%; pointer-events: none; }
 :scope:is(lf-shot) .lf-shotcomparison::part(before),
 :scope:is(lf-shot) .lf-shotcomparison::part(after) { cursor: pointer; }
-:scope:is(lf-shot) .lf-shotcomparison:is(:hover, :focus-within, :state(dragging))::part(divider) {
+:scope:is(lf-shot) .lf-shotcomparison:is(:hover, [data-lf-focus-within], :state(dragging))::part(divider) {
     background: var(--ink-2); }
-:scope:is(lf-shot) .lf-shotcomparison:is(:hover, :focus-within, :state(dragging))::part(handle) {
+:scope:is(lf-shot) .lf-shotcomparison:is(:hover, [data-lf-focus-within], :state(dragging))::part(handle) {
     opacity: 1; scale: 1; }
-:scope:is(lf-shot) .lf-shotcomparison:is([position="0"], [position="100"]):not(:hover, :focus-within)::part(handle) {
+:scope:is(lf-shot) .lf-shotcomparison:is([position="0"], [position="100"]):not(:hover, [data-lf-focus-within])::part(handle) {
     opacity: .18; scale: .68; }
 :scope:is(lf-shot) .lf-shotframe { position: relative; overflow: clip; background: var(--card); }
 :scope:is(lf-shot) .lf-shotframe img { display: block; width: 100%; height: auto;
@@ -151,7 +151,7 @@
 :scope:is(lf-shot):not(:has(> .lf-shotcomparison)) > input.lf-shotflip {
     display: block; }
 
-:scope:is(lf-shot):has(> input.lf-shotflip:is(:focus-visible, .lf-focus-visible)) {
+:scope:is(lf-shot):has(> input.lf-shotflip[data-lf-focus]) {
     outline: var(--focus-ring); --lf-focus-ring: shot; outline-offset: 1px;
     border-radius: var(--r); }
 

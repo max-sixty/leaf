@@ -74,15 +74,51 @@ wa-select::part(combobox) {
   transition-property: background-color, border-color;
 }
 
-/* A text field's Tab stop and the box that rings it both sit inside the vendor's shadow
-   root, where the host rule a Leaf control wears reaches neither. The band is therefore
-   drawn and named on the field's own part: --lf-focus-ring does not inherit, and the
-   layer credits a ring to the rule that names it. The frame's band covers its native
-   editor and any auxiliary control, including Clear. */
-wa-input:focus-within::part(base) {
+/* Public parts carry the same focus band for pointer and keyboard arrival. Native
+   shadow hosts only retarget their internal focus; Leaf's focus owner marks the actual
+   input owner with data-lf-focus and the public lf-focus part, and its composed ancestry
+   with data-lf-focus-within. Each control draws one band at that logical destination,
+   including while a label press temporarily moves native focus elsewhere. */
+wa-copy-button::part(lf-focus) {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-gap);
+  --lf-focus-ring: copy-button;
+}
+wa-comparison::part(lf-focus) {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-gap);
+  --lf-focus-ring: comparison-handle;
+}
+
+/* A radio's actual focus owner is its host, rather than a native shadow control.
+   The generic band surrounds its full face, label included, for both appearances. */
+wa-radio::part(control) { outline: none; }
+wa-radio[appearance="button"][data-lf-focus] { z-index: 2; }
+
+/* Text and select frames cover their editor and auxiliary controls, including Clear.
+   Their native input/button outlines stay off so a group has one focus carrier. */
+wa-input[data-lf-focus-within]::part(base) {
   outline: var(--focus-ring);
   --lf-focus-ring: text-entry;
 }
+wa-input::part(clear-button):focus,
+wa-input::part(password-toggle-button):focus {
+  outline: none;
+}
+wa-select[data-lf-focus-within]::part(combobox) {
+  outline: var(--focus-ring);
+  --lf-focus-ring: select;
+}
+
+/* A single slider focuses its rail and paints the thumb; a range slider focuses
+   each thumb independently. The public parts express that same ownership. */
+wa-slider:not([range])[data-lf-focus-within]::part(thumb),
+wa-slider[range]::part(lf-focus) {
+  outline: var(--focus-ring);
+  outline-offset: 0;
+  --lf-focus-ring: slider-thumb;
+}
+wa-slider[range]::part(lf-focus) { z-index: 4; }
 
 /* A slider's unfilled track is the scale the value is read against, so it carries a
    contour's weight rather than a hover's: at --chip it read as empty paper, and a value

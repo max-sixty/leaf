@@ -5792,19 +5792,15 @@ def test_an_absent_walk_destination_returns_to_the_callers_fallback(browser, ser
     expect(page.locator(".lf-live")).to_contain_text("Thread 1 of 1")
 
 
-def test_an_inline_thread_rings_its_card_only_while_the_keyboard_stands_on_it(
-    browser, serve
-):
-    """The card carries the thread's keyboard ring and gives it to the reply box.
-
-    A pointer arrival leaves the card's ordinary frame alone."""
+def test_an_inline_thread_rings_its_card_for_pointer_and_keyboard_focus(browser, serve):
+    """Either arrival rings the thread; entering its reply gives the ring to the field."""
     page = open_page(
         browser,
         serve(INLINE_PAGE, anchored=[("p", "bold text")]),
     )
     thread = page.locator(".lf-margin-preview .lf-page-thread")
     preview = page.locator(".lf-margin-preview")
-    # The preview carries the ring for an inline thread; the thread fills its frame.
+    # The margin preview carries its thread's ring around the complete floating card.
     paint = """el => {
       const s = getComputedStyle(el);
       const after = getComputedStyle(el, '::after');
@@ -5817,34 +5813,41 @@ def test_an_inline_thread_rings_its_card_only_while_the_keyboard_stands_on_it(
 
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').first.click()
     expect(thread).to_be_focused()
-    assert not thread.evaluate("el => el.matches(':focus-visible')")
-    pointer = thread.evaluate(paint)
-    assert preview.evaluate("el => getComputedStyle(el).outlineStyle") == "none"
-    thread.evaluate("el => el.blur()")
-    assert pointer["outline"] == "none"
-    assert pointer["shadow"] == "none"
+    pointer = preview.evaluate(paint)
+    assert pointer["outline"] == "solid"
+    assert pointer["offset"] == "-2px"
+    drawn = rings_drawn(page)
+    assert any(ring["sample"] for ring in drawn), drawn
+    assert not ring_faults(drawn, "the thread opened by pointer")
 
     page.keyboard.press("Escape")
     page.keyboard.press("t")
     expect(thread).to_be_focused()
-    assert thread.evaluate("el => el.matches(':focus-visible')")
-    current = thread.evaluate(paint)
-    assert current["outline"] == "none"
-    assert preview.evaluate("el => getComputedStyle(el).outlineStyle") == "solid"
-    assert preview.evaluate("el => getComputedStyle(el).outlineOffset") == "-2px"
-    assert current["background"] == pointer["background"]
-    assert current["shadow"] == "none"
+    current = preview.evaluate(paint)
+    assert current == pointer
 
     page.keyboard.press("Enter")
     reply = thread.locator("leaf-text")
     expect(reply).to_be_focused()
-    assert preview.evaluate("el => getComputedStyle(el).outlineStyle") == "none"
-    writing = thread.evaluate(paint)
-    assert writing == pointer
+    writing = preview.evaluate(paint)
+    assert writing["outline"] == "none"
+    assert writing["background"] == pointer["background"]
     drawn = rings_drawn(page)
     assert len(drawn) == 1, drawn
     assert drawn[0]["ring"] == "text-box" and drawn[0]["sample"], drawn
     assert not ring_faults(drawn, "the focused reply box")
+
+    # The reply delegates focus into its shadow tree. Pointer arrival preserves the
+    # same field ring, without returning it to the enclosing card.
+    thread.click(position={"x": 3, "y": 3})
+    expect(thread).to_be_focused()
+    reply.click()
+    expect(reply).to_be_focused()
+    pointer_reply = rings_drawn(page)
+    assert len(pointer_reply) == 1, pointer_reply
+    assert pointer_reply[0]["ring"] == drawn[0]["ring"]
+    assert pointer_reply[0]["sample"], pointer_reply
+    assert not ring_faults(pointer_reply, "the reply box focused by pointer")
 
 
 def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
@@ -13255,14 +13258,21 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
 <lf-ask id="frame-question-decision"><h2>Which next frame?</h2>
 <lf-options id="frame-question" choose>
   <lf-option id="after-frame"><strong>After</strong>
+    <div id="label-thread" tabindex="-1">
     <label id="frame-label"><input id="frame" type="radio" name="frame">
       <span>after state</span></label>
+    </div>
   </lf-option>
   <lf-option id="before-frame"><strong>Before</strong></lf-option>
 </lf-options></lf-ask>
 """,
     )
     page = open_page(browser, serve(html, anchored=[("frames", "Choose a frame")]))
+    # Arrange the runtime's shared thread surface around the native label. Its
+    # focusable container exposes Chromium's intermediate focus during activation.
+    page.locator("#label-thread").evaluate(
+        "thread => thread.classList.add('lf-page-thread')"
+    )
     first = page.locator("#first")
     control = page.locator("#frame")
     words = page.locator("#frame-label span")
@@ -13292,6 +13302,12 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     )
     first.focus()
     assert shortcut_bar_text(page) == standing
+    focus_paint = """control => { const s = getComputedStyle(control); return {
+      style: s.outlineStyle, width: s.outlineWidth, color: s.outlineColor,
+      offset: s.outlineOffset, name: s.getPropertyValue('--lf-focus-ring').trim()
+    }; }"""
+    first_ring = first.evaluate(focus_paint)
+    assert first_ring["style"] == "solid" and first_ring["name"] == "focus", first_ring
 
     bounds = words.bounding_box()
     assert bounds is not None
@@ -13310,6 +13326,24 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     held_ask = page.locator("#first-question-decision[data-lf-question]")
     expect(held_ask).to_have_count(1)
     expect(held_ask).to_have_css("--lf-focus-ring", "question")
+    # Native label activation temporarily blurs the radio. Its logical input
+    # destination, and therefore the fallback ring on this plain authored control,
+    # remain in place until the label's click transfers focus.
+    assert not first.evaluate("control => control.matches(':focus')")
+    assert first.evaluate(focus_paint) == first_ring
+    assert not ring_faults(rings_drawn(page), "while the label press holds focus")
+    intermediate = page.locator("#label-thread")
+    expect(intermediate).to_be_focused()
+    # The platform temporarily focuses the enclosing thread, but the logical
+    # destination remains the radio. Neither its ordinary pseudo-ring nor its
+    # high-contrast focus-within outline may show that intermediate native focus.
+    thread_paint = """thread => [getComputedStyle(thread).outlineStyle,
+      getComputedStyle(thread, '::after').outlineStyle]"""
+    assert intermediate.evaluate(thread_paint) == ["none", "none"]
+    page.emulate_media(forced_colors="active")
+    assert intermediate.evaluate(thread_paint) == ["none", "none"]
+    assert first.evaluate(focus_paint)["style"] == "solid"
+    page.emulate_media(forced_colors="none")
     page.mouse.up()
     expect(control).to_be_checked()
     expect(control).to_be_focused()
@@ -13360,6 +13394,22 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     )
     page.mouse.up()
     assert "reply" not in shortcut_bar_text(page)
+
+    # Retained DOM moves keep native focus without another focusin. The canonical
+    # focus-within paint must still leave the former parent and reach the new one.
+    expect(control).to_be_focused()
+    moved = page.evaluate("""() => {
+      const control = document.querySelector('#frame');
+      const newParent = document.querySelector('#first-frame');
+      const events = [];
+      control.addEventListener('focusin', event => events.push(event.type), {once: true});
+      newParent.moveBefore(document.querySelector('#label-thread'), null);
+      return {focused: document.activeElement === control, events};
+    }""")
+    assert moved == {"focused": True, "events": []}
+    expect(page.locator("#after-frame[data-lf-focus-within]")).to_have_count(0)
+    expect(page.locator("#first-frame[data-lf-focus-within]")).to_have_count(1)
+    expect(control).to_be_focused()
 
 
 def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggestion(

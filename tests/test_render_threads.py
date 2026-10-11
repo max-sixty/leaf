@@ -8749,19 +8749,18 @@ def test_an_empty_thread_list_wears_its_ring_whole(browser, serve, color_scheme)
     )
 
 
-def thread_mark_fault(reading, ring="solid"):
+def thread_mark_fault(reading):
     """Why a current thread is indistinguishable from a resting card, if it is.
 
-    The card the keyboard stands on wears the inset ring every keyboard target wears,
-    over the quiet ground that says the user is in it; a pointer arrival paints the
-    ground alone, and its caller says so with `ring="none"`. `rings_drawn` reads whether
+    The focused card wears the same inset ring after pointer or keyboard arrival,
+    over the quiet ground that says the user is in it. `rings_drawn` reads whether
     a ring is whole; this reads that the marks the arrival owes are there."""
     if not reading:
         return "focus is not inside a thread"
     if reading["restingBackground"] is None:
         return "there is no resting peer to distinguish the current thread from"
-    if reading["outline"] != ring:
-        return f"the current thread wears a {reading['outline']} outline, not {ring}"
+    if reading["outline"] != "solid":
+        return f"the current thread wears a {reading['outline']} outline, not solid"
     if reading["background"] == reading["restingBackground"]:
         return "the current thread's surface is the same as a resting card's"
     if reading["cuts"]:
@@ -9148,7 +9147,7 @@ def test_a_comment_the_pointer_lands_on_comes_back_from_the_lists_edge(browser, 
     assert page.evaluate(
         "() => Boolean(document.activeElement?.closest('.lf-thread'))"
     ), "the press did not land the user on a thread"
-    mark_fault = thread_mark_fault(standing_thread(page), ring="none")
+    mark_fault = thread_mark_fault(standing_thread(page))
     assert not mark_fault, mark_fault
     assert not ring_faults(
         rings_drawn(page), "after a press on a card the list's edge cut"

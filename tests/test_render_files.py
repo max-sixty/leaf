@@ -403,14 +403,15 @@ def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
     editor.focus()
     assert editor.evaluate("node => node.matches(':focus-visible')")
     assert editor.evaluate("node => getComputedStyle(node).fontSize") == "30px"
-    ring = editor.evaluate("""node => {
+    focus_paint = """node => {
       const style = getComputedStyle(node.closest('.cm-editor'), '::after');
       const content = getComputedStyle(node);
       const box = node.getBoundingClientRect();
       return {width: style.outlineWidth, style: style.outlineStyle,
         color: style.outlineColor, content: content.outlineStyle,
         visible: box.width > 0 && box.height > 0};
-    }""")
+    }"""
+    ring = editor.evaluate(focus_paint)
     assert ring == {
         "width": "7px",
         "style": "dashed",
@@ -418,6 +419,13 @@ def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
         "content": "none",
         "visible": True,
     }
+    page.get_by_role("button", name="Change theme", exact=True).focus()
+    editor.click()
+    expect(editor).to_be_focused()
+    assert editor.evaluate(focus_paint) == ring
+    assert widget.evaluate("node => getComputedStyle(node).outlineStyle") == "none", (
+        "retargeting editor focus to its shadow host drew a second ring"
+    )
     # Computed outlines can be completely clipped by CodeMirror's scrollport.
     # Count the custom cue's actual painted pixels inside the editor frame.
     frame = widget.locator(".cm-editor")

@@ -34,10 +34,10 @@
 pre:hover + .lf-code-copy,
 .lf-code-copy-hover,
 .lf-code-copy-focused,
-.lf-code-copy:is(:hover, :focus-within) { opacity: 1; }
+.lf-code-copy:is(:hover, [data-lf-focus-within]) { opacity: 1; }
 @media (pointer: coarse), (hover: none) {
   .lf-code-copy { opacity: 1; }
-  pre:focus + .lf-code-copy,
+  pre[data-lf-focus] + .lf-code-copy,
   .lf-code-copy.lf-code-copy-focused { opacity: 0; pointer-events: none; }
 }
 .lf-code-copy::part(button) {
@@ -52,7 +52,7 @@ pre:hover + .lf-code-copy,
   font-size: var(--t-5);
 }
 .lf-code-copy::part(button):hover { color: var(--ink); }
-.lf-code-copy::part(button):focus-visible {
+.lf-code-copy::part(lf-focus) {
   outline: var(--focus-ring);
   --lf-focus-ring: code-copy;
 }

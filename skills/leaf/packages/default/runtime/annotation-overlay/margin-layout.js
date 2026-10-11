@@ -445,7 +445,7 @@ function placeMarginEntryLabel(control) {
 }
 
 const REVEALS_LABEL =
-  ':is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"]), [data-lf-held-word]';
+  ':is(:hover, [data-lf-focus]):not([aria-expanded="true"]), [data-lf-held-word]';
 let labelPlacementFrame = 0;
 export function scheduleMarginEntryLabels() {
   if (labelPlacementFrame) return;

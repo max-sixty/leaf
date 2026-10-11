@@ -327,14 +327,9 @@ export function createQuestionView({
   // Tab, a click on one of its controls — left the ring somewhere else entirely, so the
   // same place was marked or not by how the user had reached it.
   //
-  // TODO(2026-09-06): Keep the Question-wide location ring for keyboard navigation and
-  // Queue-directed focus without painting it after an ordinary pointer click inside the
-  // Question. On a large interactive widget, that click currently leaves a prominent ring
-  // around the entire surface even though the focused control already shows the action.
-  //
-  // Keyed on focus and not on :focus-visible, which is a claim about the last input rather
-  // than about where the user is: a Questions panel row's press lands the focus by script
-  // after a click, and the question it brought the user to would wear nothing at all.
+  // Pointer and keyboard arrivals share this location reading, as they share the
+  // focused control's ring. A Questions panel row's press lands the focus by script
+  // after a click, and the question it brought the user to must show where they are.
   //
   // The question wears it, and so does every box it shows through (shownParts): the question is
   // what carries the id captureView writes down and the place the queue walk measures from,

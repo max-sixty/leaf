@@ -83,7 +83,7 @@
   border: 0; border-radius: var(--r); background: transparent; color: inherit;
   font: inherit; }
 button.lf-media-open { cursor: zoom-in; }
-.lf-media-open:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+.lf-media-open[data-lf-focus] { outline: var(--focus-ring);
   --lf-focus-ring: media; outline-offset: 2px; }
 .lf-composer-media-open { width: 68px; height: 52px; overflow: hidden;
   border: 0; border-radius: 0; align-self: center; }
@@ -103,11 +103,11 @@ button.lf-media-open { cursor: zoom-in; }
   border-inline-start: 1px solid var(--border-2); background: transparent;
   color: var(--ink-2); cursor: pointer; }
 .lf-composer-media-item > button:not(.lf-media-open):hover { color: var(--accent); background: var(--chip); }
-.lf-composer-media-item > button:not(.lf-media-open):is(:focus-visible, .lf-focus-visible) {
+.lf-composer-media-item > button:not(.lf-media-open)[data-lf-focus] {
   outline: var(--focus-ring); --lf-focus-ring: composer-media;
   outline-offset: calc(-1 * var(--focus-ring-w)); }
 .lf-composer-media-item > button:not(.lf-media-open) > svg { inline-size: 14px; block-size: 14px; }
-.lf-composer-media-item > .lf-media-open:is(:focus-visible, .lf-focus-visible) {
+.lf-composer-media-item > .lf-media-open[data-lf-focus] {
   outline-offset: calc(-1 * var(--focus-ring-w)); }
 
 /* Standard comment boxes share one frame around their editor and Send. Other
@@ -117,7 +117,7 @@ button.lf-media-open { cursor: zoom-in; }
 .lf-comment-box > .lf-compose-field {
           border: 1px solid var(--border-2);
           border-radius: var(--r); background: var(--card); }
-.lf-comment-box > .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus)) {
+.lf-comment-box > .lf-compose-field:has(> leaf-text[data-lf-focus]) {
           outline: var(--focus-ring); --lf-focus-ring: text-box;
           outline-offset: 0; border-color: transparent; }
 .lf-comment-box > .lf-compose-field > leaf-text {
@@ -125,7 +125,7 @@ button.lf-media-open { cursor: zoom-in; }
           border: 0; border-radius: 0; background: transparent;
           color: var(--ink); font: var(--t-5)/1.5 var(--sans);
           max-height: 50vh; overflow-y: auto; }
-.lf-comment-box > .lf-compose-field > leaf-text:is(:focus, .lf-focus) { outline: none; }
+.lf-comment-box > .lf-compose-field > leaf-text[data-lf-focus] { outline: none; }
 .lf-thread-reply { display: block; margin-top: var(--sp-3); min-width: 0; }
 :is(.lf-thread-reply, .lf-fab-bar) .lf-compose-field {
           --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px); }
@@ -141,14 +141,14 @@ button.lf-media-open { cursor: zoom-in; }
           inset: -4px 0 -4px calc(-1 * var(--lf-thread-text-inset));
           border: 1px solid var(--border-2); border-radius: var(--r); background: var(--card);
           pointer-events: none; }
-.lf-msg-editor > .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus))::before {
+.lf-msg-editor > .lf-compose-field:has(> leaf-text[data-lf-focus])::before {
           outline: var(--focus-ring); --lf-focus-ring: text-box;
           outline-offset: calc(-1 * var(--focus-ring-w)); border-color: transparent; }
 .lf-msg-editor > .lf-compose-field > leaf-text:not(.lf-fab-input) { display: block;
           min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0;
           background: transparent; color: var(--ink); font: inherit;
           max-height: none; overflow: visible; --lf-field-end-room: 0px; }
-.lf-msg-editor > .lf-compose-field > leaf-text:is(:focus, .lf-focus) { outline: none; }
+.lf-msg-editor > .lf-compose-field > leaf-text[data-lf-focus] { outline: none; }
 /* Its foot stands for its last line, whose height a reveal clears above it. */
 .lf-msg-edit-foot { display: block; block-size: 0; scroll-margin-block-start: 1lh; }
 /* Cancel and Save take the message's head while it is open, where its Edit control stood
@@ -201,7 +201,7 @@ button.lf-media-open { cursor: zoom-in; }
      the name goes with it: this rule takes the outline off the pressables the bar holds,
      so without one they would credit the floor's `pressable` for a ring the floor is no
      longer drawing. */
-  .lf-response-control:is(:focus, :focus-visible, .lf-focus, .lf-focus-visible) {
+  .lf-response-control[data-lf-focus] {
     outline: none; --lf-focus-ring: response-control;
     border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
     box-shadow: var(--focus-shadow), 0 2px 8px var(--shade); }
@@ -290,7 +290,7 @@ button.lf-media-open { cursor: zoom-in; }
 /* Forced-colour palettes suppress elevation shadows. The same control keeps a
  * visible platform ring when seated outside the private chrome scope as well. */
 @media (forced-colors: active) {
-  .lf-response-control:is(:focus, :focus-visible, .lf-focus, .lf-focus-visible) {
+  .lf-response-control[data-lf-focus] {
     outline: var(--focus-ring-w) solid Highlight; outline-offset: 2px; box-shadow: none;
   }
 }

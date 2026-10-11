@@ -58,11 +58,12 @@
    gesture; remote commands and delayed work cannot borrow it from the parent. This
    is a rule for Leaf placements, not a restriction on authored browser scripts.
 
-   This module imports only that vocabulary, rendering.js and keeps.js: importing a
+   Its dependencies are structural vocabulary, rendering and writes; importing a
    gesture owner would cycle through its focus dependency. */
 import { nextRender } from "./rendering.js";
 import { keeps } from "./keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
+import { renderedParent } from "./shadow-tree.js";
 
 // The stops Tab walks inside `root` right now, in document order: the candidates above
 // that are in the order, enabled, and drawn. A modal's own Tab loop reads this.
@@ -243,8 +244,8 @@ export const deepFocus = (at = document.activeElement) => {
 // click. Those in-between nodes are no new standing: until the press lands, the user
 // stands on the element they stood on, for every reader of where they stand, every hold
 // and every key. The press leaves DOM focus alone and keeps the platform's default, so a
-// drag still selects a label's words. `onLabelPress` hears the held element as the press
-// begins and null as it ends, for the paint that keeps its focus ring on.
+// drag still selects a label's words. The standing's focus paint stays on that held
+// element and its composed ancestry until the press lands.
 //
 // It lands at the label's click, whose default focuses the control, which a tap delivers
 // after its release, or at a release off the label, which no click on it follows, or at
@@ -252,14 +253,11 @@ export const deepFocus = (at = document.activeElement) => {
 // (which puts the user back on the held element) and a runtime placement each end it
 // too. A second contact meanwhile is no part of it.
 let labelPress = null;
-const labelPressReaders = new Set();
-export const onLabelPress = (read) => labelPressReaders.add(read);
 const heldByLabel = () => (labelPress?.held.isConnected ? labelPress.held : null);
 function finishLabelPress() {
   const press = labelPress;
   if (!press) return null;
   labelPress = null;
-  for (const read of labelPressReaders) read(null);
   return press;
 }
 // Standing is read once more a task after the press lands, when the control's focus at
@@ -416,7 +414,49 @@ export const onStanding = (read) => readers.add(read);
 let published = null;
 let departed = false;
 let readings = 0;
+// Paint follows the same standing as keyboard routing. Native :focus also matches
+// retargeting shadow hosts and the intermediate node of a held label press, neither
+// of which receives that input. Dedicated attributes leave component classes with
+// their owners. A public shadow part also exposes the destination as lf-focus,
+// so vendor-part rules consume this same reading rather than native :focus.
+let paintedFocus = null;
+let paintedWithin = new Set();
+function paintFocus(node) {
+  const next = node === document.body || node === document.documentElement ? null : node;
+  if (next !== paintedFocus) {
+    if (paintedFocus) {
+      keeps(paintedFocus, "data-lf-focus", null);
+      if (paintedFocus.part?.contains("lf-focus")) paintedFocus.part.remove("lf-focus");
+    }
+    if (next) {
+      keeps(next, "data-lf-focus", "");
+      if (next.getRootNode().nodeType === Node.DOCUMENT_FRAGMENT_NODE && next.hasAttribute("part"))
+        next.part.add("lf-focus");
+    }
+    paintedFocus = next;
+  }
+  const within = new Set();
+  for (let owner = next; owner; owner = renderedParent(owner)) within.add(owner);
+  for (const owner of paintedWithin) {
+    if (!within.has(owner)) keeps(owner, "data-lf-focus-within", null);
+  }
+  for (const owner of within) {
+    if (!paintedWithin.has(owner)) keeps(owner, "data-lf-focus-within", "");
+  }
+  paintedWithin = within;
+}
+// Retained moves preserve native focus without emitting a focus event. Recompute
+// only its derived ancestry when the rendered tree changes, including slot moves.
+// Attribute paint is outside this observation, so it cannot schedule itself.
+const refreshFocusPaint = () =>
+  paintFocus(paintedFocus?.isConnected ? paintedFocus : null);
+function watchFocusPaintIn(root) {
+  new MutationObserver(refreshFocusPaint).observe(root, { childList: true, subtree: true });
+  root.addEventListener("slotchange", refreshFocusPaint);
+}
+watchFocusPaintIn(document);
 function publish(node, cause) {
+  paintFocus(node);
   if (node === published && !departed) return;
   departed = false;
   const left = published;
@@ -495,6 +535,7 @@ document.addEventListener("focusin", stand, true);
 // A shadow stage reads the moves inside it, which reach the document as no event.
 export function watchStandingIn(root) {
   root.addEventListener("focusin", stand, true);
+  watchFocusPaintIn(root);
 }
 // Leaving for nowhere from a node still drawn is the user's own move, and so a
 // placement: body holds no stop, so a press on the page's words takes focus off the
@@ -644,7 +685,6 @@ addEventListener(
     const held = label && deepFocus();
     if (!held || held === document.body) return;
     labelPress = { held, pointerId: event.pointerId, label };
-    for (const read of labelPressReaders) read(held);
   },
   { capture: true, passive: true },
 );

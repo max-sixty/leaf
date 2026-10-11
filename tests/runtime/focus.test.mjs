@@ -302,7 +302,10 @@ test("a keyed hold reads its rows in the shadow tree they stand in, and lands on
   root.replaceChildren(row("a"), row("c"));
   assert.equal(restore(), true);
   const at = focused();
-  assert.equal(at.className, "remove");
+  assert.equal(at.classList.contains("remove"), true);
+  assert.equal(at.hasAttribute("data-lf-focus"), true);
+  assert.equal(host.hasAttribute("data-lf-focus"), false);
+  assert.equal(host.hasAttribute("data-lf-focus-within"), true);
   assert.equal(at.parentElement.dataset.row, "c");
 });
 

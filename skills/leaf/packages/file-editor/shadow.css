@@ -31,8 +31,8 @@
  * focus cue inside the editor frame, above the scroller's own stacking context
  * (its positioned gutters otherwise cover the left edge). Editing focus stays
  * on the content and the cue never receives pointer input. */
-:scope:host(lf-file-editor) .cm-content:focus-visible { outline: none; }
-:scope:host(lf-file-editor) .cm-editor:has(.cm-content:focus-visible)::after {
+:scope:host(lf-file-editor) .cm-content[data-lf-focus] { outline: none; }
+:scope:host(lf-file-editor) .cm-editor:has(.cm-content[data-lf-focus])::after {
   content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
   outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-ring-w));
   --lf-focus-ring: file-editor;

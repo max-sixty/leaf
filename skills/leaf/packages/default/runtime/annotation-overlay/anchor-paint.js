@@ -71,7 +71,7 @@ export function createAnchorPaint({
     );
     const focus = new Set(
       [...elements].filter((element) =>
-        element.matches(":focus-visible, .lf-focus-visible"),
+        element.matches("[data-lf-focus]"),
       ),
     );
     const sources = [

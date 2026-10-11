@@ -142,10 +142,10 @@ A test over prose compares it with something the machine states: a shown command
 against the click tree, an `x-` key against the guide, a table against its registry.
 Leave wording with no machine side to review.
 
-Focus evidence starts in keyboard modality: press `Tab` to the exact stop and require
-`:focus-visible`, or `:focus` on the runtime's text field (`leaf-text`), a host that
-delegates focus and so never matches `:focus-visible` in Chrome; `element.focus()` alone
-is not that evidence.
+Focus rings show actual focus regardless of input route. Exercise real clicks and
+keyboard arrivals when testing that shared treatment, require `:focus`, and compare
+the resulting paint. A keyboard navigation test still reaches its exact stop with
+`Tab` or its declared command; `element.focus()` alone does not prove that route.
 `RELEASE_FOCUS` (`render_harness.py`) resets the sequential starting point; `blur()` keeps
 it; `document.body.focus()` does nothing, since body holds no stop. Read
 a ring's actual paint through `RINGS_DRAWN` and `ring_faults`, because an ancestor or

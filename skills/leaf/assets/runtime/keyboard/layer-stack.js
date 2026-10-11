@@ -23,6 +23,24 @@
    wherever it sits, so a dialog closed by script beneath another layer cannot linger as
    a false floor. Modal entry dismisses auto and hint popovers through the platform
    contract; a later opening joins as a new layer rather than preserving a hidden entry.
+   An owner that reads where the user stands before its modal opens dismisses those same
+   popovers first (`dismissPopoversOutside`), so the reading finds the user already handed
+   back from them.
+
+   Whether a node stands in one of these layers is asked here too (`nativeLayerHolding`),
+   of the tree as rendered, by every reader that treats the top layer differently: an
+   anchor cannot reach out of it, it paints over every page level, and a cluster keeps
+   its options open while the user visits one.
+
+   A standing modal holds Tab. The browser moves the user through it in its own order,
+   but forward from the last stop it leaves the page for its own interface, so this
+   module wraps the user from either end of the newest modal to its other end. The wrap
+   runs after Leaf's keyboard dispatch, so a mode that walks its own stops with Tab keeps
+   the key. A modal that holds more than the user should cycle through, as the
+   auxiliary envelope holds its whole foreground beside the covering surface, names the
+   region its loop holds as it opens (`showNativeLayer`'s `holds`). A key pressed inside
+   an embedded document is that document's, so a modal whose last stop is a frame, as a
+   sample's Full view is, still lets Tab leave from the frame's own last stop.
 
    What Escape takes off is not recorded here, and not recorded anywhere: every step is
    read off the state standing in front of the user, by the owner of that state, through
@@ -35,19 +53,36 @@ import {
   releaseFocus,
   holdFocus,
   closeLayer,
+  deepFocus,
   focused,
+  focusDestination,
   handBack,
   canPlaceFocus,
+  tabStops,
 } from "../focus.js";
-import { renderedUnder } from "../shadow.js";
+import { renderedParent, renderedUnder, under } from "../shadow.js";
 
 const entries = [];
 const watchedRoots = new WeakSet();
+// The region each modal's Tab loop holds, where its opener named one (`showNativeLayer`).
+const tabRegions = new WeakMap();
 const nativeDialogShowModal = HTMLDialogElement.prototype.showModal;
 const nativePopoverShow = HTMLElement.prototype.showPopover;
 
-const held = (node) =>
-  Boolean(node?.isConnected) && node.matches(":popover-open, dialog:modal");
+// Whether `node` is itself a native layer the browser holds in the top layer: an open
+// popover or a modal dialog. A nonmodal open dialog is part of the page it stands in.
+// Read node kind rather than realm-specific Element: a sample asks this of its frame.
+export const isNativeLayer = (node) =>
+  node?.nodeType === Node.ELEMENT_NODE &&
+  node.isConnected &&
+  node.matches(":popover-open, dialog:modal");
+
+// The innermost native layer `node` stands in as rendered, itself included, or null: a
+// box slotted into a popover stands in it.
+export function nativeLayerHolding(node) {
+  for (let at = node; at; at = renderedParent(at)) if (isNativeLayer(at)) return at;
+  return null;
+}
 
 function prune() {
   for (let index = entries.length - 1; index >= 0; index -= 1) {
@@ -70,7 +105,7 @@ function pushNativeLayer(node) {
     get kind() {
       return node.matches(":modal") ? "modal" : "popover";
     },
-    active: () => held(node),
+    active: () => isNativeLayer(node),
     fromNowhere: !holding || holding === document.body,
     opener: holding && holding !== document.body ? holding : null,
   });
@@ -113,7 +148,10 @@ HTMLElement.prototype.showPopover = function (...args) {
 // through focusDestination, which prevents native scrolling. Restoring the layer
 // afterward moves no focus. Authored
 // scripts keep the native methods; this is the runtime's navigation contract.
-export function showNativeLayer(layer, { source, modal = true } = {}) {
+// A modal's Tab loop holds the modal itself, or the region `holds` reads at each press.
+export function showNativeLayer(layer, { source, modal = true, holds } = {}) {
+  if (holds) tabRegions.set(layer, holds);
+  else tabRegions.delete(layer);
   const withholdFocus = Boolean(document.documentElement.lfSample) && !layer.inert;
   if (withholdFocus) layer.inert = true;
   try {
@@ -223,8 +261,43 @@ export function transitionNativeAncestor(root, transition) {
   );
 }
 
-// Modal owners close pre-existing popovers before establishing a new floor.
-export const openPopovers = () =>
-  nativeLayers()
-    .filter((entry) => entry.kind === "popover")
-    .map((entry) => entry.root);
+// The auto and hint popovers standing outside `root`, which modal entry dismisses,
+// closed newest first. A manual popover is its owner's to close, there as on the page.
+export function dismissPopoversOutside(root) {
+  for (const entry of nativeLayers().toReversed())
+    if (
+      entry.kind === "popover" &&
+      entry.root.popover !== "manual" &&
+      !renderedUnder(entry.root, root)
+    )
+      closeNativeLayer(entry.root);
+}
+
+// Where Tab would leave the newest modal's region, it wraps to the region's other end.
+// The stop the user stands at is the innermost one holding focus, so a control inside a
+// component's shadow tree stands at the stop its host declares. With no stop at all, the
+// region itself holds the user.
+addEventListener("keydown", (event) => {
+  if (
+    event.defaultPrevented ||
+    event.key !== "Tab" ||
+    event.altKey ||
+    event.ctrlKey ||
+    event.metaKey
+  )
+    return;
+  const modal = nativeLayers().findLast((entry) => entry.kind === "modal")?.root;
+  if (!modal) return;
+  const region = tabRegions.get(modal)?.() ?? modal;
+  const stops = tabStops(region);
+  if (!stops.length) {
+    event.preventDefault();
+    focusDestination(region, "step");
+    return;
+  }
+  const at = deepFocus();
+  const standing = stops.findLastIndex((stop) => under(at, stop));
+  if (standing !== (event.shiftKey ? 0 : stops.length - 1)) return;
+  event.preventDefault();
+  focusDestination(event.shiftKey ? stops.at(-1) : stops[0], "step");
+});

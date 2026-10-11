@@ -64,15 +64,33 @@ import { nextRender } from "./rendering.js";
 import { keeps } from "./keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 
-// The stops Tab walks inside `root` right now, in document order: the candidates above
-// that are in the order, enabled, and drawn. A modal's own Tab loop reads this.
+// The elements under `node` in the tree as rendered, in order: a host's shadow tree in
+// place of its children, and a slot's assigned elements, or its fallback, in its place.
+function* renderedElements(node) {
+  const children =
+    node.localName === "slot"
+      ? node.assignedElements({ flatten: true })
+      : (node.shadowRoot ?? node).children;
+  for (const child of children) {
+    yield child;
+    yield* renderedElements(child);
+  }
+}
+const SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
+// The stops Tab walks inside `root` right now, in the order it walks them: the candidates
+// above, and the embedded documents and players Tab also enters, that are in the order,
+// enabled, and drawn, through open shadow trees as rendered. A host that delegates its
+// focus is no stop of its own, since Tab enters its tree, and a box `visibility: hidden`
+// keeps its place but no stop. The modal Tab loop reads this (layer-stack.js).
 export const tabStops = (root) =>
-  [...root.querySelectorAll(TAB_STOP)].filter(
+  [...renderedElements(root)].filter(
     (node) =>
+      node.matches(SEQUENTIAL) &&
       node.tabIndex >= 0 &&
+      !node.shadowRoot?.delegatesFocus &&
       !node.matches(":disabled") &&
       !node.inert &&
-      node.checkVisibility(),
+      node.checkVisibility({ visibilityProperty: true }),
   );
 
 // Put the user on an element, saying what moved them there. Every focus the runtime and
@@ -459,7 +477,9 @@ export const pressLed = () => pressedPath !== null;
 // The Tab the user is pressing, from its keydown until the task that moves them ends.
 let stepping = null;
 // Focus coming out of a dialog or popover that no longer stands is that layer handing it
-// back as it closes, whether the platform or the layer's owner moves it.
+// back as it closes, whether the platform or the layer's owner moves it. A nonmodal
+// dialog closing hands focus back too, so this asks of every dialog rather than of the
+// native layers layer-stack.js holds, which imports this module.
 const leftClosedLayer = (left) => {
   const layer = left?.closest?.("dialog, [popover]");
   return Boolean(layer) && !layer.matches("dialog[open], :popover-open");

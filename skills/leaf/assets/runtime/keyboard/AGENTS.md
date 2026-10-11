@@ -130,9 +130,10 @@ Closing More or standing outside it retires the checkpoint.
 `bindings.js` (spelling, parsing, declaration checks), `scopes.js` (element
 scopes), `register.js` (scope order, page commands, the Escape ladder),
 `dispatch.js` (precedence), `controller.js` (input lifecycle), `text-entry.js`
-(native editing claims), `layer-stack.js` (popovers and dialogs over the page),
-`page.js` (the page's own parts and the foot of the ladder), `go-to-sequence.js`
-(the `g` grammar), `control-keys.js`,
+(native editing claims), `layer-stack.js` (popovers and dialogs over the page,
+whether a node stands in one, and the Tab loop every modal holds), `page.js` (the
+page's own parts and the foot of the ladder), `go-to-sequence.js` (the `g` grammar),
+`control-keys.js`,
 `presentation.js`, `shortcut-bar.js`, `command-reference.js`, `hints.js`,
 `command-hints.js` (inline hints from reachable command bindings),
 `key-badge-placement.js`, `chip-seats.js` (where key chips stand), `disclosure.js`,

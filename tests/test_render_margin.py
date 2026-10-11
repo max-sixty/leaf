@@ -2955,6 +2955,43 @@ def test_the_page_map_dialog_walks_its_rows_from_the_search(browser, serve):
     expect(thread.locator("leaf-text")).to_be_focused()
 
 
+def test_tab_wraps_inside_the_page_map(browser, serve):
+    """The Page Map is modal, so Tab holds the user inside it: past its last stop the
+    browser would carry them out to its own interface, and the map takes them back to
+    its first stop instead, as Shift+Tab from the first takes them to the last."""
+    page = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
+    resized(page, 1440, 600)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    search = dialog.get_by_role(
+        "searchbox", name="Find an action, status, or location in Page Map"
+    )
+    expect(search).to_be_focused()
+
+    def stays_inside():
+        assert dialog.evaluate("dialog => dialog.matches(':focus-within')"), (
+            "Tab left the Page Map"
+        )
+
+    page.keyboard.press("Shift+Tab")
+    stays_inside()
+    last = page.evaluate_handle("() => document.activeElement")
+    page.keyboard.press("Tab")
+    expect(search).to_be_focused()
+    walked = []
+    for _ in range(40):
+        page.keyboard.press("Tab")
+        stays_inside()
+        walked.append(page.evaluate("() => document.activeElement.className"))
+        if page.evaluate("last => document.activeElement === last", last):
+            break
+    else:
+        raise AssertionError(f"Tab never reached the map's last stop: {walked}")
+    page.keyboard.press("Tab")
+    expect(search).to_be_focused()
+
+
 def test_the_chrome_names_an_ask_by_its_question(browser, serve):
     """An Ask is named by its heading, not its heading run into its options and their
     chips: the Questions panel row, and the Page Map group for it, whose one row says why the
@@ -7584,6 +7621,39 @@ def test_a_card_walked_off_the_unfolded_cluster_lands_on_the_page(browser, serve
     expect(options).to_be_hidden()
     expect(more).to_be_focused()
     expect(preview).to_be_hidden()
+
+
+def test_going_to_a_side_surface_folds_the_cluster_the_user_left(browser, serve):
+    """Unfolded options stay open while a layer over the page holds the user, since
+    that layer hands them back to the cluster as it closes. A side surface standing
+    beside the page is somewhere else they went, so going to Questions folds the
+    options, though Questions stands in the same native dialog as the chrome's layers."""
+    page = open_page(browser, serve(ACTION_PAGE, events=[COMMENT_ON_SUGGESTION]))
+    resized(page, 1440, 900)
+    item = page.locator('[data-lf-margin-for="sug-refill"]')
+    item.locator(":scope > .lf-margin-more").click()
+    expect(item).to_have_attribute("data-lf-options-open", "")
+    option = item.locator(".lf-margin-options .lf-margin-entry:visible").first
+    option.focus()
+
+    # The first ? expands the shortcut bar where the user stands; the second opens the
+    # reference over the page.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    reference = page.locator(".lf-command-reference")
+    expect(reference).to_be_visible()
+    expect(item).to_have_attribute("data-lf-options-open", "")
+    page.keyboard.press("Escape")
+    expect(reference).to_be_hidden()
+    expect(option).to_be_focused()
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+q")
+    expect(page.locator("#lf-queue")).to_be_visible()
+    assert page.locator("#lf-queue").evaluate(
+        "panel => panel.matches(':focus-within') || panel === document.activeElement"
+    )
+    expect(item).not_to_have_attribute("data-lf-options-open", "")
 
 
 @pytest.mark.parametrize("second", ["note", "marker"])

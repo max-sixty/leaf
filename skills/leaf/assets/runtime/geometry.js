@@ -2,6 +2,7 @@
  * window the page shows, and the one conversion from viewport boxes to
  * document-positioned chrome. */
 import { renderedParent, uiInside, under, upFrom } from "./shadow.js";
+import { isNativeLayer } from "./keyboard/layer-stack.js";
 import { overlaps, overlapsAcross, union, clippingAxes } from "./rect.js";
 
 /* Shared readings of the boxes the page actually shows.
@@ -963,11 +964,12 @@ export const placeHolder = (where) =>
       : where.startContainer.parentElement
     : where;
 // Where a box stacks among the page's root-level layers: the z-index of its outermost
-// positioned ancestor that sets one, and above all of them in the top layer.
+// positioned ancestor that sets one, and above all of them in the top layer. Both are
+// read up the tree as rendered, where a slotted box stacks inside its slot's ancestors.
 export function stackLevel(node) {
   let level = 0;
-  for (let a = node; a; a = upFrom(a)) {
-    if (a.matches(":popover-open, dialog:modal")) return Infinity;
+  for (let a = node; a; a = renderedParent(a)) {
+    if (isNativeLayer(a)) return Infinity;
     const { position, zIndex } = getComputedStyle(a);
     if (position !== "static" && zIndex !== "auto") level = Number(zIndex);
   }

@@ -1862,9 +1862,7 @@ def test_init_repairs_installed_files_with_a_new_generation(tmp_path, damage):
     assert not (page / "runtime" / "obsolete.js").exists()
 
 
-@pytest.mark.parametrize(
-    "input_name", ["server.py", "pyproject.toml", "uv.lock", "python"]
-)
+@pytest.mark.parametrize("input_name", ["server.py", "pyproject.toml", "uv.lock"])
 def test_server_inputs_require_a_transition_without_browser_changes(
     tmp_path, monkeypatch, input_name
 ):
@@ -1881,11 +1879,8 @@ def test_server_inputs_require_a_transition_without_browser_changes(
     first_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert first_init.exit_code == 0, first_init.output
     first = interact_files.read_json(page / "registry.json")["$layer"]
-    if input_name == "python":
-        monkeypatch.setattr(layer_model.sys, "version", "a different interpreter")
-    else:
-        target = script if input_name == "server.py" else payload / input_name
-        target.write_text("# changed\n")
+    target = script if input_name == "server.py" else payload / input_name
+    target.write_text("# changed\n")
     second_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert second_init.exit_code == 0, second_init.output
     second = interact_files.read_json(page / "registry.json")["$layer"]
@@ -1893,6 +1888,25 @@ def test_server_inputs_require_a_transition_without_browser_changes(
     assert second["server"] != first["server"]
     assert second["fingerprint"] == first["fingerprint"]
     assert second["runtime"] == first["runtime"]
+
+
+def test_site_page_accepts_events_across_build_and_container_python_versions(
+    claimed, server, monkeypatch
+):
+    """The build host and serving container can run different Python releases."""
+    page = claimed
+    publish(page)
+    monkeypatch.setattr(sys, "version", "container Python version")
+    planned = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--dry-run", str(page)]
+    )
+    assert planned.exit_code == 0, planned.output
+    assert not json.loads(planned.output)["changed"]
+    code, response = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "comment", "revision": 1, "text": "Hello"}).encode(),
+    )
+    assert code == 200, response
 
 
 PLAIN_PAGE = (

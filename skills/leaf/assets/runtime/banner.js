@@ -28,7 +28,6 @@ import {
 } from "./notifications.js";
 import { watchProjection } from "./projection-watch.js";
 import { readQuestions } from "./questions/model.js";
-import { createBannerApprovalFace } from "./banner-approval.js";
 import { createBannerStatusView } from "./banner-status-view.js";
 import { declareBanner } from "./geometry.js";
 import { agentName, watchSemantic } from "./semantic-state.js";
@@ -52,7 +51,6 @@ banner.id = "lf-banner";
 declareBanner(banner);
 const bannerStatus = createBannerStatusView(repaint, INITIAL);
 registerNoticePresentation(() => bannerStatus.presentNotice(noticeReading()));
-export const dot = bannerStatus.dot;
 // The agent's Tasks count, which opens the Questions panel listing them (drawers.js).
 export const queueCounts = bannerStatus.queues;
 
@@ -97,8 +95,21 @@ export const approvalTarget = () => (signoff ? approveBtn : null);
 approveBtn.title = "Approve this work; the page stays open for follow-up";
 // The page's decision is not actionable until the page itself is present. Discussion chrome
 // stays live during replay, but approving hidden authored content would decide a version
-// the user has not seen yet. The face states that refusal from its first reading.
-const approvalFace = createBannerApprovalFace(approveBtn);
+// the user has not seen yet. The control states that refusal from its first reading.
+let approvalReason = "Approval waits until this page has read its current state";
+// Keep a refused press focusable, with its reason available to keyboard and touch.
+function presentApproval({ reason, text, title }) {
+  approvalReason = reason;
+  render(text, approveBtn);
+  keeps(approveBtn, "aria-disabled", reason ? "true" : null);
+  keeps(approveBtn, "aria-description", reason || null);
+  keeps(approveBtn, "title", title);
+}
+presentApproval({
+  reason: approvalReason,
+  text: "Approve version",
+  title: approvalReason,
+});
 
 // The toolbar owns this complete order from typed contributions rather than discovering
 // or reconstructing it from whichever nodes happen to be in the row.
@@ -256,7 +267,7 @@ export async function loadIcon() {
 // first poll has already judged the page.
 function paintTab() {
   if (!iconMark) return;
-  const url = iconUrl(getComputedStyle(dot).backgroundColor);
+  const url = iconUrl(getComputedStyle(bannerStatus.dot).backgroundColor);
   // Written only on change: an unchanged poll must not hand the browser its icon again
   // every two seconds.
   if (tabLink.getAttribute("href") !== url) tabLink.setAttribute("href", url);
@@ -833,8 +844,8 @@ export function mountBanner({ approveVersion, paintApproval }) {
   approveBtn.onclick = async () => {
     if (approving) return;
     // A refused press answers with its reason where every user sees it.
-    if (approvalFace.reason) {
-      notice(approvalFace.reason);
+    if (approvalReason) {
+      notice(approvalReason);
       return;
     }
     approving = true;
@@ -902,13 +913,11 @@ export function paintApproval(blockingQuestions) {
         : blockingQuestions.length
           ? "Answer every Question before approving this work"
           : null;
-  approvalFace.present(
-    Object.freeze({
-      reason: reason ?? (approving ? "Approving this version" : null),
-      text: approved ? "✓ Version approved" : "Approve version",
-      title: reason ?? "Approve this work; the page stays open for follow-up",
-    }),
-  );
+  presentApproval({
+    reason: reason ?? (approving ? "Approving this version" : null),
+    text: approved ? "✓ Version approved" : "Approve version",
+    title: reason ?? "Approve this work; the page stays open for follow-up",
+  });
   // Approval is open while a press would approve this version, and behind More, on a
   // phone, that puts More's dot up. A refused press does not: the dot comes up when the
   // last Question holding approval is answered, which is when the user can act on it.

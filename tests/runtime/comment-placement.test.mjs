@@ -236,11 +236,11 @@ test("a growing card holds its top while read and its foot for the turn that joi
   assert.equal(card.heldHeight(), 200);
 });
 
-test("beside, a margin row stays usable where the card keeps its minimum width", async () => {
+test("beside, clearing a margin row never costs the card width", async () => {
   const ui = await import("/vendor/floating-ui.esm.js");
   // A paragraph ending at 600, and a margin row 40px wide out past it.
   const clear = block(300, 300, 300, 500);
-  const reference = (rowRight) => {
+  const options = (rowRight) => {
     const placement = commentPlacement();
     placement.choose({ clear, boundary, scroller: scroller(1000), coarse: false });
     return placement.options(ui, {
@@ -249,12 +249,51 @@ test("beside, a margin row stays usable where the card keeps its minimum width",
       margin: { left: rowRight - 40, right: rowRight },
       boundary,
       fit() {},
-    }).reference;
+    });
   };
-  // The card may narrow from its preferred measure to keep the row usable.
-  assert.equal(reference(693).right, 693);
-  // Past a row ending at 964, 320 remains to the boundary at 1292 after the gap.
-  assert.equal(reference(964).right, 964);
-  // One pixel less than its minimum sends the card over the row.
-  assert.equal(reference(965).right, clear.right);
+  const reference = (rowRight) => options(rowRight).reference;
+  // Exactly the preferred 592px remains beyond the row and the 8px gap.
+  assert.equal(reference(692).right, 692);
+  // Even one pixel of lost message width puts the card over the row.
+  assert.equal(reference(693).right, clear.right);
+  // A readable but narrower lane still gives its space back to the message.
+  assert.equal(reference(964).right, clear.right);
+
+  // 600 client pixels do not hold a 592 CSS-pixel card at 120% zoom.
+  const zoomed = options(684);
+  const state = {
+    rects: { reference: { x: clear.left, y: clear.top } },
+    elements: { floating: {} },
+    platform: {
+      getOffsetParent: () => window,
+      convertOffsetParentRelativeRectToViewportRelativeRect: () => ({
+        width: 1.2,
+        height: 1.2,
+      }),
+    },
+  };
+  const reset = await zoomed.middleware[0].fn(state);
+  assert.deepEqual(reset, { reset: { rects: true } });
+  assert.equal(zoomed.reference.right, clear.right);
+  const settled = await zoomed.middleware[0].fn(state);
+  assert.equal(settled.reset, undefined);
+  assert.deepEqual(settled.data.scale, { x: 1.2, y: 1.2 });
+
+  // At 75%, the same 484 client-pixel lane holds the full 444px footprint.
+  const smaller = options(800);
+  const reduced = {
+    ...state,
+    platform: {
+      ...state.platform,
+      convertOffsetParentRelativeRectToViewportRelativeRect: () => ({
+        width: 0.75,
+        height: 0.75,
+      }),
+    },
+  };
+  assert.deepEqual(await smaller.middleware[0].fn(reduced), {
+    reset: { rects: true },
+  });
+  assert.equal(smaller.reference.right, 800);
+  assert.equal((await smaller.middleware[0].fn(reduced)).reset, undefined);
 });

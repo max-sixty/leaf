@@ -291,17 +291,21 @@ export class RecordingTimeline {
       // A label that would run past the end of the time scale points back:
       // its staff still stands on its time, at the label's right edge. One that
       // would then meet its neighbour joins that neighbour's label instead.
+      // A label near the end first shortens to its first mark and a count.
       const end = this.#span();
-      const fit = (current) => {
-        current.text = this.#clusterText(current.items, font);
+      const fit = (current, compact = false) => {
+        current.text = compact
+          ? `${current.items[0].label} +${current.items.length - 1}`
+          : this.#clusterText(current.items, font);
         current.width = measure(current.text, font) + LABEL_CHROME;
         current.flip = current.x + current.width > end;
       };
-      clusters.forEach(fit);
-      for (let index = clusters.length - 1; index > 0; index--) {
+      clusters.forEach((current) => fit(current));
+      for (let index = clusters.length - 1; index >= 0; index--) {
         const current = clusters[index];
+        if (current.flip && current.items.length > 1) fit(current, true);
         const previous = clusters[index - 1];
-        if (!current.flip) continue;
+        if (!current.flip || !previous) continue;
         const previousEnd = previous.flip ? previous.x : previous.x + previous.width;
         if (current.x - current.width >= previousEnd + LABEL_GAP) continue;
         previous.items.push(...current.items);

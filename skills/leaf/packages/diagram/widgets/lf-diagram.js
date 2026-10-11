@@ -162,7 +162,14 @@ customElements.define(
         this.classList.add("lf-rendered");
         this.visualPartRegistration.update();
       } catch (err) {
-        failSoft(this, err, source);
+        // Mermaid's unknown-family error embeds the complete authored source.
+        // The fallback shows that source in the page; the agent's error report
+        // needs the reason without copying the authored body into the log.
+        const reportError =
+          err?.name === "UnknownDiagramError"
+            ? new Error("No diagram type detected matching given configuration")
+            : err;
+        failSoft(this, reportError, source);
       }
     }
   },

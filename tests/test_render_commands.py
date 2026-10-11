@@ -1637,6 +1637,8 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):
         assert "Error: page code reported 1 error" in run.stderr
         assert '<lf-diagram id="d-broken"> failed:' in run.stderr
         assert "No diagram type detected" in run.stderr
+        assert "leaf-unsupported" not in run.stderr
+        assert "Ada,Review,3" not in run.stderr
 
 
 FILM_DECLARATION = {

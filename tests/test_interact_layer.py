@@ -1897,7 +1897,9 @@ def test_site_page_accepts_events_across_build_and_container_python_versions(
     page = claimed
     publish(page)
     monkeypatch.setattr(sys, "version", "container Python version")
-    planned = CliRunner().invoke(cli_model.cli, ["page", "init", "--dry-run", str(page)])
+    planned = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--dry-run", str(page)]
+    )
     assert planned.exit_code == 0, planned.output
     assert not json.loads(planned.output)["changed"]
     code, response = fetch(

@@ -7,13 +7,12 @@ from html import escape
 from urllib.parse import quote
 
 import pytest
-from leaf import data as data_model
-from leaf import thread as thread_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import ASK_PAGE
 from render_harness import (
     consume_browser_errors,
+    holding,
     judge_watches,
     leaf_page,
     open_page,
@@ -1158,112 +1157,51 @@ def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve, wo
     consume_browser_errors(page, "button#control moved without input")
 
 
-@pytest.mark.parametrize(
-    "news", [False, True], ids=["only-disclosure", "concurrent-news"]
-)
-def test_native_lazy_preparation_keeps_input_credit_until_page_completion(
-    browser, serve, news
-):
-    """A held chunk belongs to its disclosure; completion ends that movement credit."""
-    url = serve(
-        leaf_page(
-            "Deferred input rendering",
-            '<lf-diff id="patch" source="review-patch" collapsed><pre></pre></lf-diff>'
-            '<button id="control">Keep this control usable</button>',
-        )
-    )
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "review-patch",
-        {
-            "files": [
-                {
-                    "path": "config.py",
-                    "kind": "patch",
-                    "additions": 1,
-                    "deletions": 1,
-                    "patch": """diff --git a/config.py b/config.py
---- a/config.py
-+++ b/config.py
-@@ -1 +1 @@
--enabled = False
-+enabled = True
-""",
-                }
-            ]
-        },
-    )
-    context = browser.new_context(
-        viewport={"width": 360, "height": 800}, has_touch=True, is_mobile=True
-    )
-    page = open_page(browser, url, context=context)
-    pending = []
-    page.route("**/api/deferred*", lambda route: pending.append(route))
-    control = page.locator("#control")
-    before = control.bounding_box()["y"]
-    page.locator("lf-diff summary").tap()
-    # Hold the real response past the quiet frame queue: the presentation ticket,
-    # rather than elapsed time or a guessed number of frames, owns the async tail.
-    page.wait_for_function("""() => {
-      const entry = document.querySelector('script[data-lf-entry]');
-      return entry.lfReadiness() === 'presented' && entry.lfRenderingSettled();
-    }""")
-    paint(page)
-    assert len(pending) == 1
-    if news:
-        reading = page.locator("body").get_attribute("data-lf-reading")
-        thread_model.cmd_comment(
-            serve.page_dir, None, None, None, "New information during loading.", None
-        )
-        page.wait_for_function(
-            "reading => document.body.dataset.lfReading !== reading", arg=reading
-        )
-        assert (
-            page.evaluate(
-                "document.querySelector('script[data-lf-entry]').lfReadiness()"
-            )
-            == "presented"
-        )
-        paint(page)
-    pending.pop().continue_()
-    expect(page.locator("lf-diff [data-line]").first).to_be_visible()
-    rendered(page)
-    assert control.bounding_box()["y"] > before + 20
-    judge_watches()
-    assert page.lf_errors == []
+def test_an_input_owns_a_widget_preparation_it_began_until_presented(browser, serve):
+    """A press's declared widget preparation is its result, however late it lands.
 
-    control.evaluate("node => node.style.marginTop = '40px'")
-    rendered(page)
-    judge_watches()
-    consume_browser_errors(page, "button#control moved without input")
-
-
-def test_a_deferred_arrival_does_not_extend_gesture_credit(browser, serve):
-    """Work deliberately deferred past presentation does not belong to a later press."""
+    Opening a closed lf-diff file loads its evidence in a promise the widget presents
+    (`present`), which the rendering loop cannot see. Holding the file's grammar keeps
+    that preparation pending after the loop settles, as a loaded machine does; the files
+    after it still move only for the press that opened it."""
+    patch = "".join(
+        f"diff --git a/{name}.md b/{name}.md\n--- a/{name}.md\n+++ b/{name}.md\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+        for name in ("first", "second")
+    )
     page = open_page(
         browser,
         serve(
-            leaf_page("Independent arrival", '<button id="control">Keep still</button>')
+            leaf_page(
+                "Preparation",
+                f'<lf-diff id="patch" collapsed><pre>{escape(patch)}</pre></lf-diff>'
+                '<button id="control">Keep this control usable</button>',
+            )
         ),
     )
-    page.evaluate("""async () => {
-      const {deferredArrival} = await window.__lfRuntimeImport('/runtime/presentation.js');
-      deferredArrival(new Promise(resolve => window.releaseArrival = resolve));
-    }""")
+    held = []
+    page.route("**/vendor/syntax/markdown.js", lambda route: held.append(route))
+    first = page.locator("#patch .lf-diff-file").first
+    first.locator(".lf-diff-head").click()
+    holding(page, held, 1, "the markdown grammar")
+    rendered(page)
     assert (
-        page.evaluate("document.querySelector('script[data-lf-entry]').lfReadiness()")
-        == "arrived"
+        page.evaluate(
+            "document.querySelector('script[data-lf-entry]').lfReadiness(null, 'presented')"
+        )
+        == "presented"
     )
-    control = page.locator("#control")
-    control.click()
-    paint(page)
-    try:
-        control.evaluate("node => node.style.marginTop = '40px'")
-        judge_watches()
-        consume_browser_errors(page, "button#control moved without input")
-    finally:
-        page.evaluate("releaseArrival()")
-        rendered(page)
+    held[0].continue_()
+    expect(first.locator("[data-line]").last).to_contain_text("new")
+    rendered(page)
+    judge_watches()
+    assert page.lf_errors == []
+
+    # Once that preparation is presented, the press owns nothing further.
+    page.locator("#control").evaluate("node => node.style.marginTop = '40px'")
+    rendered(page)
+    judge_watches()
+    consume_browser_errors(page, "button#control moved without input")
 
 
 def test_shift_judgement_waits_for_paint_instead_of_a_time_cap(browser):
@@ -1553,7 +1491,7 @@ def test_a_resize_owns_its_layout_before_its_event_dispatches(browser):
 # boundary: native height-induced sibling flow has no exact translation proof.
 # The matched marginTop arm proves press/news ownership with supported displacement.
 NEWS = """<!doctype html><body style="margin:0">
-<script data-lf-entry>document.currentScript.lfReadiness = () => 'rendering';</script>
+<script data-lf-entry>document.currentScript.lfRenderingSettled = () => false;</script>
 <button id="press">Press</button>
 <div id="bar"></div><div id="above"></div><div id="below">Below.</div>
 <script>
@@ -1569,7 +1507,7 @@ NEWS = """<!doctype html><body style="margin:0">
     const until = performance.now() + Number(document.body.dataset.work);
     while (performance.now() < until) {}
     frames(3, () => {
-      document.body.dataset.inputHeld = String(document.querySelector('script[data-lf-entry]').lfReadiness() !== null);
+      document.body.dataset.inputHeld = String(!document.querySelector('script[data-lf-entry]').lfRenderingSettled());
       document.body.setAttribute("data-lf-reading", "news");
       if (motion() === "news") slide();
       if (!motion()) document.getElementById("above").style.height = "40px";
@@ -3168,7 +3106,7 @@ def test_a_delayed_native_frame_keeps_the_typing_origins_camera(browser, fault, 
     page.goto(
         "data:text/html,"
         + quote("""<!doctype html><body style="margin:0">
-<script data-lf-entry>document.currentScript.lfReadiness = () => 'rendering';</script>
+<script data-lf-entry>document.currentScript.lfRenderingSettled = () => false;</script>
 <div id="bar"><div id="above"></div><textarea id="field"></textarea></div>
 <p id="evidence" style="position:absolute;top:200px">Paint evidence</p>
 <script>field.addEventListener('beforeinput', () => {

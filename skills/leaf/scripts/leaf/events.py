@@ -493,49 +493,6 @@ def _thread_summaries(thread: dict, summaries: list, edits: dict) -> list[dict]:
     return sorted(active, key=lambda summary: positions[summary["from"]])
 
 
-def current_anchors(events: list, within: dict) -> list:
-    """The anchors live threads still bind the page with.
-
-    A thread's target is its latest anchor, so a thread a reply moved or detached
-    binds the page at the new coordinate or at none: the log keeps the opening
-    comment's words and the coordinate they were written at, and nothing resolves
-    that coordinate against the page again. `detached_from` is the same fact read
-    from the thread's side. A closed thread lets its target go on the same
-    terms, and so does a reaction nobody has answered — paint on the page, and no
-    thread yet.
-
-    One rule for every reader that asks whether a written anchor still binds the
-    page, because a page check refusing to drop what a thread has already let
-    go is the same bug as a browser painting a mark there. `within` is the
-    containment the settlement half reads, as every other fold of the threads
-    takes it."""
-    return [
-        t["anchor"]
-        for t in build_threads(events, within).values()
-        if t["anchor"] and not t["resolved"] and not bare_reaction(t)
-    ]
-
-
-def anchored_ids(events: list, within: dict) -> set:
-    """Element ids a live thread still points at — the section half of
-    `current_anchors`, for the ids an author writes."""
-    anchors = current_anchors(events, within)
-    return {anchor.get("section") for anchor in anchors} - {None}
-
-
-def anchored_parts(events: list, within: dict) -> set:
-    """(section, visual part) coordinates a live thread still points at.
-
-    The visual half of `current_anchors`, for the parts an authored inventory
-    declares: a part is addressable markup the way an id is, and a version may
-    retire one the moment no thread points at it."""
-    return {
-        (anchor["section"], anchor["visual"])
-        for anchor in current_anchors(events, within)
-        if anchor.get("visual")
-    }
-
-
 def unanswered_turns(thread: dict) -> list[dict]:
     """The spoken non-agent turns the agent still owes an answer, oldest first.
 
@@ -602,9 +559,10 @@ def seat_root(thread: dict) -> str | None:
 
     An element anchor naming that widget and carrying nothing else, which is the
     runtime's `seatRoot` and the anchor `renderSeats` collects into the seat's
-    own view. Narrower than `anchored_ids`, deliberately: a quote anchor points into
-    the widget's words rather than standing in the box it offers, and the user can
-    see the difference — one is a note on a phrase, the other is the cell.
+    own view. Narrower than any anchor naming the widget, deliberately: a quote
+    anchor points into the widget's words rather than standing in the box it offers,
+    and the user can see the difference — one is a note on a phrase, the other is
+    the cell.
 
     A reply whose root the log lost is its own root, so the thread seats where the
     thread's latest anchor points, and nowhere at all when no message carried one."""

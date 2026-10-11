@@ -1640,7 +1640,7 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
         "button", name="Reset", exact=True
     )
     reset.click()
-    expect(reset).to_be_enabled(timeout=30000)
+    expect(reset).to_be_enabled()
     expect(views["overview"].locator(".lf-thread-panel")).to_be_visible()
     expect(views["overview"].locator(".lf-thread:not([hidden])")).to_have_count(3)
     reset.focus()
@@ -5959,7 +5959,7 @@ def test_a_recorded_move_is_acknowledged_in_the_status_and_nowhere_else(browser,
     round_trip(page)
 
     # The line's own words come back once the notice has had its moment.
-    expect(status).to_be_visible(timeout=6_000)
+    expect(status).to_be_visible()
     expect(notice).to_be_hidden()
 
 
@@ -8956,7 +8956,7 @@ RING_CASES = (
                 ("lf-option > .lf-pick", "options-row"),
                 (
                     any_owner_entry("suggestion", "accept") + ":visible",
-                    ("ask", "margin-entry"),
+                    "margin-entry",
                 ),
                 (".lf-draft-edit", "draft-editor"),
             ),
@@ -9128,7 +9128,6 @@ RING_EXAMPLE_FILES = {example.stem: example for example in (*EXAMPLES, FEATURE_G
 # control or one of its ancestors. Mark the exact carrier before reading the composed
 # paint so an unrelated ring with the same name cannot credit the sample.
 RING_REMOTE_CARRIER = {
-    "ask": None,
     "target-hint": ".lf-target-picker-hint.lf-current",
     # A pane draws its focused body's band inset over the body's cell (theme.css).
     "pane-body": '[data-lf-reading-role="pane"]:has(> :focus-visible)',
@@ -9561,7 +9560,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                     rendered(page)
                     open_containing_thread(target)
                     page.keyboard.press("Tab")
-                    target.focus(timeout=5_000)
+                    target.focus()
                     # A note on the details shelf is reached from the element that
                     # names it (details-shelf.js), never by Tab, and is focused here as
                     # a screen reader moving to it would focus it.
@@ -9581,17 +9580,6 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                         unseen.add(f"{where}: {lost}")
                 for ring_name in expected & RING_REMOTE_CARRIER.keys():
                     carrier_selector = RING_REMOTE_CARRIER[ring_name]
-                    if ring_name == "ask":
-                        ask_id = target.evaluate(
-                            """async node => {
-                              const { contributionEntrySource } = await window.__lfRuntimeImport(
-                                '/runtime/contribution-controls.js'
-                              );
-                              return contributionEntrySource(node)?.id ?? null;
-                            }"""
-                        )
-                        assert ask_id, f"{selector} {where} names no ask carrier"
-                        carrier_selector = f'[id="{ask_id}"]'
                     page.locator(carrier_selector).evaluate(
                         "node => node.setAttribute('data-lf-ring-sample', '')"
                     )
@@ -10161,7 +10149,10 @@ def test_a_reference_command_finishes_its_gesture_before_a_newer_control(
 
 
 @pytest.mark.parametrize("native_move", [True, False])
-def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, native_move):
+@pytest.mark.parametrize("renderer", ["children", "lit"])
+def test_retained_moves_keep_native_editor_and_frame_state(
+    browser, serve, native_move, renderer
+):
     """Moves survive named form fields; native moves also retain frame state."""
     page = open_page(
         browser,
@@ -10178,7 +10169,9 @@ def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, nativ
         ),
     )
     page.evaluate(
-        """async nativeMove => {
+        """async ([nativeMove, renderer]) => {
+      const {repeat} = await window.__lfRuntimeImport('/vendor/browser-runtime.js');
+      const {render} = await window.__lfRuntimeImport('/runtime/dom-children.js');
       const {orderChildren} = await window.__lfRuntimeImport('/runtime/dom-children.js');
       const {move, holdFocus} = await window.__lfRuntimeImport('/runtime/widget-api.js');
       const rows = document.querySelector('#rows');
@@ -10190,7 +10183,10 @@ def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, nativ
           <iframe title="${id}" srcdoc="<p>Retained frame</p>"></iframe>`;
         return row;
       });
-      orderChildren(rows, nodes);
+      const paint = nodes => renderer === 'lit'
+        ? render(repeat(nodes, node => node.dataset.row, node => node), rows)
+        : orderChildren(rows, nodes);
+      paint(nodes);
       const editor = rows.querySelector('[data-row=c] input');
       window.blurs = 0;
       editor.addEventListener('blur', () => window.blurs++);
@@ -10198,17 +10194,19 @@ def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, nativ
         if (event.key === 'ArrowUp' && event.altKey) {
           event.preventDefault();
           const restore = holdFocus(rows);
-          orderChildren(rows, [nodes[2], nodes[0], nodes[1]]);
+          paint([nodes[2], nodes[0], nodes[1]]);
           restore?.();
         } else if (event.key === 'ArrowDown' && event.altKey) {
           event.preventDefault();
           const restore = holdFocus(rows);
-          move(document.querySelector('#other'), editor.closest('[data-row]'), null);
+          const other = document.querySelector('#other');
+          if (renderer === 'lit') render(nodes[2], other);
+          else move(other, editor.closest('[data-row]'), null);
           restore?.();
         }
       });
     }""",
-        native_move,
+        [native_move, renderer],
     )
     editor = page.get_by_role("textbox", name="c", exact=True)
     editor.fill("unfinished words")

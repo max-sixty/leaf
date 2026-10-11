@@ -202,7 +202,7 @@ startup or application failures retain stderr and return nonblocking exit 1.
 Cancellation stays quiet. Where the user turns on the plugin's `hooks_module`
 option and Claude Code loads hooks modules, Leaf's module (`hooks/claude-code.ts`)
 runs the watch itself and marks the Stop payload it passes on, and the registration
-given a marked payload stands down (`hooks/scripts/loop-guard.py`).
+given a marked payload stands down (`hooks/scripts/background-watch.py`).
 Pi opens its lifecycle with `TurnStart` only after the SDK accepts the run. That
 hook reads no page and receives no input. Accepted incoming messages are
 finalized with context before the first model request; later live turn boundaries
@@ -303,7 +303,7 @@ checkout when this plugin has no uv environment.
 Managed Leaf delegates SessionEnd to the same owner. Registrations retain stderr
 and return nonblocking exit 1 when the application cannot answer, including when
 uv uses exit 2 for its own startup failure. The harness owns their
-deadlines. `hooks/scripts/loop-guard.py` supervises the background watch, calling
+deadlines. `hooks/scripts/background-watch.py` supervises the background watch, calling
 the launcher and converting its successful result into Claude Code's exit-2 wake.
 
 Only a page handed to a user owes a watcher, so the unwatched clause passes

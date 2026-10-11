@@ -79,8 +79,7 @@ const inTurn = (work) => {
 };
 
 let comparisonReady;
-const loadComparison = () =>
-  (comparisonReady ??= import("../vendor/webawesome.esm.js"));
+const loadComparison = () => (comparisonReady ??= import("/vendor/webawesome.esm.js"));
 
 customElements.define(
   "lf-shot",

@@ -6,7 +6,7 @@
  * reads the same projected dispositions as their buttons, while the case picker
  * retains every case so a reviewer can revisit a judgment. */
 import "/widgets/lf-shot.js";
-import "../vendor/webawesome.esm.js";
+import "/vendor/webawesome.esm.js";
 
 import {
   cancelRender,

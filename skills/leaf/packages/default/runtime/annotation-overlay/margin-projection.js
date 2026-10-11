@@ -38,6 +38,7 @@ import { afterScript, cancelRender, nextRender } from "/runtime/rendering.js";
 import { spokenSubject } from "/runtime/contribution-model.js";
 import {
   layoutMarginRows,
+  marginColumn,
   mountMarginLayer,
   registerMarginRow,
   scheduleMarginEntryLabels,
@@ -217,9 +218,7 @@ export function createMarginProjection({
       });
     });
   }
-  // Down the margin's column, which is `main` or, on a page without one, the body, as
-  // the margin's layout reads it (margin-layout.js).
-  const marginColumn = () => document.querySelector("main") || document.body;
+  // Down the margin's column.
   function readSpokenPositions(
     inventory,
     mainRect = marginColumn().getBoundingClientRect(),

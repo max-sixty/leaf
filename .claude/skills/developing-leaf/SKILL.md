@@ -417,10 +417,10 @@ before landing. Linux CI runs the same delivery journey without comparing images
 Review captured Mac images before accepting an intentional change;
 `dev/leaf_dev/thread_snapshots.py` owns capture and acceptance.
 
-A red gate is the branch's to fix. A pull request's `test` job and the local
-pre-merge `tests` run the broad selection and the nightly tests the branch edits;
-the rest of the nightly-marked tests run once main moves, and `tend-ci-fix` answers
-them when they fail (`tests/AGENTS.md`, "Run what the change needs").
+A pull request's `test` job and the local pre-merge `tests` run the broad selection
+and the nightly tests the branch edits; the rest of the nightly-marked tests run
+once main moves, and `tend-ci-fix` answers them when they fail (`tests/AGENTS.md`,
+"Run what the change needs").
 `wt merge` checks the rebased tree and lands it; `✗ Can't push to local main branch`
 is a fast-forward failure.
 

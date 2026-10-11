@@ -1,7 +1,7 @@
 /* Shared mechanical runtime context and read-only views of the semantic root.
    Accepted facts are never installed here independently of application publication. */
 import { readApplication } from "./semantic-state.js";
-import { PAGE_ROOT } from "./storage.js";
+import { PAGE_ROOT, layerRoot } from "./storage.js";
 
 // Code may be shared by several documents, including a sample and its parent.
 // Page operations belong to the document's declared root, never to the module's asset
@@ -38,16 +38,13 @@ export const offlineData = () => (offlineInteractive ? offlinePayload.data : nul
 export const runtimeModule = (path) =>
   offlineInteractive ? `leaf:${path.startsWith("/") ? path : `/${path}`}` : path;
 // A layer file by its rooted path in the page directory (`/icon.svg`,
-// `/widgets/lf-tabs.js`), at the address this document's layer is served from. A
-// served document declares its registry's address beside the runtime's other entry
-// points, and the layer is that file's directory; a document nothing declared one for
-// takes the layer at its own root.
-const layerRegistry = document.querySelector("script[data-lf-runtime][data-lf-probe]")
-  ?.dataset.lfProbe;
+// `/widgets/lf-tabs.js`), at the address this document's layer is served from
+// (`layerRoot`); a document nothing declared one for takes the layer at its own root.
+const servedLayerRoot = layerRoot(document);
 export const runtimeResource = (path) => {
   if (!offlineInteractive)
-    return layerRegistry
-      ? new URL(`.${path}`, new URL(layerRegistry, document.baseURI)).href
+    return servedLayerRoot
+      ? new URL(`.${path}`, new URL(servedLayerRoot, document.baseURI)).href
       : path;
   const located = new URL(path, document.baseURI);
   const resource = offlinePayload.resources[located.pathname];
@@ -58,19 +55,20 @@ export const runtimeResource = (path) => {
   return resource + located.hash;
 };
 
+// The shown document is the live active revision, which speaks by its own label.
+const showsActive = () =>
+  readApplication().document.live &&
+  runtime.currentRevision === runtime.active?.revision;
+
 export const runtime = {
   get active() {
     return readApplication().authoritative?.active ?? null;
-  },
-  get activity() {
-    return readApplication().effective.activity;
   },
   get browser() {
     return readApplication().authoritative?.browser ?? null;
   },
   get currentLabel() {
-    return readApplication().document.live &&
-      runtime.currentRevision === runtime.active?.revision
+    return showsActive()
       ? runtime.active.label
       : runtime.currentStamp === null
         ? null
@@ -80,16 +78,12 @@ export const runtime = {
     return readApplication().document.revision;
   },
   get currentStamp() {
-    return readApplication().document.live &&
-      runtime.currentRevision === runtime.active?.revision
+    return showsActive()
       ? runtime.active.version
       : (readApplication().document.stamp ?? null);
   },
   get data() {
     return readApplication().data;
-  },
-  get events() {
-    return readApplication().authoritative?.events ?? [];
   },
   get lastEventSeq() {
     return readApplication().authoritative?.browser.basis.through_seq ?? null;
@@ -103,12 +97,10 @@ export const runtime = {
   get state() {
     return readApplication().authoritative;
   },
-  restoringState: false,
   registry: {},
   get statePhase() {
     return readApplication().phase;
   },
-  undoing: false,
   get versions() {
     return readApplication().authoritative?.versions ?? [];
   },

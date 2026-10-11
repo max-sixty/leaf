@@ -185,10 +185,10 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
     wait_until_ready(page)
     result = page.evaluate(
         """async () => {
-        const {TEXT_BLOCK, pageRange, pageText} = await window.__lfRuntimeImport('/runtime/passages.js');
+        const {TEXT_BLOCK, pageRange} = await window.__lfRuntimeImport('/runtime/passages.js');
         const {anchorForRange, resolveAnchor} =
             await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
-        const {nextRender, renderingSettled} =
+        const {nextRender, renderingState} =
             await window.__lfRuntimeImport('/runtime/rendering.js');
         const tick = () => new Promise(r => setTimeout(r, 0));
         const rendered = async () => {
@@ -201,7 +201,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
                 await Promise.race([deadline, (async () => {
                     await tick();
                     await new Promise(resolve => nextRender(resolve));
-                    while (!renderingSettled()) await tick();
+                    while (!Object.values(renderingState()).every(Boolean)) await tick();
                 })()]);
             } finally {
                 clearTimeout(timer);
@@ -267,7 +267,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
                 continue;
             }
             const anchor = anchorForRange(range);
-            const resolved = resolveAnchor(anchor, pageText());
+            const resolved = resolveAnchor(anchor);
             // A cross-cell selection remains a real native selection and a writable
             // comment. It must not acquire an exact semantic highlight by ignoring
             // the same fences file capture respects. Generated wordless faces and
@@ -958,12 +958,21 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
     # at rest, since a hover state read against a resting one compares nothing.
     page.mouse.move(4, 4)
 
+    # The slotted shortcut hint keeps the text field's muted placeholder ink.
+    # Typography shared with sent messages must not turn an empty hint into prose.
+    hint_ink = """hint => [getComputedStyle(hint).color,
+        getComputedStyle(hint.querySelector('kbd')).color]"""
+    hint = page.locator(".lf-fab-input .lf-compose-placeholder")
+    expect(hint).to_be_visible()
+    assert len(set(hint.evaluate(hint_ink))) == 1
+
     family = """el => { const s = getComputedStyle(el);
         return Object.fromEntries(["font-family", "font-size",
             "border-top-width", "border-top-style",
             "background-color"].map(p => [p, s.getPropertyValue(p)])); }"""
     raised = page.locator(".lf-fab-input").evaluate(family)
     page.keyboard.press("e")
+    expect(page.locator(".lf-fab-bar .lf-fab-suggest")).to_be_visible()
     adjacent = page.locator(".lf-fab-bar .lf-fab-suggest").evaluate(family)
     assert raised == adjacent, (
         "the floating field and its other responses are drawn differently:\n  "
@@ -977,9 +986,11 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
         f"the response bar speaks in the document's voice: {raised['font-family']}"
     )
     assert (
-        page.locator(".lf-fab-input").evaluate("el => getComputedStyle(el).boxShadow")
+        page.locator(".lf-fab-input").evaluate("el => getComputedStyle(el).filter")
         != "none"
     ), "the field that floats over the page says nothing about its elevation"
+    page.locator(".lf-fab-input").click()
+    assert len(set(hint.evaluate(hint_ink))) == 1
 
 
 # One rendered key face: the geometry a physical press claims wherever Leaf draws it, and
@@ -1593,6 +1604,39 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     expect(page.locator("#code-link")).to_be_focused()
     page.keyboard.press("Enter")
     expect(page).to_have_url(re.compile(r"#destination$"))
+
+
+def test_code_copy_reads_sources_before_positioning_many_controls(browser, serve):
+    blocks = "".join(
+        f"<p>Example {i}</p><pre><code>code {i}</code></pre>" for i in range(60)
+    )
+    url = live_url(serve(leaf_page("Many code blocks", blocks)))
+    page = open_page(
+        browser,
+        url,
+        init_script="""(() => {
+          const events = window.copyPlacementEvents = [];
+          const rect = Element.prototype.getBoundingClientRect;
+          Element.prototype.getBoundingClientRect = function (...args) {
+            if (this.localName === 'pre' && this.querySelector(':scope > code'))
+              events.push('read');
+            return rect.apply(this, args);
+          };
+          Object.defineProperty(CSSStyleDeclaration.prototype, 'anchorName', {
+            configurable: true,
+            get() { return this.getPropertyValue('anchor-name'); },
+            set(value) {
+              if (value?.startsWith('--lf-a')) events.push('write');
+              this.setProperty('anchor-name', value);
+            },
+          });
+        })()""",
+    )
+    expect(page.locator(".lf-chrome > .lf-code-copy")).to_have_count(60)
+    events = page.evaluate("window.copyPlacementEvents")
+    assert events.count("read") >= 60
+    assert "write" in events
+    assert events.index("write") >= 60
 
 
 @pytest.mark.parametrize("holder", ["disclosure", "tab"])
@@ -3172,11 +3216,11 @@ def thread_a_press_opened(page):
     The preview card the press opens places itself and only then hands over focus, from
     the placement promise `deferThreadPreviewFocus` waits on — so the thread arrives a
     frame after the press rather than inside it. This states that ordering rather than
-    reading across it. The wait's own timeout is short, and it answers None so a caller
-    still reports which thread opened instead of raising over the reading.
+    reading across it. It answers None rather than raising, so a caller still reports
+    which thread opened instead of raising over the reading.
     """
     try:
-        page.wait_for_function(f"() => {FOCUSED_THREAD} != null", timeout=5000)
+        page.wait_for_function(f"() => {FOCUSED_THREAD} != null")
     except PlaywrightTimeout:
         return None
     return page.evaluate(f"() => {FOCUSED_THREAD}.innerText")
@@ -6177,8 +6221,8 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     panel_thread.locator(".lf-thread-summary").click()
-    inline_send = thread.get_by_role("button", name="Send", exact=True)
-    panel_send = panel_thread.get_by_role("button", name="Send", exact=True)
+    inline_send = thread.locator(".lf-compose-submit")
+    panel_send = panel_thread.locator(".lf-compose-submit")
     expect(inline_send).to_be_disabled()
     expect(panel_send).to_be_disabled()
     write(thread.locator("leaf-text"), "One draft in both views.")
@@ -6767,28 +6811,33 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
 def test_shadow_staging_replaces_all_nodes_without_disturbing_a_retained_editor(
     browser, serve
 ):
-    """Text and comments leave the stage; a retained control keeps its caret."""
+    """Staging retains a Lit container and its editor while other nodes leave."""
     page = open_page(browser, serve(DIFF_PAGE))
     result = page.evaluate(
         """async () => {
-          const {shadowStage} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {html, render, shadowStage} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const host = document.querySelector('lf-diff');
+          const container = document.createElement('div');
           const input = document.createElement('input');
           input.value = 'draft reply';
+          const paint = text => render(html`<p>${text}</p>${input}`, container);
+          paint('Before restaging');
           const old = document.createElement('p');
           old.textContent = 'old reading';
-          shadowStage(host, [old, document.createComment('old stage'), input]);
+          shadowStage(host, [old, document.createComment('old stage'), container]);
           input.focus();
           input.setSelectionRange(2, 5);
           const next = document.createElement('p');
           next.textContent = 'new reading';
-          shadowStage(host, [next, input]);
+          shadowStage(host, [next, container]);
+          paint('After restaging');
           return {
             text: [...host.shadowRoot.childNodes]
               .filter(node => node.localName === 'p')
               .map(node => node.textContent),
             comments: [...host.shadowRoot.childNodes]
               .filter(node => node.nodeType === Node.COMMENT_NODE).length,
+            rendered: container.querySelector('p').textContent,
             focused: host.shadowRoot.activeElement === input,
             value: input.value,
             selection: [input.selectionStart, input.selectionEnd],
@@ -6798,6 +6847,7 @@ def test_shadow_staging_replaces_all_nodes_without_disturbing_a_retained_editor(
     assert result == {
         "text": ["new reading"],
         "comments": 0,
+        "rendered": "After restaging",
         "focused": True,
         "value": "draft reply",
         "selection": [2, 5],

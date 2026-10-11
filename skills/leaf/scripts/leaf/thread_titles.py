@@ -12,9 +12,9 @@ asks for a title as soon as it can reach the harness's model:
   (`Harness.title_generator`): a `claude -p` Haiku request for Claude Code
   (`claude_code_title`), and an App Server of its own for Codex (`codex_title`),
   whichever transport carries the task's turns;
-- the website's host, as the Worker dispatches the user's move in the untitled
+- the website's host, as the Worker dispatches the user's update in the untitled
   thread to it (`name_thread`), through an ephemeral thread on the App Server it owns
-  (`app_server_title`), whether the move starts a turn or waits for a running one
+  (`app_server_title`), whether the update starts a turn or waits for a running one
   to end. Its page server cannot: the page has no claim before the first turn, and
   the claim does not say how to reach that server.
 
@@ -51,7 +51,6 @@ from datetime import datetime
 from pathlib import Path
 
 from .codex import (
-    LEAF_THREAD_CONFIG,
     app_server_connect,
     app_server_handshake,
     app_server_request,
@@ -97,25 +96,33 @@ TIMEOUT = 60
 # which not every model a task configures accepts; neither reasoned on a title.
 APP_SERVER_EFFORT = "low"
 TITLE_CONFIG = {
-    **LEAF_THREAD_CONFIG,
     "features": {
-        **LEAF_THREAD_CONFIG["features"],
-        **{
-            feature: False
-            for feature in (
-                "code_mode_host",
-                "hooks",
-                "shell_tool",
-                "sleep_tool",
-                "unified_exec",
-                "view_image",
-            )
-        },
+        feature: False
+        for feature in (
+            "apps",
+            "browser_use",
+            "computer_use",
+            "goals",
+            "image_generation",
+            "in_app_browser",
+            "memories",
+            "multi_agent",
+            "plugins",
+            "skill_mcp_dependency_install",
+            "skill_search",
+            "tool_suggest",
+            "workspace_dependencies",
+            "code_mode_host",
+            "hooks",
+            "shell_tool",
+            "sleep_tool",
+            "unified_exec",
+            "view_image",
+        )
     },
+    "skills": {"include_instructions": False, "max_context_tokens": 1},
+    "web_search": "disabled",
     "include_apply_patch_tool": False,
-    # The rest of what Worktrunk's Codex command for commit messages turns off
-    # (https://worktrunk.dev/llm-commits/) and a Leaf thread leaves on.
-    "skills": {**LEAF_THREAD_CONFIG["skills"], "max_context_tokens": 1},
     "agents": {"enabled": False},
     "project_doc_max_bytes": 0,
     "model_reasoning_effort": APP_SERVER_EFFORT,
@@ -123,7 +130,7 @@ TITLE_CONFIG = {
 # A Codex title server: with plugins on, a server syncs every plugin marketplace the
 # user configured as it starts, which here ran `git ls-remote` on four repositories
 # and cloned one into the user's Codex home for every title. The thread turns
-# plugins off too (`LEAF_THREAD_CONFIG`), but that reaches no further than the thread.
+# plugins off too (`TITLE_CONFIG`), but that reaches no further than the thread.
 TITLE_SERVER_ARGUMENTS = ("--disable", "plugins")
 # Claude Code: the command Worktrunk gives for commit messages
 # (https://worktrunk.dev/llm-commits/), which also runs with MAX_THINKING_TOKENS=0.
@@ -163,7 +170,7 @@ def title_request(page_dir: Path, message: str) -> tuple[str, str] | None:
     passage the thread is on and its first spoken message, each between its own
     tags, then `ASK`. The request is empty when the thread has neither, as one a
     drawing or a reaction opened and nobody has written in yet. None when `message`
-    is in no untitled thread, as for a widget's move or a thread named already.
+    is in no untitled thread, as for a widget's action or a thread named already.
 
     Any message in the thread can ask, so a thread whose first words come in a reply
     to a reaction is named on that reply, and a request that failed is made again

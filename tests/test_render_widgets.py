@@ -3512,6 +3512,49 @@ def test_contents_reconciles_live_title_boundaries_and_preserves_its_reading_pos
         reading_position, abs=1
     )
 
+    reordered = changed.replace(
+        sections[78] + sections[79], sections[79] + sections[78]
+    )
+    (serve.page_dir / "index.html").write_text(reordered, encoding="utf-8")
+    told(page)
+    rendered(page)
+    expect(survivor).to_be_focused()
+    assert (
+        survivor.evaluate(
+            "link => link.closest('li').nextElementSibling.querySelector('a').hash"
+        )
+        == "#part-79"
+    )
+
+    replacement = nav.get_by_role("link", name="New destination", exact=True)
+    replacement.focus()
+    changed_level = reordered.replace(
+        "<h2>New destination</h2>", "<h3>New destination</h3>"
+    )
+    (serve.page_dir / "index.html").write_text(changed_level, encoding="utf-8")
+    told(page)
+    rendered(page)
+    expect(replacement).to_have_attribute("href", "#new-part")
+    expect(replacement).to_be_focused()
+
+    renamed_body.focus()
+    ungrouped = changed_level.replace(
+        '<hgroup id="body-group"><p class="eyebrow">One section</p>'
+        '<h2 id="body-title">Named body</h2></hgroup>',
+        '<h2 id="body-title">Named body</h2>',
+    )
+    (serve.page_dir / "index.html").write_text(ungrouped, encoding="utf-8")
+    told(page)
+    rendered(page)
+    expect(renamed_body).to_have_attribute("href", "#body-title")
+    expect(renamed_body).to_be_focused()
+
+    # An address edit on the standing heading changes its Lit key. The new link
+    # still stands for the same place the user was on.
+    page.locator("#body-title").evaluate("node => node.id = 'renamed-body'")
+    expect(renamed_body).to_have_attribute("href", "#renamed-body")
+    expect(renamed_body).to_be_focused()
+
 
 def test_an_empty_contents_route_follows_headings_arriving_and_leaving(browser, serve):
     """A ToC with no initial outline can present one later and retire it again."""
@@ -3535,6 +3578,34 @@ def test_an_empty_contents_route_follows_headings_arriving_and_leaving(browser, 
     expect(nav.get_by_role("link", name="An arriving section")).to_have_attribute(
         "href", "#arrived"
     )
+
+    shared_destination = headed.replace(
+        '<h2 id="arrived">An arriving section</h2>',
+        '<hgroup id="group"><h2>First title</h2><h3>Second title</h3></hgroup>',
+    )
+    (serve.page_dir / "index.html").write_text(shared_destination, encoding="utf-8")
+    told(page)
+    rendered(page)
+    expect(nav.locator("li a")).to_have_text(["First title", "Second title"])
+    assert nav.locator("li a").evaluate_all(
+        "links => links.map(link => link.hash)"
+    ) == ["#group", "#group"]
+    second = nav.get_by_role("link", name="Second title", exact=True)
+    second.focus()
+    reordered = shared_destination.replace(
+        "<h2>First title</h2><h3>Second title</h3>",
+        "<h3>Second title</h3><h2>First title</h2>",
+    )
+    (serve.page_dir / "index.html").write_text(reordered, encoding="utf-8")
+    told(page)
+    rendered(page)
+    expect(nav.locator("li a")).to_have_text(["Second title", "First title"])
+    expect(second).to_be_focused()
+
+    (serve.page_dir / "index.html").write_text(headed, encoding="utf-8")
+    told(page)
+    rendered(page)
+    expect(nav.locator("li a")).to_have_text(["An arriving section"])
 
     (serve.page_dir / "index.html").write_text(source, encoding="utf-8")
     told(page)
@@ -5092,9 +5163,7 @@ def test_board_moves_preserve_live_sample_and_control_state(browser, serve, rout
     assert not [
         url
         for url in requests
-        if "/runtime/" in url
-        or url.rstrip("/") == sample_url
-        or url.rstrip("/").endswith("/api/samples")
+        if url.rstrip("/") == sample_url or url.rstrip("/").endswith("/api/samples")
     ]
 
 
@@ -6827,23 +6896,42 @@ def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, 
         != "rgb(200, 0, 0)"
     )
 
-    # Every frame of the child a Reset makes that draws the note draws it loud.
-    painted = page.locator("#tone-sample").evaluate(
-        """async sample => {
-          const frames = [];
-          let sampling = true;
-          const tick = () => {
-            const note = sample.querySelector('iframe').contentDocument
-              ?.getElementById('child-note');
-            if (note) frames.push(getComputedStyle(note).color);
-            if (sampling) requestAnimationFrame(tick);
-          };
-          requestAnimationFrame(tick);
-          await sample.reset();
+    # The reset child has an opaque origin. Collect its paints there, then request
+    # the whole sequence after Reset completes across the browsing-context boundary.
+    page.add_init_script("""(() => {
+      if (window === top) return;
+      const paints = [];
+      let sampling = true;
+      const tick = () => {
+        const note = document.getElementById('child-note');
+        if (note) paints.push(getComputedStyle(note).color);
+        if (sampling) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+      window.addEventListener('message', event => {
+        if (event.source !== parent || event.data?.type !== 'lf-test-tone-read')
+          return;
+        requestAnimationFrame(() => {
           sampling = false;
-          return frames;
-        }"""
-    )
+          parent.postMessage({type: 'lf-test-tone-paints', paints}, '*');
+        });
+      });
+    })()""")
+    page.locator("#tone-sample").evaluate("sample => sample.reset()")
+    page.locator("#tone-sample").evaluate("""sample => {
+      window.lfTonePaints = null;
+      const frame = sample.querySelector('iframe');
+      const receive = event => {
+        if (event.source !== frame.contentWindow
+            || event.data?.type !== 'lf-test-tone-paints') return;
+        window.lfTonePaints = event.data.paints;
+        window.removeEventListener('message', receive);
+      };
+      window.addEventListener('message', receive);
+      frame.contentWindow.postMessage({type: 'lf-test-tone-read'}, '*');
+    }""")
+    page.wait_for_function("window.lfTonePaints !== null")
+    painted = page.evaluate("window.lfTonePaints")
     assert painted and set(painted) == {"rgb(200, 0, 0)"}
     expect(child.locator(":root")).to_have_attribute("data-playground-tone", "loud")
 
@@ -6912,6 +7000,37 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     page.mouse.click(slider["x"] + 2, slider["y"] + slider["height"] / 2)
     assert values()["width"] == 1
     assert child_button.evaluate(standing), "slider"
+    page.mouse.move(slider["x"] + 2, slider["y"] + slider["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(
+        slider["x"] + slider["width"] - 2,
+        slider["y"] + slider["height"] / 2,
+        steps=4,
+    )
+    page.mouse.up()
+    assert values()["width"] == 4
+    assert child_button.evaluate(standing), "slider drag"
+    sample = page.locator("#ring-sample")
+    sample.evaluate(
+        """sample => {
+          const restore = sample.restoreStanding;
+          sample.restoreStanding = () => {
+            window.releaseRestore = () => {
+              window.restoreDone = restore.call(sample);
+            };
+            return Promise.resolve(false);
+          };
+        }"""
+    )
+    page.mouse.click(slider["x"] + 2, slider["y"] + slider["height"] / 2)
+    note = page.get_by_role("textbox", name="Note")
+    note.focus()
+    expect(note).to_be_focused()
+    page.evaluate("window.releaseRestore()")
+    assert page.evaluate("() => window.restoreDone") is False
+    expect(note).to_be_focused()
+    sample.evaluate("sample => delete sample.restoreStanding")
+    child_button.focus()
     playground.locator(".lf-playground-reset").click()
     assert values()["ring"] == "thin"
     assert child_button.evaluate(standing)
@@ -11485,6 +11604,24 @@ def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve, manifes
     expect(head).to_have_attribute("data-path-cut", "")
     expect(head.locator(".lf-diff-path")).to_have_attribute("title", path)
 
+    # A changed source path can retain exactly the old clipped width. Its title
+    # must follow the new identity even when no size changes and the disclosure stays.
+    head.evaluate("node => window.retainedDiffHead = node")
+    for source in ("legacy/original.py", "legacy/previous.py"):
+        changed_rename = (
+            f"diff --git a/{source} b/{path}\nsimilarity index 50%\n"
+            f"rename from {source}\nrename to {path}\n"
+            f"--- a/{source}\n+++ b/{path}\n"
+            "@@ -1 +1 @@\n-old()\n+new()\n"
+        )
+        data_model.cmd_data_set(serve.page_dir, "review-patch", value(changed_rename))
+        told(page)
+        rendered(page)
+        expect(head.locator(".lf-diff-path")).to_have_attribute(
+            "title", f"{source} → {path}"
+        )
+        assert head.evaluate("node => node === window.retainedDiffHead")
+
 
 def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
     browser, serve
@@ -12242,14 +12379,53 @@ def test_webawesome_menu_text_stays_readable_as_the_current_option_moves(
         )
 
 
-def test_webawesome_theme_reaches_a_declared_shadow_stage(browser, serve):
+def test_webawesome_typography_is_independent_of_surrounding_prose(browser, serve):
+    """Shared controls keep UI text in both document and declared shadow stages.
+
+    Reset inherited typography without taking over component sizing or state ink.
+    The same inheritance also reaches an input inside the monospace diff reader.
+    """
     page = _bound_diff(browser, serve)
-    diff = page.locator("lf-diff")
-    assert diff.evaluate("el => el.shadowRoot !== null")
-    assert (
-        diff.evaluate(f"el => ({WEB_AWESOME_SHEET})(el.shadowRoot.adoptedStyleSheets)")
-        is True
-    )
+    readings = page.evaluate("""async () => {
+      const {offer} = await import('/runtime/widget-api.js');
+      const properties = ['fontFamily', 'fontStyle', 'fontVariant', 'fontStretch',
+        'fontFeatureSettings', 'fontVariationSettings', 'letterSpacing',
+        'wordSpacing', 'textTransform'];
+      const read = node => Object.fromEntries(
+        properties.map(key => [key, getComputedStyle(node)[key]]));
+      const reference = document.createElement('span');
+      reference.style.fontFamily = 'var(--sans)';
+      document.body.append(reference);
+      const expected = read(reference);
+      reference.remove();
+      const readings = [];
+      for (const root of [document.querySelector('main'),
+        document.querySelector('lf-diff').shadowRoot]) {
+        const holder = document.createElement('div');
+        const input = offer('wa-input', ''); input.label = 'Find files';
+        const select = offer('wa-select', ''); select.label = 'Choose file';
+        const option = offer('wa-option', '', 'First file');
+        option.value = 'first'; select.append(option); select.value = 'first';
+        const radio = offer('wa-radio', '', 'First file'); radio.value = 'first';
+        const prose = document.createElement('span'); prose.textContent = 'Source text';
+        holder.append(input, select, radio, prose); root.append(holder);
+        await Promise.all([input.updateComplete, select.updateComplete, radio.updateComplete]);
+        holder.style.cssText = `font-family:monospace; font-style:italic;
+          font-variant:small-caps; font-stretch:condensed;
+          font-feature-settings:"liga" 0; font-variation-settings:"wght" 650;
+          letter-spacing:3px; word-spacing:5px; text-transform:uppercase`;
+        readings.push({expected, actual: [read(input.shadowRoot.querySelector('input')),
+          read(select.shadowRoot.querySelector('[part~="combobox"]')), read(radio)],
+          prose: read(prose)});
+      }
+      return readings;
+    }""")
+    for reading in readings:
+        for actual in reading["actual"]:
+            assert actual == reading["expected"]
+        assert reading["prose"]["fontFamily"] == "monospace"
+        assert reading["prose"]["fontStyle"] == "italic"
+        assert reading["prose"]["textTransform"] == "uppercase"
 
 
 @pytest.mark.parametrize("motion", ["no-preference", "reduce"])
@@ -12957,8 +13133,7 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
         "a label the page wrote answers the pointer as though it were a control"
     )
 
-    # The keyboard. Reached by a real Tab, because :focus-visible is a fact about how
-    # focus arrived and element.focus() alone draws no ring at all.
+    # A real Tab verifies the keyboard route as well as the shared focus treatment.
     mark.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")

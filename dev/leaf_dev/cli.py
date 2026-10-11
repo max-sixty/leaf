@@ -33,6 +33,7 @@ COMMANDS = {
     "setup": "setup",
     "site": "site",
     "stills": "stills",
+    "suite-profile": "suite_profile",
     "thread-snapshots": "thread_snapshots",
     "trace-server": "trace_server",
     "verify-site": "verify_site",
@@ -40,6 +41,15 @@ COMMANDS = {
 
 
 class DeveloperCommands(click.Group):
+    def invoke(self, ctx: click.Context):
+        """Present a refusal from Leaf's own code as a Click error, as `leaf` does."""
+        from leaf.refusals import Refused
+
+        try:
+            return super().invoke(ctx)
+        except Refused as error:
+            raise click.ClickException(str(error)) from error
+
     def list_commands(self, ctx):
         return sorted(COMMANDS)
 

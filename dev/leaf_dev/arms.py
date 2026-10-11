@@ -35,7 +35,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import Self
+from typing import IO, Self
 
 import click
 from leaf.codex import APP_SERVER_ENV
@@ -140,12 +140,20 @@ def serving(arm: Path, state: Path, page: Path):
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
         text=True,
+        start_new_session=True,
     )
     try:
         yield re.search(r"https?://[^\s\"]+", server.stdout.readline())[0]
     finally:
+        # A loaded host can take longer than this to wind a server down; its page is
+        # scratch, so a server still running then is killed rather than failing the run.
+        # The launcher is uv, which cannot pass a kill on, so the kill takes the group.
         server.terminate()
-        server.wait(10)
+        try:
+            server.wait(10)
+        except subprocess.TimeoutExpired:
+            os.killpg(server.pid, signal.SIGKILL)
+            server.wait()
 
 
 def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
@@ -259,6 +267,41 @@ def build_pair(base: str | None, dest: Path) -> tuple[dict[str, Path], dict[str,
 def load_average() -> str:
     """The machine's 1, 5 and 15 minute load averages."""
     return " ".join(f"{value:.1f}" for value in os.getloadavg())
+
+
+def codex_program() -> Path:
+    """Resolve the host CLI used to install plugins and run isolated Codex tasks."""
+    if (installed := shutil.which("codex")) is None:
+        raise click.ClickException("Codex tasks require the Codex CLI; install it")
+    return Path(installed).resolve()
+
+
+def install_codex_plugin(
+    codex: Path,
+    payload: Path,
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    output: IO[str] | None = None,
+) -> None:
+    """Install a complete Leaf payload through Codex's native marketplace commands.
+
+    Callers supply the isolated task's environment and its CLI. Output is captured
+    on subprocess failures, or streamed whole to `output` when the caller keeps a
+    log; native installer JSON documents are separate from task JSON-lines logs.
+    """
+    streams = (
+        {"stdout": output, "stderr": subprocess.STDOUT}
+        if output is not None
+        else {"capture_output": True, "text": True}
+    )
+    for arguments in (
+        ("plugin", "marketplace", "add", str(payload), "--json"),
+        ("plugin", "add", "leaf@leaf", "--json"),
+    ):
+        subprocess.run(
+            [str(codex), *arguments], cwd=cwd, env=env, check=True, **streams
+        )
 
 
 def codex_home(path: Path, config: str = "") -> Path:

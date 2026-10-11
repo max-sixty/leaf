@@ -21,6 +21,12 @@
    Preserve the order of that list because the dispatcher and shortcut bar walk inward to
    outward while the full reference groups the same scopes for reading. */
 import {
+  AsyncDirective,
+  PartType,
+  directive,
+  nothing,
+} from "../../vendor/browser-runtime.js";
+import {
   activeRows,
   ariaShortcuts,
   bindings,
@@ -43,7 +49,7 @@ import {
   word,
 } from "./bindings.js";
 import { nativeClaimAt } from "./text-entry.js";
-import { focused, onLabelPress } from "../focus.js";
+import { focused } from "../focus.js";
 import { hostIn, renderedParent } from "../shadow.js";
 import { repaint } from "../repaint.js";
 import { keeps } from "../keeps.js";
@@ -522,6 +528,44 @@ export function keys(where, title, rows, options) {
   return attachScope(where, declaredScope(title, rows, options));
 }
 
+// Template scopes use the same attachment as `keys`, replacing the whole declaration
+// on each paint: titles, rows, callbacks and availability all belong to that reading.
+// Removing the directive withdraws only its own attachment, including when Lit keeps
+// the element. Temporary disconnection restores that declaration on reconnection.
+export const commandsOn = directive(
+  class extends AsyncDirective {
+    #element;
+    #arguments;
+    #scope;
+    constructor(part) {
+      super(part);
+      if (part.type !== PartType.ELEMENT)
+        throw new TypeError("commandsOn belongs in a template's element part");
+    }
+    render() {
+      return nothing;
+    }
+    update(part, args) {
+      this.#element = part.element;
+      this.#arguments = args;
+      if (this.isConnected) this.reconnected();
+      return nothing;
+    }
+    reconnected() {
+      keys(this.#element, ...this.#arguments);
+      this.#scope = elementScopes.get(this.#element);
+    }
+    disconnected() {
+      if (elementScopes.get(this.#element) !== this.#scope) return;
+      unpainted.delete(this.#scope);
+      elementScopes.delete(this.#element);
+      if (!projectedScopes.has(this.#element)) forgetScopedElement(this.#element);
+      reflectElementShortcuts(this.#element);
+      paintKeys();
+    }
+  },
+);
+
 /** Declare a command scope that presentation owners attach to generated controls.
  *
  * The declaration is browser state, not a hidden source element. Margin and Page Map
@@ -716,28 +760,6 @@ const spoken = (row) => {
     return active.map(spokenBinding).join(" or ");
   return word(row.label) ?? active.map(spokenBinding).join(" or ");
 };
-
-const FOCUS = "lf-focus";
-const FOCUS_VISIBLE = "lf-focus-visible";
-const FOCUS_WITHIN = "lf-focus-within";
-// A press on a label holds the user on the element they stood on until it lands
-// (focus.js, `focused`). The element keeps the focus pseudo-classes' paint for that
-// press, as classes, since DOM focus has moved through the label's in-between nodes.
-let painted = [];
-onLabelPress((held) => {
-  for (const node of painted) node.classList.remove(FOCUS, FOCUS_VISIBLE, FOCUS_WITHIN);
-  painted = [];
-  if (!held) {
-    repaint();
-    return;
-  }
-  held.classList.add(FOCUS);
-  if (held.matches(":focus-visible")) held.classList.add(FOCUS_VISIBLE);
-  for (let node = held; node; node = renderedParent(node)) {
-    node.classList.add(FOCUS_WITHIN);
-    painted.push(node);
-  }
-});
 
 // Document readings want the host of a control staged in a shadow tree. Retarget the
 // logical reading every time, so a label transaction and an ordinary shadow focus take

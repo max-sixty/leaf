@@ -824,6 +824,11 @@ def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(
     page = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     expect_comment_notes(page, "#draft-ops", 1)
+    # The thread's margin row stands at the same seat as its note: the widget, not the
+    # paragraph its Markdown body renders.
+    expect(page.locator("[data-lf-margin-for]")).to_have_attribute(
+        "data-lf-margin-for", "draft-ops"
+    )
     page.locator("#draft-ops .lf-draft-body").dblclick()
     assert (
         page.locator("#draft-ops leaf-text").evaluate("el => el.value") == DRAFT_TEXT
@@ -1638,7 +1643,7 @@ def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_
     typed = "The page is missing the migration step."
     write(page_comment(first), typed)
     expect(second.locator(".lf-general leaf-text")).to_have_js_property("value", typed)
-    expect(second.locator(".lf-general button")).to_have_attribute(
+    expect(second.locator(".lf-general .lf-compose-submit")).to_have_attribute(
         "aria-disabled", "false"
     )
 
@@ -1669,10 +1674,10 @@ def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_
     round_trip(second)
     expect(first.locator(".lf-thread leaf-text").first).to_have_js_property("value", "")
 
-    first.locator(".lf-general button").click()
+    first.locator(".lf-general .lf-compose-submit").click()
     round_trip(first)
     expect(second.locator(".lf-general leaf-text")).to_have_js_property("value", "")
-    expect(second.locator(".lf-general button")).to_have_attribute(
+    expect(second.locator(".lf-general .lf-compose-submit")).to_have_attribute(
         "aria-disabled", "true"
     )
     said = [e["text"] for e in events_model.read_events(serve.page_dir) if "text" in e]
@@ -1690,9 +1695,9 @@ def test_a_general_comment_appends_one_event_across_tabs(browser, serve, one_use
 
     held = []
     first.route("**/api/event", lambda route: held.append(route))
-    first.locator(".lf-general button").click()
+    first.locator(".lf-general .lf-compose-submit").click()
     holding(first, held, 1, "the first general send")
-    second.locator(".lf-general button").click()
+    second.locator(".lf-general .lf-compose-submit").click()
     round_trip(second)
 
     held[0].continue_()
@@ -1717,7 +1722,7 @@ def test_a_held_general_send_preserves_a_newer_exact_draft(browser, serve):
     write(box, old)
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    page.locator(".lf-general button").click()
+    page.locator(".lf-general .lf-compose-submit").click()
     holding(page, held, 1, "the older general send")
     # The send put the card away; the newer thought is written in it opened again.
     write(page_comment(page), newer)
@@ -1790,7 +1795,7 @@ def test_a_reply_behind_a_refused_parent_is_withdrawn_rather_than_sent(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     write(page_comment(page), "The parent the server will refuse.")
-    page.locator(".lf-general button").click()
+    page.locator(".lf-general .lf-compose-submit").click()
     holding(page, held, 1, "the parent send")
 
     card = page.locator('.lf-thread[data-id^="pending:"]')
@@ -1836,7 +1841,7 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     words = "The comment the server will refuse."
     write(box, words)
     before = page.locator(".lf-threads > .lf-thread").count()
-    page.locator(".lf-general button").click()
+    page.locator(".lf-general .lf-compose-submit").click()
     holding(page, held, 1, "the general send")
     pending = page.locator('.lf-thread[data-id^="pending:"]')
     expect(pending).to_have_count(1)
@@ -2457,14 +2462,14 @@ def test_failed_settlement_keeps_the_base_for_a_chained_nondurable_edit(
     )
 
     write(page_comment(local), first)
-    local.locator(".lf-general button").click()
+    local.locator(".lf-general .lf-compose-submit").click()
     round_trip(local)
     expect(local.locator(".lf-general leaf-text")).to_have_js_property("value", "")
     write(page_comment(local), second)
-    expect(local.locator(".lf-general button")).to_have_attribute(
+    expect(local.locator(".lf-general .lf-compose-submit")).to_have_attribute(
         "aria-disabled", "false"
     )
-    local.locator(".lf-general button").click()
+    local.locator(".lf-general .lf-compose-submit").click()
     _until(local, lambda traffic: traffic.sends == 2, "sent the chained generation")
     round_trip(local)
 
@@ -4533,6 +4538,9 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
     second_inserted = "".join(second_delta.locator("ins").all_inner_texts())
     assert "before" in second_deleted and "deploying" in second_deleted
     assert "afterthebackup" in re.sub(r"\s+", "", second_inserted)
+    # Comparisons preserve source whitespace; template indentation is visible here.
+    comparison = second_delta.locator(".lf-draft-delta").text_content()
+    assert comparison == comparison.strip()
 
     draft.get_by_role("button", name="Restore edit 1 · v1").focus()
     page.keyboard.press("Enter")
@@ -4542,6 +4550,7 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
         "Changes · 3 edits"
     )
     expect(draft.locator(".lf-draft-history > summary")).to_be_focused()
+    expect(draft.locator(".lf-draft-history")).to_have_attribute("open", "")
     expect(draft).to_have_attribute("data-lf-user-override", "1")
 
     events = [
@@ -5868,9 +5877,8 @@ def test_a_mechanical_revision_failure_leaves_accepted_publication_ready(
         if event["kind"] == "error"
     ]
     assert len(reported) == 1, reported
-    assert (
-        reported[0]["text"]
-        == "Revision continuity failed: mechanical caret fixture failed"
+    assert reported[0]["text"].startswith(
+        "Revision continuity failed: mechanical caret fixture failed\n"
     )
 
     # Error reporting may advance server freshness, but no later state answer may
@@ -6199,9 +6207,57 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     expect(edit).to_have_js_property("value", "")
 
 
-def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
-    browser, serve
+@pytest.mark.parametrize("keyboard", ["desktop", "touch", "android"])
+def test_composer_return_edits_or_sends_according_to_its_keyboard(
+    browser, serve, keyboard
 ):
+    """Mobile Return keeps a source newline, including Android's EditContext path."""
+    options = {
+        "viewport": {"width": 360 if keyboard != "desktop" else 1280, "height": 732},
+        "is_mobile": keyboard != "desktop",
+        "has_touch": keyboard != "desktop",
+    }
+    if keyboard == "android":
+        options["user_agent"] = (
+            "Mozilla/5.0 (Linux; Android 16; Pixel 10) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/155.0.8059.12 Mobile Safari/537.36"
+        )
+    context = browser.new_context(**options)
+    page = open_page(browser, serve(LONG_PAGE), context=context)
+    editor = page_comment(page)
+    page.keyboard.type("First sentence.")
+    editor.press("Shift+Enter" if keyboard == "desktop" else "Enter")
+    expect(editor).to_have_js_property("value", "First sentence.\n")
+    page.keyboard.type("Second sentence.")
+    exact = "First sentence.\nSecond sentence."
+    expect(editor).to_have_js_property("value", exact)
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    with sending(page, "the complete multiline comment"):
+        editor.press("Enter" if keyboard == "desktop" else "ControlOrMeta+Enter")
+    comments = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert [event["text"] for event in comments] == [exact]
+
+
+@pytest.mark.parametrize("android", [False, True])
+def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
+    browser, serve, android
+):
+    context = browser.new_context(
+        user_agent=(
+            "Mozilla/5.0 (Linux; Android 16; Pixel 10) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/155.0.8059.12 Mobile Safari/537.36"
+        )
+        if android
+        else None,
+    )
     page = open_page(
         browser,
         serve(
@@ -6211,6 +6267,7 @@ def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
                 '<lf-draft id="source"><pre>Original **source**.</pre></lf-draft>',
             )
         ),
+        context=context,
     )
     draft = page.locator("#source")
     draft_control(page, "edit", "source").click()
@@ -6218,7 +6275,9 @@ def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
     write(editor, "First **paragraph**.")
     editor.press("End")
     editor.press("Enter")
+    expect(editor).to_have_js_property("value", "First **paragraph**.\n")
     editor.press("Enter")
+    expect(editor).to_have_js_property("value", "First **paragraph**.\n\n")
     page.keyboard.insert_text("Second `paragraph`.")
     exact = "First **paragraph**.\n\nSecond `paragraph`."
     expect(editor).to_have_js_property("value", exact)

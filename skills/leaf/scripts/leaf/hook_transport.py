@@ -23,7 +23,7 @@ the session's pages and hands over its complete envelope inline, or its
 immutable pointer.
 
 The hook confirms an inline envelope itself, as it hands it over, so the user's
-moves read Picked up without waiting on the model; the envelope's `acknowledge`
+updates read Picked up without waiting on the model; the envelope's `acknowledge`
 is null. Two things could keep inline context from reaching the turn, and the
 hook rules out both before it confirms. A harness discards the output of a hook
 it times out, so the hook confirms only by a deadline well inside its timeout
@@ -34,7 +34,7 @@ lock past the deadline into the harness's timeout. Claude Code cuts context over
 (`HOOK_CONTEXT_LIMIT`), so a delivery that large goes as a pointer, and so does
 one the hook was too slow to confirm; the reader's explicit `leaf delivery ack`
 is its receipt, including for pointers Codex's tool hook offers. What remains is a turn that ends
-just after it starts, as an interrupt can; its moves then read Picked up in a
+just after it starts, as an interrupt can; its updates then read Picked up in a
 turn that ended, as an App Server turn's do."""
 
 import json
@@ -65,21 +65,21 @@ from .state import flocked, session_lock_path, session_record
 
 
 def restart(obligations: list[dict]) -> str:
-    """What to do about owed moves a start covers that this turn did not write since
+    """What to do about owed updates a start covers that this turn did not write since
     their pickup, which hold the turn until it answers them or starts them again
-    (`activity.turn_obligations`): named only for such moves, so a move nobody is at
+    (`activity.turn_obligations`): named only for such updates, so an update nobody is at
     work on is never offered a start in place of its answer."""
-    moves = list(
+    items = list(
         dict.fromkeys(
             start["item"]
             for obligation in obligations
             for start in obligation["started_by"]
         )
     )
-    if not moves:
+    if not items:
         return ""
     return (
-        f"; your start on {', '.join(moves)} is older than its pickup: answer once "
+        f"; your start on {', '.join(items)} is older than its pickup: answer once "
         "that work is done, or while it still runs start it again with "
         '`leaf task start <page> <id> "<what is still running>"`'
     )
@@ -232,11 +232,6 @@ def remedies(
                     )
                 )
     return reasons
-
-
-def unattended_pages(session_id: str) -> list[tuple[str, str | None]]:
-    """Read and format the session's current debt, without state transitions."""
-    return remedies(read_plans(session_id))
 
 
 def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:

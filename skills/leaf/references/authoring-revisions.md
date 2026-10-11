@@ -4,8 +4,8 @@
 
 Run `leaf page state <page>`, and read the active revision's HTML, the file
 `active.file` names in the page directory, beside it. The HTML is what you authored;
-`state` lists each user move that stands over it, by widget, with the words, choice or
-position it carries, so where the two differ the page shows the move. Look up a
+`state` lists each user action that stands over it, by widget, with the words, choice or
+position it carries, so where the two differ the page shows the action. Look up a
 widget's tag in the page's `registry.json` when needed.
 
 When `source.live` is false, the candidate in `index.html` differs from the live
@@ -13,7 +13,7 @@ revision and `source.error` says why; reconcile the candidate by stable id and c
 before editing. `data_bindings` names each external source and the widgets that read
 it, and `data/<source>.json` holds its publication; change its value with
 `leaf data set`. `leaf page state <page> <id>` narrows the reading to what the id
-names: a page widget's element, standing moves, Questions and workflows, or a thread's
+names: a page widget's element, standing actions, Questions and workflows, or a thread's
 messages with their frozen HTML content, which changes only through that thread.
 
 ## Publish several authored files together

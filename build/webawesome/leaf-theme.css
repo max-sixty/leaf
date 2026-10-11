@@ -12,6 +12,17 @@
 ) {
   color-scheme: inherit;
   --wa-font-family-body: var(--sans);
+  /* Controls inherit typography through their hosts. Reset the surrounding prose's
+     face without overriding the component's size, weight, line height or state ink. */
+  font-family: var(--wa-font-family-body);
+  font-style: normal;
+  font-variant: normal;
+  font-stretch: normal;
+  font-feature-settings: normal;
+  font-variation-settings: normal;
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-transform: none;
   --wa-color-surface-raised: var(--card);
   --wa-color-surface-default: var(--field);
   --wa-color-surface-lowered: var(--card);
@@ -34,10 +45,9 @@
   --wa-color-brand-fill-loud: var(--accent);
   --wa-color-brand-on-loud: light-dark(var(--card), var(--paper));
   --wa-color-focus: var(--accent);
-  /* Leaf draws one focus band and theme.css keeps its thickness in one token, so a
-     vendored control wears that band rather than the vendor's own wider one. */
-  --wa-focus-ring-style: solid;
-  --wa-focus-ring-width: var(--focus-ring-w);
+  /* Leaf's logical focus owner paints the band. The vendor's native focus and open
+     states must not paint another, including during a held label press. */
+  --wa-focus-ring-style: none;
   --wa-form-control-background-color: var(--field);
   --wa-form-control-border-color: var(--border-2);
   --wa-form-control-value-color: var(--ink);
@@ -74,15 +84,47 @@ wa-select::part(combobox) {
   transition-property: background-color, border-color;
 }
 
-/* A text field's Tab stop and the box that rings it both sit inside the vendor's shadow
-   root, where the host rule a Leaf control wears reaches neither. The band is therefore
-   drawn and named on the field's own part: --lf-focus-ring does not inherit, and the
-   layer credits a ring to the rule that names it. The frame's band covers its native
-   editor and any auxiliary control, including Clear. */
-wa-input:focus-within::part(base) {
+/* Public parts carry the same focus band for pointer and keyboard arrival. Native
+   shadow hosts only retarget their internal focus; Leaf's focus owner marks the actual
+   input owner with data-lf-focus and the public lf-focus part, and its composed ancestry
+   with data-lf-focus-within and the public lf-focus-within part. Each control draws
+   one band at that logical destination, including while a label press temporarily
+   moves native focus elsewhere. */
+wa-copy-button::part(lf-focus) {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-gap);
+  --lf-focus-ring: copy-button;
+}
+wa-comparison::part(lf-focus) {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-gap);
+  --lf-focus-ring: comparison-handle;
+}
+
+/* A radio's actual focus owner is its host, rather than a native shadow control.
+   The generic band surrounds its full face, label included, for both appearances. */
+wa-radio[appearance="button"][data-lf-focus] { z-index: 2; }
+
+/* Text and select frames cover their editor and auxiliary controls, including Clear.
+   Their native input/button outlines stay off so a group has one focus carrier. */
+wa-input::part(base lf-focus-within) {
   outline: var(--focus-ring);
   --lf-focus-ring: text-entry;
 }
+wa-select::part(combobox lf-focus-within) {
+  outline: var(--focus-ring);
+  --lf-focus-ring: select;
+}
+
+/* A single slider focuses its rail and paints the thumb; a range slider focuses
+   each thumb independently. The public parts express that same ownership. */
+wa-slider:not([range])[data-lf-focus-within]::part(thumb),
+wa-slider[range]::part(lf-focus) {
+  outline: var(--focus-ring);
+  outline-offset: 0;
+  --lf-focus-ring: slider-thumb;
+}
+wa-slider[range]::part(lf-focus) { z-index: 4; }
 
 /* A slider's unfilled track is the scale the value is read against, so it carries a
    contour's weight rather than a hover's: at --chip it read as empty paper, and a value

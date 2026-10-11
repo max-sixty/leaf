@@ -7,17 +7,27 @@
    they did, so it is sent on its own, once, and a failure costs only a fact the page
    will observe again; it neither waits behind a gesture nor holds one up. */
 import { runtime } from "./context.js";
-import { postEvent } from "./layer-client.js";
+import { postEvent, reportCarried } from "./layer-client.js";
 import { notice } from "./notifications.js";
-import { pendingTraffic } from "./traffic.js";
 import { afterScript } from "./rendering.js";
 
 const RETRY_MS = 2000;
 const retryPause = () => new Promise((resolve) => setTimeout(resolve, RETRY_MS));
 
+// What an /api/event answer says, read the same way by both senders: "accepted" when
+// the server took the event and returned the state that shows it, "refused" when its
+// refusal is final (event_endpoint.py), and otherwise "incomplete".
+const readEventAnswer = (response, answer) =>
+  response.ok && answer?.ok === true && answer.state
+    ? "accepted"
+    : answer?.final === true
+      ? "refused"
+      : "incomplete";
+const applyAnswerState = (apply, state) =>
+  apply(state).catch((error) => reportCarried(error, "state in event response"));
+
 export function createDelivery({
   ledger,
-  currentReceipts,
   applyAcceptedState,
   settleRejected,
   settlementChanged,
@@ -27,9 +37,15 @@ export function createDelivery({
 
   async function deliver(entry) {
     let announced = false;
+    // Say once that the change is not through yet, then wait before the next try.
+    const retry = async (message) => {
+      if (!announced) notice(message);
+      announced = true;
+      await retryPause();
+    };
     for (;;) {
-      ledger.nameParent(entry, currentReceipts());
-      if (!ledger.nameUndo(entry, currentReceipts())) return { accepted: null };
+      ledger.nameParent(entry);
+      if (!ledger.nameUndo(entry)) return { accepted: null };
       const { event } = entry;
       if (entry.admitted) return { accepted: entry.admitted };
       const sent = await Promise.race([
@@ -43,14 +59,11 @@ export function createDelivery({
       if (sent.error) {
         // A refused key ends only when the user opens the link, so say that rather
         // than promising a retry that cannot succeed on its own.
-        if (!announced)
-          notice(
-            runtime.keyRefused
-              ? "Key refused — open Leaf's link in a new tab and your change will send"
-              : "Connection lost — retrying your change…",
-          );
-        announced = true;
-        await retryPause();
+        await retry(
+          runtime.keyRefused
+            ? "Key refused — open Leaf's link in a new tab and your change will send"
+            : "Connection lost — retrying your change…",
+        );
         continue;
       }
       if (!sent.response) return { accepted: null };
@@ -59,9 +72,7 @@ export function createDelivery({
       // The loop already retries; what it reported without this was the failed decode
       // of a plain-text body rather than what the server said.
       if (sent.response.status === 503) {
-        if (!announced) notice("The server isn't ready yet — retrying your change…");
-        announced = true;
-        await retryPause();
+        await retry("The server isn't ready yet — retrying your change…");
         continue;
       }
       const decoded = await Promise.race([
@@ -73,23 +84,24 @@ export function createDelivery({
       ]);
       if (decoded.accepted) return { accepted: decoded.accepted };
       if (decoded.error) {
-        if (!announced) notice("Couldn't read the answer — retrying your change…");
-        announced = true;
-        await retryPause();
+        await retry("Couldn't read the answer — retrying your change…");
         continue;
       }
       const answer = decoded.answer;
-      const accepted = answer?.state?.browser?.receipts?.find(
-        (candidate) => candidate.attempt === event.attempt,
-      );
-      if (sent.response.ok && answer?.ok === true && accepted) {
-        const application = applyAcceptedState(answer.state).catch((error) =>
-          console.error("leaf: state in event response", error),
+      const reading = readEventAnswer(sent.response, answer);
+      // An accepted answer settles this gesture only once its state holds the receipt.
+      const accepted =
+        reading === "accepted" &&
+        answer.state.browser?.receipts?.find(
+          (candidate) => candidate.attempt === event.attempt,
         );
-        return { accepted, application };
-      }
+      if (accepted)
+        return {
+          accepted,
+          application: applyAnswerState(applyAcceptedState, answer.state),
+        };
       if (
-        answer?.final === true &&
+        reading === "refused" &&
         (!("attempt" in answer) || answer.attempt === event.attempt) &&
         answer.ok === false
       ) {
@@ -99,9 +111,7 @@ export function createDelivery({
           refusal: `Couldn't send — ${answer.error || "the server refused it"}`,
         };
       }
-      if (!announced) notice("Server answer was incomplete — retrying your change…");
-      announced = true;
-      await retryPause();
+      await retry("Server answer was incomplete — retrying your change…");
     }
   }
 
@@ -122,7 +132,6 @@ export function createDelivery({
         } catch (error) {
           reportApplicationError(error);
         } finally {
-          pendingTraffic(ledger.sending());
           if (application) void application.finally(() => entry.resolve(accepted));
           else {
             entry.resolve(accepted);
@@ -158,11 +167,7 @@ export async function deliverBookkeeping(event, applyState) {
   } catch {
     return "unreached";
   }
-  const accepted = response.ok && answer?.ok === true && Boolean(answer.state);
-  if (answer?.state) {
-    await applyState(answer.state).catch((error) =>
-      console.error("leaf: state in event response", error),
-    );
-  }
-  return accepted ? "accepted" : answer?.final === true ? "refused" : "unreached";
+  const reading = readEventAnswer(response, answer);
+  if (answer?.state) await applyAnswerState(applyState, answer.state);
+  return reading === "incomplete" ? "unreached" : reading;
 }

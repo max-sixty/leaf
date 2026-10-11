@@ -8,7 +8,7 @@ This module selects each kind's gates. Their implementations stay with their
 domains: undo in `events` and widget meaning in `event_meaning`.
 """
 
-from leaf.event_log import EventRefused, Refusal, new_event_id
+from leaf.event_log import EventRefused, new_event_id
 from leaf.event_meaning import (
     AdmissionReadings,
     admit_widget_event,
@@ -16,6 +16,7 @@ from leaf.event_meaning import (
 )
 from leaf.events import build_threads, spoken_turns, undo_error
 from leaf.files import version_revisions
+from leaf.layer import foreign_event_contract
 from leaf.page_view import CandidatePageView, PageView
 from leaf.projection import (
     RANK,
@@ -24,8 +25,10 @@ from leaf.projection import (
 )
 from leaf.questions import asking, projected_action_holders, quoted_in
 from leaf.read_state import read_contract_error
+from leaf.refusals import Refusal
 from leaf.registry.contract import (
     WRITERS,
+    RegistryError,
     created_child,
     detail_schema,
     event_spec,
@@ -36,6 +39,7 @@ from leaf.registry.contract import (
 from leaf.registry.kernel import kernel_event_ownership
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import json_value, schema_error
+from leaf.registry.storage import layer_metadata
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
 from leaf.structure import review_mode
 from leaf.tasks import task_error
@@ -703,7 +707,7 @@ def admission_error(
 def _task_error(view, event: dict, readings) -> str | None:
     """A task stands on an open thread, a widget that seats work or an element, or the
     page. Task endings also admit an agent withdrawal of a prose Question; a
-    start names explicit agent work or an owed move (`tasks.task_error`)."""
+    start names explicit agent work or an owed update (`tasks.task_error`)."""
     from leaf.tasks import start_reading
 
     progress_parent = (
@@ -863,6 +867,14 @@ def append_admitted(page, event: dict, *, view=None) -> dict:
     # have moved past admitting it.
     if accepted := page.matching_attempt(event):
         return accepted
+    try:
+        layer = layer_metadata(page.page_dir)
+    except RegistryError:
+        # A broken or missing candidate registry does not invalidate an active
+        # revision's captured vocabulary. Admission will read that vocabulary.
+        layer = None
+    if layer is not None and (refusal := foreign_event_contract(page.page_dir, layer)):
+        raise EventRefused(refusal)
     return page._append_record(
         admitted_event(
             view if view is not None else PageView(page.page_dir), page.events, event

@@ -52,6 +52,7 @@
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
 import {
+  afterScript,
   HIDDEN,
   PRESS,
   readQuestions,
@@ -61,6 +62,7 @@ import {
   backgroundFlash,
   beginWalk,
   capturePlace,
+  comparisonChanges,
   claimTraversals,
   commands,
   compoundReadingRegionId,
@@ -90,6 +92,7 @@ import {
   sizeObserver,
   tabStore,
   watchQuestions,
+  watchComparison,
   focusDestination,
   rove,
   scrollIntoView,
@@ -98,6 +101,13 @@ import {
 // The page's navigation strip, where one stands: the first tab set in main, drawn as
 // a row (`#syncRootContext`).
 const PAGE_STRIP = 'body > main > lf-tabs[data-lf-tabs-flow="page"]';
+const paintRootHeader = () => {
+  const root = document.documentElement;
+  if (document.querySelector(PAGE_STRIP))
+    setRuntimeRootStyle(root, "--lf-root-headers", "var(--lf-tabstrip-h)");
+  else removeRuntimeRootStyle(root, "--lf-root-headers");
+};
+const syncRootHeader = () => afterScript(paintRootHeader);
 
 const PLACE_KEY = "lf-tabs-place:";
 const substantiveChildren = (owner) =>
@@ -305,12 +315,11 @@ customElements.define(
       }
       // The Δ count follows the version diff; the runtime announces each toggle.
       this.#listenForQuestions();
+      watchComparison(this, () => this.#marks());
       whileConnected(this, (signal) => {
         this.#watchRootContext();
         this.#syncRootContext();
         this.#listenForHistory(signal);
-        document.addEventListener("lf-comparison", () => this.#marks(), { signal });
-        this.#marks();
         const stripSize = this.#watchStrip();
         const stopPanels = this.#side
           ? [...this.#buttons.keys()].map((panel) =>
@@ -332,8 +341,7 @@ customElements.define(
           this.#contextObserver?.disconnect();
           this.#contextObserver = null;
           this.#covering = false;
-          if (!document.querySelector(PAGE_STRIP))
-            removeRuntimeRootStyle(document.documentElement, "--lf-root-headers");
+          syncRootHeader();
         };
       });
     }
@@ -366,7 +374,7 @@ customElements.define(
     // all answered.
     #marks() {
       for (const [panel, btn] of this.#buttons) {
-        const changed = panel.querySelectorAll(".lf-ins-block").length;
+        const changed = comparisonChanges(panel).length;
         keepsText(
           btn.querySelector(":scope > .lf-tabdiff"),
           changed ? `Δ${changed}` : "",
@@ -543,11 +551,7 @@ customElements.define(
       const covering = this.#pageFlow && Boolean(this.#strip?.isConnected);
       if (covering === this.#covering) return;
       this.#covering = covering;
-      const root = document.documentElement;
-      if (covering)
-        setRuntimeRootStyle(root, "--lf-root-headers", "var(--lf-tabstrip-h)");
-      else if (!document.querySelector(PAGE_STRIP))
-        removeRuntimeRootStyle(root, "--lf-root-headers");
+      syncRootHeader();
     }
 
     // A press at one edge of the strip, which pages the names that run past it (the

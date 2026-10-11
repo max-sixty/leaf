@@ -147,14 +147,10 @@ test("a return stays interrupted until its refreshed reading is actually present
         applying = false;
       };
       const feed = createStateFeed({
-        projectionDeferred: () => false,
-        retryProjection: () => false,
         stateApplying: () => applying,
-        releasePending: async () => {},
         invalidateDom: async () => {},
         receiveState,
         prepareActivation: async () => null,
-        notifyDataSubscribers: async () => {},
         renderStatus: (status) => statuses.push(status),
       });
       feed.startFeed(async () => {}, Promise.resolve({ state: state("initial") }));

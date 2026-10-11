@@ -12,6 +12,9 @@ delegates to the same cleanup owner `bin/leaf` runs cold, in a managed interpret
 Any other argv after one of their names is refused with its usage line. Help and
 every other invocation use the CLI, whose `prog_name` stays `leaf` for both entry
 forms.
+
+A refusal (`refusals.Refused`) from the hook ends here, with its reason on stderr and
+exit status 1.
 """
 
 import sys
@@ -21,8 +24,12 @@ def _hook(args: list[str]) -> None:
     if len(args) < 2 or args[0] != "--harness" or args[2:] not in ([], ["--watch"]):
         sys.exit("usage: leaf hook --harness NAME [--watch]")
     from leaf.hooks import main as hook
+    from leaf.refusals import Refused
 
-    hook(args[1], watch=args[2:] == ["--watch"])
+    try:
+        hook(args[1], watch=args[2:] == ["--watch"])
+    except Refused as error:
+        sys.exit(str(error))
 
 
 def _session_end(args: list[str]) -> None:

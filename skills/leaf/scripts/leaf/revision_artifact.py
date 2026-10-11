@@ -32,6 +32,7 @@ import json
 import os
 import posixpath
 import re
+import sys
 import tempfile
 import threading
 from collections.abc import Callable, Mapping
@@ -45,11 +46,12 @@ import tinycss2
 import tree_sitter_javascript
 import turbohtml
 from tinycss2.serializer import serialize_string_value
-from tree_sitter import Language, Parser
+from tree_sitter import Language, Parser, Query, QueryCursor
 
 from leaf.files import file_stamp, latest_revision, list_revisions, revision_path
 from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
+from leaf.refusals import Refused
 from leaf.registry.contract import is_element_name
 from leaf.render_checks import PROBE_SOURCES
 from leaf.schema import BROWSER_DIRS, CONTENT_TYPES, SERVED_PATH, VENDORED_FILES
@@ -72,6 +74,21 @@ RESOURCE_TYPES = {
     ".otf": "font/otf",
 }
 _JAVASCRIPT = Language(tree_sitter_javascript.language())
+# The nodes `javascript_imports` reads, matched in the parser's own code rather than
+# by visiting every node of a vendored bundle in Python.
+_JSX_KINDS = sorted(
+    kind
+    for kind_id in range(_JAVASCRIPT.node_kind_count)
+    if (kind := _JAVASCRIPT.node_kind_for_id(kind_id))
+    and kind.startswith("jsx_")
+    and _JAVASCRIPT.node_kind_is_named(kind_id)
+)
+_IMPORT_NODES = Query(
+    _JAVASCRIPT,
+    "(import_statement) @node (export_statement) @node "
+    "(call_expression function: (import)) @node "
+    + " ".join(f"({kind}) @node" for kind in _JSX_KINDS),
+)
 JAVASCRIPT_SUFFIXES = frozenset(
     suffix
     for suffix, mime in RESOURCE_TYPES.items()
@@ -79,7 +96,7 @@ JAVASCRIPT_SUFFIXES = frozenset(
 )
 
 
-class ArtifactError(ValueError):
+class ArtifactError(Refused):
     """A candidate cannot be captured as a complete local revision."""
 
 
@@ -270,12 +287,16 @@ def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | 
     return resolved
 
 
-def javascript_imports(data: bytes, path: str):
-    """Yield exact string-literal spans of static exports/imports and import().
+@lru_cache(maxsize=512)
+def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ...]:
+    """The exact string-literal spans of static exports/imports and import().
 
     A computed import() binds when it runs, so capture neither follows nor refuses it:
     a CDN module named that way loads, and a page file it names is in the revision
-    only if something imports it literally."""
+    only if something imports it literally.
+
+    A layer's modules are the same bytes in every page that selects them, and parsing
+    a vendored bundle takes about a second, so a process reads each module once."""
     try:
         data.decode("utf-8")
     except UnicodeDecodeError as error:
@@ -291,9 +312,14 @@ def javascript_imports(data: bytes, path: str):
                 )
             pending.extend(reversed(node.children))
         raise ArtifactError(f"{path}: invalid JavaScript")
-    pending = [tree.root_node]
-    while pending:
-        node = pending.pop()
+    # Document order, a node before the nodes it holds, as a walk of the tree meets
+    # them, so the first problem in the file is the one reported.
+    nodes = sorted(
+        QueryCursor(_IMPORT_NODES).captures(tree.root_node).get("node", []),
+        key=lambda node: (node.start_byte, -node.end_byte),
+    )
+    imports = []
+    for node in nodes:
         if node.type.startswith("jsx_"):
             raise ArtifactError(
                 f"{path}:{node.start_point[0] + 1}: JSX is not executable JavaScript"
@@ -316,12 +342,14 @@ def javascript_imports(data: bytes, path: str):
                 raise ArtifactError(
                     f"{path}:{literal.start_point[0] + 1}: module URLs must be unescaped string literals"
                 )
-            yield (
-                literal.start_byte,
-                literal.end_byte,
-                data[literal.start_byte + 1 : literal.end_byte - 1].decode("utf-8"),
+            imports.append(
+                (
+                    literal.start_byte,
+                    literal.end_byte,
+                    data[literal.start_byte + 1 : literal.end_byte - 1].decode("utf-8"),
+                )
             )
-        pending.extend(reversed(node.named_children))
+    return tuple(imports)
 
 
 def _css_meaningful(tokens) -> list:
@@ -1063,6 +1091,20 @@ class RevisionReading(SourceReading):
             (self.bundle / "resources" / "registry.json").read_bytes()
         )
 
+    @cached_property
+    def inventory(self):
+        """Historical consumers outlive eviction of the expensive parse.
+
+        A long history can exceed the document budget. Keeping only these compact
+        immutable facts lets retries and new revisions reuse the completed scan.
+        """
+        return memo(self.marker.parent.parent, _CompactReadings).get(
+            self.marker,
+            file_stamp(self.marker),
+            lambda: SourceReading.inventory.func(self),
+            _inventory_size,
+        )
+
     def under(self, registry: dict) -> SourceReading:
         """This revision's document read under `registry`: this held reading where
         that is the captured vocabulary itself, else a reading of its own. A caller
@@ -1143,6 +1185,69 @@ class _Readings:
                     evicted_stamp, _evicted = self.held.pop(next(iter(self.held)))
                     self.size -= evicted_stamp[2]
         return reading
+
+
+def _inventory_size(value):
+    """Charge retained compact objects once, including each future dynamic slot."""
+    seen = set()
+
+    def size(item):
+        if id(item) in seen:
+            return 0
+        seen.add(id(item))
+        held = sys.getsizeof(item)
+        if isinstance(item, dict):
+            return held + sum(size(key) + size(value) for key, value in item.items())
+        if isinstance(item, (tuple, list, frozenset)):
+            return held + sum(size(value) for value in item)
+        if isinstance(item, Slot):
+            # Reserve the dict, pair and digest before the bool answer is filled.
+            return (
+                held
+                + sys.getsizeof(vars(item))
+                + sys.getsizeof((None, None))
+                + sys.getsizeof(bytes(32))
+            )
+        return held
+
+    return size(value)
+
+
+class _CompactReadings:
+    """Compact revision readings with their own byte budget and page lifetime.
+
+    Element identities, Question registration and data consumers are small facts
+    about immutable documents. Keeping them separately prevents long-history scans
+    from evicting their own completed work with full parses. Each owner charges its retained
+    representation; a Question source also reserves its last dynamic answer,
+    keyed by the event basis the canonical fold reads. Keys include the marker
+    stamp. No document, full registry, SourceReading or event log is retained.
+    """
+
+    BUDGET = 8 * 1024 * 1024
+
+    def __init__(self):
+        self.held = {}
+        self.size = 0
+        self.lock = threading.Lock()
+
+    def get(self, key, stamp, read, weight):
+        with self.lock:
+            held = self.held.pop(key, None)
+            if held is not None:
+                self.size -= held[2]
+                if held[0] == stamp:
+                    self.held[key] = held
+                    self.size += held[2]
+                    return held[1]
+            value = read()
+            size = weight(value)
+            self.held[key] = (stamp, value, size)
+            self.size += size
+            while self.size > self.BUDGET and len(self.held) > 1:
+                _, _, evicted_size = self.held.pop(next(iter(self.held)))
+                self.size -= evicted_size
+            return value
 
 
 def active_enclosing(page_dir: Path) -> dict:

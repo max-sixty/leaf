@@ -54,6 +54,7 @@ from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
 from leaf.page import page_instructions
+from leaf.refusals import Refused
 from leaf.registry import contract as registry_contract
 from leaf.registry import storage as registry_storage
 from leaf.registry import widgets as registry_widgets
@@ -227,6 +228,35 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     record(["response", "reply", "not-a-response-ref", "--text", "Answer", "--done"], 1)
     record(["thread", "resolve", str(page), ids[-1]], 0)
     regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
+
+
+@pytest.mark.parametrize("identity", ["runtime", "server"])
+def test_response_reply_names_a_page_vendored_by_another_leaf(
+    claimed, server, identity
+):
+    page = claimed
+    publish(page)
+    code, response = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "comment", "revision": 1, "text": "Hello"}).encode(),
+    )
+    assert code == 200, response
+    woke = CliRunner().invoke(cli_model.cli, ["wait", str(page)])
+    assert woke.exit_code == 0, woke.output
+    envelope = json.loads(woke.output)
+    delivery_model.receive(envelope, "s1")
+    reference = envelope["batches"][0]["events"][0]["answer"]["ref"]
+
+    registry = interact_files.read_json(page / "registry.json")
+    registry["$layer"][identity] = "sha256:" + "b" * 64
+    (page / "registry.json").write_text(json.dumps(registry))
+
+    replied = CliRunner().invoke(
+        cli_model.cli,
+        ["response", "reply", reference, "--ephemeral", "--text", "Working"],
+    )
+    assert replied.exit_code != 0, replied.output
+    assert f"leaf page init {page}" in replied.output
 
 
 def test_the_skill_routes_every_reference_it_ships():
@@ -991,11 +1021,11 @@ def test_init_and_revendoring_preserve_the_page_owned_contribution(
 
     initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
-    generation = registry_storage.layer_generation(page)
+    generation = registry_storage.layer_metadata(page)["generation"]
     revendored = runner.invoke(cli_model.cli, ["page", "init", str(page)])
 
     assert revendored.exit_code == 0, revendored.output
-    assert registry_storage.layer_generation(page) == generation
+    assert registry_storage.layer_metadata(page)["generation"] == generation
     assert {name: (authored / name).read_text() for name in files} == files
     assert "lf-local" not in registry_storage.load_registry(page)
     composed = registry_storage.read_page_registry(page)
@@ -1352,6 +1382,99 @@ def test_no_has_rule_restyles_the_whole_document():
         "a :has() rule whose target names nothing restyles the whole document:\n"
         + "\n".join(unkeyed)
     )
+
+
+def test_browser_code_mints_ids_that_work_outside_secure_contexts():
+    """`leaf --host` serves a page over plain HTTP to a LAN address, where
+    `crypto.randomUUID` does not exist, so a call to it throws in the user's browser.
+    The runtime and bundled packages mint ids through runtime/ids.js, and the classic
+    bootstrap.js through its one copy of it."""
+    roots = (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
+    callers = [
+        str(source.relative_to(schema_model.ASSETS.parent))
+        for root in roots
+        for source in sorted(root.rglob("*.js"))
+        if "vendor" not in source.parts
+        and "randomUUID"
+        in re.sub(r"(?<!:)//[^\n]*|/\*.*?\*/", "", source.read_text(), flags=re.DOTALL)
+    ]
+    assert callers == [], callers
+
+
+def test_kernel_selectors_name_no_package_tag():
+    """The kernel styles and finds a package widget by what its registry declares, a
+    mark delivery paints such as `data-lf-resident`, never by its tag: a rule naming
+    lf-toc serves lf-toc and no other contents map, and binds the kernel to one
+    package's vocabulary. A kernel sheet's selectors and `@scope` preludes, and the
+    selectors the runtime hands a DOM query, use no tag a bundled package declares as
+    a type selector.
+
+    The interaction gallery still finds its tabs by tag (F86, which moves it into a
+    package); the reading names that one leak so it can only shrink."""
+    tags = {
+        tag
+        for registry in schema_model.BUNDLED_PACKAGES.glob("*/registry.json")
+        for tag in json.loads(registry.read_text())
+        if not tag.startswith("$")
+    }
+
+    def types(tokens):
+        """The type selectors among `tokens`, in and out of `:is()`-like arguments."""
+        previous = None
+        for token in tokens:
+            if token.type == "ident" and not (
+                previous is not None
+                and previous.type in ("literal", "delim")
+                and previous.value in (".", ":", "::")
+            ):
+                yield token.value
+            if token.type in ("function", "() block"):
+                yield from types(
+                    token.arguments if token.type == "function" else token.content
+                )
+            previous = token
+
+    def leaks_in(selector):
+        return tags & set(types(tinycss2.parse_component_value_list(selector)))
+
+    def preludes(rules):
+        for rule in rules:
+            if rule.type == "qualified-rule" or (
+                rule.type == "at-rule" and rule.lower_at_keyword == "scope"
+            ):
+                yield tinycss2.serialize(rule.prelude).strip()
+            if getattr(rule, "content", None) is not None:
+                yield from preludes(tinycss2.parse_blocks_contents(rule.content))
+
+    leaks = []
+    for sheet in sorted(schema_model.ASSETS.rglob("*.css")):
+        if "vendor" in sheet.parts or sheet.read_text().startswith(
+            "/* Generated from "
+        ):
+            continue
+        where = sheet.relative_to(schema_model.ASSETS)
+        rules = tinycss2.parse_stylesheet(sheet.read_text(), skip_comments=True)
+        leaks += [f"{where}: {p}" for p in preludes(rules) if leaks_in(p)]
+    query = re.compile(
+        r"\.(?:querySelector|querySelectorAll|closest|matches)\(\s*([\"'`])(.*?)\1",
+        re.DOTALL,
+    )
+    for module in sorted(schema_model.ASSETS.rglob("*.js")):
+        if "vendor" in module.parts:
+            continue
+        code = re.sub(
+            r"(?<!:)//[^\n]*|/\*.*?\*/", "", module.read_text(), flags=re.DOTALL
+        )
+        where = module.relative_to(schema_model.ASSETS)
+        leaks += [
+            f"{where}: {found[1]}"
+            for found in query.findall(code)
+            if leaks_in(found[1])
+        ]
+    assert leaks == [
+        "runtime/interaction-gallery.js: lf-tabs",
+        "runtime/interaction-gallery.js: :scope > lf-tab",
+    ], leaks
 
 
 def test_layout_style_and_widgets_never_read_each_other():
@@ -1846,7 +1969,7 @@ def test_the_browser_gate_opens_away_from_the_project_a_page_selected(
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
-    with pytest.raises(SystemExit):
+    with pytest.raises(Refused):
         layer_model.resolve_packages(("./.leaf",))
 
     with preview_server(page, structure_model.SourceDocument(PLAIN_PAGE), 1) as url:
@@ -2315,17 +2438,6 @@ def test_a_wait_takes_the_suites_deadline():
         "settimeout",
         "wait",
     }
-    # Literal deadlines in files another change is rewriting, at most this many in
-    # each, to move onto the suite's deadlines once that change lands. Each is a hang
-    # bound like the rest.
-    held_elsewhere = {
-        "test_render_anchors.py": 1,
-        "test_render_controls.py": 3,
-        "test_render_gate.py": 6,
-        "test_render_navigation.py": 9,
-        "test_render_startup.py": 8,
-        "test_render_threads.py": 8,
-    }
 
     def literal(node) -> bool:
         if isinstance(node, ast.BinOp):
@@ -2348,7 +2460,7 @@ def test_a_wait_takes_the_suites_deadline():
         )
         yield from zip(arguments.kwonlyargs, arguments.kw_defaults)
 
-    literals = {}
+    fixed = []
     for path in sorted((ROOT / "tests").rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
@@ -2378,16 +2490,10 @@ def test_a_wait_takes_the_suites_deadline():
             else:
                 continue
             if computed:
-                literals.setdefault(path.name, []).append(
+                fixed.append(
                     f"{path.relative_to(ROOT)}:{node.lineno} "
                     + ast.unparse(node).split("\n", 1)[0]
                 )
-    fixed = [
-        site
-        for name, sites in literals.items()
-        if len(sites) > held_elsewhere.get(name, 0)
-        for site in sites
-    ]
     assert not fixed, (
         "these waits fix their own deadline; bound them with STATED_TIMEOUT "
         "(interact_support.py), or in a browser with SERVED_TIMEOUT_MS or "
@@ -2792,7 +2898,7 @@ def test_replace_files_rejects_case_aliased_future_targets(tmp_path, monkeypatch
     first = tmp_path / "Result.css"
     second = tmp_path / "rESULT.CSS"
 
-    with pytest.raises(SystemExit, match="resolve to the same target"):
+    with pytest.raises(Refused, match="resolve to the same target"):
         interact_files.replace_files(
             [(first, b"first", False), (second, b"second", False)]
         )

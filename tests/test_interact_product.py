@@ -46,7 +46,7 @@ from leaf.thread_context import thread_digest
 from leaf.validation import composition as validation_model
 from leaf.validation.instances import reference_errors
 from leaf_dev.example_data import regression_sources
-from leaf_dev.page_fixtures import package_selection_args, prepare_page, read_fixture
+from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 PUBLIC_EXAMPLES = tuple(
     path for path in sorted((ROOT / "examples").glob("*.html")) if path.stem != "corpus"
@@ -492,16 +492,12 @@ def test_page_fixtures_pass_check(example, tmp_path, monkeypatch, initialized_pa
     refuses it."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
     fixture = read_fixture(example)
-    d = tmp_path / "page"
-
-    def initialize(target):
-        run_leaf("page", "init", *package_selection_args(fixture.packages), str(target))
+    d = initialized_page(tmp_path / "page", fixture.packages)
 
     def checked(version):
         result = check(d)
         assert result.exit_code == 0, f"{version.name}: {result.output}"
 
-    initialized_page("-".join(["fixture", *fixture.packages]), d, initialize)
     # Every authored version, not only the current one: a fault in a prior
     # version stops preview and the site build, a slow way to hear it.
     prepare_page(
@@ -561,11 +557,13 @@ def test_the_feature_gallery_eyebrows_index_literal_code_names():
     """Every showcased element is indexed by a code name, never descriptive prose."""
     authored = FEATURE_GALLERY.read_text(encoding="utf-8")
     gallery_registry = json.loads(
-        (schema_model.BUNDLED_PACKAGES / "gallery" / "registry.json").read_text(
+        (FEATURE_GALLERY.with_suffix(".page") / "registry.json").read_text(
             encoding="utf-8"
         )
     )
-    apparatus = {tag for tag in gallery_registry if tag.startswith("lf-")}
+    apparatus = {
+        tag for tag, entry in gallery_registry.items() if entry.get("x-exhibit")
+    }
     assert apparatus
     eyebrows = re.findall(
         r'<p class="eyebrow bg-feature-elements">(.*?)</p>',

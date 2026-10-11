@@ -815,12 +815,24 @@ tracking. It neither delivers a pending source reading nor revives an absent or
 retired subscription.
 The callback must state the whole rendering and remain idempotent.
 
-Use `watchOwner(element, {connect, disconnect})` for other resources that follow the
-same lifetime, such as a clocked paint after asynchronous preparation. It calls
-`connect` synchronously when registered on a connected element, then calls each hook
-once per actual departure or return. Its returned function permanently unregisters
-the hooks and disconnects any active resources. Register dependent resources before
+Register `whileConnected(element, start)` once for mechanical resources such as
+listeners, observers, and registrations. It calls `start(signal)` synchronously on a
+connected element and again on each return. Listeners take `{signal}`; `start` may
+return a cleanup function for other resources. An actual departure aborts the signal
+and calls that cleanup, and a failed `start` aborts its signal before reporting the
+error. Its returned function permanently retires the subscription and releases active
+resources. `watchOwner(element, {connect, disconnect})` exposes the same lifetime for
+resources that already have separate hooks. Register dependent resources before
 `watchData` so they stand when its initial or resumed callback runs.
+
+Both helpers decide departures at the arrival mutation batch: a move within that
+batch retains resources. Teardown that must happen synchronously, such as cancelling
+a grab or removing hoisted dialog content, belongs in `disconnectedCallback`.
+
+`frameFor(element, paint)` returns a scheduling function that coalesces calls through
+`nextRender`. It ignores calls while detached, cancels pending work on departure, and
+checks connection again before painting. Returning permits fresh scheduling; it does
+not replay cancelled work.
 
 Time readings made synchronously in controller, `watchData`, `watchReports`, and
 `watchHistory` callbacks subscribe that paint to Leaf's shared clock. Calls to `ago`,

@@ -519,10 +519,11 @@ def build_sortable(work: Path) -> list[Path]:
     Sortable's clone/start hooks run after creation/insertion, too late to stop a
     checked radio joining the source's group or a nested widget activating. The
     optional cloneElement factory prepares compact native motion previews at both
-    creation sites. Existing dragEl relocations use moveBefore, so an iframe's
-    browsing context survives the move. Keep the upstream ESM/autoscroll implementation
-    otherwise intact (the module entry mounts autoscroll, unlike core; complete
-    adds unused swap and multi-drag). A changed upstream seam fails the build.
+    creation sites. Existing dragEl relocations use the shared move primitive, preserving
+    native state where supported and reordering by insertion elsewhere. Keep the
+    upstream ESM/autoscroll implementation otherwise intact: the module entry mounts
+    autoscroll, unlike core; complete adds unused swap and multi-drag. A changed
+    upstream seam fails the build.
     """
     outputs = copy_published(
         Copy(
@@ -545,36 +546,38 @@ def build_sortable(work: Path) -> list[Path]:
         ),
         (
             b"rootEl.insertBefore(dragEl, nextEl);",
-            b"rootEl.moveBefore(dragEl, nextEl);",
+            b"leafMove(rootEl, dragEl, nextEl);",
         ),
-        (b"rootEl.appendChild(dragEl);", b"rootEl.moveBefore(dragEl, null);"),
+        (b"rootEl.appendChild(dragEl);", b"leafMove(rootEl, dragEl, null);"),
         (
             b"el.insertBefore(dragEl, elLastChild.nextSibling);",
-            b"el.moveBefore(dragEl, elLastChild.nextSibling);",
+            b"leafMove(el, dragEl, elLastChild.nextSibling);",
         ),
         (
             b"el.insertBefore(dragEl, firstChild);",
-            b"el.moveBefore(dragEl, firstChild);",
+            b"leafMove(el, dragEl, firstChild);",
         ),
         (
             b"target.parentNode.insertBefore(dragEl, after ? nextSibling : target);",
-            b"target.parentNode.moveBefore(dragEl, after ? nextSibling : target);",
+            b"leafMove(target.parentNode, dragEl, after ? nextSibling : target);",
         ),
         (
             b"this.sortable.el.insertBefore(dragEl, nextSibling);",
-            b"this.sortable.el.moveBefore(dragEl, nextSibling);",
+            b"leafMove(this.sortable.el, dragEl, nextSibling);",
         ),
         (
             b"this.sortable.el.appendChild(dragEl);",
-            b"this.sortable.el.moveBefore(dragEl, null);",
+            b"leafMove(this.sortable.el, dragEl, null);",
         ),
-        (b"el.appendChild(dragEl);", b"el.moveBefore(dragEl, null);"),
+        (b"el.appendChild(dragEl);", b"leafMove(el, dragEl, null);"),
     ):
         expected = 2 if original == b"el.appendChild(dragEl);" else 1
         if source.count(original) != expected:
             raise ValueError(f"Sortable clone seam changed: {original}")
         source = source.replace(original, replacement)
-    out.write_bytes(source)
+    out.write_bytes(
+        b'import {move as leafMove} from "/runtime/dom-move.js";\n' + source
+    )
     return outputs
 
 

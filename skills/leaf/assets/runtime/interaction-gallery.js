@@ -8,9 +8,9 @@ import { afterScript } from "./rendering.js";
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 import { mountSample } from "./sample.js";
 import { deferredArrival } from "./presentation.js";
-import { offer, reserve } from "./widget-elements.js";
-import { keeps, keepsText } from "./keeps.js";
 import { reportPageError } from "./layer-client.js";
+import { offer, offered, reserve } from "./widget-elements.js";
+import { html, render, nothing, createRef, ref } from "../vendor/browser-runtime.js";
 
 // Every word the playback control can say, out here because the row reserves the width
 // of all of them before it says the first. The button rewrites its own word as a demo
@@ -125,35 +125,11 @@ export function installInteractionGallery() {
   const panels = [...tabs.querySelectorAll(":scope > lf-tab")];
   const controls = offer("div", "lf-interaction-controls");
   controls.setAttribute("aria-label", "Animation controls");
-  const toggle = offer("button", "lf-btn lf-interaction-control", "Loading…");
-  toggle.dataset.interactionToggle = "";
-  const loopLabel = offer("label", "lf-interaction-setting");
-  const loop = offer("input", "lf-interaction-loop", undefined, "checkbox");
-  loop.name = "lf-interaction-loop";
-  loop.dataset.interactionLoop = "";
-  loopLabel.append(loop, " Loop");
-  const viewportLabel = offer("label", "lf-interaction-setting");
-  viewportLabel.append("Viewport ");
-  const viewport = offer("select", "lf-interaction-viewport");
-  viewport.name = "lf-interaction-viewport";
-  viewport.dataset.interactionViewportSelect = "";
-  for (const size of VIEWPORT_SIZES) {
-    const option = document.createElement("option");
-    option.value = size;
-    option.textContent = `${size}×`;
-    viewport.append(option);
-  }
   if (!VIEWPORT_SIZES.includes(gallery.dataset.interactionViewport))
     throw new Error("interaction gallery has an invalid viewport size");
-  viewport.value = gallery.dataset.interactionViewport;
-  viewportLabel.append(viewport);
-  const status = offer("span", "lf-interaction-status", "Loading…");
-  status.dataset.interactionStatus = "";
-  status.setAttribute("aria-live", "polite");
-  controls.append(toggle, loopLabel, viewportLabel, status);
   tabs.before(controls);
-  // After the row is in the document, which is where a width can be measured at all.
-  reserve(toggle, Object.values(TOGGLE_WORDS));
+  const loop = createRef();
+  const toggle = createRef();
   let active = null;
   let onScreen = false;
 
@@ -181,11 +157,8 @@ export function installInteractionGallery() {
   }
 
   function renderControls() {
-    if (!active) return;
-    const words = TOGGLE_WORDS;
-    keepsText(toggle, words[active.state]);
-    toggle.toggleAttribute("disabled", ["idle", "error"].includes(active.state));
-    const label = active.panel.getAttribute("label");
+    const state = active?.state ?? "idle";
+    const label = active?.panel.getAttribute("label") ?? "";
     const states = {
       idle: "Loading",
       ready: reducedMotion()
@@ -196,15 +169,62 @@ export function installInteractionGallery() {
       finished: "Complete",
       error: "Could not play",
     };
-    keepsText(status, states[active.state]);
-    keeps(toggle, "aria-label", `${words[active.state]} ${label} animation`);
-    if (active.state === "finished" && loop.checked && onScreen) {
+    render(
+      html` <button
+          ${offered("lf-btn lf-interaction-control")}
+          data-interaction-toggle
+          aria-label=${`${TOGGLE_WORDS[state]} ${label} animation`}
+          ?disabled=${["idle", "error"].includes(state)}
+          @click=${togglePlayback}
+          ${ref(toggle)}
+        >
+          ${TOGGLE_WORDS[state]}
+        </button>
+        <label ${offered("lf-interaction-setting")}>
+          <input
+            ${offered("lf-interaction-loop")}
+            type="checkbox"
+            name="lf-interaction-loop"
+            data-interaction-loop
+            ${ref(loop)}
+            @change=${changeLoop}
+          />
+          Loop</label
+        >
+        <label ${offered("lf-interaction-setting")}
+          >Viewport
+          <select
+            ${offered("lf-interaction-viewport")}
+            name="lf-interaction-viewport"
+            data-interaction-viewport-select
+            @change=${changeViewport}
+          >
+            ${VIEWPORT_SIZES.map(
+              (size) =>
+                html`<option
+                  value=${size}
+                  ?selected=${size === gallery.dataset.interactionViewport}
+                >
+                  ${size}×
+                </option>`,
+            )}
+          </select></label
+        >
+        <span
+          ${offered("lf-interaction-status")}
+          data-interaction-status
+          aria-live="polite"
+          >${active ? states[state] : "Loading…"}</span
+        >`,
+      controls,
+    );
+    if (active?.state === "finished" && loop.value.checked && onScreen) {
       const completed = active;
       queueMicrotask(() => {
         if (
           active === completed &&
           active.state === "finished" &&
-          loop.checked &&
+          loop.value.checked &&
           onScreen
         )
           void active.replay();
@@ -238,21 +258,23 @@ export function installInteractionGallery() {
     else void active?.play();
   };
   const changeLoop = () => {
-    if (loop.checked && active?.state === "finished" && onScreen) void active.replay();
+    if (loop.value.checked && active?.state === "finished" && onScreen)
+      void active.replay();
   };
-  const changeViewport = () => {
-    gallery.dataset.interactionViewport = viewport.value;
+  const changeViewport = (event) => {
+    const viewport = event.currentTarget.value;
+    gallery.dataset.interactionViewport = viewport;
     for (const demo of demos.values()) {
-      if (demo.loadState === "ready") void demo.viewport(viewport.value);
+      if (demo.loadState === "ready") void demo.viewport(viewport);
     }
     if (!active || !["playing", "paused"].includes(active.state)) return;
     const paused = active.state === "paused";
     void active.replay();
     if (paused) active.pause();
   };
-  toggle.addEventListener("click", togglePlayback);
-  loop.addEventListener("change", changeLoop);
-  viewport.addEventListener("change", changeViewport);
+  renderControls();
+  // Measure after rendering connects the row, rather than while ref sees its clone.
+  reserve(toggle.value, Object.values(TOGGLE_WORDS));
 
   const tabObserver = new MutationObserver(syncActive);
   tabObserver.observe(tabs, {
@@ -291,9 +313,8 @@ export function installInteractionGallery() {
     }
     tabObserver.disconnect();
     viewObserver.disconnect();
-    toggle.removeEventListener("click", togglePlayback);
-    loop.removeEventListener("change", changeLoop);
-    viewport.removeEventListener("change", changeViewport);
+    render(nothing, controls);
+    controls.remove();
     stopMotionPreference();
   };
 

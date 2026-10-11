@@ -947,7 +947,7 @@ test("receipt adoption keeps attempts until presentation proof and preserves dep
   app.present([accepted]);
   app.release(new Set(["first"]));
   assert.equal(decision(app), null);
-  assert.equal(app.nameUndo("undo", [accepted]), true);
+  assert.equal(app.nameUndo("undo"), true);
   assert.equal(app.entry("undo").event.undoes, "e1");
 });
 

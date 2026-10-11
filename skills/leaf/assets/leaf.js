@@ -502,7 +502,6 @@ app = mountApplication({
   },
   feed: {
     prepareActivation: (state) => version.prepareActivation(state),
-    notifyDataSubscribers,
     renderStatus,
   },
 });

@@ -6,6 +6,20 @@ import { build } from "esbuild";
 
 const shortcut =
   "  if (isElementNode(context.node) && isSVGElementNode(context.node) && !svgHasExternalResources(context.node))\n    return context.node;\n";
+const sandboxDocument = "  const sandboxDocument = sandboxWindow?.document;\n";
+const sandboxFallback = `  let sandboxDocument;
+  try {
+    sandboxDocument = sandboxWindow?.document;
+  } catch (error) {
+    if (error?.name !== "SecurityError") throw error;
+    // A sample's opaque origin cannot read the nested scratch iframe. The
+    // dependency already uses an empty default-style map when no iframe exists;
+    // copying all computed properties is the same safe fallback here.
+    const styles = new Map();
+    defaultComputedStyles.set(key, styles);
+    return styles;
+  }
+`;
 
 const result = await build({
   stdin: {
@@ -29,7 +43,14 @@ const result = await build({
             const source = readFileSync(path, "utf8");
             if (source.split(shortcut).length !== 2)
               throw new Error("modern-screenshot's SVG shortcut changed");
-            return { contents: source.replace(shortcut, ""), loader: "js" };
+            if (source.split(sandboxDocument).length !== 2)
+              throw new Error("modern-screenshot's scratch iframe changed");
+            return {
+              contents: source
+                .replace(shortcut, "")
+                .replace(sandboxDocument, sandboxFallback),
+              loader: "js",
+            };
           },
         );
       },

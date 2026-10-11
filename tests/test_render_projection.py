@@ -7451,7 +7451,7 @@ def test_replay_signatures_exclude_settlement_and_other_runtime_paint(browser, s
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
 
     signatures = page.evaluate("""async () => {
-        const { shallowSigs } = await window.__lfRuntimeImport("/runtime/widget-api.js");
+        const { shallowSigs } = await window.__lfRuntimeImport("/runtime/check-api.js");
         const widget = document.getElementById("sug-refill");
         const read = () => shallowSigs(document.body).get(widget.id);
         const decided = read();
@@ -7473,7 +7473,7 @@ def test_replay_signatures_exclude_settlement_and_other_runtime_paint(browser, s
         "rendered settlement paint became authored state in the replay signature"
     )
     positions = page.evaluate("""async () => {
-        const { shallowSigs } = await window.__lfRuntimeImport("/runtime/widget-api.js");
+        const { shallowSigs } = await window.__lfRuntimeImport("/runtime/check-api.js");
         const root = document.createElement("div");
         root.id = "signature-root";
         root.innerHTML = '<i></i><div id="first"><b id="nested"></b></div>' +

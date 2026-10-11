@@ -686,10 +686,11 @@ export function seenRect(item, clips) {
 // only what stands above the change. Chrome forfeits that for a layout in which a
 // `details` both opens or shuts and changes what it holds, so a writer doing both lays
 // out the disclosure first (thread-card.js, an outlet thread settling). The band
-// therefore starts at the higher of the seen top and the landing band's top. Above both,
-// a change moves only what is under the banner or scrolled past; below a landing band's
-// top that stands higher than the seen top, as a diff's file header reaches below the
-// root's, a change pushes down the lines below the header. Past the seen foot a change
+// therefore starts at the landing band's top, wherever the seen top stands. Above it, a
+// change moves only what is under the banner, scrolled past, or in the gap between the
+// banner and the band, which it carries up under the banner; below it, a change pushes
+// down everything after it, even where the seen top stands lower, as a diff's file
+// header reaches below the root's band and hides the change. Past the seen foot a change
 // moves only what is under the bottom bar or below the window. Only heights count: a
 // change hidden sideways, by a clip or a pinch zoom's pan, still moves what follows it.
 // The scroller that anchors is the innermost with more to scroll than it shows, since
@@ -715,7 +716,7 @@ export function motionBand(item, clips) {
     : scroller.scrollTop > 0
       ? landingBand(scroller).top
       : shownBand(scroller).top;
-  return { top: Math.min(room.top, anchors), bottom: room.bottom };
+  return anchors < room.bottom ? { top: anchors, bottom: room.bottom } : null;
 }
 // Whether a change of size anywhere in `node` would move what the user sees: some of it
 // stands in its `motionBand`. A node not drawn changes nothing.

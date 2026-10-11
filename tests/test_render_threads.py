@@ -4143,6 +4143,52 @@ def test_diff_news_waits_only_where_its_growth_would_be_seen(browser, serve, foo
         expect(notice).to_have_count(0)
 
 
+
+def test_growth_is_seen_only_below_where_scroll_anchoring_holds(browser, serve):
+    """Scroll anchoring keeps still the first box in the root's landing band, which
+    starts a gap below the banner. A paragraph ending in that gap grows into what was
+    scrolled past, so growth after it is not seen; one ending below the band's top
+    pushes down what follows it, so growth after it is."""
+    paragraphs = "".join(
+        f'<p id="p{number}">Paragraph {number} of the reading.</p>'
+        for number in range(60)
+    )
+    page = open_page(browser, serve(leaf_page("anchoring gap", paragraphs)))
+    resized(page, 1280, 800)
+    readings = page.evaluate(
+        """async () => {
+          const {bannerFoot, growthAfterIsSeen} =
+            await window.__lfRuntimeImport('/runtime/geometry.js');
+          const landing = parseFloat(
+            getComputedStyle(document.documentElement).scrollPaddingTop);
+          const frame = () => new Promise(requestAnimationFrame);
+          const read = async (foot) => {
+            const grown = document.getElementById('p20');
+            const next = document.getElementById('p21');
+            scrollBy({top: grown.getBoundingClientRect().bottom - foot,
+              behavior: 'instant'});
+            await frame();
+            const seen = growthAfterIsSeen(grown);
+            const before = next.getBoundingClientRect().top;
+            grown.style.paddingBottom = '40px';
+            await frame();
+            const moved = next.getBoundingClientRect().top - before;
+            grown.style.paddingBottom = '';
+            await frame();
+            return {foot, seen, moved};
+          };
+          const banner = bannerFoot();
+          return {banner, landing,
+            gap: await read((banner + landing) / 2),
+            band: await read(landing + 6)};
+        }"""
+    )
+    assert readings["banner"] < readings["landing"], readings
+    assert readings["gap"] == {**readings["gap"], "seen": False}, readings
+    assert abs(readings["gap"]["moved"]) < 1, readings
+    assert readings["band"] == {**readings["band"], "seen": True}, readings
+    assert readings["band"]["moved"] > 30, readings
+
 def test_an_agent_settling_a_diff_thread_above_the_screen_moves_nothing_below(
     browser, serve
 ):

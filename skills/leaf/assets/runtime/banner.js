@@ -156,7 +156,7 @@ export const countResponses = (count) => `${count} response${count === 1 ? "" : 
 //   for a dropped claim.
 // - `listening` is whether input is still on its way to the agent (pending or queued),
 //   which turns a listening page's standing request into "listening".
-// - `waiting` phrases the queued and pending moves, in that order.
+// - `waiting` phrases the queued and pending updates, in that order.
 export function activityFacts({ activity }) {
   const { counts } = activity;
   const waiting = [];
@@ -560,8 +560,8 @@ const publicationWords = (published) => [
   "Install Leaf",
 ];
 
-// The moves an open turn picked up, by kind: a comment in a thread, or an answer to an
-// Question. A lone move is the user's own; several are counted.
+// The updates an open turn picked up, by kind: a comment in a thread, or an answer to a
+// Question. A lone update is the user's own; several are counted.
 function pickedUpWords({ comments, answers }) {
   if (comments + answers === 1) return comments ? "your comment" : "your answer";
   const counted = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
@@ -575,7 +575,7 @@ function pickedUpWords({ comments, answers }) {
 
 // Both levels of wording follow server-owned activity. Short summaries retain the
 // actionable distinction: working, listening, away, or nobody holding the page. How many
-// moves are waiting or saved is the disclosure's; the row counts what waits on each
+// updates are waiting or saved is the disclosure's; the row counts what waits on each
 // side instead (`queueWords`).
 function statusWords({
   age,
@@ -603,7 +603,7 @@ function statusWords({
   // reading this row must not give.
   //
   // Until the agent writes that sentence, what Leaf knows is which of the user's
-  // moves its open turn picked up, so the row names them, in the words of their
+  // updates its open turn picked up, so the row names them, in the words of their
   // Picked up stage, rather than standing on a bare "working", and the disclosure
   // says the agent's own words are still to come.
   if (kind === "working") {

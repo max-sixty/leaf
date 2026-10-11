@@ -8,7 +8,7 @@ parts, then follow the displayed `acknowledge` instruction. Read each event's
 named `handling` clauses from the batch's `handling` object, in their listed order. These clauses
 name the response the event needs; an event without an `answer` owes none of its own.
 
-Before work, follow [conversation handoff, "When to write"](conversation-loop.md#when-to-write).
+Before work, follow [conversation loop, "When to write"](conversation-loop.md#when-to-write).
 Read [threads](threads.md) for messages and replies, or
 [authoring revisions](authoring-revisions.md) for an answer recorded in markup.
 Reread current state when later input could change the work. Treat already handled
@@ -44,15 +44,10 @@ machine's immutable delivery store.
 Some harnesses deliver it inline; others deliver a pointer that `leaf delivery read <id>`
 resolves. Large CLI readings expose numbered parts: their `text` values together
 contain the complete envelope, and `next` names the next read. Your harness contract
-names the transport. The envelope states how to confirm receipt and how to answer:
-
-- `acknowledge` says how to confirm receipt after the complete envelope is in
-  context. Follow that instruction. When it is `null`, your harness confirms
-  receipt. Pointer readings display their own confirmation instruction.
-- Each `answer` has a complete immutable `ref`. For `kind: "reply"`,
-  `leaf response reply <answer.ref>` authors it. Its `writer` records custody at
-  capture, with the `agent` command or provider `turn`; the selected harness
-  contract describes that turn's opening and completion.
+names the transport. The envelope's `acknowledge` says how to confirm receipt after
+the complete envelope is in context; follow that instruction. When it is `null`, your
+harness confirms receipt. Pointer readings display their own confirmation
+instruction. Each event's `answer` says how to answer it.
 
 Each event retains its stored identity, fields and order, less the browser's
 retry key `attempt`, then adds these delivery readings:
@@ -73,13 +68,13 @@ retry key `attempt`, then adds these delivery readings:
   many-to-many: it provides context and never partitions or duplicates the event.
 - `answer`, when present, freezes the answer the event owed at capture: its
   `kind` (`reply` or `markup`) with its immutable response reference.
-  `leaf page state` lists the current move's obligation; the delivered reference
+  `leaf page state` lists the current update's obligation; the delivered reference
   retains the exact captured page and input. The
   event's `handling` clauses say how to write it. Until the answer is written,
   `leaf status idle` refuses, and the Stop hook holds the turn open unless that turn
-  started the move (`references/conversation-loop.md`, "Long-running work").
+  started the update (`references/conversation-loop.md`, "Long-running work").
   The writer checks whether the response is still current. A `reply` carries `to`, the captured thread address,
-  and `for`, the exact input; its `writer` records custody at capture.
+  and `for`, the exact input; `leaf response reply <answer.ref>` writes it.
   [Threads](threads.md) owns rich authoring on the reference, including preparation
   for a provider's final. A `markup` answer names the page revision operation its
   `handling` requires; a conversation reply cannot replace that operation.
@@ -114,9 +109,9 @@ Confirm a printed delivery only after every part is in context, following its
 own receipt. A pointer reading requires explicit confirmation; rereading never
 acknowledges it. Commands state the next step and any recovery needed.
 
-Receipt records **Picked up** in the current turn; it does not answer the move.
-A progress update in its thread or `leaf task start <page> <event-id>` records
-**Working** while it remains outstanding ([conversation handoff](conversation-loop.md#when-to-write)).
+Receipt records **Picked up** in the current turn; it does not answer the update.
+A progress message in its thread or `leaf task start <page> <event-id>` records
+**Working** while it remains outstanding ([conversation loop](conversation-loop.md#when-to-write)).
 
 `leaf wait` observes ownership already held. Use `leaf page claim <page>` for an
 intentional handoff, then wait according to the selected harness contract. A wait
@@ -125,10 +120,9 @@ diagnostic. Receipt commands refuse input that no longer belongs to their receiv
 
 ## After the batch
 
-Acknowledgement is transport receipt, not semantic settlement. Write every
-still-current `answer` with the operation its kind names, starting each move whose
-work you take on as its `handling` clauses say (`references/conversation-loop.md`,
-"When to write"), then re-enter the harness's wait loop: `leaf status … waiting` after
-every obligation has been answered and the user owns the next move, and a started
+Write every still-current `answer` with the operation its kind names, starting each
+update whose work you take on as its `handling` clauses say
+(`references/conversation-loop.md`, "When to write"), then re-enter the harness's
+wait loop: `leaf status … waiting` after every obligation has been answered and the next step is the user's, and a started
 item while you continue.
 `page state` lists every standing reaction under `reactions`.

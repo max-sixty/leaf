@@ -220,7 +220,7 @@ def detail_schema(entry: dict, spec: dict) -> dict:
     """The event payload contract: an effect's fixed fields or custom command data.
 
     Recorded values use `value`; positions add `unit` and `rank`, and a report
-    declaring `update` adds required nonempty `text`. Attribute values inherit
+    declaring `report` adds required nonempty `text`. Attribute values inherit
     the destination's exact schema. Derived schemas are readings, never inserted
     into the registry beside the effect that owns them.
     """
@@ -237,7 +237,7 @@ def detail_schema(entry: dict, spec: dict) -> dict:
     properties = {"value": value}
     if kind == "position":
         properties.update(unit={"type": "string"}, rank={"type": "string"})
-    if spec.get("update"):
+    if spec.get("report"):
         properties["text"] = {"type": "string", "minLength": 1}
     return {
         "type": "object",
@@ -365,7 +365,7 @@ def state_definition(origin: str, entry: dict, spec: dict) -> dict:
             "unit": spec["unit"],
             "record": spec.get("record"),
             "creates": spec.get("creates"),
-            "update": spec.get("update", False),
+            "report": spec.get("report", False),
             "detail": _semantic_schema(detail_schema(entry, spec)),
         }
     )

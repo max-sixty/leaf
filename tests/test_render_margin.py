@@ -152,7 +152,7 @@ ACTION_ON_ASK = {
             "unit": "widget",
             "record": {"kind": "attribute", "attr": "chosen"},
             "creates": None,
-            "update": False,
+            "report": False,
             "detail": {
                 "type": "object",
                 "properties": {
@@ -4006,7 +4006,7 @@ def test_page_map_only_origins_do_not_count_as_margin_entries(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     origin = page.get_by_role(
-        "button", name=re.compile(r"^Open reported update: Reported update")
+        "button", name=re.compile(r"^Open reported state: Reported state")
     )
     origin.focus()
     page.keyboard.press("Enter")

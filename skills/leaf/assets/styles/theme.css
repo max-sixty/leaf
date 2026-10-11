@@ -450,7 +450,7 @@
   --ok-tint: light-dark(#dfeddf, #1d2b1f);
   --ok-wash: color-mix(in srgb, var(--ok-tint) 52%, var(--paper));
   --ok-ink: light-dark(#2f6b40, #97cca3);
-  /* Green identifies the user's next move. Unread and agent progress keep the blue
+  /* Green identifies the user's turn. Unread and agent progress keep the blue
      accent, so neither can be mistaken for a request to the user. */
   --turn-wash: var(--ok-wash);
   --turn-ink: var(--ok-ink);
@@ -1461,7 +1461,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
 }
 /* Margin and Page Map share the same attention reading. Blue is the ordinary
-   thread and work cue; green means the user owes a move, even when another thread
+   thread and work cue; green means it is the user's turn, even when another thread
    on the same carrier has active agent work. Progress stays in the status words and
    the one arrival pulse rather than competing for the attention color. */
 :where(.lf-margin-entry[data-lf-kinds~="comment"],

@@ -829,7 +829,7 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-queue-done > summary:is(:focus-visible, .lf-focus-visible) {
     outline: var(--focus-ring); --lf-focus-ring: queue-row;
     outline-offset: calc(-1 * var(--focus-ring-w)); }
-  /* Green marks a move the user owes, as it does on a thread; the agent's live work wears
+  /* Green marks the user's turn, as it does on a thread; the agent's live work wears
      the accent; what is done goes quiet. */
   .lf-queue-kind { grid-row: span 2; align-self: start; justify-self: start;
     padding: 0 5px; border-radius: 4px; background: var(--chip); color: var(--ink-2);

@@ -60,7 +60,7 @@
 
    Its dependencies are structural vocabulary, rendering and writes; importing a
    gesture owner would cycle through its focus dependency. */
-import { nextRender } from "./rendering.js";
+import { afterScript, nextRender } from "./rendering.js";
 import { keeps } from "./keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 import { renderedParent } from "./shadow-tree.js";
@@ -419,6 +419,10 @@ let readings = 0;
 // of which receives that input. Dedicated attributes leave component classes with
 // their owners. Public shadow parts expose both marks too, so vendor-part rules
 // can choose a carrier on the actual focus ancestry rather than its whole host.
+// Standing is synchronous, but its paint uses the script's final destination:
+// nested dialogs and focus forwarding can leave and return before anything paints.
+// Painting those intermediate arrivals would remove and restore unchanged marks.
+let paintDestination = null;
 let paintedFocus = null;
 let paintedWithin = new Set();
 function markFocus(node, name, present) {
@@ -452,17 +456,19 @@ function paintFocus(node) {
 // only its derived ancestry when the rendered tree changes, including slot moves.
 // Attribute paint is outside this observation, so it cannot schedule itself.
 const refreshFocusPaint = () =>
-  paintFocus(paintedFocus?.isConnected ? paintedFocus : null);
+  paintFocus(paintDestination?.isConnected ? paintDestination : null);
+const queueFocusPaint = () => afterScript(refreshFocusPaint);
 function watchFocusPaintIn(root) {
-  new MutationObserver(refreshFocusPaint).observe(root, {
+  new MutationObserver(queueFocusPaint).observe(root, {
     childList: true,
     subtree: true,
   });
-  root.addEventListener("slotchange", refreshFocusPaint);
+  root.addEventListener("slotchange", queueFocusPaint);
 }
 watchFocusPaintIn(document);
 function publish(node, cause) {
-  paintFocus(node);
+  paintDestination = node;
+  queueFocusPaint();
   if (node === published && !departed) return;
   departed = false;
   const left = published;

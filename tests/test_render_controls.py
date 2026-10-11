@@ -5000,11 +5000,8 @@ def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, ser
     expect(live).to_contain_text("Claude is waiting for approval")
     leases_model.release_lease(lease)
 
-    held = []
-
     def refuse_state(route):
-        held.append(route)
-        route.fulfill(status=503, body="down")
+        route.abort("aborted")
 
     page.route("**/api/**", refuse_state)
     try:
@@ -5019,7 +5016,6 @@ def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, ser
         expect(live).to_have_text(offline)
     finally:
         page.unroute("**/api/**")
-    consume_browser_errors(page, "503")
 
 
 def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(

@@ -17,7 +17,8 @@ import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
 import { elementById } from "../passages.js";
 import { SAY_BOX } from "./selectors.js";
 import { orderChildren } from "../dom-children.js";
-import { HeldNews, growthInsideIsSeen, newsNotice } from "./held-news.js";
+import { growthIsSeen } from "../geometry.js";
+import { HeldNews, newsNotice } from "./held-news.js";
 
 const registrations = new WeakMap();
 
@@ -164,7 +165,7 @@ export function createPrimaryReader(owner, render, commands, update) {
                 changed.has(part.messageKey) ||
                 folds.messages.includes(part.messageKey) ||
                 folds.summaries.length) &&
-              growthInsideIsSeen([part.node]),
+              growthIsSeen(part.node),
           ),
       };
     },

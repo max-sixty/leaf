@@ -13,6 +13,8 @@
  * and its tools are Leaf surfaces even inside the document, so Draw and Design modes leave them
  * operable while the saved reading and history remain the page's to draw on or comment on.
  * History shares the footer only when edits exist and the editor is closed.
+ * It draws the controller's published reading; local control changes retain that
+ * reading until the next publication, including while an editor defers replay.
  *
  * The shared draft store retains unsent source across reloads and tabs. Save
  * submits one absolute edit through the shared send generation; Cancel discards,
@@ -25,6 +27,12 @@ import {
   commandScope,
   DISCLOSE,
   holdFocus,
+  html,
+  render,
+  repeat,
+  offered,
+  nothing,
+  guard,
   once,
   offer,
   TEXT_FIELD,
@@ -33,7 +41,6 @@ import {
   revisionLabel,
   sendDraft,
   notice,
-  keeps,
   commands,
   saveDraft,
   loadDraft,
@@ -47,13 +54,18 @@ import {
   paintMarkdown,
   markdownSourceOffset,
   markdownWords,
-  keepsText,
-  keepsHidden,
   focusDestination,
   nextRender,
   retainUserIntent,
   scrollIntoView,
 } from "/runtime/widget-api.js";
+
+const ACTIONS = [
+  ["edit", "Edit"],
+  ["save", "Save"],
+  ["cancel", "Cancel", "Cancel — discard the unsent edit"],
+  ["close", "Close", "Close — keep the unsent edit"],
+];
 
 // The store key for a draft's unsent edit. The page's port is its own origin, so
 // the id alone is unambiguous — the same scoping every composer draft relies on.
@@ -83,16 +95,12 @@ customElements.define(
 
     #controller = widgetController(this);
     #body;
-    #history = null;
-    #historyKey = "";
-    #alignments = new Map();
+    #reading = null;
+    #historySummary = null;
     #editor = null;
     #sending = false;
     #failed = false;
     #footer = null;
-    #tools;
-    #status;
-    #controls = new Map();
     #commandScope = null;
     #resumeProjection = null;
     #recovered = false;
@@ -160,7 +168,7 @@ customElements.define(
       const interactive = !quoted(this);
       this.#controller.subscribe((reading) => {
         if (!interactive) return;
-        this.#renderHistory(reading);
+        this.#reading = reading;
         // Recovery chooses the first action face: an unsent editor opens with Save
         // and Cancel, without briefly publishing the resting Edit control.
         this.#recoverEdit(reading);
@@ -217,26 +225,8 @@ customElements.define(
     #offerControls() {
       if (quoted(this) || this.#footer) return;
       this.#footer = offer("div", "lf-draft-footer");
-      this.#tools = offer("div", "lf-draft-tools");
-      this.#tools.dataset.lfRuntime = "";
-      this.#status = offer("span", "lf-draft-status");
-      this.#status.setAttribute("role", "status");
-      for (const [key, title] of [
-        ["edit", "Edit"],
-        ["save", "Save"],
-        ["cancel", "Cancel"],
-        ["close", "Close"],
-      ]) {
-        const button = offer("button", "lf-btn lf-draft-action", title);
-        button.type = "button";
-        button.dataset.lfDraftAction = key;
-        this.#controls.set(key, button);
-        this.#tools.append(button);
-      }
-      this.#controls.get("close").title = "Close — keep the unsent edit";
-      this.#controls.get("cancel").title = "Cancel — discard the unsent edit";
-      this.#footer.append(this.#status, this.#tools);
       this.append(this.#footer);
+      this.#paintFooter();
       this.#ensureCommands();
     }
 
@@ -247,7 +237,7 @@ customElements.define(
           id: "draft.edit",
           contextKeys: ["1"],
           keys: [],
-          control: () => this.#controls.get("edit"),
+          control: () => this.#control("edit"),
           decision: true,
           title: "Edit",
           description: "Edit the text in place",
@@ -259,7 +249,7 @@ customElements.define(
           contextKeys: ["1"],
           reach: "in an open draft editor",
           keys: ["Mod+Enter"],
-          control: () => this.#controls.get("save"),
+          control: () => this.#control("save"),
           decision: true,
           title: () => (this.#failed ? "Retry" : "Save"),
           description: () => (this.#failed ? "Retry saving the edit" : "Save the edit"),
@@ -271,7 +261,7 @@ customElements.define(
           contextKeys: ["2"],
           reach: "in an open draft editor",
           keys: [],
-          control: () => this.#controls.get("cancel"),
+          control: () => this.#control("cancel"),
           decision: true,
           title: "Cancel",
           description: "Cancel the edit",
@@ -282,7 +272,7 @@ customElements.define(
           id: "draft.close",
           reach: "in an open draft editor",
           keys: ["Escape"],
-          control: () => this.#controls.get("close"),
+          control: () => this.#control("close"),
           title: "Close — edit kept",
           when: () => Boolean(this.#editor),
           run: () => this.#close(false),
@@ -291,37 +281,47 @@ customElements.define(
       commands(this, this.#commandScope);
     }
 
-    #button(text, onClick, variant) {
-      const b = offer("button", "lf-btn" + (variant ? " " + variant : ""), text);
-      b.addEventListener("click", onClick);
-      return b;
+    #control(key) {
+      return this.#footer?.querySelector(`[data-lf-draft-action="${key}"]`) ?? null;
     }
 
-    #setRestoreAvailability() {
-      const blocked = !this.#available();
-      for (const restore of this.querySelectorAll(".lf-draft-restore")) {
-        keeps(restore, "aria-disabled", blocked);
-        const stop = blocked ? -1 : 0;
-        if (restore.tabIndex !== stop) restore.tabIndex = stop;
-      }
-    }
-
-    #refreshControls() {
+    #paintFooter() {
       if (!this.#footer) return;
       const editing = Boolean(this.#editor);
-      for (const [key, control] of this.#controls)
-        keepsHidden(control, key === "edit" ? editing : !editing);
-      keeps(this.#controls.get("edit"), "aria-expanded", String(editing));
-      keepsText(this.#controls.get("save"), this.#failed ? "Retry" : "Save");
-      keepsText(this.#status, this.#failed ? "Save failed. Your edit is kept." : "");
-      keepsHidden(this.#history, editing);
-      this.#setRestoreAvailability();
+      const blocked = !this.#available();
+      // A restore control disappears when its text becomes the standing text.
+      // Surviving controls keep native focus; that completed action returns to history.
+      const history = this.#historySummary?.parentElement;
+      const restore = history && holdFocus(history);
+      render(
+        html`${this.#historyView(this.#reading, editing, blocked)}
+          <span ${offered("lf-draft-status")} role="status"
+            >${this.#failed ? "Save failed. Your edit is kept." : ""}</span
+          >
+          <div ${offered("lf-draft-tools")} data-lf-runtime>
+            ${ACTIONS.map(
+              ([key, title, hint]) =>
+                html`<button
+                  ${offered("lf-btn lf-draft-action")}
+                  data-lf-draft-action=${key}
+                  title=${hint ?? nothing}
+                  ?hidden=${key === "edit" ? editing : !editing}
+                  aria-expanded=${key === "edit" ? String(editing) : nothing}
+                >
+                  ${key === "save" && this.#failed ? "Retry" : title}
+                </button>`,
+            )}
+          </div>`,
+        this.#footer,
+      );
+      this.#declareHistoryKeys();
+      restore?.(this.#historySummary);
       paintKeys();
     }
 
     #paintAvailability = () => {
       if (this.#editor) this.#editor.readOnly = !this.#available();
-      this.#refreshControls();
+      this.#paintFooter();
     };
 
     #available() {
@@ -337,116 +337,88 @@ customElements.define(
       });
     }
 
-    #delta(before, after, cache = true) {
-      const line = document.createElement("div");
-      line.className = "lf-draft-delta";
-      const key = JSON.stringify([before, after]);
-      let alignment = this.#alignments.get(key);
-      if (!alignment) {
-        alignment = alignText(before, after);
-        if (cache) this.#alignments.set(key, alignment);
-      }
-      line.append(...alignedNodes(alignment));
-      if (!line.childNodes.length) line.textContent = "Empty";
-      return line;
-    }
-
-    #snapshot(label, text, comparison, standing) {
-      const item = document.createElement("li");
-      const head = document.createElement("div");
-      head.className = "lf-draft-revision-head";
-      const name = document.createElement("strong");
-      name.textContent = label;
-      head.append(name);
-      if (text !== standing) {
-        const restore = this.#button(`Restore ${label.toLowerCase()}`, () =>
-          this.#restore(text, label),
-        );
-        restore.classList.add("lf-draft-restore");
-        head.append(restore);
-      }
-      let body;
-      if (comparison === null) {
-        body = document.createElement("div");
-        body.className = "lf-draft-snapshot";
-        body.textContent = text || "Empty";
-      } else body = this.#delta(comparison, text);
-      item.append(head, body);
-      return item;
-    }
-
-    #renderHistory(reading) {
+    #historyView(reading, editing, blocked) {
+      if (!reading) return nothing;
       const authored = reading.authored.edit.value;
-      const actions = reading.actions.edit.history;
       const standing = reading.state.edit.value;
-      const key = JSON.stringify([
-        authored,
-        standing,
-        actions.map((event) => [event.seq, event.revision, event.detail.value]),
-      ]);
-      if (key === this.#historyKey) return;
-      this.#historyKey = key;
-      if (!actions.length && standing === authored) {
-        this.#history?.remove();
-        this.#history = null;
-        return;
-      }
-      const wasOpen = this.#history?.open ?? false;
-      const restoreFocus = this.#history && holdFocus(this.#history);
-      const history = offer("details", "lf-draft-history");
-      history.open = wasOpen;
-      const summary = document.createElement("summary");
-      summary.textContent = `Changes · ${actions.length} ${actions.length === 1 ? "edit" : "edits"}`;
+      const actions = reading.actions.edit.history;
+      if (!actions.length && standing === authored) return nothing;
+      const rows = [
+        { key: "authored", label: "Version text", text: authored, before: null },
+        ...actions.map((event, index) => ({
+          key: event.seq,
+          label: `Edit ${index + 1} · ${revisionLabel(event.revision)}`,
+          text: event.detail.value,
+          before: index ? actions[index - 1].detail.value : null,
+        })),
+      ];
+      return html`<details ${offered("lf-draft-history")} ?hidden=${editing}>
+        <summary>
+          Changes · ${actions.length} ${actions.length === 1 ? "edit" : "edits"}
+        </summary>
+        <section class="lf-draft-current">
+          <strong>
+            ${
+              standing === authored
+                ? "Standing text matches this version"
+                : "This version → standing text"
+            }
+          </strong>
+          ${standing === authored ? nothing : this.#delta(authored, standing)}
+        </section>
+        <ol class="lf-draft-revisions">
+          ${repeat(
+            rows,
+            (row) => row.key,
+            (row) =>
+              html`<li>
+                <div class="lf-draft-revision-head">
+                  <strong>${row.label}</strong>
+                  ${
+                    row.text === standing
+                      ? nothing
+                      : html`<button
+                          ${offered("lf-btn lf-draft-restore")}
+                          aria-disabled=${String(blocked)}
+                          tabindex=${blocked ? -1 : 0}
+                          @click=${() => this.#restore(row.text, row.label)}
+                        >
+                          Restore ${row.label.toLowerCase()}
+                        </button>`
+                  }
+                </div>
+                ${
+                  row.before === null
+                    ? html`<div class="lf-draft-snapshot">${row.text || "Empty"}</div>`
+                    : this.#delta(row.before, row.text)
+                }
+              </li>`,
+          )}
+        </ol>
+      </details>`;
+    }
 
-      const current = document.createElement("section");
-      current.className = "lf-draft-current";
-      const currentLabel = document.createElement("strong");
-      currentLabel.textContent =
-        standing === authored
-          ? "Standing text matches this version"
-          : "This version → standing text";
-      current.append(currentLabel);
-      // This pair changes with every standing edit. Recomputing it once for the new
-      // history render is cheaper than retaining every obsolete full-body comparison;
-      // adjacent log revisions below are stable and remain worth caching.
-      if (standing !== authored) current.append(this.#delta(authored, standing, false));
-
-      const list = document.createElement("ol");
-      list.className = "lf-draft-revisions";
-      list.append(this.#snapshot("Version text", authored, null, standing));
-      let previous = null;
-      actions.forEach((event, index) => {
-        const text = event.detail.value;
-        list.append(
-          this.#snapshot(
-            `Edit ${index + 1} · ${revisionLabel(event.revision)}`,
-            text,
-            previous,
-            standing,
-          ),
-        );
-        previous = text;
+    // The aligned run is computed once per pair; guard keeps its nodes across renders.
+    #delta(before, after) {
+      const content = guard([before, after], () => {
+        const nodes = alignedNodes(alignText(before, after));
+        return nodes.length ? nodes : "Empty";
       });
-      // The disclosure scope is what works this box, so this binds no `run` and only says
-      // the word — one more contributor to the section the draft's other two declare,
-      // since the user standing here is still on a draft. Both cells are read where they
-      // are painted: which way the press goes is something the user can see, and which
-      // keys it takes is the scope's own answer for where this box is standing.
+      return html`<div class="lf-draft-delta">${content}</div>`;
+    }
+
+    // The summary is a stable node now; its disclosure line is declared once per node.
+    #declareHistoryKeys() {
+      const summary = this.#footer.querySelector(":scope > details > summary");
+      if (!summary || summary === this.#historySummary) return;
+      this.#historySummary = summary;
       commands(summary, "On a draft", [
         {
           id: "draft.history.toggle",
           keys: () => DISCLOSE(summary),
-          title: () => `${history.open ? "hide" : "show"} the history`,
+          title: () => `${summary.parentElement.open ? "hide" : "show"} the history`,
         },
       ]);
-
-      history.append(summary, current, list);
-      this.#history?.replaceWith(history);
-      if (!this.#history) this.#footer.prepend(history);
-      this.#history = history;
-      keepsHidden(history, Boolean(this.#editor));
-      this.#setRestoreAvailability();
-      restoreFocus?.(summary);
     }
 
     async #restore(text, label) {
@@ -462,11 +434,11 @@ customElements.define(
       if (text === this.#controller.read().state.edit.value) return;
       this.#sending = true;
       this.setAttribute("aria-busy", "true");
-      this.#refreshControls();
+      this.#paintFooter();
       const ok = await this.#dispatch(text)?.delivery;
       this.#sending = false;
       this.removeAttribute("aria-busy");
-      this.#refreshControls();
+      this.#paintFooter();
       if (ok) notice(`Restored ${label.toLowerCase()} — sent`);
     }
 
@@ -487,7 +459,7 @@ customElements.define(
         saveEdit(this.id, editor.value);
         if (this.#failed) {
           this.#failed = false;
-          this.#refreshControls();
+          this.#paintFooter();
         }
       });
       // The composer's bindings on the box that replaces the page's own words. Escape sets
@@ -526,7 +498,7 @@ customElements.define(
       this.#editor.remove();
       this.#editor = null;
       this.#failed = false;
-      this.#refreshControls();
+      this.#paintFooter();
       if (stood) {
         if (this.#sending) focusDestination(this, "return");
         else
@@ -534,7 +506,7 @@ customElements.define(
             // Command availability is painted before this callback. A new gesture
             // elsewhere wins over handing back the editor's vacated focus.
             if (this.isConnected && !this.#editor && mayReturn())
-              focusDestination(this.#controls.get("edit"), "return");
+              focusDestination(this.#control("edit"), "return");
           });
       }
       // Replay may have been held by this editor. Its close is the generic projection
@@ -561,7 +533,7 @@ customElements.define(
       );
       this.#sending = false;
       this.removeAttribute("aria-busy");
-      this.#refreshControls();
+      this.#paintFooter();
       if (ok) {
         notice(`Edited “${this.id}” — sent`);
       } else {

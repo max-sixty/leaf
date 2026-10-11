@@ -17,10 +17,10 @@ from click.testing import CliRunner
 from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import harness as harness_model
+from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf.render_gate import browser as browser_model
-from leaf.schema import HTML_NAME
 from leaf_dev import LEAF_COMMAND
 from leaf_dev.browser import LINUX_FONTCONFIG, require_linux_fonts
 from leaf_dev.page_fixtures import package_selection_args
@@ -209,13 +209,15 @@ def initialized_page(_page_pool, tmp_path):
 
     `prepared`, a `(key, step)` pair, runs `step` on the page after `page init`, and
     `key` tells its shape from the bare initialized one: an example's stamped
-    versions, or a fixed document. The pool keys a shape by what makes it, the
-    selection and that key, so no caller names one, and two callers that make the
-    same page share it.
+    versions, or a fixed document. The pool keys a shape by what makes it: the
+    selection as recorded, the package directories it resolves to as `page init`
+    resolves them, and that key. So no caller names a shape, and two callers that
+    make the same page share it.
 
     A package the test wrote under its own `tmp_path` has new contents under the
-    same path in every test, so a selection naming one is initialized in place
-    rather than pooled. A bundled name or a checkout path holds still for the run.
+    same path in every test, so a selection resolving into it is initialized in
+    place rather than pooled. A bundled package, a checkout path, and an installed
+    snapshot, which is immutable, hold still for the run.
     A test whose subject is initialization, re-vendoring or an overlay runs
     `page init` itself.
 
@@ -240,15 +242,15 @@ def initialized_page(_page_pool, tmp_path):
             if step:
                 step(target)
 
-        if any(
-            not re.fullmatch(HTML_NAME, package)
-            and (Path.cwd() / Path(package).expanduser()).resolve().is_relative_to(own)
-            for package in packages
-        ):
+        resolved = tuple(
+            root.resolve() for root in layer_model.resolve_packages(packages)
+        )
+        if any(root.is_relative_to(own) for root in resolved):
             initialize(destination)
             return destination
-        page = _page_pool.lend((packages, key), destination, initialize)
-        lent.append(((packages, key), page))
+        shape = (packages, resolved, key)
+        page = _page_pool.lend(shape, destination, initialize)
+        lent.append((shape, page))
         return page
 
     yield lend

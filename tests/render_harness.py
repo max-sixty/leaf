@@ -2020,7 +2020,7 @@ def suggestion_control(scope, suggestion_id: str, key=None, *, visible=True):
 
 
 def any_owner_entry(kind: str, key: str | None = None) -> str:
-    """The selector for a margin entry any `kind` widget (today only `suggestion`)
+    """The selector for a margin entry any `kind` widget (such as `suggestion`)
     registered, for a probe that plants one example on a page rather than tracking a
     particular id. `margin_entry` locates one owner exactly."""
     selector = f'[data-lf-margin-entry-owner^="{kind}:"]'

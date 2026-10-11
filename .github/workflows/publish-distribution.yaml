@@ -1,17 +1,17 @@
 name: prepared-install
 
+# PR verification already runs tests/test_distribution.py. This pipeline builds
+# and publishes installations independently of main's complete test suite.
 on:
   push:
     branches: [main]
-  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: prepared-install-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: prepared-install-${{ github.event_name }}-${{ github.ref }}
 
 jobs:
   build:
@@ -37,7 +37,7 @@ jobs:
           path: .tmp/prepared.tar.gz
 
   publish:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-24.04
     permissions:

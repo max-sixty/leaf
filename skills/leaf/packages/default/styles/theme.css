@@ -426,6 +426,8 @@
    & > lf-option > .lf-key-badge {
                      inset-inline-start: auto; inset-inline-end: var(--sp-2); }
    & > lf-option > .lf-key-badge { top: var(--sp-2); }
+   & > lf-options-done > .lf-done > .lf-key-badge {
+                     inset-inline-start: auto; inset-inline-end: var(--sp-2); }
    /* An empty draft offers only the route into its field, so that binding badge occupies
     * the Add seat while the press is hidden. Content reveals Add; once focus leaves the
     * field, the Question's write route is available beside it again and takes the inner seat.
@@ -535,8 +537,13 @@
  * final cell on the page and in a thread. */
 :scope:is(lf-options) > lf-options-done > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
                      border-color: var(--ok); background: var(--ok-tint); }
-:scope:is(lf-options) > lf-options-done { display: grid; padding: 0; }
+:scope:is(lf-options) > lf-options-done { position: relative; display: grid; padding: 0; }
 :scope:is(lf-options) > lf-options-done > .lf-done { width: 100%; }
+/* Done's digit stands in the column the options' digits do, centred on the button. The
+ * row is its containing block, as an option is its digit's. */
+:scope:is(lf-options) > lf-options-done > .lf-done > .lf-key-badge { z-index: 1;
+                     inset-inline-start: var(--lf-key-badge-start);
+                     top: 0; bottom: 0; margin: auto 0; }
 /* A group under `choose` is one control, not a set of options standing near each other.
  * Deleting the offer word left the question of what says a decision is waiting, and the
  * answer is the group rather than another thing drawn on every member: a group offers and

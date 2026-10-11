@@ -10196,3 +10196,75 @@ def test_a_reference_command_finishes_its_gesture_before_a_newer_control(
         expect(page.locator(".lf-fab-input")).to_be_focused()
         expect(page.locator("#origin")).to_have_class(re.compile("lf-projected-mark"))
     assert page.evaluate("scrollY") == before
+
+
+@pytest.mark.parametrize("native_move", [True, False])
+def test_lit_moves_keep_native_editor_and_frame_state(browser, serve, native_move):
+    """Native moves retain editor/frame state; insertion needs the focus wrapper."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Retained rows",
+                '<h1>Retained rows</h1><section id="rows"></section><section id="other"></section>',
+            )
+        ),
+    )
+    page.evaluate(
+        """async nativeMove => {
+      const {html, render: rawRender, repeat} = await import('/vendor/lit.js');
+      const {render: heldRender} = await window.__lfRuntimeImport('/runtime/dom-children.js');
+      const render = nativeMove ? rawRender : heldRender;
+      const rows = document.querySelector('#rows');
+      if (!nativeMove) rows.moveBefore = undefined;
+      let ids = ['a', 'b', 'c'];
+      const paint = () => render(repeat(ids, id => id, id => html`
+        <div data-row=${id}><input aria-label=${id}>
+          <iframe title=${id} srcdoc="<p>Retained frame</p>"></iframe></div>`), rows);
+      paint();
+      const editor = rows.querySelector('[data-row=c] input');
+      window.blurs = 0;
+      editor.addEventListener('blur', () => window.blurs++);
+      editor.addEventListener('keydown', event => {
+        if (event.key === 'ArrowUp' && event.altKey) {
+          event.preventDefault();
+          ids = ['c', 'a', 'b'];
+          paint();
+        } else if (event.key === 'ArrowDown' && event.altKey) {
+          event.preventDefault();
+          render(editor.closest('[data-row]'), document.querySelector('#other'));
+        }
+      });
+    }""",
+        native_move,
+    )
+    editor = page.get_by_role("textbox", name="c", exact=True)
+    editor.fill("unfinished words")
+    editor.evaluate("node => node.setSelectionRange(3, 9, 'backward')")
+    frame = page.locator("[data-row=c] iframe")
+    expect(page.frame_locator("[data-row=c] iframe").locator("p")).to_have_text(
+        "Retained frame"
+    )
+    frame.evaluate("node => window.heldDocument = node.contentDocument")
+    moves = [("Alt+ArrowUp", "#rows")]
+    if native_move:
+        moves.append(("Alt+ArrowDown", "#other"))
+    for key, parent in moves:
+        page.keyboard.press(key)
+        expect(page.locator(f"{parent} > [data-row=c]")).to_have_count(1)
+        if key == "Alt+ArrowUp":
+            expect(page.locator("#rows > [data-row]").first).to_have_attribute(
+                "data-row", "c"
+            )
+        expect(editor).to_be_focused()
+        expect(editor).to_have_value("unfinished words")
+        assert editor.evaluate(
+            "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
+        ) == [3, 9, "backward"]
+        if native_move:
+            assert page.evaluate("window.blurs") == 0
+            assert frame.evaluate(
+                "node => node.contentDocument === window.heldDocument"
+            )
+        else:
+            assert page.evaluate("window.blurs") > 0

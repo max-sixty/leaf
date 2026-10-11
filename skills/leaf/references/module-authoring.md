@@ -101,8 +101,8 @@ A behavior module follows these rules:
 - Read UI based on element geometry synchronously from `PRESENTATION` for its
   first paint, then through normal layout signals. Reconcile UI derived from
   authored structure at `PAGE_INTERFACE`, at startup and each in-place revision
-  activation. Retain surviving nodes with `setChildren` to preserve focus and
-  native view state.
+  activation. Retain surviving nodes with `setChildren` (the rendering contract
+  below describes its native-state guarantees).
 - Use `nextRender`/`cancelRender` for paints and `sizeObserver` for size
   observation, so checks and tests wait for that work too. `nextRender` runs in
   the current rendering callback's frame, or in the next frame when called
@@ -847,11 +847,15 @@ redeliver unchanged data to keep a timestamp current.
 `revision`. An unchanged source keeps that origin when another source changes.
 
 The renderer owns its nodes and their placement. Use `setChildren(parent, nodes)`
-for retained native nodes: it moves only what is out of place and preserves focus
-and caret in a row it moves. Leaf's public `render(template, container)` applies
-Lit templates with the same focus protection; `repeat(records, keyOf, template)`
-retains keyed template rows. Leave native disclosure, editor and scroll state with
-the retained nodes, rather than binding them to initial defaults on each update.
+for retained native nodes: it moves only what is out of place. For an individual
+placement use `move(parent, node, before)`, with `null` to append. Leaf and Lit
+share this primitive: within one composed root it uses native `moveBefore` where
+available, preserving focus, caret and iframe documents. Otherwise it uses
+`insertBefore`, which can reset that state. Leaf's public
+`render(template, container)` also restores editor focus and caret in fallback
+browsers; `repeat(records, keyOf, template)` retains keyed template rows. Leave
+native disclosure, editor and scroll state with the retained nodes, rather than
+binding them to initial defaults on each update.
 For a subtree whose contents and descendant attributes all belong to the renderer,
 use `setRenderedChildren(parent, nodes)`: it matches unchanged nodes and edits only
 changed text, preserving native selections in text the source kept. Keep independently

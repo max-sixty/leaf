@@ -9,6 +9,7 @@
    question is the browser gate, which fails to parse every probe module at once. */
 export { LitElement, html, repeat } from "../vendor/browser-runtime.js";
 export { keyed, unsafeHTML } from "../vendor/lit.js";
+export { move } from "./dom-move.js";
 export { iconElement, iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
 export { initialRender } from "./initial-render.js";
@@ -65,8 +66,7 @@ export {
   whenLeft,
 } from "./focus.js";
 export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
-// Making an element's children a list, moving only what is out of place and keeping the
-// user standing in a node it moves.
+// Making an element's children a list, moving only what is out of place.
 export { render, setChildren, setRenderedChildren } from "./dom-children.js";
 export { readQuestions, watchQuestions } from "./questions/model.js";
 export { questionWords } from "./questions/answer.js";

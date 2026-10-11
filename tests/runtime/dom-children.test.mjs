@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { patchRetains, patchTree } from "/runtime/dom-children.js";
+import { patchRetains, patchTree, setChildren } from "/runtime/dom-children.js";
 import { under } from "/runtime/shadow.js";
 
 function patch(beforeMarkup, afterMarkup = beforeMarkup) {
@@ -121,4 +121,18 @@ test("a native shadow editor follows its containing owner's authored retention",
     root.append(editor);
     assert.equal(retains(editor), !changed);
   }
+});
+
+test("child reordering works without moveBefore and accepts new nodes", () => {
+  const parent = document.createElement("div");
+  // Safari has no native move; this instance exercises that capability boundary.
+  parent.moveBefore = undefined;
+  const a = document.createElement("input");
+  const b = document.createElement("input");
+  parent.append(a, b);
+  setChildren(parent, [b, a]);
+  assert.deepEqual([...parent.children], [b, a]);
+  const c = document.createElement("input");
+  setChildren(parent, [c, a, b]);
+  assert.deepEqual([...parent.children], [c, a, b]);
 });

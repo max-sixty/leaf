@@ -165,6 +165,11 @@ product decisions its module embodies and the alternatives they rejected; a chan
 that reverses one rewrites that record and says so in its commit. A workflow for one
 kind of task goes in `/developing-leaf`.
 
+Describe a set in prose by what its members share, such as "an entry named after a
+key in `vendor.py`'s `BUILDS`", so a new member needs no edit. Where the prose must
+list them, a test holds the list to the machine's copy (`tests/AGENTS.md`, "Put
+each assertion at the boundary that owns it").
+
 ### Use dependencies
 
 Use maintained dependencies for established capabilities, including prototypes.

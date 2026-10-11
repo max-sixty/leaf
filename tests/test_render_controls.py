@@ -8964,7 +8964,7 @@ RING_CASES = (
                 ("lf-option > .lf-pick", "options-row"),
                 (
                     any_owner_entry("suggestion", "accept") + ":visible",
-                    ("ask", "margin-entry"),
+                    ("question", "margin-entry"),
                 ),
                 (".lf-draft-edit", "draft-editor"),
             ),
@@ -9136,7 +9136,7 @@ RING_EXAMPLE_FILES = {example.stem: example for example in (*EXAMPLES, FEATURE_G
 # control or one of its ancestors. Mark the exact carrier before reading the composed
 # paint so an unrelated ring with the same name cannot credit the sample.
 RING_REMOTE_CARRIER = {
-    "ask": None,
+    "question": None,
     "target-hint": ".lf-target-picker-hint.lf-current",
     # A pane draws its focused body's band inset over the body's cell (theme.css).
     "pane-body": '[data-lf-reading-role="pane"]:has(> :focus-visible)',
@@ -9589,8 +9589,8 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                         unseen.add(f"{where}: {lost}")
                 for ring_name in expected & RING_REMOTE_CARRIER.keys():
                     carrier_selector = RING_REMOTE_CARRIER[ring_name]
-                    if ring_name == "ask":
-                        ask_id = target.evaluate(
+                    if ring_name == "question":
+                        question_id = target.evaluate(
                             """async node => {
                               const { contributionEntrySource } = await window.__lfRuntimeImport(
                                 '/runtime/contribution-controls.js'
@@ -9598,8 +9598,10 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                               return contributionEntrySource(node)?.id ?? null;
                             }"""
                         )
-                        assert ask_id, f"{selector} {where} names no ask carrier"
-                        carrier_selector = f'[id="{ask_id}"]'
+                        assert question_id, (
+                            f"{selector} {where} names no Question carrier"
+                        )
+                        carrier_selector = f'[id="{question_id}"]'
                     page.locator(carrier_selector).evaluate(
                         "node => node.setAttribute('data-lf-ring-sample', '')"
                     )

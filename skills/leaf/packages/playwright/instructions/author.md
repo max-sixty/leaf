@@ -11,6 +11,12 @@ the result rather than a browser operation. Leave transport, timeline, keyboard
 shortcuts and zoom instructions to the viewer's controls. They are already present
 on the review surface; surrounding prose carries the evidence and its limits.
 
+The review opens at the earliest authored moment that resolves, in the first
+stream holding one; without one, at the first saved tree, then the first image.
+The timeline places every call, input and capture at its recorded time: calls and
+inputs are bars spanning their call, so a caption can say what happened before or
+after a capture but not an input's exact instant. Native input events carry no
+timestamp, and a key's held duration is not recorded.
 The timeline includes action checkpoints and intermediate filmstrip images at
 their native times. Browser and context operations remain in the chronology;
 multi-page recordings can filter it by page. Separate streams keep their own

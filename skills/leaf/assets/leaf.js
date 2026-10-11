@@ -186,7 +186,6 @@ import {
   reflectKeys,
 } from "./runtime/keyboard/scopes.js";
 import { watchDisclosures } from "./runtime/keyboard/disclosure.js";
-import { createStanding } from "./runtime/standing.js";
 import { mountRepaint, repaint, repaintPage } from "./runtime/repaint.js";
 import { openResidency } from "./runtime/content-layout.js";
 import {
@@ -838,7 +837,7 @@ goToSequence = createGoToSequence({
   stopGlide,
   coveringAuxiliarySurface: auxiliarySurfaces.coveringSurface,
 });
-const standing = createStanding({
+const standingPainters = {
   markHere: questions.markHere,
   paintStanding: anchorPaint?.paintStanding,
   paintSelectedMarginEntries: () =>
@@ -857,7 +856,7 @@ const standing = createStanding({
   paintCoreControls,
   paintVersionShortcuts: version.paintShortcuts,
   paintInputs: inputs.paintInputs,
-});
+};
 
 const skipToChrome = offer("button", "lf-skip", "Skip to Leaf controls");
 skipToChrome.onclick = () => {
@@ -952,12 +951,11 @@ if (!offlineInteractive) {
   declareLeavesKeys();
   watchDisclosures(document);
   mountRepaint({
+    ...standingPainters,
     reflectFirstScopes,
     reflectKeys,
-    paintStandingContent: standing.paintStandingContent,
     syncLayout: layout.syncLayout,
     pageShifted: pageGeometry.pageShifted,
-    paintStandingGeometry: standing.paintStandingGeometry,
   });
 } else {
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, chromeSheet];
@@ -965,7 +963,7 @@ if (!offlineInteractive) {
   document.body.append(chromeRoot);
   // Exports retain image inspection, but no page controls. Their other standing is
   // what a widget's own box shows, such as an options group's addition field.
-  mountRepaint({ paintStandingGeometry: inputs.paintInputs, reflectKeys });
+  mountRepaint({ paintInputs: inputs.paintInputs, reflectKeys });
 }
 
 // Widget commands belong to interactive documents, including offline exports.

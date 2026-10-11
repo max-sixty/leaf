@@ -680,6 +680,14 @@ def _spoken(p: Passages) -> dict:
     return {wid: Spoken(said.get(wid, ""), chain) for wid, chain in p.enclosing.items()}
 
 
+class SourceInventory(NamedTuple):
+    """Compact authored facts needed by scans across an entire revision history."""
+
+    ids: tuple[str, ...]
+    questions: dict
+    data_documents: list
+
+
 class SourceReading:
     """One document read under one vocabulary, each reading taken once.
 
@@ -703,6 +711,18 @@ class SourceReading:
     def __init__(self, document: SourceDocument, registry: dict | None):
         self.document = document
         self.registry = registry or {}
+
+    @cached_property
+    def inventory(self) -> SourceInventory:
+        """Read historical consumers together, without retaining parser records."""
+        from .data_contracts import data_document_readings
+        from .questions import question_registrations
+
+        return SourceInventory(
+            tuple(self.document.ids),
+            question_registrations(self.document, self.registry),
+            data_document_readings(self.document, "", self.registry),
+        )
 
     @cached_property
     def passages(self) -> Passages:

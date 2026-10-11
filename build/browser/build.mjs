@@ -6,7 +6,10 @@
  *
  * Run with --check to compare a fresh, typechecked build with committed bytes
  * without writing them. This module owns its source root, outputs, and their layer
- * paths; Leaf installation, vendoring, activation, and export never invoke this tool.
+ * paths, and writes and checks every other committed Node-built output beside them:
+ * the initial renderers (`build/initial.mjs`) and the stylesheets
+ * (`build/styles.mjs`). Leaf installation, vendoring, activation, and export never
+ * invoke this tool.
  *
  * Each TypeScript module compiles to one JavaScript module, its types blanked to
  * whitespace, so every line keeps its source line number and two branches conflict
@@ -38,6 +41,7 @@ import { transformSync } from "amaro";
 import { build } from "esbuild";
 import { eventTypes } from "./event-types.mjs";
 import { initialOutputs } from "../initial.mjs";
+import { styleOutputs } from "../styles.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -162,6 +166,37 @@ function litModule(lit) {
           return { contents, resolveDir: path.dirname(source) };
         },
       );
+      // Preserve native state during keyed and child-part moves. Adapt the locked
+      // published files in memory and fail if either upstream insertion seam changes.
+      build.onLoad(
+        { filter: /[/\\]lit-html[/\\](?:lit-html|directive-helpers)\.js$/ },
+        async ({ path: source }) => {
+          const original =
+            path.basename(source) === "lit-html.js"
+              ? "this._$AA.parentNode.insertBefore(t,this._$AB)"
+              : "e.insertBefore(o,l)";
+          const replacement =
+            path.basename(source) === "lit-html.js"
+              ? "leafMove(this._$AA.parentNode,t,this._$AB)"
+              : "leafMove(e,o,l)";
+          let contents = await readFile(source, "utf8");
+          if (contents.split(original).length !== 2)
+            throw new Error(`Lit move seam changed: ${source}: ${original}`);
+          contents = contents.replace(original, replacement);
+          // The root marker is new, but must also bypass named form properties.
+          if (path.basename(source) === "lit-html.js") {
+            const marker = "i.insertBefore(l(),t)";
+            if (contents.split(marker).length !== 2)
+              throw new Error(`Lit root marker seam changed: ${source}`);
+            contents = contents.replace(marker, "leafMove(i,l(),t)");
+          }
+          return {
+            contents:
+              'import {move as leafMove} from "/runtime/dom-move.js";\n' + contents,
+            resolveDir: path.dirname(source),
+          };
+        },
+      );
     },
   };
 }
@@ -211,6 +246,7 @@ export async function buildOutputs() {
     ),
     outdir: `${assets}/vendor`,
     plugins: [litModule(lit)],
+    external: ["/runtime/dom-move.js"],
     platform: "browser",
     format: "esm",
     target: "es2022",
@@ -223,7 +259,11 @@ export async function buildOutputs() {
   });
   for (const file of result.outputFiles) {
     const name = path.relative(root, file.path).split(path.sep).join("/");
-    if (result.metafile.outputs[name].imports.length)
+    if (
+      result.metafile.outputs[name].imports.some(
+        ({ path }) => path !== "/runtime/dom-move.js",
+      )
+    )
       throw new Error(`${name} imports another module`);
     checkModule(file.text, name);
     outputs.set(name, Buffer.from(file.contents));
@@ -234,6 +274,7 @@ export async function buildOutputs() {
     Buffer.from(licenseNotices("browser-runtime", packageRoots)),
   );
   for (const [name, bytes] of await initialOutputs()) outputs.set(name, bytes);
+  for (const [name, bytes] of await styleOutputs()) outputs.set(name, bytes);
   return outputs;
 }
 

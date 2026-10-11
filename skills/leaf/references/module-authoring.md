@@ -86,7 +86,20 @@ user outside it waits on the page rather than on a widget it would have to know 
 A declared `x-shadow` widget gets the same transition protection when it builds its root
 with `shadowStage`.
 
-## Template containers
+## Template rendering
+
+Use Leaf's public `render(template, container)` when a paint must land in the
+turn that caused it, including a forward widget gesture. `LitElement` schedules
+updates on a microtask; use it only for runtime faces whose contract permits that
+delay. Package widgets extend `HTMLElement` and
+receive semantic state through `widgetController`, without a LitElement widget
+base or a reactive copy of that state.
+
+Templates own generated containers or bounded ranges, rather than authored
+children. Key rows with `repeat` to retain their nodes across reorders. Leaf's Lit
+build uses the shared move primitive, preserving focus and iframe state where the
+browser supports `moveBefore`; ordinary insertion on other engines still needs
+the focus hold described in **Focus, motion, and travel**, and may reload iframes.
 
 Once `render(template, container)` owns a container, update its children through
 `render` so Lit retains its markers and disconnects removed directives. `failSoft`
@@ -110,7 +123,8 @@ A behavior module follows these rules:
   control anatomy. `offered` owns the element's class and chrome markers; native
   button type defaults to `button`. A native input's `type` binding precedes
   `offered` so its press marker reads that type. Bind values and handlers normally, and use
-  `repeat(items, identity, template)` to retain editable controls under their identities.
+  `repeat(items, identity, template)` to retain keyed controls, subject to the
+  container and native-state rules in "Template rendering".
   `said(true)`, `said(false)`, or `said("echo")` marks a template element's words with
   the same passage and print meaning as `relabel`; Lit owns the element's content.
 - Read UI based on element geometry synchronously from `PRESENTATION` for its
@@ -358,8 +372,10 @@ its element is in nested overflow.
 
 A module that moves, hides, or replaces nodes the user may be standing in, as a reorder or
 a re-render does, calls `holdFocus(scope)` before the change and the function it returns
-after it. Moving a focused node drops its focus to the page body; the returned function
-puts the user back on that node, with its caret, or on the first drawn stand-in it is
+after it. Same-root retained moves, including keyed Lit reorders, preserve native state
+where the browser supports `moveBefore`. The focus hold covers ordinary insertion,
+hiding and replacement: its returned function puts the user back on the node, with its
+caret, or on the first drawn stand-in it is
 passed, such as the replacement keyed on the same identity. It does nothing once focus was
 placed elsewhere in the meantime, and `holdFocus` returns `null` where the user stands
 outside `scope`. A list of keyed items passes `holdFocus(list, { key })`, naming the
@@ -887,8 +903,8 @@ placement use `move(parent, node, before)`, with `null` to append. Within one
 composed root it uses native `moveBefore` where available, preserving focus, caret
 and iframe documents. Otherwise it uses `insertBefore`, which can reset that state. Leaf's public
 `render(template, container)` restores editor focus and caret after Lit renders;
-`repeat(records, keyOf, template)` retains keyed template rows, but Lit's ordinary
-insertion can reset iframe documents even in browsers with native moves. Leave
+`repeat(records, keyOf, template)` retains keyed template rows under the native-state
+rules in **Template rendering**. Leave
 native disclosure, editor and scroll state with the retained nodes. When the
 application owns a native property the user also changes,
 bind it with `live`, such as `.value=${live(value)}` or `.checked=${live(checked)}`:
@@ -1096,6 +1112,18 @@ focus. Materializing a message without focus leaves clearance to its later arriv
 Whole conversations include settlement controls; a fragment feed supplies
 Resolve/Reopen through `threadActions`. Unregister on disconnect. The worked `lf-conversation-workspace` in the
 feature gallery switches Conversation, Shelf and Feed with these APIs.
+
+## Reading version changes
+
+`comparisonChanges(owner)` returns the changed descendant Elements in the standing
+version comparison, excluding the owner itself. Omit the owner to read every changed
+Element. It reads the comparison's identities, so CSS markers do not determine
+membership. With no comparison standing it returns an empty array.
+
+`watchComparison(owner, callback)` calls the callback immediately when the owner is
+connected and whenever the comparison changes. It pauses while the owner is detached
+and reads again on reconnection. Its returned function permanently ends the watch.
+Use `comparisonChanges` in the callback to update counts or other local presentations.
 
 ## Reading Questions and obligation queues
 

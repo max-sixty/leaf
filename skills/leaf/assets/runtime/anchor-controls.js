@@ -25,6 +25,7 @@ import {
   fragmentId,
   fragmentTarget,
   annotationAt,
+  lightSeat,
   resolveAnchor,
   sectionOf,
   unclaimedVisualGesture,
@@ -34,7 +35,8 @@ import {
 } from "./anchor-resolution.js";
 import { registerContribution } from "./contributions.js";
 import { commandScope } from "./keyboard/scopes.js";
-import { inChrome, pageQueryAll, pageText } from "./passages.js";
+import { inChrome, pageQueryAll } from "./passages.js";
+import { pagePresented } from "./page-paint.js";
 import { registry } from "./registry.js";
 import { shadowHost, upFrom } from "./shadow.js";
 import { targetElement, targetParts, targetSegments } from "./resolved-target.js";
@@ -137,11 +139,11 @@ export function createAnchorControls({
 
   function focusVisualAction(event) {
     const control = event.currentTarget;
-    let current = resolveAnchor(control.lfAnchor, pageText());
+    let current = resolveAnchor(control.lfAnchor);
     let element = targetParts(current)[0] ?? targetElement(current);
     if (!element) return;
     reveal(element, retainUserIntent());
-    current = resolveAnchor(control.lfAnchor, pageText());
+    current = resolveAnchor(control.lfAnchor);
     element = targetParts(current)[0] ?? targetElement(current);
     scrollIntoView(element, {
       behavior: "instant",
@@ -204,7 +206,7 @@ export function createAnchorControls({
 
   function prepareVisualActions() {
     pendingVisualActions = visualActionPlan();
-    if (document.body.hasAttribute("data-lf-presented")) publishVisualActions();
+    if (pagePresented()) publishVisualActions();
   }
 
   // Each target contributes its complete standing reaction reading. Only the selected
@@ -307,10 +309,7 @@ export function createAnchorControls({
             record.surface = context.surface ?? null;
             const standing = focused();
             setReactionRemoval(record, record.expanded === root.id ? null : root.id, {
-              focus:
-                context.input === "keyboard" &&
-                context.origin === standing &&
-                standing?.matches(":focus-visible, .lf-focus-visible"),
+              focus: context.input === "keyboard" && context.origin === standing,
               surface: record.surface,
             });
           },
@@ -354,14 +353,11 @@ export function createAnchorControls({
     for (const { thread, placement: found } of readings) {
       if (found.status === "outdated" || thread.resolved) continue;
       if (bareReaction(thread)) {
-        let at;
-        let before;
-        if (targetElement(found)) [at, before] = [found.place, true];
-        else {
-          const block = annotationAt(targetSegments(found)[0].node);
-          const host = shadowHost(block?.getRootNode());
-          [at, before] = host ? [host, true] : [block, false];
-        }
+        // An element target's receipt goes before it, as does a passage seated at a
+        // shadow host; a light-DOM passage's receipt goes inside its seat.
+        const element = Boolean(targetElement(found));
+        const at = element ? found.place : lightSeat(found.place);
+        const before = element || at !== found.place;
         if (at && !inChrome(at)) {
           const held = reactions.get(at) ?? { before: [], inside: [] };
           held[before ? "before" : "inside"].push(thread.root);
@@ -369,11 +365,16 @@ export function createAnchorControls({
         }
         continue;
       }
+      // A passage seats a note at each block it spans, by the rule its `place` follows:
+      // inside a datum, the datum stands for text no block holds.
+      const fallback = found.datumElement ? () => found.datumElement : undefined;
       const blocks = targetElement(found)
         ? [found.place]
         : [
             ...new Set(
-              targetSegments(found).map((segment) => annotationAt(segment.node)),
+              targetSegments(found).map((segment) =>
+                annotationAt(segment.node, fallback),
+              ),
             ),
           ].filter(Boolean);
       for (const holder of blocks.length ? blocks : [sectionOf(thread.anchor)])

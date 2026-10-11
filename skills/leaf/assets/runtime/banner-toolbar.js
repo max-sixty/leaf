@@ -45,6 +45,7 @@ import { repaint } from "./repaint.js";
 import { afterScript } from "./rendering.js";
 import {
   deepFocus,
+  drawn,
   focusDestination,
   onStanding,
   readCaret,
@@ -80,6 +81,7 @@ export const BANNER_CONTROL_RANK = Object.freeze({
 
 export const bannerActions = el("div", "lf-banner-actions");
 export const overflowMenu = el("div", "lf-ui lf-banner-menu");
+overflowMenu.id = "lf-banner-menu";
 overflowMenu.setAttribute("popover", "auto");
 overflowMenu.setAttribute("role", "group");
 overflowMenu.setAttribute("aria-label", "More page controls");
@@ -143,6 +145,7 @@ function rowTemplate() {
     <button
       class="lf-btn lf-banner-more"
       type="button"
+      popovertarget="lf-banner-menu"
       aria-expanded=${String(open)}
       aria-label=${name}
       title=${name}
@@ -166,7 +169,6 @@ render(rowTemplate(), bannerActions);
 render(menuTemplate(), overflowMenu);
 
 const overflowBtn = bannerActions.querySelector(".lf-banner-more");
-overflowBtn.popoverTargetElement = overflowMenu;
 overflowMenu.lfInvoker = overflowBtn;
 
 // More temporarily borrows the reader's focus. Context-preserving commands return
@@ -444,8 +446,7 @@ overflowMenu.addEventListener("lf-reveal", (event) => {
 // displaced by a gesture step while its card stays open. Neither can take focus.
 // Null means the toolbar offers no way in, which happens only off the banner.
 export function bannerControlDoor(control = overflowBtn) {
-  if (control.isConnected && control.checkVisibility({ visibilityProperty: true }))
-    return control;
+  if (drawn(control)) return control;
   const menu = control.closest(".lf-banner-menu");
   if (menu?.lfInvoker?.checkVisibility()) return menu.lfInvoker;
   return bannerActions.contains(control) && overflowBtn.checkVisibility()

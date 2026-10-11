@@ -230,6 +230,35 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
 
 
+@pytest.mark.parametrize("identity", ["runtime", "server"])
+def test_response_reply_names_a_page_vendored_by_another_leaf(
+    claimed, server, identity
+):
+    page = claimed
+    publish(page)
+    code, response = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "comment", "revision": 1, "text": "Hello"}).encode(),
+    )
+    assert code == 200, response
+    woke = CliRunner().invoke(cli_model.cli, ["wait", str(page)])
+    assert woke.exit_code == 0, woke.output
+    envelope = json.loads(woke.output)
+    delivery_model.receive(envelope, "s1")
+    reference = envelope["batches"][0]["events"][0]["answer"]["ref"]
+
+    registry = interact_files.read_json(page / "registry.json")
+    registry["$layer"][identity] = "sha256:" + "b" * 64
+    (page / "registry.json").write_text(json.dumps(registry))
+
+    replied = CliRunner().invoke(
+        cli_model.cli,
+        ["response", "reply", reference, "--ephemeral", "--text", "Working"],
+    )
+    assert replied.exit_code != 0, replied.output
+    assert f"leaf page init {page}" in replied.output
+
+
 def test_the_skill_routes_every_reference_it_ships():
     """A reference SKILL.md never links is a file no session opens.
 
@@ -992,11 +1021,11 @@ def test_init_and_revendoring_preserve_the_page_owned_contribution(
 
     initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
-    generation = registry_storage.layer_generation(page)
+    generation = registry_storage.layer_metadata(page)["generation"]
     revendored = runner.invoke(cli_model.cli, ["page", "init", str(page)])
 
     assert revendored.exit_code == 0, revendored.output
-    assert registry_storage.layer_generation(page) == generation
+    assert registry_storage.layer_metadata(page)["generation"] == generation
     assert {name: (authored / name).read_text() for name in files} == files
     assert "lf-local" not in registry_storage.load_registry(page)
     composed = registry_storage.read_page_registry(page)
@@ -2409,17 +2438,6 @@ def test_a_wait_takes_the_suites_deadline():
         "settimeout",
         "wait",
     }
-    # Literal deadlines in files another change is rewriting, at most this many in
-    # each, to move onto the suite's deadlines once that change lands. Each is a hang
-    # bound like the rest.
-    held_elsewhere = {
-        "test_render_anchors.py": 1,
-        "test_render_controls.py": 3,
-        "test_render_gate.py": 6,
-        "test_render_navigation.py": 9,
-        "test_render_startup.py": 8,
-        "test_render_threads.py": 8,
-    }
 
     def literal(node) -> bool:
         if isinstance(node, ast.BinOp):
@@ -2442,7 +2460,7 @@ def test_a_wait_takes_the_suites_deadline():
         )
         yield from zip(arguments.kwonlyargs, arguments.kw_defaults)
 
-    literals = {}
+    fixed = []
     for path in sorted((ROOT / "tests").rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
@@ -2472,16 +2490,10 @@ def test_a_wait_takes_the_suites_deadline():
             else:
                 continue
             if computed:
-                literals.setdefault(path.name, []).append(
+                fixed.append(
                     f"{path.relative_to(ROOT)}:{node.lineno} "
                     + ast.unparse(node).split("\n", 1)[0]
                 )
-    fixed = [
-        site
-        for name, sites in literals.items()
-        if len(sites) > held_elsewhere.get(name, 0)
-        for site in sites
-    ]
     assert not fixed, (
         "these waits fix their own deadline; bound them with STATED_TIMEOUT "
         "(interact_support.py), or in a browser with SERVED_TIMEOUT_MS or "

@@ -29,6 +29,8 @@
  * changes the words; the second announces the updated value and layout. A
  * write to `value` fires nothing, puts the caret at the end, and starts a new undo
  * history, so undo never walks back into a draft the runtime swapped out.
+ * `edit(text)` replaces the words as external text input, such as dictation: it keeps
+ * undo history and emits the same before-edit/input bracket as native typing.
  * A box owner that takes pasted pictures intercepts paste in capture; otherwise the field pastes
  * the clipboard's text, including text carried beside a picture.
  * `naturalBlockSize` reads the field's intrinsic border-box block size in CSS pixels,
@@ -100,6 +102,7 @@ import {
 } from "../../vendor/codemirror.esm.js";
 import { LeafEditorView } from "../editor-view.js";
 import { TEXT_FIELD } from "../control-selectors.js";
+import { inputCount } from "../focus.js";
 import { loadMarkdown, markdownReady, placedMarkdownTokens } from "../markdown.js";
 import { sizeObserver } from "../rendering.js";
 
@@ -324,6 +327,7 @@ class LeafText extends HTMLElement {
   #model;
   #view = null;
   #nativeInput = false;
+  #reparentHold = null;
   #root;
   #internals = null;
   #editable = new Compartment();
@@ -484,7 +488,63 @@ class LeafText extends HTMLElement {
   }
 
   connectedCallback() {
-    if (this.#view) return;
+    if (this.#view) {
+      // Reparenting keeps the CodeMirror view but can leave a pending native
+      // selectionchange that replaces its recorded caret with the DOM's reset 0.
+      // Only a focused editor needs the hold. An unfocused move may produce no
+      // selectionchange, leaving a listener to override a later intentional caret.
+      if (!this.#view.hasFocus) {
+        this.#reparentHold?.stop();
+        return;
+      }
+      // CodeMirror hears that event after reconnecting. Consume it once,
+      // restoring the held selection if needed, unless the user acted first.
+      const intent = inputCount();
+      const previous = this.#reparentHold;
+      if (
+        previous?.view === this.#view &&
+        previous.doc === this.#view.state.doc &&
+        previous.intent === intent
+      )
+        return;
+      previous?.stop();
+      const hold = {
+        view: this.#view,
+        doc: this.#view.state.doc,
+        caret: [this.selectionStart, this.selectionEnd, this.selectionDirection],
+        intent,
+      };
+      const stop = () => {
+        document.removeEventListener("selectionchange", onSelectionChange);
+        if (this.#reparentHold === hold) this.#reparentHold = null;
+      };
+      const restore = () => {
+        if (this.#reparentHold !== hold) return;
+        if (
+          this.#view !== hold.view ||
+          !this.isConnected ||
+          !hold.view.hasFocus ||
+          hold.view.state.doc !== hold.doc ||
+          inputCount() !== hold.intent
+        ) {
+          stop();
+          return;
+        }
+        stop();
+        if (
+          this.selectionStart !== hold.caret[0] ||
+          this.selectionEnd !== hold.caret[1] ||
+          this.selectionDirection !== hold.caret[2]
+        ) {
+          this.setSelectionRange(...hold.caret);
+        }
+      };
+      const onSelectionChange = () => queueMicrotask(restore);
+      hold.stop = stop;
+      this.#reparentHold = hold;
+      document.addEventListener("selectionchange", onSelectionChange);
+      return;
+    }
     if (!this.hasAttribute("role")) this.setAttribute("role", "textbox");
     if (!this.hasAttribute("aria-multiline"))
       this.setAttribute("aria-multiline", "true");
@@ -534,6 +594,7 @@ class LeafText extends HTMLElement {
   disconnectedCallback() {
     queueMicrotask(() => {
       if (this.isConnected || !this.#view) return;
+      this.#reparentHold?.stop();
       this.#model = this.#view.state;
       this.#sizes.disconnect();
       this.#overflow.disconnect();
@@ -626,6 +687,16 @@ class LeafText extends HTMLElement {
 
   get value() {
     return this.#state.doc.toString();
+  }
+
+  edit(text) {
+    text = String(text).replace(/\r\n?/g, "\n");
+    if (text === this.value) return;
+    this.#apply({
+      changes: { from: 0, to: this.#state.doc.length, insert: text },
+      selection: { anchor: text.length },
+      userEvent: "input.dictation",
+    });
   }
 
   // Records a change the owner has just made outside the words as a step of the words'

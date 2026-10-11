@@ -131,7 +131,7 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
 def version_ids(page_dir: Path) -> set:
     ids = set()
     for revision in list_revisions(page_dir):
-        ids |= read_revision(page_dir, revision).document.ids
+        ids.update(read_revision(page_dir, revision).inventory.ids)
     return ids
 
 

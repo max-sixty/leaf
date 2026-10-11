@@ -57,7 +57,7 @@ import { PRESSABLE, reveal } from "./widget-elements.js";
 import { threadNames } from "./thread/model.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { targetElement, targetPlace, targetSegments } from "./resolved-target.js";
-import { closestAcross, pageText, rangeOf, selectEnds } from "./passages.js";
+import { closestAcross, rangeOf, selectEnds } from "./passages.js";
 import { standingPoint } from "./pointed-place.js";
 import { PRESSES } from "./control-selectors.js";
 import { typesText } from "./focus.js";
@@ -170,7 +170,7 @@ export function createAnchorTravel({
   async function restoreSelection(anchor, { backward, intent }) {
     const mayArrive = retainTravel(intent);
     const resolve = () => {
-      const target = resolveAnchor(anchor, pageText());
+      const target = resolveAnchor(anchor);
       const segments = targetSegments(target);
       if (!segments.length) return null;
       const range = rangeOf(segments);

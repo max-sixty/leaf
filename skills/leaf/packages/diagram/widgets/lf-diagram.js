@@ -104,7 +104,7 @@ const draw = (source, id) => {
       for (const key of db.getActors().keys()) parts.push({ id: key, dataId: key });
     } else if (diagram.type === "er") {
       for (const [key, entity] of db.getEntities())
-        parts.push({ id: key, domId: `${id}-${entity.id}` });
+        parts.push({ id: key, domId: `${id}-${entity.id}`, label: key });
     } else if (/^(flowchart|state|class)/.test(diagram.type)) {
       for (const node of db.getData().nodes) {
         if (["stateStart", "stateEnd", "divider", "note"].includes(node.shape))
@@ -114,7 +114,11 @@ const draw = (source, id) => {
         const domId = diagram.type.startsWith("state")
           ? node.domId
           : `${id}-${node.domId || node.id}`;
-        parts.push({ id: node.id, domId });
+        parts.push({
+          id: node.id,
+          domId,
+          label: diagram.type.startsWith("class") ? node.id : null,
+        });
       }
     }
     return { svg, parts };
@@ -156,13 +160,24 @@ customElements.define(
             : drawn.querySelector(`[id="${CSS.escape(part.domId)}"]`);
           if (!element)
             throw new Error(`Mermaid did not draw the declared node ${part.id}`);
-          const label = element.textContent.replace(/\s+/g, " ").trim() || part.id;
+          // The visual part's source identity is stable even when Mermaid changes
+          // its generated SVG ids and classes.
+          keeps(element, "data-id", part.id);
+          const label =
+            part.label || element.textContent.replace(/\s+/g, " ").trim() || part.id;
           this.visualParts.set(`node:${part.id}`, { element, label });
         }
         this.classList.add("lf-rendered");
         this.visualPartRegistration.update();
       } catch (err) {
-        failSoft(this, err, source);
+        // Mermaid's unknown-family error embeds the complete authored source.
+        // The fallback shows that source in the page; the agent's error report
+        // needs the reason without copying the authored body into the log.
+        const reportError =
+          err?.name === "UnknownDiagramError"
+            ? "No diagram type detected matching given configuration"
+            : err;
+        failSoft(this, reportError, source);
       }
     }
   },

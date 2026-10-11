@@ -73,7 +73,7 @@
   font: var(--lf-trace-small-type) / 1 var(--sans);
   font-variant-numeric: tabular-nums;
 }
-.lf-trace-timeline:focus-visible { --lf-focus-ring: trace-timeline; outline: var(--focus-ring); outline-offset: 2px; }
+.lf-trace-timeline[data-lf-focus] { --lf-focus-ring: trace-timeline; outline: var(--focus-ring); outline-offset: 2px; }
 .lf-trace-lane-names { display: grid; align-content: start; border-inline-end: 1px solid var(--border-2); background: var(--paper-2, var(--paper)); color: var(--muted); }
 .lf-trace-lane-name { display: flex; align-items: center; padding-inline: var(--sp-2); overflow: hidden; white-space: nowrap; block-size: calc(var(--lf-trace-rows, 1) * var(--lf-trace-row-h) + 6px); box-sizing: border-box; border-block-start: 1px solid var(--border-2); }
 .lf-trace-lane-name-ruler { block-size: var(--lf-trace-ruler-h); border-block-start: 0; }
@@ -145,7 +145,7 @@
 .lf-trace-bookmark-list { max-inline-size: 44rem; }
 .lf-trace-bookmark:not([hidden]) { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: var(--sp-2); inline-size: 100%; block-size: var(--lf-trace-control-size); border: 0; border-radius: var(--r); padding: var(--sp-2); background: none; color: var(--ink); text-align: start; font: inherit; cursor: pointer; }
 .lf-trace-moment-label { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.lf-trace-bookmark:focus-visible { --lf-focus-ring: trace-bookmark; outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-ring-w)); }
+.lf-trace-bookmark[data-lf-focus] { --lf-focus-ring: trace-bookmark; outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-ring-w)); }
 .lf-trace-bookmark:hover, .lf-trace-bookmark[aria-current] { color: var(--accent); background: var(--accent-tint); }
 .lf-trace-bookmark:disabled { color: var(--muted); cursor: default; }
 .lf-trace-clock, .lf-trace-readout, .lf-trace-caption, .lf-trace-tree-clock { color: var(--muted); font-size: var(--lf-trace-small-type); font-variant-numeric: tabular-nums; }
@@ -153,7 +153,7 @@
 /* Point metadata owns its scroll. Frame gaps and disclosure cannot shrink the
  * surrounding page or pull a control out from under a reader during playback. */
 .lf-trace-metadata { margin-block-start: var(--sp-3); block-size: 14rem; overflow: auto; scrollbar-gutter: stable; --lf-top: 0px; --lf-holds-height: 1; }
-.lf-trace-metadata:focus-visible { --lf-focus-ring: trace-metadata; outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-ring-w)); }
+.lf-trace-metadata[data-lf-focus] { --lf-focus-ring: trace-metadata; outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-ring-w)); }
 .lf-trace-readout { margin-block: var(--sp-1) var(--sp-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lf-trace-action { margin-block: var(--sp-2) 0; font-weight: 600; }
 .lf-trace-phase { margin-block: var(--sp-1) var(--sp-2); font: 500 var(--t-5) / 1.4 var(--sans); font-variant-numeric: tabular-nums; }
@@ -196,10 +196,10 @@
 .lf-trace-zoom-controls { margin-inline-start: auto; }
 .lf-trace-pace { display: flex; align-items: center; gap: var(--sp-1); color: var(--muted); font-size: var(--lf-trace-small-type); }
 .lf-trace-pace select { min-block-size: var(--lf-trace-control-size); max-inline-size: 100%; border: 1px solid var(--border-2); border-radius: var(--r); background: var(--paper); color: var(--ink); font: inherit; padding-inline: var(--sp-2); }
-.lf-trace-pace select:focus-visible { --lf-focus-ring: trace-pace; outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-ring-w)); }
+.lf-trace-pace select[data-lf-focus] { --lf-focus-ring: trace-pace; outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-ring-w)); }
 .lf-trace-transport-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2); flex: 0 0 auto; min-inline-size: var(--lf-trace-control-size); block-size: var(--lf-trace-control-size); padding: 0 var(--sp-2); border: 0; border-radius: var(--r); background: none; color: var(--ink); font: 500 var(--lf-trace-small-type)/1 var(--sans); cursor: pointer; }
 .lf-trace-transport-button:hover { background: var(--paper-2); }
-.lf-trace-transport-button:focus-visible { --lf-focus-ring: trace-transport-button; outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-ring-w)); }
+.lf-trace-transport-button[data-lf-focus] { --lf-focus-ring: trace-transport-button; outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-ring-w)); }
 .lf-trace-transport-button:disabled { color: var(--muted); cursor: default; }
 /* One width for Play and Pause, so the readout beside it never moves when playback ends. */
 .lf-trace-play { inline-size: 6.5em; min-inline-size: 86px; background: var(--accent-tint); color: var(--accent); }
@@ -225,7 +225,7 @@
 /* Status changes share one slot; loading a frame cannot wrap the tools into a new row. */
 .lf-trace-image-zoom { margin-inline-start: auto; inline-size: 24ch; flex: 0 0 auto; text-align: end; white-space: nowrap; font-size: var(--lf-trace-small-type); color: var(--muted); font-variant-numeric: tabular-nums; }
 .lf-trace-canvas > img[hidden] { display: none; }
-.lf-trace-canvas:focus-visible { --lf-focus-ring: trace-canvas; outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-ring-w)); }
+.lf-trace-canvas[data-lf-focus] { --lf-focus-ring: trace-canvas; outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-ring-w)); }
 .lf-trace-no-moments { margin: 0; padding: var(--sp-2); color: var(--muted); font-size: var(--lf-trace-small-type); }
 
 @container (max-width: 480px) {

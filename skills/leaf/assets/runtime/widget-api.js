@@ -76,6 +76,7 @@ export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place.
 export { render, setChildren, setRenderedChildren } from "./dom-children.js";
 export { readQuestions, watchQuestions } from "./questions/model.js";
+export { comparisonChanges, watchComparison } from "./version.js";
 export { questionWords } from "./questions/answer.js";
 export {
   readWork,
@@ -110,7 +111,7 @@ export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
 export { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
 export { HOLDS_WORD } from "./held-word.js";
-export { PRESS, labelOf, submitBindings, submitLabel } from "./keyboard/bindings.js";
+export { PRESS, labelOf } from "./keyboard/bindings.js";
 export {
   commandScope,
   commandsOn,
@@ -129,6 +130,7 @@ export {
   sizeObserver,
 } from "./rendering.js";
 export { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
+export { excerptWords } from "./words.js";
 export {
   CONTRIBUTION_ENTRY_SCHEMA,
   contributionItemKey,
@@ -156,7 +158,7 @@ export {
   describeDifference,
   differenceKind,
 } from "./image-difference.js";
-export { pageScroller } from "./scrolling.js";
+export { pageScroller, scrollLimit } from "./scrolling.js";
 export { scrollIntoReadingBand, scrollIntoView } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";
@@ -220,8 +222,7 @@ export {
   tokenLines,
 } from "./syntax.js";
 export { bodyText, dataBody, failSoft, once } from "./widget-upgrade.js";
-export { watchReports } from "./application.js";
-export { saidAt, reportSequence, watchHistory } from "./reports.js";
+export { saidAt, reportSequence, watchHistory, watchReports } from "./reports.js";
 export {
   HIDDEN,
   LAYOUT,

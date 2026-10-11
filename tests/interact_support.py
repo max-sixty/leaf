@@ -525,8 +525,7 @@ def page_packages() -> tuple[str, ...]:
     """The integration page's package selection, resolved where it is initialized.
 
     PAGE holds an lf-diagram, and the interact suite borrows lf-diagram and
-    lf-diff declarations from the vendored registry. The template cache names
-    this composition so one selection is never handed to another.
+    lf-diff declarations from the vendored registry.
     """
     return (package_path(COMMAND_HUB_PACKAGE), "diagram", "diff")
 
@@ -535,23 +534,11 @@ def page_packages() -> tuple[str, ...]:
 def page_dir(tmp_path, monkeypatch, initialized_page):
     """A mutable page with the default, Command Hub, diagram and diff vocabularies."""
     monkeypatch.chdir(tmp_path)  # resolve fixture package paths
-    d = tmp_path / "page"
-
-    def initialize(template):
-        result = CliRunner().invoke(
-            cli_model.cli,
-            [
-                "page",
-                "init",
-                *(arg for name in page_packages() for arg in ("--package", name)),
-                str(template),
-            ],
-        )
-        assert result.exit_code == 0, result.output
-        (template / "index.html").write_text(PAGE)
-
-    initialized_page("work-" + "-".join(page_packages()[1:]), d, initialize)
-    return d
+    return initialized_page(
+        tmp_path / "page",
+        page_packages(),
+        ("PAGE", lambda template: (template / "index.html").write_text(PAGE)),
+    )
 
 
 def check(d):
@@ -2038,7 +2025,7 @@ class _SnapshotDumper(yaml.SafeDumper):
     def best_width(self, width):
         self._best_width = width
 
-    def increase_indent(self, flow=False, indentless=False):
+    def increase_indent(self, flow=False, **_indentless):
         # A list sits indented under its key, as a person writes one.
         return super().increase_indent(flow, False)
 
@@ -2107,7 +2094,7 @@ def yaml_document(header: str, cases: dict) -> YamlDocument:
 class _YamlSnapshotHandler(BaseSnapshotHandler):
     FILE = "snapshot.yaml"
 
-    def __init__(self, handler_options, pytest_config, tw):
+    def __init__(self, *_configuration):
         pass
 
     def save(self, folder, obj):
@@ -2122,7 +2109,7 @@ class _YamlSnapshotHandler(BaseSnapshotHandler):
     def compare(self, current_obj, recorded_obj):
         return current_obj == recorded_obj
 
-    def show_differences(self, current_obj, recorded_obj, has_markup, use_ddiff):
+    def show_differences(self, current_obj, recorded_obj, *_presentation):
         return list(
             difflib.unified_diff(
                 recorded_obj.splitlines(),

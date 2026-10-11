@@ -320,8 +320,7 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
       scrollToEnd(box);
     } else {
       const boxTop = landingBand(box).top;
-      const text = pageText();
-      const segments = targetSegments(view.quote && resolveAnchor(view, text));
+      const segments = targetSegments(view.quote && resolveAnchor(view));
       // Restoration keeps the reader's disclosures and chosen views: a landmark
       // the user has since concealed supplies no geometry, and nothing reopens
       // it. Explicit navigation reveals a destination before restoring a place.
@@ -336,7 +335,7 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
       } else if (!standing) {
         // An unresolved or concealed passage leaves live focus as the precise
         // destination; section and raw-offset fallbacks belong to readings without one.
-        const found = targetElement(resolveAnchor({ section: view.section }, text));
+        const found = targetElement(resolveAnchor({ section: view.section }));
         const section = found && drawsLandmark(found) ? found : null;
         if (section) {
           // A section containing the scroller cannot align its contents by its

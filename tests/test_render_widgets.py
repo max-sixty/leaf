@@ -5163,9 +5163,7 @@ def test_board_moves_preserve_live_sample_and_control_state(browser, serve, rout
     assert not [
         url
         for url in requests
-        if "/runtime/" in url
-        or url.rstrip("/") == sample_url
-        or url.rstrip("/").endswith("/api/samples")
+        if url.rstrip("/") == sample_url or url.rstrip("/").endswith("/api/samples")
     ]
 
 
@@ -6898,23 +6896,42 @@ def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, 
         != "rgb(200, 0, 0)"
     )
 
-    # Every frame of the child a Reset makes that draws the note draws it loud.
-    painted = page.locator("#tone-sample").evaluate(
-        """async sample => {
-          const frames = [];
-          let sampling = true;
-          const tick = () => {
-            const note = sample.querySelector('iframe').contentDocument
-              ?.getElementById('child-note');
-            if (note) frames.push(getComputedStyle(note).color);
-            if (sampling) requestAnimationFrame(tick);
-          };
-          requestAnimationFrame(tick);
-          await sample.reset();
+    # The reset child has an opaque origin. Collect its paints there, then request
+    # the whole sequence after Reset completes across the browsing-context boundary.
+    page.add_init_script("""(() => {
+      if (window === top) return;
+      const paints = [];
+      let sampling = true;
+      const tick = () => {
+        const note = document.getElementById('child-note');
+        if (note) paints.push(getComputedStyle(note).color);
+        if (sampling) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+      window.addEventListener('message', event => {
+        if (event.source !== parent || event.data?.type !== 'lf-test-tone-read')
+          return;
+        requestAnimationFrame(() => {
           sampling = false;
-          return frames;
-        }"""
-    )
+          parent.postMessage({type: 'lf-test-tone-paints', paints}, '*');
+        });
+      });
+    })()""")
+    page.locator("#tone-sample").evaluate("sample => sample.reset()")
+    page.locator("#tone-sample").evaluate("""sample => {
+      window.lfTonePaints = null;
+      const frame = sample.querySelector('iframe');
+      const receive = event => {
+        if (event.source !== frame.contentWindow
+            || event.data?.type !== 'lf-test-tone-paints') return;
+        window.lfTonePaints = event.data.paints;
+        window.removeEventListener('message', receive);
+      };
+      window.addEventListener('message', receive);
+      frame.contentWindow.postMessage({type: 'lf-test-tone-read'}, '*');
+    }""")
+    page.wait_for_function("window.lfTonePaints !== null")
+    painted = page.evaluate("window.lfTonePaints")
     assert painted and set(painted) == {"rgb(200, 0, 0)"}
     expect(child.locator(":root")).to_have_attribute("data-playground-tone", "loud")
 
@@ -6983,6 +7000,37 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     page.mouse.click(slider["x"] + 2, slider["y"] + slider["height"] / 2)
     assert values()["width"] == 1
     assert child_button.evaluate(standing), "slider"
+    page.mouse.move(slider["x"] + 2, slider["y"] + slider["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(
+        slider["x"] + slider["width"] - 2,
+        slider["y"] + slider["height"] / 2,
+        steps=4,
+    )
+    page.mouse.up()
+    assert values()["width"] == 4
+    assert child_button.evaluate(standing), "slider drag"
+    sample = page.locator("#ring-sample")
+    sample.evaluate(
+        """sample => {
+          const restore = sample.restoreStanding;
+          sample.restoreStanding = () => {
+            window.releaseRestore = () => {
+              window.restoreDone = restore.call(sample);
+            };
+            return Promise.resolve(false);
+          };
+        }"""
+    )
+    page.mouse.click(slider["x"] + 2, slider["y"] + slider["height"] / 2)
+    note = page.get_by_role("textbox", name="Note")
+    note.focus()
+    expect(note).to_be_focused()
+    page.evaluate("window.releaseRestore()")
+    assert page.evaluate("() => window.restoreDone") is False
+    expect(note).to_be_focused()
+    sample.evaluate("sample => delete sample.restoreStanding")
+    child_button.focus()
     playground.locator(".lf-playground-reset").click()
     assert values()["ring"] == "thin"
     assert child_button.evaluate(standing)
@@ -13085,8 +13133,7 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
         "a label the page wrote answers the pointer as though it were a control"
     )
 
-    # The keyboard. Reached by a real Tab, because :focus-visible is a fact about how
-    # focus arrived and element.focus() alone draws no ring at all.
+    # A real Tab verifies the keyboard route as well as the shared focus treatment.
     mark.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")

@@ -13,6 +13,7 @@ import {
   keepView,
   keeps,
   layoutChanged,
+  layoutPx,
   nextRender,
   once,
   offer,
@@ -76,7 +77,7 @@ customElements.define(
           this.#resizeFrame = 0;
           this.style.setProperty(
             "--lf-trace-compare-head",
-            `${this.firstElementChild.getBoundingClientRect().height}px`,
+            layoutPx(this.firstElementChild.getBoundingClientRect().height),
           );
           layoutChanged(this);
         });

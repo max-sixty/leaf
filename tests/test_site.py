@@ -722,7 +722,7 @@ def test_published_visual_evidence_loads_from_its_page(served_example, browser):
         expect(option).to_be_visible()
         option.click()
         # Web Awesome finishes hiding the listbox after it records the selection.
-        expect(case_select.locator('[part="listbox"]')).to_have_attribute("hidden", "")
+        expect(case_select.locator('[part~="listbox"]')).to_have_attribute("hidden", "")
         expect(case_select).to_have_js_property("value", case_id)
         comparison = review.locator(".lf-vr-case:not([hidden]) lf-shot")
         expect(comparison).to_be_visible()
@@ -2239,7 +2239,9 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
         "links => links.map(link => link.getAttribute('href'))"
     ) == ["/examples/", "/#install"]
     expect(page.locator(".sitenote")).to_have_count(0)
-    expect(page.locator(".lf-banner .lf-dot")).to_have_class(re.compile(r"^lf-dot\s*$"))
+    assert page.locator(".lf-banner .lf-dot").evaluate("dot => [...dot.classList]") == [
+        "lf-dot"
+    ]
     state = page.evaluate("() => fetch('api/state').then(r => r.json())")
     assert state["publication"] == {
         "kind": "example",

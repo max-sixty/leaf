@@ -59,7 +59,7 @@ function semanticSchema(schema) {
   );
 }
 
-export function detailSchema(entry, spec) {
+function detailSchema(entry, spec) {
   const record = spec.record;
   if (!record) return spec.detail;
   const value =

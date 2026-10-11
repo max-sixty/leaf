@@ -231,9 +231,6 @@ export class MessageView {
 
   present(model, { arrived = false, headerControls = nothing } = {}) {
     const prior = this.#model;
-    // A surface that seats no rewrite offers none: a primary reader drawing one message
-    // of a conversation it lays out itself has no thread card to open it in.
-    if (model.editable && !this.#commands.edit) model = { ...model, editable: false };
     this.#model = model;
     const panel = model.panel;
     // A view presents messages of one surface for its whole life, so what the surface
@@ -269,7 +266,7 @@ export class MessageView {
         base: () => this.#model.base,
         send: (text, options) =>
           this.#commands.edit.send(this.#model.id, text, options),
-        land: () => this.#commands.edit.land(),
+        land: () => this.#commands.edit.land(this.node),
         paint: () => this.#commands.edit.paint(this.node),
         previous: () => this.#commands.edit.previous(this.#model.id),
         reveal: (caretLine) => this.#commands.edit.reveal(this.node, caretLine),
@@ -278,6 +275,7 @@ export class MessageView {
       this.#editor.dispose();
       this.#editor = null;
     }
+    this.#editor?.follow();
     // Whether the message says it holds kept words follows the draft, which another tab
     // can change; a keystroke in the open editor changes no such answer.
     this.#kept = model.editable && !editing && keptRewrite(model.id);
@@ -434,10 +432,20 @@ export class MessageView {
     return true;
   }
 
+  // Draw the message as it stands, its rewrite having opened in another view.
+  closeEdit() {
+    this.#commands.edit.paint(this.node);
+  }
+
   // Make way for another editor opening in the thread, closing this one where its
   // words are the message's own.
   putEditAside() {
     this.#editor?.putAside();
+  }
+
+  // The reading this view last drew.
+  get model() {
+    return this.#model;
   }
 
   // Whether this view draws an open rewrite.

@@ -15,7 +15,8 @@ import { createReplyView, replyAvailable } from "./replies.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
 import { elementById } from "../passages.js";
-import { SAY_BOX } from "./selectors.js";
+import { SAY_BOX, THREAD } from "./selectors.js";
+import { threadRewrites } from "./message-edit.js";
 import { orderChildren } from "../dom-children.js";
 import { HeldNews, growthInsideIsSeen, newsNotice } from "./held-news.js";
 
@@ -134,7 +135,10 @@ export function registerMirrorConsumer(owner, render, { commands }) {
    complete conversations or retained fragments; core owns their generated roots,
    editors, exact-version read observation and the single authored widget instances.
    Nominations settle before the fallback panel paints, so native authored nodes have
-   one physical destination on every pass. Layout and disclosure belong to the caller. */
+   one physical destination on every pass. A message part offers the user's rewrite of
+   it, and a reply part ↑ to the latest, as a thread card does, through the thread's one
+   rewrite owner over the parts this reader draws (`threadRewrites`). Layout and
+   disclosure belong to the caller. */
 export function createPrimaryReader(owner, render, commands, update) {
   if (!(owner instanceof Element) || typeof render !== "function")
     throw new TypeError(
@@ -171,6 +175,48 @@ export function createPrimaryReader(owner, render, commands, update) {
     () => void update().catch(() => {}),
   );
   let shown = new Map();
+  // Each thread's rewrites over the parts of it this reader draws (`threadRewrites`):
+  // its messages in the thread's order, and its reply box.
+  const rewrites = new Map();
+  const partsOf = (key, kind) =>
+    selected
+      .filter((item) => item.key === key && item.kind === kind)
+      .flatMap((item) => views.get(item.identity) ?? []);
+  const rewritesOf = (key) => {
+    if (!rewrites.has(key))
+      rewrites.set(
+        key,
+        threadRewrites({
+          views: () => {
+            const order = shown.get(key)?.source.msgs.map((message) => message.key);
+            return partsOf(key, "message")
+              .toSorted(
+                (a, b) =>
+                  (order?.indexOf(a.messageKey) ?? 0) -
+                  (order?.indexOf(b.messageKey) ?? 0),
+              )
+              .map((view) => view.message);
+          },
+          send: (id, text, options) =>
+            commands.reply.actions.edit(key, id, text, options),
+          paint: (node) =>
+            partsOf(key, "message")
+              .find((view) => view.message.node === node)
+              ?.draw(),
+          box: () => {
+            const reply = partsOf(key, "reply")[0];
+            return reply && !reply.node.hidden
+              ? reply.node.querySelector(SAY_BOX)
+              : null;
+          },
+          home: (node) => node.closest(THREAD),
+          opening: () => shown.get(key)?.news?.open(),
+          landInThread: commands.reply.landInThread,
+          landSent: commands.reply.landSent,
+        }),
+      );
+    return rewrites.get(key);
+  };
   const clear = () => {
     for (const view of views.values()) {
       view.dispose();
@@ -180,6 +226,7 @@ export function createPrimaryReader(owner, render, commands, update) {
     views.clear();
     destinations.clear();
     nativeMessages.clear();
+    rewrites.clear();
   };
   function prepare(collection, cancelled) {
     const current = ++generation;
@@ -283,6 +330,8 @@ export function createPrimaryReader(owner, render, commands, update) {
           "A primary Thread outlet must remain inside its connected owner",
         );
     const wanted = new Set(selected.map((item) => item.identity));
+    const keys = new Set(selected.map((item) => item.key));
+    for (const key of rewrites.keys()) if (!keys.has(key)) rewrites.delete(key);
     for (const [key, view] of views)
       if (!wanted.has(key)) {
         view.dispose();
@@ -311,13 +360,22 @@ export function createPrimaryReader(owner, render, commands, update) {
           node.dataset.lfGen = "1";
           node.dataset.lfOffer = "";
           if (item.kind === "message") {
-            const message = new MessageView(commands);
+            const message = new MessageView({
+              ...commands,
+              edit: rewritesOf(item.key).edit,
+            });
             message.node.classList.add("lf-primary-message");
             node.append(message.node);
             view = {
               node,
               message,
               messageKey: item.message,
+              reading: null,
+              // Draws the message again at once, as its rewrite opens or closes.
+              draw() {
+                message.present(this.reading, { headerControls: this.notice.node });
+                message.commit();
+              },
               dispose: () => message.retire(),
             };
           } else {
@@ -326,6 +384,7 @@ export function createPrimaryReader(owner, render, commands, update) {
               onChange: () => {
                 if (joined) void update().catch(() => {});
               },
+              editLast: rewritesOf(item.key).editLast,
             });
             joined = true;
             node.append(reply.node);
@@ -351,16 +410,13 @@ export function createPrimaryReader(owner, render, commands, update) {
         keepsHidden(view.notice.node, !notice);
         if (item.kind === "message") {
           const message = item.thread.msgs.find((entry) => entry.key === item.message);
-          view.message.present(
-            messageReading(message, {
-              panel: false,
-              nativeAuthored: true,
-              reactions: message.reactions,
-              workflows: message.workflows,
-            }),
-            { headerControls: view.notice.node },
-          );
-          view.message.commit();
+          view.reading = messageReading(message, {
+            panel: false,
+            nativeAuthored: true,
+            reactions: message.reactions,
+            workflows: message.workflows,
+          });
+          view.draw();
         } else {
           keepsHidden(view.node, !replyAvailable(item.thread));
           if (view.notice.node.parentNode !== view.node)

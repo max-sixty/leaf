@@ -1032,7 +1032,9 @@ parts can share an outlet; Leaf retains their nodes and reconciles nomination or
 A shadow outlet displays retained parts through native slots: core nodes stay in
 document light DOM, forwarding through nested shadow boundaries to retain the complete
 layer stylesheet semantics. Leaf retains the generated nodes, message rendering, reactions,
-exact-version read exposure, and shared native reply draft. The package retains
+exact-version read exposure, and shared native reply draft. A nominated message of the
+user's own offers its rewrite in place, and a nominated reply box opens the latest of
+those the reader draws on ↑, as a whole conversation does. The package retains
 layout, ordering, selection, scroll and disclosure. A returned promise delays the
 required presentation; check `parts.signal` before asynchronous layout changes,
 since a newer pass or unregister aborts it.

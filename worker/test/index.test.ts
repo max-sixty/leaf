@@ -122,7 +122,7 @@ const MANIFEST = {
 
 const startupReport = (overrides: Record<string, unknown> = {}) => ({
   version: 2,
-  loadId: "123e4567-e89b-42d3-a456-426614174000",
+  loadId: "123e4567e89b42d3a456426614174000",
   release: RELEASE,
   layer: LAYER,
   outcome: "presented",

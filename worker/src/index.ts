@@ -74,7 +74,7 @@ const startupTime = z.nullable(
 );
 const startupReportSchema = z.strictObject({
   version: z.literal(2),
-  loadId: z.uuidv4(),
+  loadId: z.string().check(z.regex(/^[0-9a-f]{32}$/)),
   release: z.string().check(z.regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/)),
   layer: z.string().check(z.regex(/^[A-Za-z0-9_-]{1,128}$/)),
   outcome: z.union([

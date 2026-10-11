@@ -1333,6 +1333,23 @@ def test_no_has_rule_restyles_the_whole_document():
     )
 
 
+def test_browser_code_mints_ids_that_work_outside_secure_contexts():
+    """`leaf --host` serves a page over plain HTTP to a LAN address, where
+    `crypto.randomUUID` does not exist, so a call to it throws in the user's browser.
+    The runtime and bundled packages mint ids through runtime/ids.js, and the classic
+    bootstrap.js through its one copy of it."""
+    roots = (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
+    callers = [
+        str(source.relative_to(schema_model.ASSETS.parent))
+        for root in roots
+        for source in sorted(root.rglob("*.js"))
+        if "vendor" not in source.parts
+        and "randomUUID"
+        in re.sub(r"(?<!:)//[^\n]*|/\*.*?\*/", "", source.read_text(), flags=re.S)
+    ]
+    assert callers == [], callers
+
+
 def test_layout_style_and_widgets_never_read_each_other():
     """A Layout places boxes, a style sets type and spacing, and a widget reads its own
     box and the theme's tokens (assets/AGENTS.md, "Space and scrolling"). So a Layout

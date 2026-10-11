@@ -119,10 +119,8 @@ import {
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
-import { LIVE_ROOT } from "./document-address.js";
-import { unmarkedCopy } from "./initial-render.js";
-import { PAGE_SCOPE, tabStore } from "./storage.js";
-import { initialOrigin, restoreInitialSource } from "./initial-render.js";
+import { LIVE_ROOT, PAGE_SCOPE, layerRoot, tabStore } from "./storage.js";
+import { initialOrigin, restoreInitialSource, unmarkedCopy } from "./initial-render.js";
 import { alignInlineText } from "./text-alignment.js";
 import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
@@ -236,12 +234,6 @@ const pairSources = (source, live, pairs) => {
   }
   return pairs;
 };
-// Where a delivered document's captured resources are addressed: the directory its
-// registry probe names, which is the revision's own root.
-const artifactRoot = (root) =>
-  root
-    .querySelector("script[data-lf-runtime][data-lf-probe]")
-    ?.dataset.lfProbe.replace(/registry\.json$/, "") ?? "";
 const servedMain = document.querySelector("body > main");
 const initialDocument = {
   authoredBodyAttributes: authoredAttributes(document.body),
@@ -273,7 +265,7 @@ export function createVersionController({
   // for. Both are replaced by every revision this document takes on.
   let authoredWidgets = servedWidgets;
   let authoredSource = initialDocument.source;
-  let authoredRoot = artifactRoot(document);
+  let authoredRoot = layerRoot(document);
   let sourcePairs = initialPairs;
   // Semantic reading position preserved across authored-document replacement.
   const VIEW_KEY = "lf-view";
@@ -1300,7 +1292,7 @@ export function createVersionController({
   function patchRules(doc) {
     const source = doc.querySelector("body > main");
     const arrivingWidgets = documentWidgetDigests(doc);
-    const arrivingRoot = artifactRoot(doc);
+    const arrivingRoot = layerRoot(doc);
     const heldKeys = widgetKeys(authoredSource);
     const arrivingKeys = widgetKeys(source);
     return {
@@ -1383,7 +1375,7 @@ export function createVersionController({
     const carry = captureCarry(live, authoredSource);
     const source = doc.querySelector("body > main");
     const arrivingWidgets = documentWidgetDigests(doc);
-    const arrivingRoot = artifactRoot(doc);
+    const arrivingRoot = layerRoot(doc);
     const rules = patchRules(doc);
     retireProjectionCoverage();
     revisionDocuments.delete(target.revision);

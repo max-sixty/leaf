@@ -77,7 +77,7 @@ const exactClosures = {
     "sample-visibility.js",
     "repaint.js",
     "shadow.js",
-    "document-address.js",
+    "storage.js",
   ],
 };
 

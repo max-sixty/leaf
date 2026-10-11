@@ -33,7 +33,7 @@ import { declareBanner } from "./geometry.js";
 import { agentName, watchSemantic } from "./semantic-state.js";
 import { taskNoun } from "./queues.js";
 import { readQueues } from "./queue-api.js";
-import { SHARE_ROOT, shareUrl } from "./document-address.js";
+import { SHARE_ROOT, shareUrl } from "./storage.js";
 
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
@@ -157,7 +157,19 @@ const WORK_WORDS = {
   awaiting_user: "waiting for you",
   replying: "replying",
 };
-export const countResponses = (count) => `${count} response${count === 1 ? "" : "s"}`;
+const countResponses = (count) => `${count} response${count === 1 ? "" : "s"}`;
+// What each canonical count says the agent owes, in the order a reader is told.
+const COUNT_PHRASES = {
+  active: "being worked on",
+  handling: "owed on picked-up updates",
+  queued: "owed on queued updates",
+  picked_up: "owed on picked-up updates; no current turn observed",
+  pending: "owed on updates awaiting delivery",
+};
+const phrased = (counts, kinds) =>
+  kinds
+    .filter((kind) => counts[kind])
+    .map((kind) => `${countResponses(counts[kind])} ${COUNT_PHRASES[kind]}`);
 // What the banner and the leaves drawer both read off one page's server-owned `activity`
 // before either words it. Each seat keeps its own sentences; a fact they share changes
 // here once:
@@ -167,21 +179,18 @@ export const countResponses = (count) => `${count} response${count === 1 ? "" : 
 //   for a dropped claim.
 // - `listening` is whether input is still on its way to the agent (pending or queued),
 //   which turns a listening page's standing request into "listening".
-// - `waiting` phrases the queued and pending updates, in that order.
+// - `waiting` phrases the queued and pending updates, in that order, and `owed` the
+//   other counts, for a seat with room to say them beside `waiting`.
 export function activityFacts({ activity }) {
   const { counts } = activity;
-  const waiting = [];
-  if (counts.queued)
-    waiting.push(`${countResponses(counts.queued)} owed on queued updates`);
-  if (counts.pending)
-    waiting.push(`${countResponses(counts.pending)} owed on updates awaiting delivery`);
   return Object.freeze({
     tone: TONE[activity.kind],
     work: WORK_WORDS[activity.observed_kind] || "working",
     left: Boolean(activity.dropped),
     silentSince: ago(activity.ts),
     listening: Boolean(counts.pending || counts.queued),
-    waiting: Object.freeze(waiting),
+    waiting: Object.freeze(phrased(counts, ["queued", "pending"])),
+    owed: Object.freeze(phrased(counts, ["active", "handling", "picked_up"])),
   });
 }
 // The judgment's third seat. A user keeps a leaf in a tab for days and looks at

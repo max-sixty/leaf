@@ -6208,9 +6208,57 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     expect(edit).to_have_js_property("value", "")
 
 
-def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
-    browser, serve
+@pytest.mark.parametrize("keyboard", ["desktop", "touch", "android"])
+def test_composer_return_edits_or_sends_according_to_its_keyboard(
+    browser, serve, keyboard
 ):
+    """Mobile Return keeps a source newline, including Android's EditContext path."""
+    options = {
+        "viewport": {"width": 360 if keyboard != "desktop" else 1280, "height": 732},
+        "is_mobile": keyboard != "desktop",
+        "has_touch": keyboard != "desktop",
+    }
+    if keyboard == "android":
+        options["user_agent"] = (
+            "Mozilla/5.0 (Linux; Android 16; Pixel 10) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/155.0.8059.12 Mobile Safari/537.36"
+        )
+    context = browser.new_context(**options)
+    page = open_page(browser, serve(LONG_PAGE), context=context)
+    editor = page_comment(page)
+    page.keyboard.type("First sentence.")
+    editor.press("Shift+Enter" if keyboard == "desktop" else "Enter")
+    expect(editor).to_have_js_property("value", "First sentence.\n")
+    page.keyboard.type("Second sentence.")
+    exact = "First sentence.\nSecond sentence."
+    expect(editor).to_have_js_property("value", exact)
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    with sending(page, "the complete multiline comment"):
+        editor.press("Enter" if keyboard == "desktop" else "ControlOrMeta+Enter")
+    comments = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert [event["text"] for event in comments] == [exact]
+
+
+@pytest.mark.parametrize("android", [False, True])
+def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
+    browser, serve, android
+):
+    context = browser.new_context(
+        user_agent=(
+            "Mozilla/5.0 (Linux; Android 16; Pixel 10) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/155.0.8059.12 Mobile Safari/537.36"
+        )
+        if android
+        else None,
+    )
     page = open_page(
         browser,
         serve(
@@ -6220,6 +6268,7 @@ def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
                 '<lf-draft id="source"><pre>Original **source**.</pre></lf-draft>',
             )
         ),
+        context=context,
     )
     draft = page.locator("#source")
     draft_control(page, "edit", "source").click()
@@ -6227,7 +6276,9 @@ def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
     write(editor, "First **paragraph**.")
     editor.press("End")
     editor.press("Enter")
+    expect(editor).to_have_js_property("value", "First **paragraph**.\n")
     editor.press("Enter")
+    expect(editor).to_have_js_property("value", "First **paragraph**.\n\n")
     page.keyboard.insert_text("Second `paragraph`.")
     exact = "First **paragraph**.\n\nSecond `paragraph`."
     expect(editor).to_have_js_property("value", exact)

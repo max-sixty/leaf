@@ -29,17 +29,17 @@ import {
 import { el, reserve } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
 import { focusDestination } from "./focus.js";
+import { WEBSITE_DELIVERY } from "./storage.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-banner-status";
-const website = document.querySelector("script[data-lf-server][data-lf-release]");
-const connecting = website ? "Connecting to the Leaf website…" : "Connecting…";
+const connecting = WEBSITE_DELIVERY ? "Connecting to the Leaf website…" : "Connecting…";
 const INITIAL = Object.freeze({
   tone: "",
   summary: connecting,
   queues: "",
   queuesWidest: "",
-  explanation: website
+  explanation: WEBSITE_DELIVERY
     ? "Loading this website page. Website examples can take longer to connect than a usual Leaf page."
     : connecting,
   publication: null,

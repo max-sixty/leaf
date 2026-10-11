@@ -380,6 +380,7 @@ def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serv
     expect(retry).to_be_focused()
     with page.expect_request("**/api/deferred*"):
         page.keyboard.press("Enter")
+    holding(page, pending, 1, "the first held diff retry")
     assert len(attempts) == 2 and len(pending) == 1
     expect(retry).to_have_attribute("aria-disabled", "true")
     expect(retry).to_be_focused()
@@ -401,6 +402,7 @@ def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serv
     # focus at the newer control instead of restoring the old Retry button.
     with page.expect_request("**/api/deferred*"):
         page.keyboard.press("Enter")
+    holding(page, pending, 1, "the retry before moving focus")
     assert len(attempts) == 3 and len(pending) == 1
     expect(retry).to_have_attribute("aria-disabled", "true")
     page.keyboard.press("Tab")

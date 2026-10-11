@@ -207,16 +207,28 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     max-height: var(--lf-comment-message-height); overflow-y: auto;
     padding-inline: 0 var(--lf-comment-text-pad-end);
   }
+  /* A rewrite of those words wraps them where they wrapped. It grows with them rather
+     than scroll, since a scrolling box would clip the frame and ring it draws around
+     itself, and the card's transcript scrolls. */
+  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-editor {
+    box-sizing: border-box; padding-inline-end: var(--lf-comment-text-pad-end);
+  }
   /* The editor's room for Send, held where the editor held it when the words were sent
      (text-field.js, `endRoom`): on every line, after the last words only — the last
      paragraph of words, before any pasted images, or a suggestion's text — or, where
      the draft ended on a blank line, nowhere. */
-  .lf-margin-preview[data-lf-comment-frame="every-line"] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text {
+  .lf-margin-preview[data-lf-comment-frame="every-line"] .lf-msg:first-of-type > .lf-msg-body
+    > :is(.lf-msg-text, .lf-msg-editor) {
     padding-inline-end: calc(var(--lf-comment-text-pad-end) + var(--lf-comment-send-room)); }
   .lf-margin-preview[data-lf-comment-frame="last-line"] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text
     > p:is(:last-child, :has(+ p > .lf-message-media:only-child)):not(:has(> .lf-message-media:only-child))::after,
   .lf-margin-preview[data-lf-comment-frame="last-line"] .lf-msg:first-of-type > .lf-suggest-body > .lf-msg-text::after {
     content: ""; display: inline-block; inline-size: var(--lf-comment-send-room); }
+  /* A rewrite holds that room as the field it is holds its own action's: after its last
+     words (text-field.js). */
+  .lf-margin-preview[data-lf-comment-frame="last-line"] .lf-msg:first-of-type
+    > .lf-msg-body > .lf-msg-editor leaf-text {
+    --lf-field-end-room: var(--lf-comment-send-room); }
   .lf-margin-preview-close { flex: none; }
   .lf-margin-preview-nav { display: flex; flex: none; align-items: center;
     gap: 0; color: var(--muted-2); font-size: 10px; }
@@ -308,6 +320,39 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     inset-block-start: 0; z-index: 1; background-color: var(--lf-msg-ground);
     max-inline-size: calc(100% - var(--lf-margin-controls-width, 0px));
     padding-inline-end: 0; }
+  /* Only the writer's name and the time stick. The head's annotations (a progress
+     disclosure, a delivery receipt, a failure, a suggestion or edited label) belong
+     to the message's opening, so they scroll out with its first line while the name
+     stays. A view timeline on the message (no inset: the transcript's scroll padding
+     is ring room, not where the head sticks) cancels the sticky offset for them over
+     the first two head heights of its exit, which clears a disclosure wrapped onto a
+     second row; past that they stand above the transcript, which clips them. A
+     wrapped one rises under the name and time, which paint over it as the head paints
+     over the words. A focused one stays in the stuck row, where the user can see what
+     they hold. The metadata clips only sideways, for its ellipsis, so a label rises to
+     the card's edge rather than vanishing at the metadata's own top. The rules wait
+     on view timelines: an engine without them would run the animation on the
+     document clock, whose filled end holds the annotations above their row at rest,
+     so it keeps them stuck with the name instead. */
+  @supports (animation-timeline: view()) {
+    .lf-margin-thread .lf-thread-transcript .lf-msg {
+      view-timeline: --lf-msg-exit block; view-timeline-inset: 0px;
+      --lf-msg-annotation-exit: calc(2 * var(--lf-msg-head-height)); }
+    .lf-margin-thread .lf-thread-transcript .lf-msg-meta { overflow: clip visible; }
+    .lf-margin-thread .lf-thread-transcript .lf-msg-head > :is(b, .lf-msg-meta) {
+      position: relative; z-index: 1; background-color: var(--lf-msg-ground); }
+    /* The name's ground spans the gap to the time, which a rising one would show. */
+    .lf-margin-thread .lf-thread-transcript .lf-msg-head > b {
+      padding-inline-end: var(--sp-2); margin-inline-end: calc(-1 * var(--sp-2)); }
+    :is(.lf-margin-thread .lf-thread-transcript .lf-msg-head > :not(b, .lf-msg-meta),
+        .lf-margin-thread .lf-thread-transcript .lf-msg-meta > :not(time)):not(
+        :focus-visible, .lf-focus-visible) {
+      animation: lf-msg-annotation-exit linear both;
+      animation-timeline: --lf-msg-exit;
+      animation-range: exit-crossing 0px exit-crossing var(--lf-msg-annotation-exit); }
+    @keyframes lf-msg-annotation-exit {
+      to { translate: 0 calc(-1 * var(--lf-msg-annotation-exit)); } }
+  }
   @media (forced-colors: active) {
     .lf-margin-preview { border: 1px solid CanvasText; box-shadow: none; }
   }

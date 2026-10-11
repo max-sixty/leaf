@@ -156,9 +156,9 @@ leaf page stamp <page> --text "…" --completes <widget-id>
 ```
 
 `--completes` names a widget with an open task, and ends each task on it `done`,
-citing the version. `leaf task open` takes a thread, by any message in it or a
-widget in one of its messages; a page widget that declares `x-work` or holds an
-unsettled action; or `page`. A task on a widget survives unrelated versions, and a
+citing the version. `leaf task open` takes a page widget that declares `x-work` or
+holds an unsettled action, any other element of the page, or `page`; work in a thread
+is opened by the reply that promises it (`--task`). A task on a widget survives unrelated versions, and a
 version cannot drop that widget while the task stands.
 
 ## Long-running work
@@ -198,13 +198,16 @@ line beside its thread or widget.
 
 A start lasts a turn; a task lasts until you end it. When you take on work a thread
 asked for that can outlast the turn you took it on in, such as a worker's build, a
-wait on CI, or a change you promise for the next version, open a task on that thread:
-`leaf task open <page> <id> "<what you owe>"`. Then reply, saying what is under way:
-the reply answers the user's message, and the task keeps the thread on you, and named
-in the banner, through the user resolving it and the end of your session. When the
-result lands, write its outcome with `leaf task end <page> <task> done "<where the
-result is>"`, or `failed` or `dropped` with the reason, beside the reply that links
-it. While you work on it, start it, so the banner and the thread show your line.
+wait on CI, or a change you promise for the next version, answer with
+`leaf response reply <answer.ref> --task "<what you owe>"`, saying what is under way:
+the reply answers the user's message and opens the task on that thread under the
+reply's id, which keeps the thread on you, and named in the banner, through the user
+resolving it and the end of your session. A turn-written reply carries no task, so
+answer such a promise with this command. Wherever
+the result lands, the task ends there: `leaf task end <page> <task> done "<where the
+result is>"`, or `failed` or `dropped` with the reason, so work that won't come back
+to you takes the page and the task's id in its brief. While you work on it, start it,
+so the banner and the thread show your line.
 Work on an update that finishes inside the turn needs no task.
 
 ## Questions and Tasks
@@ -224,14 +227,14 @@ user to send again. Done holds ended items.
 | Request | Register it | What answers it |
 | --- | --- | --- |
 | A decision or input recorded by a widget | Author a decision widget (`authoring-questions.md`); optional `lf-ask` frames its question and evidence | The widget's declared answer; a multiple-choice Question also needs the user's Done |
-| A conversational answer | Open an agent thread with the question, or add `--awaits` to a reply (`threads.md`) | The user's next reply there or a settling reaction |
+| A conversational answer | Open an agent thread with the question, or add `--question` to a reply (`threads.md`) | The user's next reply there or a settling reaction |
 | Required version sign-off | Declare sign-off and stamp the version (`authoring-questions.md`, "Questions and sign-off") | That version's banner approval |
 | An action neither route records, such as trying a build or connecting a browser | `leaf task open <page> <id> "<direct question naming the action>" --on user`, on its widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
 
 A widget Question has id `widget:<widget-id>`, a prose Question has
 `reply:<message-id>`, and a stamped version's sign-off has `approval:v<version>`.
 Explicit user work keeps the id printed by `task open`. A thread takes no explicit
-user task; ask there with `--awaits`.
+user task; ask there with `--question`.
 Keep independently answerable decisions in separate widgets or threads. A thread
 can retain several prose Questions; its latest unanswered one is the current request,
 and the next user reply settles preceding unanswered prose Questions there. Publish

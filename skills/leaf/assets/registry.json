@@ -249,6 +249,15 @@
           "text": "A reaction on your message. It needs no reply, and Leaf already records whether it answers what you asked."
         }
       ],
+      "edit": [
+        {
+          "text": "The user rewrote their message `message` in place: `text` is how it reads now and `was` how it read before, and the thread shows only the new wording. Answer the message as it now reads. Where your earlier answer or work rested on what changed, say what that changes and redo the work it requires; where it changes nothing you did, say so. If `message` opens the thread and the thread's title no longer fits what it now asks, retitle the thread with `leaf thread edit <page> <message> --title \"<a few words>\"`, so the thread panel names what the thread is about now."
+        },
+        {
+          "when": {"required": ["suggestion"], "properties": {"suggestion": {"const": true}}},
+          "text": "The message is a suggestion, so `text` is now the exact replacement it proposes. Apply it verbatim, or reply with your reason for declining."
+        }
+      ],
       "resolve": [
         {
           "text": "The user closed the thread. You owe no reply in it; a task you opened on it still stands until you end it."
@@ -407,7 +416,7 @@
     "answering": {
       "reply": [
         {
-          "text": "When the event asks for work, say in its thread what you will do before any other command, including reading the source it concerns: `leaf response reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. The user reads it in the thread at once, and it takes the update in hand: the update reads Working, and the line stands in the banner until you answer. Do the work and put its result on the page, with whatever shows it (captures, a figure, the numbers), then answer with `leaf response reply <answer.ref> < reply.md`: what changed, in a sentence or two, linking the section that shows it. When the event asks for no work, as a question may not, answer it with that reply at once. The page carries the work, and the thread only the conversation about it. `leaf response reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
+          "text": "When the event asks for work, say in its thread what you will do before any other command, including reading the source it concerns: `leaf response reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. The user reads it in the thread at once, and it takes the update in hand: the update reads Working, and the line stands in the banner until you answer. Do the work and put its result on the page, with whatever shows it (captures, a figure, the numbers), then answer with `leaf response reply <answer.ref> --done < reply.md`: what changed, in a sentence or two, linking the section that shows it. When the event asks for no work, as a question may not, answer it with that reply at once. The page carries the work, and the thread only the conversation about it. `leaf response reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Every answer says what it leaves: `--done` when it delivers what was asked, `--question` when its prose asks the user something back, or `--task \"<what you owe>\"` when it promises work that outlasts this turn, which then stays on you, under the reply's id, until `leaf task end` (`references/conversation-loop.md`, \"Long-running work\").",
           "when": {
             "properties": {
               "answer": {
@@ -421,7 +430,7 @@
           }
         },
         {
-          "text": "Leaf streams your opening into the thread and commits your completed final unless an explicit successful reply already answered this input. Before your first tool call, open with a short message to the user: the answer, or what you are about to do. Later working messages stay in Codex. Finish with the answer or what changed and where it appears. For an explicit answer, including widgets, a question awaiting the user, a title or relocation, use `leaf response reply <answer.ref>` and the rich options in `references/threads.md`; it validates saved edits and commits immediately. Your later final yields to that recorded answer.",
+          "text": "Leaf streams your opening into the thread and commits your completed final unless an explicit successful reply already answered this input. Before your first tool call, open with a short message to the user: the answer, or what you are about to do. Later working messages stay in Codex. Finish with the answer or what changed and where it appears. For an explicit answer, including widgets, a question awaiting the user (`--question`), work promised beyond this turn (`--task`), a title or relocation, use `leaf response reply <answer.ref>` and the rich options in `references/threads.md`; it validates saved edits and commits immediately. Your later final yields to that recorded answer.",
           "when": {
             "properties": {
               "answer": {
@@ -662,7 +671,8 @@
             "agent": {"type": "string", "minLength": 1},
             "session": {"type": "string", "minLength": 1},
             "markup": {"type": "string", "minLength": 1},
-            "awaits": {"const": true},
+            "question": {"const": true},
+            "task": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "\\S", "not": {"pattern": "[\\r\\n]"}},
             "ephemeral": {"const": true},
             "start": {
               "type": "object",
@@ -690,9 +700,11 @@
             "ephemeral": {
               "required": ["text"],
               "properties": {"author": {"const": "agent"}},
-              "not": {"anyOf": [{"required": ["responds"]}, {"required": ["awaits"]}, {"required": ["markup"]}, {"required": ["failure"]}, {"required": ["anchor"]}]}
+              "not": {"anyOf": [{"required": ["responds"]}, {"required": ["question"]}, {"required": ["task"]}, {"required": ["markup"]}, {"required": ["failure"]}, {"required": ["anchor"]}]}
             },
             "token": {"not": {"required": ["markup"]}},
+            "question": {"properties": {"author": {"const": "agent"}}},
+            "task": {"required": ["text"], "properties": {"author": {"const": "agent"}}, "not": {"anyOf": [{"required": ["failure"]}, {"required": ["question"]}]}},
             "failure": {"required": ["text", "responds"], "properties": {"author": {"const": "agent"}}},
             "anchor": {
               "required": ["revision", "text"],
@@ -702,7 +714,7 @@
         },
         "browser": {
           "required": ["kind", "parent", "revision"],
-          "not": {"anyOf": [{"required": ["markup"]}, {"required": ["awaits"]}, {"required": ["anchor"]}, {"required": ["responds"]}, {"required": ["failure"]}, {"required": ["ephemeral"]}, {"required": ["start"]}, {"required": ["title"]}]}
+          "not": {"anyOf": [{"required": ["markup"]}, {"required": ["question"]}, {"required": ["task"]}, {"required": ["anchor"]}, {"required": ["responds"]}, {"required": ["failure"]}, {"required": ["ephemeral"]}, {"required": ["start"]}, {"required": ["title"]}]}
         }
       },
       "edit": {
@@ -712,17 +724,24 @@
             "attention": {"type": "boolean"},
             "id": {"type": "string", "minLength": 1},
             "ts": {"type": "string", "minLength": 1},
-            "author": {"const": "agent"},
+            "author": {"enum": ["agent", "user"]},
             "kind": {"const": "edit"},
             "seq": {"type": "integer", "minimum": 1},
+            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"},
             "message": {"type": "string", "minLength": 1},
             "text": {"type": "string", "minLength": 1},
+            "base": {"type": "string", "minLength": 1},
             "agent": {"type": "string", "minLength": 1},
             "session": {"type": "string", "minLength": 1}
           },
-          "required": ["attention", "id", "ts", "author", "kind", "seq", "message", "text", "agent", "session"],
-          "additionalProperties": false
-        }
+          "required": ["attention", "id", "ts", "author", "kind", "seq", "message", "text"],
+          "additionalProperties": false,
+          "oneOf": [
+            {"properties": {"author": {"const": "agent"}}, "required": ["agent", "session"]},
+            {"properties": {"author": {"const": "user"}}, "not": {"anyOf": [{"required": ["agent"]}, {"required": ["session"]}]}}
+          ]
+        },
+        "browser": {"required": ["kind", "message", "text", "base"]}
       },
       "summary": {
         "record": {
@@ -813,7 +832,7 @@
                 {
                   "type": "object",
                   "properties": {
-                    "kind": {"enum": ["thread", "widget", "element"]},
+                    "kind": {"enum": ["widget", "element"]},
                     "id": {"type": "string", "minLength": 1}
                   },
                   "required": ["kind", "id"],

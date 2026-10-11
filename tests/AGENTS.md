@@ -45,12 +45,12 @@ races are arrangements, not probabilities**), and fix that cause.
 
 ## Run what the change needs
 
-The host supplies `wt`, `uv`, `jq` 1.6 or newer, and Node 22.18 or newer
-(`package.json`, `engines`).
+The host supplies `wt`, `uv`, `jq` 1.6 or newer, Node 22.18 or newer, and pnpm
+(the version `package.json` pins).
 `wt setup` installs Playwright's Chromium headless
 shell, WebKit, Firefox, and Chrome, their Linux system dependencies, the example assets,
-and the npm trees; `uv run` syncs Python. Worktrunk starts this setup in the background
-when it creates a worktree, so editing can begin immediately. Run `wt setup` before
+and the Node dependencies; `uv run` syncs Python. Worktrunk starts this setup in the
+background when it creates a worktree, so editing can begin immediately. Run `wt setup` before
 testing: it waits for any ongoing setup, refreshes dependencies, and reports failures.
 A plain clone does not fire Worktrunk's creation hook; start its background setup with
 `wt hook post-start project:setup`. Cloud environments supply the host tools and fonts.
@@ -58,7 +58,7 @@ A plain clone does not fire Worktrunk's creation hook; start its background setu
 ```sh
 wt setup
 uv run pytest tests/test_render_widgets.py -q -n0 -k board   # the tests a change needs
-npm run test:runtime                 # tests/runtime/, under Node
+pnpm run test:runtime                 # tests/runtime/, under Node
 uv run pytest tests                  # broad selection; the landing gate runs it
 uv run pytest --lf --lfnf=none -x -n0
 uv run pytest --regtest-reset -n0 <node-id>
@@ -72,7 +72,7 @@ whose own lines the change edits.
 
 Before handing over, run the tests that hold the behavior you changed, in any file
 and nightly ones included, named by node id or `-k`; find them by reading which tests
-exercise the code the change touches. Run `npm run test:runtime` too when the change
+exercise the code the change touches. Run `pnpm run test:runtime` too when the change
 reaches the runtime. A change lands only on a green landing gate, which runs the broad
 selection: a pull request's `test` job, or `wt merge`'s pre-merge. A failure there that
 your selection missed is the gate doing its job; fix it and push. Every other nightly

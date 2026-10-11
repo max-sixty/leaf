@@ -2,14 +2,13 @@
 
 Worktrunk owns background execution and its logs; this command owns the setup
 pipeline and its success. A machine-wide lock serializes callers because browser
-system packages are shared, and concurrent npm ci runs in one checkout would
-replace each other's node_modules. A foreground caller waits, then refreshes
-against warm caches; there is no separate readiness record to invalidate.
+system packages are shared, and concurrent installs in one checkout would replace
+each other's node_modules. A foreground caller waits, then refreshes against warm
+caches; there is no separate readiness record to invalidate.
 """
 
 import shlex
 import subprocess
-from concurrent.futures import ThreadPoolExecutor
 
 import click
 from leaf.state import flocked, state_home_path
@@ -24,7 +23,7 @@ def run(*command: str) -> None:
 
 @click.command()
 def setup() -> None:
-    """Install this checkout's assets, browsers and npm dependencies.
+    """Install this checkout's assets, browsers and Node dependencies.
 
     Worktrunk's post-start hook runs this in the background. Invoke `wt setup`
     before testing to wait for other installs and verify the current checkout.
@@ -47,15 +46,7 @@ def setup() -> None:
                 "--only-shell",
             )
             run("uv", "run", "--frozen", "playwright", "install", "chrome")
-            # These dependency trees are independent; npm owns their installation.
-            with ThreadPoolExecutor(max_workers=3) as pool:
-                installs = [
-                    pool.submit(run, "npm", "ci"),
-                    pool.submit(run, "npm", "ci", "--prefix", "worker"),
-                    pool.submit(run, "npm", "ci", "--prefix", "evals"),
-                ]
-                for install in installs:
-                    install.result()
+            run("pnpm", "install", "--frozen-lockfile")
     except subprocess.CalledProcessError as error:
         raise click.ClickException(
             f"{shlex.join(error.cmd)} exited with status {error.returncode}"

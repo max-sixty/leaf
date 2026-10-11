@@ -137,6 +137,10 @@ has tried; settle that before building it.
 
 ### User continuity and mobile access
 
+- **Bring back a rewrite Escape discarded.** Escape drops a rewrite's changed words, as
+  in Slack, Discord and Telegram, so an accidental press loses a long rewrite. Offer a
+  way back, such as `g D` restoring the last discarded rewrite into its editor (the
+  user's suggestion, 2026-10-06).
 - **Decide when a page merits a separate phone composition.** Many pages are
   ephemeral and authored for a user reading on a large screen, so a bespoke phone
   animation may not repay its cost. Decide how the agent weighs the user's viewing
@@ -230,7 +234,7 @@ and its chrome coordinate.
     growing along it and changed cells outlined. `lf-visual-review` steps through one
     case at a time, so the grid is a new view, in that package or beside it.
   - For comment placement alone, an SVG atlas of the side `comment-placement.js`
-    chooses (`commentSide`) over a grid of inputs, which `npm run test:runtime` can
+    chooses (`commentSide`) over a grid of inputs, which `pnpm run test:runtime` can
     draw without a browser.
 
   How to keep the candidates maintainable is not yet thought through, and comes before
@@ -420,6 +424,10 @@ on 2026-10-07.
 Revisit these when their stated trigger becomes real; they are not an active queue.
 
 ### Product and harness ideas
+
+- **Learn how users prefer to dictate comments.** Observe whether people use
+  browser dictation, OS dictation, or their own dictation app. Defer a microphone
+  button until an unmet need justifies the extra visual noise in Leaf's text boxes.
 
 - **Assess whether automatic measurement freshness is useful (#7 in the simplification audit).**
   Keep the current `lf-num` source/write-time reminder for now. Look for cases where

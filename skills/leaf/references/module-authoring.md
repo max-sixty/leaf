@@ -241,8 +241,9 @@ Containment follows rendered slots, so native conversation parts nominated into 
 shadow reader belong to the region registered around their outlets.
 `readingPosture(node)` is `bounded` exactly while the region's body is its own
 scroller, and `watchReadingRegionTransitions(listener)` receives a `shift` when a
-shown region's scroller or width changes without a gesture; the continuity owner records the user's
-place as they scroll and restores it there.
+shown region's scroller or width changes without a gesture, or the page's width or
+banner does (an entry with no region); the continuity owner records the user's place as
+they scroll and restores it there.
 
 A compound widget whose parts scroll independently registers each with
 `registerReadingRegion({id, host, body})`, taking a stable id from
@@ -281,23 +282,24 @@ read itself:
 ```
 
 The rows' `scroll-margin-top` has a landing on a row, native or the runtime's, arrive
-below the header. The header's `--lf-head-inset` says how far below `--lf-top` its
-controls stand when it is stuck. The layer's focus margin takes the scroller's landing
-room (`--lf-landing-room`) back from it, so a control focused where its header sticks
-counts as shown; without it the browser scrolls toward each one it focuses, every key,
-and the stuck header never moves. A box that scrolls with `scroll-padding` of its own
-states that room in `--lf-landing-room-start` beside its `--lf-top-start`.
-The runtime reads what passes under it as off screen from `--lf-top`,
-for read acknowledgement, arrival checks, and chrome placement, so nothing is declared.
-The stacked value goes on a box that does not itself scroll, since the runtime reads a
-box that scrolls where it stands. The runtime starts `--lf-top` again on every box that
+below the header. Focus needs nothing declared: the runtime marks a box that sticks, and
+the layer's focus margin counts a control in a stuck header as shown where it sticks,
+and lands a focused row below the headers stacked over it. A box that scrolls with
+`scroll-padding` of its own states that room as `--lf-landing-room-start` beside its
+`--lf-top-start`. A header whose controls stand below where it sticks may say how far
+(`--lf-head-inset`), so a control revealed from elsewhere lands exactly there. The
+runtime reads what passes under it as off screen from `--lf-top`, for read
+acknowledgement, arrival checks, and chrome placement, so nothing is declared. The
+stacked value goes on a box that does not itself scroll, since the runtime reads a box
+that scrolls where it stands. The runtime starts `--lf-top` again on every box that
 scrolls and doesn't itself stick, `overflow: hidden` included, so a header inside one
 sticks at that box's top. A box a package makes scroll also states `--lf-top: 0px`
-beside its overflow, so the restart holds from the first paint. A header sticks below its scroller's top padding;
-to have it stand on the scroller's top edge, state `--lf-top-start` at minus that
-padding and `--lf-top: var(--lf-top-start)`. A box that only clips, such as a card
-rounding its corners, uses `overflow: clip`, since a `hidden` box is a scroller and a
-header inside it would scroll off with the page rather than stick below the banner.
+beside its overflow, so the restart holds from the first paint. A header sticks below
+its scroller's top padding; to have it stand on the scroller's top edge, state
+`--lf-top-start` at minus that padding and `--lf-top: var(--lf-top-start)`. A box that
+only clips, such as a card rounding its corners, uses `overflow: clip`, since a `hidden`
+box is a scroller and a header inside it would scroll off with the page rather than
+stick below the banner.
 
 A box a package makes scroll text sideways carries the class `lf-text-scroller`. An
 overlay scrollbar paints over the box's lower edge and widens under the pointer, so while

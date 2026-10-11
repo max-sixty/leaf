@@ -54,6 +54,8 @@ acts again or the markup records the action anyway.
 
 from .events import (
     conversation_turns,
+    exchange,
+    turn_message,
     unanswered_turns,
 )
 from .projection import (
@@ -310,6 +312,9 @@ def canonical_workflows(
         return {
             "id": source["id"],
             "input": source["id"],
+            # The message a thread input is said in, which shows its delivery: its
+            # own, or for a revision the message it rewrote (`events.turn_message`).
+            "message": turn_message(source) if target["kind"] == "thread" else None,
             "seq": source["seq"],
             "revision": source.get("revision"),
             "subject": target,
@@ -389,7 +394,7 @@ def canonical_workflows(
 
     workflows = []
     for thread_id, thread in threads.items():
-        turns = conversation_turns(thread)
+        turns = exchange(thread)
         if thread["resolved"]:
             continue
         target = {"kind": "thread", "id": thread_id}
@@ -417,7 +422,7 @@ def canonical_workflows(
         ]
         answer = {
             "kind": "reply",
-            "to": response_address["id"],
+            "to": turn_message(response_address),
             "for": response_address["id"],
         }
         for source in unanswered_inputs:

@@ -14,8 +14,10 @@ from leaf_dev.eval import catalog, native_provider, prepare, select_cases
 def codex_cli(monkeypatch):
     """Use the eval dependency's real CLI for model-free installation checks;
     the suite otherwise puts a failing harness stub ahead of installed programs."""
-    programs = Path(__file__).parents[1] / "evals/node_modules/.bin"
-    assert (programs / "codex").is_file(), "Install eval dependencies with npm ci"
+    programs = Path(__file__).parents[1] / "node_modules/.bin"
+    assert (programs / "codex").is_file(), (
+        "Install eval dependencies with pnpm install --frozen-lockfile"
+    )
     monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
 
 

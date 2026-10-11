@@ -10,11 +10,11 @@ and the registry's declarations. What comes out passes through
 `build/browser/shipped.mjs`, the owner `build/browser/build.mjs` shares: it refuses a module an export cannot
 load and writes the bundle's license notices (`vendor`).
 
-Every version they carry is the one `package-lock.json` resolved: `package.json`
+Every version they carry is the one `pnpm-lock.yaml` resolved: `package.json`
 names each package a bundle's entry imports, the lock settles the rest of the
-closure, and every build reads the root `node_modules` that `npm ci` installs from
+closure, and every build reads the root `node_modules` that `pnpm install --frozen-lockfile` installs from
 it. Pinned source backports are explicit build inputs beside this file. Together
-with the lock, those inputs reproduce the tracked bytes after `npm ci`.
+with the lock, those inputs reproduce the tracked bytes after `pnpm install --frozen-lockfile`.
 
 CodeMirror's style-mod provider expands its selectors before this build places
 its resulting rules in `lf-base`. The guarded provider adaptation preserves
@@ -216,7 +216,25 @@ def build_photoswipe(work: Path) -> list[Path]:
 
 
 def build_snapdom(work: Path) -> list[Path]:
-    """Browser-native DOM rasterization, loaded only when capturing a page region."""
+    """Browser-native DOM rasterization, loaded only when capturing a page region.
+
+    After a capture, SnapDOM counts each later mutation against the target's ancestors,
+    climbing out of a shadow tree through `getRootNode().host`. A target removed with
+    its subtree has that subtree's top element as its root, and an `<a>` there answers
+    `host` with its URL's host string. SnapDOM 3.3.0 to 3.3.3 then use that string as a
+    WeakMap key, so a removed link throws from the observer, an uncaught page error.
+    Climb only from an element whose parent is a shadow root. Refuse a changed upstream
+    seam so an upgrade rechecks this adaptation.
+    """
+    package = work / "node_modules/@zumer/snapdom"
+    shutil.copytree(NODE_MODULES / "@zumer/snapdom", package)
+    source_path = package / "dist/snapdom.mjs"
+    source = source_path.read_text(encoding="utf-8")
+    original = "for(;r;r=r.parentElement||r.getRootNode?.()?.host)"
+    replacement = "for(;r;r=r.parentElement||(r.parentNode?.nodeType===11?r.parentNode.host:null))"
+    if source.count(original) != 1:
+        raise ValueError(f"SnapDOM mutation-ancestor seam changed: {original}")
+    source_path.write_text(source.replace(original, replacement), encoding="utf-8")
     out = ASSETS / "vendor/snapdom.esm.js"
     (work / "entry.mjs").write_text(
         'export { snapdom } from "@zumer/snapdom";\n', encoding="utf-8"
@@ -373,7 +391,7 @@ def build_floating_ui(work: Path) -> list[Path]:
     # Backport upstream CSS-zoom support, merged but absent from published 1.8.0:
     # https://github.com/floating-ui/floating-ui/pull/3492
     # Commit 584a3afb1174ec00a371624afde50fc052b75a32, applied to its published ESM.
-    # Build from private copies so npm's installed source remains authoritative.
+    # Build from private copies so the installed source remains authoritative.
     for package in ("core", "dom"):
         shutil.copytree(
             NODE_MODULES / "@floating-ui" / package,
@@ -413,18 +431,13 @@ def build_webawesome(work: Path) -> list[Path]:
     on demand; the shared chunks are core payload because chrome also reads them.
 
     Lit is not bundled: every Lit import binds to `/vendor/lit.js`, the page's one
-    copy, which `build/browser/build.mjs` builds from the same install. Where that
-    Lit falls outside Web Awesome's declared range, npm nests Web Awesome's own
-    choice under the package, and the build refuses rather than run Web Awesome
-    against a Lit it was not published for.
+    copy, which `build/browser/build.mjs` builds from the same install. The
+    Web Awesome builder checks that both packages resolve the same Lit before
+    binding its imports to Leaf's copy.
     """
     directory = package_vendor("default")
     directory.mkdir(parents=True, exist_ok=True)
     out = directory / "webawesome.esm.js"
-    if (NODE_MODULES / "@awesome.me/webawesome/node_modules/lit").exists():
-        raise RuntimeError(
-            f"Web Awesome's declared Lit range excludes lit {version('lit')}"
-        )
     source = ROOT / "build/webawesome"
     for name in (
         "entry.mjs",

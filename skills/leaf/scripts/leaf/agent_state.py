@@ -574,6 +574,7 @@ def _write_page_state(
                 "responds",
                 "ephemeral",
                 "revision",
+                "edited",
             ):
                 if key in event:
                     message[key] = event[key]

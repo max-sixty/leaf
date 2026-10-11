@@ -31,8 +31,8 @@ from pathlib import Path
 
 tool = Path(sys.argv[0]).name
 args = sys.argv[1:]
-if tool == "npm":
-    key = "npm-" + (args[-1] if "--prefix" in args else "root")
+if tool == "pnpm":
+    key = "pnpm-root"
 elif "fetch-assets" in args:
     key = "assets"
 else:
@@ -40,13 +40,13 @@ else:
 events = Path(os.environ["SETUP_EVENTS"])
 (events / (key + ".started")).write_text(json.dumps([tool, *args]))
 hold = os.environ["SETUP_HOLD"]
-if hold == key or hold == "npm" and tool == "npm":
+if hold == key or hold == "pnpm" and tool == "pnpm":
     os.read(0, 1)
 (events / (key + ".finished")).touch()
 sys.exit(17 if os.environ["SETUP_FAIL"] == key else 0)
 """
     )
-    for tool in ("uv", "npm"):
+    for tool in ("uv", "pnpm"):
         path = tools / tool
         path.write_text(installer)
         path.chmod(0o755)
@@ -138,32 +138,28 @@ def test_foreground_setup_waits_for_background_install_in_another_checkout(
         "assets",
         "browsers",
         "chrome",
-        "npm-root",
-        "npm-worker",
-        "npm-evals",
+        "pnpm-root",
     }
 
 
-def test_setup_runs_npm_trees_concurrently_and_waits_for_all_of_them(setup_process):
-    process, events = setup_process("npm", hold="npm")
-    entered(events, "npm-root", "npm-worker", "npm-evals")
-    assert not list(events.glob("npm-*.finished"))
+def test_setup_waits_for_dependency_installation(setup_process):
+    process, events = setup_process("pnpm", hold="pnpm")
+    entered(events, "pnpm-root")
+    assert not list(events.glob("pnpm-*.finished"))
     assert process.poll() is None
-    process.stdin.write("xxx")
+    process.stdin.write("x")
     process.stdin.flush()
     completed(process)
-    assert len(list(events.glob("npm-*.finished"))) == 3
+    assert len(list(events.glob("pnpm-*.finished"))) == 1
     commands = {
-        tuple(json.loads(path.read_text())) for path in events.glob("npm-*.started")
+        tuple(json.loads(path.read_text())) for path in events.glob("pnpm-*.started")
     }
     assert commands == {
-        ("npm", "ci"),
-        ("npm", "ci", "--prefix", "worker"),
-        ("npm", "ci", "--prefix", "evals"),
+        ("pnpm", "install", "--frozen-lockfile"),
     }
 
 
-@pytest.mark.parametrize("installer", ["assets", "npm-evals"])
+@pytest.mark.parametrize("installer", ["assets", "pnpm-root"])
 def test_setup_reports_installer_failure_and_releases_lock_for_retry(
     setup_process, installer
 ):
@@ -171,4 +167,4 @@ def test_setup_reports_installer_failure_and_releases_lock_for_retry(
     assert "exited with status 17" in completed(failed, success=False)
     retry, events = setup_process("retry")
     completed(retry)
-    assert len(list(events.glob("*.finished"))) == 6
+    assert len(list(events.glob("*.finished"))) == 4

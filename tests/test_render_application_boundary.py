@@ -2728,7 +2728,7 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
                 "revision": 1,
                 "parent": "opening",
                 "text": text,
-                "awaits": True,
+                "question": True,
             },
         )
     page = open_page(browser, url, context=context)
@@ -3188,7 +3188,9 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
         )
     expect(workspace.locator('[data-event="later-answer"]')).to_have_count(0)
     assert editor.bounding_box() == before
-    workspace.get_by_role("button", name="2 new replies", exact=True).click()
+    workspace.get_by_role(
+        "button", name="1 new reply · 1 message edited", exact=True
+    ).click()
     if mode != "Reply only":
         expect(workspace.locator('[data-event="later-answer"]')).to_contain_text(
             "A later turn."
@@ -3200,7 +3202,9 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
             "document.querySelector('#workspace [data-event=answer]') === heldMessage"
         )
     expect(
-        workspace.get_by_role("button", name="2 new replies", exact=True)
+        workspace.get_by_role(
+            "button", name="1 new reply · 1 message edited", exact=True
+        )
     ).to_have_count(0)
     expect(editor).to_have_js_property("value", "Keep this draft while updates wait.")
     rendered(page)

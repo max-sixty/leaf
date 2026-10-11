@@ -2215,9 +2215,13 @@ def test_thread_navigation_lands_after_resizing_an_open_reply(browser, serve):
     resized(page, 1280, 720)
     card = page.locator(".lf-margin-preview")
     thread = card.get_by_role("group", name="Thread, Is lunch provided", exact=False)
-    page.keyboard.press("t")
+    # The walk reaches the lunch thread wherever the gallery's order puts it.
+    for _ in range(4):
+        page.keyboard.press("t")
+        scroll_settled(page)
+        if thread.count() and thread.evaluate("el => el === document.activeElement"):
+            break
     expect(thread).to_be_focused()
-    scroll_settled(page)
     page.keyboard.press("t")
     expect(
         card.get_by_role("group", name="Thread, Workshop room photo")
@@ -2248,9 +2252,9 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("t")
     card = page.locator(".lf-margin-preview")
-    expect(
-        card.locator('.lf-page-thread[data-thread="72e031c5bf0d485ba9054628e09869d4"]')
-    ).to_be_focused()
+    # Whichever thread the walk reaches first; the gallery's order decides that.
+    expect(card.locator(".lf-page-thread")).to_be_focused()
+    walked = card.locator(".lf-page-thread").get_attribute("data-thread")
     owner = page.locator(
         '.lf-margin-marker[data-lf-kinds~="comment"]'
         '[aria-controls="lf-margin-preview"][aria-expanded="true"]:not([hidden])'
@@ -2290,9 +2294,7 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     assert card.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
         placed, abs=0.5
     )
-    expect(
-        card.locator('.lf-page-thread[data-thread="72e031c5bf0d485ba9054628e09869d4"]')
-    ).to_be_focused()
+    expect(card.locator(f'.lf-page-thread[data-thread="{walked}"]')).to_be_focused()
     # A press the page answers leaves the window where the user put it: `g G` carries the
     # card away, and `g` then opens Go-to over the page's foot rather than bringing the
     # card back and mapping the window around it.
@@ -2320,7 +2322,7 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
         {
             "kind": "reply",
             "author": "agent",
-            "parent": "72e031c5bf0d485ba9054628e09869d4",
+            "parent": walked,
             "revision": 1,
             "text": "A turn arriving while the card is away.",
         },
@@ -3755,7 +3757,7 @@ def test_q_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
             "responds": asked["id"],
             "revision": 1,
             "text": "Weekly or daily?",
-            "awaits": True,
+            "question": True,
         },
     )
     owed = append_carried_log_record(
@@ -3859,27 +3861,26 @@ def test_the_questions_panel_lists_both_queues_and_what_is_done(browser, serve):
         )
 
     asked = said("agent", kind="comment", text="Weekly?", anchor={"section": "cadence"})
-    owed = said(
-        "user", kind="comment", text="Tighten this.", anchor={"section": "notes"}
+    said("user", kind="comment", text="Tighten this.", anchor={"section": "notes"})
+    rebuild = said(
+        "user", kind="comment", text="Rebuild them.", anchor={"section": "notes"}
     )
-    subject = {"kind": "thread", "id": owed["id"]}
     said(
-        "agent", kind="task", owner="agent", subject=subject, title="Rebuild the notes"
+        "agent",
+        kind="reply",
+        parent=rebuild["id"],
+        responds=rebuild["id"],
+        text="Rebuilding them.",
+        task="Rebuild the notes",
     )
     retitle = said("user", kind="comment", text="Retitle it.", anchor={"section": "h"})
-    said(
+    ended = said(
         "agent",
         kind="reply",
         parent=retitle["id"],
         responds=retitle["id"],
-        text="Retitled.",
-    )
-    ended = said(
-        "agent",
-        kind="task",
-        owner="agent",
-        subject={"kind": "thread", "id": retitle["id"]},
-        title="Retitle the release",
+        text="Retitling it.",
+        task="Retitle the release",
     )
     said(
         "agent",
@@ -4329,7 +4330,7 @@ def test_a_q_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, ser
             "responds": asked["id"],
             "revision": 1,
             "text": "Weekly or daily?",
-            "awaits": True,
+            "question": True,
         },
     )
     page = open_page(browser, url)
@@ -13712,6 +13713,35 @@ def test_align_current_thread_stays_in_its_panel_without_travel(browser, serve):
         )
         == before
     )
+
+
+def test_a_box_is_already_shown_whole_where_it_fits_and_in_part_where_it_cannot(
+    browser, serve
+):
+    """A landing that follows the user moves nothing for a box already shown: all of it
+    in view where it fits its room, any of it where it does not. A wrapper clipping only
+    sideways bounds no height, so an editor standing in an `overflow-x: clip` row 20px
+    tall still fits, and 30px of it in view is not yet shown."""
+    source = leaf_page(
+        "Room",
+        '<div style="height:2000px"></div>'
+        '<div style="overflow-x:clip;height:20px"><div id="box" style="height:100px"></div></div>'
+        '<div style="height:2000px"></div><div id="tall" style="height:5000px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    reading = page.evaluate("""async () => {
+      const {alreadyShown, fitsWhole} =
+        await window.__lfRuntimeImport('/runtime/landing-scroll.js');
+      const {shownWindow} = await window.__lfRuntimeImport('/runtime/geometry.js');
+      const partly = (node) => {
+        const top = node.getBoundingClientRect().top - (shownWindow().bottom - 30);
+        scrollBy({top, behavior: 'instant'});
+        return [fitsWhole(node), alreadyShown(node)];
+      };
+      return [partly(document.querySelector('#box')),
+              partly(document.querySelector('#tall'))];
+    }""")
+    assert reading == [[True, False], [False, True]]
 
 
 def test_align_current_tall_block_reveals_its_opening_through_outer_scrollers(

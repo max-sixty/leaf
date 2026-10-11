@@ -160,7 +160,12 @@ the Threads panel, a card news takes out of the view, as another actor resolving
 thread under Open does, stays where it stands, holding the news behind that notice
 and, once shown, in the shape it stood in, until its going would move nothing the
 user sees or they change the view
-(`thread/thread-list-view.js`, `keeping`). A region whose rows only the
+(`thread/thread-list-view.js`, `keeping`). A turn of the user's own that takes its
+card out of the view, as a reply under "Waiting on you" or a rewrite or Reopen under
+Resolved does, takes them with it: the view widens to one that holds the thread, and a
+refusal puts it back only while they have not acted since (`thread/thread-card.js`,
+`#speak`); news keeps its card in the view, and Resolve moves them to the neighbouring
+card. A region whose rows only the
 log or the clock decides, so no first paint can size it, shows none of them until the
 reader opens them through a control of fixed size the widget already draws, as the
 Atlas plan's Stopped work disclosure opens its list; after that a change to its rows
@@ -538,5 +543,5 @@ visible change").
 `vendor/browser-runtime.js` and the modules beside it in `vendor/browser-runtime/`,
 which import the runtime's own modules, and writes `vendor/lit.js`, the page's one copy of Lit
 (`build/AGENTS.md` owns the commands). What a module decides on its own is
-tested under `tests/runtime/` (`npm run test:runtime`; `tests/AGENTS.md` says
+tested under `tests/runtime/` (`pnpm run test:runtime`; `tests/AGENTS.md` says
 which readings may go there).

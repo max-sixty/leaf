@@ -992,8 +992,7 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
     padding: var(--focus-ring-room) var(--lf-list-inset); --lf-block-frame: 1;
     scroll-padding: var(--focus-ring-room) 0;
     --lf-top-start: calc(-1 * var(--focus-ring-room)); --lf-top: var(--lf-top-start);
-    --lf-landing-room-start: var(--focus-ring-room);
-    --lf-landing-room: var(--lf-landing-room-start); }
+    --lf-landing-room-start: var(--focus-ring-room); }
   /* The list holds focus itself only while it shows no thread (thread-list-view.js):
      an empty list, or the last one folding away as it resolves. That folding card is
      positioned, so it paints after the scrollport and an outline on the list itself
@@ -1045,8 +1044,7 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
      unisolated, so what a row raises still stands over the rows after it. */
   .lf-threads > .lf-thread-compact { --lf-top-outer: var(--lf-top); }
   .lf-threads > .lf-thread-compact > .lf-thread-summary {
-    position: sticky; top: var(--lf-top); z-index: var(--lf-thread-title-z);
-    --lf-head-inset: 0px; }
+    position: sticky; top: var(--lf-top); z-index: var(--lf-thread-title-z); }
   .lf-threads > .lf-thread-compact > :not(.lf-thread-summary) {
     --lf-top: calc(var(--lf-top-outer) + var(--lf-thread-title-h)); }
   :is(.lf-threads > .lf-thread-compact > :not(.lf-thread-summary),
@@ -1192,11 +1190,10 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   /* The reply box stands at the card's foot, the edge the fold draws up, so it leaves
      as the fold begins rather than ride that edge. */
   .lf-going > .lf-thread-reply { visibility: hidden; }
-  /* Resolve drawn done: on its way out, and as the Reopen that stands in its place. */
-  :is(.lf-going .lf-resolve, .lf-reopen:has(> .lf-action-icon)) {
-    color: var(--ok-ink); }
-  :is(.lf-going .lf-resolve, .lf-reopen:has(> .lf-action-icon))::before {
-    background: var(--ok-tint); }
+  /* Resolve drawn done on its way out, as the Reopen standing in its place is
+     (shadow.css). */
+  .lf-going .lf-resolve { color: var(--ok-ink); }
+  .lf-going .lf-resolve::before { background: var(--ok-tint); }
   /* Direct navigation cues the same bounded box it revealed: a short card, one
      message, the reply row, or an oversized editor. */
   .lf-thread.flash, .lf-msg.flash, .lf-thread-reply.flash, .lf-thread-reply leaf-text.flash {

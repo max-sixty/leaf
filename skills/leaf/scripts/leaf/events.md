@@ -10,8 +10,8 @@ page and is not a global identifier. The kinds:
 | Kind | Author | Door | Fields | Meaning |
 | --- | --- | --- | --- | --- |
 | `comment` | user or agent | `POST /api/event`, `leaf thread open` | `text`, `drawing`, or `token`; optional `anchor`, `suggestion`, `about: "design"`, `response`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
-| `reply` | user or agent | `POST /api/event`, `leaf response reply`, proactive `leaf thread reply` | `parent`; `text` or `token`; agent `responds` when answering; `awaits`, `markup`, and a replacement `anchor` or null detachment (CLI only) | answers the exact named obligation without closing its thread; an agent reply may also replace or remove the thread's current location |
-| `edit` | agent | `leaf thread edit` | `message`, `text` | replaces one message's visible text; the original stays in the log |
+| `reply` | user or agent | `POST /api/event`, `leaf response reply`, proactive `leaf thread reply` | `parent`; `text` or `token`; agent `responds` when answering; `question`, a `task` title, `markup`, and a replacement `anchor` or null detachment (CLI only) | answers the exact named obligation without closing its thread; an agent reply may also replace or remove the thread's current location |
+| `edit` | user or agent | `POST /api/event`, `leaf thread edit` | `message`, `text`; `base` (browser) | replaces the visible text of one message its own author wrote; the original stays in the log. A user's is a turn the agent answers |
 | `read` | user | `POST /api/event` | `messages: [{message, version}]` | records that this page's one user has read exact current or historical agent-content versions; `$events` declares it bookkeeping, so it adds no thread turn or agent work |
 | `thread_title` | agent | independent first naming or `leaf thread edit --title` | `thread`, `title` | names a thread in the panel; latest title wins without adding a turn or settling work |
 | `reanchor` | page | revision activation | `thread`, `revision`, `anchor: {section} or null` | a passage or visual part no longer resolves; retains the open thread at its surviving section or detaches it without adding a message, answering work or changing attention |
@@ -24,7 +24,7 @@ page and is not a global identifier. The kinds:
 | `pickup` | page | the delivery transport; a harness failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named attention-bearing inputs reached the durable Codex queue or entered an exact agent turn, or the harness gave up on them with no answer coming; includes page errors and reports; idempotent per event, phase, session, and turn; never a work claim |
 | `note` | agent | `leaf page stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` (`report` ids it answered, and `task` ids its `--completes` ends) | one public version mapped to an immutable revision, naming the decisions it took back, the reports it answered and the widget tasks it completed |
 | `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the user |
-| `task` | agent | `leaf task open` | `owner` (`agent`, or `user` with `--on user`); `subject`: `{kind: thread, id}` (an open thread, for the agent's own task only), `{kind: widget, id}` (a live page widget, which for the agent's own task declares `x-work` or holds an unsettled action), `{kind: element, id}` (any other element of the page), or `{kind: page}`; `title`; server-stamped `revision` on a widget task | the agent takes on work it owes there, or puts a task on the user; the agent's stands through replies, resolutions, versions and session ends, and the user's until their Done (`tasks.py`) |
+| `task` | agent | `leaf task open`, or a reply's `task` (`leaf response reply --task`) | `owner` (`agent`, or `user` with `--on user`); `subject`: `{kind: thread, id}` (a reply's task only, on the reply's thread), `{kind: widget, id}` (a live page widget, which for the agent's own task declares `x-work` or holds an unsettled action), `{kind: element, id}` (any other element of the page), or `{kind: page}`; `title`; server-stamped `revision` on a widget task | the agent takes on work it owes there, or puts a task on the user; the agent's stands through replies, resolutions, versions and session ends, and the user's until their Done (`tasks.py`) |
 | `task_end` | agent or user | `leaf task end`, `POST /api/event` from a task's Done | `task`, an open explicit task id, or for an agent withdrawal a prose Question id (`reply:<message-id>`); `outcome` (`done`, `failed`, or `dropped`; the user's is `done`); optional `detail` from the agent | ends explicit work; the user can end only a task opened on them. For a prose Question, the agent withdraws the request without creating an answer, whatever the outcome. Widget Questions end through their declared widget state or an authored withdrawal |
 | `start` | agent | `leaf task start`; addressed progress carries the same declaration in its reply | `item`, an update the agent owes (its event id) or an open task; the banner's `text`; `turn`, the claimant turn that wrote it, when the poster holds the page | takes the item in hand: an update reads Working and a task runs, until the update is answered, the task ends, or a `put_down` follows; the newest start on an item replaces the one before |
 | `put_down` | agent | `leaf status waiting` and `leaf status idle`, when a start stands | | ends every start before it: the updates they named go back to their delivery stage and the tasks stay open with nothing running (`tasks.item_starts`) |
@@ -141,9 +141,9 @@ agent stays input even after the work it withdrew ends.
 Reports and errors always carry attention; agent messages do not. `leaf wait`,
 delivery selection, pickup, the unpicked-input Stop guard and the idle gate read
 that one field through `service.requires_agent_attention`. The pending transport
-count includes only user input among those events. Read marks, edits that answer
-no Question and touch no work in hand, and closing or reopening an answered thread with
-none stay quiet. Either side can open a thread and either side can close one.
+count includes only user input among those events. Read marks, an agent's edits,
+and closing or reopening an answered thread with none stay quiet; a user's edit is a
+turn the agent owes, so it carries attention as a reply does. Either side can open a thread and either side can close one.
 A note's purpose is discharged by being read, and only the user knows that
 happened, so the user ordinarily closes a thread; `leaf thread resolve` is the agent's
 door onto closing, and a thread the agent closed is named as such in the panel
@@ -248,7 +248,7 @@ reaction is not. The original message id names its first content version, and ea
 `edit` id names a new one. A version is read once a `read` event names it — the
 browser posts one after presenting and exposing the visible body, including an
 interactive reply — or once the user acts in its thread after it, the thread the
-update names (`thread_context.event_threads`): a reply or reaction, a resolve or reopen,
+update names (`thread_context.event_threads`): a reply, rewrite or reaction, a resolve or reopen,
 an action on a widget one of the thread's messages carries, or an action
 whose admitted answer closes the thread. An update that changes a thread without naming
 it, such as a later decision on the suggestion that had answered it or an `undo`,
@@ -264,9 +264,12 @@ across tabs and document revisions; they never answer a question, settle a workf
 or enter agent delivery. The one-user page assumption is the page's current
 lifecycle, not a per-account scope.
 
-An agent comment opens a question. A substantive reply opens or resumes the thread;
-when its prose leaves another question for the user, a reply command with `--awaits`
-records `awaits: true`. The browser cannot write that field. A user reply
+An agent comment opens a question. A substantive reply opens or resumes the thread,
+and an answering command declares what it leaves: `--done`, nothing further;
+`--question`, when its prose leaves another question for the user, records
+`question: true`; `--task <title>`, when it promises work it does not deliver, records
+`task: <title>`, which opens that task on the thread under the reply's id
+(`tasks.task_reading`). The browser cannot write either field. A user reply
 always hands the thread back to the agent, so it needs no parallel declaration.
 An agent reply records the delivery event it answers as `responds`, including a
 completed delivery answer whose update was settled during the turn. A proactive
@@ -284,7 +287,7 @@ reply from an agent's. Only the harness writer supplies `failure`, and the panel
 such a reply as a receipt whose head says the message answers nothing, since
 otherwise it is indistinguishable from the answer it stands in for.
 When a reply carries a widget with a local `x-awaits` Question, the widget's standing
-projection declares the Question instead; the CLI refuses a parallel `--awaits` flag on
+projection declares the Question instead; the CLI refuses a parallel `--question` flag on
 that markup. A frozen widget keeps the user's Question open until its
 `x-awaits.answered` condition holds. Actions on the widget before then have not been handed over: they carry no receipt and
 require no agent reply, and the action that answers carries the receipt and hands the
@@ -331,11 +334,28 @@ What each thread command does for its user, and when an agent uses it, is
 `../../references/threads.md`. The door and the fold hold these rules behind
 them:
 
-- `edit` revises an agent-authored comment or reply, including a predecessor
-  session's message, and only its `text`: markup is frozen because a user action may already
-  rest on a widget in it. The original stays in the log with its id, timestamp,
-  author, thread position, and anchor; the panel, wait digests, and the transcript
-  fold the latest text onto it and label it edited.
+- `edit` revises only the `text` of a comment or reply that has text and that its
+  writer wrote: the user's own, or an agent's, including a predecessor session's.
+  Markup is frozen because a user action may already rest on a widget
+  in it, and a reaction or a bare drawing has no text to revise. The original stays
+  in the log with its id, timestamp, author, thread position, and anchor; the panel,
+  wait digests, and the transcript fold the latest text onto it and label it edited,
+  and the message's `edited` names that latest edit and the text it replaced (`was`).
+  Text the message already says is no revision, and is refused. A browser's edit names its `base`, the
+  revision its words were written over (the message's id, or its latest edit's id,
+  which the browser fills in for an edit of its own once the log has answered it), and
+  lands only while that is still the latest, so a tab holding words
+  another tab has since rewritten cannot silently replace them.
+- An agent's `edit` corrects its words and hands nothing over. A user's `edit` is a
+  turn: the fold keeps it in the thread's `revisions`, with `was`, the text it
+  replaced, and `events.exchange` places it among the messages by its own id, so it
+  reopens a resolved thread and owes an answer as a reply would. That answer names
+  the edit as `responds` and the rewritten message as its parent (`workflows`,
+  `turn_message`). Its delivery carries `was`, since the thread's digest reads the new
+  text. Only whose turn it is reads revisions; everything else reads the messages
+  (`events.conversation_turns`). So a question is answered by words standing after
+  it, and a rewrite of a message before an agent's question leaves that question on
+  the user, beside the answer the agent owes the rewrite.
 - A comment or reply's `title` gives its thread a first name atomically with the
   message, and leaves an existing name standing. `thread_title` names or renames an existing thread with a nonblank, single-line
   plain-text title of at most 80 characters. The latest title is projected separately
@@ -350,7 +370,7 @@ them:
   a fold without prose keeps the revised originals. A summary answers, resolves,
   and settles nothing.
 - An agent `reply` with `ephemeral: true` is retained progress text. It carries no
-  `responds`, `awaits`, markup, failure or anchor transition and participates in no
+  `responds`, `question`, `task`, markup, failure or anchor transition and participates in no
   semantic turn, work settlement or reopening. Posted to an update the agent owes, it
   carries `start: {item, turn?}` naming that exact delivered update, with its text
   as the line. `tasks.start_reading` reads this and explicit starts alike, so

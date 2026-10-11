@@ -555,7 +555,7 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
 
     Endpoint choice, inspection, and native modified navigation are separate routes;
     closing the viewer returns to the same route without shifting the comparison.
-    A parent inspector can still withdraw the complete rail with controls off.
+    A containing inspector's compare view still withdraws the complete rail.
     """
     shots = {
         "before": solid_png(1200, 600, (210, 220, 235)),

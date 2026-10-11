@@ -1913,11 +1913,10 @@ def test_server_round_trip(server, page_dir):
             "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "0i"},
             "revision": 2,
         },
-        # Message revisions are agent-authored too. The browser cannot turn the
-        # user into the recorded author of another speaker's words.
+        # A revision names a message the log holds.
         {
             "kind": "edit",
-            "message": posted["id"],
+            "message": "no-such-message",
             "text": "rewritten in the browser",
         },
         ["not", "an", "object"],
@@ -2164,6 +2163,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "approval-question"),
             "--text",
             "Choose the follow-up:",
@@ -3175,6 +3175,7 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--text",
             "Pick one:",

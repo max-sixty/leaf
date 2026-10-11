@@ -8,6 +8,10 @@ JavaScript: the browser tests import runtime modules inside Python strings
 (`__lfRuntimeImport('/runtime/…')`), the render gate calls probes by name, and
 packages load by tag. A word search sees all of them.
 
+A default export has no name of its own: its readers import the module, or a tool
+loads it by path, as eslint loads `eslint.config.mjs` and Pi loads `hooks/pi.ts`.
+So it counts as read where another file names the module's file name.
+
 A name counts as read where another tracked file names it as a word: in code,
 in a Python string, in a page, or in a contract's prose. A JavaScript comment or a
 stylesheet reads nothing, since a module's comment about another's helper keeps
@@ -18,6 +22,7 @@ never pass an unused one.
 """
 
 import re
+from pathlib import PurePosixPath
 
 from interact_support import PLUGIN_ROOT, shipped_payload
 
@@ -38,6 +43,9 @@ DECLARED = re.compile(
     re.MULTILINE,
 )
 LISTED = re.compile(r"^export\s+(?:type\s+)?\{([^}]*)\}", re.MULTILINE)
+DEFAULT = re.compile(
+    r"^export\s+default\b|^export\s*\{[^}]*\bas\s+default\b", re.MULTILINE
+)
 # An escape is consumed whole, so `"\ndefine(…)"` in a Python string reads `define`.
 WORD = re.compile(r"\\[a-z]|([A-Za-z_$][\w$]*)")
 
@@ -51,14 +59,13 @@ def exported_names(text):
     return names - {"default"}
 
 
-def read_names(relative, text):
+def reading(relative, text):
+    """The text of `relative` that can read an export."""
     if relative.endswith(".css"):
-        return set()
+        return ""
     if relative.endswith(SOURCES):
-        return set(WORD.findall(COMMENT.sub(" ", text))) | set(
-            TYPE_IMPORT.findall(text)
-        )
-    return set(WORD.findall(text))
+        return COMMENT.sub(" ", text) + " ".join(TYPE_IMPORT.findall(text))
+    return text
 
 
 def test_every_export_has_a_reader_in_another_file():
@@ -72,22 +79,37 @@ def test_every_export_has_a_reader_in_another_file():
         except UnicodeDecodeError:
             continue
     exporters = {}
+    defaults = []
     for relative, text in texts.items():
         if relative.endswith(SOURCES) and not STAND_INS.match(relative):
             for name in exported_names(text):
                 exporters.setdefault(name, set()).add(relative)
+            if DEFAULT.search(text):
+                defaults.append(relative)
     assert exporters, "no exports read — an empty set guards nothing"
 
+    readings = {relative: reading(relative, text) for relative, text in texts.items()}
     readers = {}
-    for relative, text in texts.items():
-        for name in read_names(relative, text) & exporters.keys():
+    for relative, text in readings.items():
+        for name in set(WORD.findall(text)) & exporters.keys():
             readers.setdefault(name, set()).add(relative)
 
     unread = sorted(
-        f"{exporter}: {name}"
-        for name, files in exporters.items()
-        if not readers.get(name, set()) - files
-        for exporter in files
+        [
+            f"{exporter}: {name}"
+            for name, files in exporters.items()
+            if not readers.get(name, set()) - files
+            for exporter in files
+        ]
+        + [
+            f"{module}: default"
+            for module in defaults
+            if not any(
+                PurePosixPath(module).name in text
+                for relative, text in readings.items()
+                if relative != module
+            )
+        ]
     )
     assert not unread, (
         "exports no other file names; drop `export` where only the module itself "

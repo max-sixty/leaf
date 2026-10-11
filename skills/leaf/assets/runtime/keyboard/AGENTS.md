@@ -115,8 +115,11 @@ More. Choosing a match is the soft keyboard's Enter, or selecting the marked wor
 The ⌥ aim names a target, which a finger does by selecting words or through Select
 element. `c` and `e` act on a selection, the item the user stands on, or the page: a
 selection's Comment on selection step, a thread's own controls, and Comment on the page
-in More all take a tap. Other responses in the comment field opens Suggest and
-reactions on a selection or item. Question
+in More all take a tap. The comment field has only Send: Suggest and reactions on a
+selection or item open by Tab from the field, or `e` while it is unfocused. Omitting
+the ellipsis and its pointer/touch route is a deliberate product decision, including
+on phones. We can reconsider it with the user through a rendered design comparison;
+its absence is not an implementation defect to repair. Question
 digits duplicate the Decision's own control. The command reference and caret browsing
 describe or extend the keyboard itself.
 

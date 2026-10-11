@@ -3047,6 +3047,35 @@ INTERACTION_PLAYBACK_PAGE = leaf_page(
 </style>""",
 )
 
+
+def test_departing_gallery_cancels_pending_samples_without_reporting_failure(
+    browser, serve
+):
+    """Departure cancels loading even while the old document's nodes remain connected."""
+    page = browser.new_page()
+    held = []
+    page.route("**/api/samples", lambda route: held.append(route))
+    page.goto(serve(INTERACTION_PLAYBACK_PAGE))
+    holding(page, held, 1, "the gallery's sample allocation")
+    page.evaluate("window.dispatchEvent(new PageTransitionEvent('pagehide'))")
+    assert page.locator("[data-interaction-demo]").evaluate(
+        "figure => figure.isConnected"
+    )
+    response = held[0].fetch()
+    held[0].fulfill(response=response)
+    page.evaluate("""async () => {
+        const {whenArrived} = await window.__lfRuntimeImport('/runtime/presentation.js');
+        await whenArrived();
+    }""")
+    rendered(page)
+    expect(page.locator(".lf-interaction-status")).not_to_have_text("Could not play")
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "error"
+    ]
+
+
 SIGNOFF_STABILITY_PAGE = LONG_PAGE.replace(
     "<title>long</title>",
     '<title>long</title><meta name="lf-review" content="sign-off">',

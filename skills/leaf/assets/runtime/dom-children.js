@@ -6,7 +6,7 @@ import { move } from "./dom-move.js";
 
 const detach = (node) => node.remove();
 
-// Lit uses ordinary insertion, so keyed reorders still need their editor restored.
+// Engines without native state-preserving moves still need their editor restored.
 export function render(value, container, options) {
   const restore = holdFocus(container);
   const part = renderTemplate(value, container, options);

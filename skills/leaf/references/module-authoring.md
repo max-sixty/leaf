@@ -103,8 +103,10 @@ receive semantic state through `widgetController`, without a LitElement widget
 base or a reactive copy of that state.
 
 Templates own generated containers or bounded ranges, rather than authored
-children. Retain concrete native nodes with `setChildren` for rows holding
-iframes or editors: `repeat` currently moves rows by disconnecting them.
+children. Key rows with `repeat` to retain their nodes across reorders. Leaf's Lit
+build uses the shared move primitive, preserving focus and iframe state where the
+browser supports `moveBefore`; ordinary insertion on other engines still needs
+the focus hold described in **Focus, motion, and travel**, and may reload iframes.
 
 Once `render(template, container)` owns a container, update its children through
 `render` so Lit retains its markers and disconnects removed directives. `failSoft`
@@ -377,8 +379,10 @@ its element is in nested overflow.
 
 A module that moves, hides, or replaces nodes the user may be standing in, as a reorder or
 a re-render does, calls `holdFocus(scope)` before the change and the function it returns
-after it. Moving a focused node drops its focus to the page body; the returned function
-puts the user back on that node, with its caret, or on the first drawn stand-in it is
+after it. Same-root retained moves, including keyed Lit reorders, preserve native state
+where the browser supports `moveBefore`. The focus hold covers ordinary insertion,
+hiding and replacement: its returned function puts the user back on the node, with its
+caret, or on the first drawn stand-in it is
 passed, such as the replacement keyed on the same identity. It does nothing once focus was
 placed elsewhere in the meantime, and `holdFocus` returns `null` where the user stands
 outside `scope`. A list of keyed items passes `holdFocus(list, { key })`, naming the
@@ -904,8 +908,8 @@ placement use `move(parent, node, before)`, with `null` to append. Within one
 composed root it uses native `moveBefore` where available, preserving focus, caret
 and iframe documents. Otherwise it uses `insertBefore`, which can reset that state. Leaf's public
 `render(template, container)` restores editor focus and caret after Lit renders;
-`repeat(records, keyOf, template)` retains keyed template rows, but Lit's ordinary
-insertion can reset iframe documents even in browsers with native moves. Leave
+`repeat(records, keyOf, template)` retains keyed template rows under the native-state
+rules in **Template rendering**. Leave
 native disclosure, editor and scroll state with the retained nodes. When the
 application owns a native property the user also changes,
 bind it with `live`, such as `.value=${live(value)}` or `.checked=${live(checked)}`:

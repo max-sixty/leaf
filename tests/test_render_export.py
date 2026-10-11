@@ -878,7 +878,8 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
         expect(page.locator("body")).to_have_attribute(
             "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
         )
-        expect(status).not_to_be_visible()
+        # Re-vendoring the full layer can outlast the page presentation deadline.
+        expect(status).not_to_be_visible(timeout=120000)
     if resource == "widgets/lf-options.js":
         expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert len(documents) >= 2

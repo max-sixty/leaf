@@ -2141,6 +2141,8 @@ def test_the_adapter_takes_its_app_server_with_it_when_it_is_told_to_stop(
     The whole adapter runs here, with a stand-in for the App Server itself: the fault
     was in how this process dies, so uvicorn's signal handling, the handler beneath
     it, and the real `_stop_server` are the parts that have to be real.
+    Startup also selects this install's Leaf for Codex, replacing an inherited
+    launcher even when durable storage is not configured.
     """
     site = tmp_path / "site"
     site.mkdir()

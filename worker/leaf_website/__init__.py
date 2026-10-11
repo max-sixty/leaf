@@ -746,8 +746,8 @@ class WebsiteCodexHarness:
                 env={
                     **os.environ,
                     APP_SERVER_ENV: self.endpoint,
-                    # A login shell rebuilds PATH from the system's profile, so
-                    # the website image also links this install's leaf into /usr/local/bin.
+                    # A login shell rebuilds PATH from the system's profile.
+                    # The image also links this install's leaf into /usr/local/bin.
                     "PATH": os.pathsep.join(
                         (str(Path(LEAF_COMMAND).parent), os.environ.get("PATH", ""))
                     ),

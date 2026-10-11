@@ -1802,7 +1802,9 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
     expect(playground.locator(".lf-playground-actions")).to_be_visible()
     submit = playground.get_by_role("button", name="Create notification")
     expect(submit).to_be_disabled()
-    expect(page.locator(".lf-status-detail")).to_have_text(re.compile(r"^\s*Connecting"))
+    expect(page.locator(".lf-status-detail")).to_have_text(
+        re.compile(r"^\s*Connecting")
+    )
 
     playground.get_by_role("button", name="Needs attention").click()
     compact = playground.get_by_role("switch", name="Compact spacing")

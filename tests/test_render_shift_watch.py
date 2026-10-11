@@ -7,7 +7,7 @@ from html import escape
 from urllib.parse import quote
 
 import pytest
-from leaf.render_checks import one_frame, rendered
+from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import ASK_PAGE
 from render_harness import (
@@ -1257,16 +1257,34 @@ def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve, wo
     consume_browser_errors(page, "button#control moved without input")
 
 
-def test_an_input_owns_a_widget_preparation_it_began_until_presented(browser, serve):
-    """A press's registered widget preparation owns its result until it commits.
+@pytest.mark.parametrize(
+    "touch, intervening, keyboard",
+    [
+        (False, False, False),
+        (True, False, False),
+        (False, True, False),
+        (False, False, True),
+    ],
+    ids=["mouse", "touch", "newer-key", "hunk-key"],
+)
+def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(
+    browser, serve, touch, intervening, keyboard
+):
+    """A press's declared widget preparation is its result, however late it lands, and
+    the press owns nothing while it waits.
 
-    Opening a closed lf-diff file registers its asynchronous evidence preparation
-    (`present`). Holding the grammar keeps rendering and presentation pending beyond
-    Chrome's recent-input window; the later paint belongs to the opening press."""
+    Opening a closed lf-diff file loads its evidence in a promise the widget presents
+    (`present`), which the rendering loop cannot see. Holding the file's grammar keeps
+    that preparation pending after the loop settles, as a loaded machine does."""
     patch = "".join(
         f"diff --git a/{name}.md b/{name}.md\n--- a/{name}.md\n+++ b/{name}.md\n"
         "@@ -1 +1 @@\n-old\n+new\n"
         for name in ("first", "second")
+    )
+    context = browser.new_context(
+        viewport={"width": 390 if touch else 1200, "height": 800},
+        has_touch=touch,
+        is_mobile=touch,
     )
     page = open_page(
         browser,
@@ -1277,40 +1295,257 @@ def test_an_input_owns_a_widget_preparation_it_began_until_presented(browser, se
                 '<button id="control">Keep this control usable</button>',
             )
         ),
+        context=context,
     )
     held = []
     page.route("**/vendor/syntax/markdown.js", lambda route: held.append(route))
     first = page.locator("#patch .lf-diff-file").first
-    first.locator(".lf-diff-head").click()
+    control = page.locator("#control")
+    if keyboard:
+        first.locator(".lf-diff-head").focus()
+        page.keyboard.press("]")
+    elif touch:
+        first.locator(".lf-diff-head").tap()
+    else:
+        first.locator(".lf-diff-head").click()
     holding(page, held, 1, "the markdown grammar")
+    if intervening:
+        page.keyboard.press("Shift")
+        rendered(page)
     page.wait_for_function(
         "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
     )
-    one_frame(page)
-    assert page.evaluate("""() => {
-      const entry = document.querySelector('script[data-lf-entry]');
-      return [entry.lfApplicationPresented(), entry.lfRenderingSettled()];
-    }""") == [False, False]
+    rendered(page)
     assert (
         page.evaluate(
             "document.querySelector('script[data-lf-entry]').lfReadiness(null, 'presented')"
         )
         == "presented"
     )
+    # While the preparation waits, the press owns no other movement on the page.
+    control.evaluate("node => node.style.marginTop = '40px'")
+    rendered(page)
+    judge_watches()
+    consume_browser_errors(page, "button#control moved without input")
+
+    # Its landing moves the files and the control after it, for the press.
+    before = control.bounding_box()["y"]
     held[0].continue_()
     expect(first.locator("[data-line]").last).to_contain_text("new")
+    rendered(page)
+    if keyboard:
+        expect(first.locator("[data-line]:focus")).to_have_count(1)
+    assert control.bounding_box()["y"] > before
+    judge_watches()
+    assert page.lf_errors == []
+
+    # Once it has landed, the press owns nothing further. (The watch names each node
+    # once, so this move is the diff's own, which the landing moved for the press.)
+    page.locator("#patch").evaluate("node => node.style.marginTop = '40px'")
+    rendered(page)
+    judge_watches()
+    moved = consume_browser_errors(page, "moved without input")
+    assert any("in shadow of lf-diff#patch" in error for error in moved), moved
+
+
+@pytest.mark.parametrize(
+    "pressed",
+    ["#press", "#patch .lf-diff-search input"],
+    ids=["elsewhere", "in the same widget"],
+)
+def test_a_preparation_no_input_began_lands_passive(browser, serve, pressed):
+    """Neither overlapping an input's rendering nor sharing its widget makes a
+    preparation that input's.
+
+    A press keeps its counted work running until a response the page asked for before
+    the press opens a diff file; that file's landing, once the press has settled, moves
+    the control after it without input, whether the press landed outside the diff or
+    on its own filter field."""
+    patch = "diff --git a/first.md b/first.md\n--- a/first.md\n+++ b/first.md\n"
+    patch += "@@ -1 +1 @@\n-old\n+new\n"
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Passive preparation",
+                '<button id="press">Elsewhere</button>'
+                f'<lf-diff id="patch" collapsed><pre>{escape(patch)}</pre></lf-diff>'
+                '<button id="control">Keep this control usable</button>',
+            )
+        ),
+    )
+    answer, grammar = [], []
+    page.route("**/held-answer", lambda route: answer.append(route))
+    page.route("**/vendor/syntax/markdown.js", lambda route: grammar.append(route))
+    page.evaluate("""async () => {
+      const {nextFrame} = await window.__lfRuntimeImport('/runtime/rendering.js');
+      const details = document.querySelector('#patch').shadowRoot.querySelector('details');
+      const opens = () => { details.open = true; };
+      fetch('/held-answer').then(opens, opens);
+      addEventListener('click', () => {
+        let after = 0;
+        const work = () => { if (!details.open || ++after < 3) nextFrame(work); };
+        nextFrame(work);
+      }, {once: true, capture: true});
+    }""")
+    holding(page, answer, 1, "the page's own request")
+    page.locator(pressed).click()
+    answer[0].fulfill(status=204)
+    holding(page, grammar, 1, "the markdown grammar")
     page.wait_for_function(
-        "document.querySelector('script[data-lf-entry]').lfApplicationPresented()"
+        "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
     )
     rendered(page)
     judge_watches()
     assert page.lf_errors == []
 
-    # Once that preparation is presented, the press owns nothing further.
-    page.locator("#control").evaluate("node => node.style.marginTop = '40px'")
+    grammar[0].continue_()
+    expect(page.locator("#patch [data-line]").last).to_contain_text("new")
     rendered(page)
     judge_watches()
-    consume_browser_errors(page, "button#control moved without input")
+    moved = consume_browser_errors(page, "moved without input")
+    assert any(error.startswith("button#control ") for error in moved), moved
+
+
+def test_independently_sourced_preparations_share_proof_without_sharing_input(
+    browser, serve
+):
+    """One widget may batch an input commit and a passive commit at the same reading.
+
+    The first landing belongs to the input even while its sibling holds application
+    proof. The sibling's later landing stays passive; sharing a widget, batch or
+    publication supplies no cause.
+    """
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Independent preparations",
+                '<button id="press">Prepare</button>'
+                '<lf-diff id="patch" collapsed><pre>diff --git a/a.md b/a.md\n'
+                "--- a/a.md\n+++ b/a.md\n@@ -1 +1 @@\n-old\n+new\n</pre></lf-diff>"
+                '<button id="owned">Input result</button>'
+                '<button id="passive">Passive result</button>',
+            )
+        ),
+    )
+    page.evaluate("""async () => {
+      const {bindQueuedWork} = await window.__lfRuntimeImport('/runtime/queued-work.js');
+      const {nextFrame} = await window.__lfRuntimeImport('/runtime/rendering.js');
+      const widget = document.querySelector('#patch');
+      document.querySelector('#press').addEventListener('click', () => {
+        const commit = bindQueuedWork(() => {
+          let turn = 0;
+          const paint = () => {
+            document.querySelector('#owned').style.marginLeft = `${++turn * 20}px`;
+            if (turn < 4) nextFrame(paint);
+          };
+          nextFrame(paint);
+        });
+        const held = new Promise(done => { window.finishOwned = done; });
+        widget.controller.present((async () => { await held; commit(); })());
+      });
+    }""")
+    page.locator("#press").click()
+    page.evaluate("""() => {
+      const widget = document.querySelector('#patch');
+      const held = new Promise(done => { window.finishPassive = done; });
+      widget.controller.present((async () => {
+        await held;
+        document.querySelector('#passive').style.marginLeft = '80px';
+      })());
+    }""")
+    # A newer input settles before the original producer starts four counted frames.
+    page.locator("#passive").click()
+    # Cross Chrome's native recent-input exclusion; the diagnostic must judge cause.
+    page.wait_for_function(
+        "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
+    )
+    rendered(page)
+    before = page.locator("#owned").bounding_box()["x"]
+    page.evaluate("finishOwned()")
+    rendered(page)
+    assert page.locator("#owned").bounding_box()["x"] == pytest.approx(
+        before + 80, abs=1
+    )
+    assert (
+        page.evaluate(
+            "document.querySelector('script[data-lf-entry]').lfApplicationPresented()"
+        )
+        is False
+    )
+    judge_watches()
+    assert page.lf_errors == []
+    page.evaluate("finishPassive()")
+    rendered(page)
+    judge_watches()
+    consume_browser_errors(page, "button#passive moved without input")
+
+
+@pytest.mark.parametrize("cancelled", [True, False], ids=["cancelled", "closed again"])
+def test_an_activation_that_opens_nothing_leaves_a_later_open_passive(
+    browser, serve, cancelled
+):
+    """A summary press that leaves its file shut gives a later opening no input.
+
+    Enter on a file's header either has its click cancelled, so no toggle comes, or
+    has the click's own listener open the file before the activation shuts it again,
+    so the one toggle that comes announces it closed. A script opening the file after
+    either is no input's, and its landing moves the control after it passively."""
+    patch = "diff --git a/first.md b/first.md\n--- a/first.md\n+++ b/first.md\n"
+    patch += "@@ -1 +1 @@\n-old\n+new\n"
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Shut activation",
+                f'<lf-diff id="patch" collapsed><pre>{escape(patch)}</pre></lf-diff>'
+                '<button id="control">Keep this control usable</button>',
+            )
+        ),
+    )
+    grammar = []
+    page.route("**/vendor/syntax/markdown.js", lambda route: grammar.append(route))
+    page.evaluate(
+        """cancelled => {
+      const details = document.querySelector('#patch').shadowRoot.querySelector('details');
+      window.toggles = [];
+      details.addEventListener('toggle', (event) => toggles.push(event.newState));
+      details.querySelector('summary').addEventListener('click', (event) => {
+        if (cancelled) event.preventDefault();
+        else details.open = true;
+      }, {once: true});
+    }""",
+        cancelled,
+    )
+    head = page.locator("#patch .lf-diff-head")
+    head.focus()
+    head.press("Enter")
+    if not cancelled:
+        page.wait_for_function("toggles.length === 1")
+        assert page.evaluate("toggles") == ["closed"]
+    rendered(page)
+    assert page.locator("#patch details").get_attribute("open") is None
+    judge_watches()
+    if not cancelled:
+        # The click's listener restates `open` the activation then takes back.
+        consume_browser_errors(page, "unchanged write: open on details")
+    assert page.lf_errors == []
+
+    page.evaluate(
+        "document.querySelector('#patch').shadowRoot.querySelector('details').open = true"
+    )
+    holding(page, grammar, 1, "the markdown grammar")
+    page.wait_for_function(
+        "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
+    )
+    rendered(page)
+    grammar[0].continue_()
+    expect(page.locator("#patch [data-line]").last).to_contain_text("new")
+    rendered(page)
+    judge_watches()
+    moved = consume_browser_errors(page, "moved without input")
+    assert any(error.startswith("button#control ") for error in moved), moved
 
 
 def test_waiting_for_first_history_cannot_extend_completed_local_input(browser, serve):

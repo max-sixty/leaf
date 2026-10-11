@@ -4,7 +4,7 @@ from html import escape
 
 import pytest
 from leaf import data as data_model
-from leaf.render_checks import one_frame, rendered
+from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_harness import holding, leaf_page, open_page, reported_browser_errors, write
 
@@ -482,8 +482,10 @@ def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(browser, 
         expect(file).not_to_have_attribute("open", "")
 
 
-def test_opening_diff_keeps_rendering_pending_until_lazy_source_arrives(browser, serve):
-    """A disclosure's registered source preparation is part of its gesture's render."""
+def test_opening_diff_keeps_application_proof_pending_until_lazy_source_arrives(
+    browser, serve
+):
+    """Lazy evidence holds application proof independently of loop quiet."""
     patch = """diff --git a/README.md b/README.md
 --- a/README.md
 +++ b/README.md
@@ -511,10 +513,11 @@ diff --git a/other.md b/other.md
     head.click()
     holding(page, held, 1, "the lazy Markdown grammar")
     try:
-        one_frame(page)
-        assert not page.evaluate(
-            "document.querySelector('script[data-lf-entry]').lfRenderingSettled()"
-        ), "registered source preparation must keep rendering pending"
+        rendered(page)
+        assert page.evaluate("""() => {
+          const entry = document.querySelector('script[data-lf-entry]');
+          return [entry.lfApplicationPresented(), entry.lfRenderingSettled()];
+        }""") == [False, True]
     finally:
         held[0].continue_()
     rendered(page)

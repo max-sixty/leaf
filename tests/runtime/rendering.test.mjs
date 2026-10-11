@@ -33,7 +33,6 @@ const {
   afterScript,
   sizeObserver,
   renderingSettled,
-  holdRendering,
 } = await import("/runtime/rendering.js");
 
 const { observeQueuedWork } = await import("/runtime/queued-work.js");
@@ -59,22 +58,6 @@ test("queued work unsettles at once and settles with the update that runs it", a
   assert.equal(renderingSettled(), false);
   await update();
   assert.equal(ran, true);
-  assert.equal(renderingSettled(), true);
-});
-
-test("finite preparation retires once and owes its final quiet update", async () => {
-  const first = holdRendering();
-  const second = holdRendering();
-  for (let i = 0; i < 10; i++) await update();
-  assert.equal(renderingSettled(), false);
-  assert.equal(queued.size, 0, "a pending preparation does not poll frames");
-  first();
-  first();
-  await update();
-  assert.equal(renderingSettled(), false, "another preparation still stands");
-  second();
-  assert.equal(renderingSettled(), false, "the commit has not painted yet");
-  await update();
   assert.equal(renderingSettled(), true);
 });
 

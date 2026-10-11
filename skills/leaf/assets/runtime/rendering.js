@@ -1,5 +1,5 @@
 /* Leaf's one rendering loop, and the one settled reading for the page's chrome and
-   geometry: no registered preparation or queued rendering update is still waiting, and the
+   geometry: no queued rendering update is still waiting, and the
    last update produced no size change a Leaf observer heard. A reader outside the page
    waits on it after a gesture rather than guessing a number of frames.
 
@@ -65,10 +65,8 @@
    one quiet update. A counted request or delivery unsettles it synchronously, so a
    reader asking straight after an input handler that queued work reads false.
 
-   Finite asynchronous preparation registers a `holdRendering` until it commits or its
-   owner retires. Registration unsettles synchronously; release requires a final quiet
-   update, including the preparation's DOM writes and observer deliveries. A held local
-   edit is not rendering work: it defers a semantic reading until the gesture ends.
+   Asynchronous widget preparation and deferred local edits belong to application
+   presentation proof, independently of whether the rendering loop is quiet.
 
    What the reading cannot see is unregistered work an owner holds in a timer or a
    promise before it asks for a rendering update, an IntersectionObserver delivery (a task after the
@@ -106,21 +104,6 @@ let frame = 0;
 let heard = false;
 let quiet = false;
 let checking = false;
-let preparations = 0;
-
-/** Keep finite preparation pending until it commits or its owner retires. */
-export function holdRendering() {
-  preparations++;
-  unsettle();
-  let released = false;
-  return () => {
-    if (released) return;
-    released = true;
-    preparations--;
-    unsettle();
-  };
-}
-
 function request(into, callback) {
   const id = ++lastId;
   into.set(id, enqueueWork(callback));
@@ -205,7 +188,7 @@ export function sizeObserver(callback, { counted = true } = {}) {
   });
 }
 
-export const renderingSettled = () => (quiet && preparations === 0) || !rendered();
+export const renderingSettled = () => quiet || !rendered();
 
 function rendered() {
   if (document.hidden) return false;

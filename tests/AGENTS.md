@@ -276,7 +276,11 @@ do not expose their input context to JavaScript instrumentation. A native sensor
 fixture captures its DOM commit callback with `lfInputWork.capture` during the
 trusted handler and invokes that callback after `await`; the capture states the
 cause instead of guessing among concurrent operations. Leaf's draft sends put words
-away synchronously before awaiting delivery.
+away synchronously before awaiting delivery. The `toggle` a summary activation
+announces belongs to the input whose click, trusted or dispatched by its work, opened
+it. A commit deferred across native `await` binds its synchronous callback through
+`bindQueuedWork` before awaiting; its original cause owns the commit, with no ownership
+while waiting. Application presentation proof is independent of input provenance.
 
 Private document-channel endpoints publish `lfDocumentPort` on the bootstrap
 element before their first message. The harness enrolls those endpoints in input

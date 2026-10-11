@@ -16,12 +16,15 @@
  * disclosure joins the pending source render before reading its evidence, and a closed file shows
  * none of the previous revision while it loads current evidence. Line conversations
  * follow the visible reader width while source lines may scroll horizontally. Passage reveal
- * clears this widget's file filter; addressed datum reveal also hydrates its file. */
+ * clears this widget's file filter; addressed datum reveal also hydrates its file. Lazy
+ * evidence commits bind their initiating callback before native awaits, so waiting
+ * never grants input ownership to unrelated work. */
 import {
   DISCLOSE,
   HOLDS_WORD,
   announce,
   beginWalk,
+  bindQueuedWork,
   dataBody,
   failSoft,
   ensureSyntaxLanguage,
@@ -1204,6 +1207,15 @@ customElements.define(
     }
 
     async loadEntry(entry) {
+      const commit = bindQueuedWork((prepared, rendering) => {
+        if (rendering !== this.rendering || !this.isConnected) return;
+        entry.loading = null;
+        entry.prepared = prepared;
+        const restore = this.applyEntry(entry);
+        this.stageFiles();
+        this.projectFiles();
+        restore?.();
+      });
       for (;;) {
         const rendering = this.sourceRendering;
         await rendering;
@@ -1223,13 +1235,7 @@ customElements.define(
           entry.renderKey,
           this.sharedStyles,
         );
-        if (rendering !== this.rendering || !this.isConnected) return;
-        entry.loading = null;
-        entry.prepared = prepared;
-        const restore = this.applyEntry(entry);
-        this.stageFiles();
-        this.projectFiles();
-        restore?.();
+        commit(prepared, rendering);
       })();
       entry.loading = { rendering, promise };
       return promise;
@@ -1450,21 +1456,23 @@ customElements.define(
       const standing = here
         ? order.findIndex((entry) => entry.node.contains(here))
         : -1;
-      for (let index = Math.max(standing, 0); index < order.length; index++) {
+      const step = (index) => {
+        if (index >= order.length) return this.markHunkWalk();
         const entry = order[index];
-        await this.openEntry(entry);
-        if (!mayLand()) return;
-        const heads = hunkHeads(entry);
-        const head = (back ? [...heads].reverse() : heads).find((line) =>
-          this.beyond(line.node, here, back),
-        );
-        if (!head) continue;
-        this.land(head.node);
-        this.markHunkWalk();
-        announce(`${entry.record.path} · hunk ${head.hunk + 1} of ${heads.length}`);
-        return;
-      }
-      this.markHunkWalk();
+        const arrive = bindQueuedWork(() => {
+          if (!mayLand()) return;
+          const heads = hunkHeads(entry);
+          const head = (back ? [...heads].reverse() : heads).find((line) =>
+            this.beyond(line.node, here, back),
+          );
+          if (!head) return step(index + 1);
+          this.land(head.node);
+          this.markHunkWalk();
+          announce(`${entry.record.path} · hunk ${head.hunk + 1} of ${heads.length}`);
+        });
+        return this.openEntry(entry).then(arrive);
+      };
+      return step(Math.max(standing, 0));
     }
 
     stepFile(back) {

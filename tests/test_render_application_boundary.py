@@ -8,7 +8,7 @@ import pytest
 from interact_support import append_carried_log_record, append_command
 from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
-from leaf.render_checks import one_frame, rendered, wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -1447,9 +1447,7 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
         }"""
     )
     page.wait_for_function("beforeRemovalReady")
-    rendered(
-        page
-    )  # A removed owner's unresolved preparation no longer holds rendering.
+    rendered(page)  # A detached owner no longer holds application proof.
     assert page.evaluate("Number(pageLocal.dataset.readings)") == page.evaluate(
         "beforeDetachedReading"
     )
@@ -1479,11 +1477,13 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
         }"""
     )
     assert page.evaluate("reconnectedReady") is False
+    rendered(page)
+    assert page.evaluate("reconnectedReady") is False
     assert (
         page.evaluate(
             "document.querySelector('script[data-lf-entry]').lfRenderingSettled()"
         )
-        is False
+        is True
     )
     assert page.evaluate("Number(pageLocal.dataset.readings)") == page.evaluate(
         "beforeDetachedReading + 1"
@@ -1529,8 +1529,15 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
 @pytest.mark.parametrize(
     "mode", ["siblings", "superseded", "reconnected", "registered-detached"]
 )
-def test_preparation_waits_for_all_capable_work(browser, serve, mode):
-    """Failures and reconnects retain every producer that can still commit DOM."""
+def test_preparation_proof_tracks_current_reading_and_owner_lifetime(
+    browser, serve, mode
+):
+    """Current preparation holds semantic proof while the rendering loop stays quiet.
+
+    Failure paints fallback proof and a newer reading supersedes the previous one;
+    neither obsolete work nor a detached owner holds the current application open.
+    Reconnecting claims the current preparation again without reviving old input.
+    """
     page = open_page(
         browser,
         serve(
@@ -1579,6 +1586,14 @@ def test_preparation_waits_for_all_capable_work(browser, serve, mode):
       const second = new Promise(done => { window.releaseSibling = done; });
       owner.controller.present(second);
     }""")
+    if mode != "registered-detached":
+        rendered(page)
+        assert (
+            page.evaluate(
+                "document.querySelector('script[data-lf-entry]').lfApplicationPresented()"
+            )
+            is False
+        )
     if mode in {"reconnected", "registered-detached"}:
         if mode == "reconnected":
             page.get_by_role("heading", name="Preparation", exact=True).click()
@@ -1592,9 +1607,18 @@ def test_preparation_waits_for_all_capable_work(browser, serve, mode):
         expect(page.locator("#page-local .lf-error")).to_contain_text(
             "deliberate preparation failure"
         )
-    one_frame(page)
-    assert not page.evaluate(
-        "document.querySelector('script[data-lf-entry]').lfRenderingSettled()"
+    rendered(page)
+    assert (
+        page.evaluate(
+            "document.querySelector('script[data-lf-entry]').lfApplicationPresented()"
+        )
+        is True
+    )
+    assert (
+        page.evaluate(
+            "document.querySelector('script[data-lf-entry]').lfRenderingSettled()"
+        )
+        is True
     )
     if mode in {"reconnected", "registered-detached"}:
         page.evaluate("finishPreparation()")

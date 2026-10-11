@@ -120,6 +120,7 @@ export {
   saying,
 } from "./keyboard/scopes.js";
 export { repaint } from "./repaint.js";
+export { bindQueuedWork } from "./queued-work.js";
 export {
   afterScript,
   cancelRender,

@@ -5,8 +5,8 @@
    the owner DOM is never a semantic store. Its semantic render and asynchronous
    preparation are two stable widget-id regions: neither can supersede the other's
    proof. Subscriptions belong to the owner; removal pauses them and reconnecting
-   restores the latest reading and preparation. Registered preparation also holds the
-   mechanical rendering reading until completion or removal. Local editing defers the render
+   restores the latest reading and preparation. Application presentation owns current
+   preparation proof independently of rendering-loop quiet. Local editing defers the render
    region at its newest unpublished reading, without painting a detached owner. */
 import { applicationState, attachWidgetPresentation } from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
@@ -14,7 +14,6 @@ import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.j
 import { failSoftUnreported } from "./widget-upgrade.js";
 import { dragHeld, watchDragRelease } from "./widget-elements.js";
 import { watchOwner } from "./arrivals.js";
-import { holdRendering } from "./rendering.js";
 
 const controllers = new WeakMap();
 const lifecycles = new WeakMap();
@@ -93,7 +92,6 @@ function createWidgetController(owner) {
   let renderedReading = null;
   let renderedStatus = null;
   let preparationHandle = null;
-  const pendingPreparations = new Map();
   let preparation = null;
   let preparationBatch = null;
   let connectedParent = null;
@@ -113,21 +111,6 @@ function createWidgetController(owner) {
     if (!preparationHandle && owner.isConnected)
       preparationHandle = attachWidgetPresentation(descriptor.id, "preparation", owner);
     return preparationHandle;
-  };
-
-  const holdPreparation = (settled) => {
-    if (pendingPreparations.has(settled)) {
-      if (owner.isConnected && !pendingPreparations.get(settled))
-        pendingPreparations.set(settled, holdRendering());
-      return;
-    }
-    pendingPreparations.set(settled, owner.isConnected ? holdRendering() : null);
-    // A failed child reports immediately, but its siblings can still commit DOM.
-    // Superseded batches can also still report failure into this connected owner.
-    settled.then(() => {
-      pendingPreparations.get(settled)?.();
-      pendingPreparations.delete(settled);
-    });
   };
 
   const presentPreparation = (handle, { value, completion }) =>
@@ -228,7 +211,6 @@ function createWidgetController(owner) {
 
   const connect = () => {
     if (!owner.isConnected) return;
-    for (const settled of pendingPreparations.keys()) holdPreparation(settled);
     if (subscriptions.size && !stopSelection) {
       const parentChanged = connectedParent !== owner.parentElement;
       connectedParent = owner.parentElement;
@@ -259,10 +241,6 @@ function createWidgetController(owner) {
     renderHandle = null;
     preparationHandle?.disconnect();
     preparationHandle = null;
-    for (const [settled, release] of pendingPreparations) {
-      release?.();
-      pendingPreparations.set(settled, null);
-    }
     deferredHold?.release();
     deferredHold = null;
     deferredReading = null;
@@ -342,8 +320,7 @@ function createWidgetController(owner) {
       const batch = preparationBatch;
       const completion = Promise.all(batch.promises);
       batch.completion = completion;
-      preparation = { value, completion, settled: Promise.allSettled(batch.promises) };
-      holdPreparation(preparation.settled);
+      preparation = { value, completion };
       const handle = prepared();
       if (handle) void presentPreparation(handle, preparation);
       const clear = () => {

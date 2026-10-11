@@ -9,3 +9,9 @@ owns each concern, are in `../assets/AGENTS.md`; each runtime module's header
 states its own contract. `build/AGENTS.md`, “Committed bundles”, owns generated
 vendor bundles and stylesheet entrypoints. Where a bundled package has `styles/`
 sources, edit them rather than its generated ready sheets.
+
+Bundled widgets bind a DOM commit deferred across native `await` with
+`bindQueuedWork(callback)` from `/runtime/widget-api.js` before awaiting, then invoke
+it when the evidence arrives. The suite's input diagnostics retain that callback's
+cause across the wait. A presentation promise proves completion; it does not grant
+input ownership to other work while waiting.

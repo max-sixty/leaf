@@ -76,7 +76,7 @@
   const framePresented = (requested) => presentedFrame >= requested;
 
   // The runtime's settled reading for chrome and geometry (runtime/rendering.js):
-  // no registered preparation or queued rendering is waiting and its last update was quiet.
+  // no queued rendering is waiting and its last update was quiet.
   const renderingSettled = () => {
     const settled = document.querySelector("script[data-lf-entry]")?.lfRenderingSettled;
     if (!settled) throw new Error("this document has no Leaf rendering reading");

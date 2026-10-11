@@ -155,13 +155,15 @@ def one_frame(page) -> None:
 
 
 def rendered(page) -> None:
-    """Wait until the runtime has rendered what the input so far asked for.
+    """Wait until the runtime's counted rendering work is quiet.
 
-    Its settled reading (runtime/rendering.js) says no registered preparation or queued
-    rendering is waiting and its last update was quiet. A read after a coalesced repaint, however many
-    updates that repaint chains through, waits here instead of guessing a count. One
-    whole update passes first, so a change no Leaf callback took part in — a wheel, a
-    resize — has had its turn to unsettle the reading.
+    The settled reading (runtime/rendering.js) says no queued rendering is waiting
+    and its last update was quiet. It does not wait for asynchronous widget
+    preparation: `lfApplicationPresented()` proves the current application,
+    including lazy diff evidence and deferred local edits. A coalesced repaint,
+    however many updates it chains through, waits here instead of guessing a count.
+    One whole update passes first, so a change no Leaf callback took part in — a
+    wheel or resize — has had its turn to unsettle the reading.
 
     Work that re-queues itself on every update never settles: a fold held
     mid-animation keeps its place hold correcting each frame. Wait `one_frame` there.

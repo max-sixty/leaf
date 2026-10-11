@@ -18,8 +18,8 @@
 // expressions, ambiguous names and rules that disagree receive no inferred ownership.
 //
 // Each trusted gesture owns its counted rendering until declared completion: the
-// rendering loop settled and the current publication presented, widget preparations
-// included.
+// rendering loop settled. A commit bound before native awaits carries its original
+// input to its own landing, never to passive movement while it waits.
 // Input creation order comes from the canonical input-work stream. Older callbacks
 // keep bounded rendering and their gesture's effects without ending a newer edit;
 // typing is judged by the window covering the paint, independently of other work.
@@ -149,18 +149,10 @@
   // Native media sources and nodes detached during a reading can have no computed
   // length. Keep that absence stable; NaN would disagree with itself every frame.
   const pixels = (value) => (/^-?[\d.]+px$/.test(value) ? parseFloat(value) : null);
-  // The page has answered the input so far: its rendering and registered finite
-  // preparation have settled, and its current publication has presented. Semantic
-  // proof can still await a deferred local edit while rendering is quiet
-  // (widget-controller.js), so both readings are required. Initial readiness can
-  // still await saved history after offline presentation; it does not own local input.
-  const settled = () => {
-    const entry = document.querySelector("script[data-lf-entry]");
-    return (
-      (entry?.lfApplicationPresented?.() ?? true) &&
-      (entry?.lfRenderingSettled?.() ?? true)
-    );
-  };
+  // Quiet rendering ends input ownership even while unrelated application proof waits.
+  // Explicitly bound commit work starts ownership only for its own landing.
+  const settled = () =>
+    document.querySelector("script[data-lf-entry]")?.lfRenderingSettled?.() ?? true;
   // An animation that can move a box: one of its keyframes sets a geometric property.
   const moves = (animation) =>
     animation.effect

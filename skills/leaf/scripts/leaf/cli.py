@@ -1016,7 +1016,15 @@ def _reply_options(command):
             "--markup", default="", help="frozen HTML fragment after the text"
         ),
         click.option(
-            "--awaits", is_flag=True, help="the reply asks the user a question"
+            "--question",
+            is_flag=True,
+            help="the reply asks the user a question, which waits on them",
+        ),
+        click.option(
+            "--task",
+            metavar="TITLE",
+            help="the reply promises work it doesn't deliver; opens that task on the "
+            "thread, ended by `leaf task end` with the reply's id",
         ),
         click.option(
             "--ephemeral", is_flag=True, help="one-line progress, without answering"
@@ -1038,13 +1046,21 @@ def response() -> None:
     "--attempt", help="retry identity (ordinary replies default to the reference)"
 )
 @click.option("--failure", help="failure code when no answer is coming")
+@click.option(
+    "--done", is_flag=True, help="the reply delivers what the message asked for"
+)
 @_reply_options
 def response_reply(
-    reference: str, attempt: str | None, failure: str | None, **options
+    reference: str, attempt: str | None, failure: str | None, done: bool, **options
 ) -> None:
     """Answer the exact REFERENCE printed in a delivery's answer.ref.
 
-    Text, frozen HTML, prose questions, titles and anchor moves share this command.
+    An answer says what it leaves the thread with: --done when it delivers what the
+    message asked for, --question when it asks the user something back, or --task
+    TITLE when it promises work it doesn't deliver, which stays on you as a task.
+    Progress (--ephemeral) and failure receipts (--failure) take none of them.
+
+    Text, frozen HTML, titles and anchor moves share this command.
     It validates and activates saved page edits, then commits the reply immediately.
     A provider's later final yields to the recorded answer; failure receipts are
     refused while that provider still owns the answer.
@@ -1053,6 +1069,29 @@ def response_reply(
     """
     from leaf.thread import post_response
 
+    declared = [
+        flag
+        for flag, given in (
+            ("--done", done),
+            ("--question", options["question"]),
+            ("--task", options["task"] is not None),
+        )
+        if given
+    ]
+    if len(declared) > 1:
+        raise click.UsageError(f"{' and '.join(declared)} cannot be used together")
+    answers = not options["ephemeral"] and failure is None
+    if declared and not answers:
+        raise click.UsageError(
+            f"{declared[0]} declares what an answer leaves; progress and failure "
+            "receipts answer nothing"
+        )
+    if not declared and answers:
+        raise click.UsageError(
+            "say what the answer leaves: --done when it delivers what was asked, "
+            "--question when it asks the user something back, or --task TITLE when "
+            "it promises work it doesn't deliver"
+        )
     if attempt is not None:
         options["attempt"] = attempt
     _print_records(post_response(reference, failure=failure, **options))
@@ -1151,12 +1190,12 @@ def task() -> None:
     help="Whose queue the task is on: yours, or the user's.",
 )
 def task_open(dir: str, subject: str, title: str, owner: str) -> None:
-    """Open a task titled TITLE on SUBJECT: an open thread, by any message in it or a
-    widget its messages carry; a page widget, which for your own task must declare
-    x-work or hold an unsettled update; any other element of the page by its id, such
-    as a section; or `page` for the page as a whole. With `--on user` the task is on
-    the user, on anything but a thread, where a reply with `--awaits` asks them: it
-    ends at their Done, and you can end it too. Its id is the printed record's `id`."""
+    """Open a task titled TITLE on SUBJECT: a page widget, which for your own task
+    must declare x-work or hold an unsettled update; any other element of the page by
+    its id, such as a section; or `page` for the page as a whole. With `--on user`
+    the task is on the user: it ends at their Done, and you can end it too. Its id is
+    the printed record's `id`. In a thread, the reply that promises work opens it
+    (`--task`), and one that asks the user is their Question (`--question`)."""
     from leaf.tasks import cmd_open
 
     _print_records(cmd_open(resolve_dir(dir), subject, title, owner))
@@ -1193,29 +1232,3 @@ def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
     from leaf.tasks import cmd_end
 
     _print_records(cmd_end(resolve_dir(dir), task_id, outcome, detail))
-
-
-@cli.command(hidden=True)
-@click.option(
-    "--harness",
-    required=True,
-    help="The harness whose registration runs this hook.",
-)
-@click.option(
-    "--watch",
-    is_flag=True,
-    help="Watch the session's pages until input, printing what wakes the session.",
-)
-def hook(harness: str, watch: bool) -> None:
-    """Answer an agent-harness hook on stdin."""
-    from leaf.hooks import main
-
-    main(harness, watch=watch)
-
-
-@cli.command(hidden=True)
-def session_end() -> None:
-    """Release ownership for the harness's SessionEnd payload on stdin."""
-    from leaf.state import main
-
-    main()

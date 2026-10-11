@@ -1,4 +1,4 @@
-/* Generated from skills/leaf/packages/default/styles/theme.css by npm run build:styles. */
+/* Generated from skills/leaf/packages/default/styles/theme.css by build/styles.mjs. */
 /* skills/leaf/packages/default/styles/shot.css */
 :scope:is(lf-shot) {
   display: block;
@@ -1599,6 +1599,7 @@
       --lf-top: 0px;
       overscroll-behavior: contain;
       scrollbar-gutter: stable;
+      --lf-holds-height: 1;
     }
   }
   :where(:scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page]) {
@@ -1827,7 +1828,6 @@
   display: block;
   box-sizing: border-box;
   min-inline-size: 0;
-  block-size: min(70vh, 40rem);
   overflow: auto;
   border: 1px solid var(--border-2);
   border-radius: var(--sp-2);
@@ -2496,8 +2496,15 @@
 :scope:is(lf-sample):has(> .lf-sample-view:modal) {
   height: var(--lf-sample-height);
 }
+:scope:is(lf-sample)[data-lf-sample-live] {
+  padding-left: 0;
+  border-left: 0;
+}
+.lf-sample-exhibit {
+  padding-left: var(--sp-4);
+  border-left: 3px solid var(--border-2);
+}
 .lf-sample-controls {
-  display: table-caption;
   margin-bottom: 10px;
 }
 .lf-sample-controls > div {
@@ -2541,7 +2548,15 @@
 .lf-sample-view:modal > .lf-sample-controls {
   flex: none;
 }
-.lf-sample-view:modal > .lf-sample-frame {
+.lf-sample-view:modal > .lf-sample-exhibit {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border: 0;
+}
+.lf-sample-view:modal .lf-sample-frame {
   flex: 1;
   min-height: 0;
 }
@@ -2552,6 +2567,7 @@
 }
 @media print {
   .lf-sample-controls,
+  .lf-sample-exhibit,
   .lf-sample-frame {
     display: none;
   }
@@ -2743,6 +2759,7 @@
     max-block-size: var(--lf-bound, 28rem);
     overflow: auto;
     --lf-bound-box: 1;
+    --lf-holds-height: 1;
     --lf-top: 0px;
   }
 }

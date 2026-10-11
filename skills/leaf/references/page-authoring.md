@@ -392,9 +392,10 @@ replaces the document through the ordinary revision lifetime.
 
 When the task needs conversations and actions kept in an independent region
 ("Bounds and widths"), place one empty
-`<lf-annotation-rail id="annotations"></lf-annotation-rail>` there. Allocate its
-width and height in the page's CSS; it scrolls inside that box. At narrow widths,
-give it a place the user can reach by touch and keyboard. Leaf supplies native disclosures,
+`<lf-annotation-rail id="annotations"></lf-annotation-rail>` there. It grows with
+its rows; where the page's CSS bounds its height, as a workspace region does, it
+scrolls inside that box. At narrow widths, give it a place the user can reach by
+touch and keyboard. Leaf supplies native disclosures,
 reply editors, action controls and retained reading; the page supplies their layout.
 Widget-local conversations keep their exact seats before the page rail takes
 remaining targets. The Threads panel remains the complete conversation index.
@@ -464,6 +465,9 @@ Widget attributes carry scalars; children carry prose; a titled compound member 
 leading `<strong>`. A data-bodied widget such as `lf-code` holds escaped
 notation in `<pre>`, because its whitespace is part of the data. Escape `&`
 first, then `<` and `>`; any other order can silently decode entity text.
+
+Format filenames and paths as inline code, using backticks in Markdown and
+`<code>` in HTML; use an authored link when the file has a known destination.
 
 Display source snippets as `<pre><code class="language-javascript">…</code></pre>`,
 or `lf-code language="javascript"` for a line-numbered walkthrough, naming the actual

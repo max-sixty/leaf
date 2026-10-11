@@ -70,7 +70,8 @@ import {
   keepsText,
   layoutChanged,
   listWalkPosition,
-  nextRender,
+  frameFor,
+  whileConnected,
   offer,
   once,
   openingView,
@@ -115,9 +116,7 @@ customElements.define(
   "lf-tabs",
   class extends HTMLElement {
     #buttons = new Map(); // panel → its strip button
-    #diffEvents = null;
     #stopQuestions = null;
-    #historyEvents = null;
     #active = null;
     #root = false;
     #contextObserver = null;
@@ -126,19 +125,13 @@ customElements.define(
     #side = false;
     #pageFlow = false;
     #revealMotion = null;
-    #stripSize = null;
-    #stopPanels = null;
     #stopList = null;
 
     connectedCallback() {
       if (!once(this)) {
         this.#watchRootContext();
         this.#syncRootContext();
-        this.#listenForHistory();
-        this.#listenForQuestions();
-        this.#watchStrip();
-        this.#syncRegions();
-        return this.#listenForDiff();
+        return;
       }
       // Own panels only (a nested lf-tabs wires its own).
       const panels = [...this.querySelectorAll(":scope > lf-tab")];
@@ -308,14 +301,41 @@ customElements.define(
       // measures final geometry.
       this.#activate(openingView(this, panels), "arrival");
       if (this.#root) {
-        this.#listenForHistory();
         this.#replaceLocation(this.#active);
       }
       // The Δ count follows the version diff; the runtime announces each toggle.
-      this.#listenForDiff();
       this.#listenForQuestions();
-      this.#watchStrip();
-      this.#syncRegions();
+      whileConnected(this, (signal) => {
+        this.#watchRootContext();
+        this.#syncRootContext();
+        this.#listenForHistory(signal);
+        document.addEventListener("lf-comparison", () => this.#marks(), { signal });
+        this.#marks();
+        const stripSize = this.#watchStrip();
+        const stopPanels = this.#side
+          ? [...this.#buttons.keys()].map((panel) =>
+              registerReadingRegion({
+                id: compoundReadingRegionId(this, `panel-${panel.id}`),
+                host: panel,
+                body: panel,
+              }),
+            )
+          : [];
+        this.#syncRegions();
+        return () => {
+          for (const stop of stopPanels) stop();
+          this.#stopList?.();
+          this.#stopList = null;
+          this.#revealMotion?.cancel();
+          this.#revealMotion = null;
+          stripSize.disconnect();
+          this.#contextObserver?.disconnect();
+          this.#contextObserver = null;
+          this.#covering = false;
+          if (!document.querySelector(PAGE_STRIP))
+            removeRuntimeRootStyle(document.documentElement, "--lf-root-headers");
+        };
+      });
     }
 
     // A side list's panels are reading regions whatever their posture, as panes are, so
@@ -328,13 +348,6 @@ customElements.define(
     // the window, so the strip's size observer asks again.
     #syncRegions() {
       if (!this.#side || !this.isConnected) return;
-      this.#stopPanels ??= [...this.#buttons.keys()].map((panel) =>
-        registerReadingRegion({
-          id: compoundReadingRegionId(this, `panel-${panel.id}`),
-          host: panel,
-          body: panel,
-        }),
-      );
       const told =
         getComputedStyle(this).getPropertyValue("--lf-full-height").trim() === "1";
       if (told === Boolean(this.#stopList)) return;
@@ -346,34 +359,6 @@ customElements.define(
             body: this.#strip,
           })
         : null;
-    }
-
-    disconnectedCallback() {
-      for (const stop of this.#stopPanels ?? []) stop();
-      this.#stopPanels = null;
-      this.#stopList?.();
-      this.#stopList = null;
-      this.#revealMotion?.cancel();
-      this.#revealMotion = null;
-      this.#stripSize?.disconnect();
-      this.#stripSize = null;
-      this.#diffEvents?.abort();
-      this.#diffEvents = null;
-      this.#historyEvents?.abort();
-      this.#historyEvents = null;
-      this.#contextObserver?.disconnect();
-      this.#contextObserver = null;
-      // A revision that rebuilds the page's set disconnects this one and connects its
-      // replacement in one operation, so the header is withdrawn only once that
-      // operation is over and no strip has taken this one's place: withdrawn and
-      // declared again, it would restyle the whole document for nothing.
-      if (this.#covering) {
-        this.#covering = false;
-        queueMicrotask(() => {
-          if (!document.querySelector(PAGE_STRIP))
-            removeRuntimeRootStyle(document.documentElement, "--lf-root-headers");
-        });
-      }
     }
 
     // What each panel holds, said with its summary as the tab's description: the
@@ -428,15 +413,6 @@ customElements.define(
     #listenForQuestions() {
       if (!this.#side || !this.#buttons.size || this.#stopQuestions) return;
       this.#stopQuestions = watchQuestions(this, () => this.#marks());
-    }
-
-    #listenForDiff() {
-      if (!this.#buttons.size || this.#diffEvents) return;
-      this.#diffEvents = new AbortController();
-      document.addEventListener("lf-comparison", () => this.#marks(), {
-        signal: this.#diffEvents.signal,
-      });
-      this.#marks();
     }
 
     #activate(active, reason) {
@@ -537,12 +513,6 @@ customElements.define(
         main.querySelector(":scope > lf-tabs") === this;
       this.#pageFlow = this.#root && !this.#side;
       keeps(this, "data-lf-tabs-flow", this.#pageFlow ? "page" : "box");
-      if (!this.#root) {
-        this.#historyEvents?.abort();
-        this.#historyEvents = null;
-      } else if (this.#buttons.size) {
-        this.#listenForHistory();
-      }
       this.#declareHeader();
       // A set that changed flow drew its open panel at another width.
       if (wasFlow !== this.#pageFlow && this.#active) {
@@ -651,27 +621,22 @@ customElements.define(
     // press, which the browser would otherwise report as a size change it could not
     // deliver.
     #watchStrip() {
-      if (!this.#strip || this.#stripSize) return;
-      let pending = 0;
-      this.#stripSize = sizeObserver(() => {
-        pending ||= nextRender(() => {
-          pending = 0;
-          if (!this.#strip.isConnected) return;
-          this.#syncRegions();
-          this.#showTab(this.#buttons.get(this.#active));
-        });
-      });
-      this.#stripSize.observe(this.#strip);
+      const stripSize = sizeObserver(this.#positionStrip);
+      stripSize.observe(this.#strip);
+      return stripSize;
     }
 
-    #listenForHistory() {
-      if (!this.#root || this.#historyEvents) return;
-      this.#historyEvents = new AbortController();
-      const { signal } = this.#historyEvents;
+    #positionStrip = frameFor(this, () => {
+      this.#syncRegions();
+      this.#showTab(this.#buttons.get(this.#active));
+    });
+
+    #listenForHistory(signal) {
       // Back or Forward to an entry in another view switches to it, as a press does.
       // One within the open view is the browser's to restore (history.js).
       claimTraversals(
         (url) => {
+          if (!this.#root) return null;
           const view = this.#panelForLocation([...this.#buttons.keys()], url.hash);
           return view && view !== this.#active
             ? () => this.#activate(view, "history")

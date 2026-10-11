@@ -992,7 +992,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <h3>Page-owned annotations</h3>
             <p>
               Alt-click the recommendation in this practice window to comment. The reply
-              and actions stay in the allocated annotation area. Choose a route, then
+              and actions stay in the page's own annotation area. Choose a route, then
               use Undo to return to the open question.
             </p>
             <lf-sample
@@ -1007,9 +1007,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               >
                 <style>
                   #bg-page-annotations-rail {
-                    display: block;
                     inline-size: 100%;
-                    block-size: 20rem;
                   }
                 </style>
                 <h1>Workshop route</h1>
@@ -2680,10 +2678,10 @@ switch --readers checkout-api,orders-api</code></pre>
                 <lf-num
                   id="bg-latency"
                   source="gallery-latency"
-                  at="2000-01-01T00:00:00Z"
+                  run="a41f103e236c985b"
                   via="uv run bench-gallery"
                   >184 ms</lf-num
-                >, its timestamp, and the command that produced it. Because the source
+                >, its run receipt, and the command that produced it. Because the source
                 has a newer update, <code>page check</code> reports that the measurement
                 is behind its source.
               </p>

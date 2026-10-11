@@ -3,8 +3,7 @@
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from markdown_it import MarkdownIt
-
+from leaf.passages import block_markdown
 from leaf.registry.schema import json_value
 from leaf.schema import MEDIA_DIR, SERVED_PATH
 from leaf.structure import (
@@ -16,8 +15,6 @@ from leaf.structure import (
     links_with_rel,
 )
 from leaf.styles import inline_presentation_override_errors
-
-_message_markdown = MarkdownIt("commonmark")
 
 
 def reserved_marker_errors(parser) -> list:
@@ -294,7 +291,7 @@ def text_media_errors(text: str, page_dir: Path) -> list:
     and unused definitions as text, so neither asks for a file the page will not load."""
     refs = {
         url
-        for token in _message_markdown.parse(text)
+        for token in block_markdown().parse(text)
         for child in token.children or ()
         if child.type in {"link_open", "image"}
         if (url := child.attrGet("href" if child.type == "link_open" else "src"))

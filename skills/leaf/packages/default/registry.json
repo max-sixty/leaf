@@ -57,7 +57,7 @@
   },
   "lf-num": {
     "description": "A measured scalar embedded in prose, tied to the snapshot that established it.",
-    "x-instructions": "Write the displayed value with its unit as the element text. Bind source to the repeatable measurement feed and set at to the updated instant leaf data set printed for that snapshot. Read authoring-evidence.md, Measured facts, for measurement and staleness checks. Use via when the source id alone leaves the command or query unclear.",
+    "x-instructions": "Write the displayed value with its unit as the element text. Bind source to the repeatable measurement feed and use the run receipt returned by leaf data set. Use via when the source id alone leaves the command or query unclear.",
     "type": "object",
     "properties": {
       "id": {
@@ -68,16 +68,16 @@
         "type": "string",
         "pattern": "^[a-z][a-z0-9-]*$"
       },
-      "at": {
+      "run": {
         "type": "string",
-        "format": "date-time"
+        "minLength": 1
       },
       "via": {
         "type": "string",
         "minLength": 1
       }
     },
-    "required": ["source", "at"],
+    "required": ["source", "run"],
     "additionalProperties": false,
     "x-content": "markup",
     "x-data": {
@@ -89,10 +89,10 @@
     "x-inline": true,
     "x-measured": {
       "input": "measurement",
-      "at": "at"
+      "run": "run"
     },
     "x-upgrade": false,
-    "x-example": "The import now takes <lf-num source=\"import-latency\" at=\"2026-08-27T09:00:00Z\" via=\"uv run bench-import\">184 ms</lf-num> at p95."
+    "x-example": "The import now takes <lf-num source=\"import-latency\" run=\"a41f103e236c985b\" via=\"uv run bench-import\">184 ms</lf-num> at p95."
   },
   "lf-text-document": {
     "description": "A file-backed text document with optional syntax coloring and rendered Markdown or HTML previews.",
@@ -135,7 +135,7 @@
   },
   "lf-annotation-rail": {
     "description": "An authored-flow rail for Threads, Questions, action and status contributions, updates, and the active comment editor.",
-    "x-instructions": "Select data-annotations=page on body. When the task needs conversations and actions in an independent reading region, place one empty rail with a stable id; page-authoring.md, Bounds and widths, guides that choice. Allocate its width and height in page CSS; it scrolls within that box. Omit it to use the core Threads panel. Native disclosures retain their open state and the shared Thread renderer owns conversations and replies.",
+    "x-instructions": "Select data-annotations=page on body. When the task needs conversations and actions in an independent reading region, place one empty rail with a stable id; page-authoring.md, Bounds and widths, guides that choice. It grows with its rows; where page CSS bounds its height, as a workspace region does, it scrolls within that box. Omit it to use the core Threads panel. Native disclosures retain their open state and the shared Thread renderer owns conversations and replies.",
     "type": "object",
     "properties": {
       "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
@@ -144,6 +144,7 @@
     "additionalProperties": false,
     "x-content": "empty",
     "x-upgrade": true,
+    "x-prepaint": "<section class=\"lf-ar-region lf-ui lf-ui-face\" aria-label=\"Page annotations\"><h2 class=\"lf-ar-heading lf-ui lf-ui-face\">Annotations</h2><button class=\"lf-ar-notice lf-btn lf-ui lf-ui-face\" type=\"button\">Annotations current</button><section class=\"lf-ar-composer lf-ui lf-ui-face\" hidden=\"\"><h3 class=\"lf-ar-source lf-ui lf-ui-face\"></h3><div class=\"lf-ar-outlet lf-ui lf-ui-face\"></div></section><p class=\"lf-ar-empty lf-ui lf-ui-face\">No threads yet.</p><div class=\"lf-ar-list lf-ui lf-ui-face\"></div><div class=\"lf-ar-actions lf-ui lf-ui-face\"></div></section>",
     "x-example": "<lf-annotation-rail id=\"page-annotations\"></lf-annotation-rail>"
   },
   "lf-toc": {

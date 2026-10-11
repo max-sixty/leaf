@@ -4,13 +4,18 @@ Each `evals/<task>/case.yaml` is a Promptfoo test that runs on Claude Code and C
 `leaf-dev eval` builds the Leaf arms, turns the selected cases into a Promptfoo
 config, and runs `promptfoo eval`; Promptfoo does the rest.
 
+Internal viewer-review diagnostics run with `leaf-dev eval-ui-review`.
+They use Promptfoo's assertions and viewer with automatic evidence-aware grading.
+Their exception to the usual suite scope, retained cases and grading workflow are
+in [UI review detection](ui-review-detection/README.md).
+
 ```sh
-npm ci
+pnpm install --frozen-lockfile
 uv run leaf-dev eval brief-document-needs-no-outline --harness claude-code
 uv run leaf-dev eval reading document/resume --harness codex
 uv run leaf-dev eval task-outlasts-the-turn --harness claude-code --base
 uv run leaf-dev eval document --harness both --condition both --repeat 3
-npm run eval:view
+pnpm run eval:view
 ```
 
 ## Choosing what runs
@@ -42,7 +47,7 @@ queue transport the desktop app and IDE use runs under
 `leaf-dev journey codex-queue`. Each assertion's `metric` is a named score, so a
 comparison reads per metric across columns.
 
-`npm run eval:view` opens Promptfoo's viewer on every run recorded on
+`pnpm run eval:view` opens Promptfoo's viewer on every run recorded on
 this machine, each named by branch, commits and cases. It shows each sample's
 output, assertion reasons, metadata, cost and tokens, and compares runs.
 
@@ -141,6 +146,6 @@ plugin installation, discovery and hooks on each harness, and `leaf-dev verify-s
 the website.
 
 ```sh
-npm run test:evals
+pnpm run test:evals
 uv run pytest tests/test_eval.py tests/test_scenario_eval.py tests/test_usability_eval.py tests/test_arrangement_eval.py -q -n0
 ```

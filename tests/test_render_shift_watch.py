@@ -7,7 +7,7 @@ from html import escape
 from urllib.parse import quote
 
 import pytest
-from leaf.render_checks import rendered
+from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
 from render_cases_interaction import ASK_PAGE
 from render_harness import (
@@ -1185,7 +1185,7 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
     control = page.locator("#control")
     first.locator(".lf-diff-head").click()
     holding(page, held, 1, "the markdown grammar")
-    rendered(page)
+    one_frame(page)
     assert (
         page.evaluate(
             "document.querySelector('script[data-lf-entry]').lfReadiness(null, 'presented')"
@@ -1194,7 +1194,7 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
     )
     # While the preparation waits, the press owns no other movement on the page.
     control.evaluate("node => node.style.marginTop = '40px'")
-    rendered(page)
+    one_frame(page)
     judge_watches()
     consume_browser_errors(page, "button#control moved without input")
 
@@ -1260,7 +1260,7 @@ def test_a_preparation_no_input_began_lands_passive(browser, serve, pressed):
     page.locator(pressed).click()
     answer[0].fulfill(status=204)
     holding(page, grammar, 1, "the markdown grammar")
-    rendered(page)
+    one_frame(page)
     judge_watches()
     assert page.lf_errors == []
 

@@ -238,11 +238,6 @@ def layer_metadata(page_dir: Path) -> dict:
     }
 
 
-def layer_generation(page_dir: Path) -> str:
-    """The epoch shared by this page's vendored runtime and server contract."""
-    return layer_metadata(page_dir)["generation"]
-
-
 def require_registry(page_dir: Path) -> dict:
     """The active revision's vocabulary, or the candidate before first activation."""
     registry = active_registry(page_dir)

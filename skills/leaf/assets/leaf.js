@@ -32,6 +32,8 @@ import { PAGE_PAINT_ATTRIBUTE, pagePresented } from "./runtime/page-paint.js";
 import { nextFrame, renderingSettled } from "./runtime/rendering.js";
 import { observeQueuedWork } from "./runtime/queued-work.js";
 import { mountApplication } from "./runtime/application.js";
+import { approvalBlockingQuestions } from "./runtime/questions/model.js";
+import { beginRead } from "./runtime/state-feed.js";
 import {
   applicationState,
   observeWidgetPreparations,
@@ -239,7 +241,7 @@ const narrowing = createThreadNarrowing({
   ready: () => runtime.statePhase === "ready",
   repaint: () => app.presentThread(),
 });
-const paintVersionApproval = () => paintApproval(app.approvalBlockingQuestions());
+const paintVersionApproval = () => paintApproval(approvalBlockingQuestions());
 let threadPanelController;
 let drawers;
 let layout;
@@ -476,7 +478,6 @@ app = mountApplication({
   panelIsOpen,
   registerReactSurface: (...args) => reactions.registerReactSurface(...args),
   sendReaction,
-  updateFab: (...args) => responseSurface.updateFab(...args),
   createMarginProjection: annotationRenderer?.createMarginProjection,
   annotationCommands: {
     designModeActive: designMode.active,
@@ -501,10 +502,6 @@ app = mountApplication({
     renderVersions: version.renderVersions,
     stateSignoff: (next) => stateSignoff(next, layout.syncLayout, paintVersionApproval),
     renderOthers: offlineInteractive ? () => undefined : renderOthers,
-  },
-  feed: {
-    prepareActivation: (state) => version.prepareActivation(state),
-    renderStatus,
   },
 });
 app.registerThreadPanel({
@@ -996,7 +993,7 @@ const replayReady = passiveSample
     )
   : Promise.resolve();
 
-const initialStateRead = app.beginRead();
+const initialStateRead = beginRead();
 let interactionGalleryModule;
 let interactionGalleryLoading;
 let failedInteractionGallery;

@@ -277,7 +277,7 @@ provider final yields to a successful reply already recorded at its exact input.
 The reservation fences competing provider finals and failure receipts; it stores
 no authored content and survives a lost connection until commit or terminal release.
 When the prompt hook opens a turn, it records a new `opened` transition for its
-acknowledged, unanswered updates. A plugin-free embedded harness records the same
+acknowledged, unanswered updates. An embedded harness records the same
 transition from the queued turn's App Server `turn/started` notification. A
 direct-delivery update that needs a reminder is also named in the hook context. A
 queued Codex update needs no reminder there: the prompt itself carries its delivery

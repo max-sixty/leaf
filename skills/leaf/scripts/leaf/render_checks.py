@@ -157,8 +157,8 @@ def one_frame(page) -> None:
 def rendered(page) -> None:
     """Wait until the runtime has rendered what the input so far asked for.
 
-    Its settled reading (runtime/rendering.js) says nothing it queued is waiting and its
-    last rendering update was quiet. A read after a coalesced repaint, however many
+    Its settled reading (runtime/rendering.js) says no registered preparation or queued
+    rendering is waiting and its last update was quiet. A read after a coalesced repaint, however many
     updates that repaint chains through, waits here instead of guessing a count. One
     whole update passes first, so a change no Leaf callback took part in — a wheel, a
     resize — has had its turn to unsettle the reading.

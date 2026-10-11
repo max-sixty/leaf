@@ -14716,7 +14716,7 @@ def test_hook_drops_a_page_transferred_after_ownership_discovery(claimed, monkey
         return pages
 
     monkeypatch.setattr(hook_transport_model, "owned_pages", transfer)
-    assert hook_transport_model.unattended_pages("s1") == []
+    assert hook_transport_model.remedies(hook_transport_model.read_plans("s1")) == []
 
 
 @pytest.mark.parametrize("rewritten", [True, False])

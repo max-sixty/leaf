@@ -86,6 +86,17 @@ user outside it waits on the page rather than on a widget it would have to know 
 A declared `x-shadow` widget gets the same transition protection when it builds its root
 with `shadowStage`.
 
+## Template containers
+
+Once `render(template, container)` owns a container, update its children through
+`render` so Lit retains its markers and disconnects removed directives. `failSoft`
+resets the container and renders an error box; a later template render replaces
+that box. It also supports native recovery and repeated failures.
+
+`shadowStage(host, nodes)` owns the shadow root's structure and styles. For a
+template, stage a concrete container with `shadowStage(host, [container])` and
+call `render(template, container)`. Retain that container on later stage updates.
+
 ## What a behavior module owes
 
 A behavior module follows these rules:

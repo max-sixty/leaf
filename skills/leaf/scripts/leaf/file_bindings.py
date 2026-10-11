@@ -62,9 +62,10 @@ def _bindings(page_dir: Path) -> dict:
 def _target(page_dir: Path, binding: str) -> Path | None:
     if not isinstance(binding, str) or not BINDING_ID.fullmatch(binding):
         raise FileBindingError("Invalid file binding id.")
-    raw = _bindings(page_dir).get(binding)
-    if raw is None:
+    bindings = _bindings(page_dir)
+    if binding not in bindings:
         return None
+    raw = bindings[binding]
     if not isinstance(raw, str) or not Path(raw).is_absolute():
         raise FileBindingError("Invalid file bindings; bind the file again.")
     return Path(raw)

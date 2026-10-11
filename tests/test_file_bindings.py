@@ -116,6 +116,11 @@ def test_only_bound_supported_files_can_be_read_or_saved(page_dir, tmp_path):
             page_dir, "notes", {"revision": snapshot["revision"], "text": "overwrite\n"}
         )
     assert substitute.read_bytes() == b"private\n"
+    # A broken grant refuses; only an id the page never bound reads as no file.
+    (page_dir / "files.json").write_text('{"bindings": {"notes": null}}')
+    with pytest.raises(FileBindingError, match="Invalid file bindings"):
+        read_file(page_dir, "notes")
+    assert read_file(page_dir, "other") is None
 
 
 def test_rebinding_cannot_apply_an_old_buffer_to_an_identical_other_file(

@@ -6,7 +6,6 @@
 import { annotationMode, runtime } from "./context.js";
 import {
   applicationState,
-  readApplication,
   setPresentationFailureReporter,
   whenApplicationRegionsPresented,
   whenWidgetsPresented,
@@ -77,7 +76,6 @@ export function mountApplication(dependencies) {
 
   const stateApplying = () => stateApplication?.isApplying() ?? false;
 
-  const currentReceipts = () => readApplication().authoritative?.browser.receipts ?? [];
   const approvalBlockingQuestions = readApprovalBlockingQuestions;
 
   // Retire the entries the ledger's lifecycle says wait only for release, once every
@@ -417,7 +415,6 @@ export function mountApplication(dependencies) {
 
   delivery = createDelivery({
     ledger,
-    currentReceipts,
     applyAcceptedState: receiveState,
     settleRejected: async (entry, state) => {
       if (state)

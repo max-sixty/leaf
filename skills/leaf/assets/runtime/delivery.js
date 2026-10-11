@@ -16,7 +16,6 @@ const retryPause = () => new Promise((resolve) => setTimeout(resolve, RETRY_MS))
 
 export function createDelivery({
   ledger,
-  currentReceipts,
   applyAcceptedState,
   settleRejected,
   settlementChanged,
@@ -27,8 +26,8 @@ export function createDelivery({
   async function deliver(entry) {
     let announced = false;
     for (;;) {
-      ledger.nameParent(entry, currentReceipts());
-      if (!ledger.nameUndo(entry, currentReceipts())) return { accepted: null };
+      ledger.nameParent(entry);
+      if (!ledger.nameUndo(entry)) return { accepted: null };
       const { event } = entry;
       if (entry.admitted) return { accepted: entry.admitted };
       const sent = await Promise.race([

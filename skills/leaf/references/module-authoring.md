@@ -86,7 +86,18 @@ user outside it waits on the page rather than on a widget it would have to know 
 A declared `x-shadow` widget gets the same transition protection when it builds its root
 with `shadowStage`.
 
-## Template containers
+## Template rendering
+
+Use Leaf's public `render(template, container)` when a paint must land in the
+turn that caused it, including a forward widget gesture. `LitElement` schedules
+updates on a microtask; use it only for runtime faces whose contract permits that
+delay. Package widgets extend `HTMLElement` and
+receive semantic state through `widgetController`, without a LitElement widget
+base or a reactive copy of that state.
+
+Templates own generated containers or bounded ranges, rather than authored
+children. Retain concrete native nodes with `setChildren` for rows holding
+iframes or editors: `repeat` currently moves rows by disconnecting them.
 
 Once `render(template, container)` owns a container, update its children through
 `render` so Lit retains its markers and disconnects removed directives. `failSoft`
@@ -110,7 +121,8 @@ A behavior module follows these rules:
   control anatomy. `offered` owns the element's class and chrome markers; native
   button type defaults to `button`. A native input's `type` binding precedes
   `offered` so its press marker reads that type. Bind values and handlers normally, and use
-  `repeat(items, identity, template)` to retain editable controls under their identities.
+  `repeat(items, identity, template)` to retain keyed controls, subject to the
+  container and native-state rules in "Template rendering".
   `said(true)`, `said(false)`, or `said("echo")` marks a template element's words with
   the same passage and print meaning as `relabel`; Lit owns the element's content.
 - Read UI based on element geometry synchronously from `PRESENTATION` for its

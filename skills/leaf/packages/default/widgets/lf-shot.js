@@ -52,6 +52,7 @@ import {
   describeDifference,
   differenceKind,
   once,
+  whileConnected,
   offer,
   failSoft,
   iconElement,
@@ -262,10 +263,7 @@ customElements.define(
     }
 
     connectedCallback() {
-      if (!once(this)) {
-        this.#offer();
-        return;
-      }
+      if (!once(this)) return;
       const shots = [];
 
       const rail = document.createElement("div");
@@ -347,7 +345,13 @@ customElements.define(
       this.append(box);
       this.#paintAlt();
       this.#paintInspection();
-      this.#offer();
+      whileConnected(this, () => {
+        this.#offer();
+        return () => {
+          this.#margin?.unregister();
+          this.#margin = null;
+        };
+      });
       // A visual-review run creates shots after authored descriptor capture. Its
       // authored controller explicitly owns that generated child's preparation;
       // standalone authored shots own their presentation themselves.
@@ -365,11 +369,6 @@ customElements.define(
         ),
       );
       void this.difference.catch((reason) => failSoft(this, reason));
-    }
-
-    disconnectedCallback() {
-      this.#margin?.unregister();
-      this.#margin = null;
     }
 
     #paintAlt() {

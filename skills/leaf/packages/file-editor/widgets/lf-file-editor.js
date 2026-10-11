@@ -16,10 +16,12 @@ import {
   boundFile,
   focusDestination,
   focused,
-  keeps,
-  keepsHidden,
-  keepsText,
+  html,
+  nothing,
+  render,
+  repeat,
   offer,
+  offered,
   once,
   shadowStage,
   tabStore,
@@ -37,31 +39,14 @@ export default class extends HTMLElement {
   initialize() {
     const api = boundFile(this.getAttribute("binding"));
     const recoveryKey = `file:${this.id}:${this.getAttribute("binding")}`;
-    const head = offer("div", "lf-file-editor-head");
-    const title = offer("span", "lf-file-editor-name", this.getAttribute("binding"));
-    const status = offer("span", "lf-file-editor-status");
-    status.setAttribute("aria-hidden", "true");
-    const announcement = offer("span", "lf-file-editor-announcement");
-    announcement.setAttribute("role", "status");
-    announcement.setAttribute("aria-live", "polite");
-    const problem = offer("div", "lf-file-editor-problem");
-    const explanation = offer("p", "lf-file-editor-explanation");
-    explanation.setAttribute("role", "alert");
-    const legend = offer(
-      "p",
-      "lf-file-editor-legend",
-      "Removed text is on disk. Added text is your draft.",
-    );
-    const actions = offer("div", "lf-file-editor-actions");
-    const action = (label, run) => {
-      const button = offer("button", "button", label);
-      button.type = "button";
-      button.addEventListener("click", () => {
-        if (!busy) run();
-      });
-      return button;
-    };
-    const useFile = action("Use file version", () => {
+    // Stage one retained owner: Lit's markers belong inside it, and CodeMirror's
+    // mounts are persistent node values within the template.
+    const view = offer("div", "lf-file-editor-view");
+    const mount = offer("div", "lf-file-editor-edit");
+    view.append(mount);
+    shadowStage(this, [view]);
+    this.replaceChildren();
+    const useFile = () => {
       if (busy || !latest) return;
       base = latest;
       latest = null;
@@ -72,22 +57,15 @@ export default class extends HTMLElement {
       finishSaving();
       paint();
       focusDestination(editor.contentDOM, "return");
-    });
-    const keepDraft = action("Save my version", async () => {
-      await flush(true, keepDraft);
-    });
-    const retry = action("Retry", async () => {
+    };
+    const keepDraft = (event) => void flush(true, event.currentTarget);
+    const retry = (event) => {
+      if (busy) return;
       const operation = failure;
-      if (operation?.kind === "save") await flush(operation.replace, retry);
-      else await refresh(retry);
-    });
-    actions.append(useFile, keepDraft, retry);
-    const comparisonMount = offer("div", "lf-file-editor-comparison");
-    problem.append(explanation, legend, actions, comparisonMount);
-    head.append(title, status);
-    const mount = offer("div", "lf-file-editor-edit");
-    shadowStage(this, [head, mount, problem, announcement]);
-    this.replaceChildren();
+      if (operation?.kind === "save")
+        void flush(operation.replace, event.currentTarget);
+      else void refresh(event.currentTarget);
+    };
     let base = null,
       latest = null,
       failure = null,
@@ -99,7 +77,8 @@ export default class extends HTMLElement {
       slowTimer = null;
     let recovering = false,
       connected = false,
-      slow = false;
+      slow = false,
+      announcement = "";
     const editor = createEditor(mount, {
       readOnly: true,
       onChange() {
@@ -126,41 +105,79 @@ export default class extends HTMLElement {
       slowTimer = null;
       if (!slow) return;
       slow = false;
-      keepsText(announcement, !failure && !latest && !dirty() ? "Changes saved." : "");
+      announcement = !failure && !latest && !dirty() ? "Changes saved." : "";
     }
     function paint() {
       const label = base?.label ?? thisBinding;
-      keepsText(title, label);
       editor.setLabel(label);
       editor.readOnly = base === null || !api.writable;
-      keepsText(
-        status,
-        failure
-          ? base
-            ? "Not saved"
-            : "Unavailable"
-          : latest
-            ? "Needs review"
-            : slow
-              ? "Saving changes…"
-              : "",
+      render(
+        html`
+          <div ${offered("lf-file-editor-head")}>
+            <span ${offered("lf-file-editor-name")}>${label}</span>
+            <span ${offered("lf-file-editor-status")} aria-hidden="true"
+              >${
+                failure
+                  ? base
+                    ? "Not saved"
+                    : "Unavailable"
+                  : latest
+                    ? "Needs review"
+                    : slow
+                      ? "Saving changes…"
+                      : ""
+              }</span
+            >
+          </div>
+          ${mount}
+          <div ${offered("lf-file-editor-problem")} ?hidden=${!latest && !failure}>
+            <p
+              ${offered("lf-file-editor-explanation")}
+              role="alert"
+              .textContent=${
+                failure
+                  ? `${failure.message}${base && dirty() ? " Your draft is kept." : ""}`
+                  : latest
+                    ? "The file changed on disk. Use the file version to discard your draft, or save your draft over the version shown below."
+                    : ""
+              }
+            ></p>
+            <p ${offered("lf-file-editor-legend")} ?hidden=${!latest}>
+              Removed text is on disk. Added text is your draft.
+            </p>
+            <div ${offered("lf-file-editor-actions")}>
+              ${repeat(
+                [
+                  ["Use file version", !latest, useFile],
+                  ["Save my version", !latest, keepDraft],
+                  ["Retry", !failure || !api.writable, retry],
+                ],
+                ([label]) => label,
+                ([label, hidden, run]) => html`
+                  <button
+                    type="button"
+                    ${offered("button")}
+                    ?hidden=${hidden}
+                    aria-disabled=${busy ? "true" : nothing}
+                    @click=${run}
+                  >
+                    ${label}
+                  </button>
+                `,
+              )}
+            </div>
+            <div ${offered("lf-file-editor-comparison")} ?hidden=${!latest}></div>
+          </div>
+          <span
+            ${offered("lf-file-editor-announcement")}
+            role="status"
+            aria-live="polite"
+            >${announcement}</span
+          >
+        `,
+        view,
       );
-      keepsHidden(problem, !latest && !failure);
-      keepsText(
-        explanation,
-        failure
-          ? `${failure.message}${base && dirty() ? " Your draft is kept." : ""}`
-          : latest
-            ? "The file changed on disk. Use the file version to discard your draft, or save your draft over the version shown below."
-            : "",
-      );
-      keepsHidden(legend, !latest);
-      keepsHidden(useFile, !latest);
-      keepsHidden(keepDraft, !latest);
-      keepsHidden(retry, !failure || !api.writable);
-      for (const button of [useFile, keepDraft, retry])
-        keeps(button, "aria-disabled", busy ? "true" : null);
-      keepsHidden(comparisonMount, !latest);
+      const comparisonMount = view.querySelector(".lf-file-editor-comparison");
       if (latest) {
         if (!comparison)
           comparison = createEditor(comparisonMount, {
@@ -205,7 +222,7 @@ export default class extends HTMLElement {
         slowTimer = setTimeout(() => {
           slow = true;
           slowTimer = null;
-          keepsText(announcement, "Saving changes.");
+          announcement = "Saving changes.";
           paint();
         }, 1000);
       paint();
@@ -306,6 +323,7 @@ export default class extends HTMLElement {
         poll = null;
         clearTimeout(timer);
         finishSaving();
+        paint();
         window.removeEventListener("beforeunload", beforeUnload);
         document.removeEventListener("visibilitychange", visibility);
         remember();

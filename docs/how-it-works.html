@@ -403,8 +403,8 @@ leaf page stamp ./review --text "Queue policy: drop oldest"</code></pre>
                   when the user presses Done.
                 </p>
                 <p id="delivery-envelope">
-                  A delivery uses the <code>leaf-delivery-v3</code> JSON format. Its
-                  envelope contains one or more page batches, preserving the captured
+                  A delivery is one JSON document, whose <code>format</code> field
+                  names its version. Its envelope contains one or more page batches, preserving the captured
                   event order, thread context, and handling instructions. A delivery id
                   supplied by the harness names this whole envelope; an event's
                   <code>id</code> names one recorded event. The agent opens a delivery

@@ -49,7 +49,9 @@
 .lf-trace-source::part(label) { white-space: normal; overflow-wrap: anywhere; }
 .lf-trace-viewer:not([hidden]) { white-space: nowrap; min-block-size: var(--lf-trace-control-size); display: inline-flex; align-items: center; font-size: var(--lf-trace-small-type); }
 .lf-trace-position-row { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: baseline; gap: var(--sp-1) var(--sp-2); min-inline-size: 0; flex: 1; }
-.lf-trace-position { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+/* Digits narrower than 0 and the shorter "." and " s" keep any label within its
+ * reserve, in fonts without tabular figures too. */
+.lf-trace-position { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; min-inline-size: calc(var(--lf-trace-position-chars, 0) * 1ch); }
 .lf-trace-selection { min-inline-size: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--muted); }
 
 /* The timeline: lane names, then a native horizontal scroller holding the ruler,

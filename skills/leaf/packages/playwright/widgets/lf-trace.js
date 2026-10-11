@@ -1732,6 +1732,16 @@ customElements.define(
         this.positionLabel,
         playhead === null ? "No recorded points" : this.#time(playhead, this.#stream()),
       );
+      // The readout reserves the recording's longest time, so the selection beside
+      // it holds still while playback changes its digits.
+      const longest = this.#trace
+        ? String(this.#time(this.#bounds().end, this.#stream()).length)
+        : "";
+      if (
+        this.positionLabel.style.getPropertyValue("--lf-trace-position-chars") !==
+        longest
+      )
+        this.positionLabel.style.setProperty("--lf-trace-position-chars", longest);
       const selectedMoments = this.#moments.filter(
         (moment) =>
           this.#selected && this.#destination(moment.target) === this.#selected,

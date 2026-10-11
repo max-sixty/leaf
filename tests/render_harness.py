@@ -34,7 +34,6 @@ import itertools
 import json
 import math
 import os
-import re
 import shutil
 import subprocess
 import time
@@ -71,7 +70,6 @@ from leaf_dev.browser import (
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import (
     example_media,
-    package_selection_args,
     prepare_page,
     read_fixture,
 )
@@ -555,15 +553,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
             package_path(item) if isinstance(item, Path) else item
             for item in selected_packages
         )
-        selection_args = package_selection_args(selected_packages)
         d = tmp_path / f"page{len(servers)}"
-
-        def initialize(target):
-            initialized = CliRunner().invoke(
-                cli_model.cli,
-                ["page", "init", *selection_args, str(target)],
-            )
-            assert initialized.exit_code == 0, initialized.output
 
         def run_leaf(*args, input_text=None):
             result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
@@ -581,43 +571,14 @@ def serve(tmp_path, monkeypatch, initialized_page):
                 earlier_note="t",
             )
 
-        # Local package contents vary between tests even when their selected path
-        # is the same, so only immutable bundled selections share a template. An
-        # example is a shape of its own, versions stamped and log seeded, since
+        # An example is a shape of its own, versions stamped and log seeded, since
         # preparing one stamps every version it ships: seconds per page, paid once
         # per worker rather than once per test.
-        if (
-            layer_registry is not None
-            or layer_widgets
-            or any(
-                not re.fullmatch(schema_model.HTML_NAME, selected)
-                for selected in selected_packages
-            )
-        ):
-            initialize(d)
-            if fixture:
-                prepare(d)
-        else:
-            template_name = (
-                "examples"
-                if packages is None
-                else "examples-" + ("-".join(selected_packages) or "no-packages")
-            )
-            if fixture:
-                example_name = example.resolve().relative_to(ROOT.resolve()).as_posix()
-                initialized_page(
-                    "--".join(
-                        (
-                            template_name,
-                            example_name.replace("/", "-"),
-                            "seeded" if seed_log else "unseeded",
-                        )
-                    ),
-                    d,
-                    lambda target: (initialize(target), prepare(target)),
-                )
-            else:
-                initialized_page(template_name, d, initialize)
+        initialized_page(
+            d,
+            selected_packages,
+            ((example.resolve(), seed_log), prepare) if fixture else None,
+        )
         if fixture:
             # The page pool can lend a copy hours after it stamped the template.
             # Its current publication is new to this test, so keep the timestamp

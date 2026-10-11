@@ -13,13 +13,17 @@ from typing import NamedTuple
 
 import psutil
 import pytest
+from click.testing import CliRunner
+from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import harness as harness_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf.render_gate import browser as browser_model
+from leaf.schema import HTML_NAME
 from leaf_dev import LEAF_COMMAND
 from leaf_dev.browser import LINUX_FONTCONFIG, require_linux_fonts
+from leaf_dev.page_fixtures import package_selection_args
 from playwright.sync_api import sync_playwright
 
 __all__ = ["LEAF_COMMAND"]
@@ -84,15 +88,15 @@ class PagePool:
 
     def __init__(self, root):
         self.root = root
-        self.shapes = {}  # name -> PageShape
-        self.free = {}  # name -> [page]
+        self.shapes = {}  # key -> PageShape
+        self.free = {}  # key -> [page]
         self.stamps = {}  # page -> {relative path: identity}
 
-    def _shape(self, name, initialize):
-        if name not in self.shapes:
-            template = self.root / name
+    def _shape(self, key, initialize):
+        if key not in self.shapes:
+            template = self.root / str(len(self.shapes))
             initialize(template)
-            self.shapes[name] = PageShape(
+            self.shapes[key] = PageShape(
                 template,
                 directories=frozenset(
                     path.relative_to(template).as_posix()
@@ -101,8 +105,8 @@ class PagePool:
                 ),
                 files=_stamp(template),
             )
-            self.free[name] = []
-        return self.shapes[name]
+            self.free[key] = []
+        return self.shapes[key]
 
     def _reset(self, shape, page):
         """Make the page the shape again, from what the filesystem says moved."""
@@ -128,10 +132,10 @@ class PagePool:
                 kept[relative] = shape.restore(page, relative)
         return kept
 
-    def lend(self, name, destination, initialize):
-        shape = self._shape(name, initialize)
-        if self.free[name]:
-            page = self.free[name].pop()
+    def lend(self, key, destination, initialize):
+        shape = self._shape(key, initialize)
+        if self.free[key]:
+            page = self.free[key].pop()
             stamp = self._reset(shape, page)
             os.rename(page, destination)
             del self.stamps[page]
@@ -141,8 +145,8 @@ class PagePool:
         self.stamps[destination] = stamp
         return destination
 
-    def give_back(self, name, page):
-        self.free[name].append(page)
+    def give_back(self, key, page):
+        self.free[key].append(page)
 
 
 class PageShape(NamedTuple):
@@ -200,28 +204,56 @@ def _page_pool(tmp_path_factory):
 
 
 @pytest.fixture
-def initialized_page(_page_pool):
-    """Put an initialized page of the named shape at the caller's path.
+def initialized_page(_page_pool, tmp_path):
+    """Put a page initialized with `packages` at `destination`, from the pool.
 
-    The shape is composed once per worker by the caller's own `initialize`, so a
-    test whose subject is initialization, re-vendoring or an overlay still
-    crosses the real `page init` boundary by calling this with a shape of its
-    own — or by not calling it at all.
+    `prepared`, a `(key, step)` pair, runs `step` on the page after `page init`, and
+    `key` tells its shape from the bare initialized one: an example's stamped
+    versions, or a fixed document. The pool keys a shape by what makes it, the
+    selection and that key, so no caller names one, and two callers that make the
+    same page share it.
+
+    A package the test wrote under its own `tmp_path` has new contents under the
+    same path in every test, so a selection naming one is initialized in place
+    rather than pooled. A bundled name or a checkout path holds still for the run.
+    A test whose subject is initialization, re-vendoring or an overlay runs
+    `page init` itself.
 
     Runtime and vendor files are hard links shared with the shape, so a test never
     writes through one in place: re-vendoring replaces those files, and the next loan
     rejects an in-place write by name.
     """
     lent = []
+    own = tmp_path.resolve()
 
-    def lend(name, destination, initialize):
-        page = _page_pool.lend(name, Path(destination), initialize)
-        lent.append((name, page))
+    def lend(destination, packages, prepared=None):
+        destination = Path(destination)
+        packages = tuple(packages)
+        key, step = prepared or (None, None)
+
+        def initialize(target):
+            made = CliRunner().invoke(
+                cli_model.cli,
+                ["page", "init", *package_selection_args(packages), str(target)],
+            )
+            assert made.exit_code == 0, made.output
+            if step:
+                step(target)
+
+        if any(
+            not re.fullmatch(HTML_NAME, package)
+            and (Path.cwd() / Path(package).expanduser()).resolve().is_relative_to(own)
+            for package in packages
+        ):
+            initialize(destination)
+            return destination
+        page = _page_pool.lend((packages, key), destination, initialize)
+        lent.append(((packages, key), page))
         return page
 
     yield lend
-    for name, page in lent:
-        _page_pool.give_back(name, page)
+    for key, page in lent:
+        _page_pool.give_back(key, page)
 
 
 def pytest_addoption(parser):

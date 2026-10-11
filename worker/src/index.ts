@@ -114,7 +114,7 @@ const interactionEntrySchema = z.record(z.string(), z.unknown()).check(
   ),
 );
 const interactionBatchSchema = z.strictObject({
-  session: z.string().check(z.regex(/^[a-z0-9]+-[a-z0-9]+$/), z.maxLength(64)),
+  session: z.string().check(z.regex(/^[0-9a-f]{32}$/)),
   entries: z.array(interactionEntrySchema).check(z.minLength(1), z.maxLength(100)),
 });
 // Workers Logs captures at most 256 KiB across the whole invocation. Leave room for

@@ -45,7 +45,7 @@ import { pressIsKeyboardActivation } from "./pointer.js";
 import { iconElement } from "./icons.js";
 import { renderedParent } from "./shadow.js";
 import { keeps, keepsText } from "./keeps.js";
-import { Directive, PartType, directive, nothing } from "../vendor/lit.js";
+import { Directive, PartType, directive, nothing } from "../vendor/browser-runtime.js";
 
 // A scroll target can sit inside a collapsed container — a closed <details>, an
 // inactive tab. Opening what the platform owns (details) and letting a container

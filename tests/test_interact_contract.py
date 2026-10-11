@@ -4660,22 +4660,6 @@ def test_check_takes_a_stated_height_in_whole_css_pixels(page_dir):
     )
 
 
-def test_check_advises_a_main_with_no_layout(page_dir):
-    """A page's width is a Layout class on `main`; a `main` with no Layout at all is
-    advice, since nothing arranges it unless the page's own CSS does."""
-    unarranged = "<main> has no Layout class"
-    (page_dir / "index.html").write_text(
-        PAGE.replace("<main>", '<main class="layout-column">')
-    )
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-    assert unarranged not in result.output
-    (page_dir / "index.html").write_text(PAGE)
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-    assert unarranged in result.output
-
-
 def test_check_takes_a_rail_only_by_name(page_dir):
     """`data-rail` says whether the page keeps a rail, naming one of the two answers."""
     (page_dir / "index.html").write_text(

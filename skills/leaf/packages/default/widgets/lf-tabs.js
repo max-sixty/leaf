@@ -61,6 +61,7 @@ import {
   backgroundFlash,
   beginWalk,
   capturePlace,
+  comparisonChanges,
   claimTraversals,
   commands,
   compoundReadingRegionId,
@@ -90,6 +91,7 @@ import {
   sizeObserver,
   tabStore,
   watchQuestions,
+  watchComparison,
   focusDestination,
   rove,
   scrollIntoView,
@@ -303,12 +305,11 @@ export default class extends HTMLElement {
     }
     // The Δ count follows the version diff; the runtime announces each toggle.
     this.#listenForQuestions();
+    watchComparison(this, () => this.#marks());
     whileConnected(this, (signal) => {
       this.#watchRootContext();
       this.#syncRootContext();
       this.#listenForHistory(signal);
-      document.addEventListener("lf-comparison", () => this.#marks(), { signal });
-      this.#marks();
       const stripSize = this.#watchStrip();
       const stopPanels = this.#side
         ? [...this.#buttons.keys()].map((panel) =>
@@ -364,7 +365,7 @@ export default class extends HTMLElement {
   // all answered.
   #marks() {
     for (const [panel, btn] of this.#buttons) {
-      const changed = panel.querySelectorAll(".lf-ins-block").length;
+      const changed = comparisonChanges(panel).length;
       keepsText(
         btn.querySelector(":scope > .lf-tabdiff"),
         changed ? `Δ${changed}` : "",

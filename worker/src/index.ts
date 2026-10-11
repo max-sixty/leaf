@@ -74,7 +74,7 @@ const startupTime = z.nullable(
 );
 const startupReportSchema = z.strictObject({
   version: z.literal(2),
-  loadId: z.uuidv4(),
+  loadId: z.string().check(z.regex(/^[0-9a-f]{32}$/)),
   release: z.string().check(z.regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/)),
   layer: z.string().check(z.regex(/^[A-Za-z0-9_-]{1,128}$/)),
   outcome: z.union([
@@ -115,7 +115,7 @@ const interactionEntrySchema = z.record(z.string(), z.unknown()).check(
   ),
 );
 const interactionBatchSchema = z.strictObject({
-  session: z.string().check(z.regex(/^[a-z0-9]+-[a-z0-9]+$/), z.maxLength(64)),
+  session: z.string().check(z.regex(/^[0-9a-f]{32}$/)),
   entries: z.array(interactionEntrySchema).check(z.minLength(1), z.maxLength(100)),
 });
 // Workers Logs captures at most 256 KiB across the whole invocation. Leave room for

@@ -2100,6 +2100,19 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
         expect(page.locator("body")).not_to_have_attribute("data-lf-applied", "1")
         expect(page.locator("#sug lf-old")).to_be_visible()
         expect(page.locator(".lf-signoff")).to_be_disabled()
+        # No producer below the feed saw the body, so the feed's report is the one
+        # that reaches the agent.
+        wait_for(
+            lambda: [
+                event["text"].splitlines()[0]
+                for event in events_model.read_events(serve.page_dir)
+                if event["kind"] == "error"
+            ],
+            lambda errors: any(
+                error.startswith("read failed: Unexpected token") for error in errors
+            ),
+            failure="the malformed state body never reached the log",
+        )
     finally:
         page.close()
     # As above: the malformed answer is given to every read, and the page keeps

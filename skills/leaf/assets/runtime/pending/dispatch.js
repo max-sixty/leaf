@@ -5,7 +5,7 @@
 import { actionForWidget, isThreadEvent } from "./model.js";
 import { createPendingLedger } from "./state.js";
 import { applicationState } from "../semantic-state.js";
-import { newAttempt } from "../drafts.js";
+import { randomId } from "../ids.js";
 import { saidNow } from "../presence.js";
 import { messageText } from "../thread/messages.js";
 
@@ -59,7 +59,7 @@ function widgetCommand(command) {
  * }} DispatchDependencies */
 export function createCommandDispatch() {
   const ledger = createPendingLedger({
-    newAttempt,
+    newAttempt: randomId,
     enqueue: (event) =>
       applicationState.enqueue(
         event,

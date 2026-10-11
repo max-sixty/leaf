@@ -94,7 +94,9 @@ import {
   watchQuestions,
   watchComparison,
   focusDestination,
+  fragmentTarget,
   rove,
+  rowArrows,
   scrollIntoView,
 } from "/runtime/widget-api.js";
 
@@ -250,12 +252,8 @@ customElements.define(
           listWalkPosition([...this.#buttons.values()], document.activeElement),
         );
       };
-      // Across the row, back is the way the names run from: left in a left-to-right
-      // page and right in a right-to-left one, where the first tab stands at the right.
-      const [back, ahead] =
-        getComputedStyle(this).direction === "rtl"
-          ? ["ArrowRight", "ArrowLeft"]
-          : ["ArrowLeft", "ArrowRight"];
+      // Across the row, back is the way the names run from.
+      const [back, ahead] = rowArrows(this);
       commands(strip, "On a tab", [
         {
           id: "tab.activate",
@@ -493,22 +491,12 @@ customElements.define(
         : change();
     }
 
+    // The panel holding what the fragment names, read as Leaf's own arrival reads it, so
+    // the traversal and the landing agree on an id inside a widget's shadow tree.
     #panelForLocation(panels, hash = location.hash) {
-      if (!this.#root || !hash) return null;
-      const target = this.#targetFor(hash);
-      return target
-        ? (panels.find((panel) => panel === target || panel.contains(target)) ?? null)
-        : null;
-    }
-
-    #targetFor(hash) {
-      let id;
-      try {
-        id = decodeURIComponent(hash.slice(1));
-      } catch {
-        return null;
-      }
-      return id ? document.getElementById(id) : null;
+      if (!this.#root) return null;
+      const target = fragmentTarget(hash);
+      return target ? (panels.find((panel) => under(target, panel)) ?? null) : null;
     }
 
     #syncRootContext() {

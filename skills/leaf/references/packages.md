@@ -201,7 +201,7 @@ its schema. An ordinary vocabulary entry's `x-instructions` is one non-empty str
 
 ```bash
 leaf page instructions PAGE | jq 'keys'
-leaf page instructions PAGE --use lf-options --use .eyebrow | jq -er '.author'
+leaf page instructions PAGE --use lf-options --use .eyebrow | jq -r '.author // empty'
 leaf page instructions PAGE --contract unified-diff | jq -er '.producer'
 ```
 
@@ -703,10 +703,11 @@ and a blank image stands in for any media an example names. The checks:
   still arriving; the widget first appears with its complete real structure and values.
   The parser opens that template only while scripts run; a scripts-disabled reading
   keeps the single original authored host, with no generated drawing or copied fallback.
-  `render(host, {tabStore, offer, offerElement})` builds the drawing and returns the
-  node references and mechanical state its behavior module needs. It may move
+  `render(host, {tabStore, offer, offerElement, keeps})` builds the drawing and returns
+  the node references and mechanical state its behavior module needs. It may move
   authored nodes within its host; Leaf retains their original source and node routes
-  for semantic intake, anchoring fences, and version comparison. The producer does
+  for semantic intake, anchoring fences, and version comparison. Its `keeps` is the
+  helper surface's attribute door, for a later pass over nodes already drawn. The producer does
   no asynchronous or network work and consumes no log-derived state. The module
   calls `initialRender(host)` from the helper surface:
   that call adopts the existing drawing, or produces it for a later revision or

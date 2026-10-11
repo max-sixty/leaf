@@ -14,8 +14,9 @@ leaf server start <page>
 ```
 
 It prints `{"url": ...}`, the page's keyed URL, on stdout and returns. Follow
-`references/conversation-loop.md`, "Status and handoff". `references/serving-pages.md` owns the key, the address it binds,
-and a URL the user cannot reach.
+`references/conversation-loop.md`, "Status and handoff".
+`references/serving-pages.md` owns the key, the address it binds, and a URL the
+user cannot reach.
 
 ## Wait loop
 

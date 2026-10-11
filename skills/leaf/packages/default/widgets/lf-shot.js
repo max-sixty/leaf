@@ -61,6 +61,7 @@ import {
   commands,
   keeps,
   paintKeys,
+  plainPress,
   relabel,
   scopedMediaUrl,
   selectableOffer,
@@ -423,15 +424,7 @@ customElements.define(
         });
         comparison.addEventListener("click", (event) => {
           const onHandle = handleOf(event);
-          if (
-            !dragged &&
-            !onHandle &&
-            !event.altKey &&
-            !event.ctrlKey &&
-            !event.metaKey &&
-            !event.shiftKey
-          )
-            this.#show(this.#nextState());
+          if (!dragged && !onHandle && plainPress(event)) this.#show(this.#nextState());
         });
         commands(comparison, "On a screenshot divider", [
           {

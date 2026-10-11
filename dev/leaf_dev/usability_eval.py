@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from html import unescape
 from pathlib import Path
 
-from leaf.delivery import opened_input_ids, pickup_receipts
+from leaf.delivery import DELIVERY_FORMAT, opened_input_ids, pickup_receipts
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.schema import MESSAGE_KINDS
@@ -1473,7 +1473,7 @@ def score_elided(run: Run, trace: list[dict]) -> dict:
                 if block.get("type") == "tool_result"
             ],
         ]
-        if "leaf-delivery-v" in text
+        if DELIVERY_FORMAT in text
     ]
     replying = next(
         (

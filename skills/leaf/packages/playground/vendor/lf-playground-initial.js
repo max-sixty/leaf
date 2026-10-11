@@ -8,7 +8,7 @@
     ["success", "Copied"],
     ["error", "Copy failed"]
   ];
-  function render(host, { tabStore, offer }) {
+  function render(host, { tabStore, offer, keeps }) {
     const controls = own(host, "lf-playground-control");
     const presets = own(host, "lf-playground-preset");
     const outputs = own(host, "lf-playground-output");
@@ -291,8 +291,7 @@
           ([name, value]) => Object.is(next[name], value)
         );
         button.classList.toggle("on", active);
-        if (button.getAttribute("aria-pressed") !== String(active))
-          button.setAttribute("aria-pressed", String(active));
+        keeps(button, "aria-pressed", active);
       }
     };
     for (const control of controls)

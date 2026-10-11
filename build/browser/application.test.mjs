@@ -1801,6 +1801,45 @@ test("pending undo removes completed empty Question values and refusal restores 
   }
 });
 
+test("pending undo withdraws a decision an earlier Leaf recorded with another field", () => {
+  const declared = {
+    ...descriptor,
+    declaration: {
+      ...descriptor.declaration,
+      "x-awaits": { value: "decide", answered: { decide: {} } },
+    },
+  };
+  const app = capture([[declared.id, declared]]);
+  // Before #2329 the recorded definition carried `update`, since renamed `report`.
+  const accepted = {
+    ...action("decided"),
+    id: "e1",
+    seq: 1,
+    meaning: {
+      state: {
+        ...stateDefinition("lf-choice", descriptor.declaration, spec),
+        update: false,
+      },
+    },
+  };
+  const reading = state(2, [accepted]);
+  reading.browser.views[1].document.questions = {
+    all: [
+      {
+        ...wireQuestion("choice", "lf-choice"),
+        status: "answered",
+        next_actor: null,
+        answer: { value: { outcome: "accept" }, event: accepted },
+      },
+    ],
+    user: [],
+    unanswered: [],
+  };
+  app.adopt(reading);
+  app.enqueue({ kind: "undo", undoes: accepted.id, attempt: "undo-earlier" }, "now");
+  assert.equal(app.read().effective.questions.all[0].answer, null);
+});
+
 test("pending undo removes a custom Question answer before authoritative completion changes", () => {
   const declared = {
     ...descriptor,

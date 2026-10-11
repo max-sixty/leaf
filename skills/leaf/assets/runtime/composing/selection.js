@@ -38,7 +38,7 @@ import { anchorForRange } from "../anchor-resolution.js";
 import { THREAD } from "../thread/selectors.js";
 import { keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
-import { PRESS } from "../keyboard/bindings.js";
+import { PRESS, rowArrows } from "../keyboard/bindings.js";
 import {
   onStanding,
   takesLetters,
@@ -339,8 +339,9 @@ export function createSelectionComposer({
     const choices = tabbing && field ? [field, ...options] : options;
     if (!choices.length) return;
     const at = choices.indexOf(focused());
-    const backward =
-      binding === "Shift+Tab" || binding === "ArrowLeft" || binding === "ArrowUp";
+    const backward = ["Shift+Tab", rowArrows(choices[0])[0], "ArrowUp"].includes(
+      binding,
+    );
     const next =
       at < 0
         ? backward

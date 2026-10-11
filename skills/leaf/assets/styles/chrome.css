@@ -1031,6 +1031,16 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     --lf-thread-surface: var(--paper); background: var(--lf-thread-surface); border-radius: 0;
     anchor-scope: --lf-thread-settlement;
     --lf-thread-title-h: max(32px, var(--aim-floor)); --lf-thread-title-z: 6; }
+  /* Withdrawal ends the thread's controls, but not the room the reader stands in.
+     The list measures that allocation before disconnecting the former card. */
+  .lf-thread-withdrawn {
+    border: 1px solid transparent; border-block-end-color: var(--rule);
+  }
+  .lf-thread-withdrawn > .lf-thread-summary { cursor: default; }
+  .lf-thread-withdrawn button { align-self: stretch; margin-block: -4px;
+    padding: 0 4px; border: 0; background: transparent;
+    color: var(--ink); font: inherit; text-decoration: underline; cursor: pointer; }
+  .lf-thread-withdrawn button:hover { text-decoration-thickness: 2px; }
   /* A thread's title is a sticky header (theme.css, at `--lf-top`): reading down a long
      open conversation keeps its name on screen until the card's end pushes it off, as
      a diff's file header does for its rows. A closed card is its title alone, so the

@@ -5893,6 +5893,42 @@ def test_a_phone_shows_a_notice_in_the_banner_s_status_words(browser, serve):
     expect(notice).to_be_hidden()
     expect(words).to_have_css("opacity", "1")
 
+    # Once the gesture's acknowledgement has faded, background news owns its own
+    # rendering. A shorter successor keeps the same first-line seat and press.
+    page.evaluate("""async () => {
+      window.noticeOwner = await window.__lfRuntimeImport('/runtime/notifications.js');
+      noticeOwner.notice('A shared draft sent to the agent', {background: true});
+    }""")
+    expect(notice).to_have_text("A shared draft sent to the agent")
+    expect(notice).to_be_visible()
+    rendered(page)
+    fragments = """node => {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      return [...range.getClientRects()].map(rect => ({x: rect.x, y: rect.y}));
+    }"""
+    long_lines = notice.evaluate(fragments)
+    assert len(long_lines) == 2, long_lines
+    press_before = press.bounding_box()
+    page.evaluate("""() => {
+      noticeOwner.notice('New conversation sent', {background: true});
+    }""")
+    expect(notice).to_have_text("New conversation sent")
+    rendered(page)
+    short_lines = notice.evaluate(fragments)
+    assert len(short_lines) == 1, short_lines
+    assert short_lines[0] == pytest.approx(long_lines[0], abs=0.5), (
+        long_lines,
+        short_lines,
+    )
+    press_after = press.bounding_box()
+    # The sentence may grow rightward; its leading edge and vertical aim stay put.
+    for edge in ("x", "y", "height"):
+        assert press_after[edge] == pytest.approx(press_before[edge], abs=0.5), (
+            press_before,
+            press_after,
+        )
+
 
 def test_a_recorded_move_is_acknowledged_in_the_status_and_nowhere_else(browser, serve):
     """The page has one place for brief news. A gesture's acknowledgement used to arrive

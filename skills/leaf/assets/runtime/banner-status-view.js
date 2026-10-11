@@ -18,8 +18,14 @@
  * `--lf-notice-seat`).
  */
 import { closeNativeLayer } from "./keyboard/layer-stack.js";
-import { html, nothing, render } from "../vendor/browser-runtime.js";
-import { classMap, createRef, ref } from "../vendor/lit.js";
+import {
+  html,
+  nothing,
+  render,
+  classMap,
+  createRef,
+  ref,
+} from "../vendor/browser-runtime.js";
 import { el, reserve } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
 import { focusDestination } from "./focus.js";

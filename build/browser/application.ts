@@ -4,7 +4,7 @@
  * readings. The existing pure folds derive every published projection synchronously.
  * Promises, rendering instances, and proof of presentation stay outside this owner.
  */
-import { createApplicationPublisher } from "./snapshot.ts";
+import { createApplicationPublisher, type Immutable } from "./snapshot.ts";
 import {
   foldProjection,
   foldedValue,
@@ -135,6 +135,21 @@ interface LedgerEntry {
   admitted: Event | null;
 }
 
+// The log's id for a gesture this tab sent: its ledger entry's while it stands, its
+// receipt's once released.
+function admittedId(
+  attempt: string | null | undefined,
+  unresolved: readonly Immutable<LedgerEntry>[],
+  receipts: readonly Immutable<Event>[],
+) {
+  if (!attempt) return null;
+  return (
+    unresolved.find((entry) => entry.event.attempt === attempt)?.admitted?.id ??
+    receipts.find((receipt) => receipt.attempt === attempt)?.id ??
+    null
+  );
+}
+
 // `entry` after `signal`, or null once it leaves the ledger.
 function advance(
   entry: LedgerEntry,
@@ -165,7 +180,7 @@ interface WireProjection {
 
 /** A request and its contained answer. The source owns the canonical value;
  * identity includes its kind so authored ids and message ids cannot collide. */
-export interface QuestionRecord {
+interface QuestionRecord {
   id: string;
   source: { kind: "widget" | "reply"; id: string; tag?: string }
     | { kind: "approval"; version: number };
@@ -185,7 +200,7 @@ interface WireQuestions {
 
 /** One served workflow, as `served_state.browser.served_workflows` serializes it;
  * `AuthoritativeState.workflows` lists them strongest first. */
-export interface WireWorkflow {
+interface WireWorkflow {
   id: string;
   seq: number;
   revision: number | null;
@@ -299,7 +314,7 @@ export interface WidgetDescriptor {
   quoted: boolean;
 }
 
-export interface AuthoritativeState {
+interface AuthoritativeState {
   taken: number;
   layer: { generation: string };
   active: { revision: number; version?: number | null; label?: string | null };
@@ -667,14 +682,6 @@ export function createSemanticApplication({
     const receipts = state?.browser.receipts ?? [];
     const local = unresolved.filter((entry) => DRAWN_LOCALLY.has(entry.state));
     const refused = unresolved.filter((entry) => entry.state === "refused");
-    // An undo withdraws its target by the log's id once the log has named it: the
-    // target entry's while it stands in the ledger, its receipt's once released.
-    const namedTarget = (attempt: string | null) => {
-      const target = unresolved.find((entry) => entry.event.attempt === attempt);
-      return target
-        ? (target.admitted?.id ?? null)
-        : (receipts.find((receipt) => receipt.attempt === attempt)?.id ?? null);
-    };
     // A revision may reuse a widget/verb with a different operation. Keep its
     // pending delivery, but stop drawing it against that new declaration. The
     // server validates durable payloads; speculative state waits for its receipt
@@ -697,7 +704,7 @@ export function createSemanticApplication({
       if (!projection || !compatiblePending(projection)) return [];
       return [
         projection.kind === "undo"
-          ? { ...projection, targetId: namedTarget(entry.undoTarget) }
+          ? { ...projection, targetId: admittedId(entry.undoTarget, unresolved, receipts) }
           : projection,
       ];
     });
@@ -1012,6 +1019,10 @@ export function createSemanticApplication({
 
   const entry = (attempt: string) =>
     publisher.read().unresolved.find((item) => item.event.attempt === attempt);
+  const ledgerAndReceipts = () => {
+    const { unresolved, authoritative } = publisher.read();
+    return [unresolved, authoritative?.browser.receipts ?? []] as const;
+  };
   const update = (attempt: string, change: (entry: LedgerEntry) => LedgerEntry) =>
     publish({
       unresolved: publisher
@@ -1333,16 +1344,11 @@ export function createSemanticApplication({
     // A gesture naming a message this tab sent, by its pending id, names it by the id
     // the log gave it once the log has answered: a reply's `parent`, or the revision an
     // edit is written over (`base`), as a second rewrite over a first still sending is.
-    nameParent(attempt: string, receipts: Event[]) {
-      const admitted = (pending: unknown) => {
-        if (typeof pending !== "string" || !pending.startsWith(PENDING)) return null;
-        const pendingAttempt = pending.slice(PENDING.length);
-        return (
-          entry(pendingAttempt)?.admitted?.id ??
-          receipts.find((receipt) => receipt.attempt === pendingAttempt)?.id ??
-          null
-        );
-      };
+    nameParent(attempt: string) {
+      const admitted = (pending: unknown) =>
+        typeof pending === "string" && pending.startsWith(PENDING)
+          ? admittedId(pending.slice(PENDING.length), ...ledgerAndReceipts())
+          : null;
       const item = entry(attempt);
       const parent = item?.event.parent;
       const named = admitted(parent);
@@ -1364,12 +1370,10 @@ export function createSemanticApplication({
             : item,
         );
     },
-    nameUndo(attempt: string, receipts: Event[]) {
+    nameUndo(attempt: string) {
       const item = entry(attempt);
       if (item?.event.kind !== "undo" || !item.undoTarget) return true;
-      const named =
-        entry(item.undoTarget)?.admitted?.id ??
-        receipts.find((receipt) => receipt.attempt === item.undoTarget)?.id;
+      const named = admittedId(item.undoTarget, ...ledgerAndReceipts());
       if (!named) return false;
       update(attempt, (item) =>
         item.event.kind === "undo"

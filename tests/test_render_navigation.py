@@ -3640,10 +3640,10 @@ def test_a_failed_ask_reveal_does_not_register_an_arrival(browser, serve):
     )
     try:
         page.keyboard.press("q")
-        page.wait_for_function("window.askRevealStarted === true", timeout=3000)
+        page.wait_for_function("window.askRevealStarted === true")
         expect(page.locator("#live-question-decision")).to_be_focused()
         page.evaluate("() => { rejectAskReveal(new Error('ask reveal probe')); }")
-        page.wait_for_function("window.askRevealRejected === true", timeout=3000)
+        page.wait_for_function("window.askRevealRejected === true")
         shortcut_bar_text(page)
         assert position.text_content() == "1 of 4 waiting on you · Question"
         assert position.get_attribute("data-lf-boundary") is None
@@ -3675,13 +3675,13 @@ def test_a_delayed_ask_reveal_yields_to_programmatic_user_focus(browser, serve):
     )
 
     page.keyboard.press("q")
-    page.wait_for_function("window.askRevealStarted === true", timeout=3000)
+    page.wait_for_function("window.askRevealStarted === true")
     # Assistive technology and focus-management code can move the user without a
     # pointer, key, or input event. The retained navigation must read focus itself.
     page.locator(".lf-threads-toggle").focus()
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
     page.evaluate("releaseAskReveal()")
-    page.wait_for_function("window.askRevealSettled === true", timeout=3000)
+    page.wait_for_function("window.askRevealSettled === true")
     rendered(page)
 
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
@@ -4317,11 +4317,11 @@ def test_a_q_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, ser
     )
 
     page.keyboard.press("q")
-    page.wait_for_function("window.threadRevealStarted === true", timeout=3000)
+    page.wait_for_function("window.threadRevealStarted === true")
     page.locator(".lf-threads-toggle").focus()
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
     page.evaluate("releaseThreadReveal()")
-    page.wait_for_function("window.threadRevealSettled === true", timeout=3000)
+    page.wait_for_function("window.threadRevealSettled === true")
     rendered(page)
 
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
@@ -4375,11 +4375,11 @@ def test_a_delayed_thread_reveal_reports_that_new_user_focus_cancelled_it(
     )
 
     page.locator("#held-thread-arrival").click()
-    page.wait_for_function("window.threadRevealStarted === true", timeout=3000)
+    page.wait_for_function("window.threadRevealStarted === true")
     page.locator(".lf-threads-toggle").focus()
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
     page.evaluate("releaseThreadReveal()")
-    page.wait_for_function("window.threadArrivalSettled === true", timeout=3000)
+    page.wait_for_function("window.threadArrivalSettled === true")
 
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
     assert page.evaluate("window.threadArrived") is None
@@ -7202,7 +7202,7 @@ def test_user_news_interrupts_and_then_restores_background_news(browser, serve):
     )
     expect(live).to_have_text("Saved — sent")
     expect(notice).to_have_text("Saved — sent")
-    expect(notice).to_have_text("Agent replied — open Threads", timeout=5_000)
+    expect(notice).to_have_text("Agent replied — open Threads")
     assert (
         page.evaluate(
             "() => window.__lfLiveChanges.filter("
@@ -7456,9 +7456,9 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         '.lf-command-reference tr[data-lf-command="reading.align.top"]'
     )
     expect(alignment).to_have_count(1)
-    # No reading item stands while the reference opens from page chrome, so this
-    # capability has only its unbound page control in this scene.
-    expect(alignment.locator(".lf-binding-sequence > kbd")).to_have_text(["⏎ / space"])
+    # Alignment has a page-level route even when no reading item stands while
+    # the reference opens from chrome.
+    expect(alignment.locator(".lf-binding-sequence > kbd")).to_have_text(["g", "z"])
     overlaps = goto.locator("tr[data-lf-command]").evaluate_all(
         """rows => rows.flatMap(row => {
           const [key, action] = row.querySelectorAll(':scope > td');
@@ -12452,8 +12452,11 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     page.locator(".lf-threads").focus()
     expect(page.locator(f"{EXPANDED} > .lf-thread-summary")).to_be_focused()
     expect(visible_hints.nth(0)).not_to_contain_text("send")
-    page.locator(f"{EXPANDED} .lf-thread-reply leaf-text").focus()
+    reply = page.locator(f"{EXPANDED} .lf-thread-reply leaf-text")
+    reply.focus()
     expect(visible_hints).to_have_count(2)
+    expect(visible_hints.nth(0)).to_contain_text("edit last message")
+    write(reply, "A reply in progress.")
     expect(visible_hints.nth(0)).to_contain_text("send")
     expect(visible_hints.nth(1)).to_contain_text("back to thread")
 

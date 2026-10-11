@@ -37,7 +37,7 @@
    read when they were measured, or zero for contents placed where they stand at the
    scroller's start, which a later scroll does not change, so placing them again
    writes nothing. */
-import { scrollAxes, scrollport, scrollsBy } from "./geometry.js";
+import { scrollAxes, scrollContainer, scrollport } from "./geometry.js";
 import { renderedParent } from "./shadow.js";
 
 // Timelines express displacement linear in scroll, while sticky and fixed boxes
@@ -66,9 +66,6 @@ export function scrollOrigins(contexts) {
       if (at instanceof Element) origins.set(at, { x: at.scrollLeft, y: at.scrollTop });
   return origins;
 }
-
-export const scrollContainer = (box) =>
-  box === box.ownerDocument.scrollingElement || scrollsBy(getComputedStyle(box));
 
 // Whether `box` scrolls what it holds: it clips into a scrollport, `hidden` included,
 // which a script or focus can scroll, and holds more than that scrollport shows on that

@@ -52,7 +52,7 @@ export function mountAnnotationControls() {
   });
 }
 
-export function setAnnotationsHidden(on) {
+function setAnnotationsHidden(on) {
   if (on === hidden) return;
   hidden = on;
   setRuntimeRootAttribute(

@@ -126,7 +126,12 @@ in the suite. The render gate never opens the thread panel, so the suite opens i
 puts the gate's geometry readings to it, asserting each population and planting a
 fault there first.
 
-A render-gate test calls `render_version`, not one of its probes. Where the product already answers a reading's question, such as `shownBand` for the
+A test of what the gate reports for an authored page calls `render_version`. A test
+whose state no authored page reaches, such as DOM a script builds or changes after
+load, a patched widget hook, or the thread panel, puts the page in that state and
+calls the probe through `leaf.render_checks.evaluate_probe`.
+
+Where the product already answers a reading's question, such as `shownBand` for the
 band a box shows, consume that answer instead of copying it: `root_overflow` for
 whether the page scrolls sideways, `draft_key` for where a draft is stored, and
 `event_log.read_events` for what the log holds. Page-side code reaches a runtime
@@ -165,6 +170,14 @@ log handed straight to admission or `browser_state`. Build markup with `leaf_pag
 write a raw document only when source structure is the subject. `initialized_page`
 lends one prepared page per composition shape, with runtime and vendor hard-linked in;
 a test of initialization runs `page init` itself.
+
+Reuse the `browser` and `serve` fixtures for ordinary browser tests. Each pytest
+worker shares one Playwright driver and Chromium browser; test contexts and page
+directories isolate mutable state, and page servers run inside the worker. Fixture
+teardown owns their cleanup. Add a separate browser or subprocess when its engine,
+configuration, process boundary or lifetime is part of the behavior being tested.
+Worker counts multiply these runtimes across every concurrent suite; increasing
+parallelism needs a measured benefit on the shared host (root `AGENTS.md`).
 
 ### Processes and servers
 
@@ -442,9 +455,9 @@ every scroller to either end and back loses its words. The last four read a
 its timers and browser rendering still run.
 All of them run on every corpus page, so a new widget or page joins without a case of
 its own; a new surface joins the round trips by its keys, and a new box the typed
-boxes by its route. Run generated-markup probes (`undeclaredAttrs`,
-`relativeReplays`) through
-`leaf.render_checks.evaluate_probe` on fixtures that can trigger them.
+boxes by its route. Generated-markup probes (`undeclaredAttrs`, `relativeReplays`)
+run on fixtures that can trigger them, as "Put each assertion at the boundary that
+owns it" says.
 
 ### Absences
 

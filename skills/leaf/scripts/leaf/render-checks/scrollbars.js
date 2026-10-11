@@ -5,7 +5,7 @@
  * It reads the content at its vertical end without scrolling or changing styles,
  * so a check neither disturbs the reader nor depends on whether a hidden overlay
  * scrollbar happened to paint in the headless browser. */
-import { renderedParent, upFrom } from "/runtime/widget-api.js";
+import { renderedParent, upFrom } from "/runtime/check-api.js";
 import { at, place } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 

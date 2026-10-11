@@ -25,12 +25,12 @@
    whole-thread geometry readings rather than descendant nodes. */
 import { nextRender, sizeObserver } from "../rendering.js";
 import { holdFocus, focusDestination, focused, standsOn } from "../focus.js";
-import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
+import { html, render, repeat, nothing, ref } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
-import { offer, reachedForWords, measure, reserve } from "../widget-elements.js";
+import { offer, reachedForWords, measure, reserve, said } from "../widget-elements.js";
 import { keeps, keepsHidden, layoutPx } from "../keeps.js";
-import { keys } from "../keyboard/scopes.js";
+import { commandsOn, keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import {
   createReplyView,
@@ -313,7 +313,6 @@ export class ThreadView {
   #replyShown = false;
   #draftFrame = 0;
   #outletReplyShown = null;
-  #keys = new WeakSet();
   #settlements = new Map();
   #actions = document.createElement("span");
   #expandedSummaries = new Set();
@@ -334,6 +333,16 @@ export class ThreadView {
   #newsReserved = false;
   #observedHeader = null;
   #quoteNode = null;
+  #watchQuote = (node) => {
+    if (this.#quoteNode) this.#sizes.unobserve(this.#quoteNode);
+    this.#quoteNode = node;
+    if (node) this.#sizes.observe(node);
+  };
+  #watchMarginControls = (node) => {
+    if (this.#marginControlsRow) marginControlsSizes.unobserve(this.#marginControlsRow);
+    this.#marginControlsRow = node;
+    if (node) marginControlsSizes.observe(node);
+  };
   #sizes = sizeObserver(() => {
     this.#retainHeaderSlot();
     this.#measureQuote();
@@ -758,12 +767,14 @@ export class ThreadView {
       const actions = marginControls
         ? [marginControls.nav, settlement, marginControls.close].filter(Boolean)
         : [settlement].filter(Boolean);
-      for (const child of [...this.#actions.children])
-        if (!actions.includes(child)) child.remove();
-      actions.forEach((control, index) => {
-        if (this.#actions.children[index] !== control)
-          this.#actions.insertBefore(control, this.#actions.children[index] ?? null);
-      });
+      render(
+        repeat(
+          actions,
+          (node) => node,
+          (node) => node,
+        ),
+        this.#actions,
+      );
       threadActions = actions.length || model.news ? this.#actions : null;
     }
     const describedRanges = summaryRanges(model.messages, model.summaries);
@@ -859,6 +870,7 @@ export class ThreadView {
                   : nothing
               }
               <blockquote
+                ${model.quote.localReading ? ref(this.#watchQuote) : nothing}
                 id=${`lf-quote-${this.#viewId}`}
                 class=${`lf-quote${model.quote.anchored && !model.quote.found ? " detached" : ""}`}
                 data-expanded=${String(model.quote.localReading && this.#quoteExpanded)}
@@ -866,6 +878,16 @@ export class ThreadView {
                 tabindex=${model.quote.found ? "0" : nothing}
                 title=${model.quote.title ?? nothing}
                 @click=${this.#returnToQuote}
+                ${commandsOn("On a comment's quoted passage", [
+                  {
+                    id: "passage.return",
+                    keys: PRESS,
+                    description: "Return to the quoted passage on the page",
+                    title: "return to the passage",
+                    when: () => Boolean(model.quote.found),
+                    run: () => this.#returnToQuote({ detail: 0 }),
+                  },
+                ])}
               >
                 <span class="lf-quote-label">${model.quote.label}</span>
                 ${
@@ -888,7 +910,12 @@ export class ThreadView {
       ${
         threadActions
           ? marginControls
-            ? this.#marginControlsRowOf(html`${news}${threadActions}`)
+            ? html`<div
+                class="lf-margin-thread-controls"
+                ${ref(this.#watchMarginControls)}
+              >
+                ${news}${threadActions}
+              </div>`
             : html`<div class="lf-thread-controls" data-lf-reflow="text">
                 ${news}${threadActions}
               </div>`
@@ -910,7 +937,7 @@ export class ThreadView {
           model.surface === "outlet"
             ? html`<summary
                 class="lf-page-thread-summary lf-ui"
-                data-lf-gen="1"
+                ${said(false)}
                 data-lf-offer=""
                 ?hidden=${!model.resolved}
               >
@@ -958,7 +985,6 @@ export class ThreadView {
       measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
     this.#continuity?.after(bodyPlace);
-    this.#wireKeys();
     this.#measureQuote();
     // A summary gathering the message the user stands on moves it; a page thread whose
     // render took their place puts them in its reply, or on the thread itself.
@@ -976,14 +1002,7 @@ export class ThreadView {
   // anything to disclose. Read it synchronously after render, before the frame
   // paints; resizes update it through this card's shared size observation.
   #measureQuote() {
-    const quote = this.#model.quote?.localReading
-      ? this.node.querySelector(`#lf-quote-${this.#viewId}`)
-      : null;
-    if (quote !== this.#quoteNode) {
-      if (this.#quoteNode) this.#sizes.unobserve(this.#quoteNode);
-      this.#quoteNode = quote;
-      if (quote) this.#sizes.observe(quote);
-    }
+    const quote = this.#quoteNode;
     const control = quote?.previousElementSibling;
     if (control?.classList.contains("lf-quote-expand"))
       keeps(
@@ -1101,16 +1120,6 @@ export class ThreadView {
           layoutPx(Math.max(0, shown.right - line.left)),
         );
     } else this.#newsReserved = false;
-  }
-
-  #marginControlsRowOf(content) {
-    if (!this.#marginControlsRow) {
-      this.#marginControlsRow = document.createElement("div");
-      this.#marginControlsRow.className = "lf-margin-thread-controls";
-      marginControlsSizes.observe(this.#marginControlsRow);
-    }
-    render(content, this.#marginControlsRow);
-    return this.#marginControlsRow;
   }
 
   #summaryRange(range, markerFor) {
@@ -1316,26 +1325,6 @@ export class ThreadView {
       part: "reply",
     });
   };
-
-  #wireKeys() {
-    const quote = this.node.querySelector(
-      ":scope > .lf-thread-content > .lf-thread-head > .lf-quote, " +
-        ":scope > .lf-thread-head > .lf-quote",
-    );
-    if (quote && !this.#keys.has(quote)) {
-      this.#keys.add(quote);
-      keys(quote, "On a comment's quoted passage", [
-        {
-          id: "passage.return",
-          keys: PRESS,
-          description: "Return to the quoted passage on the page",
-          title: "return to the passage",
-          when: () => Boolean(this.#model.quote?.found),
-          run: () => quote.click(),
-        },
-      ]);
-    }
-  }
 
   #createReply(model) {
     const panel = model.surface === "panel";

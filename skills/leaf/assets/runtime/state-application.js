@@ -58,10 +58,8 @@ export function createStateApplication({
 
   async function runSerialized(operation) {
     const prior = admission;
-    let release;
-    admission = new Promise((resolve) => {
-      release = resolve;
-    });
+    const { promise, resolve: release } = Promise.withResolvers();
+    admission = promise;
     await prior;
     try {
       return await operation();
@@ -90,30 +88,27 @@ export function createStateApplication({
       return;
     }
 
+    const threads = state.browser.thread.threads;
     const frozenDocuments = [];
-    const threadRoots = new Map(
-      state.browser.thread.threads.flatMap((thread) =>
-        thread.msgs.map((message) => [message.id, thread.id]),
-      ),
-    );
     const preparations = [
       prepareActivation(state),
-      state.events.some((event) => event.kind === "comment" || event.kind === "reply")
-        ? loadMessageMarkdown()
-        : null,
+      threads.length ? loadMessageMarkdown() : null,
     ];
-    for (const event of state.events) {
-      if (!event.markup) continue;
-      const authored = prepareAuthoredMessage(event, threadRoots.get(event.id));
-      frozenDocuments.push(authored);
-      if (markupRead.has(event.id)) continue;
-      preparations.push(
-        importWidgets(authored.root).then(() => markupRead.add(event.id)),
-      );
-    }
+    // The log retains withdrawn messages; only the current thread inventory owns
+    // authored islands that this reading can prepare and publish.
+    for (const thread of threads)
+      for (const message of thread.msgs) {
+        if (!message.markup) continue;
+        const authored = prepareAuthoredMessage(message, thread.id);
+        frozenDocuments.push(authored);
+        if (markupRead.has(message.id)) continue;
+        preparations.push(
+          importWidgets(authored.root).then(() => markupRead.add(message.id)),
+        );
+      }
     const [activation] = await Promise.all(preparations);
     const bodies = new Map(
-      state.browser.thread.threads.flatMap((thread) =>
+      threads.flatMap((thread) =>
         thread.msgs.map((message) => {
           const authored = message.markup
             ? prepareAuthoredMessage(message, thread.id).body
@@ -130,14 +125,11 @@ export function createStateApplication({
     );
 
     return runSerialized(async () => {
-      if (applicationState.overtaken(state)) {
-        await notifyChangedData();
-        return;
-      }
       // Pending deferral is rechecked by activates. An installation edits the user's
       // document and there is no putting it back, so the answer that would follow it is
       // judged first, against the revision the install would leave showing. A candidate
-      // that could not be adopted is dropped here, with the page still whole.
+      // that could not be adopted, overtaken by a newer reading included, is dropped
+      // here, with the page still whole.
       const following = activation?.activates() ? activation.revision : null;
       if (!applicationState.canAdopt(state, following)) {
         await notifyChangedData();

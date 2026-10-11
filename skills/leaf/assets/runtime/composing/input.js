@@ -1,15 +1,3 @@
-import { rememberWriting } from "../drafts.js";
-import { keys, paintKeys } from "../keyboard/scopes.js";
-import { keeps, keepsHidden, keepsText } from "../keeps.js";
-import { advertisesKeys, submitBindings, submitLabel } from "../keyboard/bindings.js";
-import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
-import { announce, notice } from "../notifications.js";
-import { iconElement, iconTemplate } from "../icons.js";
-import { drawingThumbnail } from "./drawing-context.js";
-import { LitElement, html } from "../../vendor/browser-runtime.js";
-import "./text-field.js";
-import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
-import { focusDestination, focused } from "../focus.js";
 // One helper wires every durable composition surface: the general box, each per-thread
 // reply, the compact anchored composer, and composition boxes contributed by widgets.
 // `wireInput` gives every such text field one input contract: persist each edit, keep the
@@ -43,6 +31,19 @@ import { focusDestination, focused } from "../focus.js";
 // settles and closes the box each paint and measure once, after their writes, instead of
 // interleaving a forced style recalculation with each. That paint runs in the frame the
 // change first shows in, so the button and placeholder never trail the words.
+import { rememberWriting } from "../drafts.js";
+import { keys, paintKeys } from "../keyboard/scopes.js";
+import { keeps, keepsHidden, keepsText } from "../keeps.js";
+import { advertisesKeys, submitBindings, submitLabel } from "../keyboard/bindings.js";
+import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
+import { announce, notice } from "../notifications.js";
+import { iconElement, iconTemplate } from "../icons.js";
+import { drawingThumbnail } from "./drawing-context.js";
+import { LitElement, html } from "../../vendor/browser-runtime.js";
+import "./text-field.js";
+import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
+import { focusDestination, focused } from "../focus.js";
+
 const inputDrafts = new WeakMap();
 
 const MEDIA_SHELF_TAG = "leaf-attached-media-shelf";
@@ -537,6 +538,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       },
       ...rows,
     ]);
+    // The field owns text editing; this owner alone reserves Return for its declared
+    // submit binding. An unwired source editor therefore keeps Return on every device.
+    ta.addEventListener("lf-edit-return", (event) => {
+      if (submitBindings().includes("Enter")) event.preventDefault();
+    });
     // A press on a submit control is the send key pressed from the box, so it leaves the
     // user where Enter does: in the box, for a box that stays to take more, or wherever the
     // send hands them on to, as a reply does to its thread (`landSent`), never on the

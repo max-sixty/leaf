@@ -18,12 +18,13 @@
  * records the local realm's destruction, before the allocation release answers.
  * A mounted frame answers for its image: the child draws the requested part of its
  * viewport, which an image of the containing page puts in the frame's place. */
-import { layerHeaders } from "./layer-client.js";
+import { requestJson } from "./layer-client.js";
 import { pageUrl, runtime } from "./context.js";
 import { dressFor, registerSampleDress } from "./dress.js";
 import { widgetDescriptor } from "./widget-descriptors.js";
 import { excludedByInert, upFrom } from "./shadow.js";
 import { seenRect } from "./geometry.js";
+import { intersect } from "./rect.js";
 import {
   sampleVisibility,
   onSampleVisibility,
@@ -77,31 +78,17 @@ export const isSampleFrame = (node) => mounted.has(node);
 // A crop in the frame's viewport coordinates.
 export const sampleFrameImage = (frame, crop) => mounted.get(frame).call("image", crop);
 
-async function request(url, body, headers = {}) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: layerHeaders({ "Content-Type": "application/json", ...headers }),
-    body: JSON.stringify(body),
-    keepalive: true,
-  });
-  const text = await response.text();
-  let answer;
-  try {
-    answer =
-      response.ok ||
-      response.headers.get("Content-Type")?.split(";")[0].trim() === "application/json"
-        ? JSON.parse(text)
-        : null;
-  } catch (error) {
-    throw Object.assign(error, { status: response.status, body: text });
-  }
-  if (!response.ok)
-    throw Object.assign(new Error(answer?.error ?? `sample: HTTP ${response.status}`), {
-      status: response.status,
-      body: text,
-    });
-  return answer;
-}
+const request = (url, body, headers = {}) =>
+  requestJson(
+    url,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify(body),
+      keepalive: true,
+    },
+    "sample",
+  );
 
 export function mountSample(
   frame,
@@ -190,10 +177,10 @@ export function mountSample(
       const rect = frame.getBoundingClientRect();
       const shown = seenRect(frame, new Map());
       const band = shown ?? { left: 0, top: 0, right: 0, bottom: 0 };
-      const left = Math.max(rect.left, band.left, outer?.left ?? 0);
-      const top = Math.max(rect.top, band.top, outer?.top ?? 0);
-      const right = Math.min(rect.right, band.right, outer?.right ?? innerWidth);
-      const bottom = Math.min(rect.bottom, band.bottom, outer?.bottom ?? innerHeight);
+      const { left, top, right, bottom } = intersect(
+        intersect(rect, band),
+        outer ?? { left: 0, top: 0, right: innerWidth, bottom: innerHeight },
+      );
       const scaleX = rect.width / frame.offsetWidth || 1;
       const scaleY = rect.height / frame.offsetHeight || 1;
       port.postMessage({

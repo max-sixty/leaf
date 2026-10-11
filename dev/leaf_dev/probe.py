@@ -19,7 +19,7 @@ from urllib.parse import urlsplit
 
 import click
 from leaf.render_checks import PageNotReady
-from leaf.render_gate.scheme import collect_page_exceptions
+from leaf.render_gate.scheme import collect_page_errors
 from playwright.sync_api import Error as PlaywrightError
 
 from leaf_dev import ROOT
@@ -283,6 +283,5 @@ def probe(
 def console_errors(page) -> list[str]:
     """The page's console errors and uncaught exceptions, collected from here on."""
     errors = []
-    page.on("console", lambda m: m.type == "error" and errors.append(m.text))
-    collect_page_exceptions(page, errors)
+    collect_page_errors(page, errors)
     return errors

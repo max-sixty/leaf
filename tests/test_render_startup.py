@@ -2596,7 +2596,8 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
 
     The shadow rules follow the same line: `/shadow.css` is what an `x-shadow` widget
     renders under, so a page with no such widget never asks for it, and the theme
-    arrives once, through the document's `<link>`.
+    arrives once, through the document's `<link>`. The composers stand hidden until
+    opened, so they build no editor (composing/text-field.js).
     """
     example = next(p for p in EXAMPLES if p.stem == "triage-board")
     context = browser.new_context(viewport={"width": 1280, "height": 800})
@@ -2616,6 +2617,11 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     assert asked.count("/registry.json") == 1, [
         p for p in asked if p == "/registry.json"
     ]
+
+    for composer in [".lf-fab-input", ".lf-page-comment-card leaf-text"]:
+        assert not page.locator(composer).evaluate(
+            "field => field.matches(':state(ready)')"
+        ), composer
 
     assert page.evaluate("() => !!customElements.get('lf-board')")
 

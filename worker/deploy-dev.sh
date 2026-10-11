@@ -30,7 +30,7 @@ if [[ -z ${CLOUDFLARE_API_TOKEN:-} ]]; then
   exit 2
 fi
 if [[ ! -x "$wrangler" ]]; then
-  echo "website dependencies are missing; run npm ci in $repo_root" >&2
+  echo "website dependencies are missing; run pnpm install --frozen-lockfile in $repo_root" >&2
   exit 2
 fi
 
@@ -66,11 +66,7 @@ LEAF_SITE_RELEASE="$release" uv run --project "$repo_root" leaf-dev site
   "$wrangler" "${deploy_arguments[@]}"
 )
 
-deadline=$((SECONDS + 900))
-until uv run --project "$repo_root" leaf-dev verify-site "$origin" \
-  --release "$release"; do
-  ((SECONDS < deadline)) || exit 1
-  sleep 10
-done
+uv run --project "$repo_root" leaf-dev verify-site "$origin" \
+  --release "$release" --wait 900
 uv run --project "$repo_root" leaf-dev journey "$origin" \
   --release "$release"

@@ -73,10 +73,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
-          cache: npm
+          cache: pnpm
 
       # The runner supplies installed Chrome for the two launcher tests. The rest of
       # the browser suite uses the headless shell matching the locked Playwright, and
@@ -91,15 +92,15 @@ jobs:
         run: uv run leaf-dev fetch-assets
 
       - name: Install development dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       # The bundles build from the installed lock, so a rebuild reproduces the
       # tracked bytes exactly and any difference is a lock nobody rebuilt from.
       - name: Check vendored bundles
-        run: npm run check:bundles
+        run: pnpm run check:bundles
 
       - name: Check browser, runtime, Worker and eval assertions
-        run: npm run check
+        run: pnpm run check
 
       # Cheap gates fail before the complete Python suite spends its runner time.
       # The runner's four vCPUs sat ~41% idle under two workers; four left 7% idle
@@ -126,7 +127,7 @@ jobs:
       - name: Check website deployment
         if: github.event_name == 'pull_request'
         run: |
-          npx wrangler deploy --dry-run --outdir ../.tmp/worker-deploy
+          pnpm --dir .. exec wrangler --cwd worker deploy --dry-run --outdir ../.tmp/worker-deploy
         working-directory: worker
 
       - name: Measure the bundled release in Chrome

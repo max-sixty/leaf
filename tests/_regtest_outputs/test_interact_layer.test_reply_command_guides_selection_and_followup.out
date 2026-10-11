@@ -16,11 +16,11 @@ $ leaf thread reply /page user-1 --text Answer
 exit: 1
 Error: thread 'user-1' currently requires a response; `leaf response reply <answer.ref>` for user-1 answers it
 
-$ leaf response reply response-ref --text Answer
+$ leaf response reply response-ref --text Answer --done
 exit: 0
 {"kind": "reply", "parent": "user-1"}
 
-$ leaf response reply response-ref --text Answer
+$ leaf response reply response-ref --text Answer --done
 exit: 0
 {"kind": "reply", "parent": "user-1"}
 
@@ -28,7 +28,7 @@ $ leaf thread reply /page user-1 --text Follow-up
 exit: 0
 {"kind": "reply", "parent": "user-1"}
 
-$ leaf response reply not-a-response-ref --text Answer
+$ leaf response reply not-a-response-ref --text Answer --done
 exit: 1
 Error: invalid delivery id 'not-a-response-ref'
 

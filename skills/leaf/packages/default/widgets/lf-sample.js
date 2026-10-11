@@ -170,7 +170,10 @@ customElements.define(
       });
       actions.append(this.#reset, this.#full, this.#status);
       controls.append(actions);
-      this.#view.append(controls, this.#frame);
+      const exhibit = document.createElement("div");
+      exhibit.className = "lf-sample-exhibit";
+      exhibit.append(this.#frame);
+      this.#view.append(controls, exhibit);
       this.append(this.#view);
     }
 

@@ -101,6 +101,7 @@ const startupReportSchema = z.strictObject({
   firstStateResponseMs: startupTime,
   presentedMs: startupTime,
 });
+const MAX_STARTUP_BYTES = 2048;
 const interactionEntrySchema = z.record(z.string(), z.unknown()).check(
   z.refine(
     (entry) =>
@@ -374,17 +375,22 @@ function modelRequestFields(
   };
 }
 
+// Every leaf-agent record. Callers project the fields they log, and never spread an
+// AgentTaskParams, whose sourceId is the client's IP.
+function leafAgentLog(event: string, fields: Record<string, unknown>): void {
+  console.log({ component: "leaf-agent", event, ...fields });
+}
+
+function errorName(error: unknown): string {
+  return error instanceof Error ? error.name : "unknown";
+}
+
 function modelLog(
   event: string,
   request: ModelRequestFields,
   fields: Record<string, unknown> = {},
 ): void {
-  console.log({
-    component: "leaf-agent",
-    event,
-    ...request,
-    ...fields,
-  });
+  leafAgentLog(event, { ...request, ...fields });
 }
 
 function observeModelBody(
@@ -519,7 +525,7 @@ LeafWebsiteSession.outboundByHost = {
     } catch (error) {
       modelLog("model_request_failed", modelRequest, {
         durationMs: Date.now() - started,
-        error: error instanceof Error ? error.name : "unknown",
+        error: errorName(error),
       });
       throw error;
     }
@@ -573,27 +579,10 @@ function agentLog(
   params: Pick<AgentTaskParams, "reference" | "route" | "eventId">,
   fields: Record<string, unknown> = {},
 ): void {
-  console.log({
-    component: "leaf-agent",
-    event,
+  leafAgentLog(event, {
     reference: params.reference,
     route: params.route,
     eventId: params.eventId,
-    ...fields,
-  });
-}
-
-function prewarmLog(
-  event: string,
-  reference: string,
-  route: string,
-  fields: Record<string, unknown> = {},
-): void {
-  console.log({
-    component: "leaf-agent",
-    event,
-    reference,
-    route,
     ...fields,
   });
 }
@@ -640,16 +629,36 @@ function browserIdentity(request: Request): {
   };
 }
 
+// The body as text, or null once it passes maxBytes, whether the client declared that
+// length or streamed it without one. A request with no body reads as "".
+async function readBoundedText(request: Request, maxBytes: number): Promise<string | null> {
+  if (Number(request.headers.get("Content-Length")) > maxBytes) return null;
+  const reader = request.body?.getReader();
+  if (!reader) return "";
+  const decoder = new TextDecoder();
+  let raw = "";
+  let bytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    bytes += value.byteLength;
+    if (bytes > maxBytes) {
+      await reader.cancel();
+      return null;
+    }
+    raw += decoder.decode(value, { stream: true });
+  }
+  return raw + decoder.decode();
+}
+
 async function recordStartup(
   request: Request,
   manifest: SiteManifest,
   route: PageRoute,
   reference: string,
 ): Promise<Response> {
-  if (Number(request.headers.get("Content-Length")) > 2048)
-    return new Response("startup report is too large", { status: 413 });
-  const raw = await request.text();
-  if (raw.length > 2048) {
+  const raw = await readBoundedText(request, MAX_STARTUP_BYTES);
+  if (raw === null) {
     return new Response("startup report is too large", { status: 413 });
   }
   let value: unknown;
@@ -687,25 +696,9 @@ async function recordInteractions(
   identity: InteractionIdentity,
   release: string,
 ): Promise<Response> {
-  const declaredLength = Number(request.headers.get("Content-Length"));
-  if (declaredLength > MAX_INTERACTION_BYTES)
+  const raw = await readBoundedText(request, MAX_INTERACTION_BYTES);
+  if (raw === null)
     return new Response("interaction batch is too large", { status: 413 });
-  const reader = request.body?.getReader();
-  if (!reader) return new Response("interaction batch is empty", { status: 400 });
-  const decoder = new TextDecoder();
-  let raw = "";
-  let bytes = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    bytes += value.byteLength;
-    if (bytes > MAX_INTERACTION_BYTES) {
-      await reader.cancel();
-      return new Response("interaction batch is too large", { status: 413 });
-    }
-    raw += decoder.decode(value, { stream: true });
-  }
-  raw += decoder.decode();
   let value: unknown;
   try {
     value = JSON.parse(raw);
@@ -741,7 +734,7 @@ async function measuredAgentOperation<T>(
   } catch (error) {
     agentLog(`${event}_failed`, params, {
       durationMs: Date.now() - started,
-      error: error instanceof Error ? error.name : "unknown",
+      error: errorName(error),
     });
     throw error;
   }
@@ -830,7 +823,7 @@ async function dispatchAgentTask(
   } catch (error) {
     agentLog("dispatch_failed", params, {
       durationMs: Date.now() - started,
-      error: error instanceof Error ? error.name : "unknown",
+      error: errorName(error),
     });
     try {
       await measuredAgentOperation("failure_receipt", params, () =>
@@ -841,7 +834,7 @@ async function dispatchAgentTask(
       );
     } catch (receiptError) {
       agentLog("dispatch_abandoned", params, {
-        error: receiptError instanceof Error ? receiptError.name : "unknown",
+        error: errorName(receiptError),
       });
     }
   }
@@ -855,25 +848,31 @@ async function prewarmContainer(
   sourceId: string,
 ): Promise<void> {
   const started = Date.now();
-  prewarmLog("container_prewarm_started", reference, route);
+  leafAgentLog("container_prewarm_started", { reference, route });
   try {
     const allowed = await env.SOURCE_AGENT_RATE_LIMITER.limit({
       key: `prewarm:${sourceId}`,
     });
     if (!allowed.success) {
-      prewarmLog("container_prewarm_denied", reference, route, {
+      leafAgentLog("container_prewarm_denied", {
+        reference,
+        route,
         durationMs: Date.now() - started,
       });
       return;
     }
     await getContainer(env.PAGES, id).start();
-    prewarmLog("container_prewarm_completed", reference, route, {
+    leafAgentLog("container_prewarm_completed", {
+      reference,
+      route,
       durationMs: Date.now() - started,
     });
   } catch (error) {
-    prewarmLog("container_prewarm_failed", reference, route, {
+    leafAgentLog("container_prewarm_failed", {
+      reference,
+      route,
       durationMs: Date.now() - started,
-      error: error instanceof Error ? error.name : "unknown",
+      error: errorName(error),
     });
   }
 }
@@ -924,17 +923,28 @@ function recordAcceptedEvent(
   });
 }
 
+// A fetched asset's headers are immutable, so this takes the one copy each edge answer
+// to a static file makes; the stamps after it edit that copy in place.
 function staticAssetResponse(response: Response, manifest: SiteManifest): Response {
+  const answer = new Response(response.body, response);
   const contentType = response.headers.get("Content-Type")?.split(";", 1)[0].trim();
-  if (contentType?.toLowerCase() !== "text/html") return response;
+  if (contentType?.toLowerCase() === "text/html") {
+    answer.headers.append("Content-Security-Policy", manifest.frame_ancestors);
+  }
+  return answer;
+}
 
-  const headers = new Headers(response.headers);
-  headers.append("Content-Security-Policy", manifest.frame_ancestors);
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
+// The headers naming the release and layer an edge answer belongs to, and the session
+// it answers when it answers one. Leaf-Session stays with each caller.
+function stampDelivery(
+  headers: Headers,
+  route: PageRoute,
+  manifest: SiteManifest,
+  reference?: string,
+): void {
+  headers.set("Leaf-Layer", route.layer);
+  headers.set("Leaf-Release", manifest.release);
+  if (reference !== undefined) headers.set("Leaf-Session-Reference", reference);
 }
 
 const manifests = new WeakMap<object, Promise<SiteManifest>>();
@@ -958,15 +968,9 @@ function stampedStaticResponse(
   route: PageRoute,
   manifest: SiteManifest,
 ): Response {
-  const staticResponse = staticAssetResponse(response, manifest);
-  const headers = new Headers(staticResponse.headers);
-  headers.set("Leaf-Layer", route.layer);
-  headers.set("Leaf-Release", manifest.release);
-  return new Response(staticResponse.body, {
-    status: staticResponse.status,
-    statusText: staticResponse.statusText,
-    headers,
-  });
+  const answer = staticAssetResponse(response, manifest);
+  stampDelivery(answer.headers, route, manifest);
+  return answer;
 }
 
 async function staticState(
@@ -988,15 +992,11 @@ async function staticState(
   const now = new Date();
   state.now = now.toISOString();
   state.taken = now.getTime() / 1000;
-  return Response.json(state, {
-    headers: {
-      "Cache-Control": "no-store",
-      "Leaf-Layer": route.layer,
-      "Leaf-Release": manifest.release,
-      "Leaf-Session": "passive",
-      "Leaf-Session-Reference": reference,
-    },
+  const answer = Response.json(state, {
+    headers: { "Cache-Control": "no-store", "Leaf-Session": "passive" },
   });
+  stampDelivery(answer.headers, route, manifest, reference);
+  return answer;
 }
 
 // Cloudflare activates a Worker and its assets in one operation and rolls the container
@@ -1016,26 +1016,18 @@ async function rollingOut(
   reference: string,
   cookies: string[],
 ): Promise<Response> {
-  const answer =
-    request.method === "GET" && route.inside === "api/state"
-      ? await staticState(request, env, manifest, route, reference)
-      : new Response("this release is still starting", {
-          status: 503,
-          headers: {
-            "Retry-After": "5",
-            "Cache-Control": "no-store",
-            "Leaf-Layer": route.layer,
-            "Leaf-Release": manifest.release,
-            "Leaf-Session-Reference": reference,
-          },
-        });
-  const headers = new Headers(answer.headers);
-  for (const cookie of cookies) headers.append("Set-Cookie", cookie);
-  return new Response(answer.body, {
-    status: answer.status,
-    statusText: answer.statusText,
-    headers,
-  });
+  let answer: Response;
+  if (request.method === "GET" && route.inside === "api/state") {
+    answer = await staticState(request, env, manifest, route, reference);
+  } else {
+    answer = new Response("this release is still starting", {
+      status: 503,
+      headers: { "Retry-After": "5", "Cache-Control": "no-store" },
+    });
+    stampDelivery(answer.headers, route, manifest, reference);
+  }
+  for (const cookie of cookies) answer.headers.append("Set-Cookie", cookie);
+  return answer;
 }
 
 export default {
@@ -1065,15 +1057,10 @@ export default {
         releasedAsset.route,
         manifest,
       );
-      const headers = new Headers(response.headers);
-      headers.set("Cache-Control", "public, max-age=31536000, immutable");
-      headers.set("Access-Control-Allow-Origin", "*");
-      headers.set("Access-Control-Expose-Headers", "*");
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers,
-      });
+      response.headers.set("Cache-Control", "public, max-age=31536000, immutable");
+      response.headers.set("Access-Control-Allow-Origin", "*");
+      response.headers.set("Access-Control-Expose-Headers", "*");
+      return response;
     }
     const route = pageRoute(pathname, manifest);
     if (route === null) {
@@ -1100,19 +1087,15 @@ export default {
         ? sampleInteractionReference(`/${route.inside.slice(0, -"/api/interaction".length)}`)
         : null;
       const interaction = sampleReference === null ? null : { request: request.clone(), sampleReference };
-      const response = await env.PAGES.get(id).fetch(request);
-      const headers = new Headers(response.headers);
-      headers.delete("Set-Cookie");
+      const fetched = await env.PAGES.get(id).fetch(request);
+      const response = new Response(fetched.body, fetched);
+      response.headers.delete("Set-Cookie");
       // Only the container can admit this capability. After admission, retain the
       // same bounded, redacted cloud evidence as a parent batch; the clone lets
       // the native request also keep its full local trace.
       if (interaction !== null && response.status === 204)
         await recordInteractions(interaction.request, route, { sampleReference: interaction.sampleReference }, manifest.release);
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers,
-      });
+      return response;
     }
 
     const secure = url.protocol === "https:";
@@ -1170,11 +1153,10 @@ export default {
         if (!response.headers.get("Content-Type")?.startsWith("text/html")) {
           return response;
         }
-        const headers = new Headers(response.headers);
-        headers.set("Leaf-Session-Reference", reference);
-        headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
+        response.headers.set("Leaf-Session-Reference", reference);
+        response.headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
         if (existing === null) {
-          headers.append("Set-Cookie", sessionCookie(sessionId, secure));
+          response.headers.append("Set-Cookie", sessionCookie(sessionId, secure));
         }
         if (
           env.AGENT_PREWARM === "true" &&
@@ -1192,11 +1174,7 @@ export default {
             ),
           );
         }
-        return new Response(response.body, {
-          status: response.status,
-          statusText: response.statusText,
-          headers,
-        });
+        return response;
       }
     }
     const postedRequest =
@@ -1249,24 +1227,20 @@ export default {
       answer.page = `${answer.page}~${objectId}`;
       body = JSON.stringify(answer);
     }
-    const headers = new Headers(response.headers);
+    const answer = new Response(body, response);
     if (body !== response.body) {
-      headers.delete("Content-Length");
-      headers.delete("Content-Encoding");
+      answer.headers.delete("Content-Length");
+      answer.headers.delete("Content-Encoding");
     }
-    headers.set("Leaf-Session", "active");
-    headers.set("Leaf-Session-Reference", reference);
+    answer.headers.set("Leaf-Session", "active");
+    answer.headers.set("Leaf-Session-Reference", reference);
     if (existing === null) {
-      headers.append("Set-Cookie", sessionCookie(sessionId, secure));
+      answer.headers.append("Set-Cookie", sessionCookie(sessionId, secure));
     }
-    if (!active) headers.append("Set-Cookie", activeCookie(secure, route.root));
+    if (!active) answer.headers.append("Set-Cookie", activeCookie(secure, route.root));
     if (response.headers.get("Content-Type")?.startsWith("text/html")) {
-      headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
+      answer.headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
     }
-    return new Response(body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers,
-    });
+    return answer;
   },
 };

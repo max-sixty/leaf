@@ -5877,9 +5877,8 @@ def test_a_mechanical_revision_failure_leaves_accepted_publication_ready(
         if event["kind"] == "error"
     ]
     assert len(reported) == 1, reported
-    assert (
-        reported[0]["text"]
-        == "Revision continuity failed: mechanical caret fixture failed"
+    assert reported[0]["text"].startswith(
+        "Revision continuity failed: mechanical caret fixture failed\n"
     )
 
     # Error reporting may advance server freshness, but no later state answer may

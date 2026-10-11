@@ -291,6 +291,40 @@ def test_question_context_frames_any_number_of_independent_sources(page_dir):
     )
     assert fragment_errors(with_evidence, registry) == []
 
+    untitled = fragment_errors(
+        f'<lf-ask id="decision-untitled"><p>Context.</p>{first}</lf-ask>',
+        registry,
+    )
+    assert (
+        "a Question context must have exactly one direct heading, found none"
+        in " ".join(untitled)
+    )
+
+    retitled = fragment_errors(
+        f'<lf-ask id="decision-retitled"><h2>Choose</h2><h3>Again</h3>{first}</lf-ask>',
+        registry,
+    )
+    assert "a Question context must have exactly one direct heading" in " ".join(
+        retitled
+    )
+
+    context_first = fragment_errors(
+        f'<lf-ask id="decision-context-first"><p>Context.</p><h2>Choose</h2>{first}</lf-ask>',
+        registry,
+    )
+    assert "direct heading must be its first content, found <p> first" in " ".join(
+        context_first
+    )
+
+    control_first = fragment_errors(
+        f'<lf-ask id="decision-control-first">{first}<h2>Choose</h2></lf-ask>',
+        registry,
+    )
+    assert (
+        "direct heading must be its first content, found <lf-options> first"
+        in " ".join(control_first)
+    )
+
     assert (
         fragment_errors(
             '<lf-ask id="decision-empty"><h2>Nothing to answer</h2></lf-ask>',

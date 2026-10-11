@@ -145,6 +145,41 @@ def visual_part_errors(lf_elements: list, registry: dict) -> list:
     return errors
 
 
+def question_context_errors(lf_elements: list, registry: dict) -> list:
+    """A context supplies a leading title and arrival region for nested Questions.
+
+    Context never owns Question identity or registration. Any number of sources
+    can select it, and each source retains its independent answer and lifecycle.
+    """
+
+    regions = [
+        rec
+        for rec in lf_elements
+        if registry.get(rec["tag"], {}).get("x-question-context")
+    ]
+    errors = []
+    for region in regions:
+        headings = [
+            child
+            for child in region["children"]
+            if child in {f"h{n}" for n in range(1, 7)}
+        ]
+        if len(headings) != 1:
+            errors.append(
+                f"{at(region)}: a Question context must have exactly one direct heading, "
+                f"found {json_value(headings) if headings else 'none'}"
+            )
+        elif region["direct"][0] != headings[0]:
+            first = (
+                "text" if region["direct"][0] == "#text" else f"<{region['direct'][0]}>"
+            )
+            errors.append(
+                f"{at(region)}: a Question context's direct heading must be its first content, "
+                f"found {first} first"
+            )
+    return errors
+
+
 def target_reference_contract_error(
     reference: dict, target_record: dict | None, registry: dict
 ) -> str | None:
@@ -355,6 +390,7 @@ def instance_errors(lf_elements: list, registry: dict) -> list:
         + layout_errors(lf_elements, registry)
         + visual_part_errors(lf_elements, registry)
         + addressable_instance_errors(lf_elements, registry)
+        + question_context_errors(lf_elements, registry)
         + declared_word_errors(lf_elements, registry)
     )
 

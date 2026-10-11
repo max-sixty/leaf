@@ -2,7 +2,14 @@
  * window the page shows, and the one conversion from viewport boxes to
  * document-positioned chrome. */
 import { renderedParent, uiInside, under, upFrom } from "./shadow.js";
-import { overlaps, overlapsAcross, union, clippingAxes } from "./rect.js";
+import {
+  clippingAxes,
+  hasArea,
+  intersect,
+  overlaps,
+  overlapsAcross,
+  union,
+} from "./rect.js";
 
 /* Shared readings of the boxes the page actually shows.
 
@@ -772,10 +779,9 @@ function clipped(box, item, clips, held, inWindow = true) {
 // band is the window, which cuts nothing there, and only a header stuck over its top
 // does.
 function cutBy(box, cuts, root, inWindow) {
-  let left = inWindow ? Math.max(box.left, 0) : box.left,
-    top = inWindow ? Math.max(box.top, 0) : box.top,
-    right = inWindow ? Math.min(box.right, innerWidth) : box.right,
-    bottom = inWindow ? Math.min(box.bottom, innerHeight) : box.bottom;
+  let shown = inWindow
+    ? intersect(box, { left: 0, top: 0, right: innerWidth, bottom: innerHeight })
+    : box;
   for (const { box: cut, band, axes, covered } of cuts) {
     if (!band) return null;
     const edges =
@@ -787,16 +793,10 @@ function cutBy(box, cuts, root, inWindow) {
             bottom: Infinity,
           }
         : band;
-    if (axes.x) {
-      left = Math.max(left, edges.left);
-      right = Math.min(right, edges.right);
-    }
-    if (axes.y) {
-      top = Math.max(top, edges.top);
-      bottom = Math.min(bottom, edges.bottom);
-    }
+    shown = intersect(shown, edges, axes);
   }
-  return right > left && bottom > top ? { left, top, right, bottom } : null;
+  const { left, top, right, bottom } = shown;
+  return hasArea(shown) ? { left, top, right, bottom } : null;
 }
 // The clips standing over an item, innermost first: each ancestor whose band cuts it,
 // with that band less the headers stuck over its top and the footers over its foot, and

@@ -101,6 +101,7 @@ const startupReportSchema = z.strictObject({
   firstStateResponseMs: startupTime,
   presentedMs: startupTime,
 });
+const MAX_STARTUP_BYTES = 2048;
 const interactionEntrySchema = z.record(z.string(), z.unknown()).check(
   z.refine(
     (entry) =>
@@ -640,16 +641,36 @@ function browserIdentity(request: Request): {
   };
 }
 
+// The body as text, or null once it passes maxBytes, whether the client declared that
+// length or streamed it without one. A request with no body reads as "".
+async function readBoundedText(request: Request, maxBytes: number): Promise<string | null> {
+  if (Number(request.headers.get("Content-Length")) > maxBytes) return null;
+  const reader = request.body?.getReader();
+  if (!reader) return "";
+  const decoder = new TextDecoder();
+  let raw = "";
+  let bytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    bytes += value.byteLength;
+    if (bytes > maxBytes) {
+      await reader.cancel();
+      return null;
+    }
+    raw += decoder.decode(value, { stream: true });
+  }
+  return raw + decoder.decode();
+}
+
 async function recordStartup(
   request: Request,
   manifest: SiteManifest,
   route: PageRoute,
   reference: string,
 ): Promise<Response> {
-  if (Number(request.headers.get("Content-Length")) > 2048)
-    return new Response("startup report is too large", { status: 413 });
-  const raw = await request.text();
-  if (raw.length > 2048) {
+  const raw = await readBoundedText(request, MAX_STARTUP_BYTES);
+  if (raw === null) {
     return new Response("startup report is too large", { status: 413 });
   }
   let value: unknown;
@@ -687,25 +708,9 @@ async function recordInteractions(
   identity: InteractionIdentity,
   release: string,
 ): Promise<Response> {
-  const declaredLength = Number(request.headers.get("Content-Length"));
-  if (declaredLength > MAX_INTERACTION_BYTES)
+  const raw = await readBoundedText(request, MAX_INTERACTION_BYTES);
+  if (raw === null)
     return new Response("interaction batch is too large", { status: 413 });
-  const reader = request.body?.getReader();
-  if (!reader) return new Response("interaction batch is empty", { status: 400 });
-  const decoder = new TextDecoder();
-  let raw = "";
-  let bytes = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    bytes += value.byteLength;
-    if (bytes > MAX_INTERACTION_BYTES) {
-      await reader.cancel();
-      return new Response("interaction batch is too large", { status: 413 });
-    }
-    raw += decoder.decode(value, { stream: true });
-  }
-  raw += decoder.decode();
   let value: unknown;
   try {
     value = JSON.parse(raw);

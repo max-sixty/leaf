@@ -15,7 +15,7 @@
 // final layout. A live drag defers the whole correction.
 
 import { runtime } from "./context.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
+import { pagePresented } from "./page-paint.js";
 import { LEAVING } from "./geometry.js";
 
 // The theme's reduced-motion guard covers CSS animation and transitions; motion
@@ -48,12 +48,7 @@ export function motion(el, keyframes, ms) {
   // first frame the user sees, not a motion from authored state they never saw; it
   // collapses exactly as reduced motion does. This one shared check reaches folds and
   // FLIP alike without a widget learning whether the page has been presented.
-  if (
-    reducedMotion() ||
-    runtime.restoringState ||
-    !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)
-  )
-    return null;
+  if (reducedMotion() || runtime.restoringState || !pagePresented()) return null;
   const played = el.animate(keyframes, {
     duration: ms,
     easing: "ease",

@@ -28,7 +28,7 @@ import {
   PAGE_INTERFACE,
   PRESENTATION,
 } from "./runtime/presentation.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./runtime/page-paint.js";
+import { PAGE_PAINT_ATTRIBUTE, pagePresented } from "./runtime/page-paint.js";
 import { nextFrame, renderingSettled } from "./runtime/rendering.js";
 import { observeQueuedWork } from "./runtime/queued-work.js";
 import { mountApplication } from "./runtime/application.js";
@@ -1046,9 +1046,9 @@ const { landArrival, savedView } = offlineInteractive
 const savedComposer = offlineInteractive ? null : selectionComposer.pendingComposer();
 
 async function presentPage() {
-  if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
+  if (pagePresented()) return;
   await whenApplicationPresented();
-  if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
+  if (pagePresented()) return;
   setAnchoringReady(true);
   try {
     const draftOpened =

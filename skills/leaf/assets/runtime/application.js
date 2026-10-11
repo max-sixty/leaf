@@ -11,7 +11,6 @@ import {
   whenApplicationRegionsPresented,
   whenWidgetsPresented,
   presentDocument,
-  whenDocumentPresented,
 } from "./semantic-state.js";
 import { announce, notice } from "./notifications.js";
 import {
@@ -19,7 +18,7 @@ import {
   readQuestions,
 } from "./questions/model.js";
 import { paintKeys } from "./keyboard/scopes.js";
-import { pendingTraffic } from "./traffic.js";
+import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
 import { createDelivery, deliverBookkeeping } from "./delivery.js";
 import {
@@ -65,6 +64,7 @@ export function mountApplication(dependencies) {
   if (application) throw new Error("Leaf application mounted twice");
   setPresentationFailureReporter(dependencies.reportPageError);
   const { ledger } = commandDispatch;
+  watchPendingTraffic(applicationState.select((root) => root.effective.sending));
   const hasPending = () => ledger.snapshot().length > 0;
   const engagement = dependencies.createEngagement({
     hasPending,
@@ -164,36 +164,20 @@ export function mountApplication(dependencies) {
 
   /** @param {import("./pending/state.js").DeliveryHandle} entry */
   function afterEnqueue(entry) {
-    let presentationError = null;
-    let threadPresentation = Promise.resolve();
+    // Enqueue has already published and claimed its presentation, whose coordinator
+    // reports any failed paint. The entry's answer describes the server's durable
+    // decision, so a local announcement or key-paint failure is reported here rather
+    // than turning an accepted gesture into an apparent refusal, and it cannot strand
+    // the gesture before transport or leave later sends behind an unanswered entry.
     try {
-      pendingTraffic(readApplication().effective.sending);
-      // Enqueue publishes and claims its presentation synchronously, including while an
-      // accepted reading is still preparing. Observe that pass without starting another;
-      // its coordinator reports any failed paint, and transport proceeds independently.
-      threadPresentation = whenDocumentPresented().catch(() => undefined);
+      if (isMessageEvent(entry.event)) announce("Message sent");
+      if (entry.event.kind === "edit") announce("Message edited");
+      paintKeys();
     } catch (error) {
-      presentationError = error;
+      console.error("leaf: optimistic presentation", error);
     } finally {
-      try {
-        if (isMessageEvent(entry.event)) announce("Message sent");
-        if (entry.event.kind === "edit") announce("Message edited");
-        paintKeys();
-      } catch (error) {
-        presentationError ??= error;
-      } finally {
-        // The durable gesture has entered the one ledger. A local paint failure cannot
-        // strand it before transport or leave every later send waiting behind an
-        // unanswered entry.
-        void delivery.drain();
-      }
+      void delivery.drain();
     }
-    // The returned promise describes the server's durable decision. Report a local
-    // optimistic-presentation failure without turning an accepted gesture into an
-    // apparent refusal for callers that restore drafts or clear busy state from it.
-    if (presentationError)
-      console.error("leaf: optimistic presentation", presentationError);
-    return threadPresentation;
   }
 
   commandDispatch.mount({

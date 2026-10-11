@@ -9,7 +9,6 @@
 import { runtime } from "./context.js";
 import { postEvent } from "./layer-client.js";
 import { notice } from "./notifications.js";
-import { pendingTraffic } from "./traffic.js";
 import { afterScript } from "./rendering.js";
 
 const RETRY_MS = 2000;
@@ -122,7 +121,6 @@ export function createDelivery({
         } catch (error) {
           reportApplicationError(error);
         } finally {
-          pendingTraffic(ledger.sending());
           if (application) void application.finally(() => entry.resolve(accepted));
           else {
             entry.resolve(accepted);

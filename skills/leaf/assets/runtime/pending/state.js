@@ -54,7 +54,6 @@ export function createPendingLedger({ newAttempt, enqueue }) {
       return handle;
     },
     snapshot,
-    sending,
     nextSending: () => {
       const [attempt] = sending();
       return attempt ? handles.get(attempt) : null;

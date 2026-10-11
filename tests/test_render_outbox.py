@@ -502,9 +502,12 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
         route.fulfill(status=response.status, json=answer)
 
     page.route("**/api/event", break_first_state)
+    # State application reports the answer it could not present; delivery, which
+    # carried that answer, adds no second report of the same fault.
     with page.expect_console_message(
         lambda message: (
-            message.type == "error" and "leaf: state in event response" in message.text
+            message.type == "error"
+            and message.text.startswith("leaf: State presentation failed:")
         )
     ) as reported:
         suggestion_control(page, "sug-thistle", "accept").click()
@@ -570,7 +573,6 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
         "data-lf-state", "accept"
     )
     expect(page.locator("#sug-in-card lf-old")).to_be_visible()
-    assert "leaf: state in event response" in reported.value.text
     # This test transforms event responses with route.fetch(). A news-triggered POST
     # can enter that handler after the last assertion; closing its context then disposes
     # the APIResponse while the handler is still reading it, and Playwright reports that
@@ -578,17 +580,9 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     # the routes and wait for any handler already running before their owning page goes.
     page.unroute_all(behavior="wait")
     errors = take_browser_errors(page)
-    assert reported.value.text in errors
-    presentation_errors = [
-        error
-        for error in errors
-        if error.startswith("leaf: State presentation failed:")
-    ]
-    assert len(presentation_errors) == 1, errors
-    assert all(
-        error == reported.value.text or error in presentation_errors or "400" in error
-        for error in errors
-    ), errors
+    assert [error for error in errors if "400" not in error] == [
+        reported.value.text
+    ], errors
 
 
 def test_a_failed_background_presentation_keeps_the_new_undo_authority(browser, serve):
@@ -1120,8 +1114,10 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
     page.route("**/api/event", malformed_event_state)
     heater = page.locator("#card-heater .lf-grip")
     with (
+        # The move's malformed answer fails to present, which state application
+        # reports.
         page.expect_console_message(
-            lambda message: "leaf: state in event response" in message.text
+            lambda message: "leaf: State presentation failed" in message.text
         ),
         # The move's own append is what the page hears next, so the malformed read
         # it prompts is answered here rather than on a later timer. Its failure reads
@@ -1198,7 +1194,6 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
     consume_browser_errors(
         page,
         "leaf: State presentation failed:",
-        "leaf: state in event response",
         "400",
     )
 

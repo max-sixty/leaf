@@ -1376,7 +1376,7 @@ def test_kernel_selectors_name_no_package_tag():
             if token.type == "ident" and not (
                 previous is not None
                 and previous.type in ("literal", "delim")
-                and previous.value in (".", ":", "::", "|")
+                and previous.value in (".", ":", "::")
             ):
                 yield token.value
             if token.type in ("function", "() block"):

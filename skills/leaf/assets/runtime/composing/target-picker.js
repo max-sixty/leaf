@@ -19,7 +19,7 @@ import {
 import { bannerFoot, shownBox, shownParts } from "../geometry.js";
 import { repaint } from "../repaint.js";
 import { intersect, union } from "../rect.js";
-import { anchorFor } from "../anchor-names.js";
+import { anchorFor } from "../css-anchors.js";
 import { paintSet } from "../target-paint-geometry.js";
 import {
   handBack,

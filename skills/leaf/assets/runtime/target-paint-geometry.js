@@ -15,7 +15,7 @@ import {
   inTopLayer,
   nameAnchor,
   scrollsWith,
-} from "./anchor-names.js";
+} from "./css-anchors.js";
 import { paintClips, shownBox } from "./geometry.js";
 import { hasArea, intersect } from "./rect.js";
 import { atLayoutPrecision, keeps, layoutPx } from "./keeps.js";
@@ -191,7 +191,7 @@ export function paintStand(box = null) {
 }
 
 // The box an anchor carries `el` by for a stand at `root`: its anchor box
-// (anchor-names.js), where every scroll that moves `el` moves that box with it
+// (css-anchors.js), where every scroll that moves `el` moves that box with it
 // (`scrollsWith`), or that box's own parts where `el` draws none. An anchor positions a
 // box only where it is laid out before that box, earlier in the document and outside
 // the top layer; null otherwise, and where the browser has no anchors.

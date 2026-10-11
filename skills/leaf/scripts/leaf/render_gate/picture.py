@@ -42,7 +42,7 @@ CONTEXT = 120
 # over the page, so each pane from the element outward is scrolled to put the ink's
 # middle at its own, reading the ink at its fixed offset from the element; then the
 # window does the same. The element is the one whose inline anchor name the ink's
-# `position-anchor` names (`anchor-names.js`).
+# `position-anchor` names (`css-anchors.js`).
 CENTER = """(el) => {
   const middle = (box) => [box.left + box.width / 2, box.top + box.height / 2];
   const toMiddle = (scroller, [x, y], [left, top]) =>

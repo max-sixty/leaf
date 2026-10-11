@@ -94,7 +94,7 @@ import {
   carriedAnchor,
   nameAnchor,
   scrollsWith,
-} from "/runtime/anchor-names.js";
+} from "/runtime/css-anchors.js";
 
 const rows = new Map();
 // A contents target's first shown part can leave while its declaration remains.

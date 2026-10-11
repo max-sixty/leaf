@@ -249,6 +249,22 @@ update. So drive only claimless previews and start any `--user` preview from the
 session the user talks to. Don't
 idle a preview to quiet the loop; `idle` closes the page in the browser.
 
+### Temporary review resources
+
+Keep a review's live resources proportional to the work being performed. Use the
+smallest fixture that preserves the journey and its relevant surroundings; `--source`
+can avoid serving an entire gallery for one interaction. Separate page directories
+isolate reviewers' comments and data; fresh browser contexts isolate browser storage.
+Neither alone requires another browser or Python process. Different historical server
+runtimes still need their own environments.
+
+For finite checks, prefer `leaf-dev probe` or `stills`, whose serving scopes
+close their temporary servers when the journey exits. A live preview also watches source
+and runtime edits, which an immutable revision does not need. Start comparison pages
+as reviewers need them. Any custom runner owns its temporary servers and browsers
+through completion, failure and cancellation, including waiting for its children to
+exit. Keep previews and trace viewers handed to the user available for their review.
+
 ### In Codex
 
 1. Start the preview with `--user` from the current

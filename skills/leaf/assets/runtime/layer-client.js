@@ -1,5 +1,5 @@
-/* The vendored-generation gate, the event and media doors, and the page's error channel
-   to the agent.
+/* The vendored-generation gate, the event and media doors, the page's JSON requests,
+   and the page's error channel to the agent.
 
    A vendored runtime and registry are one generation. This module carries the
    epoch from `layer-generation.js` and the registry carries the same epoch
@@ -35,10 +35,9 @@ import { recordInteraction } from "./interaction-log.js";
 import { offlineInteractive, pageUrl, runtime } from "./context.js";
 import { notice } from "./notifications.js";
 import { layerGeneration } from "./layer-generation.js";
+import { DELIVERY } from "./storage.js";
 
-const runtimeScript = document.querySelector("script[data-lf-server]");
-const documentLayer = runtimeScript?.dataset.lfLayer;
-const release = runtimeScript?.dataset.lfRelease;
+const { layer: documentLayer, release, probe } = DELIVERY;
 
 if (documentLayer && documentLayer !== layerGeneration) {
   window.dispatchEvent(
@@ -60,7 +59,6 @@ if (documentLayer && documentLayer !== layerGeneration) {
 // True when the source has a different document, false when it does not, and undefined
 // when the probe could not be read at all, which settles nothing and leaves the question
 // open for the next foreign answer.
-const probe = runtimeScript?.dataset.lfProbe;
 async function sourceMovedOn() {
   if (!probe) return true;
   let response;
@@ -135,6 +133,42 @@ export function layerHeaders(headers = {}) {
     ...(release && { "Leaf-Release": release }),
     ...headers,
   };
+}
+
+// An answer `admitResponse` refused: it came from another delivery, and whether the page
+// reloads is already settled there. Each caller says what that means for its request.
+export class LayerRefused extends Error {}
+
+// The page's JSON requests beside the event door and the state reads: the layer's
+// headers out, the answer admitted, and the JSON read off the text so an error page a
+// proxy wrote fails as its status rather than as a parse. A failure throws the server's
+// `error`, or `<what>: HTTP <status>`, carrying the status, the raw body and, for a
+// file the server holds newer than the draft, its `current`.
+export async function requestJson(url, init, what) {
+  const response = await fetch(url, { ...init, headers: layerHeaders(init.headers) });
+  if (!admitResponse(response))
+    throw new LayerRefused(`Leaf's layer changed while requesting ${what}`);
+  const text = await response.text();
+  const failed = (message, cause) =>
+    Object.assign(new Error(message, { cause }), {
+      status: response.status,
+      body: text,
+    });
+  let answer = null;
+  if (
+    response.ok ||
+    response.headers.get("Content-Type")?.split(";")[0].trim() === "application/json"
+  )
+    try {
+      answer = JSON.parse(text);
+    } catch (error) {
+      throw failed(`${what}: HTTP ${response.status}`, error);
+    }
+  if (!response.ok)
+    throw Object.assign(failed(answer?.error ?? `${what}: HTTP ${response.status}`), {
+      current: answer?.current,
+    });
+  return answer;
 }
 
 export function sameLayer(generation) {
@@ -269,27 +303,19 @@ export const uploadMedia = async (file) => {
     throw new Error("no agent or server is available in an interactive export");
   await layerReady;
   countTraffic("sends");
-  let response;
+  let answer;
   try {
-    response = await fetch(pageUrl("api/media"), {
-      method: "POST",
-      headers: layerHeaders({
-        "Content-Type": file.type,
-      }),
-      body: file,
-    });
+    answer = await requestJson(
+      pageUrl("api/media"),
+      { method: "POST", headers: { "Content-Type": file.type }, body: file },
+      "image upload",
+    );
+  } catch (error) {
+    if (error instanceof LayerRefused) return null;
+    throw error;
   } finally {
     countTraffic("acked");
   }
-  if (!admitResponse(response)) return null;
-  let answer;
-  try {
-    answer = await response.json();
-  } catch {
-    throw new Error(`image upload returned HTTP ${response.status}`);
-  }
-  if (!response.ok)
-    throw new Error(answer?.error ?? `image upload returned HTTP ${response.status}`);
   if (typeof answer?.path !== "string")
     throw new Error("image upload returned no media path");
   return answer.path;

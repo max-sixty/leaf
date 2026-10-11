@@ -2,8 +2,8 @@
 
    The caller derives one immutable model for the control's presence and words and the
    keyed drawer rows. The native control remains the banner toolbar and drawer owner's stable
-   node; a retained face paints inside it. This owner registers each native link's
-   command scope once and keys each link by its page rather than its address. A surviving
+   node; a retained face paints inside it. Each template reading declares its links'
+   command scopes and keys each link by its page rather than its address. A surviving
    link keeps its node and focus through reordering and through its server restarting at
    a new address; when the focused page disappears, focus moves to a neighbouring link or
    the drawer.
@@ -17,7 +17,7 @@ import {
   PresentationRetentionError,
 } from "./semantic-state.js";
 import { showNews } from "./banner-toolbar.js";
-import { keys, paintKeys } from "./keyboard/scopes.js";
+import { commandsOn, paintKeys } from "./keyboard/scopes.js";
 import { RetainedFace } from "./retained-face.js";
 import { holdFocus } from "./focus.js";
 
@@ -75,7 +75,6 @@ class LiveLeavesList extends RetainedFace {
   #generation = 0;
   #handle = null;
   #linksOffered = false;
-  #wiredLinks = new WeakSet();
 
   constructor() {
     super(EMPTY_MODEL);
@@ -161,11 +160,6 @@ class LiveLeavesList extends RetainedFace {
   }
 
   updated() {
-    for (const link of this.querySelectorAll(LINK)) {
-      if (this.#wiredLinks.has(link)) continue;
-      this.#wiredLinks.add(link);
-      keys(link, "In the pages drawer", openCommand);
-    }
     const offered = this.querySelector(LINK) !== null;
     if (offered !== this.#linksOffered) {
       this.#linksOffered = offered;
@@ -192,6 +186,7 @@ class LiveLeavesList extends RetainedFace {
               target="_blank"
               rel="noopener"
               title=${row.account}
+              ${commandsOn("In the pages drawer", openCommand)}
               >${rowBody(row)}</a
             >`,
     )}`;

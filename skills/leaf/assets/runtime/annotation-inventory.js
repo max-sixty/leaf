@@ -322,10 +322,8 @@ export function createAnnotationInventory({
       );
     }
 
-    const questions = readQuestions().user.filter(
-      (question) => question.source.kind === "widget",
-    );
-    for (const question of questions) {
+    // Only a widget Question has a place on the page; the rest have no node.
+    for (const question of readQuestions().user) {
       const id = question.id;
       const target = questionPlace(question).node;
       if (!target) continue;

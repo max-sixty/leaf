@@ -111,11 +111,13 @@ A behavior module follows these rules:
   button type defaults to `button`. A native input's `type` binding precedes
   `offered` so its press marker reads that type. Bind values and handlers normally, and use
   `repeat(items, identity, template)` to retain editable controls under their identities.
+  `said(true)`, `said(false)`, or `said("echo")` marks a template element's words with
+  the same passage and print meaning as `relabel`; Lit owns the element's content.
 - Read UI based on element geometry synchronously from `PRESENTATION` for its
   first paint, then through normal layout signals. Reconcile UI derived from
   authored structure at `PAGE_INTERFACE`, at startup and each in-place revision
-  activation. Retain surviving nodes with `setChildren` to preserve focus and
-  native view state.
+  activation. Retain surviving nodes with `setChildren` (the rendering contract
+  below describes its native-state guarantees).
 - Use `nextRender`/`cancelRender` for paints and `sizeObserver` for size
   observation, so checks and tests wait for that work too. `nextRender` runs in
   the current rendering callback's frame, or in the next frame when called
@@ -133,6 +135,9 @@ A behavior module follows these rules:
 - Register `commands()` at upgrade. Use `DISCLOSE(el)` for folding controls,
   whose commands the runtime owns. Check `quoted()` before wiring input and
   controller command availability before a semantic widget’s optimistic gesture.
+  In templates, `commandsOn(title, rows, options)` attaches that same command scope
+  to its element. It reads the current declaration on each render and withdraws its
+  attachment when the directive leaves; projected commands on the element remain.
 
 Each helper's header under `runtime/` explains its contract.
 
@@ -875,11 +880,15 @@ redeliver unchanged data to keep a timestamp current.
 `revision`. An unchanged source keeps that origin when another source changes.
 
 The renderer owns its nodes and their placement. Use `setChildren(parent, nodes)`
-for retained native nodes: it moves only what is out of place and preserves focus
-and caret in a row it moves. Leaf's public `render(template, container)` applies
-Lit templates with the same focus protection; `repeat(records, keyOf, template)`
-retains keyed template rows. Leave native disclosure, editor and scroll state with
-the retained nodes. When the application owns a native property the user also changes,
+for retained native nodes: it moves only what is out of place. For an individual
+placement use `move(parent, node, before)`, with `null` to append. Within one
+composed root it uses native `moveBefore` where available, preserving focus, caret
+and iframe documents. Otherwise it uses `insertBefore`, which can reset that state. Leaf's public
+`render(template, container)` restores editor focus and caret after Lit renders;
+`repeat(records, keyOf, template)` retains keyed template rows, but Lit's ordinary
+insertion can reset iframe documents even in browsers with native moves. Leave
+native disclosure, editor and scroll state with the retained nodes. When the
+application owns a native property the user also changes,
 bind it with `live`, such as `.value=${live(value)}` or `.checked=${live(checked)}`:
 it compares the live DOM value and restores the authoritative value even when that
 value equals the previous template input, as when a gesture is refused. Do not bind

@@ -64,8 +64,10 @@
  * action too, so there the room is held on every line. A sent message that keeps the
  * draft's wrapping keeps the same room.
  *
- * Enter, Mod+Enter and Escape are not bound here. Leaf's key dispatcher owns them on the
- * document, and cancels the press it acts on; Shift+Enter inserts a line and continues
+ * Leaf's key dispatcher owns submission and Escape. Return inserts a newline unless
+ * its owner cancels `lf-edit-return` to reserve the press for submission. Android's
+ * EditContext supplies no native insertion after CodeMirror handles the press, so this
+ * editing route is explicit. Shift+Enter inserts a line and continues
  * a list or quote. Mod+Z and Mod+Shift+Z walk one history: the words' edits, and the
  * steps an owner records for what its draft holds beside them (`record`), such as a
  * composer's drawing, each taken back or redone in the order it was made.
@@ -100,6 +102,8 @@ import { LeafEditorView } from "../editor-view.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { loadMarkdown, markdownReady, placedMarkdownTokens } from "../markdown.js";
 import { sizeObserver } from "../rendering.js";
+
+const insertNewline = standardKeymap.find(({ key }) => key === "Enter").run;
 
 const sheet = new CSSStyleSheet();
 sheet.replaceSync(`
@@ -443,6 +447,12 @@ class LeafText extends HTMLElement {
             .map(({ value }) => ownerStep.of({ run: value.back, back: value.run })),
         ),
         keymap.of([
+          {
+            key: "Enter",
+            run: (view) =>
+              this.dispatchEvent(new Event("lf-edit-return", { cancelable: true })) &&
+              insertNewline(view),
+          },
           { key: "Shift-Enter", run: insertNewlineContinueMarkup },
           {
             key: "Shift-Enter",

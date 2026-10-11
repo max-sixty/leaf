@@ -91,7 +91,7 @@ const state = (taken, events = []) => ({
   browser: {
     basis: { through_seq: events.length },
     receipts: events,
-    event_threads: {},
+    thread_memberships: {},
     tasks: [],
     ended_tasks: [],
     thread: {
@@ -654,7 +654,7 @@ test("every thread gesture the ledger holds names the thread it stands in", () =
   assert.deepEqual(gestured(action("move")), []);
 });
 
-test("a move that would close a thread concerns that thread, before and after the log has it", () => {
+test("an action that would close a thread concerns that thread, before and after the log has it", () => {
   // A page suggestion that answers a thread stands in no thread, but accepting it
   // closes the one that asked, so the news that thread holds back shows with it.
   const served = servedReading("suggestion closes a thread");

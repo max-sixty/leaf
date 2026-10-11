@@ -3,8 +3,9 @@
 The reading uses one transaction and prints the work queues the active view serves
 (`served_state.queues`): on-you holds open Questions, explicit user Tasks and
 delivery recovery; on-agent holds owed responses and committed work. The Question
-inventory also retains answered and withdrawn records. `source` states whether a document is live and whether an
-invalid source save leaves the last valid version active.
+inventory also retains answered and withdrawn records. `source` states whether a
+document is live and whether an invalid source save leaves the last valid version
+active.
 """
 
 import json

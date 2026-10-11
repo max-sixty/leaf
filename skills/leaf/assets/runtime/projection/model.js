@@ -17,7 +17,7 @@
 export function foldedValue(event, record) {
   const value = event.detail.value;
   // An attribute record is a set, which the server's value lists sorted
-  // (`projection.folded_value`); a pending move's value takes the same shape.
+  // (`projection.folded_value`); a pending action's value takes the same shape.
   // Unresolved detail has not passed admission, so a value that is no list is drawn
   // as it came until admission refuses it.
   if (record.kind === "attribute" && Array.isArray(value)) return value.toSorted();

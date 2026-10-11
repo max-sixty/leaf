@@ -111,8 +111,8 @@ def _closes(
     that withdraws the request instead (`x-withdrawn-as`), which closes nothing.
     `pages` are each document's records by id, registry and projection; an answer
     closes the thread `threads` holds under that exact id, as `build_threads` reads
-    it. The browser places a move it has not sent yet in the
-    thread it would close by this, as `event_threads` places a logged one by its
+    it. The browser places an action it has not sent yet in the
+    thread it would close by this, as `thread_memberships` places a logged one by its
     admitted meaning (`event_meaning.answer_meaning`)."""
     closes = {}
     for by_id, registry, projection in pages:
@@ -131,8 +131,8 @@ def _closes(
 def _state_definitions(registry: dict, records) -> dict[str, dict[str, dict]]:
     """Each tag among `records` → each verb its user writes → that verb's admitted
     definition under `registry` (`registry.contract.state_definition`). The browser
-    stamps a move it has not sent yet with its verb's definition, and stops drawing
-    the move once a revision defines that verb differently; it never derives one."""
+    stamps an action it has not sent yet with its verb's definition, and stops drawing
+    the action once a revision defines that verb differently; it never derives one."""
     return {
         tag: {
             verb: state_definition(tag, registry[tag], spec)
@@ -319,8 +319,8 @@ def browser_state(
         "receipts": [event for event in events if event.get("attempt")],
         # Every thread whose history each logged event changes
         # (`thread_context.thread_memberships`), which the browser reads for the
-        # gesture an unsent undo takes back or an unsent move replaces.
-        "event_threads": {
+        # gesture an unsent undo takes back or an unsent action replaces.
+        "thread_memberships": {
             identity: threads
             for identity, threads in thread_memberships(
                 events,

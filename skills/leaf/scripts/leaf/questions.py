@@ -308,7 +308,7 @@ def closed_thread(rec: dict, entry: dict, projection: StateProjection) -> str | 
     """The thread an answer on this widget closes: its authored `resolves`, read
     while the widget still asks under `projection`, as a name `thread_names`
     resolves. Admission reads it with the answering action standing
-    (`event_meaning.answer_meaning`); the browser places a move it has not sent yet
+    (`event_meaning.answer_meaning`); the browser places an action it has not sent yet
     by the current reading (`served_state.browser`, `closes`)."""
     awaits = entry.get("x-awaits")
     if awaits is None or not asking(replayed_attrs(rec, projection), awaits.get("when")):

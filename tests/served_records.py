@@ -34,7 +34,7 @@ def _served(events: tuple[dict, ...]) -> dict:
 
 
 # Something of every kind on each side: an open Ask, a question left in prose, a task
-# the agent put on them, a reply that failed and a page move whose pickup failed are on
+# the agent put on them, a reply that failed and a page action whose pickup failed are on
 # the user; a comment owed a reply and a task the agent has in hand are on the agent.
 BOTH_SIDES = (
     {"kind": "comment", "text": "Weekly?"},

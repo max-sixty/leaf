@@ -34,7 +34,7 @@ const reading = (events) => ({
   browser: {
     basis: { through_seq: events.length },
     receipts: events,
-    event_threads: {},
+    thread_memberships: {},
     tasks: [],
     ended_tasks: [],
     thread: {

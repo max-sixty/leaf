@@ -9,7 +9,7 @@ unresolved sends against the served lists (`build/browser/application.ts`,
 `localQueues`); it never selects them again.
 
 An item names its subject and the thread it stands in, and whether the agent has it
-in hand now (`live`): a task a start holds, or a move the agent is at work on whose
+in hand now (`live`): a task a start holds, or an update the agent is at work on whose
 work has not gone quiet or stopped. A Question item keeps its canonical record, and a
 task item the task's fields a row draws. Each done item adds how it ended (`state`),
 when (`ended`), and the outcome's detail.
@@ -71,7 +71,7 @@ def queues(
     are the open tasks on either side and `ended_tasks` the ended ones, and
     `questions` is a `questions.collection`. A Question's canonical next actor
     selects its queue; explicit work and delivery recovery keep their own completion
-    routes. A move handed back in a thread is that thread's recovery item, and one
+    routes. An update handed back in a thread is that thread's recovery item, and one
     handed back outside any thread is its own."""
     on_you = [_question_item(question) for question in questions["user"]]
     on_you += [_task_item(task) for task in tasks if task["owner"] == "user"]

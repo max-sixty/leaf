@@ -365,8 +365,9 @@ export interface AuthoritativeState {
       state_definitions: Record<string, Record<string, unknown>>;
     };
     receipts: Event[];
-    /** The threads each logged event belongs to (`thread_context.event_threads`). */
-    event_threads: Record<string, string[]>;
+    /** Every thread whose history each logged event changes
+     * (`thread_context.thread_memberships`). */
+    thread_memberships: Record<string, string[]>;
     tasks: WireTask[];
     ended_tasks: WireTask[];
   };
@@ -633,6 +634,7 @@ function localQueues(
     current(item as QueueItem);
   const asDone = (item: QueueItem): DoneItem => ({
     ...current(item),
+    live: false,
     state:
       item.kind === "question" && question(item).status !== "answered"
         ? "dropped"
@@ -672,14 +674,14 @@ function localQueues(
           sending.slice(at + 1).every((later) => later.thread !== workflow.thread),
         )
         .map((workflow) => ({
-        kind: "answer" as const,
-        id: workflow.id,
-        subject: workflow.subject,
-        thread: workflow.thread,
-        live: false,
-        answer: workflow.answer,
-        stage: workflow.stage,
-      })),
+          kind: "answer" as const,
+          id: workflow.id,
+          subject: workflow.subject,
+          thread: workflow.thread,
+          live: false,
+          answer: workflow.answer,
+          stage: workflow.stage,
+        })),
       ...served.on_agent.filter((item) => item.kind === "task" && standsOpen(item)),
       ...reopenedFor("agent").map(asOpen),
     ],
@@ -859,7 +861,7 @@ export function createSemanticApplication({
       : null;
     // A revision may reuse a widget/verb with a different operation, or give the verb
     // to the agent. Keep its pending delivery, but stop drawing it against that new
-    // declaration: a move draws while the shown version defines its verb as the one it
+    // declaration: an action draws while the shown version defines its verb as the one it
     // was made under (the view's `state_definitions`). The server validates durable
     // payloads; speculative state waits for its receipt when a revised payload schema
     // cannot be compared directly.
@@ -925,7 +927,7 @@ export function createSemanticApplication({
     // message is answered at the reply that survived, and a parent no thread holds is a
     // comment of this tab's that the log refused, whose pending id named its thread. A
     // rewrite stands in its message's thread, a settlement in the thread it settles, and
-    // a move in the thread whose markup froze its widget; a page widget's move stands in
+    // an action in the thread whose markup froze its widget; a page widget's action stands in
     // none.
     const named = threadNames(folded);
     const threadOfEntry = ({ event, thread: drawn, namedParent }: LedgerEntry) => {
@@ -954,12 +956,12 @@ export function createSemanticApplication({
       }
     };
     // Every thread whose history a gesture changes, as `thread_memberships` will file
-    // it once the log has it (the browser state's `event_threads`): the thread it
-    // stands in; for a move, the thread it would close (the view's `closes`) unless
-    // its outcome withdraws the request, and every thread the logged move it replaces
+    // it once the log has it (the browser state's `thread_memberships`): the thread it
+    // stands in; for an action, the thread it would close (the view's `closes`) unless
+    // its outcome withdraws the request, and every thread the logged action it replaces
     // at its coordinate did; for an undo, every thread the gesture it takes back did,
     // this tab's own entry or, once logged, the log's.
-    const logged = state?.browser.event_threads ?? {};
+    const logged = state?.browser.thread_memberships ?? {};
     const threadsOfEntry = (entry: LedgerEntry): string[] => {
       const { event } = entry;
       if (event.kind === "undo") {
@@ -1419,7 +1421,7 @@ export function createSemanticApplication({
         event.kind === "action" && widget
           ? before.document.registry[widget.tag]?.["x-state"]?.[event.action]
           : null;
-      // The verb's definition as the shown version admits it, which the move is
+      // The verb's definition as the shown version admits it, which the action is
       // drawn under until a revision defines the verb differently.
       const definition =
         event.kind === "action"

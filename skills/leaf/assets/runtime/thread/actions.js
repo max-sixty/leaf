@@ -113,7 +113,6 @@ export function createThreadActions({
         revision: currentRevision(),
         token,
       },
-      null,
       `${message.agent}'s reply`,
       post,
     );

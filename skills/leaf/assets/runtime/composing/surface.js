@@ -77,7 +77,7 @@ import {
   commandReferenceOpen,
 } from "../keyboard/command-reference.js";
 
-import { paintReactionStanding } from "../reaction-standing.js";
+import { paintBarReactions } from "../reactions.js";
 import { threadInput, standingThread } from "../thread/landing.js";
 import { replyDraftContext } from "../thread/replies.js";
 import { activeCommandLabel } from "../keyboard/dispatch.js";
@@ -124,9 +124,6 @@ import { heldQuestion } from "../standing-target.js";
 
 import { coarsePointer, pointerAt } from "../pointer.js";
 import { anchorLabel } from "../thread/messages.js";
-
-import { reactionsAt } from "../thread/model.js";
-import { allThreads } from "../thread/state.js";
 
 import { standingPoint } from "../pointed-place.js";
 import { keeps } from "../keeps.js";
@@ -426,9 +423,7 @@ export function createResponseSurface({
       const label = anchorLabel(fabAnchor, pendingAbout).replace(/^§\s*/, "");
       keeps(fabBar, "aria-label", label ? `Respond to ${label}` : "Respond");
       keeps(fabInput, "aria-label", label ? `Comment on ${label}` : "Comment");
-      // The tokens already standing on this very anchor read pressed, and a press on one
-      // takes it back (reactHere): the bar is the strip's shape on the page.
-      paintReactionStanding(fabBar, reactionsAt(allThreads(), fabAnchor));
+      paintBarReactions(fabAnchor);
       // A margin control can name an item whose rendered box is currently off
       // screen. `e` still needs the durable anchor so it can extend that existing item;
       // in that route the floating bar is never painted and placement is deliberately

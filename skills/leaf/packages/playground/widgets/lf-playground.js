@@ -19,6 +19,7 @@
  * The last projection signature distinguishes those cases without making the DOM or a
  * second event history authoritative. */
 import {
+  announce,
   commands,
   compoundReadingRegionId,
   dressSamples,
@@ -418,6 +419,10 @@ customElements.define(
         this.#copy.dataset.copyState = "rest";
     }
 
+    // The copy control is a native button rather than a `wa-copy-button`, because the
+    // initial producer draws it before any module loads and the theme reserves its
+    // feedback words' width in place. Its label shows the result where the press was;
+    // the page's live region says it, as Web Awesome's copy button says its own.
     async #copyInstruction() {
       const instruction = this.#instruction();
       let feedback;
@@ -430,6 +435,11 @@ customElements.define(
       if (this.#instruction() !== instruction || !this.isConnected) return;
       clearTimeout(this.#copyTimer);
       this.#copy.dataset.copyState = feedback;
+      announce(
+        feedback === "success"
+          ? "Instruction copied"
+          : "Could not copy the instruction",
+      );
       this.#copyTimer = setTimeout(() => {
         this.#copy.dataset.copyState = "rest";
       }, 2000);

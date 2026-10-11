@@ -5,12 +5,18 @@
  * availability belongs to the current document, never that retained drawing. */
 export const ACTIVITY_VIEW = "activity-reading:";
 
-export function refreshActivityTarget(link, row, write) {
+// Whether the current document holds a fragment's destination. Before modules load
+// only the light document's ids can be read; the behavior module passes Leaf's own
+// reading (`fragmentTarget`), which also finds ids in shadow trees and refuses content a
+// revision settled away, and its refresh replaces this one.
+const lightTarget = (fragment, doc) =>
+  doc.readyState !== "loading" &&
+  doc.getElementById(decodeURIComponent(fragment.slice(1)));
+
+export function refreshActivityTarget(link, row, write, names = lightTarget) {
   const doc = link.ownerDocument;
-  const href =
-    doc.readyState !== "loading" && doc.getElementById(row.widget)
-      ? `#${encodeURIComponent(row.widget)}`
-      : null;
+  const fragment = `#${encodeURIComponent(row.widget)}`;
+  const href = names(fragment, doc) ? fragment : null;
   // Keep a focused target in the same node when it becomes historical text. Order
   // matters: give the text a programmatic stop before removing its native link,
   // and restore the link before taking that stop back. It is never a Tab offer.
@@ -82,7 +88,7 @@ export function fillActivityRow(item, row, offer) {
   item.toggleAttribute("data-lf-undone", row.undone);
 }
 
-export function initialActivity(host, { offer, tabStore }) {
+export function initialActivity(host, { offer, tabStore, keeps }) {
   const saved = tabStore.get(ACTIVITY_VIEW + host.id);
   const reading = saved
     ? JSON.parse(saved)
@@ -118,12 +124,7 @@ export function initialActivity(host, { offer, tabStore }) {
       () => {
         for (const row of drawn) {
           const link = rows.get(row.id).item.querySelector("a.lf-activity-target");
-          if (link)
-            refreshActivityTarget(link, row, (node, name, value) => {
-              if (node.getAttribute(name) === value) return;
-              if (value === null) node.removeAttribute(name);
-              else node.setAttribute(name, value);
-            });
+          if (link) refreshActivityTarget(link, row, keeps);
         }
       },
       { once: true },

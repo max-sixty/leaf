@@ -197,8 +197,9 @@ const READINESS_STAGES = new Set(READINESS.map(([stage]) => stage));
     reader holds applied; `presented`, the initial milestone and the coordinator's
     current reading; `arrived`, no deferred containing layout still outstanding;
     `contained`, no deferred document in a stable allocation still outstanding;
-    `rendering`, nothing queued for a rendering update. A reading is a digest with no
-    order, and the server may move past the answer held — a source rewritten, a claim
+    `rendering`, no registered preparation or queued rendering update still waiting.
+    A reading is a digest with no order, and the server may move past the answer
+    held — a source rewritten, a claim
     aged, a neighbour started — so a page that applied an answer the server took later
     has caught up with it too. A reading names files and presence, not the activity the
     server folds from them against its clock, so an applied answer with the held

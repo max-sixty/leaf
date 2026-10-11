@@ -149,11 +149,10 @@
   // Native media sources and nodes detached during a reading can have no computed
   // length. Keep that absence stable; NaN would disagree with itself every frame.
   const pixels = (value) => (/^-?[\d.]+px$/.test(value) ? parseFloat(value) : null);
-  // The page has answered the input so far: its rendering loop is quiet, and it has
-  // presented its current publication, including every preparation a widget declared
-  // pending (`present`), such as a closed lf-diff file loading on open. The loop alone
-  // cannot see work held in a promise (runtime/rendering.js), so reading it alone ends
-  // the gesture while its declared result is still on the way. Initial readiness can
+  // The page has answered the input so far: its rendering and registered finite
+  // preparation have settled, and its current publication has presented. Semantic
+  // proof can still await a deferred local edit while rendering is quiet
+  // (widget-controller.js), so both readings are required. Initial readiness can
   // still await saved history after offline presentation; it does not own local input.
   const settled = () => {
     const entry = document.querySelector("script[data-lf-entry]");

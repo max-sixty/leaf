@@ -14,6 +14,7 @@
    state-dependent controls remain unavailable. */
 
 import { countTraffic } from "./traffic.js";
+import { pagePresented } from "./page-paint.js";
 import { activityTransitionDue, tickClock } from "./presence.js";
 import {
   passiveSample,
@@ -380,7 +381,7 @@ export function createStateFeed({
       // accept user input or durable updates.
       if (passiveSample) {
         const retry = () => {
-          if (document.body.hasAttribute("data-lf-presented")) return;
+          if (pagePresented()) return;
           if (!readAnswered) void ask();
           else void present();
           setTimeout(retry, TICK_MS);

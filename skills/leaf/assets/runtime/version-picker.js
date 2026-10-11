@@ -65,7 +65,7 @@ class VersionPickerView {
     // A press on an open auto-popover's invoker is both a light dismissal and a press;
     // reading the state from a handler would see the dismissal and reopen it. `lfInvoker`
     // exposes the same relationship from the popover end to owners restoring a layer.
-    this.button.popoverTargetElement = this.menu;
+    this.button.setAttribute("popovertarget", this.menu.id);
     this.menu.lfInvoker = this.button;
     this.menu.addEventListener("beforetoggle", (event) => {
       if (event.newState === "open") dismissBannerControls();

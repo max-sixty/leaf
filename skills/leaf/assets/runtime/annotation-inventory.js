@@ -8,7 +8,8 @@
    refreshes after current widget claims and required conversation commits. Mechanical
    paints and immediate contribution updates refresh this same directory. */
 import { replyAvailable } from "./thread/replies.js";
-import { KINDS, excerptWords, labelWords } from "./contribution-model.js";
+import { KINDS } from "./contribution-model.js";
+import { excerptWords, labelWords } from "./words.js";
 import { contributionEntries } from "./contributions.js";
 import { marginInventory } from "./margin-model.js";
 import { standingPoint } from "./pointed-place.js";
@@ -474,8 +475,7 @@ export function createAnnotationInventory({
     }
 
     for (const offered of contributionEntries()) {
-      const target =
-        typeof offered.target === "function" ? offered.target() : offered.target;
+      const target = offered.target();
       if (!target?.isConnected || inChrome(target)) continue;
       const group = groupFor(groups, target);
       if (group.offers.some((candidate) => candidate.key === offered.key))

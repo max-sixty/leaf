@@ -17,6 +17,7 @@
    capabilities. Importing this module exposes only passive nodes and live draft
    readings. mount binds the field and its controls after those owners exist. */
 import { el, responseAction } from "../widget-elements.js";
+import { anchorKey } from "../anchor-coordinate.js";
 import { keeps, keepsHidden } from "../keeps.js";
 
 import {
@@ -176,15 +177,11 @@ export function createSelectionComposer({
   // would each overwrite the other's words, so the key says which passage and the record
   // says the rest: the anchor itself (a version that drops the passage still has to say
   // what the draft was about), the mode it was written in, and when it was last touched,
-  // which is what picks the one to reopen at load.
+  // which is what picks the one to reopen at load. The key is the anchor's identity, so a
+  // draft follows an identified subject across a data replacement as `sameAnchor` does;
+  // reopened on the re-minted anchor, it posts that anchor, the rendering last aimed at.
   const COMPOSER_KEY = "composer:";
-  const composerCtx = (anchor) =>
-    COMPOSER_KEY +
-    JSON.stringify(
-      Object.entries(anchor ?? {})
-        .filter(([, value]) => ["string", "number", "boolean"].includes(typeof value))
-        .sort(([left], [right]) => left.localeCompare(right)),
-    );
+  const composerCtx = (anchor) => COMPOSER_KEY + anchorKey(anchor);
   let syncComposer;
   const composerDraftValue = (text = syncComposer.value()) =>
     JSON.stringify({

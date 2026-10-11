@@ -187,7 +187,7 @@ const sendReply = (draftCtx, key, text, owns, actions) =>
 // is the thread's `threadKey`, which names its draft; `parent` reads the message the
 // reply answers when it is sent, since the log can name that message after the draft
 // began. The typed action resolves that target from the current reading.
-export function wireReply(
+function wireReply(
   key,
   row,
   input,

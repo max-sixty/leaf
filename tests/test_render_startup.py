@@ -1426,7 +1426,8 @@ def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
 
           // Hidden until it is removed below.
           previewHost.hidden = true;
-          const hiddenBounds = leaf.shownRegionBounds(previewId);
+          const { shownRegionBounds } = await window.__lfRuntimeImport('/runtime/check-api.js');
+          const hiddenBounds = shownRegionBounds(previewId);
 
           let refused;
           try {

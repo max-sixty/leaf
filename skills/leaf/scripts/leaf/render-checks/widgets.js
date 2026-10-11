@@ -1,13 +1,16 @@
 import {
-  ADDRESSABLE,
   inChrome,
   matchesWhen,
   quoted,
   TEXT_BOX,
   textNodesUnder,
-  upFrom,
 } from "/runtime/widget-api.js";
-import { unrevealedVisualParts, visualPartProblems } from "/runtime/check-api.js";
+import {
+  ADDRESSABLE,
+  unrevealedVisualParts,
+  upFrom,
+  visualPartProblems,
+} from "/runtime/check-api.js";
 import { at as locate } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 

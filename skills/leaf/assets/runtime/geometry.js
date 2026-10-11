@@ -3,6 +3,8 @@
  * document-positioned chrome. */
 import { renderedParent, uiInside, under, upFrom } from "./shadow.js";
 import { overlaps, overlapsAcross, union, clippingAxes } from "./rect.js";
+import { cancelRender, nextRender } from "./rendering.js";
+import { watchScrolls } from "./arrivals.js";
 
 /* Shared readings of the boxes the page actually shows.
 
@@ -24,8 +26,10 @@ import { overlaps, overlapsAcross, union, clippingAxes } from "./rect.js";
    - `shownExtent` for what stands beside a target's parts: a margin row, the
      response field's room;
    - `shownRect` for visible placement of floating chrome and key badges;
-   - `seenRect` for whether, and how much of, something is in front of the user, and
-     `whenOffScreen` to hear when all of something has left the window;
+   - `seenRect` for whether, and how much of, something is in front of the user;
+   - `growthIsSeen` and `growthAfterIsSeen` for whether a change of size would move what
+     the user sees (`motionBand`), which scroll anchoring makes a different question;
+   - `whenNone` to hear when one of those readings stops holding for all of something;
    - `clippedRect` for an element's box the caller has adjusted;
    - `pagePlaneRect` for the same box in the document plane, which the window does
      not cut;
@@ -421,7 +425,9 @@ export function shownBand(el) {
 // `scroll-padding` the scroller declares, which is also what `scrollIntoView` honours.
 // It clears what stands over the whole scroller (the banner, a page tab strip); a header
 // over part of it, a diff's file header, is cleared by the `scroll-margin` of the rows
-// it stands over.
+// it stands over. It is also where scroll anchoring looks for the box it keeps still:
+// the spec's optimal viewing region, which Chrome reads from `scroll-padding` too
+// (`motionBand`).
 //
 // A box scrolls, for these readings, when its computed overflow makes it a scroll
 // container: `auto` and `scroll`, and `hidden` too, which a script or a landing can
@@ -670,19 +676,122 @@ export function seenRect(item, clips) {
     ? { left: shown.left, top: room.top, right: shown.right, bottom: room.bottom }
     : null;
 }
-// Calls `leave` each time none of `nodes` shows in the window any longer, and returns
-// the step that stops watching. The window here is the browser's, which the chrome does
-// not cut, so a box wholly under the banner still counts as showing.
-export function whenOffScreen(nodes, leave) {
-  const showing = new Set();
-  const observer = new IntersectionObserver((entries) => {
-    for (const { target, isIntersecting } of entries)
-      if (isIntersecting) showing.add(target);
-      else showing.delete(target);
-    if (!showing.size) leave();
-  });
+// Where, in the window's coordinates, a change of size at `item` would move what the
+// user sees, as `{top, bottom}`, or null where it would move nothing seen. A change
+// moves everything after it in the boxes that scroll it, in every column, so the band
+// spans what the clips over `item` and the chrome leave of the window's height, read as
+// `seenRect` reads it but across the whole width. Scroll anchoring keeps still the first
+// box in the scroller's landing band (`landingBand`: the spec's optimal viewing region,
+// which Chrome and WebKit take from `scroll-padding`), so a change above that band moves
+// only what stands above the change. Chrome forfeits that for a layout in which a
+// `details` both opens or shuts and changes what it holds, so a writer doing both lays
+// out the disclosure first (thread-card.js, an outlet thread settling). The band
+// therefore starts at the landing band's top, wherever the seen top stands. Above it, a
+// change moves only what is under the banner, scrolled past, or in the gap between the
+// banner and the band, which it carries up under the banner; below it, a change pushes
+// down everything after it, even where the seen top stands lower, as a diff's file
+// header reaches below the root's band and hides the change. Past the seen foot a change
+// moves only what is under the bottom bar or below the window. Only heights count: a
+// change hidden sideways, by a clip or a pinch zoom's pan, still moves what follows it.
+// The scroller that anchors is the innermost with more to scroll than it shows, since
+// one that grows with what it holds, such as a code block that scrolls only sideways,
+// hands the change out to the box around it; one scrolled to its top anchors nothing, so
+// there the band starts at that scroller's own top, wherever the window cuts it.
+export function motionBand(item, clips) {
+  const walk = clipWalk(item, clips, false);
+  const all = { left: -Infinity, top: -Infinity, right: Infinity, bottom: Infinity };
+  const heights = walk.cuts.map((each) => ({
+    ...each,
+    axes: { ...each.axes, x: false },
+  }));
+  const cut = cutBy(all, heights, item.ownerDocument.scrollingElement, true);
+  if (!cut) return null;
+  const room = shownWindow({ within: cut });
+  if (room.height <= 0) return null;
+  const scroller = walk.cuts.find(
+    ({ box, scrolls }) => scrolls && box.scrollHeight > box.clientHeight,
+  )?.box;
+  const anchors = !scroller
+    ? cut.top
+    : scroller.scrollTop > 0
+      ? landingBand(scroller).top
+      : shownBand(scroller).top;
+  return anchors < room.bottom ? { top: anchors, bottom: room.bottom } : null;
+}
+// Whether a change of size anywhere in `node` would move what the user sees: some of it
+// stands in its `motionBand`. A node not drawn changes nothing.
+export function growthIsSeen(node, clips = new Map()) {
+  const { top, bottom, height } = node.getBoundingClientRect();
+  if (!height) return false;
+  const band = motionBand(node, clips);
+  return Boolean(band) && bottom > band.top && top < band.bottom;
+}
+// Whether growth after `node`, at its foot, would move what the user sees: the foot
+// stands inside its `motionBand`.
+export function growthAfterIsSeen(node, clips = new Map()) {
+  const { bottom, height } = node.getBoundingClientRect();
+  if (!height) return false;
+  const band = motionBand(node, clips);
+  return Boolean(band) && bottom > band.top && bottom < band.bottom;
+}
+// Calls `leave` once `holds(node, clips)` stops holding for every one of `nodes`, and
+// again each time it stops after holding once more; returns the step that stops
+// watching. `holds` is a reading of geometry such as `seenRect` or `growthIsSeen`. Every
+// watch is read in one rendering pass with one clip cache, after any scroll in the page
+// or a stage (arrivals.js, `watchScrolls`), a resize or pinch, or a watched node entering
+// or leaving the window, which a change of layout moving it does; a node standing still
+// under chrome that changes size is read at the next of those. A pass calls `leave` only
+// once every watch is read, so one that redraws cannot stale another's reading.
+const watches = new Set();
+let watchPass = null;
+let unlisten = null;
+const readWatches = () => {
+  watchPass = null;
+  const clips = new Map();
+  const left = [...watches].filter((watch) => watch.read(clips));
+  for (const watch of left) if (watches.has(watch)) watch.leave();
+};
+const rereadWatches = () => {
+  watchPass ??= nextRender(readWatches);
+};
+function listenForWatches() {
+  const stopScrolls = watchScrolls(rereadWatches);
+  const viewport = window.visualViewport;
+  window.addEventListener("resize", rereadWatches);
+  viewport.addEventListener("resize", rereadWatches);
+  viewport.addEventListener("scroll", rereadWatches);
+  return () => {
+    stopScrolls();
+    window.removeEventListener("resize", rereadWatches);
+    viewport.removeEventListener("resize", rereadWatches);
+    viewport.removeEventListener("scroll", rereadWatches);
+  };
+}
+export function whenNone(nodes, holds, leave) {
+  let held = null;
+  const watch = {
+    leave,
+    // Whether `holds` has just stopped holding for every node.
+    read(clips) {
+      const now = nodes.some((node) => node.isConnected && Boolean(holds(node, clips)));
+      const stopped = !now && held !== false;
+      held = now;
+      return stopped;
+    },
+  };
+  watches.add(watch);
+  unlisten ??= listenForWatches();
+  const observer = new IntersectionObserver(rereadWatches);
   for (const node of nodes) observer.observe(node);
-  return () => observer.disconnect();
+  return () => {
+    observer.disconnect();
+    watches.delete(watch);
+    if (watches.size) return;
+    unlisten();
+    unlisten = null;
+    if (watchPass !== null) cancelRender(watchPass);
+    watchPass = null;
+  };
 }
 
 // Where a member begins, as the user sees it: the first of the boxes it paints that
@@ -850,6 +959,7 @@ function clipWalk(item, clips, held) {
       cuts.push({
         box: a,
         axes: c.axes,
+        scrolls: c.scrolls,
         covered: c.axes.y && covered > c.band.top,
         band:
           c.axes.y && covered >= footed
@@ -921,6 +1031,9 @@ export function rightCover() {
 // the page can show while that surface stands.
 const PAST = Symbol("past");
 export const clipsPast = (surfaces) => new Map([[PAST, new Set(surfaces)]]);
+// A clip pass that reads past every occluder, for what stands above them all: a list in
+// the top layer still hangs from a trigger the thread panel stands over.
+export const clipsPastSurfaces = () => clipsPast(occluders);
 // Whether an occluder hides a destination, an element or a Range, wherever travel lands
 // it: whether it stands over most of it, more than half its width. A block the width of
 // the column keeps most of itself clear of the thread panel at a desktop window and is

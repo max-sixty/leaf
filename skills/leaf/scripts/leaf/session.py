@@ -27,6 +27,7 @@ from .leases import release_lease, take_lease, waiter_lease_path
 from .locations import path_location, paths_same
 from .machine import state_home
 from .presence import nudge_unwatched
+from .refusals import Refused
 from .schema import (
     ANSWER_ASK_INSTRUCTION,
     MESSAGE_KINDS,
@@ -99,7 +100,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
                 if harness
                 else "`leaf wait` prints them."
             )
-            sys.exit(
+            raise Refused(
                 f"{pending} event{'s' if pending != 1 else ''} nobody has picked up, "
                 f"so the page cannot idle yet. {remedy}"
             )
@@ -109,7 +110,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
             and harness.watcher_live(listening=state["listening"]),
         )
         if owed:
-            sys.exit(
+            raise Refused(
                 f"{unanswered(owed, 'acknowledged')}; answer before idling. "
                 + ANSWER_ASK_INSTRUCTION
             )
@@ -117,7 +118,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
         # standing on a page nobody holds.
         if tasks := work.durable.log.owed:
             named = "; ".join(f"{task['id']} ({task['title']})" for task in tasks)
-            sys.exit(
+            raise Refused(
                 f"{len(tasks)} open task{'s' if len(tasks) != 1 else ''}: {named}. "
                 "End each before idling with "
                 '`leaf task end <page> <id> done "<where the result is>"`, or '

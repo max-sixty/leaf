@@ -312,3 +312,50 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     write(inline, markdown)
     inline.press("Control+Enter" if touch else "Enter")
     assert reading(diff.locator(".lf-msg-body").first) == physical_reading
+
+
+def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(browser, serve):
+    """Repeated basenames remain identifiable before tapping their source rows."""
+    names = ("dispatch", "improving-instructions", "todos")
+    patch = "".join(
+        f"diff --git a/.claude/skills/{name}/CLAUDE.md b/.claude/skills/{name}/CLAUDE.md\n"
+        f"--- a/.claude/skills/{name}/CLAUDE.md\n+++ b/.claude/skills/{name}/CLAUDE.md\n"
+        "@@ -1 +1 @@\n-old = True\n+new = True\n"
+        for name in names
+    )
+    url = serve(
+        leaf_page(
+            "Identify sources",
+            "<h1>Identify sources</h1>"
+            '<lf-diff id="patch" source="patch-data" collapsed><pre></pre></lf-diff>',
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
+    context = browser.new_context(
+        viewport={"width": 360, "height": 800}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, url, context=context)
+    page.evaluate("document.fonts.ready")
+    headers = page.locator("#patch .lf-diff-head")
+    expect(headers).to_have_count(3)
+    for head, name in zip(headers.all(), names, strict=True):
+        reading = head.evaluate("""head => {
+          const parent = head.querySelector('.lf-diff-dir-parent');
+          const base = head.querySelector('.lf-diff-base');
+          const prefix = new Range();
+          prefix.setStart(parent.firstChild, 0);
+          prefix.setEnd(parent.firstChild, Math.min(3, parent.textContent.length - 1));
+          const ink = prefix.getBoundingClientRect();
+          const box = parent.getBoundingClientRect();
+          return {text: parent.textContent, shown: getComputedStyle(parent).opacity,
+            prefix: ink.width + parseFloat(getComputedStyle(parent, '::before').width), room: box.width,
+            base: base.textContent, baseCut: base.scrollWidth > base.clientWidth};
+        }""")
+        assert reading["text"] == name + "/"
+        assert reading["shown"] == "1"
+        assert reading["room"] >= reading["prefix"], reading
+        assert reading["base"] == "CLAUDE.md" and not reading["baseCut"], reading
+        head.tap()
+        expect(head.locator("..")).to_have_attribute("open", "")
+        head.tap()
+        expect(head.locator("..")).not_to_have_attribute("open", "")

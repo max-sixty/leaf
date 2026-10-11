@@ -5,8 +5,25 @@
    The runtime tree is not the set of importers: package widget modules reach this file
    over HTTP from the served page, as `/runtime/widget-api.js`. What only the render
    gate's probes read belongs in check-api.js instead. */
-export { LitElement, html, repeat } from "../vendor/browser-runtime.js";
-export { keyed, unsafeHTML } from "../vendor/lit.js";
+export {
+  LitElement,
+  html,
+  svg,
+  mathml,
+  noChange,
+  nothing,
+  classMap,
+  guard,
+  ifDefined,
+  keyed,
+  live,
+  createRef,
+  ref,
+  repeat,
+  styleMap,
+  unsafeHTML,
+  when,
+} from "../vendor/browser-runtime.js";
 export { iconElement, iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
 export { initialRender } from "./initial-render.js";

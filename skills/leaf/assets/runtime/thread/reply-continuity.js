@@ -4,8 +4,10 @@
    keeps the body extent it occupied before that presentation, with flexible free space
    immediately before the reply row. Removed content becomes space; new content
    consumes it, with the response foot held by layout rather than a later resize
-   correction. The editor retains its allocated room across passive draft replacement,
-   so surviving words and Send stay put; longer replacement text scrolls inside it.
+   correction. A region is visible while a change of size at its reply row would move
+   what the user sees (geometry.js, `growthIsSeen`), and departs once one would not.
+   The editor retains its allocated room across passive draft replacement, so
+   surviving words and Send stay put; longer replacement text scrolls inside it.
    A change of inline measure starts a fresh allocation. Native edits resize that
    room to their intrinsic content. What the user writes is theirs to see grow and
    shrink: the retained body extent changes by the height change of the box they write
@@ -17,7 +19,7 @@
    bounds that extent by its already allocated body room.
    No message or delivery state is retained; a short panel card starts at its
    natural extent, while a long card pins its reply within the list. */
-import { seenRect, whenOffScreen } from "../geometry.js";
+import { growthIsSeen, whenNone } from "../geometry.js";
 import { atLayoutPrecision, layoutPx } from "../keeps.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { nextRender, sizeObserver } from "../rendering.js";
@@ -91,7 +93,7 @@ export class ReplyContinuity {
       this.#owner.isConnected &&
       (this.#owner.localName !== "details" || this.#owner.open) &&
       this.#row?.isConnected &&
-      Boolean(seenRect(this.#row, new Map()))
+      growthIsSeen(this.#row)
     );
   }
   // `writing` are the boxes the presentation opens, closes or changes the words of, as
@@ -136,7 +138,7 @@ export class ReplyContinuity {
     this.#readArea(this.#row);
     this.#retainWriting();
     this.#departure?.();
-    this.#departure = whenOffScreen([this.#row], () => this.release());
+    this.#departure = whenNone([this.#row], growthIsSeen, () => this.release());
   }
   #keep(extent) {
     if (extent === this.#extent) return;

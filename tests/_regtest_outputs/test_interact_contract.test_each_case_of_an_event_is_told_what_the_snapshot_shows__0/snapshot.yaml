@@ -87,11 +87,11 @@
 #              its opening message by then, that name stands.
 #      clause 6, does not apply:
 #        when: {"required": ["token"]}
-#        text: A reaction is a mark, not a question. Read the token and the `means`
-#              its package gives, if any, and act on it if it calls for a change;
-#              reply only if its meaning is unclear. Once the page reflects it, close
-#              it with `leaf thread resolve <page> <event-id>`. It never blocks
-#              publishing a version, and it does not wait on an answer.
+#        text: A reaction is a mark, not a question. Read the token and act on it if
+#              it calls for a change; reply only if its meaning is unclear. Once the
+#              page reflects it, close it with `leaf thread resolve <page>
+#              <event-id>`. It never blocks publishing a version, and it does not wait
+#              on an answer.
 #      clause 7, applies:
 #        when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
 #        text: When the event asks for work, say in its thread what you will do before
@@ -552,11 +552,10 @@ reaction on the page:
   told:
     - when: {"required": ["token"]}
       text: >-
-        A reaction is a mark, not a question. Read the token and the `means` its
-        package gives, if any, and act on it if it calls for a change; reply only
-        if its meaning is unclear. Once the page reflects it, close it with `leaf
-        thread resolve <page> <event-id>`. It never blocks publishing a version,
-        and it does not wait on an answer.
+        A reaction is a mark, not a question. Read the token and act on it if it
+        calls for a change; reply only if its meaning is unclear. Once the page
+        reflects it, close it with `leaf thread resolve <page> <event-id>`. It never
+        blocks publishing a version, and it does not wait on an answer.
 
 reply:
   event:

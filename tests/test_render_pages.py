@@ -1440,10 +1440,19 @@ def test_a_screenshot_margin_trace_paints_one_complete_quiet_contour(browser, se
         return Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
 
     quiet = screenshot()
-    toggle = page.get_by_role(
-        "button",
-        name="Show after — the run list with and without a status column",
-    )
+    # Exercise the generic contribution trace with a real public registration;
+    # the screenshot's own endpoint actions live in its native control rail.
+    page.evaluate("""async () => {
+      const {contributionEntry, registerContribution} =
+        await window.__lfRuntimeImport('/runtime/widget-api.js');
+      registerContribution({key: 'review-capture',
+        target: document.querySelector('#rn-console-shot'),
+        read: () => ({entries: [contributionEntry({key: 'review', glyph: 'R',
+          label: 'Review capture'})]}), activate: () => {},
+      });
+    }""")
+    margins_laid_out(page)
+    toggle = page.get_by_role("button", name="Review capture", exact=True)
     toggle.hover()
     trace = page.locator('.lf-target-trace[data-for="rn-console-shot"]')
     expect(trace).to_be_visible()
@@ -1463,7 +1472,7 @@ def test_a_screenshot_margin_trace_paints_one_complete_quiet_contour(browser, se
         f"the screenshot frame covered the trace's {missing} edge: {changed} ink pixels"
     )
     assert shot.evaluate("element => getComputedStyle(element).outlineStyle") == "none"
-    toggle.click()
+    shot.locator('.lf-shotcap[data-lf-state="after"]').click()
     expect(shot.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
 
 

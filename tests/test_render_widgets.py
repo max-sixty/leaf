@@ -11556,6 +11556,24 @@ def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve, manifes
     expect(head).to_have_attribute("data-path-cut", "")
     expect(head.locator(".lf-diff-path")).to_have_attribute("title", path)
 
+    # A changed source path can retain exactly the old clipped width. Its title
+    # must follow the new identity even when no size changes and the disclosure stays.
+    head.evaluate("node => window.retainedDiffHead = node")
+    for source in ("legacy/original.py", "legacy/previous.py"):
+        changed_rename = (
+            f"diff --git a/{source} b/{path}\nsimilarity index 50%\n"
+            f"rename from {source}\nrename to {path}\n"
+            f"--- a/{source}\n+++ b/{path}\n"
+            "@@ -1 +1 @@\n-old()\n+new()\n"
+        )
+        data_model.cmd_data_set(serve.page_dir, "review-patch", value(changed_rename))
+        told(page)
+        rendered(page)
+        expect(head.locator(".lf-diff-path")).to_have_attribute(
+            "title", f"{source} → {path}"
+        )
+        assert head.evaluate("node => node === window.retainedDiffHead")
+
 
 def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
     browser, serve

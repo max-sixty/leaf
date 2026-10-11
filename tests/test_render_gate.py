@@ -133,7 +133,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 # The deadline of a wait these tests expect to expire, on a page held or refused on
 # purpose: long enough for the page to reach the stall on a busy runner, and well short
@@ -3247,6 +3247,7 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
     assert any('paints urgent="" and says nothing' in f for f in failures), failures
 
 
+@pytest.mark.nightly  # a sweep over the whole corpus
 @pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
 def test_page_fixture_renders(browser, serve, source):
     """Every shipped example and the developer gallery lay out in both color schemes: no
@@ -4008,6 +4009,7 @@ def held_scroller_findings(page, source):
     return findings
 
 
+@pytest.mark.nightly  # a sweep over the whole corpus
 @pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
 def test_a_still_page_comes_back_from_every_journey_as_it_was(browser, serve, source):
     """A still_page goes through each journey that must leave it as it found it: left

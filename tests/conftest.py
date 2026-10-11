@@ -50,7 +50,7 @@ pytest_plugins = (
 # The layer a page carries is the same bytes in every fixture, and the file it
 # is made of is what a copy costs: an initialized page is 195 files, 158 of them
 # runtime modules, and the suite wants one page per test. Measured when a page
-# was 146, copying them all made a complete nightly run 2,272 pages and 393,473
+# was 146, copying them all made a complete run 2,272 pages and 393,473
 # directory entries, which is the number a filesystem event watcher charges for
 # — hard links share the bytes but not the entry. So the layer is written once
 # per shape and lent, and only what a test actually changed is put back. A
@@ -260,15 +260,21 @@ def initialized_page(_page_pool, tmp_path):
 
 def pytest_addoption(parser):
     parser.addoption(
+        "--run-main",
+        action="store_true",
+        default=False,
+        help="Also run the `main` tier, as a push to main does",
+    )
+    parser.addoption(
         "--run-nightly",
         action="store_true",
         default=False,
-        help="Also run the complete browser and published-site integration suites",
+        help="Run every tier, as the daily schedule and a manual dispatch do",
     )
     parser.addoption(
-        "--nightly-changed-since",
+        "--changed-since",
         metavar="REF",
-        help="Also run the nightly-marked tests whose own lines changed since REF",
+        help="Also run the marked tests whose own lines changed since REF",
     )
 
 
@@ -283,13 +289,29 @@ def pytest_runtest_call(item):
     return result
 
 
+# The marked tiers, in the order CI reaches them. An unmarked test runs in every
+# selection: a pull request, `wt merge`, and broad discovery. A `main` test can land
+# without running and runs on each push to main (`--run-main`); a `nightly` one runs
+# only in the daily schedule and a manual dispatch (`--run-nightly`), which run every
+# tier. A test with both marks, such as a `nightly` test in a `main` module, is in the
+# later tier.
+TIERS = ("main", "nightly")
+
+
+def tier(item):
+    """The latest tier a test is marked with, or None for an unmarked test."""
+    marks = [name for name in TIERS if item.get_closest_marker(name)]
+    return marks[-1] if marks else None
+
+
 def pytest_collection_modifyitems(config, items):
-    """Broad discovery stays cheap; explicit selections run what they name.
+    """Broad discovery runs the unmarked tests and the tiers its flags reach (`TIERS`);
+    explicit selections run what they name.
 
     A change that moves a browser behaviour usually edits the test that holds it, so both
-    landing gates add the nightly tests whose own lines the change touches
-    (`--nightly-changed-since`): those run before it lands, and CI's `test` job runs
-    the rest on main after.
+    landing gates add the marked tests, of either tier, whose own lines the change
+    touches (`--changed-since`): those run before it lands, and CI's `test` job runs
+    the rest of each tier when that tier's event comes.
 
     Selecting by the code a change touches would catch more, but this design makes
     that map coarse. Browser tests reach code through a served page, not imports, so
@@ -305,15 +327,17 @@ def pytest_collection_modifyitems(config, items):
     )
     if config.getoption("--run-nightly") or selected:
         return
+    reached = {"main"} if config.getoption("--run-main") else set()
     changed = {}
-    if since := config.getoption("--nightly-changed-since"):
+    if since := config.getoption("--changed-since"):
         changed = _changed_test_lines(config.rootpath, since)
-    kept, nightly = [], []
+    kept, skipped = [], []
     for item in items:
-        skipped = "nightly" in item.keywords and not _touches(item, changed)
-        (nightly if skipped else kept).append(item)
+        marked = tier(item)
+        runs = marked is None or marked in reached or _touches(item, changed)
+        (kept if runs else skipped).append(item)
     items[:] = kept
-    config.hook.pytest_deselected(items=nightly)
+    config.hook.pytest_deselected(items=skipped)
 
 
 def _changed_test_lines(root, since):
@@ -328,9 +352,7 @@ def _changed_test_lines(root, since):
         check=False,
     )
     if diff.returncode:
-        raise pytest.UsageError(
-            f"--nightly-changed-since {since}: {diff.stderr.strip()}"
-        )
+        raise pytest.UsageError(f"--changed-since {since}: {diff.stderr.strip()}")
     changed, lines = {}, None
     for line in diff.stdout.splitlines():
         if line.startswith("+++ "):

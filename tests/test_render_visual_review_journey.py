@@ -32,7 +32,7 @@ from render_harness import (
     undo,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 VISUAL_REVIEW_GALLERY = next(
     path for path in CORPUS_SOURCES if path.stem == "visual-review-gallery"

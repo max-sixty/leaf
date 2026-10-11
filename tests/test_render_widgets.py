@@ -123,7 +123,7 @@ DRAG_HELD = (
     "'/runtime/widget-elements.js')).dragHeld()"
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 def test_a_source_widget_releases_its_fallback_face_when_it_renders(browser, serve):

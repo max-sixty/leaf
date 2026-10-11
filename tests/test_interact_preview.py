@@ -6,9 +6,9 @@ subscribes to. Input tests exercise those readings and shared page preparation. 
 handoff crosses the real claim, server and delivery adapter boundaries, without
 opening a browser.
 
-That is why they are here and not beside the preview's browser tests. A nightly
+That is why they are here and not beside the preview's browser tests. A `main`
 mark is file-level, with no per-test escape, so a Python-decided reading filed
-in a nightly module runs nowhere near the change that breaks it.
+in a `main` module runs nowhere near the change that breaks it.
 """
 
 import json

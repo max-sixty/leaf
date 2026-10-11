@@ -365,7 +365,7 @@ def test_gallery_automatic_revision_keeps_the_empty_reply_focused(
     assert editor.evaluate("el => el.value") == ""
 
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 def choose_comment_target(page, selector):

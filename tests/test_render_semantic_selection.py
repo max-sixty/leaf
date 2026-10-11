@@ -29,7 +29,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 def test_selection_snap_stops_at_explicit_table_line_break(browser, serve):

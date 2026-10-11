@@ -110,7 +110,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 READING_REGIONS_PAGE = leaf_page(
@@ -10256,7 +10256,7 @@ def test_reference_accepts_native_popover_dismissal_across_modal_entry(browser, 
     # inert under it, so the panel is what can take them. The platform also hands a
     # popover's focus back to whoever held it when the popover showed; that arrives at the
     # same place and hides whether Leaf landed them at all. Throttling takes the courtesy
-    # away, so these assertions read Leaf's own landing — a saturated nightly runner took
+    # away, so these assertions read Leaf's own landing — a saturated CI runner took
     # it away about one run in three, which is how this was found. It has to span the
     # presses rather than sit on the last one: the state the final press lands from is
     # built by the ones before it, and throttling only that press does not reproduce. The
@@ -12615,8 +12615,8 @@ def test_the_resting_key_line_leads_from_the_page_to_target_selection(browser, s
     expect(help_el).to_contain_text("Search all the text on the page")
     # Read the capability by the command the reference lists it under. Its words belong
     # to `target.picker.open` and are read once, in `test_render_semantic_selection.py`;
-    # a second copy here only drifts. Both cases are nightly, so neither holds those
-    # words before `main`.
+    # a second copy here only drifts. Both cases are in the `main` tier, so neither
+    # holds those words before it lands.
     expect(help_el.locator('tr[data-lf-command="target.picker.open"]')).to_have_count(1)
     expect(help_el).not_to_contain_text("Open reactions")
     expect(help_el).to_contain_text("Move 60% of a page down")
@@ -12962,7 +12962,7 @@ def test_a_page_at_rest_repaints_the_key_line_only_when_the_state_moves(browser,
     spellings of a disclosure keep which way they stand, and it repaints the line for
     either. So the paint delivered its own write back to itself and asked for another
     frame, and the page went on repainting for as long as it was open — every browser
-    test on every page paying for it, which is where it showed: the nightly suite ran
+    test on every page paying for it, which is where it showed: the complete suite ran
     half again as long and the run went over its bound with a fifth of the tests unread.
 
     Nothing on screen says so, which is why the reading is the page's own frames at

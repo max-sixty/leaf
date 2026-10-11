@@ -81,7 +81,7 @@ GALLERY_THREAD_TEXT = "Gallery thread: I moved the practice exercise before lunc
 
 # The module-scoped build and host are one shared setup, so they belong to one
 # xdist work unit rather than being rebuilt independently on every worker.
-pytestmark = [pytest.mark.nightly, pytest.mark.xdist_group(name="site")]
+pytestmark = [pytest.mark.main, pytest.mark.xdist_group(name="site")]
 
 
 def sample_address(frame):

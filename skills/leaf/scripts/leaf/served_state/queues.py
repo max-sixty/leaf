@@ -13,9 +13,6 @@ canonical record, and a task item the task's fields a row draws. Each done item 
 how it ended (`state`), when (`ended`), and the outcome's detail.
 """
 
-from .work import at_work
-
-
 def _task_item(task: dict) -> dict:
     """One task as an item on the queue of its `owner`."""
     return {
@@ -105,7 +102,7 @@ def queues(
                     "stage": workflow["stage"],
                 }
             )
-        elif at_work(workflow):
+        elif workflow["at_work"]:
             on_agent.append({"kind": "work", **item, "detail": workflow["detail"]})
     on_agent += [_task_item(task) for task in tasks if task["owner"] == "agent"]
     done = [

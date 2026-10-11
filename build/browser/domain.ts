@@ -34,6 +34,7 @@ export interface ContentVersion {
 export type MessageEvent = CompleteUnion<EventMap["comment"] | EventMap["reply"]>;
 export type LocalMessage = Extract<Command, { kind: "comment" | "reply" }> & {
   id: string;
+  content_version: string;
   author: string;
   ts: string;
   pending: true;
@@ -41,6 +42,7 @@ export type LocalMessage = Extract<Command, { kind: "comment" | "reply" }> & {
 };
 export type StreamingMessage = {
   id: string;
+  content_version: string;
   attempt: string;
   key: string;
   provisional: true;
@@ -70,7 +72,10 @@ export type ThreadGesture =
   | LocalEdit
   | Settlement
   | Extract<Command, { kind: "undo" }>;
-export type Message = CompleteUnion<MessageEvent | LocalMessage | StreamingMessage> & {
+/** A logged message as a served thread holds it, naming the id of its current content
+ * version (`read_state.content_version`): its latest rewrite's, else its own. */
+export type ServedMessage = MessageEvent & { content_version: string };
+export type Message = CompleteUnion<ServedMessage | LocalMessage | StreamingMessage> & {
   // The name it is drawn under where the server gives one (`thread.messageKey`).
   key?: string;
   agent?: string | null;

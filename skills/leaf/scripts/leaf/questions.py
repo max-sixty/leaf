@@ -76,6 +76,20 @@ def event_reference(event: dict | None) -> dict | None:
     }
 
 
+def approval_blocking(records: list[dict]) -> list[dict]:
+    """The Questions that keep a version from being approved: each open widget
+    Question someone still owes, on the page or in a widget an agent sent. The append
+    door refuses a sign-off while one stands, and the browser view serves their ids
+    so the approve control says the same."""
+    return [
+        record
+        for record in records
+        if record["source"]["kind"] == "widget"
+        and record["status"] == "open"
+        and record["next_actor"] is not None
+    ]
+
+
 def collection(records: list[dict]) -> dict:
     """Select obligations from an inventory without deciding membership again."""
     return {

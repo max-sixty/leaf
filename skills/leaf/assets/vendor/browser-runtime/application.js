@@ -225,6 +225,8 @@ function advance(
 
 
 
+
+
 /** Published workflows include local sends, before the server can classify quietness. */
 
 
@@ -275,6 +277,8 @@ function advance(
 
 
 /** A finished item: how it ended, when, and the outcome's detail. */
+
+
 
 
 
@@ -997,6 +1001,7 @@ export function createSemanticApplication({
         message: turn ? turnMessage(turn) : null,
         subject,
         thread,
+        at_work: false,
         holds_thread: Boolean(turn),
         // The server's list, where the local fold keys a coordinate by its JSON.
         coordinate: turn

@@ -190,6 +190,8 @@ export interface WireWorkflow {
   message: string | null;
   subject: { kind: "thread" | "widget"; id: string };
   thread: string | null;
+  /** Whether the agent is at work on it (`served_state.work.at_work`). */
+  at_work: boolean;
   holds_thread: boolean;
   coordinate: unknown;
   answer: { kind: "reply" | "turn" | "markup" } | null;
@@ -345,6 +347,8 @@ export interface AuthoritativeState {
         queues: WireQueues;
         /** The thread an answer on each widget would close (`questions.closed_thread`). */
         closes: Record<string, string>;
+        /** The Questions approving this version waits on (`questions.approval_blocking`). */
+        approval_blocking: string[];
       }
     >;
     thread: {
@@ -997,6 +1001,7 @@ export function createSemanticApplication({
         message: turn ? turnMessage(turn) : null,
         subject,
         thread,
+        at_work: false,
         holds_thread: Boolean(turn),
         // The server's list, where the local fold keys a coordinate by its JSON.
         coordinate: turn

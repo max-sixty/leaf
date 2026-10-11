@@ -107,6 +107,7 @@ const state = (taken, events = []) => ({
         published_at: null,
         queues: { on_you: [], on_agent: [], done: [] },
         closes: {},
+        approval_blocking: [],
         document: {
           questions: noQuestions(),
           projection: {

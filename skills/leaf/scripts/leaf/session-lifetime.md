@@ -68,7 +68,8 @@ canonical publication.
 `input` event, its `thread` or `widget` `subject`, its strongest proven `stage` (`sent`, `queued`, `picked_up`, `working`,
 `replying`, or the retained terminal `answered` outcome), and any separately proven
 `condition`. The served list also names the `thread` each workflow stands in (null for
-a page widget) and whether it `holds_thread` the agent's turn, and lists the strongest
+a page widget), whether the agent is `at_work` on it (`working` or `replying`), and
+whether it `holds_thread` the agent's turn, and lists the strongest
 first (`served_state.work.served_workflows`): a surface that shows one workflow of
 several shows the first, and the browser places only its own unresolved sends
 against that order. A Sent input that remains

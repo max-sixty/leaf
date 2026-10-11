@@ -14,7 +14,7 @@ from ..projection import (
     canonical_updates,
     page_reading,
 )
-from ..questions import closed_thread, collection
+from ..questions import approval_blocking, closed_thread, collection
 from ..thread_context import event_threads
 from ..schema import WIDGET_KINDS
 from .context import PageRead
@@ -254,17 +254,15 @@ def browser_state(
         [task for task in tasks if task["owner"] == "agent"],
     )
     # Each view's Questions are its own document's beside the frozen thread's, so
-    # each view carries the queues they add up to.
+    # each view carries the queues they add up to and the ones approving it waits on.
     for view in views.values():
+        questions = view["document"]["questions"]["all"] + thread["questions"]["all"]
         view["queues"] = queues(
-            thread["threads"],
-            workflows,
-            tasks,
-            ended_tasks,
-            collection(
-                view["document"]["questions"]["all"] + thread["questions"]["all"]
-            ),
+            thread["threads"], workflows, tasks, ended_tasks, collection(questions)
         )
+        view["approval_blocking"] = [
+            question["id"] for question in approval_blocking(questions)
+        ]
     if wants_history(readings[revision] for revision in view_revisions):
         words = GestureWords(events, active_registry, revisions or readings.__getitem__)
         page_history = {

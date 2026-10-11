@@ -26,7 +26,6 @@ import { claimed, heldOut } from "./thread/surfaces.js";
 import { anchorLabel } from "./thread/messages.js";
 import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
 import {
-  atWork,
   isPageWidgetWorkflow,
   isWorkflowProgress,
   strongestWorkflow,
@@ -212,7 +211,7 @@ export function createAnnotationInventory({
       kind:
         receipt.next_actor === "user" || receipt.condition
           ? "waiting"
-          : atWork(receipt)
+          : receipt.at_work
             ? "activity"
             : receipt.stage === "picked_up"
               ? "pickup"

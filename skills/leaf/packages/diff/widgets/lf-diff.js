@@ -59,7 +59,7 @@ import {
   findDiffLine,
   readDiffCoordinate,
 } from "./diff-coordinates.js";
-import "../vendor/webawesome.esm.js";
+import "/vendor/webawesome.esm.js";
 // Only a diff that is actually rendering has any use for Pierre's renderer —
 // an authored <lf-diff> bound to data
 // that has not arrived yet does not. So it is imported on first use rather than at

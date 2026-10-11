@@ -37,7 +37,7 @@ import {
   closeBrackets,
   closeBracketsKeymap,
   completionKeymap,
-} from "../vendor/extensions.esm.js";
+} from "/vendor/extensions.esm.js";
 
 const theme = EditorView.theme({
   "&": { color: "var(--ink)", backgroundColor: "var(--card)" },

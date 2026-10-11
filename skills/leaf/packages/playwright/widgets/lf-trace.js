@@ -75,11 +75,11 @@ import {
 } from "/runtime/widget-api.js";
 
 // Reuse the default package’s selected WebAwesome controls, already shipped with Leaf.
-await import("../vendor/webawesome.esm.js");
+await import("/vendor/webawesome.esm.js");
 const [{ Timeline, DataSet, css: timelineCss }, { Viewer, css: imageCss }] =
   await Promise.all([
-    import("../vendor/timeline.esm.js"),
-    import("../vendor/images.esm.js"),
+    import("/vendor/timeline.esm.js"),
+    import("/vendor/images.esm.js"),
   ]);
 // Dependency styles apply only inside recording widgets. Keeping them in their
 // module makes the same presentation available in an offline export.

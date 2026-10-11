@@ -7736,8 +7736,8 @@ def test_a_sent_comment_keeps_its_text_viewport(browser, serve, text, zoom):
 def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
     browser, serve, wrapping
 ):
-    """An accepted comment preserves the real editor frame and wrapping, beside
-    or over either page shape, while its reply and neighboring controls remain usable."""
+    """An accepted comment preserves its editor frame, wrapping and reply, using
+    the marker strip where clearing it would narrow the message."""
     sidebar_page = ASK_PAGE.replace(
         '<main class="layout-column">',
         '<main class="layout-column"><aside class="sidebar">Page reference</aside>',

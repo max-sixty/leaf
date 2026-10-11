@@ -432,7 +432,7 @@ test("source constraints and derived disabled output share one availability read
   const projection = document.createElement("button");
   owner.append(projection);
   trackContributionControl(
-    [...contributionEntries()].find((offered) => offered.target === owner),
+    [...contributionEntries()].find((offered) => offered.target() === owner),
     "map",
     "apply",
     projection,

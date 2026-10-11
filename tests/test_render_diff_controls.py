@@ -4,9 +4,9 @@ from html import escape
 
 import pytest
 from leaf import data as data_model
-from leaf.render_checks import rendered
+from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
-from render_harness import leaf_page, open_page, write
+from render_harness import holding, leaf_page, open_page, write
 
 
 @pytest.mark.parametrize("width,scheme", [(1280, "light"), (390, "dark")])
@@ -312,3 +312,91 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     write(inline, markdown)
     inline.press("Control+Enter" if touch else "Enter")
     assert reading(diff.locator(".lf-msg-body").first) == physical_reading
+
+
+def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(browser, serve):
+    """Repeated basenames remain identifiable before tapping their source rows."""
+    names = ("dispatch", "improving-instructions", "todos")
+    patch = "".join(
+        f"diff --git a/.claude/skills/{name}/CLAUDE.md b/.claude/skills/{name}/CLAUDE.md\n"
+        f"--- a/.claude/skills/{name}/CLAUDE.md\n+++ b/.claude/skills/{name}/CLAUDE.md\n"
+        "@@ -1 +1 @@\n-old = True\n+new = True\n"
+        for name in names
+    )
+    url = serve(
+        leaf_page(
+            "Identify sources",
+            "<h1>Identify sources</h1>"
+            '<lf-diff id="patch" source="patch-data" collapsed><pre></pre></lf-diff>',
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
+    context = browser.new_context(
+        viewport={"width": 360, "height": 800}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, url, context=context)
+    page.evaluate("document.fonts.ready")
+    headers = page.locator("#patch .lf-diff-head")
+    expect(headers).to_have_count(3)
+    for head, name in zip(headers.all(), names, strict=True):
+        reading = head.evaluate("""head => {
+          const parent = head.querySelector('.lf-diff-dir-parent');
+          const base = head.querySelector('.lf-diff-base');
+          const prefix = new Range();
+          prefix.setStart(parent.firstChild, 0);
+          prefix.setEnd(parent.firstChild, Math.min(3, parent.textContent.length - 1));
+          const ink = prefix.getBoundingClientRect();
+          const box = parent.getBoundingClientRect();
+          return {text: parent.textContent, shown: getComputedStyle(parent).opacity,
+            prefix: ink.width + parseFloat(getComputedStyle(parent, '::before').width), room: box.width,
+            base: base.textContent, baseCut: base.scrollWidth > base.clientWidth};
+        }""")
+        assert reading["text"] == name + "/"
+        assert reading["shown"] == "1"
+        assert reading["room"] >= reading["prefix"], reading
+        assert reading["base"] == "CLAUDE.md" and not reading["baseCut"], reading
+        head.tap()
+        file = head.locator("..")
+        expect(file).to_have_attribute("open", "")
+        expect(file.locator("[data-line]").last).to_contain_text("new = True")
+        head.tap()
+        expect(file).not_to_have_attribute("open", "")
+
+
+def test_opening_diff_keeps_rendering_pending_until_lazy_source_arrives(browser, serve):
+    """A disclosure's registered source preparation is part of its gesture's render."""
+    patch = """diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -1 +1 @@
+-old
++new
+diff --git a/other.md b/other.md
+--- a/other.md
++++ b/other.md
+@@ -1 +1 @@
+-old
++new
+"""
+    url = serve(
+        leaf_page(
+            "Lazy source",
+            '<lf-diff id="patch" source="patch-data" collapsed><pre></pre></lf-diff>',
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
+    page = open_page(browser, url)
+    held = []
+    page.route("**/vendor/syntax/markdown.js", lambda route: held.append(route))
+    head = page.locator(".lf-diff-head").first
+    head.click()
+    holding(page, held, 1, "the lazy Markdown grammar")
+    try:
+        one_frame(page)
+        assert not page.evaluate(
+            "document.querySelector('script[data-lf-entry]').lfRenderingSettled()"
+        ), "registered source preparation must keep rendering pending"
+    finally:
+        held[0].continue_()
+    rendered(page)
+    expect(head.locator("..").locator("[data-line]").last).to_contain_text("new")

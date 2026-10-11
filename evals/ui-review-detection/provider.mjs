@@ -37,7 +37,7 @@ const BROWSER_DESCRIPTION =
   "Inspect the candidate interface. snapshot returns its current screenshot, visible text, Playwright accessibility snapshot, and numbered controls. Controls labelHint is a locator hint, not a computed accessible name; consult accessibility for accessible names, roles and state. click uses a control index or an exact button accessible name. press sends one keyboard key or chord. scroll moves the document or a numbered scrollable control. Every operation returns a new snapshot. Only the candidate fixture is reachable.";
 const browserDescription = (limit) =>
   `${BROWSER_DESCRIPTION} You may make at most ${limit} total browser operations, including snapshots and failed operations. Each snapshot reports remainingOperations. Finish your final assessment before requesting another operation when none remain.`;
-export const BROWSER_SCHEMA = {
+const BROWSER_SCHEMA = {
   type: "object",
   additionalProperties: false,
   properties: {

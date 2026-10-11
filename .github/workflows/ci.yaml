@@ -60,6 +60,9 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       PYTEST_ADDOPTS: --durations=25 --durations-min=1
+      # py-spy's sampling rate, which `leaf-dev suite-profile` reads to turn samples
+      # into minutes.
+      PY_SPY_RATE: 2
 
     steps:
       # A pull request's checkout is its merge commit, whose first parent is the base:
@@ -88,6 +91,17 @@ jobs:
       - name: Install the Linux browser font contract
         run: sudo apt-get install -y fonts-dejavu
 
+      # Where the Python suite's time goes. BSD process accounting records each
+      # process's CPU as it exits, so the run's CPU reads back by command afterwards;
+      # py-spy samples the stacks of every Python process the run starts, waits
+      # included, so wall time reads back by function. py-spy reads a process it did
+      # not start only where Yama allows any same-user trace.
+      - name: Install the suite's profilers
+        run: |
+          sudo apt-get install -y acct
+          sudo sysctl -w kernel.yama.ptrace_scope=0
+          uvx py-spy@0.4.2 --version
+
       - name: Fetch pinned image assets
         run: uv run leaf-dev fetch-assets
 
@@ -109,9 +123,44 @@ jobs:
       - name: 🧪 Python tests
         id: python-tests
         background: true
-        run: >-
-          uv run pytest tests -n 3 -v --junitxml=.tmp/test-results/results.xml
-          ${{ github.event_name == 'pull_request' && '--nightly-changed-since HEAD^1' || '--run-nightly' }}
+        # The profilers write beside the junit report: `cpu-by-command.txt` is `sa`'s
+        # table of every process that ran meanwhile, and `stacks.txt` holds one line
+        # per distinct stack and sample count, rooted at its process, for
+        # `leaf-dev suite-profile`, speedscope or flamegraph.pl. py-spy follows the
+        # process tree from `uv run` once it has a child, and stops when it exits. Its
+        # cost scales with the rate: 20 Hz took 10% of a run's CPU, 5 Hz 4.5%. At 2 Hz
+        # each worker's stack is still sampled 7,200 times an hour.
+        # Accounting is machine-wide, so it runs only where the suite is the only work
+        # meanwhile: a pull request builds the website beside it.
+        run: |
+          mkdir -p .tmp/test-results
+          accounting=${{ github.event_name != 'pull_request' }}
+          if $accounting; then
+            sudo touch /var/log/account/suite
+            sudo accton /var/log/account/suite
+          fi
+          uv run pytest tests -n 3 -v --junitxml=.tmp/test-results/results.xml \
+            ${{ github.event_name == 'pull_request' && '--nightly-changed-since HEAD^1' || '--run-nightly' }} &
+          tests=$!
+          until pgrep -P "$tests" >/dev/null || ! kill -0 "$tests" 2>/dev/null; do
+            sleep 0.1
+          done
+          uvx py-spy@0.4.2 record --pid "$tests" --subprocesses --idle --nonblocking \
+            --function --rate "$PY_SPY_RATE" --format raw --output .tmp/test-results/stacks.txt &
+          profiler=$!
+          wait "$tests" && status=0 || status=$?
+          # A profile that failed fails the job, keeping pytest's own failure status.
+          wait "$profiler" && profiled=0 || profiled=$?
+          if [ "$profiled" -ne 0 ]; then
+            echo "::error::py-spy exited with $profiled"
+            [ "$status" -ne 0 ] || status=1
+          fi
+          if $accounting; then
+            sudo accton off
+            sudo chmod a+r /var/log/account/suite
+            sa -a -c -i /var/log/account/suite > .tmp/test-results/cpu-by-command.txt
+          fi
+          exit "$status"
 
       # The website build can overlap Python; Docker must wait because its host
       # interface changes interrupt Chrome's loopback requests in browser tests.
@@ -133,6 +182,12 @@ jobs:
       - name: Measure the bundled release in Chrome
         if: github.event_name == 'pull_request'
         run: uv run leaf-dev verify-site website-worker
+
+      - name: Summarize where the suite's time went
+        if: success() || failure()
+        run: |
+          uv run leaf-dev suite-profile .tmp/test-results | tee .tmp/test-results/summary.txt
+          { echo '```'; cat .tmp/test-results/summary.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload pytest results
         if: always()

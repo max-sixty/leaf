@@ -19,6 +19,4 @@ export {
   describeFailure,
   PRESENTATION_HELD,
 } from "./browser-runtime/presentation.js";
-
-
 // Generated from build/browser/index.ts by build/browser/build.mjs.

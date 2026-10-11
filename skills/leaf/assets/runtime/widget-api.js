@@ -7,12 +7,29 @@
    served page, as `/runtime/widget-api.js`, so a search of `runtime/` for a re-export's
    importer comes back empty whether or not the export is reachable. What answers that
    question is the browser gate, which fails to parse every probe module at once. */
-export { LitElement, html, repeat } from "../vendor/browser-runtime.js";
-export { keyed, unsafeHTML } from "../vendor/lit.js";
+export {
+  LitElement,
+  html,
+  svg,
+  mathml,
+  noChange,
+  nothing,
+  classMap,
+  guard,
+  ifDefined,
+  keyed,
+  live,
+  createRef,
+  ref,
+  repeat,
+  styleMap,
+  unsafeHTML,
+  when,
+} from "../vendor/browser-runtime.js";
 export { iconElement, iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
 export { initialRender } from "./initial-render.js";
-export { watchOwner } from "./arrivals.js";
+export { watchOwner, whileConnected, frameFor } from "./arrivals.js";
 // The rank a position record carries for a unit dropped at an index in a container.
 export { rankAt } from "./projection/model.js";
 export async function mountSample(frame, options) {

@@ -69,7 +69,7 @@ The optional bundled packages are:
 | Package | Adds |
 | --- | --- |
 | `code-review` | Review-authoring instructions; select alongside the evidence packages the page needs. |
-| `diagram` | `lf-diagram` and its Agentic Mermaid renderer. |
+| `diagram` | `lf-diagram` and its Mermaid renderer. |
 | `diff` | `lf-diff`, its `unified-diff` data contract and Pierre renderer, and `lf-call-diff` with links to exact patch evidence. |
 | `file-editor` | `lf-file-editor`, a CodeMirror editor for an explicitly bound local text file, with quiet automatic saving and inline conflict recovery. |
 | `playground` | Controls and structured state with shared reset, restore, preview, output, and typed configuration submission. |
@@ -287,7 +287,9 @@ Choose vertical bounds by the task need in
 When a bounded widget's scroller should be a box inside it, such as a listing under a
 caption that stays in view, the package theme moves the bound there under
 `[data-lf-bound]` and declares `--lf-bound-box: 1` on that box, which is the one Leaf
-registers as the block's reading region and keeps on its newest entry. A box a
+registers as the block's reading region and keeps on its newest entry, and
+`--lf-holds-height: 1`, which says the box holds its height on purpose ("Seeing it",
+`grows-with-content`). A box a
 package scrolls sideways needs no declaration of its own: the runtime
 measures every scroller on each layout and marks each edge with content beyond it.
 Leaf fades the content at those edges, so a widget that has to scroll says so without
@@ -571,14 +573,13 @@ sed -n '20,44p' CHANGELOG.md | jq -Rs . | leaf data set PAGE release-notes
 leaf data clear PAGE release-ci
 ```
 
-Each source's value is an ordinary JSON file at `data/<source>.json` in the page
-directory, and `data.json` records the current contract each source id was set under.
-`data set` checks the binding and validates the value before replacing that file
-atomically; a rejected value leaves the file untouched. Once a source has been set,
-any process may rewrite its file with plain JSON. Every reading validates the file
-against the contract, so a value that fails it reaches users as that source's error
-rather than as data, and `page check` and `page state` report it. Tabs hear a
-rewritten file as they hear any other page change.
+Each source is one JSON publication at `data/<source>.json`, holding its opaque
+`run` receipt, `updated` instant, and complete `value`; `data.json` records its
+contract. Write a value through `leaf data set`, which checks the binding, validates
+the value and replaces the publication atomically. A rejected value leaves it
+untouched. Every reading validates the publication and value against the contract,
+so corrupted data reaches users as that source's error, and `page check` and
+`page state` report it. Tabs hear a new publication as they hear any page change.
 
 A contract that carries media URLs declares `resources`, a list of
 [JMESPath expressions](https://jmespath.org/tutorial.html) selecting each URL string
@@ -590,8 +591,10 @@ Snapshots capture the selected local media with the current data value; offline
 exports embed those bytes. Remote media stays remote. These resources belong to
 the data reading, so capturing them does not change a stored authored revision.
 
-A source's revision is a digest of its file's bytes, and its `updated` instant is the
-file's modification time. Nothing keeps a replaced value: every document that binds a
+A source's revision identifies its encoded value, its `run` receipt identifies the
+write, and `updated` records when it was written. A rerun with the same value keeps
+its revision and produces a new run. Copying a page preserves those identities.
+Nothing keeps a replaced value: every document that binds a
 source reads its current value, including stamped versions and widgets frozen into
 threads. A document that must keep one value binds its own source id and nothing
 rewrites that source. Source revisions and event sequences are independent: an old poll
@@ -725,6 +728,19 @@ and a blank image stands in for any media an example names. The checks:
   back to their first sizes. An inline widget's old lines are more than a size, so a
   widget holding a changed inline one is named beside it. A widget the page hides once
   presented, such as an inactive tab, is left to the widget that hid it.
+- `grows-with-content`: a box in the widget holds its own height and scrolls inside
+  it. In ordinary flow a widget grows with what it holds, and a long one is read in
+  the page's scroll (`page-authoring.md`, "Bounds and widths"). The check names a box
+  that scrolls vertically, and one whose CSS asks to and that overflows once a tall
+  block is added to it, so a height the theme sets is found even while the widget's
+  rows are empty. A
+  box whose task needs its own scroll, such as an inspector whose contents change
+  under a playing recording, declares `--lf-holds-height: 1` on itself; a bounded
+  block's theme and the workspace Layout's scrolling regions already declare it. A
+  widget that scrolls a part within the height a workspace gives it
+  (`--lf-full-height`) declares it on that part too, though this check never sees
+  that part scroll, since a worked example stands outside a workspace. A box that
+  asks to scroll only sideways is named only while its content runs past its height.
 
 After `leaf page init` re-vendors the page (`serving-pages.md`, "Re-vendoring and
 layer epochs"), run `leaf page check <page> --render` on the version that uses

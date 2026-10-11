@@ -44,6 +44,7 @@ import {
   loadDraft,
   clearDraft,
   watchDraft,
+  whileConnected,
   alignText,
   alignedNodes,
   widgetController,
@@ -99,24 +100,11 @@ customElements.define(
     #failed = false;
     #footer = null;
     #commandScope = null;
-    #stopDraft = null;
     #resumeProjection = null;
     #recovered = false;
 
     connectedCallback() {
-      if (!once(this)) {
-        this.#offerControls();
-        this.#paintAvailability();
-        if (
-          !quoted(this) &&
-          this.#editor &&
-          !this.#resumeProjection &&
-          this.#controller.read().actions.edit.available
-        )
-          this.#resumeProjection = this.#controller.defer();
-        this.#watchDraft();
-        return;
-      }
+      if (!once(this)) return;
 
       this.#body = this.querySelector(":scope > .lf-markdown-body");
       if (this.childNodes.length !== 1 || this.firstChild !== this.#body)
@@ -158,14 +146,20 @@ customElements.define(
       // settlement is the case that does move this tab: the words are sent or discarded,
       // so an open box holding them has nothing left to hold, and closing it lets replay
       // paint whatever the log ends up saying.
-      this.#watchDraft();
-    }
-
-    disconnectedCallback() {
-      this.#stopDraft?.();
-      this.#stopDraft = null;
-      this.#resumeProjection?.();
-      this.#resumeProjection = null;
+      whileConnected(this, () => {
+        const stopDraft = this.#watchDraft();
+        if (
+          this.#editor &&
+          !this.#resumeProjection &&
+          this.#controller.read().actions.edit.available
+        )
+          this.#resumeProjection = this.#controller.defer();
+        return () => {
+          stopDraft?.();
+          this.#resumeProjection?.();
+          this.#resumeProjection = null;
+        };
+      });
     }
 
     #subscribeReading() {
@@ -205,8 +199,7 @@ customElements.define(
 
     #watchDraft() {
       if (quoted(this) || !this.#footer) return;
-      this.#stopDraft?.();
-      this.#stopDraft = watchDraft(
+      return watchDraft(
         ctx(this.id),
         (text) => {
           if (text === null) this.#close(false);
@@ -467,7 +460,6 @@ customElements.define(
       // from running behind it and closing the panel too, which the widget used to have to
       // prevent by consuming the press.
       this.#editor = editor;
-      this.#watchDraft();
       commands(editor, this.#commandScope);
       this.#body.after(editor);
       this.#paintAvailability();
@@ -497,7 +489,6 @@ customElements.define(
       const mayReturn = retainUserIntent({ source: left });
       this.#editor.remove();
       this.#editor = null;
-      this.#watchDraft();
       this.#failed = false;
       this.#paintFooter();
       if (stood) {

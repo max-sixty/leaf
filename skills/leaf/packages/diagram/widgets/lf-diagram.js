@@ -1,7 +1,7 @@
-/* lf-diagram: renders a Mermaid-source body with Agentic Mermaid. The body is data,
- * not prose — the theme shows it as source until the SVG replaces it, so a page
- * degrades readably if rendering fails. The optional renderer loads lazily, once, and
- * only on pages that use this package. */
+/* Mermaid owns parsing, semantic identities, layout and SVG generation. Leaf owns
+ * the optional lazy load, theme integration and Comment coordinates. A source the
+ * renderer refuses remains visible with its diagnostic; Leaf never salvages a
+ * partial diagram by dropping statements. */
 import {
   bodyText,
   once,
@@ -12,30 +12,116 @@ import {
 } from "/runtime/widget-api.js";
 
 let rendererReady;
-const loadRenderer = () => (rendererReady ??= import("/vendor/agentic-mermaid.esm.js"));
+const loadRenderer = () => (rendererReady ??= import("/vendor/mermaid.esm.js"));
+const NAMEABLE = /^\S+$/;
 
-/* The renderer takes the sans face as its `font` option, which reaches the SVG as a
- * var() expression, but writes class members and ER attributes in a fixed mono stack;
- * that one is rewritten to the page's apparatus face before it reaches the DOM. The
- * palette stays as var() expressions in the SVG, which makes light/dark scheme changes
- * live rather than another render. */
-const prepareSvg = (svg) =>
-  svg.replaceAll(
-    "'JetBrains Mono', 'SF Mono', 'Fira Code', ui-monospace, monospace",
-    "var(--mono)",
-  );
-
-/* The boxes an author can name as parts: the group the renderer writes for each node,
- * participant, class and entity, and for each group of them — a subgraph, composite
- * state, namespace or sequence box — carries its source id in data-id and its kind in
- * data-role, the attributes the renderer documents as its contract. The shapes inside a
- * box repeat the role under ids of their own. */
-const BOXES = ["node", "group", "actor", "class-box", "entity"]
-  .map((role) => `g[data-role="${role}"]`)
-  .join();
-/* The registry's grammar for a part's source id. An id outside it, such as a quoted ER
- * name with a space in it, can never be named, and a part id must be one token. */
-const NAMEABLE = /^[A-Za-z_][A-Za-z0-9_-]*$/;
+/* Mermaid's parser databases are shared between diagrams. Keep parsing, drawing
+ * and reading the inventory in one serialized operation, so a neighboring widget
+ * cannot replace the identities behind the SVG we have just received. */
+let drawing = Promise.resolve();
+const draw = (source, id) => {
+  const next = drawing.then(async () => {
+    const { default: mermaid } = await loadRenderer();
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: "strict",
+      suppressErrorRendering: true,
+      maxTextSize: Number.MAX_SAFE_INTEGER,
+      htmlLabels: false,
+      theme: "base",
+      look: "classic",
+      fontFamily: "var(--sans)",
+      // Bind terminal palette roles: Mermaid's seed colors undergo color arithmetic
+      // and cannot be CSS variables, while these roles pass straight to its SVG.
+      themeVariables: {
+        fontSize: "14px",
+        useGradient: false,
+        dropShadow: "none",
+        actorTextColor: "var(--lf-diagram-ink)",
+        actorBkg: "var(--lf-diagram-paper)",
+        actorBorder: "var(--lf-diagram-accent)",
+        actorLineColor: "var(--lf-diagram-muted)",
+        labelBoxBkgColor: "var(--lf-diagram-paper)",
+        labelBoxBorderColor: "var(--lf-diagram-muted)",
+        noteTextColor: "var(--lf-diagram-ink)",
+        noteBkgColor: "var(--lf-diagram-paper)",
+        noteBorderColor: "var(--lf-diagram-muted)",
+        activationBkgColor: "var(--lf-diagram-paper)",
+        activationBorderColor: "var(--lf-diagram-muted)",
+        stateLabelColor: "var(--lf-diagram-ink)",
+        stateBkg: "var(--lf-diagram-paper)",
+        compositeBackground: "var(--lf-diagram-paper)",
+        compositeTitleBackground: "var(--lf-diagram-paper)",
+        altBackground: "var(--lf-diagram-paper)",
+        stateBorder: "var(--lf-diagram-muted)",
+        specialStateColor: "var(--lf-diagram-ink)",
+        innerEndBackground: "var(--lf-diagram-ink)",
+        xyChart: {
+          backgroundColor: "var(--lf-diagram-paper)",
+          xAxisLineColor: "var(--lf-diagram-muted)",
+          xAxisTickColor: "var(--lf-diagram-muted)",
+          yAxisLineColor: "var(--lf-diagram-muted)",
+          yAxisTickColor: "var(--lf-diagram-muted)",
+          plotColorPalette: "var(--lf-diagram-accent)",
+        },
+      },
+      // These stay as CSS values, so a scheme change repaints rather than replacing
+      // nodes and losing their Comment coordinates. Authored class styles win.
+      themeCSS: `
+        text, tspan, .label, .nodeLabel, .edgeLabel, .messageText, .loopText,
+        .noteText, .node text, .node tspan, .cluster text, .cluster tspan,
+        .label text, .label tspan { fill: var(--lf-diagram-ink); color: var(--lf-diagram-ink); }
+        .node rect, .node polygon, .node circle, .node ellipse, .node path,
+        rect.actor, .actor-man line, .actor-man circle, .labelBox {
+          fill: color-mix(in srgb, var(--lf-diagram-accent) 10%, var(--lf-diagram-paper));
+          stroke: var(--lf-diagram-accent);
+        }
+        .cluster rect, .note { fill: var(--lf-diagram-paper); stroke: var(--lf-diagram-muted); }
+        .edgePaths path, .flowchart-link, .messageLine0, .messageLine1, .actor-line {
+          stroke: var(--lf-diagram-muted);
+        }
+        marker path { fill: var(--lf-diagram-muted); stroke: var(--lf-diagram-muted); }
+        .edgeLabel .label rect, .labelBkg { fill: var(--lf-diagram-paper); }
+        .edgeLabel, .labelBkg { background-color: var(--lf-diagram-paper); }
+      `,
+    });
+    const diagram = await mermaid.mermaidAPI.getDiagramFromText(source);
+    // Mermaid's graph layouts require each node and container to have one identity.
+    // Refuse a collision before layout, which otherwise cannot finish its traversal.
+    const identities = new Set();
+    for (const node of diagram.db.getData?.().nodes ?? []) {
+      if (identities.has(node.id))
+        throw new Error(`Mermaid declares diagram identity ${node.id} more than once`);
+      identities.add(node.id);
+    }
+    const { svg } = await mermaid.render(id, source);
+    // Jison's parser keeps the database from its most recent parse in yy. Mermaid
+    // can instantiate a new database when rendering (class IDs advance globally),
+    // so read that actual render's inventory rather than the preflight instance.
+    const db = diagram.getParser().parser?.yy ?? diagram.db;
+    const parts = [];
+    if (diagram.type === "sequence") {
+      for (const key of db.getActors().keys()) parts.push({ id: key, dataId: key });
+    } else if (diagram.type === "er") {
+      for (const [key, entity] of db.getEntities())
+        parts.push({ id: key, domId: `${id}-${entity.id}` });
+    } else if (/^(flowchart|state|class)/.test(diagram.type)) {
+      for (const node of db.getData().nodes) {
+        if (["stateStart", "stateEnd", "divider", "note"].includes(node.shape))
+          continue;
+        // State layout writes its final prefixed domId back into its nodes; the
+        // flowchart and class databases retain the pre-layout local identifier.
+        const domId = diagram.type.startsWith("state")
+          ? node.domId
+          : `${id}-${node.domId || node.id}`;
+        parts.push({ id: node.id, domId });
+      }
+    }
+    return { svg, parts };
+  });
+  drawing = next.catch(() => {});
+  return next;
+};
 
 let seq = 0;
 customElements.define(
@@ -47,8 +133,6 @@ customElements.define(
       this.visualPartRegistration = registerVisualParts(this, () =>
         [...this.visualParts].map(([id, part]) => ({ id, ...part })),
       );
-      // Registered with the controller so the runtime holds view restore and the first
-      // anchor pass until the SVG is in and the page's geometry is final.
       widgetController(this).present(this.render());
     }
 
@@ -56,60 +140,24 @@ customElements.define(
       const source = bodyText(this);
       const renderId = `lf-diagram-${++seq}`;
       try {
-        const { renderMermaidSVG } = await loadRenderer();
-        const svg = renderMermaidSVG(source, {
-          bg: "var(--lf-diagram-paper)",
-          fg: "var(--lf-diagram-ink)",
-          line: "var(--lf-diagram-muted)",
-          accent: "var(--lf-diagram-accent)",
-          muted: "var(--lf-diagram-muted)",
-          surface:
-            "color-mix(in srgb, var(--lf-diagram-accent) 14%, var(--lf-diagram-paper))",
-          border:
-            "color-mix(in srgb, var(--lf-diagram-accent) 48%, var(--lf-diagram-paper))",
-          transparent: true,
-          // A chart's values take a hover tooltip, and a line series draws a dot per
-          // value; without it the line alone carries them.
-          interactive: true,
-          font: "var(--sans)",
-          // The renderer's arrowhead and gradient ids are fixed, and a repeated id
-          // resolves a later diagram's references into an earlier SVG.
-          idPrefix: `${renderId}-`,
-          // Otherwise a `click` or `link` target is drawn as a focusable link that
-          // nothing on the page navigates; strict draws that box as a plain one.
-          security: "strict",
-        });
-        this.innerHTML = prepareSvg(svg);
+        const { svg, parts } = await draw(source, renderId);
+        this.innerHTML = svg;
         const drawn = this.querySelector("svg");
-
-        // Keep the renderer's natural size. A drawing wider than its room scrolls in
-        // the widget instead of scaling its labels below legibility.
         const natural = drawn.viewBox.baseVal.width;
         if (natural) {
           keeps(drawn, "width", natural);
           drawn.style.maxWidth = "";
         }
-
-        // A class can share its name with the namespace holding it, so a group gives way
-        // to a box under the same id; two of one kind under one id name neither.
-        const boxes = new Map();
-        for (const element of drawn.querySelectorAll(BOXES)) {
-          const id = element.getAttribute("data-id");
-          const rank = element.getAttribute("data-role") === "group" ? 0 : 1;
-          const held = boxes.get(id);
-          if (!held || rank > held.rank) boxes.set(id, { element, rank });
-          else if (rank === held.rank) held.element = null;
-        }
         this.visualParts.clear();
-        for (const [id, { element }] of boxes) {
-          if (!element || !NAMEABLE.test(id)) continue;
-          // Generated state markers have no authored identity. Their IDs can
-          // overlap with authored state names, so recognize the rendered shape.
-          const shape = element.getAttribute("data-shape");
-          if (shape === "state-start" || shape === "state-end") continue;
-          const says = element.textContent.replace(/\s+/g, " ").trim();
-          const label = element.getAttribute("data-label") || says || id;
-          this.visualParts.set(`node:${id}`, { element, label });
+        for (const part of parts) {
+          if (!NAMEABLE.test(part.id)) continue;
+          const element = part.dataId
+            ? drawn.querySelector(`g[data-id="${CSS.escape(part.dataId)}"]`)
+            : drawn.querySelector(`[id="${CSS.escape(part.domId)}"]`);
+          if (!element)
+            throw new Error(`Mermaid did not draw the declared node ${part.id}`);
+          const label = element.textContent.replace(/\s+/g, " ").trim() || part.id;
+          this.visualParts.set(`node:${part.id}`, { element, label });
         }
         this.classList.add("lf-rendered");
         this.visualPartRegistration.update();

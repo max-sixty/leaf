@@ -147,6 +147,10 @@ def test_diff_thread_controls_leave_line_numbers_readable(browser, serve, touch)
     assert [{k: v for k, v in r.items() if k != "opacity"} for r in after] == [
         {k: v for k, v in r.items() if k != "opacity"} for r in before
     ]
+    # Moving to the next line retires the previous gutter highlight.
+    diff.locator("[data-content] > [data-line]").nth(1).hover()
+    assert geometry()[0]["opacity"] == "0"
+    assert geometry()[1]["opacity"] == "1"
     buttons.first.hover()
     assert geometry()[0] == after[0]
     assert buttons.first.get_attribute("title") is None

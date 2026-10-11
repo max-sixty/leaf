@@ -3861,9 +3861,7 @@ def test_the_questions_panel_lists_both_queues_and_what_is_done(browser, serve):
         )
 
     asked = said("agent", kind="comment", text="Weekly?", anchor={"section": "cadence"})
-    said(
-        "user", kind="comment", text="Tighten this.", anchor={"section": "notes"}
-    )
+    said("user", kind="comment", text="Tighten this.", anchor={"section": "notes"})
     rebuild = said(
         "user", kind="comment", text="Rebuild them.", anchor={"section": "notes"}
     )

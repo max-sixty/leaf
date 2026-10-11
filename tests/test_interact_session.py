@@ -16106,7 +16106,14 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
 
     replied = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", "--done", response_reference(claimed, comment), "--text", "ok"],
+        [
+            "response",
+            "reply",
+            "--done",
+            response_reference(claimed, comment),
+            "--text",
+            "ok",
+        ],
     )
     assert replied.exit_code == 0, replied.output
     settled = CliRunner().invoke(cli_model.cli, waiting)
@@ -16168,7 +16175,14 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
         CliRunner()
         .invoke(
             cli_model.cli,
-            ["response", "reply", "--done", response_reference(claimed, comment), "--text", "ok"],
+            [
+                "response",
+                "reply",
+                "--done",
+                response_reference(claimed, comment),
+                "--text",
+                "ok",
+            ],
         )
         .exit_code
         == 0
@@ -17980,7 +17994,14 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
         assert event["id"] == latest["id"]
         reply = CliRunner().invoke(
             cli_model.cli,
-            ["response", "reply", "--done", event["answer"]["ref"], "--text", "Here, next week."],
+            [
+                "response",
+                "reply",
+                "--done",
+                event["answer"]["ref"],
+                "--text",
+                "Here, next week.",
+            ],
         )
         assert reply.exit_code == 0, reply.output
         assert not page_state(page_dir)["activity"]["obligations"]
@@ -20202,11 +20223,13 @@ def test_response_reference_preserves_page_identity_and_retries(page_dir, tmp_pa
     assert refs[0] != refs[1]
     for page, reference in zip((page_dir, other), refs):
         posted = CliRunner().invoke(
-            cli_model.cli, ["response", "reply", "--done", reference, "--text", str(page)]
+            cli_model.cli,
+            ["response", "reply", "--done", reference, "--text", str(page)],
         )
         assert posted.exit_code == 0, posted.output
         retry = CliRunner().invoke(
-            cli_model.cli, ["response", "reply", "--done", reference, "--text", "Retried"]
+            cli_model.cli,
+            ["response", "reply", "--done", reference, "--text", "Retried"],
         )
         assert retry.exit_code == 0, retry.output
         assert json.loads(posted.output) == json.loads(retry.output)
@@ -20400,7 +20423,8 @@ def test_response_refuses_stale_replaced_foreign_and_reserved_inputs(
         with monkeypatch.context() as patched:
             patched.setattr(thread_model, "post_response", fail)
             result = CliRunner().invoke(
-                cli_model.cli, ["response", "reply", "--done", reference, "--text", "Control"]
+                cli_model.cli,
+                ["response", "reply", "--done", reference, "--text", "Control"],
             )
         assert result.exception is failure
         assert result.exit_code == (7 if isinstance(failure, SystemExit) else 1)
@@ -20446,7 +20470,14 @@ def test_delegated_response_survives_release_without_a_competing_claim(
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", "--done", reference, "--text", "The queue survives reconnect."],
+        [
+            "response",
+            "reply",
+            "--done",
+            reference,
+            "--text",
+            "The queue survives reconnect.",
+        ],
     )
     assert result.exit_code == 0, result.output
     reply = json.loads(result.output)
@@ -20484,7 +20515,8 @@ def test_superseded_response_stays_refused_after_successor_stops(
         cleanup_model.end_session("successor")
     before = events_model.read_events(claimed)
     result = CliRunner().invoke(
-        cli_model.cli, ["response", "reply", "--done", reference, "--text", "Old worker"]
+        cli_model.cli,
+        ["response", "reply", "--done", reference, "--text", "Old worker"],
     )
     assert result.exit_code == 1
     assert "claim no longer matches its delivery" in result.stderr
@@ -20859,7 +20891,16 @@ def test_bound_thread_refusal_routes_rich_content_to_addressed_reply(page_dir):
     assert "leaf response reply <answer.ref>" in refused.output
     corrected = runner.invoke(
         cli_model.cli,
-        ["response", "reply", "--done", target["ref"], "--text", "Choose.", "--markup", markup],
+        [
+            "response",
+            "reply",
+            "--done",
+            target["ref"],
+            "--text",
+            "Choose.",
+            "--markup",
+            markup,
+        ],
     )
     assert corrected.exit_code == 0, corrected.output
     answer = json.loads(corrected.output)

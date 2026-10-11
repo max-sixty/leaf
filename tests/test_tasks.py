@@ -287,8 +287,15 @@ def test_an_answer_says_what_it_leaves_the_thread_with(page_dir):
     assert state_json(page_dir)["queues"]["on_agent"] == []
     # A proactive turn may ask or promise, and the record holds one of them.
     both = leaf(
-        "thread", "reply", page_dir, comment["id"], "--text", "Both?",
-        "--question", "--task", "Tighten",
+        "thread",
+        "reply",
+        page_dir,
+        comment["id"],
+        "--text",
+        "Both?",
+        "--question",
+        "--task",
+        "Tighten",
     )
     assert both.exit_code != 0, both.output
     assert state_json(page_dir)["queues"] == {"on_you": [], "on_agent": []}

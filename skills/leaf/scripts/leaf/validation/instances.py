@@ -492,6 +492,20 @@ def suggestion_errors(lf_elements: list, registry: dict, thread_ids: set) -> lis
     return errors
 
 
+def instance_errors(lf_elements: list, registry: dict) -> list:
+    """Every instance check that needs only the registry, no id namespace, so a new
+    check of that kind reaches page source and message markup alike."""
+    return (
+        widget_errors(lf_elements, registry)
+        + layout_errors(lf_elements, registry)
+        + visual_part_errors(lf_elements, registry)
+        + addressable_instance_errors(lf_elements, registry)
+        + question_context_errors(lf_elements, registry)
+        + declared_word_errors(lf_elements, registry)
+        + line_ref_errors(lf_elements, registry)
+    )
+
+
 def fragment_errors(parser: SourceDocument, registry: dict) -> list:
     """Structural + registry validation of an HTML fragment:
     the discussion-side analog of `page check`. The declared-word
@@ -499,13 +513,4 @@ def fragment_errors(parser: SourceDocument, registry: dict) -> list:
     <lf-code language=…> is colored by the same tokenizer a version's is, and its chips
     are tinted by the same theme, and nothing else would now refuse either a word its
     layer doesn't know."""
-    return (
-        structure_errors(parser)
-        + widget_errors(parser.lf_elements, registry)
-        + layout_errors(parser.lf_elements, registry)
-        + visual_part_errors(parser.lf_elements, registry)
-        + addressable_instance_errors(parser.lf_elements, registry)
-        + question_context_errors(parser.lf_elements, registry)
-        + declared_word_errors(parser.lf_elements, registry)
-        + line_ref_errors(parser.lf_elements, registry)
-    )
+    return structure_errors(parser) + instance_errors(parser.lf_elements, registry)

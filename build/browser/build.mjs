@@ -21,8 +21,8 @@
  * into the kernel (`build/runtime-bundle.mjs`), so its file count costs a
  * development checkout requests and nothing else.
  *
- * The framework's third-party packages are minified builds, which change only when
- * the lock does. `vendor/lit.js` is the page's one copy of Lit: every public Lit
+ * The framework's third-party packages are minified builds from the lock and the
+ * adaptations below. `vendor/lit.js` is the page's one copy of Lit: every public Lit
  * module in one namespace, shaped like Lit's own `lit-all` bundle, where the
  * static-html tags are renamed `staticHtml`, `staticSvg`, and `staticMathml` so they
  * do not shadow the ordinary ones. The framework imports Lit from it, and so does
@@ -146,6 +146,26 @@ function litModule(lit) {
         contents,
         resolveDir: root,
       }));
+      // Backport lit/lit#5218 while 3.3.0 avoids the repeat marker leak (#5298).
+      // Adapt the pinned published file in memory, leaving node_modules untouched.
+      build.onLoad(
+        { filter: /[/\\]lit-html[/\\]directives[/\\]ref\.js$/ },
+        async ({ path: source }) => {
+          let contents = await readFile(source, "utf8");
+          for (const [before, after] of [
+            ["e&&void 0!==this.G&&this.rt(void 0)", "e&&this.rt(void 0)"],
+            [
+              "rt(t){if(this.isConnected",
+              "rt(t){if(void 0===this.G)return;if(this.isConnected",
+            ],
+          ]) {
+            if (contents.split(before).length !== 2)
+              throw new Error(`Lit ref seam changed: ${source}: ${before}`);
+            contents = contents.replace(before, after);
+          }
+          return { contents, resolveDir: path.dirname(source) };
+        },
+      );
     },
   };
 }

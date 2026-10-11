@@ -34,7 +34,7 @@ from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.widget_quality import own_tags
 from leaf.schema import ELEMENT_ID
-from leaf.validation import compatibility as validation_model
+from leaf.validation import composition as validation_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -1563,7 +1563,7 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
                         "unit": "widget",
                         "record": None,
                         "creates": None,
-                        "update": False,
+                        "report": False,
                         "detail": {
                             "type": "object",
                             "properties": {"outcome": {"enum": ["accept", "reject"]}},

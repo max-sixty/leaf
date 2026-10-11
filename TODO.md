@@ -71,8 +71,9 @@ has tried; settle that before building it.
   (2026-10-06): the panels dominate focus, so moving focus never closes or changes a
   standing panel, focus never lands on page content a panel covers, and Threads still
   stands beside a full-width workspace. A comment box already refuses a covered seat
-  (`underOccluder`, geometry.js). Tab still walks onto `annotation-workspace`'s rail
-  under Threads, or the Questions panel that shares its right edge, at 1440×900. Making what a panel covers inert was built and withdrawn: it left the visible
+  (`underOccluder`, geometry.js). Tab walked onto page content under Threads, or the
+  Questions panel that shares its right edge, at 1440×900 on an example since retired;
+  no surviving page has been checked for it. Making what a panel covers inert was built and withdrawn: it left the visible
   part of a partly covered element dead to clicks and selection, and focus still reached
   chrome markers, sample frames, overflowing children and content an attribute revealed.
   Decide between laying the page out in the width a panel leaves beside it, which
@@ -416,6 +417,11 @@ on 2026-10-07.
 Revisit these when their stated trigger becomes real; they are not an active queue.
 
 ### Product and harness ideas
+
+- **Link filenames to their repository context.** When a page or thread knows the
+  repository and revision, offer a GitHub source link for a filename such as
+  `AGENTS.md` rather than treating it as a web domain. Establish how that context
+  reaches Markdown before inferring a destination from the filename alone.
 
 - **Learn how users prefer to dictate comments.** Observe whether people use
   browser dictation, OS dictation, or their own dictation app. Defer a microphone

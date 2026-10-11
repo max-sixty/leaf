@@ -34,7 +34,7 @@ import { passOn, retainUserIntent } from "../user-intent.js";
 import { layoutChanged } from "../widget-elements.js";
 import { isFolding } from "./folding.js";
 import { threadKey } from "./model.js";
-import { seenRect, whenOffScreen } from "../geometry.js";
+import { growthIsSeen, whenNone } from "../geometry.js";
 import { gesturedOn } from "./held-news.js";
 import { PENDING } from "./identity.js";
 import { readingIsContinuous } from "../reading-continuity.js";
@@ -128,12 +128,12 @@ class ThreadListView extends RetainedFace {
   // view to hold a thread the user's own turn took out of it. Anything else is
   // news ("news"), and its card stays, holding the news (held-news.js) or drawn as the
   // news left it in the shape it stood in, while its going would move something the
-  // user sees: while any of it shows, since every card after it would rise, and, as
-  // the card the list shows open, while the panel shows, since another card would open
-  // in its place. Out of sight it stays only for its words,
-  // with the cause that first excluded it still carried. Its leaving the window asks
-  // for the render that lets it go (`#watchKept`), as does its closing when the user
-  // opens another card.
+  // user sees: while its going would be (geometry.js, `growthIsSeen`), since every
+  // card after it would rise, and, as the card the list shows open, while the panel
+  // shows, since another card would open in its place. Out of sight it stays only for
+  // its words, with the cause that first excluded it still carried. Its going out of
+  // sight asks for the render that lets it go (`#watchKept`), as does its closing when
+  // the user opens another card.
   keeping(thread, intent) {
     const key = threadKey(thread);
     const view = this.#views.get(`thread:${key}`);
@@ -141,9 +141,7 @@ class ThreadListView extends RetainedFace {
       return null;
     const seen =
       readingIsContinuous() &&
-      (view.node.open
-        ? this.checkVisibility()
-        : Boolean(seenRect(view.node, new Map())));
+      (view.node.open ? this.checkVisibility() : growthIsSeen(view.node));
     const draft = threadHoldsDraft(
       key,
       thread.msgs.map(({ id }) => id),
@@ -173,7 +171,7 @@ class ThreadListView extends RetainedFace {
       if (!this.#leaving.has(node))
         this.#leaving.set(
           node,
-          whenOffScreen([node], () => this.#commands.repaintThread()),
+          whenNone([node], growthIsSeen, () => this.#commands.repaintThread()),
         );
   }
 

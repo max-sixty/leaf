@@ -5,11 +5,10 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-import click
-
 from leaf.files import read_json
 from leaf.schema import WIDGET_NAME
 
+from ..refusals import Refused
 from .schema import json_value
 
 
@@ -172,14 +171,14 @@ def reference_relation_error(
     return f"requires {via} where {expected}, but no declared widget matches"
 
 
-class RegistryError(click.ClickException):
+class RegistryError(Refused):
     """A registry that is not a vocabulary, raised rather than exited because two doors
     read one. The CLI prints the message and stops; the page server owes the browser an
     answer, and `sys.exit` inside its request handler killed the connection mid-POST
     while every other rejection beside it returned a 400 — so a page whose vendored
     stamp had fallen behind the running layer met the user's click with a dead socket
-    and no words. Click renders the exception with its standard Error prefix, while
-    the server can catch the same rejection and answer the request."""
+    and no words. The CLI renders it with Click's standard Error prefix, while the
+    server catches the same rejection and answers the request."""
 
 
 def read_registry_declarations(path: Path):
@@ -221,7 +220,7 @@ def detail_schema(entry: dict, spec: dict) -> dict:
     """The event payload contract: an effect's fixed fields or custom command data.
 
     Recorded values use `value`; positions add `unit` and `rank`, and a report
-    declaring `update` adds required nonempty `text`. Attribute values inherit
+    declaring `report` adds required nonempty `text`. Attribute values inherit
     the destination's exact schema. Derived schemas are readings, never inserted
     into the registry beside the effect that owns them.
     """
@@ -238,7 +237,7 @@ def detail_schema(entry: dict, spec: dict) -> dict:
     properties = {"value": value}
     if kind == "position":
         properties.update(unit={"type": "string"}, rank={"type": "string"})
-    if spec.get("update"):
+    if spec.get("report"):
         properties["text"] = {"type": "string", "minLength": 1}
     return {
         "type": "object",
@@ -366,7 +365,7 @@ def state_definition(origin: str, entry: dict, spec: dict) -> dict:
             "unit": spec["unit"],
             "record": spec.get("record"),
             "creates": spec.get("creates"),
-            "update": spec.get("update", False),
+            "report": spec.get("report", False),
             "detail": _semantic_schema(detail_schema(entry, spec)),
         }
     )

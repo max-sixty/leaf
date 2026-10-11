@@ -9,7 +9,7 @@
 # let through the regex).
 description: first-command-says-what-comes
 metadata:
-  purpose: 'Conversation loop: after a delivery whose message asks for work, the first command posts a short progress update in its thread saying what the agent will do, before reading or editing anything; the answer comes later.'
+  purpose: 'Conversation loop: after a delivery whose message asks for work, the first command posts a short progress message in its thread saying what the agent will do, before reading or editing anything; the answer comes later.'
   tags:
   - wait-loop
   - threads
@@ -39,6 +39,6 @@ assert:
     the changelog, the page source or page state, edits the page, or checks it, is a
     `leaf response reply` with `--ephemeral` addressed to `7f20c3d9:0:5d1e8a42` whose text tells the user in a line what the agent is about to do, and
     if a later ordinary `leaf response reply` (without `--ephemeral`) answers 5d1e8a42
-    after the work. A `leaf task start` on 5d1e8a42 after the progress update is
+    after the work. A `leaf task start` on 5d1e8a42 after the progress message is
     fine. Fail if the first command is a `leaf task start`, a read, an edit, or
-    anything other than that progress update, or if the comment is never answered.
+    anything other than that progress message, or if the comment is never answered.

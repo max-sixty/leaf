@@ -79,6 +79,7 @@
 import { runtime } from "./context.js";
 import { PENDING } from "./thread/identity.js";
 import { draftStore } from "./storage.js";
+import { randomId } from "./ids.js";
 import { focusDestination, readCaret, focused } from "./focus.js";
 import { notice } from "./notifications.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -254,13 +255,6 @@ const settleDraft = (ctx, attempt) => {
   draftCache.set(ctx, { record, durable });
   return true;
 };
-export const newAttempt = () => {
-  const bytes = new Uint8Array(16);
-  // Unlike randomUUID(), getRandomValues is available when leaf is served over plain
-  // HTTP to a stated/LAN host as well as in a secure localhost context.
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-};
 export const saveDraft = (ctx, text, payload) => {
   const cached = draftCache.get(ctx);
   const previous = rawDraftRecord(ctx);
@@ -270,7 +264,7 @@ export const saveDraft = (ctx, text, payload) => {
     cached && !cached.durable && previous ? previous.base : (previous?.attempt ?? null);
   const record = {
     text,
-    attempt: newAttempt(),
+    attempt: randomId(),
     base,
     ...(payload === undefined ? {} : { payload }),
   };
@@ -305,7 +299,7 @@ export function transferDraft(from, to, text) {
   keepWritingPlace({
     context: to,
     selection: selection ?? [0, 0],
-    generation: newAttempt(),
+    generation: randomId(),
   });
   if (durable && settleDraft(from, source.attempt))
     projectDraftRecord(from, draftCache.get(from).record);
@@ -531,7 +525,7 @@ export function rememberWriting(input) {
     keepWritingPlace({
       context: editor.ctx,
       selection: readCaret(input),
-      generation: newAttempt(),
+      generation: randomId(),
     });
 }
 document.addEventListener("input", (event) => {

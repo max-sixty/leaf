@@ -1,7 +1,7 @@
 """The detached process that carries Leaf delivery into later turns of one Codex task.
 
 Serving a claimed page, or explicitly running `leaf codex start`, leaves this
-process running behind the turn that started it, so a user's later moves reach
+process running behind the turn that started it, so a user's later updates reach
 the same Codex task instead of waiting for the agent to ask again. It owns the session watch: it captures each batch into the
 task's delivery record, offers one delivery at a time, and reconciles the receipt its
 page is owed however that delivery was taken.
@@ -80,6 +80,7 @@ from .leases import (
     take_lease,
 )
 from .machine import state_home
+from .refusals import Refused
 from .service import (
     claim_page,
     owned_pages,
@@ -106,13 +107,13 @@ def _run_codex(codex_path: str, *arguments: str) -> None:
             check=False,
         )
     except subprocess.TimeoutExpired as error:
-        raise RuntimeError("Codex queue command timed out") from error
+        raise Refused("Codex queue command timed out") from error
     if completed.returncode == 0:
         return
     detail = completed.stderr.strip() or completed.stdout.strip()
     if not detail:
         detail = f"Codex exited with status {completed.returncode}"
-    raise RuntimeError(detail)
+    raise Refused(detail)
 
 
 def check_queue_command(codex_path: str) -> None:
@@ -181,10 +182,10 @@ class TaskConnection:
             outcome = self.ready.get(timeout=START_TIMEOUT)
         except queue.Empty as error:
             self.stop()
-            raise RuntimeError("Codex App Server did not answer") from error
+            raise Refused("Codex App Server did not answer") from error
         if outcome is not None:
             self.stop()
-            raise RuntimeError(f"Codex App Server connection failed: {outcome}")
+            raise Refused(f"Codex App Server connection failed: {outcome}")
 
     def stop(self) -> None:
         with self.submission_lock:
@@ -800,11 +801,11 @@ def run_adapter(
     without committing that start."""
     harness = session_harness()
     if harness is None or harness.name != CodexHarness.name:
-        raise RuntimeError("the Codex adapter needs a Codex task identity")
+        raise Refused("the Codex adapter needs a Codex task identity")
     with ExitStack() as resources:
         lease = take_lease(adapter_lease_path(harness.session))
         if lease is None:
-            raise RuntimeError("a Codex delivery adapter is already active")
+            raise Refused("a Codex delivery adapter is already active")
         # The lease record names this adapter's transport, so a later `leaf codex start`
         # in the task reports the one it joins.
         resources.callback(release_lease, lease)
@@ -813,7 +814,7 @@ def run_adapter(
         lease.flush()
         watch = Watch(harness)
         if not watch.acquire():
-            raise RuntimeError(
+            raise Refused(
                 "another `leaf wait` is already active; stop it before starting delivery"
             )
         resources.callback(watch.release)
@@ -924,10 +925,10 @@ def preparing_adapter(
     the launching harness's canonical session generation before subscribing to turns.
     """
     if harness is None or harness.name != CodexHarness.name:
-        raise RuntimeError("`leaf codex start` must run inside a Codex task")
+        raise Refused("`leaf codex start` must run inside a Codex task")
     executable = codex_path or shutil.which("codex")
     if executable is None:
-        raise RuntimeError("cannot find the `codex` executable on PATH")
+        raise Refused("cannot find the `codex` executable on PATH")
     executable = str(Path(executable).absolute())
     session_id = harness.session
     app_server = app_server or os.environ.get(APP_SERVER_ENV)
@@ -939,7 +940,7 @@ def preparing_adapter(
         if record is not None:
             running = record["app_server"]
             if app_server is not None and app_server != running:
-                raise RuntimeError(
+                raise Refused(
                     f"Codex delivery is already active for task {session_id}"
                     + (f" through App Server {running}" if running else "")
                     + f", not through App Server {app_server}"
@@ -984,7 +985,7 @@ def cmd_codex_launch(codex_path: str | None = None) -> int:
     """Run one private App Server and its Codex terminal client."""
     executable = codex_path or shutil.which("codex")
     if executable is None:
-        raise RuntimeError("cannot find the `codex` executable on PATH")
+        raise Refused("cannot find the `codex` executable on PATH")
     with private_app_server(executable) as endpoint:
         return subprocess.call(
             [executable, "--remote", endpoint],

@@ -7,7 +7,7 @@
    they did, so it is sent on its own, once, and a failure costs only a fact the page
    will observe again; it neither waits behind a gesture nor holds one up. */
 import { runtime } from "./context.js";
-import { postEvent } from "./layer-client.js";
+import { postEvent, reportCarried } from "./layer-client.js";
 import { notice } from "./notifications.js";
 import { pendingTraffic } from "./traffic.js";
 import { afterScript } from "./rendering.js";
@@ -84,7 +84,7 @@ export function createDelivery({
       );
       if (sent.response.ok && answer?.ok === true && accepted) {
         const application = applyAcceptedState(answer.state).catch((error) =>
-          console.error("leaf: state in event response", error),
+          reportCarried(error, "state in event response"),
         );
         return { accepted, application };
       }
@@ -161,7 +161,7 @@ export async function deliverBookkeeping(event, applyState) {
   const accepted = response.ok && answer?.ok === true && Boolean(answer.state);
   if (answer?.state) {
     await applyState(answer.state).catch((error) =>
-      console.error("leaf: state in event response", error),
+      reportCarried(error, "state in event response"),
     );
   }
   return accepted ? "accepted" : answer?.final === true ? "refused" : "unreached";

@@ -277,7 +277,7 @@ export interface SemanticDocument {
       [name: string]: unknown;
     }
   > & {
-    $reactions?: { tokens: Record<string, {glyph: string; means?: string}> };
+    $reactions?: { tokens: Record<string, {glyph: string}> };
   };
   authored: AuthoredMap;
   descriptors: ReadonlyMap<string, WidgetDescriptor>;
@@ -319,7 +319,7 @@ export interface AuthoritativeState {
         };
         undo: { event: Event }[];
         coverage: Coverage[];
-        updates: object[];
+        reports: object[];
         published_at: string | null;
       }
     >;
@@ -926,7 +926,7 @@ export function createSemanticApplication({
         done: contextual(selectDone({ tasks: tasks.ended, questions })),
       },
       // Inside the publication signature, so a read that changes only the view's
-      // updates, publication time, or undo list still reaches its watchers.
+      // reports, publication time, or undo list still reaches its watchers.
       view,
       // The attempts still waiting for their POST's answer, in ledger order.
       sending: unresolved

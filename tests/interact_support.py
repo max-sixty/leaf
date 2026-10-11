@@ -57,10 +57,11 @@ from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
+from leaf.refusals import Refused
 from leaf.registry.storage import load_registry
 from leaf.revision_artifact import active_enclosing
 from leaf.served_state import page as served_page
-from leaf.validation import compatibility as compatibility_model
+from leaf.validation import composition as composition_model
 from leaf.validation import instances as validation_model
 from pytest_regtest.snapshot_handler import (
     BaseSnapshotHandler,
@@ -182,7 +183,7 @@ def model_layer(*packages: str) -> dict:
     cached per selection, because every stated page asking for the same packages
     is asking for the same registry. Nothing may mutate what this returns.
     """
-    return compatibility_model.incoming_registry(layer_model.layer_inputs(packages))
+    return composition_model.incoming_registry(layer_model.layer_inputs(packages))
 
 
 def queue_board_registry(registry: dict) -> dict:
@@ -993,7 +994,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     def init_result():
         try:
             vendoring_model.cmd_init(page_dir, selected=(*page_packages(), "./.leaf"))
-        except SystemExit as error:
+        except Refused as error:
             return str(error)
         return None
 
@@ -1087,8 +1088,8 @@ def _report_without_upgrade(registry):
     registry["lf-test-task"]["x-upgrade"] = False
 
 
-def _user_verb_update(registry):
-    registry["lf-options"]["x-state"]["choose"]["update"] = True
+def _user_verb_report(registry):
+    registry["lf-options"]["x-state"]["choose"]["report"] = True
 
 
 def _agent_verb_answers(registry):

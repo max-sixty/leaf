@@ -71,11 +71,12 @@ from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
+from leaf.refusals import Refused
 from leaf.registry.storage import read_page_registry, require_registry
 from leaf.render_gate import readings as render_gate_readings
 from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
-from leaf.validation import compatibility as validation_model
+from leaf.validation import composition as validation_model
 from leaf.validation.source import check_source
 from leaf.validation.source_history import predecessor_reading
 from leaf_dev.example_data import captured_value, patch_manifest
@@ -159,7 +160,7 @@ def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
             )
         finally:
             release.set()
-        with pytest.raises(SystemExit, match="missing.js"):
+        with pytest.raises(Refused, match="missing.js"):
             replacing.result(timeout=STATED_TIMEOUT)
         activated = activating.result(timeout=STATED_TIMEOUT)
     assert activated.revision == first and not activated.created
@@ -176,7 +177,7 @@ def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
     assert artifact_model.read_artifact(page_dir, first).resources[
         "/page/a.js"
     ].data == (b"export const a = 1;")
-    with pytest.raises(SystemExit, match="authored inputs changed"):
+    with pytest.raises(Refused, match="authored inputs changed"):
         publishing_model.cmd_stamp(
             page_dir, "Stale", from_directory=candidate, if_source=expected
         )
@@ -2357,7 +2358,7 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
         page_dir,
         {"kind": "comment", "id": "c1", "author": "agent", "revision": 1, "text": "?"},
     )
-    with pytest.raises(SystemExit) as refused:
+    with pytest.raises(Refused) as refused:
         thread_model.post_reply(
             page_dir,
             "c1",
@@ -2368,7 +2369,7 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
         )
     assert "'r1' does not match" in str(refused.value)
 
-    with pytest.raises(SystemExit) as unknown_widget:
+    with pytest.raises(Refused) as unknown_widget:
         thread_model.cmd_report(page_dir, "no-such-widget", "status", ())
     assert "unknown report widget 'no-such-widget'" in str(unknown_widget.value)
 
@@ -2994,7 +2995,7 @@ def test_absorption_is_by_id_never_inferred_from_markup(page_dir):
     _tasks_version(page_dir, "done")
     result = check(page_dir)
     assert result.exit_code == 0, result.output
-    assert state_json(page_dir)["updates"][0]["disposition"] == "effective"
+    assert state_json(page_dir)["reports"][0]["disposition"] == "effective"
 
 
 def test_user_added_words_do_not_become_liveness_coordinates(page_dir):
@@ -4408,8 +4409,8 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
 
 
 def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
-    """A standing report updates task status without creating user work, stands in
-    the canonical update feed, and remains there as settled history when a note
+    """An unsettled report changes task status without creating user work, appears
+    in the canonical report feed, and remains there as settled history when a note
     absorbs it."""
     tasks = (
         '<lf-test-tasks id="work"><lf-test-task id="t-parser" status="review">'
@@ -4434,7 +4435,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
     )
     state = state_json(page_dir)
     assert questions_on_you(state) == []
-    assert state["updates"] == [
+    assert state["reports"] == [
         {
             "id": rep["id"],
             "target": {"kind": "widget", "id": "t-parser"},
@@ -4473,7 +4474,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
         },
     )
     state = state_json(page_dir)
-    assert state["updates"] == [
+    assert state["reports"] == [
         {
             "id": rep["id"],
             "target": {"kind": "widget", "id": "t-parser"},
@@ -4492,7 +4493,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
     assert questions_on_you(state) == []
 
 
-def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
+def test_report_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
     """Reports are ordered by the log, so equal second-precision timestamps cannot
     reverse their known causal order."""
     task = (
@@ -4528,8 +4529,8 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
         },
     )
 
-    updates = state_json(page_dir)["updates"]
-    assert [(update["source"], update["id"]) for update in updates] == [
+    reports = state_json(page_dir)["reports"]
+    assert [(report["source"], report["id"]) for report in reports] == [
         ("report", first["id"]),
         ("report", second["id"]),
     ]
@@ -5236,6 +5237,8 @@ def test_a_unified_diff_capture_refuses_a_line_range(tmp_path):
 def test_markdown_body_file_words_match_the_shared_browser_dialect(case):
     from html import escape
 
+    import turbohtml
+
     document = structure_model.SourceDocument(
         f'<main><lf-draft id="note"><pre>{escape(case["source"])}</pre></lf-draft></main>'
     )
@@ -5247,6 +5250,10 @@ def test_markdown_body_file_words_match_the_shared_browser_dialect(case):
         }
     }
     assert passages_model.page_passages(document, registry).text == case["words"]
+    rendered = turbohtml.parse(passages_model.markdown_markup(case["source"]))
+    assert [
+        {"text": link.text, "href": link.attrs["href"]} for link in rendered.select("a")
+    ] == case["links"]
 
 
 @pytest.mark.parametrize("source", ["    code", "A ", "A\n", "A  \nB", "\nA"])

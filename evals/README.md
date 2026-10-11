@@ -4,6 +4,11 @@ Each `evals/<task>/case.yaml` is a Promptfoo test that runs on Claude Code and C
 `leaf-dev eval` builds the Leaf arms, turns the selected cases into a Promptfoo
 config, and runs `promptfoo eval`; Promptfoo does the rest.
 
+Internal viewer-review diagnostics run with `leaf-dev eval-ui-review`.
+They use Promptfoo's assertions and viewer with automatic evidence-aware grading.
+Their exception to the usual suite scope, retained cases and grading workflow are
+in [UI review detection](ui-review-detection/README.md).
+
 ```sh
 pnpm install --frozen-lockfile
 uv run leaf-dev eval brief-document-needs-no-outline --harness claude-code
@@ -121,11 +126,10 @@ Every provider runs in a fresh workspace outside the repository, under a home of
 own seeded only with a copy of the host's login, so runs spend the signed-in accounts'
 usage and never an API key. Native Codex probes install the complete arm through the
 host Codex CLI's plugin installer in that home, and use the same CLI to run the
-read-only task. `harness.MODELS` pins the models: Opus for Claude
-Code, `gpt-6.1-sol` at medium reasoning for Codex, Sonnet for `llm-rubric`, which
-grades text and opens nothing, and `gpt-6.1-sol` for the screenshot judge. That
-judge runs on the installed `codex` under a permission profile that lets it read
-the run's `screenshots/` and no other file of the repository. Promptfoo counts a
+read-only task. `MODELS` in `dev/leaf_dev/arms.py` pins the agent and judge
+models. The `llm-rubric` judge grades text and opens nothing. The screenshot judge
+runs on the installed `codex` under a permission profile that lets it read the
+run's `screenshots/` and no other file of the repository. Promptfoo counts a
 judge's tokens but not its cost, and doesn't record which screenshots it opened, so
 read its reason. No judge has been calibrated against human judgments, so treat a
 judged pass as weak evidence and read the outputs.

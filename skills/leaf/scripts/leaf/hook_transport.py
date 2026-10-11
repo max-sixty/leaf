@@ -382,9 +382,8 @@ def carry_turn(
     # The message avoids "unattended": a page can be watched and still be owed
     # an answer, and the runtime spends that word on a different fact — a page
     # served to nobody at all.
-    # Each page's own line, then one copy of each protocol they share. Three
-    # pages owing the same thing used to carry three copies of the same
-    # instruction into the turn, which is most of what the message weighed.
+    # Each page's own line, then one copy of each protocol they share, so pages
+    # owing the same thing carry one copy of its instruction into the turn.
     protocols = list(dict.fromkeys(protocol for _, protocol in reasons if protocol))
     attention = (
         [

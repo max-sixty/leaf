@@ -2719,11 +2719,17 @@ def test_live_samples_release_pending_allocations_and_can_reconnect(browser, ser
         window.pendingResult = pendingHost.ready.catch(error => error.name);
     }""")
     holding(page, held, 1, "a child detached before its document arrives")
+    held_release = []
+    page.route("**/api/release", lambda route: held_release.append(route))
     page.evaluate("pendingFrame.remove()")
     assert page.evaluate("pendingResult") == "AbortError"
+    holding(page, held_release, 1, "the detached child's allocation release")
+    assert page.request.get(held[0].request.url + "api/state").status == 200
+    held_release[0].continue_()
+    page.evaluate("pendingHost.destroy()")
     assert page.request.get(held[0].request.url + "api/state").status == 404
     held[0].abort()
-    page.evaluate("pendingHost.destroy()")
+    page.unroute("**/api/release")
 
     # A destroyed queue entry cannot wait for unrelated children to load. It is
     # removed without consuming the next slot a surviving queued child needs.

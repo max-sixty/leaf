@@ -23,6 +23,9 @@
   color: var(--code-ink);
   background: var(--code-chrome);
 }
+:scope:host(.lf-rendered) .lf-diff-fold > .lf-error {
+  padding: 10px;
+}
 :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary {
   display: flex;
   align-items: center;

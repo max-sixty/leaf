@@ -417,6 +417,11 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Product and harness ideas
 
+- **Link filenames to their repository context.** When a page or thread knows the
+  repository and revision, offer a GitHub source link for a filename such as
+  `AGENTS.md` rather than treating it as a web domain. Establish how that context
+  reaches Markdown before inferring a destination from the filename alone.
+
 - **Learn how users prefer to dictate comments.** Observe whether people use
   browser dictation, OS dictation, or their own dictation app. Defer a microphone
   button until an unmet need justifies the extra visual noise in Leaf's text boxes.

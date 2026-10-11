@@ -125,18 +125,8 @@ function renderOthersNow(state) {
   const offeredBefore = leavesOffered();
   // Null is the explicit pre-read state. It has no self presence to draw, and recovery
   // from a refused first reading must remove every row that candidate introduced.
-  // A closed leaf is not one of the machine's live pages and drops out of the drawer on
-  // the poll that says
-  // so: its server stays up so the page stays readable — a standing one for good —
-  // so nothing else would ever take the row off, and a count the user glances at
-  // to find who needs them would silently become a tally of everything that has run
-  // here. Judged by the `activity` the rows read. This page's own row is not in the
-  // list and so is never dropped: a user looking at a closed page is still looking at
-  // it.
-  others =
-    state === null
-      ? []
-      : state.others.filter((entry) => entry.activity.kind !== "closed");
+  // `others` holds live neighbours only: a closed one leaves it (presence.py).
+  others = state === null ? [] : state.others;
   // A neighbour's row is its page, keyed by `page_key`, and its link is wherever that
   // page is served now. A server restarted on another port keeps the row, and the focus
   // on it, where they were; only the destination changes.

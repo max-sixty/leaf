@@ -1012,6 +1012,17 @@ STATES = (
         contents_by_keyboard,
         scheme="dark",
     ),
+    # Where the margin has no room for the map, and where a coarse pointer keeps the
+    # sidebar's contents in the flow, at a roomy width and on a phone.
+    State("contents-narrow", "developer/feature-gallery", at_rest, viewport=(900, 900)),
+    State("contents-coarse", "developer/feature-gallery", at_rest, touch=True),
+    State(
+        "contents-phone",
+        "developer/feature-gallery",
+        at_rest,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("playground-controls", "notification-playground", playground_controls),
     State(
         "playground-controls-phone",

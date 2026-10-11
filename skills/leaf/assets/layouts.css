@@ -110,7 +110,7 @@
   @property --lf-resident { syntax: "*"; inherits: false; }
   /* An empty map-only slot is already in its eventual margin posture: no margin
    * and no formatting context separating the blocks on either side of it. */
-  main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(> lf-toc:only-child:empty) {
+  main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(> [data-lf-resident="map"]:only-child:empty) {
     display: block; margin-block: 0; }
   /* A resident changes its relationship to the flow; anchor the reading to its
    * passage instead of choosing the complementary text as a native scroll anchor. */
@@ -138,24 +138,25 @@
     }
   }
   /* A contents map in that slot rests as a spine a few pixels wide and reveals its labels
-   * over the page; the default package draws it there once this says the slot is in the
-   * margin, as the map alone or in a sidebar standing there. */
+   * over the page; its package draws it there once this says the slot is in the margin,
+   * as the map alone or in a sidebar standing there. A map is whatever declares
+   * `x-resident: map`, which delivery paints as `data-lf-resident`. */
   @media screen and (hover: hover) and (pointer: fine) {
-    main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(lf-toc) {
+    main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has([data-lf-resident="map"]) {
       --lf-resident: sidebar map; }
     /* A sidebar holding only the map has nothing for a float to hold, so the map alone. */
-    main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(> lf-toc:only-child) {
+    main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(> [data-lf-resident="map"]:only-child) {
       --lf-resident: map; }
     main.layout-column[data-lf-margin~="map"] { --lf-sidebar-posture: margin; }
     /* At rest the map is its spine, chrome fixed in the left margin, so a breakout stops
      * short of it (the column's free room, above); its labels reveal over the page. */
     main.layout-column:is([data-lf-margin~="map"], [data-lf-margin~="sidebar"]):has(
-      > aside.sidebar:nth-child(1 of aside.sidebar) lf-toc) { --lf-taken-l: var(--map); }
+      > aside.sidebar:nth-child(1 of aside.sidebar) [data-lf-resident="map"]) { --lf-taken-l: var(--map); }
     /* Standing alone, a map that was all its sidebar held leaves nothing in the flow, so the
      * sidebar takes no room there: without margins or a formatting context of its own, the
      * blocks on either side meet as they do where the sidebar floats. */
     main.layout-column[data-lf-margin~="map"]
-      > aside.sidebar:nth-child(1 of aside.sidebar):has(> lf-toc:only-child) {
+      > aside.sidebar:nth-child(1 of aside.sidebar):has(> [data-lf-resident="map"]:only-child) {
       display: block; margin-block: 0; }
   }
   @media screen {

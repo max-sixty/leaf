@@ -129,7 +129,7 @@
    paints: this one is dropped over whatever the page has under the banner, and an
    outset band's outer pixels are not the control's to answer for — the layer's ring
    reading correctly called them a control standing behind the page. */
-.lf-skip:is(:focus-visible, .lf-focus-visible) { opacity: 1; pointer-events: auto;
+.lf-skip[data-lf-focus] { opacity: 1; pointer-events: auto;
   position: fixed; z-index: var(--lf-z-escaped-control);
   top: calc(var(--lf-banner-h) + 6px); left: 8px;
   width: auto; height: auto; min-height: var(--aim-floor); padding: 6px 10px;
@@ -297,7 +297,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      onto the provider's drawing. Resting, each is a conventional clipped control; focus
      gives it a skip-link-style face under the banner. */
   .lf-visual-action { pointer-events: none; }
-  .lf-visual-action:focus-visible { position: fixed;
+  .lf-visual-action[data-lf-focus] { position: fixed;
     top: calc(var(--lf-banner-h) + 6px); left: 8px;
     width: auto; height: auto; max-width: calc(100vw - 16px); padding: 6px 10px;
     overflow: visible; clip-path: none; pointer-events: auto; white-space: normal;
@@ -361,7 +361,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-paint-carrier { width: 0; height: 0; }
   /* Every margin-projection control traces the content it concerns through one quiet
      overlay. Painting above the target keeps a package-owned frame from covering the
-     contour; the keyboard's stronger accent ring remains a separate focus fact. */
+     contour; the stronger accent ring remains a separate focus fact. */
   .lf-target-trace { position: absolute; display: none; pointer-events: none;
     box-sizing: border-box; border: var(--target-trace-w) solid var(--target-trace-ink);
     --lf-shape-ink: var(--target-trace-ink); --lf-shape-stroke: var(--target-trace-w);
@@ -502,10 +502,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     text-align: left; cursor: pointer; white-space: nowrap; line-height: 1.35;
     font-variant-numeric: tabular-nums; color: var(--ink-2); }
   .lf-banner > .lf-status-queues:hover { color: var(--ink); }
-  .lf-banner > .lf-status-queues:is(:focus-visible, .lf-focus-visible) {
+  .lf-banner > .lf-status-queues[data-lf-focus] {
     outline: var(--focus-ring); outline-offset: 2px; --lf-focus-ring: status; }
   .lf-status-button:hover { color: var(--ink); }
-  .lf-status-button:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+  .lf-status-button[data-lf-focus] { outline: var(--focus-ring);
     outline-offset: 2px; --lf-focus-ring: status; }
   .lf-status-text { color: inherit; min-width: 0; overflow: hidden;
     display: block; text-overflow: ellipsis; white-space: nowrap; line-height: 1.35; }
@@ -517,7 +517,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     padding: 14px 16px; border: 1px solid var(--border-2); border-radius: var(--r);
     background: var(--card); color: var(--ink-2); box-shadow: 0 8px 24px var(--shade);
     white-space: normal; overflow-wrap: anywhere; }
-  .lf-status-detail:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+  .lf-status-detail[data-lf-focus] { outline: var(--focus-ring);
     outline-offset: 2px; --lf-focus-ring: status-detail; }
   .lf-status-text:has(.lf-publication-install) { display: flex; gap: 0.6em; }
   .lf-publication-copy { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -594,7 +594,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   /* A row is packed against the menu's edge, 4px of padding from its border, so its
      ring is drawn inset as the versions menu's rows draw theirs: outside the row it
      stood a pixel from the border. */
-  .lf-banner-menu .lf-btn:is(:focus-visible, .lf-focus-visible) {
+  .lf-banner-menu .lf-btn[data-lf-focus] {
     outline-offset: calc(-1 * var(--focus-ring-w)); }
   /* A secondary control doing something has to go on saying so. The menu's resting
      rule clears the same two declarations the row's does, so `.on` needs the same
@@ -697,7 +697,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      its hover and ring span the menu like every other row's pair. */
   .lf-version-row:not(:has(+ .lf-version-diff)) { grid-column: 1 / -1; }
   .lf-version-row:hover { background: var(--chip); }
-  .lf-version-row:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: version-row;
+  .lf-version-row[data-lf-focus] { outline: var(--focus-ring); --lf-focus-ring: version-row;
     outline-offset: calc(-1 * var(--focus-ring-w)); }
   /* The version being read wears the accent rather than a fill, so the row the
      pointer is over stays the one that looks pressable. */
@@ -723,7 +723,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     border: 1px solid var(--rule); border-radius: 4px; background: none;
     color: var(--ink-2); cursor: pointer; font-size: var(--t-6); line-height: 1.4; }
   .lf-version-diff:hover { border-color: var(--border-2); background: var(--chip); }
-  .lf-version-diff:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: version-diff;
+  .lf-version-diff[data-lf-focus] { outline: var(--focus-ring); --lf-focus-ring: version-diff;
     outline-offset: calc(-1 * var(--focus-ring-w)); }
   .lf-version-diff[aria-checked="true"] { border-color: var(--accent); color: var(--accent);
     background: var(--chip); }
@@ -790,7 +790,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     text-decoration: none; }
   .lf-others-row > svg[data-lf-gen="1"] { display: none; }
   a.lf-others-row:hover { background: var(--chip); }
-  .lf-others-row:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: others-row;
+  .lf-others-row[data-lf-focus] { outline: var(--focus-ring); --lf-focus-ring: others-row;
     outline-offset: calc(-1 * var(--focus-ring-w)); }
   .lf-others-head { display: contents; }
   .lf-others-title { min-width: 0; white-space: nowrap; overflow: hidden;
@@ -827,8 +827,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      its own inset (theme.css, --focus-ring), because the list clips to its padding box.
      The second ring is the standing Question's (markHere), which the row naming that Question
      mirrors while the panel is open. Done's door is a stop in the same list. */
-  .lf-queue-row:is(:focus-visible, .lf-focus-visible, [data-lf-question]),
-  .lf-queue-done > summary:is(:focus-visible, .lf-focus-visible) {
+  .lf-queue-row:is([data-lf-focus], [data-lf-question]),
+  .lf-queue-done > summary[data-lf-focus] {
     outline: var(--focus-ring); --lf-focus-ring: queue-row;
     outline-offset: calc(-1 * var(--focus-ring-w)); }
   /* Green marks the user's turn, as it does on a thread; the agent's live work wears
@@ -883,8 +883,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-edge[data-lf-side="left"]::before { right: 2px; }
   /* Pointer capture carries :hover with it, so one rule covers the reach and the whole
      drag that follows it. */
-  .lf-edge:hover::before, .lf-edge:is(:focus-visible, .lf-focus-visible)::before { opacity: 1; }
-  .lf-edge:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: edge;
+  .lf-edge:hover::before, .lf-edge[data-lf-focus]::before { opacity: 1; }
+  .lf-edge[data-lf-focus] { outline: var(--focus-ring); --lf-focus-ring: edge;
     outline-offset: 0; }
   .lf-thread-panel-head, .lf-drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--rule); font-weight: 600; }
   .lf-thread-panel-head { flex: none; }
@@ -1003,8 +1003,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      above the scrolling contents. The list's zero layer is a stacking context, so a
      descendant cannot leapfrog the overlay by choosing a still-higher local z-index. */
   .lf-threads-frame::after { content: ""; pointer-events: none; z-index: 1; }
-  .lf-threads:is(:focus-visible, .lf-focus-visible) { outline: none; }
-  .lf-threads-frame:has(> .lf-threads:is(:focus-visible, .lf-focus-visible))::after {
+  .lf-threads[data-lf-focus] { outline: none; }
+  .lf-threads-frame:has(> .lf-threads[data-lf-focus])::after {
     outline: var(--focus-ring); --lf-focus-ring: thread-list;
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
@@ -1073,7 +1073,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     text-align: left; font: 500 13px/18px var(--sans); cursor: pointer; }
   .lf-thread-summary:hover { background: var(--chip); }
   .lf-thread-summary::-webkit-details-marker { display: none; }
-  .lf-thread-summary:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+  .lf-thread-summary[data-lf-focus] { outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w)); --lf-focus-ring: thread-summary; }
   .lf-thread-topic { grid-column: 1; grid-row: 1; min-width: 0; overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
@@ -1218,12 +1218,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   /* The card of the comment the user is standing in, which is the panel's half of
      the pair the page paints as lf-mark-here. A thread is a composite region: the
      quiet ground on its content says the user is in this card, whichever control inside it holds
-     focus and whether they arrived by key or pointer, so :focus-within paints it and
-     keeps the two halves paired. The card itself holding the keyboard's focus is the
-     walk's landing and the card's own presses — Enter, r — act on it, so it wears the
-     ring every other keyboard target wears, inset because the list's edges touch it,
-     over that same ground. */
-  .lf-thread:is(:focus-within, .lf-focus-within) {
+     focus and whether they arrived by key or pointer, so [data-lf-focus-within] paints it and
+     keeps the two halves paired. The card itself holding focus receives
+     its own presses — Enter, r — so it wears the ring every other focus target wears,
+     inset because the list's edges touch it, over that same ground. */
+  .lf-thread[data-lf-focus-within] {
     outline: none;
     --lf-thread-surface: var(--focus-surface);
   }
@@ -1233,8 +1232,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   /* The quoted target remains a compact navigation row above the transcript. */
   .lf-thread-head { margin-bottom: 12px; }
   .lf-thread-head > .lf-quote { margin: 0; }
-  .lf-quote:is(:hover, :focus-visible, .lf-focus-visible) { color: var(--ink-2); }
-  .lf-quote:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: passage-focus;
+  .lf-quote:is(:hover, [data-lf-focus]) { color: var(--ink-2); }
+  .lf-quote[data-lf-focus] { outline: var(--focus-ring); --lf-focus-ring: passage-focus;
     outline-offset: 2px; }
   .lf-thread-head > .lf-quote:not(.detached)::after { content: "  ↗ page";
     color: var(--accent); font-size: var(--t-6); font-style: normal; white-space: nowrap; }
@@ -1273,11 +1272,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-thread-action { border: none; background: none; color: var(--muted); cursor: pointer; }
   .lf-thread-action:hover { color: var(--ok); }
   /* Reopen stands in the same row as Resolve and answers the same question from the
-     other side, so it wears the same band when the keyboard reaches it. It was left on
+     other side, so it wears the same band while focused. It was left on
      the platform's own ring, which is a real mark and the wrong one here: the pair
      looked like two kinds of control, and a walk into resolved threads changed shape
      halfway. */
-  .lf-thread-action:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+  .lf-thread-action[data-lf-focus] { outline: var(--focus-ring);
     --lf-focus-ring: thread-action; outline-offset: 2px; }
   .lf-general > .lf-composer-media { flex: none; }
   .lf-general > .lf-compose-field { flex: 1; min-height: var(--lf-compose-h);
@@ -1455,9 +1454,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-command-reference-command { width: 100%; margin: -3px -6px; padding: 3px 6px;
     border: 0; border-radius: 4px; background: transparent; color: inherit;
     font: inherit; text-align: left; cursor: pointer; }
-  .lf-command-reference-command:is(:hover, :focus-visible),
+  .lf-command-reference-command:is(:hover, [data-lf-focus]),
   .lf-command-reference-command[data-lf-selected="true"] { background: var(--chip); }
-  .lf-command-reference-command:focus-visible { outline: var(--focus-ring);
+  .lf-command-reference-command[data-lf-focus] { outline: var(--focus-ring);
     --lf-focus-ring: help-command; outline-offset: 1px; }
   .lf-page-map-toggle { display: none; }
   .lf-page-map-head { display: flex; align-items: center; gap: 8px; }
@@ -1471,7 +1470,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     cursor: pointer; }
   /* The user's turn paints this row as it paints its margin entry, in one rule set
      in theme.css; the row's ground and hover read the wash it sets. */
-  .lf-page-map-action:is(button, [role="button"]):is(:hover, :focus-visible):not([aria-disabled="true"]) {
+  .lf-page-map-action:is(button, [role="button"]):is(:hover, [data-lf-focus]):not([aria-disabled="true"]) {
     background: var(--lf-entry-tint, var(--chip)); }
   .lf-page-map-action .lf-margin-kind { width: 16px; height: 16px;
     align-self: center; fill: none; stroke: currentColor; stroke-width: 1.5;
@@ -1488,7 +1487,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      outset one is cut on both sides by the box it scrolls in. The layer's rule for
      a box whose edge touches something that paints. The ring's width is the inset,
      so the band lands just inside the row's own edge. */
-  .lf-page-map-action:focus-visible {
+  .lf-page-map-action[data-lf-focus] {
     outline: var(--focus-ring); --lf-focus-ring: page-map-action;
     outline-offset: calc(-1 * var(--focus-ring-w)); }
   /* The sheet's top belongs to the window, so narrowing its list never carries the
@@ -1527,7 +1526,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   }
   @media (forced-colors: active) {
     .lf-page-map-dialog { border: 1px solid CanvasText; box-shadow: none; }
-    .lf-page-map-action:focus-visible {
+    .lf-page-map-action[data-lf-focus] {
       outline: 2px solid Highlight; }
   }
   /* The bottom bar is the banner's counterpart at the window's foot: one row at one
@@ -1687,7 +1686,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      a list states its own inset (theme.css, --focus-ring) — the joined option group does
      the same — and here the line's own border is what stands
      the whole thing off the page. */
-  .lf-shortcut-more:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: key-more;
+  .lf-shortcut-more[data-lf-focus] { outline: var(--focus-ring); --lf-focus-ring: key-more;
     outline-offset: calc(-1 * var(--focus-ring-w)); }
   /* Design mode: the user is commenting on the layer rather than the page, and for
      as long as they are the page shows its bones. Every item — a widget, a section, a
@@ -1857,12 +1856,12 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     .lf-dot { background: CanvasText !important; }
     .lf-binding-sequence > kbd[data-lf-sequence-step-state="pressed"] { border-color: Highlight;
       background: Highlight; color: HighlightText; }
-    .lf-thread:is(:focus-within, .lf-focus-within) { border-color: Highlight !important; }
-    :scope :focus-visible { outline: var(--focus-ring-w) solid Highlight !important;
+    .lf-thread[data-lf-focus-within] { border-color: Highlight !important; }
+    :scope [data-lf-focus] { outline: var(--focus-ring-w) solid Highlight !important;
       outline-offset: 2px !important; box-shadow: none !important; }
-    :scope .lf-threads:is(:focus-visible, .lf-focus-visible) {
+    :scope .lf-threads[data-lf-focus] {
       outline: none !important; }
-    .lf-threads-frame:has(> .lf-threads:is(:focus-visible, .lf-focus-visible))::after {
+    .lf-threads-frame:has(> .lf-threads[data-lf-focus])::after {
       outline: 2px solid Highlight !important;
       outline-offset: -2px !important; }
     :scope :is([aria-pressed="true"], [aria-checked="true"], [aria-current]) {

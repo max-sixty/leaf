@@ -317,10 +317,7 @@ export function createAnchorControls({
             record.surface = context.surface ?? null;
             const standing = focused();
             setReactionRemoval(record, record.expanded === root.id ? null : root.id, {
-              focus:
-                context.input === "keyboard" &&
-                context.origin === standing &&
-                standing?.matches(":focus-visible, .lf-focus-visible"),
+              focus: context.input === "keyboard" && context.origin === standing,
               surface: record.surface,
             });
           },

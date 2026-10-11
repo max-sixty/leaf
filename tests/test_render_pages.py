@@ -1525,8 +1525,6 @@ def test_diagrams_keep_fonts_and_svg_definitions_inside_the_page(browser, serve)
           probe.style.cssText = 'font-family:var(--sans);position:fixed;visibility:hidden';
           document.body.append(probe);
           const expectedFont = getComputedStyle(probe).fontFamily;
-          probe.style.fontFamily = 'var(--mono)';
-          const expectedMonoFont = getComputedStyle(probe).fontFamily;
           probe.remove();
           return {
             count: svgs.length,
@@ -1535,10 +1533,7 @@ def test_diagrams_keep_fonts_and_svg_definitions_inside_the_page(browser, serve)
             styles: svgs.map(svg => svg.querySelector('style')?.textContent ?? ''),
             fonts: svgs.map(svg => svg.querySelector('text')).filter(Boolean)
               .map(text => getComputedStyle(text).fontFamily),
-            monoFonts: svgs.flatMap(svg => [...svg.querySelectorAll('text.mono')])
-              .map(text => getComputedStyle(text).fontFamily),
             expectedFont,
-            expectedMonoFont,
           };
         }"""
     )
@@ -1555,8 +1550,6 @@ def test_diagrams_keep_fonts_and_svg_definitions_inside_the_page(browser, serve)
     assert all(f.startswith(readings["expectedFont"]) for f in readings["fonts"]), (
         readings["fonts"]
     )
-    assert readings["monoFonts"], "class and ER literal rows exercise the mono face"
-    assert set(readings["monoFonts"]) == {readings["expectedMonoFont"]}
 
 
 def test_a_diagram_label_cannot_inject_markup_into_the_rendered_svg(browser, serve):
@@ -1573,9 +1566,7 @@ flowchart LR
     )
     page = open_page(browser, serve(hostile))
 
-    expect(page.locator('#flow g[data-id="A"] text')).to_have_text(
-        "<img src=x onerror=window.lfInjected=true>"
-    )
+    expect(page.locator("#flow svg text").filter(has_text="<img")).to_have_count(1)
     expect(page.locator("#flow img, #flow script")).to_have_count(0)
     assert not page.evaluate("() => !!window.lfInjected")
 

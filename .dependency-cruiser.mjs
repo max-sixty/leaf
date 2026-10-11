@@ -36,6 +36,7 @@ const isOneOf = (names) => `^(?:${names.map(modulePath).map(escaped).join("|")})
 const exactClosures = {
   "queued-work.js": [],
   "control-selectors.js": [],
+  "shadow-tree.js": [],
   "image-difference.js": [],
   "contribution-model.js": ["words.js", "collapse.js"],
   "margin-model.js": ["contribution-model.js", "words.js", "collapse.js"],
@@ -62,6 +63,7 @@ const exactClosures = {
     "queued-work.js",
     "focus.js",
     "control-selectors.js",
+    "shadow-tree.js",
     "keeps.js",
     "keyboard/bindings.js",
     "keyboard/layer-stack.js",

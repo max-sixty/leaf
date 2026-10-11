@@ -808,8 +808,8 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
 
     # And a user arriving by keyboard can see the exact row they landed on. The
     # permanent group frame stays put, the Ask's external location band stands
-    # down, and one inset ring belongs to the active row. Reached by Tab rather than
-    # focus(), because :focus-visible is a fact about how focus arrived.
+    # down, and one inset ring belongs to the active row. A real Tab verifies the
+    # keyboard route as well as the shared focus treatment.
     # Read as a style rather than a width, because `outline: none` leaves
     # outline-width computing to the initial `medium`: a box drawing no ring at all
     # still reports 3px.

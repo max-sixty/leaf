@@ -105,6 +105,11 @@ launcher itself is the subject.
 
 ## Put each assertion at the boundary that owns it
 
+Each test module's docstring names its subject. A new test goes in the module whose
+docstring names the behavior it protects, not the one the change happened to open;
+where none does, start a module for that subject. Otherwise tests pile up wherever
+a change happened to land, and a module that was split grows back.
+
 File-side fixtures live in `interact_support.py`, browser fixtures in
 `render_harness.py`, reusable browser cases in `render_cases_*.py`.
 `tests/runtime/*.test.mjs` holds what one runtime module decides on its own, in the

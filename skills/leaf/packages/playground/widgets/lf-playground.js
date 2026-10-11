@@ -225,14 +225,20 @@ customElements.define(
             const range = event.target.closest('input[type="range"]');
             if (range) {
               // Native range focus and track operation share a browser default.
-              // Return focus synchronously after that default takes it, so dragging
-              // remains native while the preview keeps showing its focused state.
+              // Return focus after that default takes it, so dragging remains native
+              // while the preview keeps showing its focused state. An opaque sample
+              // restores its own standing through its private port.
               let standing = document.activeElement;
               while (standing?.contentDocument)
                 standing = standing.contentDocument.activeElement;
               range.addEventListener(
                 "focus",
-                () => focusDestination(standing, "return"),
+                () => {
+                  const sample = standing?.closest?.("lf-sample");
+                  if (sample && standing instanceof HTMLIFrameElement)
+                    void sample.restoreStanding()?.catch(() => {});
+                  else focusDestination(standing, "return");
+                },
                 { once: true },
               );
             } else event.preventDefault();
@@ -289,6 +295,8 @@ customElements.define(
       if (!this.#preview.contains(at)) return false;
       // A sample's frame holds focus for its child page, which may stand on nothing.
       while (at?.contentDocument) at = at.contentDocument.activeElement;
+      if (at instanceof HTMLIFrameElement)
+        return Boolean(at.closest("lf-sample")?.focusedContent);
       return Boolean(at) && at !== at.ownerDocument.body;
     }
 

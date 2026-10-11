@@ -249,6 +249,15 @@
           "text": "A reaction on your message. It needs no reply, and Leaf already records whether it answers what you asked."
         }
       ],
+      "edit": [
+        {
+          "text": "The user rewrote their message `message` in place: `text` is how it reads now and `was` how it read before, and the thread shows only the new wording. Answer the message as it now reads. Where your earlier answer or work rested on what changed, say what that changes and redo the work it requires; where it changes nothing you did, say so. If `message` opens the thread and the thread's title no longer fits what it now asks, retitle the thread with `leaf thread edit <page> <message> --title \"<a few words>\"`, so the thread panel names what the thread is about now."
+        },
+        {
+          "when": {"required": ["suggestion"], "properties": {"suggestion": {"const": true}}},
+          "text": "The message is a suggestion, so `text` is now the exact replacement it proposes. Apply it verbatim, or reply with your reason for declining."
+        }
+      ],
       "resolve": [
         {
           "text": "The user closed the thread. You owe no reply in it; a task you opened on it still stands until you end it."
@@ -712,17 +721,24 @@
             "attention": {"type": "boolean"},
             "id": {"type": "string", "minLength": 1},
             "ts": {"type": "string", "minLength": 1},
-            "author": {"const": "agent"},
+            "author": {"enum": ["agent", "user"]},
             "kind": {"const": "edit"},
             "seq": {"type": "integer", "minimum": 1},
+            "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"},
             "message": {"type": "string", "minLength": 1},
             "text": {"type": "string", "minLength": 1},
+            "base": {"type": "string", "minLength": 1},
             "agent": {"type": "string", "minLength": 1},
             "session": {"type": "string", "minLength": 1}
           },
-          "required": ["attention", "id", "ts", "author", "kind", "seq", "message", "text", "agent", "session"],
-          "additionalProperties": false
-        }
+          "required": ["attention", "id", "ts", "author", "kind", "seq", "message", "text"],
+          "additionalProperties": false,
+          "oneOf": [
+            {"properties": {"author": {"const": "agent"}}, "required": ["agent", "session"]},
+            {"properties": {"author": {"const": "user"}}, "not": {"anyOf": [{"required": ["agent"]}, {"required": ["session"]}]}}
+          ]
+        },
+        "browser": {"required": ["kind", "message", "text", "base"]}
       },
       "summary": {
         "record": {

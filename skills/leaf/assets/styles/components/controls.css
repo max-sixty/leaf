@@ -49,9 +49,9 @@
    A surface places and reveals them without restating their ink, border or fill.
    Margin reactions wear the margin-entry family (theme.css); response actions keep
    an opaque resting surface because they float over page content. */
-.lf-react-trigger { color: var(--muted); border: 1px solid transparent;
+.lf-msg-control { color: var(--muted); border: 1px solid transparent;
           background: transparent; }
-.lf-react-trigger:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"]) {
+.lf-msg-control:is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"]) {
           color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
 .lf-react { display: inline-flex; align-items: center; justify-content: center; gap: 4px;
           min-width: max(26px, var(--aim-floor)); }
@@ -86,37 +86,48 @@
           display: none; }
 .lf-react-strip > .lf-react-palette:not(:popover-open, :has(> [aria-pressed="true"])) {
           display: none; }
-/* A reply with no feedback keeps no row. Its add control follows the message
-   header's right edge and centre, including when thread actions narrow that header;
-   the full-width message body does not place it. It appears only for the message
-   under pointer or keyboard focus.
-   The picker is an overlaid menu below that control; opening it never moves this
-   message or the threads after it. At rest only feedback already left earns
-   flow space. */
-.lf-msg.agent { anchor-scope: --lf-msg-head; }
-.lf-msg.agent > .lf-msg-head { anchor-name: --lf-msg-head; }
-.lf-msg.agent:has(> .lf-react-strip) > .lf-msg-head {
-          --lf-react-row: max(26px, var(--aim-floor));
-          padding-inline-end: var(--lf-react-row); }
-.lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
-          margin-top: 0; anchor-scope: --lf-react-trigger; }
-.lf-react-strip:has(.lf-react[aria-pressed="true"]) { margin-top: 4px; }
-.lf-react-strip > .lf-react-trigger {
-          appearance: none; position: absolute; z-index: 2; anchor-name: --lf-react-trigger;
+/* A message offers one control of its own at its header's right edge and centre: an
+   agent's reply its reactions, the user's own words their rewrite. The header keeps
+   that control's room at its end, so it covers none of the header's words, and the
+   control follows that edge when thread actions narrow the header; the full-width
+   message body does not place it. It appears only for the message under pointer or
+   keyboard focus.
+   A reply with no feedback keeps no row. The reaction picker is an overlaid menu below
+   its control; opening it never moves this message or the threads after it. At rest
+   only feedback already left earns flow space. */
+.lf-msg { anchor-scope: --lf-msg-head; }
+.lf-msg > .lf-msg-head { anchor-name: --lf-msg-head; }
+.lf-msg:has(.lf-msg-control) > .lf-msg-head {
+          --lf-msg-control: max(26px, var(--aim-floor));
+          padding-inline-end: var(--lf-msg-control-room, var(--lf-msg-control)); }
+/* An open rewrite's Cancel and Save take the room its Edit control took, and more: the
+   head holds the author alone while it is open, its time and labels saying nothing a
+   rewrite needs. */
+.lf-msg:has(> .lf-msg-body > .lf-msg-editor) {
+          scroll-margin-block-end: var(--sp-2); }
+.lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head {
+          --lf-msg-control-room:
+            calc(max(52px, var(--aim-floor)) + 4px + max(40px, var(--aim-floor))); }
+.lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head > .lf-msg-meta {
+          display: none; }
+.lf-msg-control {
+          appearance: none; position: absolute; z-index: 2;
           position-anchor: --lf-msg-head;
           inset-block-start: anchor(center); inset-inline-end: anchor(right); translate: 0 -50%;
           box-sizing: border-box; inline-size: 26px; block-size: 26px; padding: 0;
           display: inline-flex; align-items: center; justify-content: center;
           border-radius: var(--r);
           opacity: 0; cursor: pointer; }
-.lf-react-strip.lf-react-open > .lf-react-trigger { display: inline-flex; }
-.lf-react-trigger-icon { inline-size: 16px; block-size: 16px; overflow: visible;
+.lf-msg-control-icon { inline-size: 16px; block-size: 16px; overflow: visible;
           fill: none; stroke: currentColor; stroke-width: 1.6;
           stroke-linecap: round; stroke-linejoin: round; }
-.lf-msg.agent:is(:hover, :focus-within)
-          > .lf-react-strip > .lf-react-trigger,
-.lf-react-strip > .lf-react-trigger:is(:focus-visible, .lf-focus-visible) {
-          opacity: 1; }
+.lf-msg:is(:hover, :focus-within) .lf-msg-control,
+.lf-msg-control:is(:focus-visible, .lf-focus-visible) { opacity: 1; }
+.lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
+          margin-top: 0; anchor-scope: --lf-react-trigger; }
+.lf-react-strip:has(.lf-react[aria-pressed="true"]) { margin-top: 4px; }
+.lf-react-strip > .lf-react-trigger { anchor-name: --lf-react-trigger; }
+.lf-react-strip.lf-react-open > .lf-react-trigger { display: inline-flex; }
 /* The list is an auto popover, in the top layer: open, it stands over everything in
    the thread, the sticky title and reply row included, so its message is never raised
    among the rows to carry it, and closing it hands focus back to where the user opened
@@ -144,14 +155,15 @@
           box-sizing: border-box; inline-size: 32px; block-size: 32px; padding: 0;
           font-size: 16px; }
 @media (hover: none) {
-  .lf-react-strip > .lf-react-trigger { opacity: 1; }
+  .lf-msg-control { opacity: 1; }
 }
-/* Under a finger the always-visible reaction takes the aim floor. The common
-   header row already holds its height; reserve its inline room here too. */
+/* Under a finger a message's control takes the aim floor, and with no hover to reveal
+   it, it stands on every message for good. The common header row already holds its
+   height; reserve its inline room here too. */
 @media (pointer: coarse), (hover: none) {
-  .lf-msg.agent > .lf-msg-head {
-          --lf-react-row: max(26px, var(--aim-floor));
-          padding-inline-end: var(--lf-react-row); }
+  .lf-msg:is(.agent, .user) > .lf-msg-head {
+          --lf-msg-control: max(26px, var(--aim-floor));
+          padding-inline-end: var(--lf-msg-control-room, var(--lf-msg-control)); }
 }
 .lf-msg-meta { display: flex; align-items: baseline; gap: var(--sp-2); min-width: 0; }
 .lf-msg-sending { color: var(--muted); font-weight: 600; white-space: nowrap; }

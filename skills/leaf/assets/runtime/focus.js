@@ -539,6 +539,26 @@ export const inputCount = () => inputs.count;
 // Mechanical owners may stop motion at the input edge, before a command or drawing
 // handler consumes it. Observation adds no binding and never claims the event.
 export const onUserInput = (read) => inputs.observe(read);
+
+// Where the caret stood, as a key went down, in each box the key went down in, before
+// the box's own handling moved it. A command whose meaning hangs on the caret's place,
+// as ↑ from the start of a box walks out of it, reads this rather than the caret the
+// field has already moved by the time the command's row is asked. It holds until the
+// task after the key's, so a row read outside a key falls back to the live caret.
+let keyCarets = null;
+onUserInput((event) => {
+  if (event.type !== "keydown") return;
+  const carets = new Map();
+  for (const node of event.composedPath()) {
+    const caret = node instanceof Element && readCaret(node);
+    if (caret) carets.set(node, caret);
+  }
+  keyCarets = carets;
+  setTimeout(() => {
+    if (keyCarets === carets) keyCarets = null;
+  });
+});
+export const caretAtKey = (node) => keyCarets?.get(node) ?? null;
 onUserInput((event) => {
   if (event.type !== "blur") return;
   landLabelPress();

@@ -28,7 +28,7 @@ import { html, repeat } from "../../vendor/browser-runtime.js";
 import { holdFocus, onStanding, focusDestination, focused } from "../focus.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
-import { draftHasContent } from "../drafts.js";
+import { threadHoldsDraft } from "./replies.js";
 import { forwardToThread } from "./focus.js";
 import { passOn, retainUserIntent } from "../user-intent.js";
 import { layoutChanged } from "../widget-elements.js";
@@ -36,6 +36,7 @@ import { isFolding } from "./folding.js";
 import { threadKey } from "./model.js";
 import { seenRect, whenOffScreen } from "../geometry.js";
 import { gesturedOn } from "./held-news.js";
+import { PENDING } from "./identity.js";
 import { readingIsContinuous } from "../reading-continuity.js";
 
 const TAG = "leaf-thread-list";
@@ -45,6 +46,15 @@ const EMPTY_MODEL = Object.freeze({
   count: null,
   pageSeats: new Map(),
 });
+
+// Whether the user has a reply or a rewrite on its way in `thread`: a message the
+// ledger draws under its pending id, or new words standing over one of theirs
+// (`foldThreads`). A reaction is a mark, not a turn.
+const turnOnItsWay = (thread) =>
+  thread.msgs.some(
+    (message) =>
+      (message.id.startsWith(PENDING) && !message.token) || message.edited?.pending,
+  );
 
 class ThreadListView extends RetainedFace {
   #commands = null;
@@ -114,7 +124,8 @@ class ThreadListView extends RetainedFace {
   // the render that first does, and its card carries the answer while it stays. The
   // user's own gesture on the thread (`gesturedOn`) takes the card in the turn it is
   // drawn, or, while its reply holds words, once the words go ("draft"), so settlement
-  // never puts a draft away; its thread owner folds a settlement out. Anything else is
+  // never puts a draft away; its thread owner folds a settlement out, and widens the
+  // view to hold a thread the user's own turn took out of it. Anything else is
   // news ("news"), and its card stays, holding the news (held-news.js) or drawn as the
   // news left it in the shape it stood in, while its going would move something the
   // user sees: while any of it shows, since every card after it would rise, and, as
@@ -128,13 +139,21 @@ class ThreadListView extends RetainedFace {
     const view = this.#views.get(`thread:${key}`);
     if (this.#intent !== intent || !view?.model.visible || view.model.folding)
       return null;
-    const news = view.model.kept ? view.model.kept === "news" : !gesturedOn(thread);
     const seen =
       readingIsContinuous() &&
       (view.node.open
         ? this.checkVisibility()
         : Boolean(seenRect(view.node, new Map())));
-    const draft = draftHasContent("reply:" + key);
+    const draft = threadHoldsDraft(
+      key,
+      thread.msgs.map(({ id }) => id),
+    );
+    // A turn of the user's own on its way, a reply or a rewrite, makes a card news kept
+    // theirs: the turn takes the card out as any turn of theirs does (thread-card.js,
+    // `#speak`). A reaction, a move or words not yet sent leave it held for the news.
+    const news = view.model.kept
+      ? view.model.kept === "news" && !turnOnItsWay(thread)
+      : !gesturedOn(thread);
     if (news && (seen || draft)) return "news";
     return draft ? "draft" : null;
   }
@@ -166,6 +185,15 @@ class ThreadListView extends RetainedFace {
   inPageOrder(cards) {
     const seats = this.model.pageSeats;
     return [...cards].sort((a, b) => seats.get(a.dataset.id) - seats.get(b.dataset.id));
+  }
+
+  // Whether the card drawn for thread or message `id` stands only for the user's own
+  // words on their way (`keeping`, "draft"): drawn, though the view leaves it out.
+  keepsForWords(id) {
+    const row = this.#rows.find(
+      (row) => row.kind === "thread" && this.#views.get(row.key).ownsMessage(id),
+    );
+    return Boolean(row) && this.#views.get(row.key).model.kept === "draft";
   }
 
   revealNavigation(id) {

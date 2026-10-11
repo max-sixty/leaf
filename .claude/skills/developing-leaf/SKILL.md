@@ -363,9 +363,9 @@ only for a Leaf-specific development contract that neither can exercise. For cas
 in Leaf's suite, run both the merge base and the working tree:
 
 ```bash
-npm ci --prefix evals
+npm ci
 uv run leaf-dev eval [CASE]... --base --harness claude-code|codex [--repeat N]
-npm run view --prefix evals
+npm run eval:view
 ```
 
 `evals/README.md` owns selection, arms, conditions, the case format, where the

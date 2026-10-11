@@ -3779,6 +3779,51 @@ def test_init_refuses_handling_that_a_batch_could_not_carry(
     )
 
 
+def test_the_events_reference_names_the_fields_each_kind_declares():
+    """events.md's kind table agrees with `$events.kinds`, the schema admission enforces.
+
+    The table has one row per declared kind. A code span in a row's Fields cell that
+    opens on a name (`messages: [...]` names `messages`) must be a field that kind
+    declares; parentheses hold values and qualifications, not fields. Every field
+    the kind requires appears in its row, except those the opening paragraph
+    describes once for every kind: the fields all kinds require, `revision`, and
+    the posting session's `agent` and `session`.
+    """
+    kinds = json.loads((schema_model.ASSETS / "registry.json").read_text())["$events"][
+        "kinds"
+    ]
+    text = Path(schema_model.__file__).with_name("events.md").read_text()
+    opening, table = text.split("\n| Kind |", 1)
+    shared = set.intersection(
+        *(set(kind["record"]["required"]) for kind in kinds.values())
+    )
+    described_once = shared | {"revision", "agent", "session"}
+    assert {name for name in described_once if f"`{name}`" not in opening} == set()
+
+    rows = {}
+    for line in table.split("\n\n", 1)[0].splitlines()[2:]:
+        kind, _author, _door, cell, _meaning = (
+            part.strip() for part in line.strip().strip("|").split("|")
+        )
+        while (bare := re.sub(r"\([^()]*\)", "", cell)) != cell:
+            cell = bare
+        rows[kind.strip("`")] = {
+            match[1]
+            for span in re.findall(r"`([^`]*)`", cell)
+            if (match := re.match(r"([a-z_]+)(?::|$)", span))
+        }
+    assert sorted(rows) == sorted(kinds)
+
+    drift = {}
+    for name, named in rows.items():
+        record = kinds[name]["record"]
+        undeclared = named - set(record["properties"])
+        missing = set(record["required"]) - described_once - named
+        if undeclared or missing:
+            drift[name] = {"undeclared": undeclared, "missing": missing}
+    assert drift == {}
+
+
 HANDLING_WALKTHROUGH = """\
 What the agent is told when a user acts on a page
 ===================================================

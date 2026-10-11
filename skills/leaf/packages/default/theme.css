@@ -719,6 +719,10 @@
     & > lf-option > .lf-key-badge {
       top: var(--sp-2);
     }
+    & > lf-options-done > .lf-done > .lf-key-badge {
+      inset-inline-start: auto;
+      inset-inline-end: var(--sp-2);
+    }
     & > .lf-another > .lf-key-badge {
       inset-inline-start: auto;
       inset-inline-end: var(--lf-option-add-badge-inset);
@@ -813,11 +817,19 @@
   background: var(--ok-tint);
 }
 :scope:is(lf-options) > lf-options-done {
+  position: relative;
   display: grid;
   padding: 0;
 }
 :scope:is(lf-options) > lf-options-done > .lf-done {
   width: 100%;
+}
+:scope:is(lf-options) > lf-options-done > .lf-done > .lf-key-badge {
+  z-index: 1;
+  inset-inline-start: var(--lf-key-badge-start);
+  top: 0;
+  bottom: 0;
+  margin: auto 0;
 }
 @media screen {
   :where(:scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *)) > * {

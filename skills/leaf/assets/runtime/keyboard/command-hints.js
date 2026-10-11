@@ -1,7 +1,7 @@
 /* Inline command hints are a projection of the dispatcher's exact reachable bindings.
  *
  * A row or route opts in through `bindingBadge`: an Element lends a widget-positioned
- * face outside every native button; null requests a runtime corner chip. Native command buttons also receive
+ * face; null requests a runtime corner chip. Native command buttons also receive
  * accessible shortcuts without requesting a visual badge. The widget owns placement,
  * while this presenter owns words, visibility and the accessible shortcuts. A lent
  * face keeps its out-of-flow seat even when empty or its command leaves reach. Neither Decision
@@ -20,7 +20,7 @@ import { buttonCommand, commandScope, projectCommandScope } from "./scopes.js";
 import { coveringAuxiliarySurface } from "./register.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
 import { chipSeats } from "./chip-seats.js";
-import { renderedParent, renderedUnder } from "../shadow.js";
+import { renderedUnder } from "../shadow.js";
 import { el } from "../widget-elements.js";
 import { keepsText } from "../keeps.js";
 import { repaint } from "../repaint.js";
@@ -63,15 +63,10 @@ function hintRoutes(available) {
       const bindingBadge = badge === undefined ? undefined : (word(badge) ?? null);
       if (bindingBadge != null && !(bindingBadge instanceof Element))
         throw new TypeError(`leaf: ${contribution.id} has no Element binding badge`);
-      if (bindingBadge) {
-        for (let at = bindingBadge; at; at = renderedParent(at))
-          if (at.matches("button"))
-            throw new TypeError(
-              `leaf: ${contribution.id} binding badge must be outside native buttons`,
-            );
-        if (!bindingBadge.classList.contains("lf-binding-seat"))
-          bindingBadge.classList.add("lf-binding-seat");
-      }
+      // The seat keeps the face out of flow, so filling it never resizes the control
+      // it labels or any control holding it.
+      if (bindingBadge && !bindingBadge.classList.contains("lf-binding-seat"))
+        bindingBadge.classList.add("lf-binding-seat");
       if (!control.isConnected) continue;
       let record = gathered.find(
         (prior) =>

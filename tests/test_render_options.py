@@ -323,7 +323,8 @@ def test_a_live_card_pick_uses_header_state_and_remains_pressable(browser, serve
 
 @pytest.mark.parametrize("cards", [False, True], ids=["rows", "cards"])
 def test_standalone_options_own_their_digit_bindings(browser, serve, cards):
-    """Standalone options own working digits, aligned down their form's badge column."""
+    """Standalone options, their add field and Done own working digits, aligned down
+    their form's badge column."""
     one = "<strong>One</strong> First choice." if cards else "One"
     two = "<strong>Two</strong> Second choice." if cards else "Two"
     page = open_page(
@@ -340,20 +341,23 @@ def test_standalone_options_own_their_digit_bindings(browser, serve, cards):
         ),
     )
     group = page.locator("#choices")
+    done = group.locator(".lf-done")
     page.locator("#outside").focus()
     page.keyboard.press("2")
     rendered(page)
     expect(page.locator("#two")).not_to_have_attribute("chosen", "")
+    unhinted = done.bounding_box()
     page.keyboard.press("q")
     expect(group).to_be_focused()
     hints = group.locator(".lf-key-badge[data-lf-binding-badge]")
-    expect(hints).to_have_text(["1", "2", "3"])
-    done = group.locator(".lf-done")
+    expect(hints).to_have_text(["1", "2", "3", "4"])
+    # Done's digit sits inside the button, out of flow: wearing it moves no edge.
+    assert done.bounding_box() == unhinted
     expect(done).to_have_attribute("aria-keyshortcuts", "4")
     page.keyboard.press("4")
     round_trip(page)
     expect(done).to_have_attribute("aria-pressed", "true")
-    done.click()
+    done.locator(".lf-key-badge").click()
     round_trip(page)
     expect(done).to_have_attribute("aria-pressed", "false")
     positions = hints.evaluate_all(
@@ -2859,7 +2863,7 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
 
 
 def test_a_thread_questions_done_press_keeps_its_keys_and_one_workflow(browser, serve):
-    """Done keeps its native button clear while the bar and ARIA expose its keys.
+    """Done wears its digit in its button while the bar and ARIA expose its keys.
 
     A tick followed by Done are two coordinates. The message carries their shared
     strongest workflow once rather than painting two receipt classifiers.
@@ -2880,7 +2884,7 @@ def test_a_thread_questions_done_press_keeps_its_keys_and_one_workflow(browser, 
     done = question.locator(".lf-done")
     done.focus()
     expect(done).to_have_attribute("aria-keyshortcuts", re.compile(r"\b4\b"))
-    expect(question.locator(":scope > lf-options-done .lf-key-badge")).to_have_count(0)
+    expect(done.locator(".lf-key-badge[data-lf-binding-badge]")).to_have_text("4")
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("Done")
     frame = question.bounding_box()
     done_row = question.locator(":scope > lf-options-done").bounding_box()

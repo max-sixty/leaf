@@ -7,7 +7,7 @@
  * its context identifies one occurrence.
  */
 
-import { sameAnchor } from "./anchor-coordinate.js";
+import { anchorKey } from "./anchor-coordinate.js";
 import { isElementName } from "./registry-contract.js";
 import {
   resolvedElement,
@@ -280,15 +280,15 @@ export function addressableAt(node) {
 // receipt stand at. Markdown block structure is reading geometry, not authored
 // annotation identity. A whole-body formatter replaces one authored data record with
 // paragraphs/lists; its declared host remains the seat that comments and reactions can
-// name durably. A resolved passage's `place` is its first segment's seat.
-export function annotationAt(node) {
+// name durably. A resolved passage's `place` is its first segment's seat; a passage in
+// a datum falls back to the datum, where other text falls back to the nearest
+// addressable element.
+export function annotationAt(node, fallback = addressableAt) {
   const formatted = tagsDeclaring(
     (entry) => entry["x-text-format"] === "markdown",
   ).join(",");
   return (
-    (formatted && closestAcross(node, formatted)) ||
-    blockAt(node) ||
-    addressableAt(node)
+    (formatted && closestAcross(node, formatted)) || blockAt(node) || fallback(node)
   );
 }
 
@@ -781,10 +781,13 @@ export function aimTargets(options = {}) {
       return true;
     });
   }
-  return targets.filter(
-    (target, index) =>
-      !targets.slice(0, index).some((prior) => sameAnchor(prior.anchor, target.anchor)),
-  );
+  const keys = new Set();
+  return targets.filter((target) => {
+    const key = anchorKey(target.anchor);
+    if (keys.has(key)) return false;
+    keys.add(key);
+    return true;
+  });
 }
 
 export function resolveAnchor(anchor) {
@@ -849,7 +852,7 @@ export function resolveAnchor(anchor) {
     return segments.length
       ? {
           ...resolvedPassage({
-            place: annotationAt(segments[0].node) ?? datums[0],
+            place: annotationAt(segments[0].node, () => datums[0]),
             segments,
           }),
           datumElement: datums[0],

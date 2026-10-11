@@ -580,9 +580,9 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     # the routes and wait for any handler already running before their owning page goes.
     page.unroute_all(behavior="wait")
     errors = take_browser_errors(page)
-    assert [error for error in errors if "400" not in error] == [
-        reported.value.text
-    ], errors
+    assert [error for error in errors if "400" not in error] == [reported.value.text], (
+        errors
+    )
 
 
 def test_a_failed_background_presentation_keeps_the_new_undo_authority(browser, serve):

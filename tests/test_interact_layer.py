@@ -1347,7 +1347,7 @@ def test_browser_code_mints_ids_that_work_outside_secure_contexts():
         for source in sorted(root.rglob("*.js"))
         if "vendor" not in source.parts
         and "randomUUID"
-        in re.sub(r"(?<!:)//[^\n]*|/\*.*?\*/", "", source.read_text(), flags=re.S)
+        in re.sub(r"(?<!:)//[^\n]*|/\*.*?\*/", "", source.read_text(), flags=re.DOTALL)
     ]
     assert callers == [], callers
 
@@ -1399,22 +1399,28 @@ def test_kernel_selectors_name_no_package_tag():
 
     leaks = []
     for sheet in sorted(schema_model.ASSETS.rglob("*.css")):
-        if "vendor" in sheet.parts or sheet.read_text().startswith("/* Generated from "):
+        if "vendor" in sheet.parts or sheet.read_text().startswith(
+            "/* Generated from "
+        ):
             continue
         where = sheet.relative_to(schema_model.ASSETS)
         rules = tinycss2.parse_stylesheet(sheet.read_text(), skip_comments=True)
         leaks += [f"{where}: {p}" for p in preludes(rules) if leaks_in(p)]
     query = re.compile(
         r"\.(?:querySelector|querySelectorAll|closest|matches)\(\s*([\"'`])(.*?)\1",
-        re.S,
+        re.DOTALL,
     )
     for module in sorted(schema_model.ASSETS.rglob("*.js")):
         if "vendor" in module.parts:
             continue
-        code = re.sub(r"(?<!:)//[^\n]*|/\*.*?\*/", "", module.read_text(), flags=re.S)
+        code = re.sub(
+            r"(?<!:)//[^\n]*|/\*.*?\*/", "", module.read_text(), flags=re.DOTALL
+        )
         where = module.relative_to(schema_model.ASSETS)
         leaks += [
-            f"{where}: {found[1]}" for found in query.findall(code) if leaks_in(found[1])
+            f"{where}: {found[1]}"
+            for found in query.findall(code)
+            if leaks_in(found[1])
         ]
     assert leaks == [
         "runtime/interaction-gallery.js: lf-tabs",

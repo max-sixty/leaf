@@ -28,6 +28,7 @@ from leaf.read_state import read_contract_error
 from leaf.refusals import Refusal
 from leaf.registry.contract import (
     WRITERS,
+    RegistryError,
     created_child,
     detail_schema,
     event_spec,
@@ -866,7 +867,13 @@ def append_admitted(page, event: dict, *, view=None) -> dict:
     # have moved past admitting it.
     if accepted := page.matching_attempt(event):
         return accepted
-    if refusal := foreign_event_contract(page.page_dir, layer_metadata(page.page_dir)):
+    try:
+        layer = layer_metadata(page.page_dir)
+    except RegistryError:
+        # A broken or missing candidate registry does not invalidate an active
+        # revision's captured vocabulary. Admission will read that vocabulary.
+        layer = None
+    if layer is not None and (refusal := foreign_event_contract(page.page_dir, layer)):
         raise EventRefused(refusal)
     return page._append_record(
         admitted_event(

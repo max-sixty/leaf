@@ -2640,6 +2640,31 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
     expect(widget.locator(".lf-trace-input-badge")).to_have_text(
         re.compile(r"^\d+\.\d{3} s · after Click$")
     )
+    # Past that stop, outside every input call, the Click no longer applies,
+    # though its After checkpoint is still the latest stop.
+    after = stop_time(record, pointer["phases"]["after"])
+    following = min(
+        (action for action in inputs if action["startTime"] > after),
+        key=lambda action: action["startTime"],
+    )
+    gap = (max(after, pointer["endTime"]) + following["startTime"]) / 2
+    widget.get_by_role("button", name="Zoom in", exact=True).click()
+    widget.get_by_role("button", name="Zoom in", exact=True).click()
+    bar = widget.locator(f'.lf-trace-input-bar[data-id="{following["id"]}"]')
+    bar.scroll_into_view_if_needed()
+    rendered(user)
+    first, last = (
+        widget.locator(f'.lf-trace-input-bar[data-id="{action["id"]}"]').bounding_box()
+        for action in (pointer, following)
+    )
+    scale = (last["x"] - first["x"]) / (following["startTime"] - pointer["startTime"])
+    ruler = widget.locator(".lf-trace-ruler").bounding_box()
+    user.mouse.click(first["x"] + (gap - pointer["startTime"]) * scale, ruler["y"] + 8)
+    rendered(user)
+    origin = record["streams"][0]["monotonicTime"]
+    at = float(widget.locator(".lf-trace-position").inner_text().removesuffix(" s"))
+    assert max(after, pointer["endTime"]) < at * 1000 + origin < following["startTime"]
+    expect(widget.locator(".lf-trace-input-badge")).to_be_hidden()
     navigate_to_phase(
         timeline, f"trace-{record['archive']['sha256']}-phase-{pointer['id']}-action"
     )

@@ -1543,13 +1543,19 @@ customElements.define(
       return this.#actions().filter((action) => action.input);
     }
 
-    // The input the shown evidence concerns: the selected checkpoint's own input
-    // call, or an input call the playhead stands inside. Nothing else.
+    // The input the shown evidence concerns: the input call of the checkpoint the
+    // playhead stands on, or an input call the playhead stands inside. Between
+    // stops, the last checkpoint's call no longer applies once it has ended.
     #currentInput() {
       const point = this.#point();
-      if (point?.action?.input && INPUT_PHASES[point.phase]) return point.action;
       const time = this.#playheadTime();
       if (time === null) return null;
+      if (
+        point.action?.input &&
+        INPUT_PHASES[point.phase] &&
+        Math.abs(time - point.timestamp) < 0.5
+      )
+        return point.action;
       return (
         this.#inputActions().find(
           (action) =>

@@ -43,7 +43,14 @@ from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf_dev import ROOT
-from leaf_dev.arms import codex_home, copy_working, environment, run_directory
+from leaf_dev.arms import (
+    codex_home,
+    codex_program,
+    copy_working,
+    environment,
+    install_codex_plugin,
+    run_directory,
+)
 from leaf_dev.browser import chrome
 from leaf_dev.site import asset_site, install_tree
 from leaf_dev.startup import observe_startup as record_startup
@@ -591,7 +598,8 @@ def ready_origin(log: Path, event: str, path: str) -> str | None:
 @contextmanager
 def local_adapter() -> Iterator[tuple[str, str]]:
     """Build the site and serve it with the website adapter under a temporary copy of
-    the host's Codex login, removed with the adapter's pages and task history."""
+    the host's Codex login and a normal Leaf plugin installation, removed with the
+    adapter's pages and task history."""
     out = run_directory(ROOT / ".tmp" / "verify-site")
     log = out / "website-adapter.log"
     with (
@@ -612,17 +620,31 @@ def local_adapter() -> Iterator[tuple[str, str]]:
             check=True,
         )
         release = json.loads((site / "_leaf" / "site.json").read_text())["release"]
+        child_env = environment(
+            CODEX_HOME=str(home),
+            LEAF_SITE_ROOT=str(site),
+            XDG_STATE_HOME=str(root / "state"),
+        )
+        # Building the pages ran this installation's launcher and created its
+        # environment. Native marketplace installation copies the whole payload,
+        # so give it only the prepared plugin, as the container image does.
+        plugin = root / "leaf-plugin"
+        shutil.copytree(
+            install_tree(site),
+            plugin,
+            ignore=shutil.ignore_patterns(".venv", "__pycache__"),
+        )
+        with logged(out / "plugin-install.log") as install_output:
+            install_codex_plugin(
+                codex_program(), plugin, cwd=ROOT, env=child_env, output=install_output
+            )
         with serving(
             [*serve_site(install_tree(site)), "--port", "0"],
             output,
             lambda: ready_origin(log, "container_http_ready", "/health"),
             30,
             cwd=ROOT,
-            env=environment(
-                CODEX_HOME=str(home),
-                LEAF_SITE_ROOT=str(site),
-                XDG_STATE_HOME=str(root / "state"),
-            ),
+            env=child_env,
         ) as origin:
             yield origin, release
 
@@ -651,6 +673,7 @@ def local_worker() -> Iterator[tuple[str, str]]:
             copy_working(
                 [
                     "Dockerfile.website",
+                    "Dockerfile.website.dockerignore",
                     "package.json",
                     "pnpm-lock.yaml",
                     "pnpm-workspace.yaml",

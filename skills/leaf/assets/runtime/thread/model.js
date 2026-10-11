@@ -380,7 +380,7 @@ export function readThreadRecords(
         key: messageKey(message),
         body,
         // The message's own inputs, its first words and each rewrite of them, and the
-        // moves on widgets frozen into it, in the published order `strongestWorkflow`
+        // actions on widgets frozen into it, in the published order `strongestWorkflow`
         // reads.
         workflows: workflows.filter(
           (workflow) =>

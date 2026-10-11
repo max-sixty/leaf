@@ -339,7 +339,7 @@ export interface AuthoritativeState {
         };
         undo: { event: Event }[];
         coverage: Coverage[];
-        updates: object[];
+        reports: object[];
         published_at: string | null;
         queues: WireQueues;
         /** For each widget an answer on would close a thread: that thread, the verbs
@@ -1120,7 +1120,7 @@ export function createSemanticApplication({
         done: contextual(selectedQueues.done),
       },
       // Inside the publication signature, so a read that changes only the view's
-      // updates, publication time, or undo list still reaches its watchers.
+      // reports, publication time, or undo list still reaches its watchers.
       view,
       // The attempts still waiting for their POST's answer, in ledger order.
       sending: unresolved

@@ -11,7 +11,7 @@ from ..passages import SourceReading
 from ..projection import (
     FrozenThreadReading,
     StateProjection,
-    canonical_updates,
+    canonical_reports,
     page_reading,
 )
 from ..questions import approval_blocking, answer_verbs, closed_thread, collection
@@ -260,7 +260,7 @@ def browser_state(
                 threads,
             ),
             "document": document,
-            "updates": canonical_updates(projection),
+            "reports": canonical_reports(projection),
             "undo": browser_undo_candidates(
                 events,
                 reading,

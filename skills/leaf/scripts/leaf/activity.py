@@ -110,7 +110,7 @@ def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
         }
     ]
     # `partial` is a turn that completed without a final answer: it ended with
-    # the move unanswered.
+    # the update unanswered.
     condition = {
         "disconnected": "stale",
         "interrupted": "interrupted",
@@ -153,8 +153,8 @@ def answer_command(answer: dict) -> str:
 
 
 def unanswered(obligations: list[dict], of: str = "") -> str:
-    """Say how many user moves have no answer and name what answers each. `of`
-    narrows which moves these are, such as the acknowledged ones."""
+    """Say how many user updates have no answer and name what answers each. `of`
+    narrows which updates these are, such as the acknowledged ones."""
     commands = "; ".join(answer_command(item["answer"]) for item in obligations)
     updates = f"user update{'s' if len(obligations) != 1 else ''}"
     return (
@@ -164,11 +164,11 @@ def unanswered(obligations: list[dict], of: str = "") -> str:
 
 
 def _turn_wrote(obligation: dict, state: dict) -> bool:
-    """Whether the claimant's open turn finished the reply it owes this move.
+    """Whether the claimant's open turn finished the reply it owes this update.
 
     A provider-owned reply is written by the claimant's own turn, and the App Server
     client commits it once the turn ends, after the agent's last command. So the
-    move is answered now when the turn's final message is complete, with text, in
+    update is answered now when the turn's final message is complete, with text, in
     the reply draft bound to it."""
     draft = obligation.get("response") or {}
     return bool(
@@ -181,7 +181,7 @@ def _turn_wrote(obligation: dict, state: dict) -> bool:
 
 
 def acknowledged_obligations(state: dict) -> list[dict]:
-    """The owed answers whose moves the page cursor has passed, which nothing will
+    """The owed answers whose updates the page cursor has passed, which nothing will
     deliver again."""
     return [
         obligation
@@ -194,8 +194,8 @@ def blocking_obligations(state: dict, *, watched: bool) -> list[dict]:
     """The owed answers that keep the agent from idling the page, and from which
     the Stop hook takes the ones that hold its turn (`turn_obligations`).
 
-    `leaf status idle` refuses over exactly these: the acknowledged moves nothing
-    else is set to answer. A move the adapter queued is answered by the later turn
+    `leaf status idle` refuses over exactly these: the acknowledged updates nothing
+    else is set to answer. An update the adapter queued is answered by the later turn
     the queue opens, where the prompt hook records it `opened` and it blocks from
     then on. A provider reply the open turn has finished is committed by the
     claimant's App Server client once the turn ends, so it is answered while the
@@ -209,12 +209,12 @@ def blocking_obligations(state: dict, *, watched: bool) -> list[dict]:
 
 
 def started_in_turn(obligation: dict, state: dict) -> bool:
-    """Whether the claimant's open turn took this move in hand (`tasks.take_in_hand`)
-    after it was delivered: a start covering the move
-    (`workflows.canonical_workflows`, `started_by`) that turn wrote since the move's
+    """Whether the claimant's open turn took this update in hand (`tasks.take_in_hand`)
+    after it was delivered: a start covering the update
+    (`workflows.canonical_workflows`, `started_by`) that turn wrote since the update's
     pickup.
 
-    Read from the covering starts rather than the move's Working stage, which follows
+    Read from the covering starts rather than the update's Working stage, which follows
     the one input a start names: a thread's one reply answers every input it holds,
     so a start on an earlier input there covers the newest that carries the answer."""
     if state["turn_closed"] is not None or state["claim_turn"] is None:
@@ -232,12 +232,12 @@ def turn_obligations(state: dict, *, watched: bool) -> list[dict]:
     """The owed answers that hold the claimant's turn open: the blocking ones its
     open turn has not started.
 
-    A start is the agent's answer for now, shown beside the move, and work that
+    A start is the agent's answer for now, shown beside the update, and work that
     outlasts the turn runs in background workers whose results wake a later turn
     (`references/conversation-loop.md`, "Long-running work"). So the turn that
-    started the move may end over it. The start does not carry into the next turn:
-    that turn answers the move or starts it again, and the page reports the start's
-    turn ended once nothing renews it. Idling still refuses over a started move,
+    started the update may end over it. The start does not carry into the next turn:
+    that turn answers the update or starts it again, and the page reports the start's
+    turn ended once nothing renews it. Idling still refuses over a started update,
     since closing the page answers nothing."""
     return [
         obligation
@@ -378,7 +378,7 @@ def _start_age(
 def _canonical_workflows(
     evidence: list[dict], present: dict, now: datetime, *, held: bool, turn: Turn
 ) -> tuple[list[dict], dict[str, tuple[bool, bool]]]:
-    """Age each workflow's evidence, and return beside them, for each Working move,
+    """Age each workflow's evidence, and return beside them, for each Working update,
     the start that holds it and how quiet and whether dropped that start is, which
     the page reading below dates by."""
     result = []
@@ -412,7 +412,7 @@ def _canonical_workflows(
 def _canonical_tasks(
     tasks: list[dict], present: dict, now: datetime, *, held: bool, turn: Turn
 ) -> tuple[list[dict], dict[str, tuple[dict, bool, bool]]]:
-    """Age the start running on each open task as a Working move's is aged, and
+    """Age the start running on each open task as a Working update's is aged, and
     return beside them, for each task a start ran on, that start and how quiet and
     whether dropped it is. A task's `running` is the start that holds it: one gone
     quiet holds nothing, so every reader of the task finds it open with nothing
@@ -502,7 +502,7 @@ def canonical_activity(
                 "attempt": binding["attempt"],
             }
 
-    # The items in hand: each Working move, by the start that holds it, and each task
+    # The items in hand: each Working update, by the start that holds it, and each task
     # a start runs on, each beside how quiet and whether dropped that start is. Their
     # newest start is the line the banner shows.
     in_hand = [
@@ -539,14 +539,14 @@ def canonical_activity(
         moment + grace for moment, grace in lapses if moment and moment + grace > now
     ]
 
-    # Page activity counts the moves the agent owes, one per answer. A receipt
-    # reports delivery for every move the user handed over, but a move that owes
+    # Page activity counts the updates the agent owes, one per answer. A receipt
+    # reports delivery for every update the user handed over, but an update that owes
     # nothing, an input a newer one in its thread answers through, and a failed
     # answer the user must resend are no work the banner may promise the agent
     # picks up.
     obligations = [item for item in workflows if item["answer"] is not None]
     in_hand_now = [(start, age) for start, age in in_hand if not age[0]]
-    active_moves = [
+    active_updates = [
         item
         for item in obligations
         if item["stage"] in {"working", "replying"} and item["condition"] is None
@@ -564,7 +564,7 @@ def canonical_activity(
             continue
         # Pickup remains durable history; the condition says the exact turn it
         # entered is no longer a running turn handling it now: that turn was seen
-        # to end, or nothing says whether it runs, or the move was opened in some
+        # to end, or nothing says whether it runs, or the update was opened in some
         # other, older turn.
         item["condition"] = {
             "kind": "ended"
@@ -574,7 +574,7 @@ def canonical_activity(
         }
     queued = [item for item in obligations if item["stage"] == "queued"]
     pending = [item for item in obligations if item["stage"] == "sent"]
-    # Owed moves that stalled with the agent to act: left by a turn seen to end
+    # Owed updates that stalled with the agent to act: left by a turn seen to end
     # or be interrupted before answering, or still unpicked past the pickup grace.
     # With nothing taking input, these are what only a nudge will move. Work merely
     # gone quiet is left out, since a turn Leaf stopped believing in may still be
@@ -654,10 +654,10 @@ def canonical_activity(
             observed and kind == "working" and observed["kind"] in AWAITING_KINDS
         ),
         "counts": {
-            "active": len(active_moves),
+            "active": len(active_updates),
             "handling": len(handling),
-            # Of those, the moves in a thread: comments. The rest are widget moves in
-            # an answered Question, the only widget moves that owe an answer.
+            # Of those, the updates in a thread: comments. The rest are widget actions in
+            # an answered Question, the only widget actions that owe an answer.
             "handling_comments": sum(
                 item["subject"]["kind"] == "thread" for item in handling
             ),

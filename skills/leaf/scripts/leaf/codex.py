@@ -12,7 +12,7 @@ turn's own connection to its end (`CarriedTurn`), the writers that put those
 readings on a claimed page, and the durable records a delivery passes through.
 
 A delivery record under the state home is the handoff between Leaf capturing a
-user's moves and a transport taking them. One record is offered once, accepted once,
+user's updates and a transport taking them. One record is offered once, accepted once,
 and receipted per page batch, whichever transport carried it — an App Server turn or
 the `codex queue` command, or a tool or Stop hook — so preparing, accepting, opening
 and abandoning one live here rather than beside either client. The immutable
@@ -1005,7 +1005,7 @@ class AppServerReplyStream:
         """Commit only a completed final, retaining rejected or partial text.
 
         A completed answer retains its delivered response address even when that
-        move was settled during the turn. The reply reopens the thread.
+        update was settled during the turn. The reply reopens the thread.
 
         A commit appends the reply, then clears its binding and draft in a
         separate transaction. Every other way out releases the binding, including
@@ -1150,7 +1150,7 @@ class TurnFold:
     session generation; an old fold cannot clear or close a newer lifetime that
     reuses the provider ID. Historical answer settlement borrows no live authority.
     `close` closes only that generation and id; delivery acceptance only records which turn
-    took the moves. A client opens a fold's turn only while it runs, so a turn
+    took the updates. A client opens a fold's turn only while it runs, so a turn
     read back from a snapshot after it ended is committed without reopening it.
 
     What differs between clients is only how notifications reach the fold.
@@ -2172,8 +2172,8 @@ def finish_abandoned_batch(path: Path, batch_index: int, batch: dict) -> None:
         _receipt_completed(path, batch_index)
 
 
-def delivery_owed_moves(payload: dict) -> list[dict]:
-    """Every move in one delivery that was owed an answer when it was captured,
+def delivery_owed_updates(payload: dict) -> list[dict]:
+    """Every update in one delivery that was owed an answer when it was captured,
     whatever answer it takes."""
     return [
         {"page": batch["page"], "responds": event["id"]}

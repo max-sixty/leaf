@@ -23,7 +23,7 @@
    is: the passage or section it stands at, and its age, stage or outcome. A press or
    Enter on a row arrives exactly as `q` does (`queue-walk.js`, `arriveAtItem`), so the
    panel and the walk cannot disagree about where an item is. A Question's row, and the row
-   of a page widget move the user must send again, stands at that element
+   of a page widget action the user must send again, stands at that element
    (`declareSide`), so a walk or a comment from a focused row starts there. A row whose
    task the user ends with Done carries that Done (`queue-list.js`), the walk's own
    (`queue-api.js`, `done`).
@@ -180,7 +180,7 @@ export function createQueuePanel({ actions, next, announce }) {
       return [workflowLabel(item.workflow), shortAgo(item.workflow?.ts)]
         .filter(Boolean)
         .join(" · ");
-    // A task the agent has in hand says the line its start gave, as a move in hand does.
+    // A task the agent has in hand says the line its start gave, as an update in hand does.
     if (item.kind === "task" && item.running)
       return [item.running.text, shortAgo(item.running.ts)].filter(Boolean).join(" · ");
     return "";
@@ -209,8 +209,8 @@ export function createQueuePanel({ actions, next, announce }) {
       .filter(Boolean)
       .join(" · ");
     const words = queueTitle(item);
-    // The element a row stands at: a Question, or a page widget whose move the user must send
-    // again. A reply the agent owes a move stands nowhere, so a Question's own row is the one
+    // The element a row stands at: a Question, or a page widget whose action the user must send
+    // again. A reply the agent owes an update stands nowhere, so a Question's own row is the one
     // row standing at it.
     const at =
       noun === "question" ||

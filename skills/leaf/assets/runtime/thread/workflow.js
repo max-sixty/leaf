@@ -59,7 +59,7 @@ export const isPageWidgetWorkflow = (workflow, revision) =>
   workflow.revision <= revision;
 
 // A send this tab has not delivered is the only workflow at `sending`. It ranks below
-// every served workflow with the same next actor, and a move that is the user's to
+// every served workflow with the same next actor, and an update that is the user's to
 // make still ranks above every one that is the agent's.
 const tier = (workflow) =>
   (workflow.next_actor === "user" ? 0 : 2) + Number(workflow.stage === "sending");
@@ -104,7 +104,7 @@ export function threadAttention(thread) {
         .join(" · "),
     });
   }
-  // A task the agent opened on the thread holds it after the move it answered has
+  // A task the agent opened on the thread holds it after the update it answered has
   // settled; its title says what the agent still owes, and while a start runs on it,
   // that start's line says what the agent is doing about it.
   if (thread.attention?.kind === "waiting" && thread.attention.reason === "task") {

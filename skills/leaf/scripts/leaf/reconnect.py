@@ -146,7 +146,7 @@ def publishing_notices(
                 command = shlex.join(["leaf", "server", "start", key])
                 messages.append(
                     f"Your Leaf page needs reconnecting: {page_dir}. "
-                    "Restore its server and feedback delivery with:\n"
+                    "Restore its server and the delivery of updates with:\n"
                     f"```sh\n{command}\n```"
                 )
         yield messages

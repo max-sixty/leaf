@@ -31,7 +31,7 @@ class WorkState(NamedTuple):
 
 
 # Delivery progress, furthest last. `answered` is only ever the retained failed
-# response, so within its category it is the furthest a move has come.
+# response, so within its category it is the furthest an update has come.
 _STAGE_RANK = {
     "sent": 0,
     "queued": 1,
@@ -48,7 +48,7 @@ def at_work(workflow: dict) -> bool:
 
 def _strength(workflow: dict) -> tuple:
     """How strongly a workflow speaks for any surface that shows one of several: a
-    move handed back to the user first, then work under way, then an uncertain or
+    update handed back to the user first, then work under way, then an uncertain or
     stopped one, then plain delivery; within each the further stage, then the newer
     input."""
     if workflow["condition"] is not None:
@@ -79,8 +79,8 @@ def served_workflows(
     `thread` is the thread the workflow stands in: a thread input's own, a widget
     frozen into a message's thread, or null for a page widget. `holds_thread` is
     whether it keeps that thread the agent's turn: every one of the thread's own
-    inputs, and a widget move frozen into it while the move is owed or the agent is
-    at work on it. A frozen move that owes nothing shows its receipt on
+    inputs, and a widget action frozen into it while the action is owed or the agent is
+    at work on it. A frozen action that owes nothing shows its receipt on
     its message and leaves the thread nobody's turn.
 
     The order is the one comparator: whatever shows one workflow of several, a

@@ -27,6 +27,6 @@ assert:
     delivery ack`, `leaf wait --ack`, or `leaf delivery read`), and a written
     command takes the comment's work in hand before any edit, with a line saying
     what the work is: `leaf task start /tmp/review comment-a "<a line>"`, or a
-    progress update `leaf response reply dc81eabb:0:comment-a --ephemeral
+    progress message `leaf response reply dc81eabb:0:comment-a --ephemeral
     --text "<a line>"`. Fail if a command starts `leaf wait`. Reading instructions
     or page state first is fine.

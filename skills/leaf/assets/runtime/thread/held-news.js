@@ -69,9 +69,9 @@
      is a move within it, such as Escape out of its reply box onto its title or going to
      a Question it already shows;
    - acting in it (`gesturedOn`): a reply, a reaction on one of its messages, settling
-     it, a move on a widget one of them holds or one that closes it, as accepting the
-     suggestion it asked for does, or a thread they start in the seat, which answers
-     what came before it and so follows it;
+     it, an action on a widget one of them holds or one that closes it, as accepting
+     the suggestion it asked for does, or a thread they start in the seat, which
+     answers what came before it and so follows it;
    - changing the panel's view, which moves its cards anyway.
 
    Held news also shows once growth anywhere in the seat would move nothing the user

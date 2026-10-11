@@ -8,6 +8,40 @@
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <style>
+      #turn-end-check .node.goes rect {
+        fill: var(--warn-tint);
+        stroke: var(--warn);
+      }
+      #turn-end-check .node.goes :is(text, tspan) {
+        fill: var(--warn-ink);
+      }
+      #turn-end-check .node.ends rect,
+      #updates-diagram .node.leaf rect,
+      #data-flow .node.computed rect {
+        fill: var(--ok-tint);
+        stroke: var(--ok);
+      }
+      #turn-end-check .node.ends :is(text, tspan),
+      #updates-diagram .node.leaf :is(text, tspan),
+      #data-flow .node.computed :is(text, tspan) {
+        fill: var(--ok-ink);
+      }
+
+      #arch .node.dim :is(rect, path, polygon, circle) {
+        fill: var(--paper);
+        stroke: var(--rule);
+      }
+      #arch .node.dim :is(text, tspan) {
+        fill: var(--muted);
+      }
+      #browser-flow .node.computed rect {
+        fill: var(--ok-tint);
+        stroke: var(--ok);
+      }
+      #browser-flow .node.computed :is(text, tspan) {
+        fill: var(--ok-ink);
+      }
+
       /* The Layout tab's drawings are the theme's svg.drawing idiom. A figure of several
          panels sets them side by side and stacks them on a narrow window, so no panel's
          words shrink past reading. */
@@ -137,11 +171,7 @@
               drags back to the server.
             </p>
 
-            <lf-diagram
-              id="arch"
-              data-height="770"
-              parts="node:Harness node:Agent node:Watcher node:Leaf node:CLI node:Server node:Dir node:Browser"
-            >
+            <lf-diagram id="arch" data-height="839" parts="all">
               <pre>
 flowchart TD
   accTitle: Harness, Leaf and browser
@@ -163,7 +193,6 @@ flowchart TD
   Agent -. "edits index.html" .-&gt; Dir
   CLI -.- Dir
   Server -.- Dir
-  classDef dim fill:var(--paper),stroke:var(--rule),color:var(--muted),stroke-width:1px
   class Dir dim
 </pre>
             </lf-diagram>
@@ -405,12 +434,14 @@ leaf page stamp ./review --text "Queue policy: drop oldest"</code></pre>
                   when the user presses Done.
                 </p>
                 <p id="feedback-envelope">
-                  A delivery uses the <code>leaf-delivery-v3</code> JSON format. Its
+                  A delivery uses the <code>leaf-delivery-v5</code> JSON format. Its
                   envelope contains one or more page batches, preserving the captured
                   event order, thread context, and handling instructions. A delivery id
                   supplied by the harness names this whole envelope; an event's
                   <code>id</code> names one recorded input. The agent opens a delivery
-                  pointer with <code>leaf delivery read &lt;delivery-id&gt;</code>.
+                  pointer with <code>leaf delivery read &lt;delivery-id&gt;</code>,
+                  follows its <code>next</code> commands through every part, then runs
+                  the displayed <code>acknowledge</code> instruction.
                 </p>
                 <table id="delivery-fields">
                   <thead>
@@ -604,11 +635,7 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
                   waits for the next turn, or goes in with whatever else keeps this turn
                   going.
                 </p>
-                <lf-diagram
-                  id="turn-end-check"
-                  data-height="1000"
-                  parts="node:Stop node:New node:Hand node:Again node:Owed node:Claimed node:Watched node:Remind node:Ends"
-                >
+                <lf-diagram id="turn-end-check" data-height="989" parts="all">
                   <pre>
     flowchart TD
       accTitle: Checks before an agent turn ends
@@ -626,8 +653,6 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
       Watched -- yes --&gt; Ends
       Hand -.-&gt; Stop
       Remind -. the agent acts, then ends again .-&gt; Stop
-      classDef goes fill:var(--warn-tint),stroke:var(--warn),color:var(--warn-ink)
-      classDef ends fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)
       class Hand,Remind goes
       class Ends ends
     </pre>
@@ -707,7 +732,12 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
                       confirm receipt when its transport requires it, or wait for
                       feedback directly.
                     </td>
-                    <td><code>leaf delivery read</code><br /><code>leaf wait</code></td>
+                    <td>
+                      <code>leaf delivery read</code><br /><code
+                        >leaf delivery ack</code
+                      >
+                      <br /><code>leaf wait</code>
+                    </td>
                   </tr>
                   <tr>
                     <td>
@@ -811,12 +841,15 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
               only once it has published it, well inside that timeout. When the delivery
               is too large for the turn's context, or the hook ran too slowly to confirm
               it, the hook hands over a pointer instead, and the agent's
-              <code>leaf delivery read &lt;delivery-id&gt;</code> confirms it. A Codex
-              task running its own wait confirms with
-              <code>leaf wait --ack &lt;delivery-id&gt;</code>; printed output can be
-              lost or cut off, so until then the events stay available to the next wait.
-              The Codex adapter confirms each delivery itself, so the agent starts no
-              <code>leaf wait</code> of its own.
+              <code>leaf delivery read &lt;delivery-id&gt;</code> reads it without
+              confirming receipt. The agent follows any <code>next</code> commands until
+              every part is in context, then confirms with
+              <code>leaf delivery ack &lt;delivery-id&gt;</code>, as the reading's
+              <code>acknowledge</code> instruction says. A Codex task running its own
+              wait confirms with <code>leaf wait --ack &lt;delivery-id&gt;</code>;
+              printed output can be lost or cut off, so until then the events stay
+              available to the next wait. The Codex adapter confirms each delivery
+              itself, so the agent starts no <code>leaf wait</code> of its own.
               <a href="#stages-picked">Stages of a move</a> shows what sets Picked up
               under each harness.
             </p>
@@ -832,9 +865,10 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
                   <td>Claude Code</td>
                   <td>
                     Harness hooks supply feedback when a turn starts or ends and wake
-                    the session between turns. The hook confirms an inline delivery;
-                    reading a delivery pointer confirms receipt instead. The agent
-                    answers with <code>leaf response reply &lt;answer.ref&gt;</code>.
+                    the session between turns. The hook confirms an inline delivery; a
+                    pointer requires reading every part and following its explicit
+                    acknowledgement instruction. The agent answers with
+                    <code>leaf response reply &lt;answer.ref&gt;</code>.
                   </td>
                 </tr>
                 <tr>
@@ -842,8 +876,9 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
                   <td>
                     Leaf's extension watches the session's pages as each run settles and
                     puts the delivery in a new run, or in the current run after its tool
-                    calls. The extension confirms an inline delivery; reading a delivery
-                    pointer confirms receipt instead. The agent answers with
+                    calls. The extension confirms an inline delivery; a pointer requires
+                    reading every part and following its explicit acknowledgement
+                    instruction. The agent answers with
                     <code>leaf response reply &lt;answer.ref&gt;</code>.
                   </td>
                 </tr>
@@ -852,8 +887,9 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
                   <td>
                     Leaf's adapter queues a delivery id for the next turn; a tool hook
                     can supply one during work. The adapter confirms queued receipt. For
-                    a tool-hook delivery, reading the id confirms receipt. The agent
-                    posts its answer with
+                    a tool-hook delivery, the agent reads every part and follows its
+                    explicit acknowledgement instruction. The agent posts its answer
+                    with
                     <code>leaf response reply &lt;answer.ref&gt;</code>.
                   </td>
                 </tr>
@@ -939,10 +975,6 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/harness-claude-code.md"
                   >Claude Code</a
-                >,
-                <a
-                  href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/harness-pi.md"
-                  >Pi</a
                 >,
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/harness-codex.md"
@@ -1065,8 +1097,8 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
                   <td>
                     <p>
                       <strong>Claude Code and Pi.</strong> The prompt or Stop hook put
-                      the delivery in the agent's turn, or the agent read the pointer
-                      the hook put there with <code>leaf delivery read</code>.
+                      the delivery in the agent's turn, or the agent confirmed the
+                      complete pointer reading with <code>leaf delivery ack</code>.
                     </p>
                     <p>
                       <strong>A <code>leaf wait</code> loop.</strong> The agent's next
@@ -1075,8 +1107,8 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
                     </p>
                     <p>
                       <strong>Codex.</strong> The turn that the queued message opens
-                      began, or the agent read the delivery mid-turn with
-                      <code>leaf delivery read</code>.
+                      began, or the agent confirmed a complete mid-turn reading with
+                      <code>leaf delivery ack</code>.
                     </p>
                     <p>
                       <strong>Codex App Server.</strong> App Server opened the turn that
@@ -1174,10 +1206,7 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
               diagram shows where each update appears; starting work puts its line in
               the banner and beside the move or task being handled.
             </p>
-            <lf-diagram
-              id="updates-diagram"
-              parts="node:Sources node:Reply node:Awaits node:Stamp node:Report node:Status node:Pickup node:Turn node:Reads node:Banner node:Beside node:Thread node:Queue node:Versions node:Widget"
-            >
+            <lf-diagram id="updates-diagram" parts="all">
               <pre>
 flowchart LR
   accTitle: Agent commands and visible outcomes
@@ -1208,7 +1237,6 @@ flowchart LR
   Turn --&gt; Banner
   Turn --&gt; Beside
   Pickup --&gt; Beside
-  classDef leaf fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)
   class Pickup,Turn leaf
 </pre>
             </lf-diagram>
@@ -1374,10 +1402,7 @@ flowchart LR
                 agent renew its start before Leaf reports that the work stopped.
               </li>
             </ul>
-            <lf-diagram
-              id="updates-decision"
-              parts="node:Idle node:Alive node:Believed node:Taking node:Stale node:Stuck node:Closed node:Unheld node:Working node:Stalled node:Listening node:Nudge node:Away"
-            >
+            <lf-diagram id="updates-decision" parts="all">
               <pre>
 flowchart TD
   accTitle: How Leaf describes agent activity
@@ -2661,7 +2686,7 @@ flowchart TD
               A thread card opens beside its marker in the margin. If the margin is
               narrower than the card, it overlaps the text's edge. The Threads panel and
               the Questions panel open over the page's right edge, one at a time, and
-              the Leaves drawer over its left.
+              the Pages drawer over its left.
             </p>
 
             <div class="panels" id="chrome-figure">
@@ -2771,7 +2796,7 @@ flowchart TD
                 <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>
                     The Threads or Questions panel opens over the page's right edge, the
-                    Leaves drawer over its left
+                    Pages drawer over its left
                   </title>
                   <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
                   <rect class="frame-head" x="2" y="2" width="236" height="18" rx="5" />
@@ -2808,9 +2833,7 @@ flowchart TD
                   />
                   <g id="chrome-leaves-drawer">
                     <rect class="over" x="6" y="24" width="72" height="112" rx="5" />
-                    <text class="strong" x="42" y="44" text-anchor="middle">
-                      Leaves
-                    </text>
+                    <text class="strong" x="42" y="44" text-anchor="middle">Pages</text>
                     <text class="strong" x="42" y="58" text-anchor="middle">
                       drawer
                     </text>
@@ -2827,8 +2850,8 @@ flowchart TD
                 </svg>
                 <figcaption id="cap-chrome-surfaces">
                   <strong>Panels over the page</strong>The Threads and Questions panels
-                  share the right edge, one at a time, and the Leaves drawer opens on
-                  the left. The page keeps its width underneath.
+                  share the right edge, one at a time, and the Pages drawer opens on the
+                  left. The page keeps its width underneath.
                 </figcaption>
               </figure>
               <figure id="chrome-card">
@@ -3482,10 +3505,7 @@ flowchart TD
               revisions, an append-only event log, and JSON files containing the latest
               external values.
             </p>
-            <lf-diagram
-              id="data-flow"
-              parts="node:Writers node:Agent node:You node:Cmd node:Proc node:Dir node:Rev node:Log node:Data node:Read node:Browser node:PageState node:Local"
-            >
+            <lf-diagram id="data-flow" parts="all">
               <pre>
 flowchart TD
   accTitle: Page files, event log and external data produce current state
@@ -3511,7 +3531,6 @@ flowchart TD
   Read --&gt; Browser["user's browser"]
   Read --&gt; PageState["agent: leaf page state"]
   Browser -.- Local["this browser only: view state, drafts"]
-  classDef computed fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)
   class Read computed
 </pre>
             </lf-diagram>
@@ -3720,11 +3739,7 @@ flowchart TD
               server's latest reading of the page's state; and the user's moves that the
               server has not yet answered.
             </p>
-            <lf-diagram
-              id="browser-flow"
-              data-height="380"
-              parts="node:Inputs node:Doc node:Reading node:Pending node:Current node:Parts node:User node:Server"
-            >
+            <lf-diagram id="browser-flow" data-height="387" parts="all">
               <pre>
 flowchart LR
   accTitle: Browser runtime inputs
@@ -3746,7 +3761,6 @@ flowchart LR
   Pending -- "POST /api/event" --&gt; Server
   Server -- "answer, with a state reading" --&gt; Reading
   Server -- "GET /api/state when the freshness token changes" --&gt; Reading
-  classDef computed fill:var(--ok-tint),stroke:var(--ok),color:var(--ok-ink)
   class Current computed
 </pre>
             </lf-diagram>
@@ -3774,7 +3788,7 @@ flowchart LR
               A visible tab asks the server for a short freshness token about four times
               a second (<code>GET /api/news</code>). The token is a digest of the page
               directory's file stamps and of the agent's presence: whether its session
-              is alive, in a turn, or watching, and the neighboring pages the Leaves
+              is alive, in a turn, or watching, and the neighboring pages the Pages
               drawer shows. A new revision, an appended event, a replaced data source or
               a change in the agent's activity therefore changes it. When the token
               differs from the one behind the state the tab last applied, the tab reads

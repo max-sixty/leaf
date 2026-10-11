@@ -4,7 +4,6 @@ import hashlib
 import json
 import re
 import subprocess
-import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import NamedTuple
@@ -399,14 +398,16 @@ def payload_server_inputs(root: Path) -> list[Path]:
 
 
 def payload_server_fingerprint() -> str:
-    """Identify the serving inputs and interpreter independently of a Git commit."""
+    """Identify serving inputs independently of a Git commit or Python build.
+
+    A site builds pages on the CI host and serves them from a container with a
+    different interpreter. The vendored event contract depends on the payload's
+    files, not that interpreter's version string.
+    """
     return files_identity(
         {
-            "$python": sys.version.encode(),
-            **{
-                path.relative_to(PLUGIN_ROOT).as_posix(): path.read_bytes()
-                for path in payload_server_inputs(PLUGIN_ROOT)
-            },
+            path.relative_to(PLUGIN_ROOT).as_posix(): path.read_bytes()
+            for path in payload_server_inputs(PLUGIN_ROOT)
         }
     )
 

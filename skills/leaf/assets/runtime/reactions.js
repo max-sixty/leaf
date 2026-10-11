@@ -73,7 +73,7 @@ import {
   pageCommand,
   pageScope,
 } from "./keyboard/register.js";
-import { PRESS } from "./keyboard/bindings.js";
+import { PRESS, rowArrows } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { anchorLabel } from "./thread/messages.js";
 import { reactionsAt, tokenChoices } from "./thread/model.js";
@@ -455,8 +455,9 @@ export function createReactionController({
     const choices = responseChoices(reactSurface);
     if (!choices.length) return;
     const at = choices.indexOf(focused());
-    const backward =
-      binding === "ArrowLeft" || binding === "ArrowUp" || binding === "Shift+Tab";
+    const backward = [rowArrows(choices[0])[0], "ArrowUp", "Shift+Tab"].includes(
+      binding,
+    );
     const next =
       at < 0
         ? backward

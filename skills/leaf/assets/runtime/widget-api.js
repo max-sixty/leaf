@@ -37,9 +37,12 @@ export async function mountSample(frame, options) {
 }
 export { dressSamples, wear } from "./dress.js";
 
+// `fragmentTarget(hash)` is the page element a URL fragment names, read as Leaf's own
+// arrivals and links read it.
 export {
   addressableLabel,
   addressableWord,
+  fragmentTarget,
   projectedDatum,
 } from "./anchor-resolution.js";
 // The name Threads, the margin, and reactions give a comment's anchor.
@@ -111,7 +114,8 @@ export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
 export { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
 export { HOLDS_WORD } from "./held-word.js";
-export { PRESS, labelOf } from "./keyboard/bindings.js";
+// `rowArrows(node)` is the `[back, ahead]` arrow pair along a row, in its text direction.
+export { PRESS, labelOf, rowArrows } from "./keyboard/bindings.js";
 export {
   commandScope,
   commandsOn,
@@ -211,6 +215,8 @@ export {
 export { projectData } from "./application.js";
 export { copyCodeBlock } from "./code-copy.js";
 export { retainUserIntent } from "./user-intent.js";
+// Whether a press is the plain one a control claims: the primary button, no modifier.
+export { plainPress } from "./pointer.js";
 export { onUserInput } from "./focus.js";
 export { keepView, openingView, tabStore } from "./storage.js";
 export {

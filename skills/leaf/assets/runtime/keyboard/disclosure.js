@@ -6,9 +6,10 @@
    two rows changing one thing spend both of the shortcut bar's hints saying one word twice.
 
    Only the direction that changes something is bound: → over a shut section, ← over an
-   open one, and both where the user is standing on no disclosure at all, which is the
-   question the reference asks. So every key a surface names is a key that works, and the
-   row's one word covers the three keys it binds.
+   open one, mirrored in right-to-left text, where the marker points left; and both where
+   the user is standing on no disclosure at all, which is the question the reference asks.
+   So every key a surface names is a key that works, and the row's one word covers the
+   three keys it binds.
 
    `DISCLOSE` answers that for an element, and every row over a disclosure reads it — this
    scope's, and a widget's own row re-wording the same press. Two rows naming different
@@ -30,7 +31,7 @@
    an `aria-expanded` control fires nothing anywhere. Both keep that state in an
    attribute, so one `MutationObserver` over `open` and `aria-expanded` repaints for both,
    and `shadowStage` hands it each root. */
-import { PRESS } from "./bindings.js";
+import { PRESS, rowArrows } from "./bindings.js";
 import { paintKeys } from "./scopes.js";
 
 import { inChrome } from "../passages.js";
@@ -65,7 +66,8 @@ export const watchDisclosures = (root) =>
 export const DISCLOSE = (el) => {
   const open = disclosed(el);
   if (open === null) return [...PRESS, "ArrowLeft", "ArrowRight"];
-  return inChrome(el) ? PRESS : [...PRESS, open ? "ArrowLeft" : "ArrowRight"];
+  const [back, ahead] = rowArrows(el);
+  return inChrome(el) ? PRESS : [...PRESS, open ? back : ahead];
 };
 
 export const DISCLOSURE_SELECTOR =

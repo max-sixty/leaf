@@ -564,7 +564,12 @@
         if (!parents.has(node)) parents.set(node, node.parentElement);
       rememberSource(authoredCopy(host));
       for (let node = host; node; node = node.parentNode) sourceScopes.add(node);
-      const drawing = render(host, { tabStore, offer, offerElement });
+      const drawing = render(host, {
+        tabStore,
+        offer,
+        offerElement,
+        keeps: keepsAttribute,
+      });
       if (drawing?.then)
         throw new TypeError(
           `initial renderer for <${host.localName}> must be synchronous`,

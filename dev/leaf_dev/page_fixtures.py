@@ -16,13 +16,22 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import click
+from leaf.event_log import read_events
 from leaf.media import media_name
 from leaf.revision_artifact import Resource, capture_artifact, capture_local_resource
-from leaf.schema import MEDIA_DIR, MEDIA_TYPES
+from leaf.schema import CURSOR_FILE, MEDIA_DIR, MEDIA_TYPES
+from leaf.state import write_json
 from leaf.structure import SourceDocument
 
 from leaf_dev import ROOT
-from leaf_dev.example_data import data_operations, example_versions
+from leaf_dev.example_data import (
+    capture_files,
+    data_file,
+    data_operations,
+    example_versions,
+    page_files,
+    seed_log,
+)
 from leaf_dev.leaf_assets import assets_lock, clone, pinned_assets, pinned_copy, publish
 
 DEFAULT_PACKAGES = ROOT / "examples" / "layer.json"
@@ -118,17 +127,32 @@ def publish_media(files: tuple[str, ...]) -> None:
 
 
 def read_fixture(source: Path) -> PageFixture:
-    seed = source.with_suffix(".jsonl")
-    page_files = source.with_suffix(".page")
+    seed = seed_log(source)
+    files = page_files(source)
     return PageFixture(
         source=source,
-        page_files=page_files if page_files.is_dir() else None,
+        page_files=files if files.is_dir() else None,
         packages=tuple(source_packages(source)),
         media=media_source(source),
         data=tuple(data_operations(source)),
         versions=tuple(example_versions(source)),
         seed=seed if seed.is_file() else None,
     )
+
+
+def fixture_history(source: Path) -> list[Path]:
+    """The inputs `prepare_page` installs once, as history rather than authored state.
+
+    The seeded log, the data values and the files they capture, and every earlier
+    version, each named whether or not it exists, so a reader of the list sees one
+    arrive.
+    """
+    return [
+        seed_log(source),
+        data_file(source),
+        *example_versions(source)[:-1],
+        *capture_files(source),
+    ]
 
 
 def package_selection_args(packages) -> list[str]:
@@ -205,14 +229,8 @@ def _seed_log(fixture: PageFixture, page: Path) -> None:
 def _acknowledge_seed(fixture: PageFixture, page: Path) -> None:
     if fixture.seed is None:
         return
-    lines = [
-        line
-        for line in (page / "events.jsonl").read_text(encoding="utf-8").split("\n")
-        if line.strip()
-    ]
-    (page / "cursor.json").write_text(
-        json.dumps({"seq": len(lines)}) + "\n", encoding="utf-8"
-    )
+    events = read_events(page)
+    write_json(page / CURSOR_FILE, {"seq": events[-1]["seq"] if events else 0})
 
 
 def prepare_page(

@@ -402,9 +402,10 @@ on 2026-10-07.
   into a page by hand. It is an experiment: the alternative is for the command to
   print the samples' rows and leave the chart to the agent writing the page. Keep it
   if it gets used for later readings; otherwise reduce it to the rows.
-- **Run the suite on the compiled kernel.** Installs and leaf.page already run the
-  kernel `leaf-dev distribution` compiles for the `prepared` branch: 46 runtime files
-  and 1.9 MB, where the suite boots about 245 source modules and 4 MB. On the triage
+- **Run the suite and previews on the compiled kernel.** Installs and leaf.page already
+  run the kernel `leaf-dev distribution` compiles for the `prepared` branch: 46 runtime
+  files and 1.9 MB, where the suite and development previews boot about 245 source
+  modules and 4 MB. On the triage
   board at a 4× CPU throttle the prepared runtime of the same commit opened 16% sooner
   (748 ms against 886) and 30% sooner unthrottled, which would be roughly 6% of the
   suite's cost. The cost is per-module overhead: `modulepreload` hints for all 245
@@ -559,6 +560,12 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **#6 — Codex supervision:** separate hosted and local turn supervision only
   if hosted delivery becomes a product priority; the App Server protocol is
   already shared.
+- **Make a leaf.page dispatch survive its container.** The Worker acknowledges an
+  accepted event and hands its Codex turn to `waitUntil` (`worker/src/index.ts`,
+  `dispatchAgentTask`). Nothing records the event and turn identity in the
+  container's Durable Object, and nothing recovers a dispatch whose container
+  disappears or outlives the `waitUntil` window. Trigger: a hosted answer lost that
+  way.
 - **#7 — Runtime fold tests:** add focused Node tests as rules change; extend
   `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding

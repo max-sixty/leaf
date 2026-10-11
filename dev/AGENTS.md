@@ -46,8 +46,7 @@ reaches a module by importing it from this package, never through `sys.path`,
   into a before/after pair in its own run directory under `.tmp/stills/`.
   Repeat `--state NAME` to compare only the states a change touches.
 - `leaf-dev thread-snapshots` owns reviewed message-delivery images in leaf-assets;
-  `thread_snapshots.py` owns capture and acceptance. Its shared journey replaces
-  the former panel/card sent stills. Acceptance alone advances
+  `thread_snapshots.py` owns capture and acceptance. Acceptance alone advances
   `leaf-assets.json`'s `thread_snapshots_revision`; media publication advances
   `revision`, so new demo assets cannot replace a runtime's reviewed expectations.
 - `suite.py` runs a selection of the suite in a checkout and reads each test's

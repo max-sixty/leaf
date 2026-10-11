@@ -5500,6 +5500,50 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
     )
 
 
+def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir):
+    """An action admitted by an earlier Leaf keeps standing, and keeps its Question
+    answered, under a Leaf that records the same operation's definition with other
+    fields. Before #2329 the definition carried `update`, the flag that became
+    `report`; matching every recorded field dropped each decision on a page that
+    Leaf version had served."""
+    source = page_dir / "index.html"
+    source.write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            "<h2>Plan</h2>"
+            + OPTIONS.format(a="", b="", chip="", shim="Fast.", stage="Two."),
+        )
+    )
+    publish(page_dir)
+    picked = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "g1",
+            "action": "choose",
+            "detail": {"value": ["o-shim"]},
+        },
+    )
+    log = page_dir / "events.jsonl"
+    earlier = []
+    for line in log.read_text().splitlines():
+        event = json.loads(line)
+        if event["id"] == picked["id"]:
+            recorded = event["meaning"]["state"]
+            recorded["update"] = recorded.pop("report", False)
+        earlier.append(json.dumps(event))
+    log.write_text("\n".join(earlier) + "\n")
+
+    reading = state_json(page_dir)
+    [standing] = [item for item in reading["state"] if item["action"] == "choose"]
+    assert standing["detail"] == {"value": ["o-shim"]}
+    [question] = reading["questions"]
+    assert question["status"] == "answered"
+    assert question["answer"]["event"]["id"] == picked["id"]
+
+
 def test_revisions_change_edited_drafts_without_retracting_the_user_edit(page_dir):
     v2 = _decided(page_dir, "Ship the flag dark, then backfill.")
     v2("A new authored draft.")

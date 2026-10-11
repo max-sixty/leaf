@@ -9,6 +9,7 @@ import { pagePlaneRect, scrollContainer, shownParts } from "./geometry.js";
 import { hostIn, renderedParent } from "./shadow.js";
 import { scrollsContent } from "./scroll-motion.js";
 import { watchArrivals } from "./arrivals.js";
+import { keeps } from "./keeps.js";
 
 // Anchor names are global to their tree, so one per target element, merged with whatever
 // name the author gave the same box. The name stays for the element's life: rows come and
@@ -180,7 +181,7 @@ function contentStart(scroller) {
     contentStarts.set(handle, { scroller, name: nextName() });
   }
   const { name } = contentStarts.get(handle);
-  if (scroller.getAttribute(START) !== name) scroller.setAttribute(START, name);
+  keeps(scroller, START, name);
   return handle;
 }
 

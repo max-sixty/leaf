@@ -801,6 +801,20 @@ def _reanchor_error(view, event: dict, events: list) -> str | None:
     return None
 
 
+def settled_attention(event: dict, contract: dict) -> bool | None:
+    """The attention an event's kind and author decide alone, or None for the
+    user's input, which needs attention only when it changes what the agent owes.
+
+    A report or an error always wakes the agent; the agent's own events and the
+    user's bookkeeping never do.
+    """
+    if event["kind"] in {"report", "error"}:
+        return True
+    if event["author"] != "user" or contract.get("bookkeeping"):
+        return False
+    return None
+
+
 def admitted_event(view, events: list, event: dict) -> dict:
     """The record one event becomes, or `EventRefused` saying why it does not.
 
@@ -831,12 +845,8 @@ def admitted_event(view, events: list, event: dict) -> dict:
         contracts[kind], {**APPEND_STAMPED, **event, "attention": False}
     ):
         raise EventRefused(f"{kind} event is invalid: {error}")
-    attention = kind in {"report", "error"}
-    if (
-        not attention
-        and event["author"] == "user"
-        and not contracts[kind].get("bookkeeping")
-    ):
+    attention = settled_attention(event, contracts[kind])
+    if attention is None:
         candidate = {
             **APPEND_STAMPED,
             **event,

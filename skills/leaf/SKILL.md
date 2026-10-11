@@ -67,10 +67,10 @@ directory explicitly; export or copy anything that must outlive the page directo
    active immutable revision; an invalid save leaves the last valid one live and
    reports its diagnostic in page state and the browser. You write `index.html` and
    `page/`; Leaf alone writes revisions and version mappings.
-3. Check the page according to how long the user will rely on it. A quick page
-   revised or dropped after an immediate reaction needs only
-   `leaf page check <page>`; fix every failure and hand it over without stamping
-   or a browser review. A finished record used beyond the conversation needs
+3. **Quick pages and records.** Check the page according to how long the user
+   will rely on it. A quick page revised or dropped after an immediate reaction
+   needs only `leaf page check <page>`; fix every failure and hand it over without
+   stamping or a browser review. A finished record used beyond the conversation needs
    `leaf page check <page> --render`, the reading in "Pre-handover review" in
    `references/page-authoring.md`, and then
    `leaf page stamp <page> --text "<changelog>"`. The check establishes that the

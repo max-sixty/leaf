@@ -734,6 +734,45 @@ def test_trace_initial_selection_opens_evidence_and_keeps_earlier_empty_stops(
     expect(widget.locator(".lf-trace-position")).to_have_text("0.030 s")
 
 
+def test_trace_arrows_step_the_way_a_right_to_left_rail_runs(browser, serve):
+    """In right-to-left text the rail starts at the right, so ← steps to a later point."""
+    source = ROOT / "examples/developer/playwright-trace-gallery.data.json"
+    record = json.loads(source.read_text())["release-journey"]
+    media = {
+        image["url"]: (example_media() / Path(image["url"]).name).read_bytes()
+        for image in record["images"]
+    }
+    url = serve(
+        leaf_page(
+            "Right-to-left recording",
+            '<h1>Recording</h1><div dir="rtl">'
+            '<lf-trace id="journey" source="rtl-trace"></lf-trace></div>',
+        ),
+        packages=("playwright",),
+        media=media,
+    )
+    data_model.cmd_data_set(serve.page_dir, "rtl-trace", record)
+    user = open_page(browser, url)
+    widget = user.locator("#journey")
+    timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
+    position = widget.locator(".lf-trace-position")
+    cursor = widget.locator(".lf-trace-markers .vis-custom-time")
+    timeline.focus()
+    timeline.press("End")
+    expect(position).not_to_have_text("No recorded points")
+    last = position.text_content()
+    timeline.press("Home")
+    expect(position).not_to_have_text(last)
+    first = position.text_content()
+    start = cursor.bounding_box()["x"]
+    timeline.press("ArrowLeft")
+    expect(position).not_to_have_text(first)
+    # The step went the way its arrow points along the rail.
+    assert cursor.bounding_box()["x"] < start
+    timeline.press("ArrowRight")
+    expect(position).to_have_text(first)
+
+
 def test_trace_bookmarks_jump_to_exact_evidence_in_page_flow(browser, serve):
     """Authored destinations reach phases and filmstrip frames by mouse, key and touch."""
     source = ROOT / "examples/developer/playwright-trace-gallery.html"

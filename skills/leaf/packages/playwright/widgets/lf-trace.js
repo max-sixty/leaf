@@ -78,6 +78,7 @@ import {
   projectData,
   quoted,
   registerVisualParts,
+  rowArrows,
   scopedMediaUrl,
   setChildren,
   sizeObserver,
@@ -297,12 +298,16 @@ customElements.define(
       this.#railResize.observe(this.timeline);
       if (!quoted(this))
         this.#keys ??= commands(this, "In a Playwright recording", [
+          // The rail runs the way the page's words do (`#buildRail`), so back along it
+          // is the arrow toward its start.
           {
             id: "trace.previous",
-            keys: () =>
-              this.timeline.contains(focused())
-                ? ["ArrowLeft", "ArrowDown", "PageDown"]
-                : ["ArrowLeft"],
+            keys: () => {
+              const [back] = rowArrows(this);
+              return this.timeline.contains(focused())
+                ? [back, "ArrowDown", "PageDown"]
+                : [back];
+            },
             title: "previous timeline point",
             control: this.previous,
             when: () => this.#position() > 0,
@@ -310,10 +315,12 @@ customElements.define(
           },
           {
             id: "trace.next",
-            keys: () =>
-              this.timeline.contains(focused())
-                ? ["ArrowRight", "ArrowUp", "PageUp"]
-                : ["ArrowRight"],
+            keys: () => {
+              const [, ahead] = rowArrows(this);
+              return this.timeline.contains(focused())
+                ? [ahead, "ArrowUp", "PageUp"]
+                : [ahead];
+            },
             title: "next timeline point",
             control: this.next,
             when: () => this.#position() < this.#items().length - 1,
@@ -1264,9 +1271,10 @@ customElements.define(
       widgetController(this).present(ready);
       this.#rail.addCustomTime(0, "selection");
       // Vis seats moving time cursors on a stationary background plane, separate
-      // from moment buttons. Only that plane permits its live control to travel.
+      // from moment buttons. Only that plane permits its live control to travel. A
+      // right-to-left rail names the same plane `vis-vertical-rtl`.
       const cursorPlane = this.markers.querySelector(
-        ".vis-panel.vis-background.vis-vertical",
+        ".vis-panel.vis-background:is(.vis-vertical, .vis-vertical-rtl)",
       );
       cursorPlane.setAttribute("data-lf-runtime", "");
       cursorPlane.setAttribute("data-lf-reflow", "controls");

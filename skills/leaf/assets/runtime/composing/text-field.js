@@ -492,7 +492,8 @@ class LeafText extends HTMLElement {
       // Reparenting keeps the CodeMirror view but can leave a pending native
       // selectionchange that replaces its recorded caret with the DOM's reset 0.
       // CodeMirror hears that event after reconnecting, even if its view still
-      // holds focus. Restore the held selection after it unless the user acted.
+      // holds focus. Consume that event once, restoring the held selection if
+      // needed, unless the user acted in the meantime.
       const intent = inputCount();
       const previous = this.#reparentHold;
       if (
@@ -524,12 +525,12 @@ class LeafText extends HTMLElement {
           stop();
           return;
         }
+        stop();
         if (
           this.selectionStart !== hold.caret[0] ||
           this.selectionEnd !== hold.caret[1] ||
           this.selectionDirection !== hold.caret[2]
         ) {
-          stop();
           this.setSelectionRange(...hold.caret);
         }
       };

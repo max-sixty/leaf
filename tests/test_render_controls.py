@@ -10418,6 +10418,37 @@ def test_retained_moves_keep_native_editor_and_frame_state(
     ) == [True, False]
 
 
+def test_editor_caret_hold_releases_after_unchanged_selection(browser, serve):
+    page = open_page(
+        browser,
+        serve(leaf_page("Editor caret", "<h1>Editor caret</h1><div id='seat'></div>")),
+    )
+    page.evaluate("""() => {
+      const field = document.createElement('leaf-text');
+      field.value = 'Intentional selection';
+      document.querySelector('#seat').append(field);
+      field.focus();
+      field.setSelectionRange(4, 4);
+    }""")
+    field = page.locator("#seat leaf-text")
+    expect(field).to_be_focused()
+    # Exercise the reconnect path after the initial focus events have settled.
+    field.evaluate("node => { node.setSelectionRange(4, 4); node.connectedCallback(); }")
+    # The first selectionchange leaves the held caret intact. It still consumes
+    # the hold, so a later programmatic change belongs to its caller.
+    page.evaluate("""() => new Promise(resolve => {
+      document.addEventListener('selectionchange', () => queueMicrotask(resolve), {once: true});
+      document.dispatchEvent(new Event('selectionchange'));
+    })""")
+    assert field.evaluate("node => node.selectionStart") == 4
+    field.evaluate("node => node.setSelectionRange(9, 9)")
+    page.evaluate("""() => new Promise(resolve => {
+      document.addEventListener('selectionchange', () => queueMicrotask(resolve), {once: true});
+      document.dispatchEvent(new Event('selectionchange'));
+    })""")
+    assert field.evaluate("node => [node.selectionStart, node.selectionEnd]") == [9, 9]
+
+
 def test_named_form_controls_leave_shadow_scroll_and_standing_readings_available(
     browser, serve
 ):

@@ -1201,7 +1201,7 @@ STATES = (
         "triage-composer-empty",
         "triage-board",
         composer_empty,
-        region=".lf-composer",
+        region=".lf-composer .lf-compose-field",
     ),
     State("triage-composer-space", "triage-board", composer_space, viewport=(362, 900)),
     State("triage-composer-long", "triage-board", composer_long),

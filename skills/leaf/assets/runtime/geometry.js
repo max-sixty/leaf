@@ -594,17 +594,10 @@ export const skipped = (el) =>
 // the element directly and centred the top of the document. One answer to "where is
 // this element", so there is no second way to ask.
 export function shownBox(el) {
-  if (el === document.scrollingElement)
-    return {
-      x: 0,
-      y: 0,
-      left: 0,
-      top: 0,
-      right: document.documentElement.clientWidth,
-      bottom: document.documentElement.clientHeight,
-      width: document.documentElement.clientWidth,
-      height: document.documentElement.clientHeight,
-    };
+  if (el === document.scrollingElement) {
+    const { left, top, right, bottom } = shownBand(el);
+    return new DOMRect(left, top, right - left, bottom - top);
+  }
   const r = el.getBoundingClientRect();
   if (r.width || r.height) return r;
   const contents = document.createRange();
@@ -889,6 +882,10 @@ function clipWalk(item, clips, held) {
 const occluders = new Set();
 // An occluder on its way out (motion.js, `slide`) covers nothing the user is reading past.
 export const LEAVING = "data-lf-leaving";
+// Whether a declared occluder stands now: rendered, and not on its way out. A
+// disconnected surface has no box, so `checkVisibility` answers for that too.
+const standsNow = (surface) =>
+  !surface.hasAttribute(LEAVING) && surface.checkVisibility();
 // Where an occluder stands, not where its slide has carried it this frame: every declared
 // occluder is fixed to the window, so its offset box is its viewport box without the
 // slide's transform.
@@ -910,12 +907,7 @@ export function rightCover() {
   const edge = document.documentElement.clientWidth;
   let left = Infinity;
   for (const surface of occluders) {
-    if (
-      !surface.isConnected ||
-      surface.hasAttribute(LEAVING) ||
-      !surface.checkVisibility()
-    )
-      continue;
+    if (!standsNow(surface)) continue;
     const box = standingBox(surface);
     if (box.left > 0 && box.right >= edge - 1) left = Math.min(left, box.left);
   }
@@ -937,13 +929,7 @@ export const clipsPast = (surfaces) => new Map([[PAST, new Set(surfaces)]]);
 // where the landing will bring it into view.
 export function hides(surface, where) {
   const holder = placeHolder(where);
-  if (
-    !holder ||
-    !occluders.has(surface) ||
-    surface.hasAttribute(LEAVING) ||
-    !surface.checkVisibility()
-  )
-    return false;
+  if (!holder || !occluders.has(surface) || !standsNow(surface)) return false;
   if (under(holder, surface) || stackLevel(holder) >= stackLevel(surface)) return false;
   const box = where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
   const seen =
@@ -984,12 +970,7 @@ function standingOccluders(clips) {
   if (standing) return standing;
   const past = clips.get(PAST);
   standing = [...occluders]
-    .filter(
-      (surface) =>
-        surface.isConnected &&
-        !surface.hasAttribute(LEAVING) &&
-        surface.checkVisibility(),
-    )
+    .filter(standsNow)
     .filter((surface) => !past?.has(surface))
     .map((surface) => ({
       surface,

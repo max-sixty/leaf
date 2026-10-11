@@ -2716,7 +2716,7 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     box = page_comment(page)
     write(box, "Where did my words go?")
     with sending(page, "the first comment"):
-        page.locator(".lf-general button").click()
+        page.locator(".lf-general .lf-compose-submit").click()
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["text"]) == ("comment", "Where did my words go?")
     in_threads_scrollport(page, f'.lf-thread[data-id="{sent["id"]}"]')

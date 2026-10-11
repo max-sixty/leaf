@@ -72,7 +72,6 @@ import {
   layoutPx,
   once,
   onUserInput,
-  offer,
   paintKeys,
   projectData,
   quoted,
@@ -823,7 +822,7 @@ customElements.define(
         const image = this.#evidence(point).image;
         if (!image || this.#warmed.has(image.url)) continue;
         this.#warmed.add(image.url);
-        const loader = new Image();
+        const loader = new globalThis.Image();
         loader.src = scopedMediaUrl(image.url);
         loader.decode().catch(() => this.#warmed.delete(image.url));
       }
@@ -1857,7 +1856,9 @@ customElements.define(
                   <div
                     class="lf-trace-image-viewport"
                     style=${styleMap({
-                      aspectRatio: extent ? `${extent.width} / ${extent.height}` : undefined,
+                      aspectRatio: extent
+                        ? `${extent.width} / ${extent.height}`
+                        : undefined,
                       maxWidth: extent ? `${extent.width}px` : undefined,
                     })}
                     ?data-sized=${!!extent}
@@ -1911,9 +1912,11 @@ customElements.define(
                 >
                   <summary>Saved elements</summary>
                   <p class="lf-trace-tree-clock">
-                    ${tree
-                      ? `${tree.nodes.length} elements · ${PHASES[treePoint.phase]} checkpoint at ${this.#time(tree.timestamp, treePoint.action.stream)}. Saved element boxes may differ from the image.`
-                      : "No accessibility tree was saved at this point."}
+                    ${
+                      tree
+                        ? `${tree.nodes.length} elements · ${PHASES[treePoint.phase]} checkpoint at ${this.#time(tree.timestamp, treePoint.action.stream)}. Saved element boxes may differ from the image.`
+                        : "No accessibility tree was saved at this point."
+                    }
                   </p>
                   <ul class="lf-trace-nodes">
                     ${repeat(
@@ -1928,25 +1931,31 @@ customElements.define(
                   </ul>
                 </details>
                 <p class="lf-trace-readout">
-                  ${!trace
-                    ? "Waiting for a Playwright recording."
-                    : !items.length
-                      ? "No recorded checkpoints or frames in this recording scope."
-                      : `Step ${position + 1} of ${items.length}`}
+                  ${
+                    !trace
+                      ? "Waiting for a Playwright recording."
+                      : !items.length
+                        ? "No recorded checkpoints or frames in this recording scope."
+                        : `Step ${position + 1} of ${items.length}`
+                  }
                 </p>
                 <p class="lf-trace-action">${metadataAction?.title ?? ""}</p>
                 <h3 class="lf-trace-phase">
-                  ${metadataAction
-                    ? `${PHASES[metadataPoint.phase]}${metadataAction.phases[metadataPoint.phase] ? " checkpoint" : ""} · ${this.#time(metadataPoint.timestamp, metadataAction.stream)}`
-                    : ""}
+                  ${
+                    metadataAction
+                      ? `${PHASES[metadataPoint.phase]}${metadataAction.phases[metadataPoint.phase] ? " checkpoint" : ""} · ${this.#time(metadataPoint.timestamp, metadataAction.stream)}`
+                      : ""
+                  }
                 </h3>
                 <p class="lf-trace-error" ?hidden=${!metadataAction?.error}>
                   ${metadataAction?.error ?? ""}
                 </p>
                 <p class="lf-trace-clock" ?hidden=${!origin}>
-                  ${trace?.streams.length > 1
-                    ? `${clockLabel} · each stream has its own clock`
-                    : clockLabel}
+                  ${
+                    trace?.streams.length > 1
+                      ? `${clockLabel} · each stream has its own clock`
+                      : clockLabel
+                  }
                 </p>
               </div>
             </div>

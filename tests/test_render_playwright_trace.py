@@ -4,6 +4,7 @@ import importlib.util
 import json
 import re
 from html import escape
+from itertools import pairwise
 from pathlib import Path
 from urllib.parse import urljoin
 
@@ -12,7 +13,6 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
-from leaf.render_gate import readings as render_gate_readings
 from leaf_dev.page_fixtures import example_media
 from playwright.sync_api import expect
 from render_harness import (
@@ -1716,17 +1716,12 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
         widget.locator(".lf-trace-tree summary").click()
         rendered(user)
         assert user.evaluate("inspectionWindow()") == pytest.approx(panned, abs=0.005)
-        ticks = widget.locator(
-            ".lf-trace-tick-major"
-        ).all_text_contents()
+        ticks = widget.locator(".lf-trace-tick-major").all_text_contents()
         widget.get_by_role("radio", name="Page 1", exact=True).click()
         widget.get_by_role("radio", name="All pages", exact=True).click()
         rendered(user)
         assert user.evaluate("inspectionView()") == pytest.approx(before, abs=0.003)
-        assert (
-            widget.locator(".lf-trace-tick-major").all_text_contents()
-            == ticks
-        )
+        assert widget.locator(".lf-trace-tick-major").all_text_contents() == ticks
         assert user.evaluate("inspectionWindow()") == pytest.approx(panned, abs=0.005)
         timeline.focus()
         timeline.press("Home")
@@ -1873,8 +1868,10 @@ def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
 
         # Close moments share a flag at the overview; zoom separates them.
         pins = widget.locator(".lf-trace-moment-pin")
-        tips = "\n".join(pins.evaluate_all("nodes => nodes.map(node => node.dataset.tip)"))
-        assert re.findall(r"^(\d+) · ", tips, re.M) == ["1", "2", "3"]
+        tips = "\n".join(
+            pins.evaluate_all("nodes => nodes.map(node => node.dataset.tip)")
+        )
+        assert re.findall(r"^(\d+) · ", tips, re.MULTILINE) == ["1", "2", "3"]
         third = widget.locator('.lf-trace-moment-pin[data-tip^="3 ·"]')
         for _ in range(8):
             if third.count():
@@ -1985,8 +1982,7 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
         assert flags, "Dense authored moments must remain present on the time axis"
         assert len({flag["top"] for flag in flags}) == 1, "Moments share one row"
         assert all(
-            left["right"] <= right["left"] + 1
-            for left, right in zip(flags, flags[1:], strict=False)
+            left["right"] <= right["left"] + 1 for left, right in pairwise(flags)
         ), flags
         assert user.evaluate("document.documentElement.scrollWidth <= innerWidth")
         return reading
@@ -1995,7 +1991,7 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
     # A shared flag lists every moment it stands for, in time order.
     tips = "\n".join(pins.evaluate_all("nodes => nodes.map(node => node.dataset.tip)"))
     for number in range(2, 22):
-        assert re.search(rf"^{number} · ", tips, re.M), number
+        assert re.search(rf"^{number} · ", tips, re.MULTILINE), number
     pins.first.click()
     expect(widget.locator(".lf-trace-bookmark:visible")).to_have_count(20)
     expect(
@@ -2143,9 +2139,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     timeline = widget.locator(".lf-trace-timeline")
     # Zero stands at the start of the time scale, inside a margin that keeps
     # its mark and the playhead clear of the edge; it is not a captured stop.
-    zero = widget.locator(".lf-trace-tick-major").filter(
-        has_text=re.compile(r"^0 s$")
-    )
+    zero = widget.locator(".lf-trace-tick-major").filter(has_text=re.compile(r"^0 s$"))
     expect(zero).to_have_count(1)
     zero_box = zero.bounding_box()
     axis_box = widget.locator(".lf-trace-scroller").bounding_box()
@@ -2323,7 +2317,9 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
                   })""",
                 mark,
             )
-            assert labels_clear, "The playhead's mark must leave the time labels readable"
+            assert labels_clear, (
+                "The playhead's mark must leave the time labels readable"
+            )
 
 
 def test_hidden_recording_prepares_when_shown_without_blocking_page(browser, serve):

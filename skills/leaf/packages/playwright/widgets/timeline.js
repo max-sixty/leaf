@@ -41,7 +41,8 @@ const CLUSTER_WIDTH = 168;
 // Ruler steps: 1, 2, 5 × 10^k milliseconds, the smallest at least TICK_SPACING apart.
 function tickStep(pxPerMs) {
   for (let power = 1; power < 1e9; power *= 10)
-    for (const step of STEPS) if (step * power * pxPerMs >= TICK_SPACING) return step * power;
+    for (const step of STEPS)
+      if (step * power * pxPerMs >= TICK_SPACING) return step * power;
   return 1e9;
 }
 const tickLabel = (time, step) => {
@@ -64,7 +65,8 @@ function assignRows(items, start, end) {
 
 // Style writes the page did not change are still mutations; skip them.
 function keepVar(node, name, value) {
-  if (node && node.style.getPropertyValue(name) !== value) node.style.setProperty(name, value);
+  if (node && node.style.getPropertyValue(name) !== value)
+    node.style.setProperty(name, value);
 }
 
 let measuring = null;
@@ -173,7 +175,8 @@ export class RecordingTimeline {
     const width = scroller.clientWidth;
     if (mode === "page") {
       if (x < left || x > left + width * 0.9) this.#scrollTo(x - width * 0.1);
-    } else if (x < left + EDGE || x > left + width - EDGE) this.#scrollTo(x - width / 2);
+    } else if (x < left + EDGE || x > left + width - EDGE)
+      this.#scrollTo(x - width / 2);
   }
 
   zoomBy(factor, anchor = null, fit = null) {
@@ -237,7 +240,10 @@ export class RecordingTimeline {
   #pxToTime(px) {
     return Math.max(
       0,
-      Math.min(this.#model.duration, ((px - EDGE) / this.#span()) * this.#model.duration),
+      Math.min(
+        this.#model.duration,
+        ((px - EDGE) / this.#span()) * this.#model.duration,
+      ),
     );
   }
   #pxPerMs() {
@@ -307,7 +313,8 @@ export class RecordingTimeline {
       for (const item of items) {
         const x = item.at * pxPerMs;
         let current = clusters.at(-1);
-        if (current && x < current.x + current.width + LABEL_GAP) current.items.push(item);
+        if (current && x < current.x + current.width + LABEL_GAP)
+          current.items.push(item);
         else clusters.push((current = { x, items: [item] }));
         fit(current);
       }
@@ -396,7 +403,9 @@ export class RecordingTimeline {
             ],
           ]
         : []),
-      ...(model.calls.length ? [["calls", "Calls", "Other recorded calls, start to end"]] : []),
+      ...(model.calls.length
+        ? [["calls", "Calls", "Other recorded calls, start to end"]]
+        : []),
       [
         "captures",
         "Captures",
@@ -426,133 +435,139 @@ export class RecordingTimeline {
             // marks are replaced rather than carried to new positions.
             model.signature,
             html`<div
-            class="lf-trace-track"
-            @pointerdown=${(event) => this.#press(event)}
-            @click=${(event) => this.#tap(event)}
-            @pointerover=${(event) => this.#hover(event)}
-            @pointerout=${(event) => this.#hover(event, true)}
-          >
-            <div class="lf-trace-ruler"></div>
-            ${model.moments.length
-              ? html`<div class="lf-trace-lane lf-trace-lane-moments">
-                  ${this.#labels.moments.map(
-                    (cluster, index) =>
-                      html`<span
-                        class="lf-trace-moment-pin"
-                        ?data-flip=${cluster.flip}
-                        data-pick="moments"
-                        data-id=${cluster.items[0].id}
-                        data-cluster=${index}
-                        data-tip=${cluster.items.map((item) => item.title).join("\n")}
-                        ?data-current=${cluster.items.some((item) => item.current)}
-                        style="--t: ${fraction(cluster.items[0].at)}; max-inline-size: ${this.#labelRoom(
-                          this.#labels.moments,
-                          index,
-                        )}"
-                        ><span class="lf-trace-moment-flag"
-                          >${this.#labelWords(cluster, "moments")}</span
-                        ></span
-                      >`,
-                  )}
-                </div>`
-              : nothing}
-            ${model.inputs.length
-              ? html`<div class="lf-trace-lane lf-trace-lane-input">
-                  ${this.#labels.input.map(
-                    (cluster, index) =>
-                      html`<span
-                        class="lf-trace-input-label"
-                        ?data-flip=${cluster.flip}
-                        data-pick="input"
-                        data-id=${cluster.items[0].id}
-                        data-cluster=${index}
-                        data-tip=${cluster.items.map((item) => item.title).join("\n")}
-                        ?data-current=${cluster.items.some((item) => item.current)}
-                        style="--t: ${fraction(cluster.items[0].at)}; max-inline-size: ${this.#labelRoom(
-                          this.#labels.input,
-                          index,
-                        )}"
-                        >${this.#labelWords(cluster, "input")}</span
-                      >`,
-                  )}
-                  ${repeat(
-                    model.inputs.filter((input) => input.send !== null),
-                    (input) => input.id,
-                    (input) =>
-                      html`<span
-                        class="lf-trace-input-send"
-                        data-pick="input"
-                        data-id=${input.id}
-                        data-tip=${input.title}
-                        ?data-current=${input.current}
-                        style="--t: ${fraction(input.send)}"
-                      ></span>`,
-                  )}
-                  ${repeat(
-                    model.inputs,
-                    (input) => input.id,
-                    (input) =>
-                      html`<span
-                        class="lf-trace-bar lf-trace-input-bar"
-                        data-pick="input"
-                        data-id=${input.id}
-                        data-tip=${input.title}
-                        ?data-current=${input.current}
-                        ?data-active=${input.active}
-                        style="--t: ${fraction(input.start)}; --d: ${length(
-                          input.start,
-                          input.end,
-                        )}"
-                      ></span>`,
-                  )}
-                </div>`
-              : nothing}
-            ${model.calls.length
-              ? html`<div
-                  class="lf-trace-lane lf-trace-lane-calls"
-                  style="--lf-trace-rows: ${this.#callRows}"
-                >
-                  ${repeat(
-                    model.calls,
-                    (call) => call.id,
-                    (call) =>
-                      html`<span
-                        class="lf-trace-bar lf-trace-call-bar"
-                        data-pick="calls"
-                        data-id=${call.id}
-                        data-tip=${call.title}
-                        ?data-current=${call.current}
-                        ?data-active=${call.active}
-                        ?data-error=${call.error}
-                        style="--t: ${fraction(call.start)}; --d: ${length(
-                          call.start,
-                          call.end,
-                        )}; --row: ${call.row ?? 0}"
-                        ><span class="lf-trace-call-name">${call.label}</span></span
-                      >`,
-                  )}
-                </div>`
-              : nothing}
-            <div class="lf-trace-lane lf-trace-lane-captures">
-              ${repeat(
-                model.captures,
-                (capture) => capture.id,
-                (capture) =>
-                  html`<span
-                    class="lf-trace-capture"
-                    ?data-image=${capture.image}
-                    ?data-current=${capture.current}
-                    style="--t: ${fraction(capture.time)}"
-                  ></span>`,
-              )}
-            </div>
-            <div class="lf-trace-playhead" aria-hidden="true">
-              <span
-                class="lf-trace-playhead-handle"
-                title=${quoted ? "Selected recorded time" : "Drag to scrub the recording"}
-              ></span>
-            </div>
-          </div>`,
+              class="lf-trace-track"
+              @pointerdown=${(event) => this.#press(event)}
+              @click=${(event) => this.#tap(event)}
+              @pointerover=${(event) => this.#hover(event)}
+              @pointerout=${(event) => this.#hover(event, true)}
+            >
+              <div class="lf-trace-ruler"></div>
+              ${
+                model.moments.length
+                  ? html`<div class="lf-trace-lane lf-trace-lane-moments">
+                      ${this.#labels.moments.map(
+                        (cluster, index) =>
+                          html`<span
+                            class="lf-trace-moment-pin"
+                            ?data-flip=${cluster.flip}
+                            data-pick="moments"
+                            data-id=${cluster.items[0].id}
+                            data-cluster=${index}
+                            data-tip=${cluster.items.map((item) => item.title).join("\n")}
+                            ?data-current=${cluster.items.some((item) => item.current)}
+                            style="--t: ${fraction(cluster.items[0].at)}; max-inline-size: ${this.#labelRoom(
+                              this.#labels.moments,
+                              index,
+                            )}"
+                            ><span class="lf-trace-moment-flag"
+                              >${this.#labelWords(cluster, "moments")}</span
+                            ></span
+                          >`,
+                      )}
+                    </div>`
+                  : nothing
+              }
+              ${
+                model.inputs.length
+                  ? html`<div class="lf-trace-lane lf-trace-lane-input">
+                      ${this.#labels.input.map(
+                        (cluster, index) =>
+                          html`<span
+                            class="lf-trace-input-label"
+                            ?data-flip=${cluster.flip}
+                            data-pick="input"
+                            data-id=${cluster.items[0].id}
+                            data-cluster=${index}
+                            data-tip=${cluster.items.map((item) => item.title).join("\n")}
+                            ?data-current=${cluster.items.some((item) => item.current)}
+                            style="--t: ${fraction(cluster.items[0].at)}; max-inline-size: ${this.#labelRoom(
+                              this.#labels.input,
+                              index,
+                            )}"
+                            >${this.#labelWords(cluster, "input")}</span
+                          >`,
+                      )}
+                      ${repeat(
+                        model.inputs.filter((input) => input.send !== null),
+                        (input) => input.id,
+                        (input) =>
+                          html`<span
+                            class="lf-trace-input-send"
+                            data-pick="input"
+                            data-id=${input.id}
+                            data-tip=${input.title}
+                            ?data-current=${input.current}
+                            style="--t: ${fraction(input.send)}"
+                          ></span>`,
+                      )}
+                      ${repeat(
+                        model.inputs,
+                        (input) => input.id,
+                        (input) =>
+                          html`<span
+                            class="lf-trace-bar lf-trace-input-bar"
+                            data-pick="input"
+                            data-id=${input.id}
+                            data-tip=${input.title}
+                            ?data-current=${input.current}
+                            ?data-active=${input.active}
+                            style="--t: ${fraction(input.start)}; --d: ${length(
+                              input.start,
+                              input.end,
+                            )}"
+                          ></span>`,
+                      )}
+                    </div>`
+                  : nothing
+              }
+              ${
+                model.calls.length
+                  ? html`<div
+                      class="lf-trace-lane lf-trace-lane-calls"
+                      style="--lf-trace-rows: ${this.#callRows}"
+                    >
+                      ${repeat(
+                        model.calls,
+                        (call) => call.id,
+                        (call) =>
+                          html`<span
+                            class="lf-trace-bar lf-trace-call-bar"
+                            data-pick="calls"
+                            data-id=${call.id}
+                            data-tip=${call.title}
+                            ?data-current=${call.current}
+                            ?data-active=${call.active}
+                            ?data-error=${call.error}
+                            style="--t: ${fraction(call.start)}; --d: ${length(
+                              call.start,
+                              call.end,
+                            )}; --row: ${call.row ?? 0}"
+                            ><span class="lf-trace-call-name">${call.label}</span></span
+                          >`,
+                      )}
+                    </div>`
+                  : nothing
+              }
+              <div class="lf-trace-lane lf-trace-lane-captures">
+                ${repeat(
+                  model.captures,
+                  (capture) => capture.id,
+                  (capture) =>
+                    html`<span
+                      class="lf-trace-capture"
+                      ?data-image=${capture.image}
+                      ?data-current=${capture.current}
+                      style="--t: ${fraction(capture.time)}"
+                    ></span>`,
+                )}
+              </div>
+              <div class="lf-trace-playhead" aria-hidden="true">
+                <span
+                  class="lf-trace-playhead-handle"
+                  title=${quoted ? "Selected recorded time" : "Drag to scrub the recording"}
+                ></span>
+              </div>
+            </div>`,
           )}
         </div>
         <div
@@ -629,7 +644,9 @@ export class RecordingTimeline {
     const step = tickStep(pxPerMs);
     const minor = step / (String(step)[0] === "2" ? 4 : 5);
     const from = this.#pxToTime(scroller.scrollLeft - TICK_SPACING);
-    const to = this.#pxToTime(scroller.scrollLeft + scroller.clientWidth + TICK_SPACING);
+    const to = this.#pxToTime(
+      scroller.scrollLeft + scroller.clientWidth + TICK_SPACING,
+    );
     const ticks = [];
     for (let time = Math.floor(from / minor) * minor; time <= to; time += minor) {
       const rounded = Math.round(time * 1000) / 1000;
@@ -683,7 +700,8 @@ export class RecordingTimeline {
     if (!(event.ctrlKey || event.metaKey) || this.#options.quoted) return;
     event.preventDefault();
     const scroller = this.scroller;
-    const x = event.clientX - scroller.getBoundingClientRect().left + scroller.scrollLeft;
+    const x =
+      event.clientX - scroller.getBoundingClientRect().left + scroller.scrollLeft;
     this.zoomBy(Math.exp(-event.deltaY / 200), this.#pxToTime(x));
     this.#options.onUserPan?.();
   }

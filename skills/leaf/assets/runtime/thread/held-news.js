@@ -57,8 +57,9 @@
    not opened. Each compares news with the reading it actually drew last. A required
    presenter also checkpoints the complete reading; restoring that reading restores
    its news comparison through the same owner. News is whatever the seat would draw
-   differently, the notice says exactly that difference, and a reading back to what is drawn holds nothing. The gestures that show
-   what a thread holds are the ones that take the user to it:
+   differently, the notice says exactly that difference, and a reading back to what is
+   drawn holds nothing. The gestures that show what a thread holds are the ones that
+   take the user to it:
 
    - pressing its notice, or its margin marker where a widget holds it out of the flow;
    - opening the thread: a folded outlet, or a panel card the list opens;

@@ -1,5 +1,5 @@
 /* Atlas owns roster composition. A visible report keeps its reading until the
- * user asks for updates, while identity and state come from the public projection. */
+ * user asks for the latest, while identity and state come from the public projection. */
 import {
   ago,
   HeldReading,
@@ -9,9 +9,9 @@ import {
   once,
   readWork,
   render,
-  updateSequence,
+  reportSequence,
   watchOwner,
-  watchUpdates,
+  watchReports,
   widgetController,
   workAncestor,
 } from "/runtime/widget-api.js";
@@ -47,7 +47,7 @@ export default class extends HTMLElement {
     );
     watchOwner(this, { disconnect: () => this.reading.dispose() });
     this.#controller.subscribe(() => {});
-    this.watching = watchUpdates(this, () => this.paint());
+    this.watching = watchReports(this, () => this.paint());
   }
   renderState(state) {
     keeps(this, "state", state.state.value);
@@ -56,7 +56,7 @@ export default class extends HTMLElement {
     const worker = readWork(workAncestor(this, "scope")).workers.find(
       (row) => row.element === this,
     );
-    const report = updateSequence(this).findLast(
+    const report = reportSequence(this).findLast(
       (row) => row.source === "report" && row.disposition === "effective",
     );
     keepsText(
@@ -85,7 +85,7 @@ export default class extends HTMLElement {
       this.dispatchEvent(new CustomEvent("atlas-reading", { bubbles: true }));
     }
   }
-  showUpdates() {
+  showLatest() {
     this.reading.show();
   }
 }

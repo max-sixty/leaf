@@ -1,4 +1,4 @@
-"""The page's history as rows, newest first: who moved, what they did, to what.
+"""The page's history as rows, newest first: who acted, what they did, to what.
 
 A row is one logged event with everything a reader of it needs that the log alone
 does not say outright, derived here once: the thread it belongs to and that
@@ -75,7 +75,7 @@ def _report(event: dict, words: GestureWords) -> dict:
     return {
         "widget": event["widget"],
         "value": value if value is not None else event["action"],
-        "excerpt": event["detail"]["text"] if spec.get("update") else None,
+        "excerpt": event["detail"]["text"] if spec.get("report") else None,
     }
 
 
@@ -88,7 +88,7 @@ def history(
     `thread_context.thread_names` and `thread_widgets` over the same log. A message,
     edit, resolve or reopen row names the thread it was made in (`event_threads`),
     with the words of the first message that thread still holds; a widget row names
-    its widget, whichever thread the move also answers."""
+    its widget, whichever thread the action also answers."""
     withdrawn = taken_back(events)
 
     def thread_of(event: dict) -> dict | None:

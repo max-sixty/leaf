@@ -21,7 +21,7 @@ export default class extends HTMLElement {
     watchOwner(this, { disconnect: () => this.reading.dispose() });
     this.watching = watchData(this, "worktrees", (snapshot) => this.show(snapshot));
   }
-  showUpdates() {
+  showLatest() {
     this.reading.show();
   }
   show(snapshot) {

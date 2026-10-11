@@ -151,7 +151,7 @@ export default class extends HTMLElement {
 
 
 @pytest.mark.watch_shifts
-def test_atlas_report_waits_behind_a_stationary_updates_control(browser, serve):
+def test_atlas_report_waits_behind_a_stationary_refresh_control(browser, serve):
     page = open_page(browser, live_url(serve(COMMAND_HUB_EXAMPLE)))
     # The status is part of the summary's hit area, including at phone widths.
     # A native form output here consumes activation instead of opening details.
@@ -181,11 +181,11 @@ def test_atlas_report_waits_behind_a_stationary_updates_control(browser, serve):
     expect(report).to_have_text(before)
     after = report.bounding_box()
     assert abs(after["y"] - box["y"]) < 1
-    updates = page.get_by_role("button", name="Show updates", exact=True)
-    expect(updates).to_be_enabled()
-    updates.click()
+    latest = page.get_by_role("button", name="Show latest", exact=True)
+    expect(latest).to_be_enabled()
+    latest.click()
     expect(report).to_contain_text("Expanded report.")
-    expect(updates).to_be_disabled()
+    expect(latest).to_be_disabled()
     heard = report.locator("time")
     event = next(
         row
@@ -211,8 +211,8 @@ def test_atlas_report_waits_behind_a_stationary_updates_control(browser, serve):
     data_model.cmd_data_set(serve.page_dir, "atlas-worktrees", worktrees)
     told(page)
     expect(observed).to_have_text(re.compile(r"\d+d ago"))
-    expect(updates).to_be_enabled()
-    updates.click()
+    expect(latest).to_be_enabled()
+    latest.click()
     expect(observed).to_have_text("just now")
     expect(observed).to_have_attribute("datetime", refreshed_at)
 

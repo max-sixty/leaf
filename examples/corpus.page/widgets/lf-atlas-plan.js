@@ -11,7 +11,7 @@ import {
   render,
   repeat,
   watchOwner,
-  watchUpdates,
+  watchReports,
 } from "/runtime/widget-api.js";
 export default class extends HTMLElement {
   connectedCallback() {
@@ -31,11 +31,11 @@ export default class extends HTMLElement {
     this.button.addEventListener("click", () => {
       this.hold.release();
       for (const child of this.querySelectorAll("lf-atlas-worker, lf-atlas-tree"))
-        child.showUpdates();
+        child.showLatest();
       this.watching.refresh();
     });
     this.addEventListener("atlas-reading", () => this.watching.refresh());
-    this.watching = watchUpdates(this, () => this.paint());
+    this.watching = watchReports(this, () => this.paint());
   }
   paint() {
     const reading = readWork(this);

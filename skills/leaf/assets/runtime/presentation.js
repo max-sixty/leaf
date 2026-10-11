@@ -625,7 +625,7 @@ function quietFacts(el) {
     ? ["rewritten since your decision"]
     : [];
   if (el.hasAttribute(PAGE_PAINT_ATTRIBUTE.userOverride)) words.push("your change");
-  if (el.hasAttribute(PAGE_PAINT_ATTRIBUTE.reported)) words.push("reported update");
+  if (el.hasAttribute(PAGE_PAINT_ATTRIBUTE.reported)) words.push("reported state");
   for (const attr of registryFor(el)[el.localName]?.["x-paints"] ?? [])
     if (el.hasAttribute(attr)) words.push(el.getAttribute(attr) || attr);
   return words.join(", ");

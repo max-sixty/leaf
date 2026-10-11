@@ -3213,7 +3213,7 @@ def test_absorption_is_by_id_never_inferred_from_markup(page_dir):
     _tasks_version(page_dir, "done")
     result = check(page_dir)
     assert result.exit_code == 0, result.output
-    assert state_json(page_dir)["updates"][0]["disposition"] == "effective"
+    assert state_json(page_dir)["reports"][0]["disposition"] == "effective"
 
 
 def test_user_added_words_do_not_become_liveness_coordinates(page_dir):
@@ -4776,8 +4776,8 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
 
 
 def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
-    """A standing report updates task status without creating user work, stands in
-    the canonical update feed, and remains there as settled history when a note
+    """An unsettled report changes task status without creating user work, appears
+    in the canonical report feed, and remains there as settled history when a note
     absorbs it."""
     tasks = (
         '<lf-test-tasks id="work"><lf-test-task id="t-parser" status="review">'
@@ -4802,7 +4802,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
     )
     state = state_json(page_dir)
     assert questions_on_you(state) == []
-    assert state["updates"] == [
+    assert state["reports"] == [
         {
             "id": rep["id"],
             "target": {"kind": "widget", "id": "t-parser"},
@@ -4841,7 +4841,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
         },
     )
     state = state_json(page_dir)
-    assert state["updates"] == [
+    assert state["reports"] == [
         {
             "id": rep["id"],
             "target": {"kind": "widget", "id": "t-parser"},
@@ -4860,7 +4860,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
     assert questions_on_you(state) == []
 
 
-def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
+def test_report_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
     """Reports are ordered by the log, so equal second-precision timestamps cannot
     reverse their known causal order."""
     task = (
@@ -4896,8 +4896,8 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
         },
     )
 
-    updates = state_json(page_dir)["updates"]
-    assert [(update["source"], update["id"]) for update in updates] == [
+    reports = state_json(page_dir)["reports"]
+    assert [(report["source"], report["id"]) for report in reports] == [
         ("report", first["id"]),
         ("report", second["id"]),
     ]

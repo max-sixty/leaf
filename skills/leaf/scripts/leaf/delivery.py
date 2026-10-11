@@ -591,7 +591,7 @@ def record_pickup(
     reads at its next step, whether or not that step has come. A batch the harness
     holds to add later, as a queue or a steer waiting behind a running tool, is not
     opened until it is added. ``failed`` means the harness
-    gave up on the moves with the named ``failure`` and no answer is coming.
+    gave up on the updates with the named ``failure`` and no answer is coming.
     Queued and opened are transport evidence, not authored work claims. A queued
     transition may therefore be followed by an opened transition for the same
     events, while a retry of the same transition appends nothing.

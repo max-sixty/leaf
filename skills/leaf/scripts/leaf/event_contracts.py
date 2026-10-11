@@ -741,7 +741,7 @@ def admission_error(
 def _task_error(view, event: dict, readings) -> str | None:
     """A task stands on an open thread, a widget that seats work or an element, or the
     page. Task endings also admit an agent withdrawal of a prose Question; a
-    start names explicit agent work or an owed move (`tasks.task_error`)."""
+    start names explicit agent work or an owed update (`tasks.task_error`)."""
     from leaf.tasks import start_reading
 
     progress_parent = (

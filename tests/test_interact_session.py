@@ -6893,7 +6893,7 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
     assert browser_thread["summaries"] == [projected]
 
 
-@pytest.mark.parametrize("label", [None, "Previous updates"])
+@pytest.mark.parametrize("label", [None, "Previous progress messages"])
 def test_summary_cli_can_fold_without_prose_only_when_explicit(page_dir, label):
     root = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Fix the layout."}

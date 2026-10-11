@@ -1108,8 +1108,8 @@ def _report_without_upgrade(registry):
     registry["lf-test-task"]["x-upgrade"] = False
 
 
-def _user_verb_update(registry):
-    registry["lf-options"]["x-state"]["choose"]["update"] = True
+def _user_verb_report(registry):
+    registry["lf-options"]["x-state"]["choose"]["report"] = True
 
 
 def _agent_verb_answers(registry):

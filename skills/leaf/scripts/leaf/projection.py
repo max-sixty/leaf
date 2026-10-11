@@ -40,10 +40,10 @@ from leaf.thread_context import (
 )
 
 
-def _report_updates(projection) -> list[dict]:
+def _reports(projection) -> list[dict]:
     if projection is None:
         return []
-    standing = {
+    unsettled = {
         event["id"]
         for entries in projection.reports.values()
         for event, _spec in entries
@@ -53,18 +53,18 @@ def _report_updates(projection) -> list[dict]:
         for event, _spec in projection.desired.values()
         if event["kind"] == "report"
     }
-    updates = []
+    reports = []
     for _coordinate, (event, spec) in projection.classified.values():
         if event["kind"] != "report":
             continue
-        updates.append(
+        reports.append(
             {
                 "id": event["id"],
                 "target": {"kind": "widget", "id": event["widget"]},
                 "source": "report",
                 "action": event["action"],
                 "detail": event["detail"],
-                "text": event["detail"]["text"] if spec.get("update") else None,
+                "text": event["detail"]["text"] if spec.get("report") else None,
                 "ts": event["ts"],
                 "revision": event["revision"],
                 "seq": event["seq"],
@@ -73,18 +73,18 @@ def _report_updates(projection) -> list[dict]:
                 "disposition": (
                     "effective"
                     if event["id"] in effective
-                    else "standing"
-                    if event["id"] in standing
+                    else "outranked"
+                    if event["id"] in unsettled
                     else "settled"
                 ),
             }
         )
-    return updates
+    return reports
 
 
-def canonical_updates(projection) -> list[dict]:
-    """Normalize projected reports into the one update feed, in log order."""
-    return sorted(_report_updates(projection), key=lambda update: update["seq"])
+def canonical_reports(projection) -> list[dict]:
+    """Normalize projected reports into the one report feed, in log order."""
+    return sorted(_reports(projection), key=lambda report: report["seq"])
 
 
 def enclosing_widgets(rec: dict):
@@ -253,7 +253,7 @@ class FrozenThreadReading(NamedTuple):
         ]
 
     def subject_thread(self, subject: dict) -> str | None:
-        """The thread a workflow or update subject stands in: a thread subject is
+        """The thread a workflow or report subject stands in: a thread subject is
         its own, a widget frozen into a message is its thread's, and a page widget
         stands in none."""
         if subject["kind"] == "thread":

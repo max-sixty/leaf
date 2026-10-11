@@ -327,7 +327,7 @@ def post_reply(
 
     ``when_settled`` distinguishes completed delivery answers from failure receipts.
     ``post`` retains the delivered response address even after settlement, but
-    yields to an answer another writer already gave the move (a failure receipt
+    yields to an answer another writer already gave the update (a failure receipt
     is no answer), so a turn's answer committed after its binding lapsed never
     answers twice; ``skip`` omits a receipt when no answer is owed. The default ``refuse`` rejects a stale
     response address from an ordinary CLI writer.
@@ -342,9 +342,9 @@ def post_reply(
 
     ``ephemeral`` posts progress at the same response address without answering it.
     It remains content, and cannot carry a question, widgets, failure or relocation.
-    Progress on a move the agent owes says what it has in hand, so it also takes that
-    move in hand with its text as the line (`tasks.start_reading`), which is why that
-    text is one line: the move reads Working beside its thread and in the banner, and
+    Progress on an update the agent owes says what it has in hand, so it also takes that
+    update in hand with its text as the line (`tasks.start_reading`), which is why that
+    text is one line: the update reads Working beside its thread and in the banner, and
     the user's message gets the agent's first words and its Working line from one
     write.
     """
@@ -484,7 +484,7 @@ def post_reply(
             )
         if in_hand is not None and start_line_error(text.strip()):
             raise Refused(
-                f"progress on {in_hand!r}, a move you owe, takes it in hand, and its "
+                f"progress on {in_hand!r}, an update you owe, takes it in hand, and its "
                 "text is the Working line beside the thread and in the banner: write "
                 "it as one line saying what you are doing"
             )
@@ -700,20 +700,20 @@ def fail_answer(
     only_if_unclaimed: bool,
     claimed_session: str | None = None,
 ) -> dict | None:
-    """Tell the user no answer to one move is coming, in the move's own terms.
+    """Tell the user no answer to one update is coming, in the update's own terms.
 
-    A harness that gives up on a move settles the obligation the move's workflow
-    `answer` names and hands the next step back to the user, so a failed move is
+    A harness that gives up on an update settles the obligation the update's workflow
+    `answer` names and hands the next step back to the user, so a failed update is
     never left owed with nobody to answer it:
 
     - a `reply` answer takes a reply carrying `failure` in its thread, which
       the user resends into; provider custody refuses it until its turn gives the
       reply up;
     - a `markup` answer takes a failed pickup: the user's Question answer stands in the
-      log, and answering again sends a new move.
+      log, and answering again sends a new answer.
 
-    A move with no answer outstanding writes nothing, except that a repeated reply
-    receipt is found by its `attempt` and returned. `only_if_unclaimed` leaves a move
+    An update with no answer outstanding writes nothing, except that a repeated reply
+    receipt is found by its `attempt` and returned. `only_if_unclaimed` leaves an update
     some turn already picked up to the writer following that turn.
     """
     with PageTransaction(page_dir) as page:
@@ -749,7 +749,7 @@ def _fail_markup_answer(
     only_if_unclaimed: bool,
     claimed_session: str | None,
 ) -> dict | None:
-    """Record a failed pickup of a page move, rechecking its answer under the lock."""
+    """Record a failed pickup of a page action, rechecking its answer under the lock."""
     with PageTransaction(page_dir) as page:
         if claimed_session is not None and page.claim_of(claimed_session) is None:
             raise ReceiptRefused(
@@ -761,8 +761,8 @@ def _fail_markup_answer(
             only_if_unclaimed and pickup_receipts(events, phase=None, input_id=responds)
         ):
             return None
-        [move] = [event for event in events if event["id"] == responds]
-        return record_pickup(page, [move], phase="failed", failure=failure)
+        [update] = [event for event in events if event["id"] == responds]
+        return record_pickup(page, [update], phase="failed", failure=failure)
 
 
 @contract_writer

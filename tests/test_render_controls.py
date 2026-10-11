@@ -1691,7 +1691,7 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
         ("you", "2be2443f0bb6cc49fc86b52f340e6073", 2, "Workshop room photo"),
         ("resolved", "bab3cdfcfb8c02aacbb27da731de947a", 1, "Projector map"),
         ("summary", "9ee465bb3f9c1fa309ea9cb1767fa365", 4, "Afternoon workshop"),
-        ("updates", "bg-progress-question", 4, "Schedule checks"),
+        ("progress", "bg-progress-question", 4, "Schedule checks"),
         (
             "overview",
             "72e031c5bf0d485ba9054628e09869d4",
@@ -1709,7 +1709,7 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
         expect(topic).to_be_visible()
         expect(topic).to_have_text(title)
         assert topic.evaluate("element => element.getBoundingClientRect().width") > 40
-        if view == "updates":
+        if view == "progress":
             card = frame.locator(f'.lf-thread[data-id="{thread}"]')
             checkpoint = card.locator(".lf-thread-checkpoint")
             expect(checkpoint.locator(".lf-summary-label")).to_have_count(0)

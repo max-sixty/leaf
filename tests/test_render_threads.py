@@ -1335,7 +1335,9 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
 
 
 @pytest.mark.parametrize("width", [390, 1440])
-def test_previous_updates_can_fold_without_summary_prose(browser, serve, width):
+def test_previous_progress_messages_can_fold_without_summary_prose(
+    browser, serve, width
+):
     """The same disclosure keeps progress available without an authored digest."""
     url = serve(SEATED_QUESTION_PAGE)
     root = panel_comment(
@@ -1345,7 +1347,7 @@ def test_previous_updates_can_fold_without_summary_prose(browser, serve, width):
     last = append_agent_reply(serve.page_dir, root, "Checking the camera.")
     answer = append_agent_reply(serve.page_dir, root, "The schedule works.")
     summary = summarize_thread(
-        serve.page_dir, first["id"], last["id"], "", label="Previous updates"
+        serve.page_dir, first["id"], last["id"], "", label="Previous progress messages"
     )
 
     page = open_page(browser, url)
@@ -1359,7 +1361,7 @@ def test_previous_updates_can_fold_without_summary_prose(browser, serve, width):
     )
     label = checkpoint.locator(".lf-summary-label")
     expand = checkpoint.get_by_role("button", name="Show 2 earlier messages")
-    expect(label).to_have_text("Previous updates")
+    expect(label).to_have_text("Previous progress messages")
     expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
     expect(card.locator(f'.lf-msg[data-mid="{answer["id"]}"]')).to_be_visible()
     expect(card.locator(f'.lf-msg[data-mid="{first["id"]}"]')).to_be_hidden()

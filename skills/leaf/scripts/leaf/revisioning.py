@@ -18,7 +18,7 @@ refusal is reconsidered when its source or admitted reading changes.
 Every affected open thread follows its surviving section, or detaches, through
 admitted `reanchor` bookkeeping, under the same log transaction as activation.
 An explicit replacement reply takes precedence. These transitions add no messages
-and answer no outstanding move. A reply or stamp is preflighted against the
+and answer no outstanding update. A reply or stamp is preflighted against the
 complete prospective log, including reopened threads. Its durable prerequisite
 names the exact staged bundle in `publication`; the discoverable revision marker
 comes last. Every PageTransaction finishes interrupted publications before

@@ -36,6 +36,7 @@ import {
 } from "./keyboard/layer-stack.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
 import { reducedMotion, foldDuration } from "./motion.js";
+import { plainPress } from "./pointer.js";
 
 // Page media is whatever a reference names under this directory. The name a file there
 // takes is the server's (Python's `schema.MEDIA_DIGEST`), which answers no other, so the
@@ -285,15 +286,7 @@ mediaViewer.addEventListener("close", () => {
   );
 });
 document.addEventListener("click", (event) => {
-  if (
-    event.defaultPrevented ||
-    event.button !== 0 ||
-    event.metaKey ||
-    event.ctrlKey ||
-    event.shiftKey ||
-    event.altKey
-  )
-    return;
+  if (event.defaultPrevented || !plainPress(event)) return;
   // The path ends at the document and the window, and an element whose id is
   // `matches` puts an object at `window.matches`, so only elements are asked.
   const trigger = event

@@ -537,6 +537,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       },
       ...rows,
     ]);
+    // The field owns text editing; this owner alone reserves Return for its declared
+    // submit binding. An unwired source editor therefore keeps Return on every device.
+    ta.addEventListener("lf-edit-return", (event) => {
+      if (submitBindings().includes("Enter")) event.preventDefault();
+    });
     // A press on a submit control is the send key pressed from the box, so it leaves the
     // user where Enter does: in the box, for a box that stays to take more, or wherever the
     // send hands them on to, as a reply does to its thread (`landSent`), never on the

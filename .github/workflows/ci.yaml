@@ -88,6 +88,17 @@ jobs:
       - name: Install the Linux browser font contract
         run: sudo apt-get install -y fonts-dejavu
 
+      # Where the Python suite's time goes. BSD process accounting records each
+      # process's CPU as it exits, so the run's CPU reads back by command afterwards;
+      # py-spy samples the stacks of every Python process the run starts, waits
+      # included, so wall time reads back by function. py-spy reads a process it did
+      # not start only where Yama allows any same-user trace.
+      - name: Install the suite's profilers
+        run: |
+          sudo apt-get install -y acct
+          sudo sysctl -w kernel.yama.ptrace_scope=0
+          uvx py-spy@0.4.2 --version
+
       - name: Fetch pinned image assets
         run: uv run leaf-dev fetch-assets
 
@@ -109,9 +120,30 @@ jobs:
       - name: 🧪 Python tests
         id: python-tests
         background: true
-        run: >-
-          uv run pytest tests -n 3 -v --junitxml=.tmp/test-results/results.xml
-          ${{ github.event_name == 'pull_request' && '--nightly-changed-since HEAD^1' || '--run-nightly' }}
+        # The profilers write beside the junit report: `cpu-by-command.txt` is `sa`'s
+        # table of every process that ran meanwhile, and `stacks.txt` holds one line
+        # per distinct stack and sample count at 20 Hz, rooted at its process, for
+        # `leaf-dev suite-profile`, speedscope or flamegraph.pl. py-spy follows the
+        # process tree from `uv run` once it has a child, and stops when it exits.
+        run: |
+          mkdir -p .tmp/test-results
+          sudo touch /var/log/account/suite
+          sudo accton /var/log/account/suite
+          uv run pytest tests -n 3 -v --junitxml=.tmp/test-results/results.xml \
+            ${{ github.event_name == 'pull_request' && '--nightly-changed-since HEAD^1' || '--run-nightly' }} &
+          tests=$!
+          until pgrep -P "$tests" >/dev/null || ! kill -0 "$tests" 2>/dev/null; do
+            sleep 0.1
+          done
+          uvx py-spy@0.4.2 record --pid "$tests" --subprocesses --idle --nonblocking \
+            --function --rate 20 --format raw --output .tmp/test-results/stacks.txt &
+          profiler=$!
+          wait "$tests" && status=0 || status=$?
+          wait "$profiler" || echo "py-spy exited with $?"
+          sudo accton off
+          sudo chmod a+r /var/log/account/suite
+          sa -a -c -i /var/log/account/suite > .tmp/test-results/cpu-by-command.txt
+          exit "$status"
 
       # The website build can overlap Python; Docker must wait because its host
       # interface changes interrupt Chrome's loopback requests in browser tests.
@@ -133,6 +165,12 @@ jobs:
       - name: Measure the bundled release in Chrome
         if: github.event_name == 'pull_request'
         run: uv run leaf-dev verify-site website-worker
+
+      - name: Summarize where the suite's time went
+        if: success() || failure()
+        run: |
+          uv run leaf-dev suite-profile .tmp/test-results | tee .tmp/test-results/summary.txt
+          { echo '```'; cat .tmp/test-results/summary.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload pytest results
         if: always()

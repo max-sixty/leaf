@@ -258,7 +258,7 @@ export function createDrawingController({
   // Where a draft's element stands now: the element, or null once it has gone or its
   // data moved on, which leaves its drawing no frame to be drawn in or added to.
   function targetOf(anchor) {
-    return exactTarget(resolveAnchor(anchor, ""));
+    return exactTarget(resolveAnchor(anchor));
   }
 
   // A later stroke of the session goes to the first stroke's draft wherever it starts, in
@@ -579,7 +579,7 @@ export function createDrawingController({
   // element stood once a revision took the element away; null where the section has gone
   // too, which leaves the ink nowhere to be drawn and Draw mode's undo nothing to aim at.
   function inkFrame(anchor, held) {
-    const found = resolveAnchor(anchor, "");
+    const found = resolveAnchor(anchor);
     const target = exactTarget(found);
     if (target && resolveDrawingFrame(target, held.frame))
       return { target, drawing: held, detached: false };

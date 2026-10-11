@@ -508,7 +508,7 @@ export function anchorForRange(range) {
       ...(prefix && { prefix }),
       ...(suffix && { suffix }),
     };
-    const resolved = quote && resolveAnchor(anchor, reading);
+    const resolved = quote && resolveAnchor(anchor);
     if (resolved?.exact && resolved.kind === "passage") {
       // Quotes discard boundary whitespace. Compare the characters the passage
       // reader retained, rather than demanding the drag's cosmetic spaces survive.
@@ -696,7 +696,7 @@ function designTargetAt(
         for (const passage of controlPassages(face, partElement)) {
           if (!passage.length || !fileModelsPassage(passage)) continue;
           const captured = anchorForRange(rangeOf(passage));
-          const resolved = captured.quote && resolveAnchor(captured, pageText());
+          const resolved = captured.quote && resolveAnchor(captured);
           const attachment =
             resolved?.kind === "passage" && passageGeometry(resolved)?.attachment;
           // Hidden option words and repeated passages cannot establish an exact face.
@@ -787,7 +787,7 @@ export function aimTargets(options = {}) {
   );
 }
 
-export function resolveAnchor(anchor, text = "") {
+export function resolveAnchor(anchor) {
   // Capture exhausted the selected occurrence's real fences without identifying it.
   // Later uniqueness cannot prove that the survivor was the user's occurrence.
   if (anchor.detached) return null;
@@ -845,7 +845,7 @@ export function resolveAnchor(anchor, text = "") {
         exact: true,
         status: "exact",
       };
-    const segments = findQuote(text, anchor.quote, anchor, datums[0]);
+    const segments = findQuote(pageText(), anchor.quote, anchor, datums[0]);
     return segments.length
       ? {
           ...resolvedPassage({
@@ -903,7 +903,7 @@ export function resolveAnchor(anchor, text = "") {
     return anchor.part ? { ...target, exact: false, status: "fallback" } : target;
   }
 
-  const segments = findQuote(text, anchor.quote, anchor, sectionOf(anchor));
+  const segments = findQuote(pageText(), anchor.quote, anchor, sectionOf(anchor));
   if (!segments.length) return null;
   // An exact named-control quote identifies its actual readable face, so both the
   // editor and sent thread clear that face. Ordinary prose still clears its block.

@@ -32,7 +32,7 @@
    else reads the result off the placement record. A point whose words no longer
    resolve, or that had none, stands at the target's top; a reload keeps none. */
 import { resolveAnchor } from "./anchor-resolution.js";
-import { inChrome } from "./passages.js";
+import { inChrome, pageText } from "./passages.js";
 import { clamp } from "./rect.js";
 import { targetSegments } from "./resolved-target.js";
 import { upFrom, under } from "./shadow.js";
@@ -111,7 +111,7 @@ export function commitPoint(key, element, passage) {
   handed.set(key, { element, passage });
 }
 
-// Where each of `threads` pointed into its target stands on this page reading `text`:
+// Where each of `threads` pointed into its target stands on the current page reading:
 // `{ key, target }` in, and `key → { element, row, words }` out for each that stands. The one
 // writer of the points, run by anchor-placement's read. It takes in what sends handed over,
 // a comment pointed at a row another stands at sharing that row's key. `known` is the key
@@ -119,7 +119,8 @@ export function commitPoint(key, element, passage) {
 // point again; a point whose thread the log does not hold, a refused send's, is
 // forgotten. A pass with none, before the log is read, says nothing about which threads
 // it holds and forgets nothing.
-export function placePoints(threads, known, text) {
+export function placePoints(threads, known) {
+  const text = pageText();
   for (const [key, { element, passage }] of handed) {
     if (!known.has(key)) continue;
     handed.delete(key);
@@ -135,7 +136,7 @@ export function placePoints(threads, known, text) {
     let element = standingPoint(target, point.element);
     if (!element && point.passage && point.readFor !== text) {
       point.readFor = text;
-      const found = resolveAnchor(point.passage, text);
+      const found = resolveAnchor(point.passage);
       element = standingPoint(target, rowIn(target, targetSegments(found)[0]?.node));
       if (element) point.element = element;
     }

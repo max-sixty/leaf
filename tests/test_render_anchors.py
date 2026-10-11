@@ -185,7 +185,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
     wait_until_ready(page)
     result = page.evaluate(
         """async () => {
-        const {TEXT_BLOCK, pageRange, pageText} = await window.__lfRuntimeImport('/runtime/passages.js');
+        const {TEXT_BLOCK, pageRange} = await window.__lfRuntimeImport('/runtime/passages.js');
         const {anchorForRange, resolveAnchor} =
             await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
         const {nextRender, renderingSettled} =
@@ -267,7 +267,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
                 continue;
             }
             const anchor = anchorForRange(range);
-            const resolved = resolveAnchor(anchor, pageText());
+            const resolved = resolveAnchor(anchor);
             // A cross-cell selection remains a real native selection and a writable
             // comment. It must not acquire an exact semantic highlight by ignoring
             // the same fences file capture respects. Generated wordless faces and

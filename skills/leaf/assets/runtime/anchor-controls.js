@@ -35,7 +35,7 @@ import {
 } from "./anchor-resolution.js";
 import { registerContribution } from "./contributions.js";
 import { commandScope } from "./keyboard/scopes.js";
-import { inChrome, pageQueryAll, pageText } from "./passages.js";
+import { inChrome, pageQueryAll } from "./passages.js";
 import { registry } from "./registry.js";
 import { shadowHost, upFrom } from "./shadow.js";
 import { targetElement, targetParts, targetSegments } from "./resolved-target.js";
@@ -138,11 +138,11 @@ export function createAnchorControls({
 
   function focusVisualAction(event) {
     const control = event.currentTarget;
-    let current = resolveAnchor(control.lfAnchor, pageText());
+    let current = resolveAnchor(control.lfAnchor);
     let element = targetParts(current)[0] ?? targetElement(current);
     if (!element) return;
     reveal(element, retainUserIntent());
-    current = resolveAnchor(control.lfAnchor, pageText());
+    current = resolveAnchor(control.lfAnchor);
     element = targetParts(current)[0] ?? targetElement(current);
     scrollIntoView(element, {
       behavior: "instant",

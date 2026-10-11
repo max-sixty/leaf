@@ -13461,7 +13461,7 @@ customElements.define('lf-quote-subject', class extends HTMLElement {
     )
     reading = page.evaluate(
         """anchor => window.__lfRuntimeImport('/runtime/anchor-resolution.js')
-          .then(async ({resolveAnchor}) => {const {pageText} = await window.__lfRuntimeImport('/runtime/passages.js'); const {kind, exact, status} = resolveAnchor(anchor, pageText());
+          .then(({resolveAnchor}) => {const {kind, exact, status} = resolveAnchor(anchor);
             return {kind, exact, status};})""",
         comment["anchor"],
     )

@@ -93,7 +93,6 @@ import {
   closestAcross,
   inChrome,
   pageRange,
-  pageText,
   pageWords,
   programmaticSelection,
   selectEnds,
@@ -310,7 +309,7 @@ export function createResponseSurface({
   // Asked of a stored anchor from outside a live response transaction, where the composer
   // is down and there is no native selection to read the passage off.
   const anchorStands = (anchor) =>
-    Boolean(anchor) && standsIn(anchor, resolveAnchor(anchor, pageText()));
+    Boolean(anchor) && standsIn(anchor, resolveAnchor(anchor));
   const fabPointIn = (target) =>
     fabAnchor?.quote ? null : standingPoint(target, fabPoint);
   const placement =
@@ -497,14 +496,13 @@ export function createResponseSurface({
   // draft is about, which is what the route back to it has to travel to.
   const anchorTargetAt = (anchor) => {
     if (!anchor) return null;
-    const found = resolveAnchor(anchor, pageText());
+    const found = resolveAnchor(anchor);
     if (!found) return null;
     if (!anchor.quote) return targetElement(found);
     return lightSeat(targetPlace(found));
   };
   const anchorTravelAt = (anchor) =>
-    (anchor?.quote && targetRange(resolveAnchor(anchor, pageText()))) ||
-    anchorTargetAt(anchor);
+    (anchor?.quote && targetRange(resolveAnchor(anchor))) || anchorTargetAt(anchor);
   const fabTargetAt = () => anchorTargetAt(fabAnchor);
   const fabReturnPlaces = () => returnPlaces(fabAnchor);
 

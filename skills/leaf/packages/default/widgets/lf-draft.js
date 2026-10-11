@@ -371,23 +371,23 @@ export default class extends HTMLElement {
               <div class="lf-draft-revision-head">
                 <strong>${row.label}</strong>
                 ${
-                    row.text === standing
-                      ? nothing
-                      : html`<button
-                          ${offered("lf-btn lf-draft-restore")}
-                          aria-disabled=${String(blocked)}
-                          tabindex=${blocked ? -1 : 0}
-                          @click=${() => this.#restore(row.text, row.label)}
-                        >
-                          Restore ${row.label.toLowerCase()}
-                        </button>`
-                  }
+                  row.text === standing
+                    ? nothing
+                    : html`<button
+                        ${offered("lf-btn lf-draft-restore")}
+                        aria-disabled=${String(blocked)}
+                        tabindex=${blocked ? -1 : 0}
+                        @click=${() => this.#restore(row.text, row.label)}
+                      >
+                        Restore ${row.label.toLowerCase()}
+                      </button>`
+                }
               </div>
               ${
-                  row.before === null
-                    ? html`<div class="lf-draft-snapshot">${row.text || "Empty"}</div>`
-                    : this.#delta(row.before, row.text)
-                }
+                row.before === null
+                  ? html`<div class="lf-draft-snapshot">${row.text || "Empty"}</div>`
+                  : this.#delta(row.before, row.text)
+              }
             </li>`,
         )}
       </ol>

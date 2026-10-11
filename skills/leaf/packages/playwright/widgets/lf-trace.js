@@ -1411,12 +1411,14 @@ customElements.define(
       if (visible) {
         const raster = this.#picture.image.getBoundingClientRect();
         const host = this.imageViewport.getBoundingClientRect();
-        this.inputPoint.style.left = layoutPx(
+        const left = layoutPx(
           raster.left - host.left + (coordinate.x / viewport.width) * raster.width,
         );
-        this.inputPoint.style.top = layoutPx(
+        const top = layoutPx(
           raster.top - host.top + (coordinate.y / viewport.height) * raster.height,
         );
+        if (this.inputPoint.style.left !== left) this.inputPoint.style.left = left;
+        if (this.inputPoint.style.top !== top) this.inputPoint.style.top = top;
         keeps(this.inputPoint, "title", this.#inputLabel(action));
       }
     }
@@ -1476,7 +1478,7 @@ customElements.define(
         current: item.id === this.#selected,
       }));
       return {
-        signature: `${this.#trace.archive.sha256}:${this.#scope}:${moments.map((moment) => `${moment.number}@${moment.time}`).join(",")}`,
+        signature: `${this.#trace.archive.sha256}:${this.#scope}:${origin}:${bounds.end}:${moments.map((moment) => `${moment.number}@${moment.time}`).join(",")}`,
         duration: Math.max(1, bounds.end - origin),
         time: playhead === null ? 0 : playhead - origin,
         moments,
@@ -1836,9 +1838,7 @@ customElements.define(
                   <p class="lf-trace-tree-clock">
                     ${tree
                       ? `${tree.nodes.length} elements · ${PHASES[treePoint.phase]} checkpoint at ${this.#time(tree.timestamp, treePoint.action.stream)}. Saved element boxes may differ from the image.`
-                      : action
-                        ? "No accessibility tree was saved for this phase. Full DOM inspection is available in Playwright."
-                        : "No saved elements at this frame. Choose an action checkpoint to inspect its saved tree."}
+                      : "No accessibility tree was saved at this point."}
                   </p>
                   <ul class="lf-trace-nodes">
                     ${repeat(

@@ -801,7 +801,7 @@ def test_trace_bookmarks_jump_to_exact_evidence_in_page_flow(browser, serve):
     origin = record["streams"][0]["monotonicTime"]
     expect(widget.locator(".lf-trace-action")).to_have_text(actions[0]["title"])
     expect(widget.locator(".lf-trace-phase")).to_have_text(
-        f"After · {(actions[0]['phases']['after']['timestamp'] - origin) / 1000:.3f} s"
+        f"After checkpoint · {(actions[0]['phases']['after']['timestamp'] - origin) / 1000:.3f} s"
     )
     for index, label in enumerate(("Documentation reviewed", "API reviewed")):
         action = actions[index]
@@ -813,9 +813,8 @@ def test_trace_bookmarks_jump_to_exact_evidence_in_page_flow(browser, serve):
             button.focus()
             user.keyboard.press("Enter")
         else:
-            widget.locator(".lf-trace-markers").get_by_role(
-                "button", name=re.compile(re.escape(label))
-            ).click()
+            # The numbered flag on the timeline reaches the same result.
+            widget.locator(f'.lf-trace-moment-pin[data-tip*="{label}"]').click()
         expect(widget.locator(".lf-trace-phase")).to_have_text(
             f"After checkpoint · {elapsed:.3f} s"
         )
@@ -1015,9 +1014,6 @@ def test_trace_initial_moment_uses_capture_order_and_skips_unavailable_targets(
         "aria-checked", "true"
     )
     expect(
-        widget.get_by_role("checkbox", name="Show intermediate frames")
-    ).to_be_checked()
-    expect(
         widget.locator(
             ".lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img"
         )
@@ -1139,14 +1135,15 @@ def test_trace_transport_scrubs_plays_and_freezes_review_evidence(browser, serve
         expect(play).to_be_visible()
         user.clock.resume()
 
-        # The visible handle, rather than blank-space pan, changes evidence.
+        # The playhead handle scrubs under any pointer; the overview is already whole.
         timeline.press("Home")
         expect(position).to_have_text(beginning)
-        widget.get_by_role("button", name="Whole recording", exact=True).click()
-        expect(position).to_have_text(beginning)
+        expect(
+            widget.get_by_role("button", name="Whole recording", exact=True)
+        ).to_be_disabled()
         timeline.scroll_into_view_if_needed()
-        handle = widget.locator(".vis-custom-time.selection > div").bounding_box()
-        rail = widget.locator(".vis-panel.vis-center").bounding_box()
+        handle = widget.locator(".lf-trace-playhead-handle").bounding_box()
+        rail = widget.locator(".lf-trace-scroller").bounding_box()
         before_scrub = position.inner_text()
         start = {
             "x": handle["x"] + handle["width"] / 2,
@@ -1364,7 +1361,7 @@ def test_trace_page_scrolling_preserves_playback(browser, serve):
                 behavior: 'instant'
             })""")
             assert user.evaluate("scrollY") > 0
-            rail = widget.locator(".vis-panel.vis-center").bounding_box()
+            rail = widget.locator(".lf-trace-scroller").bounding_box()
             x, y = rail["x"] + rail["width"] - 30, rail["y"] + 20
             before_scroll = user.evaluate("scrollY")
             cdp = context.new_cdp_session(user)
@@ -1696,7 +1693,7 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
         rendered(user)
         assert user.evaluate("inspectionView()") == pytest.approx(before, abs=0.003)
         # A panned window also survives metadata redraws and scope replacement.
-        rail = widget.locator(".vis-panel.vis-center").bounding_box()
+        rail = widget.locator(".lf-trace-scroller").bounding_box()
         user.mouse.move(rail["x"] + rail["width"] * 0.6, rail["y"] + 12)
         user.mouse.down()
         user.mouse.move(rail["x"] + rail["width"] * 0.35, rail["y"] + 12, steps=8)
@@ -1722,7 +1719,7 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
         timeline.press("Home")
         rendered(user)
         handle = widget.locator(".vis-custom-time").bounding_box()
-        rail = widget.locator(".vis-panel.vis-center").bounding_box()
+        rail = widget.locator(".lf-trace-scroller").bounding_box()
         assert rail["x"] <= handle["x"] <= rail["x"] + rail["width"]
         timeline.press("End")
         rendered(user)
@@ -2566,17 +2563,16 @@ def test_trace_replaces_captures_without_blank_pixels_or_layout_displacement(
         "button", name="Last filmstrip image"
     ).click()
     holding(user, held, 1, "next captured image")
-    # Panning time must not restore the old image's position while media prepares.
+    # Zooming and panning time must not restore the old image's position while
+    # media prepares.
     position = widget.locator(".lf-trace-position")
     requested_position = position.inner_text()
-    rail = widget.locator(".lf-trace-markers")
+    widget.get_by_role("button", name="Zoom in", exact=True).click()
+    rail = widget.locator(".lf-trace-scroller")
     rail.scroll_into_view_if_needed()
     box = rail.bounding_box()
-    x, y = box["x"] + box["width"] * 0.6, box["y"] + box["height"] - 8
-    user.mouse.move(x, y)
-    user.mouse.down()
-    user.mouse.move(x - 70, y, steps=6)
-    user.mouse.up()
+    user.mouse.move(box["x"] + box["width"] * 0.6, box["y"] + box["height"] / 2)
+    user.mouse.wheel(-120, 0)
     expect(position).to_have_text(requested_position)
     expect(raster).to_have_attribute("data-lf-datum", before_id)
     expect(widget.locator(".lf-trace-caption")).to_have_text(before_caption)

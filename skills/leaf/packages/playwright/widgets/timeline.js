@@ -18,6 +18,7 @@
  */
 import {
   html,
+  keyed,
   nothing,
   render,
   repeat,
@@ -25,6 +26,9 @@ import {
   cancelRender,
   sizeObserver,
   layoutPx,
+  keeps,
+  keepsHidden,
+  keepsText,
 } from "/runtime/widget-api.js";
 
 const LABEL_GAP = 6;
@@ -55,6 +59,11 @@ function assignRows(items, start, end) {
     item.row = row;
   }
   return Math.max(1, rows.length);
+}
+
+// Style writes the page did not change are still mutations; skip them.
+function keepVar(node, name, value) {
+  if (node && node.style.getPropertyValue(name) !== value) node.style.setProperty(name, value);
 }
 
 let measuring = null;
@@ -146,10 +155,12 @@ export class RecordingTimeline {
     this.#time = time;
     const track = this.#host.querySelector(".lf-trace-track");
     if (!track || !this.#model) return;
-    track.style.setProperty("--lf-trace-time", String(this.#fraction(time)));
-    this.#host
-      .querySelector(".lf-trace-overview")
-      ?.style.setProperty("--lf-trace-time", String(this.#fraction(time)));
+    keepVar(track, "--lf-trace-time", String(this.#fraction(time)));
+    keepVar(
+      this.#host.querySelector(".lf-trace-overview"),
+      "--lf-trace-time",
+      String(this.#fraction(time)),
+    );
   }
 
   /** Bring `time` into view: `center` for navigation, `page` for playback. */
@@ -236,7 +247,7 @@ export class RecordingTimeline {
   #applyZoom() {
     const track = this.#host.querySelector(".lf-trace-track");
     if (!track) return;
-    track.style.setProperty("--lf-trace-zoom", String(this.#zoom));
+    keepVar(track, "--lf-trace-zoom", String(this.#zoom));
     this.#layoutLabels(false);
     this.#drawRuler();
   }
@@ -330,7 +341,11 @@ export class RecordingTimeline {
           @scroll=${() => this.#scrolled()}
           @wheel=${(event) => this.#wheel(event)}
         >
-          <div
+          ${keyed(
+            // A different recording, scope or time scale is a new drawing: its
+            // marks are replaced rather than carried to new positions.
+            model.signature,
+            html`<div
             class="lf-trace-track"
             @pointerdown=${(event) => this.#press(event)}
             @click=${(event) => this.#tap(event)}
@@ -446,7 +461,8 @@ export class RecordingTimeline {
                 title=${quoted ? "Selected recorded time" : "Drag to scrub the recording"}
               ></span>
             </div>
-          </div>
+          </div>`,
+          )}
         </div>
         <div
           class="lf-trace-overview"
@@ -460,9 +476,9 @@ export class RecordingTimeline {
       this.#host,
     );
     const track = this.#host.querySelector(".lf-trace-track");
-    track.style.setProperty("--lf-trace-zoom", String(this.#zoom));
-    track.style.setProperty("--lf-trace-edge", `${EDGE}px`);
-    track.style.setProperty("--lf-trace-time", String(this.#fraction(this.#time)));
+    keepVar(track, "--lf-trace-zoom", String(this.#zoom));
+    keepVar(track, "--lf-trace-edge", `${EDGE}px`);
+    keepVar(track, "--lf-trace-time", String(this.#fraction(this.#time)));
     this.#drawRuler();
   }
 
@@ -471,15 +487,17 @@ export class RecordingTimeline {
     const scroller = this.scroller;
     const overview = this.#host.querySelector(".lf-trace-overview");
     if (!scroller?.scrollWidth || !overview) return;
-    overview.style.setProperty(
+    keepVar(
+      overview,
       "--lf-trace-window-start",
       String(scroller.scrollLeft / scroller.scrollWidth),
     );
-    overview.style.setProperty(
+    keepVar(
+      overview,
       "--lf-trace-window-size",
       String(scroller.clientWidth / scroller.scrollWidth),
     );
-    overview.toggleAttribute("data-zoomed", this.#zoom > 1);
+    keeps(overview, "data-zoomed", this.#zoom > 1 ? "" : null);
   }
 
   #overviewPress(event) {
@@ -638,18 +656,20 @@ export class RecordingTimeline {
       return;
     }
     const tip = this.#host.querySelector(".lf-trace-tip");
-    tip.textContent = pick.dataset.tip;
-    tip.hidden = false;
+    keepsText(tip, pick.dataset.tip);
+    keepsHidden(tip, false);
     const host = this.#host.getBoundingClientRect();
     const box = pick.getBoundingClientRect();
     const width = tip.offsetWidth;
-    tip.style.left = layoutPx(
-      Math.max(0, Math.min(host.width - width, box.left - host.left)),
+    keepVar(
+      tip,
+      "left",
+      layoutPx(Math.max(0, Math.min(host.width - width, box.left - host.left))),
     );
-    tip.style.top = layoutPx(box.top - host.top - tip.offsetHeight - 4);
+    keepVar(tip, "top", layoutPx(box.top - host.top - tip.offsetHeight - 4));
   }
   #hideTip() {
     const tip = this.#host.querySelector(".lf-trace-tip");
-    if (tip) tip.hidden = true;
+    if (tip) keepsHidden(tip, true);
   }
 }

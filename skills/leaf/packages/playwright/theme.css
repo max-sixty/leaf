@@ -64,7 +64,8 @@
   --lf-trace-input: var(--accent);
   position: relative;
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
+  /* A fixed name column: a font arriving cannot move the time scale. */
+  grid-template-columns: 76px minmax(0, 1fr);
   min-inline-size: 0;
   margin-block-end: var(--sp-2);
   border: 1px solid var(--border-2);
@@ -74,7 +75,7 @@
 }
 .lf-trace-timeline:focus-visible { --lf-focus-ring: trace-timeline; outline: var(--focus-ring); outline-offset: 2px; }
 .lf-trace-lane-names { display: grid; align-content: start; border-inline-end: 1px solid var(--border-2); background: var(--paper-2, var(--paper)); color: var(--muted); }
-.lf-trace-lane-name { display: flex; align-items: center; padding-inline: var(--sp-2); block-size: calc(var(--lf-trace-rows, 1) * var(--lf-trace-row-h) + 6px); box-sizing: border-box; border-block-start: 1px solid var(--border-2); }
+.lf-trace-lane-name { display: flex; align-items: center; padding-inline: var(--sp-2); overflow: hidden; white-space: nowrap; block-size: calc(var(--lf-trace-rows, 1) * var(--lf-trace-row-h) + 6px); box-sizing: border-box; border-block-start: 1px solid var(--border-2); }
 .lf-trace-lane-name-ruler { block-size: var(--lf-trace-ruler-h); border-block-start: 0; }
 .lf-trace-lane-name-input { block-size: var(--lf-trace-input-h); }
 .lf-trace-lane-name-captures { block-size: var(--lf-trace-capture-h); }
@@ -114,7 +115,7 @@
 .lf-trace-playhead { position: absolute; inset-block: 0; left: calc(var(--lf-trace-edge) + var(--lf-trace-time, 0) * var(--lf-trace-span)); inline-size: 2px; translate: -1px 0; background: var(--accent); pointer-events: none; z-index: 2; }
 /* The handle's box is its hit target, the ruler's height and wider than the mark it
  * draws; the mark sits below the ruler's labels so no time label hides behind it. */
-.lf-trace-playhead-handle { position: absolute; inset-block-start: 0; left: 50%; inline-size: 28px; block-size: calc(var(--lf-trace-ruler-h) + 12px); translate: -50% 0; pointer-events: auto; touch-action: none; cursor: ew-resize; }
+.lf-trace-playhead-handle { position: absolute; inset-block-start: 0; left: 50%; inline-size: 28px; block-size: var(--lf-trace-ruler-h); translate: -50% 0; pointer-events: auto; touch-action: none; cursor: ew-resize; }
 .lf-trace-playhead-handle::after { content: ""; position: absolute; inset-block-start: calc(var(--lf-trace-ruler-h) - 10px); left: 50%; inline-size: 12px; block-size: 10px; translate: -50% 0; clip-path: polygon(0 0, 100% 0, 100% 40%, 50% 100%, 0 40%); background: var(--accent); }
 .lf-trace-overview { --lf-trace-overview-h: 8px; grid-column: -2; position: relative; block-size: var(--lf-trace-overview-h); border-block-start: 1px solid var(--border-2); background: var(--paper-2, var(--paper)); touch-action: none; }
 .lf-trace-overview-window { position: absolute; inset-block: 1px; left: calc(var(--lf-trace-window-start, 0) * 100%); inline-size: calc(var(--lf-trace-window-size, 1) * 100%); border-radius: 2px; background: color-mix(in srgb, var(--accent) 22%, transparent); }

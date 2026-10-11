@@ -774,8 +774,10 @@ box before wiring it.
 
 A visual with generated part ids declares accepted `x-visual.prefixes` and calls
 `registerVisualParts(source, read, {reveal, label})`. The `read` function returns
-the parts currently drawn as `{id, element, label}` records. `reveal(id)` draws an
-absent part when someone follows its thread; `label(id)` names that part in
+the parts currently drawn as `{id, element, label}` records. `reveal(id)` settles
+the visual on the requested part when someone follows its thread, even if the
+part is already visible: cancel any pending work that would retire it before
+returning. `label(id)` names that part in
 Threads without changing the visual's state, and returns `null` for an unknown id.
 An `x-visual.parts` declaration may set `complete: true` when listing some drawn
 parts while leaving their peers unaddressable would confuse a reader. The render

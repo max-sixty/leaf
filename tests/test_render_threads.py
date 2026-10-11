@@ -9718,6 +9718,128 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
         assert reading["named"] == reading["under"] == index and reading["row"], reading
 
 
+@pytest.mark.parametrize(("width", "touch"), [(1200, False), (311, True)])
+def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
+    browser, serve, width, touch
+):
+    """Reading down a long reply in the thread card, its head keeps the writer's name
+    and the time at the top, while its annotations, the progress disclosure and the
+    edited label, leave with the reply's first line as the words do. They stuck with
+    the name, so the row went on offering the reply's earlier updates over every line
+    of it. A narrow card wraps the disclosure onto a second row, and it rises under
+    the name rather than over it. A focused disclosure stays in the stuck row."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Explain with examples?", {"section": "how-store"}
+    )
+    thread_model.post_reply(
+        serve.page_dir,
+        root,
+        "I'm capturing both widths.",
+        None,
+        for_event=root,
+        ephemeral=True,
+    )
+    answer = thread_model.post_reply(
+        serve.page_dir, root, LANDING_WORDS * 8, None, for_event=root
+    )["id"]
+    thread_model.cmd_edit(serve.page_dir, answer, "Edited. " + LANDING_WORDS * 8)
+    # Later turns leave room to scroll the answer past the top in either direction.
+    for turn, author in enumerate(("user", "agent")):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": author,
+                "parent": root,
+                "text": f"Turn {turn}. " + LANDING_WORDS * 4,
+            },
+        )
+    context = browser.new_context(
+        viewport={"width": width, "height": 900}, has_touch=touch, is_mobile=touch
+    )
+    page = open_page(browser, url, context=context)
+    page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
+    selector = (
+        f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'
+        " > .lf-thread-transcript"
+    )
+    transcript = page.locator(selector)
+    expect(transcript).to_be_visible()
+    rendered(page)
+    scroll_settled(page, selector)
+    message = transcript.locator(f'.lf-msg[data-event="{answer}"]')
+    toggle = message.get_by_role("button", name="Show 1 progress message", exact=True)
+    expect(toggle).to_be_visible()
+    expect(message.locator(".lf-edited")).to_be_visible()
+
+    def scrolled_past(distance):
+        """Each part's top against the transcript's, once the answer's opening stands
+        `distance` pixels above it and a rendering update has moved what scroll moves,
+        and what the user sees at the name's middle."""
+        transcript.evaluate(
+            """(box, [selector, distance]) => {
+              const message = box.querySelector(selector);
+              box.scrollTop += message.getBoundingClientRect().top
+                - box.getBoundingClientRect().top + distance;
+            }""",
+            [f'.lf-msg[data-event="{answer}"]', distance],
+        )
+        rendered(page)
+        return transcript.evaluate(
+            """(box, selector) => {
+              const message = box.querySelector(selector);
+              const head = message.querySelector(':scope > .lf-msg-head');
+              const name = head.querySelector('b');
+              const from = box.getBoundingClientRect().top;
+              const top = node => node.getBoundingClientRect().top - from;
+              const at = name.getBoundingClientRect();
+              const time = head.querySelector('time');
+              const middle = at.top + at.height / 2;
+              // The name itself, and the gap between it and the time.
+              const seen = [at.left + 4, time.getBoundingClientRect().left - 4]
+                .map(x => document.elementFromPoint(x, middle));
+              const toggle = head.querySelector('.lf-summary-expand');
+              return {message: top(message), name: top(name),
+                      time: top(time),
+                      edited: top(head.querySelector('.lf-edited')),
+                      toggle: top(toggle),
+                      toggleBottom: toggle.getBoundingClientRect().bottom - from,
+                      nameShown: seen.every(node => name.contains(node)),
+                      head: head.offsetHeight};
+            }""",
+            f'.lf-msg[data-event="{answer}"]',
+        )
+
+    rest = scrolled_past(0)
+    assert abs(rest["message"]) <= 1, rest
+    for distance in (6, 12, 20, 30):
+        reading = scrolled_past(distance)
+        assert abs(reading["message"] + distance) <= 1, reading
+        # The name and time stay where they stood and stay on top; the annotations
+        # move with the words.
+        assert abs(reading["name"] - rest["name"]) <= 1, (rest, reading)
+        assert abs(reading["time"] - rest["time"]) <= 1, (rest, reading)
+        assert reading["nameShown"], reading
+        for part in ("toggle", "edited"):
+            moved = reading[part] - (rest[part] - distance)
+            assert abs(moved) <= 1, (part, rest, reading)
+    gone = scrolled_past(2 * rest["head"])
+    assert abs(gone["name"] - rest["name"]) <= 1, (rest, gone)
+    assert gone["toggleBottom"] <= 0, gone
+
+    page.keyboard.press("Shift")
+    toggle.focus()
+    assert toggle.evaluate("node => node.matches(':focus-visible')")
+    rendered(page)
+    focused = transcript.evaluate(
+        """(box, toggle) => toggle.getBoundingClientRect().top
+             - box.getBoundingClientRect().top""",
+        toggle.element_handle(),
+    )
+    assert abs(focused - rest["toggle"]) <= 1, (rest, focused)
+
+
 SEAT_FILLER = "".join(
     f"<p>Filler paragraph {n}, long enough to occupy a line of reading.</p>"
     for n in range(40)

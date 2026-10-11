@@ -1384,8 +1384,8 @@ def test_draw_mode_leaves_inline_thread_controls_usable(browser, serve):
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
 
 
-def test_draw_mode_leaves_widget_controls_usable(browser, serve):
-    """An offered widget control keeps its pointer action and cursor in Draw mode."""
+def test_draw_mode_captures_widget_controls(browser, serve):
+    """A page widget remains drawable; a Draw press never answers its Question."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     option = page.locator("#bg-choice-trail")
     control = option.locator(".lf-pick")
@@ -1395,11 +1395,46 @@ def test_draw_mode_leaves_widget_controls_usable(browser, serve):
     page.mouse.move(*point)
     page.keyboard.press("w")
 
-    assert control.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
     page.mouse.click(*point)
 
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
-    expect(option).to_have_attribute("chosen", "")
+    assert option.get_attribute("chosen") is None
+    expect(page.locator(".lf-drawing-mark")).to_have_count(0)
+    assert control.evaluate("el => getComputedStyle(el).cursor") == "crosshair"
+    stroke_over(page, control)
+    expect(page.locator(".lf-drawing-mark")).to_have_count(1)
+    assert option.get_attribute("chosen") is None
+
+
+@pytest.mark.parametrize("mode", ["draw", "design"])
+def test_pointer_modes_leave_document_editing_controls_usable(browser, serve, mode):
+    """A widget's source editor is Leaf apparatus wherever the widget seats it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Drawing beside a document editor",
+                '<h1>Review the draft</h1><lf-draft id="draft"><pre>Original words.</pre></lf-draft>',
+            )
+        ),
+    )
+    page.keyboard.press("w" if mode == "draw" else "l")
+    draft = page.locator("#draft")
+    edit = draft.get_by_role("button", name="Edit", exact=True)
+    assert edit.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
+    edit.click()
+    editor = draft.get_by_role("textbox", name="Edit draft", exact=True)
+    expect(editor).to_be_focused()
+    assert editor.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
+    editor.click()
+    write(editor, "Revised words.")
+    with sending(page, "document edit"):
+        draft.get_by_role("button", name="Save", exact=True).click()
+    expect(draft.locator(".lf-draft-body")).to_have_text("Revised words.")
+    expect(page.locator("html" if mode == "draw" else "body")).to_have_attribute(
+        f"data-lf-{mode}-mode", ""
+    )
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
 
 

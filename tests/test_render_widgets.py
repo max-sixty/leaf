@@ -6898,23 +6898,42 @@ def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, 
         != "rgb(200, 0, 0)"
     )
 
-    # Every frame of the child a Reset makes that draws the note draws it loud.
-    painted = page.locator("#tone-sample").evaluate(
-        """async sample => {
-          const frames = [];
-          let sampling = true;
-          const tick = () => {
-            const note = sample.querySelector('iframe').contentDocument
-              ?.getElementById('child-note');
-            if (note) frames.push(getComputedStyle(note).color);
-            if (sampling) requestAnimationFrame(tick);
-          };
-          requestAnimationFrame(tick);
-          await sample.reset();
+    # The reset child has an opaque origin. Collect its paints there, then request
+    # the whole sequence after Reset completes across the browsing-context boundary.
+    page.add_init_script("""(() => {
+      if (window === top) return;
+      const paints = [];
+      let sampling = true;
+      const tick = () => {
+        const note = document.getElementById('child-note');
+        if (note) paints.push(getComputedStyle(note).color);
+        if (sampling) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+      window.addEventListener('message', event => {
+        if (event.source !== parent || event.data?.type !== 'lf-test-tone-read')
+          return;
+        requestAnimationFrame(() => {
           sampling = false;
-          return frames;
-        }"""
-    )
+          parent.postMessage({type: 'lf-test-tone-paints', paints}, '*');
+        });
+      });
+    })()""")
+    page.locator("#tone-sample").evaluate("sample => sample.reset()")
+    page.locator("#tone-sample").evaluate("""sample => {
+      window.lfTonePaints = null;
+      const frame = sample.querySelector('iframe');
+      const receive = event => {
+        if (event.source !== frame.contentWindow
+            || event.data?.type !== 'lf-test-tone-paints') return;
+        window.lfTonePaints = event.data.paints;
+        window.removeEventListener('message', receive);
+      };
+      window.addEventListener('message', receive);
+      frame.contentWindow.postMessage({type: 'lf-test-tone-read'}, '*');
+    }""")
+    page.wait_for_function("window.lfTonePaints !== null")
+    painted = page.evaluate("window.lfTonePaints")
     assert painted and set(painted) == {"rgb(200, 0, 0)"}
     expect(child.locator(":root")).to_have_attribute("data-playground-tone", "loud")
 

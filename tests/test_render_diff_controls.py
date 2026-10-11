@@ -379,9 +379,7 @@ def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serv
     page.keyboard.press("Tab")
     expect(retry).to_be_focused()
     page.keyboard.press("Enter")
-    # The browser's request event can precede Python's route callback. Read the
-    # route's held list only after that callback has taken the retry.
-    holding(page, pending, 1, "the first retry's deferred request")
+    holding(page, pending, 1, "the first deferred retry")
     assert len(attempts) == 2 and len(pending) == 1
     expect(retry).to_have_attribute("aria-disabled", "true")
     expect(retry).to_be_focused()
@@ -402,7 +400,7 @@ def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serv
     # If the user tabs away during another pending retry, its failure must leave
     # focus at the newer control instead of restoring the old Retry button.
     page.keyboard.press("Enter")
-    holding(page, pending, 1, "the next retry's deferred request")
+    holding(page, pending, 1, "the second deferred retry")
     assert len(attempts) == 3 and len(pending) == 1
     expect(retry).to_have_attribute("aria-disabled", "true")
     page.keyboard.press("Tab")

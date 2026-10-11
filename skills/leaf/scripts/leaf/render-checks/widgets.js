@@ -475,16 +475,17 @@ export function heldScrollers(tags) {
 // for a user who already knows it (module-authoring.md, "Commands and keyboard
 // routes"). A route without its own `bindingBadge` takes its row's. The reading is the
 // declaration, not the keys reachable now, so a command whose keys depend on state is
-// read the same in every state. A command belongs to the nearest of `tags`' widgets
-// holding the element that declared it.
+// read the same in every state. A command belongs to the nearest Leaf widget holding
+// the element that declared it, as a box does in `heldScrollers`, so a dependency's
+// widget nested in one of `tags`' answers for its own commands.
 export function unshownContextKeys(tags) {
   const own = new Set(tags);
   const found = [];
   const seen = new Set();
   for (const { source, scope } of commandDeclarationsWithin(document.body)) {
     let owner = source;
-    while (owner && !own.has(owner.localName)) owner = upFrom(owner);
-    if (!owner) continue;
+    while (owner && !owner.localName.startsWith("lf-")) owner = upFrom(owner);
+    if (!owner || !own.has(owner.localName)) continue;
     for (const row of scope.rows)
       for (const command of [row, ...commandRoutes(row)]) {
         if (command.contextKeys === undefined) continue;

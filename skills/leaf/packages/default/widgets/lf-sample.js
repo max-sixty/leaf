@@ -15,6 +15,7 @@
  * quotation. A disconnect releases the child; moving the retained element within a
  * document does not reset its work. */
 import {
+  whileConnected,
   keeps,
   keepsText,
   mountSample,
@@ -51,7 +52,22 @@ customElements.define(
     }
 
     connectedCallback() {
-      if (once(this)) this.#build();
+      if (!once(this)) return;
+      this.#build();
+      if (!this.#frame) return;
+      whileConnected(this, () => {
+        this.#mount();
+        return () => {
+          this.#inspection = null;
+          this.#viewOperation?.abort();
+          const host = this.#host;
+          this.#host = null;
+          host?.destroy().catch((error) => this.#failure(error));
+        };
+      });
+    }
+
+    #mount() {
       // Removal ends native modality even when a retained widget reconnects before
       // its host is retired. Reconcile the presentation with that platform state.
       if (
@@ -94,16 +110,7 @@ customElements.define(
     }
 
     disconnectedCallback() {
-      queueMicrotask(() => {
-        if (this.isConnected) return;
-        this.#inspection = null;
-        if (this.#view?.getAttribute("role") === "dialog") this.#embed();
-        this.#viewOperation?.abort();
-        if (!this.#host) return;
-        const host = this.#host;
-        this.#host = null;
-        host.destroy().catch((error) => this.#failure(error));
-      });
+      if (this.#view?.getAttribute("role") === "dialog") this.#embed();
     }
 
     #build() {
@@ -273,7 +280,7 @@ customElements.define(
       this.#viewOperation?.abort();
       if (this.#mounting) await this.#ready;
       if (!this.#host) {
-        this.connectedCallback();
+        this.#mount();
         return this.#ready;
       }
       return this.#track(this.#host.reset());

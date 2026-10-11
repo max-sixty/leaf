@@ -147,7 +147,9 @@
   }
 
   // When the page first showed the user reply `id`, admitted at `ts` in `thread`, and
-  // by which sign: its `message`, its thread's `row`, or its thread's `notice`.
+  // by which sign: its `message`, its thread's `row`, or its thread's `notice`. A
+  // visible row dates the reply a frame before its message comes into view, so the
+  // reading also says when the message itself did (`message`, null while it has not).
   function replyShown({ thread, id, ts }) {
     const found = shown();
     const signs = [["message", found.messages[id]]];
@@ -160,7 +162,7 @@
     const [by, at] = signs
       .filter(([, at]) => at !== undefined)
       .sort((a, b) => a[1] - b[1])[0] ?? [null, null];
-    return by === null ? null : { at, by };
+    return by === null ? null : { at, by, message: found.messages[id] ?? null };
   }
 
   async function runtimeModule(name) {

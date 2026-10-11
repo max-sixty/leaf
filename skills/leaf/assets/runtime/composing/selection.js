@@ -415,6 +415,7 @@ export function createSelectionComposer({
   // a guard testing for one of them ran on every mousedown in the page and swallowed the
   // click. Painting hangs off the same call, so the mark and the box are up together.
   function showComposer(open) {
+    if (!open) syncComposer?.cancelDictation();
     // Hiding keeps the words and used to say nothing at all, so a press on the banner took
     // the box off screen with the user's sentence in it and left no sign the sentence
     // still existed — recoverable only by reselecting that exact passage on that exact

@@ -42,19 +42,26 @@
    on hover. The hit box around the disc is the icon-action floor above. The glyph's
    ink outranks the .lf-ui face by coming later. Reopen standing in Resolve's place
    is the same glyph drawn done, on every surface that seats a thread. */
-.lf-compose-submit, :is(.lf-resolve, .lf-reopen).lf-icon-action { border: 0;
+:is(.lf-compose-submit, .lf-compose-dictate), :is(.lf-resolve, .lf-reopen).lf-icon-action { border: 0;
           background: transparent; box-shadow: none; }
-:is(.lf-compose-submit, .lf-resolve.lf-icon-action, .lf-reopen.lf-icon-action)::before {
+:is(.lf-compose-submit, .lf-compose-dictate, .lf-resolve.lf-icon-action, .lf-reopen.lf-icon-action)::before {
           content: "";
           position: absolute; box-sizing: border-box; inline-size: 28px; block-size: 28px;
           border-radius: var(--r); background: transparent; }
-:is(.lf-compose-submit, .lf-resolve.lf-icon-action, .lf-reopen.lf-icon-action):hover {
+:is(.lf-compose-submit, .lf-compose-dictate, .lf-resolve.lf-icon-action, .lf-reopen.lf-icon-action):hover {
           background: transparent; box-shadow: none; }
-.lf-compose-submit { position: absolute; z-index: 1; inset-inline-end: 6px;
+:is(.lf-compose-submit, .lf-compose-dictate) { position: absolute; z-index: 1; inset-inline-end: 6px;
           inset-block-end: 6px; color: var(--accent); }
-.lf-compose-submit:not(:disabled, [aria-disabled="true"]):hover::before {
+:is(.lf-compose-submit, .lf-compose-dictate):not(:disabled, [aria-disabled="true"]):hover::before {
           background: var(--accent-tint); }
-.lf-compose-submit:is(:disabled, [aria-disabled="true"]) { opacity: 1; color: var(--muted); }
+:is(.lf-compose-submit, .lf-compose-dictate):is(:disabled, [aria-disabled="true"]) { opacity: 1; color: var(--muted); }
+.lf-compose-dictate { color: var(--muted); }
+.lf-compose-dictate:hover { color: var(--ink); }
+.lf-compose-dictate:is([data-dictation="starting"], [data-dictation="listening"]) { color: var(--accent); }
+.lf-compose-dictate[data-dictation="listening"]::before { background: var(--accent-tint); }
+.lf-compose-dictate[data-dictation="failed"] { color: var(--danger-ink); }
+.lf-compose-dictate[data-dictation="failed"]:hover::before { background: var(--danger-tint); }
+.lf-compose-dictate:not([data-dictation="failed"]) .lf-mic-slash { display: none; }
 :is(.lf-resolve, .lf-reopen).lf-icon-action { position: relative; flex: none;
           margin-inline-start: auto; color: var(--ink); }
 .lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover { color: var(--ok-ink); }
@@ -211,13 +218,13 @@ button.lf-media-open { cursor: zoom-in; }
     padding-inline: var(--lf-compose-pad-inline-start) calc(var(--lf-comment-text-pad-end) - 1px);
     --lf-field-end-room: var(--lf-comment-send-room);
     overflow-y: auto; }
-  .lf-fab-bar .lf-compose-submit {
+  .lf-fab-bar :is(.lf-compose-submit, .lf-compose-dictate) {
     inset-inline-end: var(--lf-comment-send-inset);
     inset-block-end: var(--lf-comment-send-inset); }
   /* The field keeps its full box while both actions occupy its trailing corner. */
   .lf-fab-bar[data-lf-other-responses] {
     --lf-comment-action-room: calc(2 * var(--lf-icon-action-hit)); }
-  .lf-fab-bar[data-lf-other-responses] .lf-compose-submit {
+  .lf-fab-bar[data-lf-other-responses] :is(.lf-compose-submit, .lf-compose-dictate) {
     inset-inline-end: calc(var(--lf-comment-send-inset) + var(--lf-icon-action-hit)); }
   .lf-fab-more { position: absolute; border: 0; background: transparent; color: var(--muted);
     inset-inline-end: var(--lf-comment-send-inset);

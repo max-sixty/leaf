@@ -62,6 +62,24 @@ what fails and what still works.
 
 ## Known gaps
 
+### Browser dictation in comment boxes
+
+- **Owner:** `runtime/composing/input.js` and `runtime/composing/dictation.js`.
+  Empty comment and reply boxes offer dictation only when the browser exposes
+  `SpeechRecognition` or `webkitSpeechRecognition`.
+- **Compatibility checked 2026-10-11:** [MDN marks speech recognition as limited
+  availability](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition).
+  Availability of the interface does not establish microphone permission or
+  access to the browser's recognition service.
+- **Observed:** installed Chrome 155.0.8059.39 exposes the interface and begins
+  listening. A standalone test with synthetic microphone audio ended with
+  `no-speech`; successful real transcription remains unverified. The Codex
+  embedded browser reported `network` in the user's trial. Deterministic native
+  event tests separately cover transcripts, failure recovery and cancellation.
+- **Disposition:** progressive enhancement. Browsers without the interface keep
+  ordinary typing and Send. A failed attempt stays inside the empty field; words
+  already heard remain editable and sendable.
+
 ### Native focus and scrolling inside samples
 
 - **Impact: functional; Leaf-owned navigation is contained.** An opaque

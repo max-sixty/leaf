@@ -14,7 +14,7 @@ from leaf.projection import (
     page_reading,
     with_action,
 )
-from leaf.questions import answer_verbs, answering_action, asking, replayed_attrs
+from leaf.questions import answer_verbs, answering_action, closed_thread
 from leaf.registry.contract import state_definition
 from leaf.thread_context import thread_structure
 
@@ -153,10 +153,7 @@ def answer_meaning(
                 for question in readings.work.all_questions["all"]
             ),
         ),
-        record["attrs"].get("resolves")
-        if not declined
-        and asking(replayed_attrs(record, projection), entry["x-awaits"].get("when"))
-        else None,
+        None if declined else closed_thread(record, entry, projection),
     )
 
 

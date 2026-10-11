@@ -89,6 +89,7 @@ const state = (taken, events = []) => ({
   browser: {
     basis: { through_seq: events.length },
     receipts: events,
+    event_threads: {},
     tasks: [],
     ended_tasks: [],
     thread: {
@@ -105,6 +106,7 @@ const state = (taken, events = []) => ({
         updates: [],
         published_at: null,
         queues: { on_you: [], on_agent: [], done: [] },
+        closes: {},
         document: {
           questions: noQuestions(),
           projection: {
@@ -654,6 +656,34 @@ test("every thread gesture the ledger holds names the thread it stands in", () =
     ["root"],
   );
   assert.deepEqual(gestured(action("move")), []);
+});
+
+test("a move that would close a thread concerns that thread, before and after the log has it", () => {
+  // A page suggestion that answers a thread stands in no thread, but accepting it
+  // closes the one that asked, so the news that thread holds back shows with it.
+  const served = servedReading("suggestion closes a thread");
+  const app = createSemanticApplication();
+  app.identify(1);
+  app.adopt(served);
+  const decide = {
+    kind: "action",
+    widget: "sug-refill",
+    action: "decide",
+    detail: { outcome: "accept" },
+    revision: 1,
+  };
+  app.enqueue({ ...decide, attempt: "accept" }, "now");
+  assert.deepEqual(app.read().effective.thread.gestured, ["e1"]);
+  app.refuse("accept");
+
+  // Taking back the logged acceptance concerns the thread it closed.
+  const logged = servedReading("suggestion accepted");
+  const accepted = logged.events.at(-1);
+  const later = createSemanticApplication();
+  later.identify(1);
+  later.adopt(logged);
+  later.enqueue({ kind: "undo", undoes: accepted.id, attempt: "take-back" }, "now");
+  assert.deepEqual(later.read().effective.thread.gestured, ["e1"]);
 });
 
 test("a refused local message publishes one failed workflow before retirement", () => {

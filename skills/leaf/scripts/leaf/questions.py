@@ -16,7 +16,7 @@ from leaf.events import (
     taken_back,
 )
 from leaf.files import stamped_version
-from leaf.gesture_words import leading_title
+from leaf.gesture_words import element_name
 from leaf.projection import (
     FrozenThreadReading,
     StateProjection,
@@ -288,6 +288,18 @@ def previously_requested(
         if asking(replayed_attrs(record, cache[key]), when):
             return True
     return False
+
+
+def closed_thread(rec: dict, entry: dict, projection: StateProjection) -> str | None:
+    """The thread an answer on this widget closes: its authored `resolves`, read
+    while the widget still asks under `projection`, as a name `thread_names`
+    resolves. Admission reads it with the answering action standing
+    (`event_meaning.answer_meaning`); the browser places a move it has not sent yet
+    by the current reading (`served_state.browser`, `closes`)."""
+    awaits = entry.get("x-awaits")
+    if awaits is None or not asking(replayed_attrs(rec, projection), awaits.get("when")):
+        return None
+    return rec["attrs"].get("resolves")
 
 
 def answer_verbs(entry: dict) -> dict:
@@ -707,11 +719,7 @@ class _QuestionReducer:
                 key=lambda event: event["seq"],
                 default=None,
             )
-            node = self.nodes.get(surface["attrs"]["id"])
-            text = leading_title(node) if node is not None else None
-            if not text and surface is record:
-                attr = entry.get("x-name")
-                text = record["attrs"].get(attr) if attr else None
+            text = element_name(self.nodes[surface["attrs"]["id"]], self.registry) or None
             records.append(
                 {
                     "id": "widget:" + unit,

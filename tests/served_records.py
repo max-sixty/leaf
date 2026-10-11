@@ -109,6 +109,26 @@ SIGN_OFF_PAGE = PAGE.replace(
 READY = {"kind": "note", "author": "agent", "version": 1, "text": "Ready"}
 
 
+SUGGESTION_PAGE = leaf_page(
+    "Suggested change",
+    '<lf-suggestion id="sug-refill" resolves="e1">'
+    '<lf-old><p id="refill-rule">Refill every morning.</p></lf-old>'
+    "<lf-new><p>Refill when half-empty.</p></lf-new>"
+    "</lf-suggestion>",
+)
+SUGGESTED = (
+    {"kind": "comment", "text": "Refill less often?"},
+    {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Agent",
+        "parent": "e1",
+        "responds": "e1",
+        "text": "Suggested a rule above.",
+    },
+)
+
+
 def build() -> dict:
     """A thread the agent answered and the user has read, which is nobody's turn, and
     the workflow of a comment still waiting for the agent to pick it up; then the
@@ -219,6 +239,22 @@ def build() -> dict:
                     ),
                 ),
                 presence=HELD,
+            ),
+            # The user asked for a change in a thread, and the agent answered with a
+            # page suggestion whose acceptance closes that thread.
+            "suggestion closes a thread": served_reading(SUGGESTION_PAGE, SUGGESTED),
+            # The same page once the user accepted the suggestion.
+            "suggestion accepted": served_reading(
+                SUGGESTION_PAGE,
+                (
+                    *SUGGESTED,
+                    {
+                        "kind": "action",
+                        "widget": "sug-refill",
+                        "action": "decide",
+                        "detail": {"outcome": "accept"},
+                    },
+                ),
             ),
             # One Ask answered and one open, and a task the agent ended beside one it
             # still holds: only the answered Ask and the ended task are done.

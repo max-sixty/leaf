@@ -804,18 +804,18 @@ NEIGHBOUR = (
 PRESS = "[data-lf-offer], [role=tab], [role=button], .lf-btn, .lf-pick, button, summary"
 
 # The controls a press is aimed *past*: the ones sharing its row, standing on the same
-# line, and on screen at both ends of the gesture. A target margin entry's row is its cluster;
+# line, and rendered at both ends of the gesture. A target margin entry's row is its cluster;
 # contribution and options wrappers do not split the visible row. The playground's action
 # group can wrap in a narrow rail, but its controls still share that group. Other controls
-# use their parent. Hold identity across the press, and measure relative to the group:
-# content above may move the whole row without moving a neighbour within it.
+# use their parent. Hold identity across the press and measure on the screen: moving
+# the containing row carries every neighbour out from under the user's aim too.
 #
-# On screen is the load-bearing half. A control inside a fold the press opens was nowhere
+# Being rendered is the load-bearing half. A control inside a fold the press opens was nowhere
 # the user could aim, and one the press puts away — a suggestion's ✗ Reject, once ✓
 # Accept has settled the pair — is not a control that moved. Both are the press doing what
 # it was pressed for. `[hidden]` is asked separately because hidden="until-found", which is
 # what a folded region wears, measures zero and still reports itself visible.
-ON_SCREEN = "(n) => n.checkVisibility() && !n.closest('[hidden]') && n.offsetWidth > 0"
+RENDERED = "(n) => n.checkVisibility() && !n.closest('[hidden]') && n.offsetWidth > 0"
 NAMED = browser_function("control_name.js", "named")
 NEIGHBOURHOOD = f"""(el, sel) => {{
   const band = el.getBoundingClientRect();
@@ -823,16 +823,15 @@ NEIGHBOURHOOD = f"""(el, sel) => {{
     const r = n.getBoundingClientRect();
     return Math.min(r.bottom, band.bottom) - Math.max(r.top, band.top) > 1;
   }};
-  window.__lfOnScreen = {ON_SCREEN};
+  window.__lfRendered = {RENDERED};
   const cluster = el.closest('.lf-margin-cluster, .lf-diff-file, .lf-playground-actions');
-  window.__lfOrigin = cluster || el.parentElement;
   const candidates = cluster ? [...cluster.querySelectorAll(sel)]
       : [...el.parentElement.children]
           .filter((n) => n !== el && !n.contains(el))
           .flatMap((n) => (n.matches(sel) ? [n] : [...n.querySelectorAll(sel)]));
   window.__lfNeighbours = candidates
       .filter((n) => n !== el && !n.contains(el) && !el.contains(n))
-      .filter((n) => window.__lfOnScreen(n) &&
+      .filter((n) => window.__lfRendered(n) &&
           (cluster?.matches('.lf-playground-actions') || sameLine(n)));
   return {{ names: window.__lfNeighbours.map({NAMED}), boxes: window.__lfBoxes() }};
 }}"""
@@ -840,23 +839,23 @@ NEIGHBOURHOOD = f"""(el, sel) => {{
 # chrome is showing, held by identity so the news can rewrite their words without
 # changing who they are.
 BANNER_WATCH = f"""(sel) => {{
-  window.__lfOnScreen = {ON_SCREEN};
-  window.__lfOrigin = null;
+  window.__lfRendered = {RENDERED};
   window.__lfNeighbours = [...document.querySelector(".lf-banner").querySelectorAll(sel)]
-      .filter(window.__lfOnScreen);
+      .filter(window.__lfRendered);
   return {{ names: window.__lfNeighbours.map({NAMED}), boxes: window.__lfBoxes() }};
 }}"""
 # One reading, named once, so the rendered-frame wait and the assertion cannot measure
 # differently. The words ride along so `displaced` can tell a box whose own content
-# changed from one that was pushed.
+# changed from one that was pushed. Read every dimension from the screen rectangle;
+# ancestor movement and transforms are part of what the user sees, not an origin to
+# subtract. A rendered control carried beyond the viewport still moved.
 DEFINE_BOXES = """() => { window.__lfBoxes = () => window.__lfNeighbours.map(
     (n) => {
-      if (!window.__lfOnScreen(n)) return null;
+      if (!window.__lfRendered(n)) return null;
       const box = n.getBoundingClientRect();
-      const origin = window.__lfOrigin?.getBoundingClientRect();
-      return [Math.round(box.left - (origin?.left || 0)),
-              Math.round(box.top - (origin?.top || 0)),
-              n.offsetWidth, n.offsetHeight, (n.textContent || '').trim()];
+      return [Math.round(box.left), Math.round(box.top),
+              Math.round(box.width), Math.round(box.height),
+              (n.textContent || '').trim()];
     }); }"""
 
 
@@ -909,7 +908,7 @@ def page_at_rest(page):
 def displaced(before, boxes, news=False):
     """Which of the watched controls are somewhere else, in the failure's own words.
 
-    A control that has gone off screen reads None and is left out: it was put away
+    A control that is hidden or removed reads None and is left out: it was put away
     rather than moved, which is a thing both sweeps below deliberately allow.
 
     `news` reads the rule for a change nobody gestured (`skills/leaf/assets/AGENTS.md`,

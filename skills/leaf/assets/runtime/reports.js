@@ -1,35 +1,36 @@
-/* Canonical action and update feeds exposed to widgets and chrome.
+/* The report feed exposed to widgets and chrome.
 
    Projection answers where state stands. Some modules also need to narrate how the state
    arrived or when it was last reported. They read that through the exported sequence
    helpers, not through raw `events`.
 
-   `updateSequence(target)` is the one reading of news about an item. Its target is
+   `reportSequence(target)` is the one reading of news about an item. Its target is
    either a widget element or an explicit `{kind, id}` pair; a bare id is not an identity
    and is rejected because a thread and a widget may spell theirs alike. With no target
-   it returns the whole ordered feed. Each is a worker's report from the append-only
-   log, in one envelope: `id`, typed `target`, `source`, `action`, structured `detail`,
-   declared human-readable `text`, `ts`, attribution, `disposition`, and the report's
-   version and sequence. The work the agent has in hand is no update: it is the
-   served workflows' Working stage and the open tasks' `running` start.
+   it returns the whole ordered feed. Each entry is a worker's report from the
+   append-only log, in one envelope: `id`, typed `target`, `source`, `action`,
+   structured `detail`, declared human-readable `text`, `ts`, attribution,
+   `disposition`, and the report's version and sequence. The work the agent has in hand
+   is no report: it is the served workflows' Working stage and the open tasks' `running`
+   start.
 
-   A report stands until a stamped revision's note absorbs or overrules it. The closed
-   disposition is `effective` when an update contributes to current state on its semantic
-   coordinate, `standing` when it still needs source-specific settlement but is presently
-   outranked, and `settled` when that authority answers it. An older unabsorbed report
-   can therefore be standing behind a newer report on its coordinate, while a version
-   still owes it an answer. Settled entries remain in the feed when their source retains history.
-   A module showing freshness therefore still sees when the log last heard from a worker
-   after a stamp absorbs the worker's report.
+   A report holds until a stamped revision's note absorbs or overrules it. The closed
+   disposition is `effective` when a report contributes to current state on its semantic
+   coordinate, `outranked` when it still needs source-specific settlement but a newer
+   report on its coordinate takes precedence, and `settled` when that authority answers
+   it. An older unabsorbed report can therefore be outranked by a newer report on its
+   coordinate while a version still owes it an answer. Settled entries remain in the feed
+   when their source retains history. A module showing freshness therefore still sees
+   when the log last heard from a worker after a stamp absorbs the worker's report.
 
-   An agent-written x-state verb may declare `update: true`, requiring non-empty
+   An agent-written x-state verb may declare `report: true`, requiring non-empty
    `detail.text`. That is the envelope's `text`; consumers never infer prose from
    a field, verb, or widget name. The state boundary exposes it once.
 
-   `updateSequence` filters the server-normalized update feed. `watchUpdates` and
+   `reportSequence` filters the server-normalized report feed. `watchReports` and
    `watchHistory` are `watchProjection` (`projection-watch.js`) with their own reading,
    so a module connected before the first state and one a later thread reconcile builds
-   render through the same callback. `watchUpdates` withholds a reading until the
+   render through the same callback. `watchReports` withholds a reading until the
    projection has committed every report coordinate its target holds, so a callback
    never narrates a report the widget has not yet painted.
 
@@ -46,11 +47,11 @@
    `active.revision` identifies the immutable document currently shown; `active.version`
    is its public stamp when it has one, otherwise null, and `active.label` is `vN`,
    `Draft after vN`, or `Draft`. The timestamp of the latest note for that revision is
-   the freshness floor for authored state when no report exists. A page that reports no
-   worker update is not timeless; its authored assertion is as old as its revision.
+   the freshness floor for authored state when no report exists. A page with no worker
+   report is not timeless; its authored assertion is as old as its revision.
 
    The shared presentation coordinator owns the proof that guards report callbacks.
-   Raw update and history readings remain direct semantic selections. */
+   Raw report and history readings remain direct semantic selections. */
 import { watchProjection } from "./projection-watch.js";
 import { currentProjection } from "./projection/state.js";
 import { readApplication, projectionRegionsPresented } from "./semantic-state.js";
@@ -58,7 +59,7 @@ import { readApplication, projectionRegionsPresented } from "./semantic-state.js
 import { runtime } from "./context.js";
 import { closestAcross } from "./passages.js";
 
-function updateTarget(target) {
+function reportTarget(target) {
   if (target === null) return null;
   if (target instanceof Element) {
     if (target.id) return { kind: "widget", id: target.id };
@@ -70,16 +71,16 @@ function updateTarget(target) {
     return { kind: target.kind, id: target.id };
   }
   throw new TypeError(
-    "update target must be a widget element or {kind: 'widget' | 'thread', id}",
+    "report target must be a widget element or {kind: 'widget' | 'thread', id}",
   );
 }
 const targetKey = (target) =>
   target ? JSON.stringify([target.kind, target.id]) : null;
-export const updateSequence = (target = null) => {
-  const key = targetKey(updateTarget(target));
-  return (runtime.view?.updates ?? [])
-    .filter((update) => key === null || targetKey(update.target) === key)
-    .map((update) => structuredClone(update));
+export const reportSequence = (target = null) => {
+  const key = targetKey(reportTarget(target));
+  return (runtime.view?.reports ?? [])
+    .filter((report) => key === null || targetKey(report.target) === key)
+    .map((report) => structuredClone(report));
 };
 
 const publishedAt = () => runtime.view?.published_at ?? null;
@@ -87,7 +88,7 @@ export const saidAt = (el) =>
   closestAcross(el, ".lf-msg")?.querySelector(":scope > .lf-msg-head time")?.dateTime ||
   publishedAt();
 
-// The server's history reading: the newest moves, newest first, each already carrying
+// The server's history reading: the newest events, newest first, each already carrying
 // its thread, whether it was undone, and a gesture's words as its own document had
 // them. The server sends it only to a page holding a widget that declares
 // `x-history`; elsewhere the callback reads an empty feed. The second argument names
@@ -103,8 +104,8 @@ export const watchHistory = (owner, callback) =>
 // A report can speak only once the renderer of its widget and coordinate chrome
 // have committed. Required asynchronous preparation is the same coordinator region
 // used by startup and pending release, not a second coordinate/event-id commit map.
-export const watchUpdates = (target, callback) => {
-  const key = targetKey(updateTarget(target));
+export const watchReports = (target, callback) => {
+  const key = targetKey(reportTarget(target));
   const reportWidgets = () => {
     const widgets = new Set(target instanceof Element ? [target.id] : []);
     for (const entry of currentProjection().classified.values()) {
@@ -116,7 +117,7 @@ export const watchUpdates = (target, callback) => {
   };
   return watchProjection(
     target instanceof Element ? target : document.body,
-    () => callback(updateSequence(target)),
+    () => callback(reportSequence(target)),
     () => projectionRegionsPresented(reportWidgets()),
   );
 };

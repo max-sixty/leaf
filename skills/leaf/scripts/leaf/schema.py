@@ -18,7 +18,7 @@ UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done", "task_end"}
 MESSAGE_KINDS = {"comment", "reply"}
 # The kinds a widget owns, admitted against the page's registry before they append.
 WIDGET_KINDS = {"action", "report"}
-# The operations that settle a user move the agent owes, as `workflows` and
+# The operations that settle an update the agent owes, as `workflows` and
 # `activity` address them and `$events.answering` explains them. Reply writer custody
 # is separate: a provider turn may own its opening and final messages.
 ANSWER_KINDS = ("reply", "markup")
@@ -190,8 +190,8 @@ STATE_SCHEMA = {
             },
             "writer": {"const": "agent"},
             "creates": ACTION_CREATES,
-            # The effect owns the payload; update adds required nonempty detail.text.
-            "update": {"const": True},
+            # The effect owns the payload; report adds required nonempty detail.text.
+            "report": {"const": True},
         },
         "required": ["unit"],
         "allOf": [
@@ -207,8 +207,8 @@ STATE_SCHEMA = {
         # the stamped version owns and a rank reads between the neighbours a widget
         # shows the user. Its record is required: the gate compares record forms,
         # and a recordless report would be a claim nothing could check a version
-        # against. Only the user adds children, and only a report carries update
-        # prose.
+        # against. Only the user adds children, and only an agent verb
+        # declares `report` text.
         "if": {"required": ["writer"]},
         "then": {
             "required": ["record"],
@@ -217,7 +217,7 @@ STATE_SCHEMA = {
                 "creates": False,
             },
         },
-        "else": {"properties": {"update": False}},
+        "else": {"properties": {"report": False}},
     },
 }
 AWAITS_SCHEMA = {

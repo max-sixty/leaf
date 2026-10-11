@@ -71,7 +71,7 @@ export function detailSchema(entry, spec) {
   const properties = { value };
   if (record.kind === "position")
     Object.assign(properties, { unit: { type: "string" }, rank: { type: "string" } });
-  if (spec.update) properties.text = { type: "string", minLength: 1 };
+  if (spec.report) properties.text = { type: "string", minLength: 1 };
   return {
     type: "object",
     properties,
@@ -86,7 +86,7 @@ export function stateDefinition(origin, entry, spec) {
     unit: spec.unit,
     record: spec.record ?? null,
     creates: spec.creates ?? null,
-    update: spec.update ?? false,
+    report: spec.report ?? false,
     detail: semanticSchema(detailSchema(entry, spec)),
   };
 }

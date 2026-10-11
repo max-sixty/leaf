@@ -8817,11 +8817,13 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
     if changed:
         theme = page_dir / "theme.css"
         theme.write_text(theme.read_text() + "\n/* repair installed edit */\n")
+    # Reusing the recorded URL can wait through native TCP cooldown before
+    # preparation finishes, independently of the session's continued watch.
     revendored = subprocess.run(
         [*LEAF_COMMAND, "page", "init", str(page_dir)],
         capture_output=True,
         text=True,
-        timeout=STATED_TIMEOUT,
+        timeout=hosting_model.PORT_WAIT_SECONDS + STATED_TIMEOUT,
         check=False,
     )
     assert revendored.returncode == 0, revendored.stderr

@@ -13716,6 +13716,35 @@ def test_align_current_thread_stays_in_its_panel_without_travel(browser, serve):
     )
 
 
+def test_a_box_is_already_shown_whole_where_it_fits_and_in_part_where_it_cannot(
+    browser, serve
+):
+    """A landing that follows the user moves nothing for a box already shown: all of it
+    in view where it fits its room, any of it where it does not. A wrapper clipping only
+    sideways bounds no height, so an editor standing in an `overflow-x: clip` row 20px
+    tall still fits, and 30px of it in view is not yet shown."""
+    source = leaf_page(
+        "Room",
+        '<div style="height:2000px"></div>'
+        '<div style="overflow-x:clip;height:20px"><div id="box" style="height:100px"></div></div>'
+        '<div style="height:2000px"></div><div id="tall" style="height:5000px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    reading = page.evaluate("""async () => {
+      const {alreadyShown, fitsWhole} =
+        await window.__lfRuntimeImport('/runtime/landing-scroll.js');
+      const {shownWindow} = await window.__lfRuntimeImport('/runtime/geometry.js');
+      const partly = (node) => {
+        const top = node.getBoundingClientRect().top - (shownWindow().bottom - 30);
+        scrollBy({top, behavior: 'instant'});
+        return [fitsWhole(node), alreadyShown(node)];
+      };
+      return [partly(document.querySelector('#box')),
+              partly(document.querySelector('#tall'))];
+    }""")
+    assert reading == [[True, False], [False, True]]
+
+
 def test_align_current_tall_block_reveals_its_opening_through_outer_scrollers(
     browser, serve
 ):

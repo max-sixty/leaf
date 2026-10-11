@@ -1965,7 +1965,6 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
         ("shorten", bare["id"]),
         ("change", answered["id"]),
     ]
-    assert all("means" not in reaction for reaction in state["reactions"])
     assert state["reactions"][0]["anchor"]["quote"] == "Ship dark"
 
     result = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])

@@ -139,12 +139,9 @@ def _thread_heading(thread: dict) -> str:
 def _print_message(message: dict, registry: dict) -> None:
     who = agent_name(message) or "User"
     if is_reaction(message):
-        # A mark rather than a turn: the token's glyph and word, plus an explanation
-        # only when the page's package deliberately supplied one.
+        # A mark rather than a turn: the token's glyph and word.
         entry = reaction_tokens(registry).get(message["token"]) or {}
         said = f"{entry.get('glyph', '')} {message['token']}".strip()
-        if entry.get("means"):
-            said += f" — {entry['means']}"
         print(f"- **{who}** reacted: {said}")
         return
     edited = " *(edited)*" if message.get("edited") else ""

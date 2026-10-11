@@ -55,7 +55,6 @@ from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
 from leaf.page import page_instructions
 from leaf.registry import contract as registry_contract
-from leaf.registry import reactions as registry_reactions
 from leaf.registry import storage as registry_storage
 from leaf.registry import widgets as registry_widgets
 from leaf.render_gate import browser as browser_model
@@ -5011,7 +5010,7 @@ def test_init_merges_reaction_tokens_merge_patch_style(tmp_path, monkeypatch):
             {
                 "$reactions": {
                     "tokens": {
-                        "keep": {"glyph": "👍", "means": "ship it", "settles": True},
+                        "keep": {"glyph": "👍", "settles": True},
                         "shorten": None,
                         "meh": {"glyph": "~"},
                     }
@@ -5029,32 +5028,24 @@ def test_init_merges_reaction_tokens_merge_patch_style(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     tokens = json.loads((page / "registry.json").read_text())["$reactions"]["tokens"]
     assert list(tokens) == ["keep", "change", "clarify", "support", "prioritize", "meh"]
-    assert tokens["keep"] == {"glyph": "👍", "means": "ship it", "settles": True}
+    assert tokens["keep"] == {"glyph": "👍", "settles": True}
     assert tokens["meh"] == {"glyph": "~"}
     assert "settles" not in tokens["change"]
-    assert registry_reactions.described(
-        {"token": "keep"}, {"$reactions": {"tokens": tokens}}
-    ) == {
-        "token": "keep",
-        "means": "ship it",
-    }
-    assert registry_reactions.described(
-        {"token": "meh"}, {"$reactions": {"tokens": tokens}}
-    ) == {"token": "meh"}
 
 
 @pytest.mark.parametrize(
     "entry",
     [
-        {"glyph": "✓", "means": ""},
-        {"glyph": "", "means": "x"},
-        {"glyph": "✓", "means": "x", "settle": True},  # a flag nothing reads
-        {"glyph": "✓", "means": "x", "settles": "yes"},
+        {"glyph": ""},
+        {"glyph": "✓", "means": "x"},  # prose the layer does not declare
+        {"glyph": "✓", "settle": True},  # a flag nothing reads
+        {"glyph": "✓", "settles": "yes"},
     ],
 )
 def test_package_check_refuses_a_malformed_reaction_token(tmp_path, monkeypatch, entry):
-    """Consumers read declared fields directly, so an invalid glyph, explanation, or
-    misspelled behavior must fail at the package boundary instead of disappearing."""
+    """Consumers read declared fields directly, so an invalid glyph, an undeclared
+    field, or a misspelled behavior must fail at the package boundary instead of
+    disappearing."""
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     assert runner.invoke(cli_model.cli, ["package", "init", ".leaf"]).exit_code == 0

@@ -195,7 +195,6 @@ def batch_data(
     from it."""
     from .events import build_threads
     from .gesture_words import GestureWords, revisions_on_disk
-    from .registry.reactions import described
     from .revision_artifact import active_enclosing
     from .thread_context import (
         batch_threads,
@@ -229,7 +228,7 @@ def batch_data(
     for event in batch:
         threads = memberships.get(event["id"], [])
         entry = {
-            **described(event, registry),
+            **event,
             "subject": _subject(event, threads, by_id),
             "threads": threads,
         }

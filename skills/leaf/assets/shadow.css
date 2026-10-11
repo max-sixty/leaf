@@ -1396,7 +1396,7 @@ button.lf-media-open {
 }
 .lf-page-comment-card,
 .lf-response-control {
-  filter: drop-shadow(0 2px 8px var(--shade));
+  filter: drop-shadow(0 2px 4px var(--shade));
 }
 .lf-comment-box > .lf-compose-field > leaf-text {
   padding: var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);

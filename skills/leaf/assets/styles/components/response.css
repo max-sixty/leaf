@@ -122,7 +122,7 @@ button.lf-media-open { cursor: zoom-in; }
           outline-offset: 0; border-color: transparent; }
 /* Floating comment surfaces have one elevation. The page card reserves the ring's
    room inside its scrollport; a filter lets its shadow extend beyond that clip. */
-.lf-page-comment-card, .lf-response-control { filter: drop-shadow(0 2px 8px var(--shade)); }
+.lf-page-comment-card, .lf-response-control { filter: drop-shadow(0 2px 4px var(--shade)); }
 .lf-comment-box > .lf-compose-field > leaf-text {
           padding: var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);
           border: 0; border-radius: 0; background: transparent;

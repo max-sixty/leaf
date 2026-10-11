@@ -965,8 +965,6 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
     hint = page.locator(".lf-fab-input .lf-compose-placeholder")
     expect(hint).to_be_visible()
     assert len(set(hint.evaluate(hint_ink))) == 1
-    page.locator(".lf-fab-input").click()
-    assert len(set(hint.evaluate(hint_ink))) == 1
 
     family = """el => { const s = getComputedStyle(el);
         return Object.fromEntries(["font-family", "font-size",
@@ -974,6 +972,7 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
             "background-color"].map(p => [p, s.getPropertyValue(p)])); }"""
     raised = page.locator(".lf-fab-input").evaluate(family)
     page.keyboard.press("e")
+    expect(page.locator(".lf-fab-bar .lf-fab-suggest")).to_be_visible()
     adjacent = page.locator(".lf-fab-bar .lf-fab-suggest").evaluate(family)
     assert raised == adjacent, (
         "the floating field and its other responses are drawn differently:\n  "
@@ -990,6 +989,8 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
         page.locator(".lf-fab-input").evaluate("el => getComputedStyle(el).filter")
         != "none"
     ), "the field that floats over the page says nothing about its elevation"
+    page.locator(".lf-fab-input").click()
+    assert len(set(hint.evaluate(hint_ink))) == 1
 
 
 # One rendered key face: the geometry a physical press claims wherever Leaf draws it, and

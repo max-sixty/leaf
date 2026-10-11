@@ -378,8 +378,8 @@ def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serv
     # until it resolves, so it cannot start a parallel deferred request.
     page.keyboard.press("Tab")
     expect(retry).to_be_focused()
-    with page.expect_request("**/api/deferred*"):
-        page.keyboard.press("Enter")
+    page.keyboard.press("Enter")
+    holding(page, pending, 1, "the first deferred retry")
     assert len(attempts) == 2 and len(pending) == 1
     expect(retry).to_have_attribute("aria-disabled", "true")
     expect(retry).to_be_focused()
@@ -399,8 +399,8 @@ def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serv
 
     # If the user tabs away during another pending retry, its failure must leave
     # focus at the newer control instead of restoring the old Retry button.
-    with page.expect_request("**/api/deferred*"):
-        page.keyboard.press("Enter")
+    page.keyboard.press("Enter")
+    holding(page, pending, 1, "the second deferred retry")
     assert len(attempts) == 3 and len(pending) == 1
     expect(retry).to_have_attribute("aria-disabled", "true")
     page.keyboard.press("Tab")

@@ -809,7 +809,9 @@ def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve, scheme
               width: style.outlineWidth, accent, band};
     }""")
     assert (ring["outline"], ring["color"], ring["width"]) == (
-        "solid", ring["accent"], ring["band"]
+        "solid",
+        ring["accent"],
+        ring["band"],
     ), ring
 
 

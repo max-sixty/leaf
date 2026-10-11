@@ -632,15 +632,17 @@ export const draftEditingStands = (editing) =>
 
 // The root editor a revision hands the caret back to, shown first through its owner's
 // Resume writing route when a disclosure holds it shut; `handoff` gates that showing on
-// the user's intent.
+// the user's intent. A root off the page counts when its owner's route places it there,
+// as the page comment card places its box at its first open.
 export function draftEditingDestination(editing, handoff) {
   const shown = (view) =>
     editorInput(view).checkVisibility({ visibilityProperty: true });
+  const placed = (view) => editorInput(view)?.isConnected;
   const roots = [...draftEditors].filter(
     (view) =>
-      view.ctx === editing.context && !view.mirrored && editorInput(view)?.isConnected,
+      view.ctx === editing.context && !view.mirrored && (placed(view) || view.resume),
   );
-  const editor = roots.find(shown) ?? roots[0];
+  const editor = roots.find(shown) ?? roots.find(placed) ?? roots[0];
   if (!editor) return null;
   // A route may have no place to offer now, or no disclosure of its own to open.
   const open = shown(editor) ? null : editor.resume?.()?.open;

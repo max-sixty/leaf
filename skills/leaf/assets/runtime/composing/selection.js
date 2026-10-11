@@ -121,7 +121,13 @@ const composerInput = fabInput;
 // pointed a user at it.
 composerInput.setAttribute("aria-describedby", composerQuote.id);
 const composerSend = el("button", "lf-btn", "Comment");
-composer.append(composerQuote, suggestRow, composerInput, composerSend);
+// The field, and the shelf and controls `wireInput` gathers around it, wait outside the
+// page until the composer first opens (`showComposer`), since a connected field builds
+// its editor: a page whose composer never opens builds none. Everything that reads the
+// field before then reads its words and draft, which it holds unconnected.
+const composerField = document.createDocumentFragment();
+composerField.append(composerInput);
+composer.append(composerQuote, suggestRow, composerSend);
 fabBar.prepend(composer);
 
 export let pendingAnchor = null;
@@ -405,6 +411,7 @@ export function createSelectionComposer({
   // a guard testing for one of them ran on every mousedown in the page and swallowed the
   // click. Painting hangs off the same call, so the mark and the box are up together.
   function showComposer(open) {
+    if (open && composerField.hasChildNodes()) composer.append(composerField);
     if (!open) syncComposer?.cancelDictation();
     // Hiding keeps the words and used to say nothing at all, so a press on the banner took
     // the box off screen with the user's sentence in it and left no sign the sentence

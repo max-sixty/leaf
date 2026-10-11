@@ -4,9 +4,9 @@ from html import escape
 
 import pytest
 from leaf import data as data_model
-from leaf.render_checks import rendered
+from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
-from render_harness import leaf_page, open_page, write
+from render_harness import holding, leaf_page, open_page, write
 
 
 @pytest.mark.parametrize("width,scheme", [(1280, "light"), (390, "dark")])
@@ -361,3 +361,42 @@ def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(browser, 
         expect(file.locator("[data-line]").last).to_contain_text("new = True")
         head.tap()
         expect(file).not_to_have_attribute("open", "")
+
+
+def test_opening_diff_keeps_rendering_pending_until_lazy_source_arrives(browser, serve):
+    """A disclosure's registered source preparation is part of its gesture's render."""
+    patch = """diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -1 +1 @@
+-old
++new
+diff --git a/other.md b/other.md
+--- a/other.md
++++ b/other.md
+@@ -1 +1 @@
+-old
++new
+"""
+    url = serve(
+        leaf_page(
+            "Lazy source",
+            '<lf-diff id="patch" source="patch-data" collapsed><pre></pre></lf-diff>',
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
+    page = open_page(browser, url)
+    held = []
+    page.route("**/vendor/syntax/markdown.js", lambda route: held.append(route))
+    head = page.locator(".lf-diff-head").first
+    head.click()
+    holding(page, held, 1, "the lazy Markdown grammar")
+    try:
+        one_frame(page)
+        assert not page.evaluate(
+            "document.querySelector('script[data-lf-entry]').lfRenderingSettled()"
+        ), "registered source preparation must keep rendering pending"
+    finally:
+        held[0].continue_()
+    rendered(page)
+    expect(head.locator("..").locator("[data-line]").last).to_contain_text("new")

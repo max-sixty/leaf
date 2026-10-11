@@ -1328,14 +1328,34 @@ def _agent_failure(posted: dict) -> tuple[str, str]:
     return _agent_event({"event": posted["event"]}), failure
 
 
+# One published page as the router reads it: its URL root ("" for the site root), its
+# directory in the site build, and its publication kind.
+PageRoute = tuple[str, Path, str]
+
+
+def page_routes(site_root: Path, pages: dict) -> tuple[PageRoute, ...]:
+    """Read the build's page manifest into routes, longest root first.
+
+    `leaf-dev site` writes each directory relative to the build it describes and
+    derives each kind itself, so both are read as given.
+    """
+    return tuple(
+        (
+            "" if public_root == "/" else public_root,
+            (site_root / page["directory"]).resolve(),
+            page["kind"],
+        )
+        for public_root, page in sorted(
+            pages.items(), key=lambda item: len(item[0]), reverse=True
+        )
+    )
+
+
 def published_page(
-    site_root: Path, pages: dict, path: str
+    routes: tuple[PageRoute, ...], path: str
 ) -> tuple[Path, str, str, str] | None:
-    """Resolve a public URL through the build's generated page manifest."""
-    for public_root, page in sorted(
-        pages.items(), key=lambda item: len(item[0]), reverse=True
-    ):
-        page_root = "" if public_root == "/" else public_root
+    """Resolve a public URL to its page directory, root, inner path and kind."""
+    for page_root, page_dir, kind in routes:
         if path in {page_root, f"{page_root}/"}:
             inside = "/"
         elif path.startswith(f"{page_root}/"):
@@ -1344,13 +1364,6 @@ def published_page(
                 continue
         else:
             continue
-        directory = page.get("directory")
-        kind = page.get("kind")
-        if not isinstance(directory, str) or kind not in {"product", "example"}:
-            raise ValueError(f"invalid site manifest entry for {public_root}")
-        page_dir = (site_root / directory).resolve()
-        if not page_dir.is_relative_to(site_root):
-            raise ValueError(f"site manifest path escapes its root: {directory}")
         return page_dir, page_root, inside, kind
     return None
 
@@ -1363,13 +1376,13 @@ class WebsitePageEndpoint(PageEndpoint):
         request,
         server,
         *,
-        site_root: Path,
+        routes: tuple[PageRoute, ...],
         pages: dict,
         release: str,
         agent_harness: WebsiteCodexHarness,
     ) -> None:
         super().__init__(request, server, release=release)
-        self.site_root = site_root
+        self.routes = routes
         self.pages = pages
         self.agent_harness = agent_harness
 
@@ -1459,7 +1472,7 @@ class WebsitePageEndpoint(PageEndpoint):
     def _select_page(self) -> Response | None:
         if self.method == "GET" and self.path == "/health":
             return self._content(200, "text/plain; charset=utf-8", b"ok\n")
-        selected = published_page(self.site_root, self.pages, self.path)
+        selected = published_page(self.routes, self.path)
         if selected is None:
             return self._not_found()
         page_dir, page_root, inside, kind = selected
@@ -1485,7 +1498,7 @@ def site_endpoint(
     manifest = json.loads((root / SITE_MANIFEST).read_text(encoding="utf-8"))
     return partial(
         WebsitePageEndpoint,
-        site_root=root,
+        routes=page_routes(root, manifest["pages"]),
         pages=manifest["pages"],
         release=manifest["release"],
         agent_harness=agent_harness or WebsiteCodexHarness(),

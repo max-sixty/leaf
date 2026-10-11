@@ -6792,28 +6792,33 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
 def test_shadow_staging_replaces_all_nodes_without_disturbing_a_retained_editor(
     browser, serve
 ):
-    """Text and comments leave the stage; a retained control keeps its caret."""
+    """Staging retains a Lit container and its editor while other nodes leave."""
     page = open_page(browser, serve(DIFF_PAGE))
     result = page.evaluate(
         """async () => {
-          const {shadowStage} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {html, render, shadowStage} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const host = document.querySelector('lf-diff');
+          const container = document.createElement('div');
           const input = document.createElement('input');
           input.value = 'draft reply';
+          const paint = text => render(html`<p>${text}</p>${input}`, container);
+          paint('Before restaging');
           const old = document.createElement('p');
           old.textContent = 'old reading';
-          shadowStage(host, [old, document.createComment('old stage'), input]);
+          shadowStage(host, [old, document.createComment('old stage'), container]);
           input.focus();
           input.setSelectionRange(2, 5);
           const next = document.createElement('p');
           next.textContent = 'new reading';
-          shadowStage(host, [next, input]);
+          shadowStage(host, [next, container]);
+          paint('After restaging');
           return {
             text: [...host.shadowRoot.childNodes]
               .filter(node => node.localName === 'p')
               .map(node => node.textContent),
             comments: [...host.shadowRoot.childNodes]
               .filter(node => node.nodeType === Node.COMMENT_NODE).length,
+            rendered: container.querySelector('p').textContent,
             focused: host.shadowRoot.activeElement === input,
             value: input.value,
             selection: [input.selectionStart, input.selectionEnd],
@@ -6823,6 +6828,7 @@ def test_shadow_staging_replaces_all_nodes_without_disturbing_a_retained_editor(
     assert result == {
         "text": ["new reading"],
         "comments": 0,
+        "rendered": "After restaging",
         "focused": True,
         "value": "draft reply",
         "selection": [2, 5],

@@ -26,15 +26,9 @@ from leaf.styles import (
 )
 from leaf.thread_context import thread_ids, thread_structure
 from leaf.validation.instances import (
-    addressable_instance_errors,
-    declared_word_errors,
-    layout_errors,
-    line_ref_errors,
-    question_context_errors,
+    instance_errors,
     reference_errors,
     suggestion_errors,
-    visual_part_errors,
-    widget_errors,
 )
 from leaf.validation.markup import (
     authored_allocation_errors,
@@ -167,19 +161,12 @@ def _instance_errors(
     thread_ids: set[str],
 ) -> list[str]:
     """Validate authored instances against their document's event and id namespace."""
-    errors = []
     if registry is None:
-        return errors
-    errors.extend(widget_errors(parser.lf_elements, registry))
-    errors.extend(layout_errors(parser.lf_elements, registry))
-    errors.extend(visual_part_errors(parser.lf_elements, registry))
-    errors.extend(addressable_instance_errors(parser.lf_elements, registry))
-    errors.extend(question_context_errors(parser.lf_elements, registry))
+        return []
+    errors = instance_errors(parser.lf_elements, registry)
     errors.extend(
         reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
     )
-    errors.extend(declared_word_errors(parser.lf_elements, registry))
-    errors.extend(line_ref_errors(parser.lf_elements, registry))
     errors.extend(suggestion_errors(parser.lf_elements, registry, thread_ids))
     taken = sorted(parser.ids & thread_structure(events).ids)
     if taken:

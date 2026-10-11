@@ -99,8 +99,14 @@ into the design reconsideration instead of polishing a surface that may go away.
 Widgets in ordinary document flow grow with their content by default. Internal
 vertical scrolling needs a task that benefits from keeping a region in view while
 its contents move, or a live stream whose newest entry the reader follows; being
-an inspection object is not enough. Page-authoring choices live in
-`../references/page-authoring.md`, "Bounds and widths". A necessary scroller chains
+an inspection object is not enough. A box that holds its own height declares
+`--lf-holds-height: 1`, as a bounded block's theme and a full-height workspace's
+scrolling regions do, and the widget quality check `grows-with-content` names every
+other widget box that scrolls vertically within a height it keeps
+(`scripts/leaf/render_gate/widget_quality.py`), in each package's worked examples and,
+in the suite, on every corpus page, where the widgets hold data. Page-authoring
+choices live in `../references/page-authoring.md`, "Bounds and widths". A necessary
+scroller chains
 into the document at its edges; isolate scrolling only at a bounded task or modal
 boundary. Wheel and touch keep their navigation meaning; deliberate controls enter
 pan and zoom.
@@ -423,7 +429,7 @@ unresolved local work into the one reading every component selects from:
 | the row inside a target a comment stands by | `pointed-place.js`: the line a pointing gesture landed on, held by the composer until sent, then under the thread's key with the words that find it again; where it stands now is `anchor-placement.js`'s placement record (`point`, `pointRow`), written in its read, the only writer, which takes in what a send hands over; presentation only, and only the pointed threads' row, card and travel follow it |
 | the side and line a comment's box and its thread card stand by, whether they stand past its margin row, and which edge a growing one holds | the default package's `comment-placement.js` (`commentSide`, `options`, `holding`), from the card's declared widths, for both surfaces; each surface's own module measures its content and reports its gestures, and decides neither |
 | whether a margin row stands in the rail or as a pin, its seat, and the order rows are seated in | `margin-layout.js`, through `margin-placement.js`'s folds (`rowPosture`, `seatRows`, `packRows`, `arrivals`) |
-| geometry readings: what a scroller shows, what a surface hides, what sticky headers stand over, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareOccluder`, `headerInset`, `shownWindow`, `seenRect`), so being on screen has one answer |
+| geometry readings: what a scroller shows, what a surface hides, what sticky headers stand over, how much of the window the page shows, where a change of size moves what is seen | `geometry.js` (`visibleBand`, `declareOccluder`, `headerInset`, `shownWindow`, `seenRect`, `motionBand`), so being on screen, and moving what is, each have one answer |
 
 Do not add a second cache, pending map, widget-specific replay list, or DOM
 attribute as another source for one of these facts; a rendering may expose state,

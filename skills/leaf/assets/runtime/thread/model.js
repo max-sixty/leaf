@@ -43,7 +43,7 @@ const threadOffers = (thread, ready) => ({
 /** @template {Pick<Message, "id" | "author" | "parent" | "token" | "addressable" | "agent"> & {key: string}} T
  * @param {{key: string, resolved: Thread["resolved"], msgs: T[]}} thread
  * @param {T} message
- * @param {Record<string, {glyph: string, means?: string}>} tokens
+ * @param {Record<string, {glyph: string}>} tokens
  */
 function reactionChoices(thread, message, tokens) {
   if (
@@ -70,16 +70,15 @@ function reactionChoices(thread, message, tokens) {
 
 // The declared reaction tokens as choices on one target, each with the standing reaction
 // a press takes back. The bar, a reply's strip and the margin form render these; each
-// surface keeps its own face. A token names the control; a layer's `means` explains it.
+// surface keeps its own face, and the token names the control on all of them.
 /** @template {{token?: string}} S
- * @param {Record<string, {glyph: string, means?: string}>} tokens
+ * @param {Record<string, {glyph: string}>} tokens
  * @param {S[]} standing
  */
 export const tokenChoices = (tokens, standing) =>
   Object.entries(tokens).map(([name, entry]) => ({
     name,
     glyph: entry.glyph,
-    label: entry.means ? `${name} — ${entry.means}` : name,
     standing: standing.find((item) => item.token === name) ?? null,
   }));
 /** @param {Thread} thread */

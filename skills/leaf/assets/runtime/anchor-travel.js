@@ -455,6 +455,10 @@ export function createAnchorTravel({
     return seen && { holder, destination, seen };
   }
 
+  // Whether travel to `where` would leave the page as it stands: the destination stands
+  // whole inside the band a landing aims for (`landingBand`) and nothing cuts it. Being
+  // in front of the user (`seenRect`) is not enough, since a destination half cut off or
+  // pressed against the banner is one a landing still moves.
   function readableDestination(where) {
     const shown = seenOf(where);
     if (!shown) return false;

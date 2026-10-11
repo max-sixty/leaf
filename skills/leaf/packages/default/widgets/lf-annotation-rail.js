@@ -17,6 +17,7 @@ import {
   anchorLabel,
   annotationMode,
   consumeAnnotations,
+  declarationFor,
   placePageThreads,
   contributionItemKey,
   HeldReading,
@@ -27,6 +28,7 @@ import {
   layoutPx,
   once,
   offer,
+  offerElement,
   threadActions,
   registerReadingRegion,
   setChildren,
@@ -97,17 +99,21 @@ customElements.define(
       });
     }
 
+    // The rail draws by filling in a copy of the structure delivery writes in for its
+    // first paint (x-prepaint), so the empty rail presents at the box it first painted.
     #build() {
-      const region = make("section", "lf-ar-region lf-ui");
-      region.dataset.lfGen = "1";
+      const drawing = document.createElement("template");
+      drawing.innerHTML = declarationFor(this, "x-prepaint");
+      const region = drawing.content.firstElementChild;
+      for (const node of [region, ...region.querySelectorAll("*")])
+        offerElement(
+          node,
+          [...node.classList].filter((name) => !name.startsWith("lf-ui")).join(" "),
+        );
       region.dataset.lfRuntime = "";
-      region.setAttribute("aria-label", "Page annotations");
-      region.append(make("h2", "lf-ar-heading", "Annotations"));
-      this.#empty = make("p", "lf-ar-empty", "No threads yet.");
-      this.#list = make("div", "lf-ar-list");
-      this.#actions = make("div", "lf-ar-actions");
-      this.#actionNotice = make("button", "lf-ar-notice lf-btn", "Annotations current");
-      this.#actionNotice.type = "button";
+      [, this.#actionNotice, this.#composer, this.#empty, this.#list, this.#actions] =
+        region.children;
+      [this.#composerName, this.#composerOutlet] = this.#composer.children;
       this.#actionOrder = new HeldReading(
         () => [this.#actions],
         () => this.#annotations?.update(),
@@ -120,18 +126,7 @@ customElements.define(
         this.#threadOrder.release();
         this.#actionOrder.show();
       });
-      this.#composer = make("section", "lf-ar-composer");
-      this.#composer.hidden = true;
-      this.#composerName = make("h3", "lf-ar-source");
-      this.#composerOutlet = make("div", "lf-ar-outlet");
-      this.#composer.append(this.#composerName, this.#composerOutlet);
-      region.append(
-        this.#actionNotice,
-        this.#composer,
-        this.#empty,
-        this.#list,
-        this.#actions,
-      );
+      this.querySelector(":scope > [data-lf-prepaint]")?.remove();
       this.append(region);
     }
 

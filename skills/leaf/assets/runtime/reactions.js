@@ -37,7 +37,7 @@
    mount installs the mode teardown listeners after composition. */
 
 import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
-import { whenOffScreen } from "./geometry.js";
+import { clipsPastSurfaces, seenRect, whenNone } from "./geometry.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { registerContribution } from "./contributions.js";
 import { runtime } from "./context.js";
@@ -92,13 +92,14 @@ const anchorChoices = (anchor) =>
   tokenChoices(reactionVocabulary(), anchor ? reactionsAt(allThreads(), anchor) : []);
 
 // One token as a press in the response bar; a reply's strip builds its own
-// (thread/reaction-strips.js). The compact face stays the declared mark. Digits remain
-// keyboard accelerators without changing the shape of every chip.
-function reactionChip({ name, glyph, label }, pressed) {
+// (thread/reaction-strips.js). The token names the control and the compact face
+// stays the declared mark. Digits remain keyboard accelerators without changing the
+// shape of every chip.
+function reactionChip({ name, glyph }, pressed) {
   const chip = offer("button", `lf-react ${HOLDS_WORD}`);
   chip.dataset.token = name;
-  chip.title = label;
-  chip.setAttribute("aria-label", label);
+  chip.title = name;
+  chip.setAttribute("aria-label", name);
   responseAction(chip, { glyph, label: name, collapse: true });
   chip.onclick = () => pressed(name);
   return chip;
@@ -259,7 +260,7 @@ export function createReactionController({
           key: marginReactionKey(choice.name, ordinal),
           activation: choice.name,
           glyph: choice.glyph,
-          label: choice.label,
+          label: choice.name,
           rank: "secondary",
           className: `lf-react ${HOLDS_WORD}`,
           pressed: Boolean(choice.standing),
@@ -382,11 +383,16 @@ export function createReactionController({
         const picker = pickerFor(reactSurface);
         // `e` opens the latest reply of the thread the user stands in, which may be
         // scrolled out of the list: it comes into view to be answered, since a list
-        // hung from a trigger out of view would neither show nor stay open.
+        // hung from a trigger out of view would neither show nor stay open, and it
+        // closes once none of the trigger is in front of the user (`seenRect`). The
+        // list stands in the top layer, above the thread panel, so a surface standing
+        // over the trigger does not take it away; a scroll carrying the trigger out of
+        // sight does.
         scrollIntoReadingBand(picker.trigger, picker.trigger, "nearest", "instant");
         showNativeLayer(picker.palette, { source: picker.trigger });
         const opened = reactSurface;
-        reactDeparture = whenOffScreen([picker.trigger], () => {
+        const seen = (trigger) => seenRect(trigger, clipsPastSurfaces());
+        reactDeparture = whenNone([picker.trigger], seen, () => {
           if (reactSurface === opened) setReact(false);
         });
         picker.trigger.setAttribute("aria-expanded", "true");

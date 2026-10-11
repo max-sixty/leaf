@@ -99,9 +99,11 @@ Widgets in ordinary document flow grow with their content by default. Internal
 vertical scrolling needs a task that benefits from keeping a region in view while
 its contents move, or a live stream whose newest entry the reader follows; being
 an inspection object is not enough. A box that holds its own height declares
-`--lf-holds-height: 1`, as a bounded block's theme does, and the widget quality check
-`grows-with-content` names every other widget box that scrolls vertically within a
-height it keeps (`scripts/leaf/render_gate/widget_quality.py`). Page-authoring
+`--lf-holds-height: 1`, as a bounded block's theme and a full-height workspace's
+scrolling regions do, and the widget quality check `grows-with-content` names every
+other widget box that scrolls vertically within a height it keeps
+(`scripts/leaf/render_gate/widget_quality.py`), in each package's worked examples and,
+in the suite, on every corpus page, where the widgets hold data. Page-authoring
 choices live in `../references/page-authoring.md`, "Bounds and widths". A necessary
 scroller chains
 into the document at its edges; isolate scrolling only at a bounded task or modal
@@ -132,7 +134,12 @@ that boundary, and neighbours and ordinary page reading content stay put. Typing
 still cannot carry its field.
 An `append` region declares a transcript whose new children may grow its end within
 its stationary scrollport. Existing messages stay put; the idle reply row and later
-cards may move by that growth. The declaration permits no changes to existing
+cards may move by that growth. A reply still streaming at the transcript's end is
+that growth arriving: it may change at its foot in place as its words come and as its
+answer completes it. So is an answer that folds the progress run standing at the
+transcript's end into Previous updates, unless the reader stands on a message it puts
+away, by focus or by a selection reaching into it: what stood from that run down may
+move, and nothing above it. The declaration permits no other changes to existing
 messages or independent movement of following content.
 News grows where the reader isn't looking: above the screen, where scroll anchoring
 takes the growth into what they scrolled past, or below it. A short thread's reply
@@ -164,7 +171,12 @@ the Threads panel, a card news takes out of the view, as another actor resolving
 thread under Open does, stays where it stands, holding the news behind that notice
 and, once shown, in the shape it stood in, until its going would move nothing the
 user sees or they change the view
-(`thread/thread-list-view.js`, `keeping`). A region whose rows only the
+(`thread/thread-list-view.js`, `keeping`). A turn of the user's own that takes its
+card out of the view, as a reply under "Waiting on you" or a rewrite or Reopen under
+Resolved does, takes them with it: the view widens to one that holds the thread, and a
+refusal puts it back only while they have not acted since (`thread/thread-card.js`,
+`#speak`); news keeps its card in the view, and Resolve moves them to the neighbouring
+card. A region whose rows only the
 log or the clock decides, so no first paint can size it, shows none of them until the
 reader opens them through a control of fixed size the widget already draws, as the
 Atlas plan's Stopped work disclosure opens its list; after that a change to its rows
@@ -548,5 +560,5 @@ visible change").
 `vendor/browser-runtime.js` and the modules beside it in `vendor/browser-runtime/`,
 which import the runtime's own modules, and writes `vendor/lit.js`, the page's one copy of Lit
 (`build/AGENTS.md` owns the commands). What a module decides on its own is
-tested under `tests/runtime/` (`npm run test:runtime`; `tests/AGENTS.md` says
+tested under `tests/runtime/` (`pnpm run test:runtime`; `tests/AGENTS.md` says
 which readings may go there).

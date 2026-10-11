@@ -794,13 +794,12 @@ def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
 def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
     """A control in a stuck sticky header stands inside the root's landing band, so the
     browser scrolled toward it on every focus and the header never came out from under
-    the band: the page crept 17px a focus under a diff's file header and was centred,
-    hundreds of pixels a key, under a page tab strip.
-    Each header says where its controls stand (`--lf-head-inset`), so focusing one where
-    it sticks scrolls nothing: in a page tab, where the strip stands over it, and after
-    the tabs, where the root's band still counts the strip. Focus moving on from the
-    file header into its code, a tab stop since it scrolls sideways, clears the
-    header."""
+    the band: the page crept 17px a focus under a diff's file header, and was centred,
+    hundreds of pixels a key, under a page tab strip. The focus margin is read from the
+    sticky-header slot, so focusing one where it sticks scrolls nothing: in a page tab,
+    where the strip stands over it, and after the tabs, where the root's band still
+    counts the strip. Focus moving on from the file header into its code, a tab stop
+    since it scrolls sideways, clears the header."""
     page = _stacked_headers(browser, serve)
     focus_in = """async (id) => {
         const page = document.scrollingElement;
@@ -2941,11 +2940,6 @@ PLAYGROUND_PAGE = leaf_page(
     """
 <h1>Card playground</h1>
 <style>
-  #card-playground {
-    --playground-accent: #4f766f;
-    --playground-radius: 12px;
-    --playground-title: "Field note";
-  }
   #playground-card {
     --lf-block-frame: 1;
     border: 2px solid var(--playground-accent);
@@ -5541,6 +5535,30 @@ def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable
     expect(page.locator("#sq-col-0 > #sq-card-0")).to_have_count(1)
 
 
+def test_playground_authored_defaults_draw_before_its_behavior_loads(browser, serve):
+    """The control declaration owns first paint, including text and attribute CSS."""
+    page = browser.new_page(viewport={"width": 1280, "height": 900})
+    held = []
+    page.route("**/widgets/lf-playground.js", lambda route: held.append(route))
+    with page.expect_request("**/widgets/lf-playground.js"):
+        page.goto(serve(PLAYGROUND_PAGE), wait_until="commit")
+    displayed(page)
+    assert held
+    assert page.evaluate("() => !customElements.get('lf-playground')")
+    card = page.locator("#playground-card")
+    expect(card).to_have_css("border-radius", "12px")
+    expect(card).to_have_css("border-top-color", "rgb(79, 118, 111)")
+    expect(page.locator("#card-playground")).to_have_attribute(
+        "data-playground-tone", "quiet"
+    )
+    assert (
+        card.evaluate("e => getComputedStyle(e, '::before').content") == '"Field note"'
+    )
+    held.pop().continue_()
+    wait_until_ready(page)
+    expect(card).to_have_css("border-radius", "12px")
+
+
 @pytest.mark.parametrize("typed_color", ["#8b4a5f", "#8B4A5F"])
 def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     browser, serve, typed_color
@@ -7340,7 +7358,11 @@ def test_suggestion_emphasis_skips_generated_interface_between_changed_words(
     """A changed span may cross a nested widget without painting its generated UI."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     page.locator('[data-lf-margin-for="bg-route-ask"] .lf-margin-marker').click()
+    page.locator("#bg-route .lf-pick").first.focus()
     badges = page.locator("#bg-route > lf-option > .lf-key-badge")
+    expect(
+        page.locator("#bg-route > lf-option > .lf-key-badge[data-lf-binding-badge]")
+    ).to_have_count(2)
     expect(badges).to_have_text(["1", "2"])
 
     assert page.locator("#bg-nested-change > lf-new > p").evaluate(
@@ -9476,8 +9498,8 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
         },
     )
     told(page)
-    # Revealing the reply in either view settles the thread's shared unread state.
-    panel_thread.get_by_role("button", name="1 new reply", exact=True).click()
+    # Revealing the edit in either view settles the thread's shared unread state.
+    panel_thread.get_by_role("button", name="1 message edited", exact=True).click()
 
     expect(inline.locator(".lf-msg-body")).to_contain_text("The north bracket fits.")
     expect(panel.locator(".lf-msg-text")).to_contain_text("The north bracket fits.")
@@ -9987,7 +10009,7 @@ def test_the_queue_clock_owns_held_paint_failure_and_retry(browser, serve):
     page.evaluate("Promise.all([queueClockTick, queueClockTickAgain])")
     expect(row.locator(".lf-queue-where")).to_contain_text("now")
     assert row.evaluate("node => node === window.queueClockRow")
-    assert take_browser_errors(page) == [
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: deliberate Queue clock failure"
     ]
     page.evaluate(
@@ -10050,7 +10072,7 @@ def test_a_failed_queue_list_paint_reports_once_and_retains_the_prior_list(
     )
     rows.first.click()
     expect(page.locator("#live-question-decision")).to_be_focused()
-    assert take_browser_errors(page) == [
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: deliberate Queue list failure"
     ]
     holding(page, held, 2, "the gesture and the page's report of its failure")
@@ -10109,7 +10131,7 @@ def test_a_failed_ask_banner_paint_reports_once_and_retains_prior_controls(
     assert answer_all.evaluate("control => control === window.__lfAskBulk")
     rows.first.click()
     expect(page.locator("#live-question-decision")).to_be_focused()
-    assert take_browser_errors(page) == [
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: deliberate Ask banner failure"
     ]
     holding(page, held, 2, "the gesture and the page's report of its failure")
@@ -11876,20 +11898,19 @@ def test_an_html_document_previews_its_own_styles_and_refreshes_from_its_source(
         )
         is not None
     )
-    # The file's bytes identify its revision; JSON whitespace changes that identity
-    # without changing the HTML value, so this delivery must join the frame's load.
-    data_file = data_model.source_file(serve.page_dir, "html-text")
-    with data_file.open("a") as value_file:
-        value_file.write("\n")
+    # A rerun publishes a new receipt without changing its value revision, even
+    # while the frame's stylesheet is loading. The reading keeps that load pending.
+    data_model.cmd_data_set(serve.page_dir, "html-text", updated)
     answer = page.request.get(f"{page.evaluate('location.origin')}/api/state")
     assert answer.ok
-    revision = answer.json()["data"]["sources"]["html-text"]["revision"]
+    snapshot = answer.json()["data"]["sources"]["html-text"]
+    revision = snapshot["revision"]
     page.wait_for_function(
-        """async revision => {
+        """async run => {
           const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
-          return runtime.data.sources['html-text'].revision === revision;
+          return runtime.data.sources['html-text'].run === run;
         }""",
-        arg=revision,
+        arg=snapshot["run"],
     )
     assert (
         page.evaluate(

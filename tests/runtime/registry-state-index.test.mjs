@@ -14,6 +14,7 @@ import test from "node:test";
 
 import {
   adoptRegistry,
+  elementDeclarations,
   recordedWidgetSelector,
   registry,
   stateSpecs,
@@ -31,6 +32,25 @@ test("a vocabulary that has not loaded has no state index to give", () => {
   // rather than indexed as the empty vocabulary it would otherwise look like.
   load("", {});
   assert.throws(stateSpecs, /state vocabulary requested before registry loaded/);
+});
+
+test("authoring selectors and shared facts never enter widget state", () => {
+  const idiom = { description: "An authored shape.", "x-example": "<table></table>" };
+  load("mixed-vocabulary", {
+    "lf-index-owner": { "x-state": { set: {} } },
+    "lf-index-owner.selected": idiom,
+    table: idiom,
+    ".eyebrow": idiom,
+    $keys: { "x-state": "State meanings." },
+  });
+  assert.deepEqual(
+    elementDeclarations().map(([name]) => name),
+    ["lf-index-owner"],
+  );
+  assert.deepEqual(
+    stateSpecs().map(({ tag }) => tag),
+    ["lf-index-owner"],
+  );
 });
 
 // The generation is the index's cache key, and in the product it is a content

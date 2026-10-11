@@ -921,11 +921,9 @@ def test_an_ask_marker_s_label_and_name_identify_its_question(browser, serve):
     }"""
     seen = {}
     for ask in ("short-ask", "long-ask"):
-        marker = page.locator(f'.lf-margin-marker[data-lf-margin-for="{ask}"]')
-        if not marker.count():
-            marker = page.locator(
-                f'[data-lf-margin-for="{ask}"] .lf-margin-marker[data-lf-kinds~="ask"]'
-            )
+        marker = page.locator(
+            f'[data-lf-margin-for="{ask}"] .lf-margin-marker[data-lf-kinds~="question"]'
+        )
         marker.scroll_into_view_if_needed()
         marker.hover()
         expect(marker.locator(".lf-margin-entry-label")).to_be_visible()
@@ -1520,9 +1518,13 @@ def test_draft_and_page_map_reaction_actions_stay_reachable(browser, serve, widt
     expect(draft_control(page, "cancel", "d-draft")).to_be_visible()
     with sending(page, "save the draft"):
         draft_control(page, "save", "d-draft").click()
-    expect(page.locator("#d-draft .lf-draft-body")).to_have_text(body)
+    expect(page.locator("#d-draft .lf-draft-body")).to_have_text(
+        body, use_inner_text=True
+    )
     navigate(page, page.url)
-    expect(page.locator("#d-draft .lf-draft-body")).to_have_text(body)
+    expect(page.locator("#d-draft .lf-draft-body")).to_have_text(
+        body, use_inner_text=True
+    )
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
@@ -2197,7 +2199,7 @@ def test_the_feature_gallery_balances_one_margin_entry_sample_with_feature_secti
     expect(
         page.locator(
             '[data-lf-margin-for="bg-choice-ask"] '
-            '.lf-margin-marker[data-lf-kinds="ask"] '
+            '.lf-margin-marker[data-lf-kinds="question"] '
             'svg[data-lf-icon="question"]'
         )
     ).to_be_visible()
@@ -2969,7 +2971,9 @@ def test_the_chrome_names_an_ask_by_its_question(browser, serve):
     page.keyboard.press("Shift+m")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     group = dialog.locator(".lf-page-map-group").filter(
-        has=page.get_by_role("heading", name="ask · Which jobs are worth starting?")
+        has=page.get_by_role(
+            "heading", name="question · Which jobs are worth starting?"
+        )
     )
     expect(group).to_have_count(1)
     expect(group.locator(".lf-page-map-action")).to_have_text(["Waiting on you"])
@@ -4284,7 +4288,8 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     cluster = page.locator(f'[data-lf-margin-for="{target}"]')
     marker = cluster.locator(":scope > .lf-margin-marker")
     expect(marker).to_have_attribute(
-        "data-lf-kinds", "comment ask" if target == "bracket-decision" else "comment"
+        "data-lf-kinds",
+        "comment question" if target == "bracket-decision" else "comment",
     )
     expect(marker).not_to_have_attribute("data-lf-turn", re.compile(".+"))
     marker.evaluate("node => node.dataset.identityProbe = 'retained'")
@@ -4341,7 +4346,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
             "agent": "Claude",
             "parent": agent_comment["id"],
             "text": "Which visit should we choose?",
-            "awaits": True,
+            "question": True,
         },
     )
     told(page)
@@ -5901,7 +5906,7 @@ def test_one_information_margin_entry_does_not_raise_a_preview(browser, serve):
     """A single non-thread reading travels directly; cards are reserved for threads."""
     page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
     resized(page, 1600, 900)
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="ask"]').first
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="question"]').first
     expect(marker).not_to_have_attribute("aria-controls", re.compile(".+"))
     expect(marker).not_to_have_attribute("aria-expanded", re.compile(".+"))
     marker.hover()
@@ -8091,14 +8096,30 @@ def test_a_growing_draft_holds_its_card_s_side_and_the_editor_s_top(
         editor.press("Shift+Enter")
         rendered(page)
         readings.append(page.evaluate(CARD_AND_REPLY))
-    for now in readings:
+    cap = next(
+        (
+            i
+            for i, now in enumerate(readings)
+            if now["cardBottom"] >= now["foot"] - 0.01
+        ),
+        None,
+    )
+    assert cap is not None and cap > 0, readings
+    for i, now in enumerate(readings):
         assert now["placement"] == held["placement"], (held, now)
         assert now["cardBottom"] <= now["foot"] + 0.5, now
-        for edge in ("cardTop", "turn", "editorTop"):
-            assert now[edge] == pytest.approx(held[edge], abs=0.5), (held, now)
+        assert now["cardTop"] == pytest.approx(held["cardTop"], abs=0.5), (held, now)
+        # At the first cap, the inner grid's fractional track can round by 1px.
+        # Before and after that transition, the turn and editor stay still.
+        reference = readings[cap] if i > cap else held
+        tolerance = 1.5 if i == cap else 0.5
+        for edge in ("turn", "editorTop"):
+            assert now[edge] == pytest.approx(reference[edge], abs=tolerance), (
+                reference,
+                now,
+            )
     last = readings[-1]
     assert last["cardBottom"] == pytest.approx(last["foot"], abs=0.5), last
-    assert last["editorTop"] == pytest.approx(held["editorTop"], abs=0.5), (held, last)
     assert editor.evaluate("box => box.scrollHeight > box.clientHeight"), (
         "thirty lines never outgrew the editor's room"
     )

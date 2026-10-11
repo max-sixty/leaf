@@ -1,14 +1,32 @@
 """Readings and derived declarations from a supplied registry vocabulary."""
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
 import click
 
 from leaf.files import read_json
+from leaf.schema import WIDGET_NAME
 
 from .schema import json_value
+
+
+def is_element_name(name: str) -> bool:
+    """Whether a vocabulary key names one Leaf custom element rather than a selector.
+
+    Non-dollar keys are authored vocabulary: exact ``WIDGET_NAME`` keys declare
+    elements; every other key is a CSS selector idiom, including native tags and
+    selectors such as ``lf-options.selected``. Validation admits selectors once
+    at composition; consumers share this classification without parsing CSS.
+    """
+    return re.fullmatch(WIDGET_NAME, name) is not None
+
+
+def element_declarations(registry: dict) -> dict:
+    """The element schemas from one registry's authored vocabulary."""
+    return {name: entry for name, entry in registry.items() if is_element_name(name)}
 
 
 def prepaint_markup(registry, tag: str) -> str | None:
@@ -71,29 +89,37 @@ def visual_part_attribute(entry: dict) -> str | None:
 class VisualParts:
     """The part ids one authored element admits as `anchor.visual`.
 
-    A widget declares them one of two ways: `tokens` authored in its `parts` attribute,
-    or `prefixes` that begin every id its module generates, such as `commit:`, for a
-    picture drawn from data whose parts the author cannot list. A prefix rather than a
-    regex keeps one meaning in Python and the browser. Neither says a part is on screen;
-    the browser resolves that, and an admitted id nothing renders detaches."""
+    A widget admits authored `tokens`, the complete registered inventory through its
+    `all` sentinel, or `prefixes` that begin every generated id, such as `commit:`. A
+    prefix rather than a regex keeps one meaning in Python and the browser. None of
+    these says a part is on screen; the browser resolves that, and an admitted id nothing
+    renders detaches."""
 
     tokens: tuple[str, ...] = ()
     prefixes: tuple[str, ...] = ()
+    all: bool = False
 
     def __contains__(self, part: str) -> bool:
         # A part id is one token, as the browser's registration requires; an authored
         # token already is one, and a prefixed id must be too.
-        return part in self.tokens or (
-            part.split() == [part]
-            and any(
-                part.startswith(prefix) and part != prefix for prefix in self.prefixes
+        return (
+            part in self.tokens
+            or (part.split() == [part] and self.all)
+            or (
+                part.split() == [part]
+                and any(
+                    part.startswith(prefix) and part != prefix
+                    for prefix in self.prefixes
+                )
             )
         )
 
     def __bool__(self) -> bool:
-        return bool(self.tokens or self.prefixes)
+        return bool(self.tokens or self.prefixes or self.all)
 
     def __str__(self) -> str:
+        if self.all:
+            return "the registered visual inventory"
         if self.prefixes:
             return f"ids starting with {' or '.join(map(repr, self.prefixes))}"
         return f"known: {json_value(self.tokens)}"
@@ -107,6 +133,8 @@ def visual_parts(record: dict, registry: dict) -> VisualParts:
     if "prefixes" in visual:
         return VisualParts(prefixes=tuple(visual["prefixes"]))
     value = record.get("attrs", {}).get(visual["parts"])
+    if visual.get("all") and value == visual["all"]:
+        return VisualParts(all=True)
     return VisualParts(tokens=tuple(value.split()) if value else ())
 
 
@@ -392,7 +420,7 @@ def retirement_slots(registry: dict) -> dict:
     fact about this page's vocabulary and never a list in the code."""
     slots = {}
     for tag, entry in registry.items():
-        if not tag.startswith("lf-") or not entry.get("x-retired-when"):
+        if not is_element_name(tag) or not entry.get("x-retired-when"):
             continue
         outcome = entry["x-retired-when"]
         for owner in entry["x-owners"]:
@@ -414,6 +442,6 @@ def stamp_decisions(registry: dict) -> dict:
     registry["$decisions"] = {
         tag: {"verb": verb, "retires": slots.get(tag, {})}
         for tag, entry in registry.items()
-        if tag.startswith("lf-") and (verb := deciding_verb(entry)) is not None
+        if is_element_name(tag) and (verb := deciding_verb(entry)) is not None
     }
     return registry

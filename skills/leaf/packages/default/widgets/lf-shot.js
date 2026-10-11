@@ -8,9 +8,9 @@
  * what holds it there, so the page still answers for the upgrade as an arrival of its
  * own. A click on either image keeps
  * the quick endpoint toggle, while a click on the handle only puts the user on it.
- * Separate Open before / Open after links inspect either full-size image in the
- * shared media viewer; modified presses keep their native link destination.
- * Both rail rows are reserved before upgrade. Print stacks both frames.
+ * A small expand link beside each rail label inspects that full-size image in the
+ * shared media viewer; modified presses keep their native link destination. The
+ * rail is one row, reserved before upgrade. Print stacks both frames.
  *
  * Once the page has presented, the widget compares the two images pixel for pixel
  * (`runtime/image-difference.js` owns what counts as a difference) and puts its
@@ -52,8 +52,10 @@ import {
   describeDifference,
   differenceKind,
   once,
+  whileConnected,
   offer,
   failSoft,
+  iconElement,
   nextFrame,
   isCanonicalMediaUrl,
   layoutChanged,
@@ -78,8 +80,7 @@ const inTurn = (work) => {
 };
 
 let comparisonReady;
-const loadComparison = () =>
-  (comparisonReady ??= import("../vendor/webawesome.esm.js"));
+const loadComparison = () => (comparisonReady ??= import("/vendor/webawesome.esm.js"));
 
 customElements.define(
   "lf-shot",
@@ -262,10 +263,7 @@ customElements.define(
     }
 
     connectedCallback() {
-      if (!once(this)) {
-        this.#offer();
-        return;
-      }
+      if (!once(this)) return;
       const shots = [];
 
       const rail = document.createElement("div");
@@ -294,12 +292,17 @@ customElements.define(
         this.#frames.push(frame);
         this.append(frame);
 
-        const open = offer("a", "lf-media-open lf-shot-open", `Open ${state}`);
+        // Each label's link sits on its inner side, so the rail reads
+        // BEFORE ⤢ … ⤢ AFTER in document and visual order alike.
+        const open = offer("a", "lf-media-open lf-shot-open");
         open.dataset.lfShotOpen = state;
         open.href = img.src;
         open.dataset.lfMediaUrl = img.src;
+        open.append(iconElement("expand", "lf-action-icon"));
         this.#openers.set(state, open);
-        rail.append(open);
+        const caption = this.#captions.get(state);
+        if (state === "before") caption.after(open);
+        else caption.before(open);
       }
 
       const box = offer("input", "lf-shotflip", undefined, "checkbox");
@@ -342,7 +345,13 @@ customElements.define(
       this.append(box);
       this.#paintAlt();
       this.#paintInspection();
-      this.#offer();
+      whileConnected(this, () => {
+        this.#offer();
+        return () => {
+          this.#margin?.unregister();
+          this.#margin = null;
+        };
+      });
       // A visual-review run creates shots after authored descriptor capture. Its
       // authored controller explicitly owns that generated child's preparation;
       // standalone authored shots own their presentation themselves.
@@ -362,11 +371,6 @@ customElements.define(
       void this.difference.catch((reason) => failSoft(this, reason));
     }
 
-    disconnectedCallback() {
-      this.#margin?.unregister();
-      this.#margin = null;
-    }
-
     #paintAlt() {
       this.#alt = this.getAttribute("alt");
       for (const [state, caption] of this.#captions)
@@ -379,6 +383,7 @@ customElements.define(
         open.dataset.lfMediaAlt = alt;
         open.dataset.lfMediaCaption = alt;
         keeps(open, "aria-label", `Open ${state} image — ${this.#alt}`);
+        keeps(open, "title", `Open ${state} image`);
       }
       keeps(this.#box, "aria-label", `Compare before and after — ${this.#alt}`);
       this.#paint();
@@ -509,7 +514,7 @@ customElements.define(
       count.className = "lf-shotdelta";
       count.dataset.lfShotDelta = differenceKind(reading);
       relabel(count, describeDifference(reading), { says: false });
-      this.#captions.get("before").after(count);
+      this.#openers.get("before").after(count);
       return reading;
     }
 

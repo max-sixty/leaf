@@ -12,23 +12,15 @@ import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import SKILL_ROOT
-from known_widget_findings import KNOWN
+from known_widget_findings import KNOWN, PACKAGES
 from leaf import cli as cli_model
 from leaf import exporting as exporting_model
-from leaf import schema as schema_model
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.widget_quality import widget_findings
 from leaf.revision_delivery import json_script
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_harness import consume_browser_errors, displayed
-
-# The base layer's two halves and every bundled package, each reported on its own
-# widgets as a package author's `package check --render` would.
-PACKAGES = [
-    schema_model.ASSETS,
-    *sorted(path for path in (SKILL_ROOT / "packages").iterdir() if path.is_dir()),
-]
 
 
 def test_every_known_finding_names_a_bundled_package():

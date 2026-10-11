@@ -11,7 +11,13 @@
  * Passive demonstrations remain inert. Removing a frame retires its realm before
  * releasing the allocation, including on reset and parent departure. Destruction
  * cancels pending admission and queue waits; an allocation already in flight is
- * allowed to finish so its returned capability can be released. */
+ * allowed to finish so its returned capability can be released. Lifecycle records
+ * enter the interaction stream at these decisions, with a host/allocation identity
+ * and the connected document nonce. Native load is distinct from Leaf presentation;
+ * an opaque destination cannot be classified from its load event. Retirement
+ * records the local realm's destruction, before the allocation release answers.
+ * A mounted frame answers for its image: the child draws the requested part of its
+ * viewport, which an image of the containing page puts in the frame's place. */
 import { layerHeaders } from "./layer-client.js";
 import { pageUrl, runtime } from "./context.js";
 import { dressFor, registerSampleDress } from "./dress.js";
@@ -26,6 +32,7 @@ import {
 import { nativeModalAdmits } from "./keyboard/layer-stack.js";
 import { keeps } from "./keeps.js";
 import { nextRender, sizeObserver } from "./rendering.js";
+import { recordInteraction } from "./interaction-log.js";
 
 // A page can carry many samples. Their child documents each import the runtime;
 // presenting them together can exhaust the browser's request pool before any child
@@ -34,6 +41,7 @@ import { nextRender, sizeObserver } from "./rendering.js";
 const MAX_LOADING_SAMPLES = 3;
 let loadingSamples = 0;
 const loadWaiters = [];
+let nextHost = 0;
 async function loadWithinLimit(work, signal) {
   signal.throwIfAborted();
   if (loadingSamples === MAX_LOADING_SAMPLES)
@@ -64,6 +72,11 @@ async function loadWithinLimit(work, signal) {
   }
 }
 
+const mounted = new Map();
+export const isSampleFrame = (node) => mounted.has(node);
+// A crop in the frame's viewport coordinates.
+export const sampleFrameImage = (frame, crop) => mounted.get(frame).call("image", crop);
+
 async function request(url, body, headers = {}) {
   const response = await fetch(url, {
     method: "POST",
@@ -71,8 +84,22 @@ async function request(url, body, headers = {}) {
     body: JSON.stringify(body),
     keepalive: true,
   });
-  const answer = await response.json();
-  if (!response.ok) throw new Error(answer.error ?? `sample: HTTP ${response.status}`);
+  const text = await response.text();
+  let answer;
+  try {
+    answer =
+      response.ok ||
+      response.headers.get("Content-Type")?.split(";")[0].trim() === "application/json"
+        ? JSON.parse(text)
+        : null;
+  } catch (error) {
+    throw Object.assign(error, { status: response.status, body: text });
+  }
+  if (!response.ok)
+    throw Object.assign(new Error(answer?.error ?? `sample: HTTP ${response.status}`), {
+      status: response.status,
+      body: text,
+    });
   return answer;
 }
 
@@ -89,6 +116,7 @@ export function mountSample(
     break;
   }
   let current = null;
+  let samplePage = null;
   let destroyed = false;
   let operation = null;
   let closing = null;
@@ -99,6 +127,32 @@ export function mountSample(
   let presenting = false;
   let hasConnected = false;
   let connectedNonce = null;
+  const hostId = ++nextHost;
+  const started = performance.now();
+  let allocation = 0;
+  const record = (phase, detail = {}) =>
+    recordInteraction("sample", {
+      host: hostId,
+      template,
+      revision,
+      allocation,
+      sample: samplePage,
+      document: connectedNonce,
+      elapsed: performance.now() - started,
+      phase,
+      ...detail,
+    });
+  const recordFailure = (error, detail = {}) =>
+    record("failed", {
+      error: {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        status: error.status,
+        body: error.body,
+      },
+      ...detail,
+    });
   const lifetimeController = new AbortController();
   const candidates = new Set();
   const pending = new Map();
@@ -158,7 +212,10 @@ export function mountSample(
       if (channel !== port) return;
       port.postMessage({
         type: "visibility-reading",
-        detail: { id, error: { name: error.name, message: error.message } },
+        detail: {
+          id,
+          error: { name: error.name, message: error.message, stack: error.stack },
+        },
       });
       reportError(error);
     }
@@ -188,7 +245,10 @@ export function mountSample(
     } catch (error) {
       // Native navigation cancels the private presentation, while the browser
       // keeps its destination. Reset and destroy retire allocations themselves.
-      if (error.name !== "AbortError") await retire();
+      if (error.name !== "AbortError") {
+        recordFailure(error);
+        await retire("failure");
+      }
       throw error;
     }
   }
@@ -243,6 +303,7 @@ export function mountSample(
         channel = port;
         connectedNonce = nonce;
         hasConnected = true;
+        record("connected", { reloading });
         if (reloading) {
           const previousResolve = readyResolve;
           const previousReject = readyReject;
@@ -255,6 +316,7 @@ export function mountSample(
       // Messages from the departed realm cannot settle the next realm's calls.
       if (channel !== port) return;
       if (data.type === "departed") {
+        record("departed");
         const error = new DOMException("sample document navigated", "AbortError");
         disconnect(error);
         if (presenting) readyReject(error);
@@ -271,14 +333,25 @@ export function mountSample(
         pending.delete(data.id);
         if (data.error)
           reject(
-            Object.assign(new Error(data.error.message), { name: data.error.name }),
+            Object.assign(
+              new Error(data.error.message),
+              { stack: undefined },
+              data.error,
+            ),
           );
         else resolve(data.result);
       } else if (data.type === "ready") {
+        record("presented");
         readyResolve(data.detail);
         visibility();
       } else if (data.type === "error") {
-        failure(new Error(data.detail.message));
+        failure(
+          Object.assign(
+            new Error(data.detail.message),
+            { stack: undefined },
+            data.detail,
+          ),
+        );
       } else if (data.type === "return")
         frame.dispatchEvent(new Event("lf-sample-return"));
       else notify(data.type, data.detail);
@@ -294,6 +367,10 @@ export function mountSample(
     );
   }
   window.addEventListener("message", connect);
+  const loaded = () => {
+    if (current && frame.hasAttribute("src")) record("loaded");
+  };
+  frame.addEventListener("load", loaded);
   window.addEventListener("scroll", visibility, true);
   window.addEventListener("resize", visibility);
   document.addEventListener("visibilitychange", visibility);
@@ -322,10 +399,13 @@ export function mountSample(
   });
   lifetime.observe(document, { childList: true, subtree: true });
 
-  function retire() {
+  function retire(reason) {
     if (!current) return;
+    const retiringDocument = connectedNonce;
     const previous = current;
+    const sample = samplePage;
     current = null;
+    samplePage = null;
     hasConnected = false;
     const cancelled = new DOMException("sample replaced", "AbortError");
     disconnect(cancelled);
@@ -337,22 +417,35 @@ export function mountSample(
     frame.remove();
     frame.removeAttribute("src");
     parent?.insertBefore(frame, next);
-    return request(new URL("api/release", previous), {});
+    record("retired", { reason, document: retiringDocument, sample });
+    return request(new URL("api/release", previous), {}).catch((error) => {
+      recordFailure(error, {
+        operation: "release",
+        document: retiringDocument,
+        sample,
+      });
+      throw error;
+    });
   }
   async function replace() {
-    await retire();
+    await retire("reset");
+    allocation++;
+    record("queued");
     return settle(
       loadWithinLimit(async (release) => {
         if (destroyed) throw new DOMException("sample destroyed", "AbortError");
-        const { url } = await request(
+        record("allocating");
+        const { url, page } = await request(
           pageUrl("api/samples"),
           { template, passive },
           revision ? { "Leaf-View-Revision": String(revision) } : {},
         );
         current = new URL(url, location.href).href;
+        samplePage = page;
+        record("allocated");
         try {
           if (destroyed) {
-            await retire();
+            await retire("destroyed");
             throw new DOMException("sample destroyed", "AbortError");
           }
           // The opaque frame cannot expose its document or order cross-process
@@ -363,16 +456,21 @@ export function mountSample(
             credentials: "omit",
             signal: lifetimeController.signal,
           });
+          record("admission", {
+            status: admission.status,
+            leafDocument: admission.headers.get("Leaf-Document"),
+          });
           if (!admission.ok || !admission.headers.has("Leaf-Document"))
             throw new Error("The sample document did not start Leaf");
           if (destroyed) {
-            await retire();
+            await retire("destroyed");
             throw new DOMException("sample destroyed", "AbortError");
           }
           const presented = presentation();
           // A loaded module graph frees its slot even while presentation waits on
           // slow state. Native load needs no access to the opaque child document.
           frame.addEventListener("load", release, { once: true });
+          record("loading");
           frame.src = current;
           return await presented;
         } finally {
@@ -424,8 +522,11 @@ export function mountSample(
     destroy() {
       if (closing) return closing;
       destroyed = true;
+      record("destroyed");
       lifetimeController.abort(new DOMException("sample destroyed", "AbortError"));
+      mounted.delete(frame);
       window.removeEventListener("message", connect);
+      frame.removeEventListener("load", loaded);
       window.removeEventListener("pagehide", departing);
       window.removeEventListener("scroll", visibility, true);
       window.removeEventListener("resize", visibility);
@@ -438,7 +539,7 @@ export function mountSample(
       lifetime.disconnect();
       unwatch();
       undress();
-      closing = Promise.all([retire(), operation?.catch(() => {})]);
+      closing = Promise.all([retire("destroyed"), operation?.catch(() => {})]);
       return closing;
     },
   };
@@ -446,6 +547,7 @@ export function mountSample(
     if (!event.persisted) void host.destroy();
   };
   window.addEventListener("pagehide", departing);
+  mounted.set(frame, host);
   reset();
   return host;
 }

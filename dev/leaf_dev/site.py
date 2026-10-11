@@ -33,7 +33,7 @@ the demo's `session-card.png` for a product page and the catalog preview for an 
 
     uv run leaf-dev site
 
-`npm run dev --prefix worker` builds and then serves the result through `wrangler dev`.
+`pnpm run site:dev` builds and then serves the result through `wrangler dev`.
 """
 
 import hashlib
@@ -92,6 +92,7 @@ PRODUCT_ROUTES = {
     "registry.html": "/registry/",
     "event-log.html": "/event-log/",
     "threads.html": "/threads/",
+    "website.html": "/website/",
 }
 # The card a link to a product page unfurls into, shot at the 1.91:1 an unfurler draws
 # by `leaf_dev.record_demo`, relative to the asset tree. An example names its own

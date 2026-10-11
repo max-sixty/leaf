@@ -1,10 +1,9 @@
-/* Generated from skills/leaf/packages/default/styles/theme.css by npm run build:styles. */
+/* Generated from skills/leaf/packages/default/styles/theme.css by build/styles.mjs. */
 /* skills/leaf/packages/default/styles/shot.css */
 :scope:is(lf-shot) {
   display: block;
   margin: 16px 0;
-  --lf-shot-rail-row-size: max(34px, var(--aim-floor));
-  --lf-shot-rail-size: calc(2 * var(--lf-shot-rail-row-size));
+  --lf-shot-rail-size: max(34px, var(--aim-floor));
 }
 :scope:is(lf-shot):has(.lf-shotframe) {
   display: grid;
@@ -96,7 +95,7 @@
   display: grid;
   grid-area: 1 / 1;
   align-items: center;
-  grid-template: repeat(2, var(--lf-shot-rail-row-size)) / auto minmax(0, 1fr) auto;
+  grid-template: var(--lf-shot-rail-size) / auto auto minmax(0, 1fr) auto auto;
   height: var(--lf-shot-rail-size);
   padding: 0 11px;
   border: 1px solid var(--rule);
@@ -128,32 +127,39 @@
   text-transform: uppercase;
   letter-spacing: .04em;
   padding: 0 5px;
-  margin: 0 -5px;
   color: var(--muted);
 }
-:scope:is(lf-shot) :is(.lf-shotcap[data-lf-state=before], .lf-shot-open[data-lf-shot-open=before]) {
+:scope:is(lf-shot) .lf-shotcap[data-lf-state=before] {
   grid-column: 1;
-  justify-self: start;
+  margin-inline-start: -5px;
 }
-:scope:is(lf-shot) :is(.lf-shotcap[data-lf-state=after], .lf-shot-open[data-lf-shot-open=after]) {
-  grid-column: 3;
-  justify-self: end;
+:scope:is(lf-shot) .lf-shot-open[data-lf-shot-open=before] {
+  grid-column: 2;
 }
-:scope:is(lf-shot) .lf-shotcap {
-  grid-row: 1;
+:scope:is(lf-shot) .lf-shot-open[data-lf-shot-open=after] {
+  grid-column: 4;
+}
+:scope:is(lf-shot) .lf-shotcap[data-lf-state=after] {
+  grid-column: 5;
+  margin-inline-end: -5px;
 }
 :scope:is(lf-shot) .lf-shot-open {
-  grid-row: 2;
-  display: flex;
-  align-items: center;
+  display: grid;
+  place-items: center;
   align-self: stretch;
-  font: var(--t-6)/1.4 var(--sans);
+  width: max(28px, var(--aim-floor));
+  color: var(--muted);
+}
+:scope:is(lf-shot) .lf-shot-open:hover {
+  color: var(--ink);
+  background: var(--chip);
 }
 :scope:is(lf-shot) .lf-shotdelta {
-  grid-area: 1 / 2 / 3 / 3;
+  grid-area: 1 / 3;
   justify-self: center;
-  padding-inline: 8px;
+  padding-inline: 4px;
   text-align: center;
+  line-height: 1.2;
 }
 :scope:is(lf-shot) .lf-shotcap[data-lf-state] {
   outline-offset: -2px;
@@ -278,10 +284,6 @@
   }
   :scope:is(lf-shot) > .lf-shotrail {
     height: auto;
-    grid-template-rows: var(--lf-shot-rail-row-size);
-  }
-  :scope:is(lf-shot) .lf-shotdelta {
-    grid-row: 1;
   }
   :scope:is(lf-shot) > .lf-shotcomparison {
     display: block;
@@ -1597,6 +1599,7 @@
       --lf-top: 0px;
       overscroll-behavior: contain;
       scrollbar-gutter: stable;
+      --lf-holds-height: 1;
     }
   }
   :where(:scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page]) {
@@ -1620,9 +1623,6 @@
     --lf-head-inset: 8px;
     z-index: 2;
     block-size: var(--lf-tabstrip-h);
-  }
-  :scope:is(lf-tabs)[data-lf-tabs-flow=page] > lf-tab {
-    --lf-landing-room: var(--lf-landing-gap);
   }
   :scope:is(lf-tabs)[data-lf-tabs-flow=page] > .lf-tabstrip {
     border-radius: 0;
@@ -2412,8 +2412,15 @@
 :scope:is(lf-sample):has(> .lf-sample-view:modal) {
   height: var(--lf-sample-height);
 }
+:scope:is(lf-sample)[data-lf-sample-live] {
+  padding-left: 0;
+  border-left: 0;
+}
+.lf-sample-exhibit {
+  padding-left: var(--sp-4);
+  border-left: 3px solid var(--border-2);
+}
 .lf-sample-controls {
-  display: table-caption;
   margin-bottom: 10px;
 }
 .lf-sample-controls > div {
@@ -2457,7 +2464,15 @@
 .lf-sample-view:modal > .lf-sample-controls {
   flex: none;
 }
-.lf-sample-view:modal > .lf-sample-frame {
+.lf-sample-view:modal > .lf-sample-exhibit {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border: 0;
+}
+.lf-sample-view:modal .lf-sample-frame {
   flex: 1;
   min-height: 0;
 }
@@ -2468,6 +2483,7 @@
 }
 @media print {
   .lf-sample-controls,
+  .lf-sample-exhibit,
   .lf-sample-frame {
     display: none;
   }

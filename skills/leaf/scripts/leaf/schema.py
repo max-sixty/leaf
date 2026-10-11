@@ -258,12 +258,12 @@ DATA_INPUTS_SCHEMA = {
 MEASURED_SCHEMA = {
     "type": "object",
     "properties": {
-        # The x-data input whose source timestamp says whether another run landed.
+        # The x-data input whose source receipt identifies the current run.
         "input": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        # The widget attribute holding the source value's recorded instant.
-        "at": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        # The widget attribute holding the source write's opaque receipt.
+        "run": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
-    "required": ["input", "at"],
+    "required": ["input", "run"],
     "additionalProperties": False,
 }
 
@@ -333,6 +333,7 @@ EXTENSION_SCHEMA = {
                     "type": "object",
                     "properties": {
                         "parts": _ATTRIBUTE_NAME,
+                        "all": {"type": "string", "pattern": "^\\S+$"},
                         "complete": {"const": True},
                     },
                     "required": ["parts"],
@@ -449,7 +450,7 @@ ATTRIBUTE_KEYS = (
 # whether the mark holds in a thread's message too:
 # each is the element's own fact wherever it renders, except the room, which is the
 # document's to hand out; a message renders in the panel, whose width bounds it.
-# `idiom` says an `$idioms` entry may declare the mark for the elements its selector
+# `idiom` says a selector entry may declare the mark for the elements its selector
 # matches, as `.callout` declares the room: the mark's every reader reads its paint and
 # nothing paints it in a message, so delivery's paint is the whole of it. The others
 # are also read by tag (the Questions fold, the render checks, the runtime's descriptors).

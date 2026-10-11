@@ -66,11 +66,27 @@ export async function eventTypes(root) {
   const browser = kinds
     .filter(([, contract]) => contract.browser)
     .map(([kind, contract]) => {
-      const record = contract.record;
       const owned = new Set(Object.values(registry.$events.ownership).flat());
-      const properties = Object.fromEntries(
-        Object.entries(record.properties).filter(([key]) => !owned.has(key)),
-      );
+      // Server-owned fields leave every branch of the record, not only its top level:
+      // a branch naming one (an edit's `author`) would otherwise put it back.
+      const unowned = (schema) => ({
+        ...schema,
+        ...(schema.properties && {
+          properties: Object.fromEntries(
+            Object.entries(schema.properties).filter(([key]) => !owned.has(key)),
+          ),
+        }),
+        ...(schema.required && {
+          required: schema.required.filter((key) => !owned.has(key)),
+        }),
+        ...Object.fromEntries(
+          ["anyOf", "oneOf"]
+            .filter((key) => schema[key])
+            .map((key) => [key, schema[key].map(unowned)]),
+        ),
+      });
+      const record = unowned(contract.record);
+      const properties = { ...record.properties };
       // The browser contract may forbid fields the agent is allowed to write.
       const forbidden = contract.browser.not;
       for (const branch of forbidden?.anyOf ?? (forbidden ? [forbidden] : []))
@@ -83,5 +99,5 @@ export async function eventTypes(root) {
       ].filter((key) => !owned.has(key));
       return `${JSON.stringify(kind)}: ${typeOf({ ...record, properties, required })};`;
     });
-  return `// Generated from registry.json by npm run build:browser.\nexport interface EventMap {\n${records.join("\n")}\n}\ntype Keys<T> = T extends unknown ? keyof T : never;\nexport type CompleteUnion<T, Whole = T> = T extends unknown ? T & Partial<Record<Exclude<Keys<Whole>, keyof T>, never>> : never;\nexport type Event = CompleteUnion<EventMap[keyof EventMap]>;\nexport interface BrowserCommandMap {\n${browser.join("\n")}\n}\nexport type BrowserCommand = CompleteUnion<BrowserCommandMap[keyof BrowserCommandMap]>;\n`;
+  return `// Generated from registry.json by build/browser/event-types.mjs.\nexport interface EventMap {\n${records.join("\n")}\n}\ntype Keys<T> = T extends unknown ? keyof T : never;\nexport type CompleteUnion<T, Whole = T> = T extends unknown ? T & Partial<Record<Exclude<Keys<Whole>, keyof T>, never>> : never;\nexport type Event = CompleteUnion<EventMap[keyof EventMap]>;\nexport interface BrowserCommandMap {\n${browser.join("\n")}\n}\nexport type BrowserCommand = CompleteUnion<BrowserCommandMap[keyof BrowserCommandMap]>;\n`;
 }

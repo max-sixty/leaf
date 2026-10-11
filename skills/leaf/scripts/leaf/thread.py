@@ -258,20 +258,27 @@ def cmd_comment(
         return append_admitted(page, event)
 
 
-def successful_replies(events: list[dict], for_event: str) -> list[dict]:
-    """Agent answers to this exact input, excluding progress and failure receipts.
+def is_answer(event: dict) -> bool:
+    """Whether an event is an agent's answer to the input its ``responds`` names.
 
     A thread parent locates presentation; only ``responds`` names the input an
-    answer settles. User replies, progress and failures do not assert an answer.
+    answer settles. User replies carry none. Progress is never an answer, though a log
+    written before #1727 addresses it to its input. A failure receipt names the input
+    it gives up on without answering it, so an answer may still follow it.
     """
-    return [
-        event
-        for event in events
-        if event["kind"] == "reply"
+    return (
+        event["kind"] == "reply"
         and event["author"] == "agent"
-        and event.get("responds") == for_event
+        and event.get("responds") is not None
         and not event.get("ephemeral")
         and "failure" not in event
+    )
+
+
+def successful_replies(events: list[dict], for_event: str) -> list[dict]:
+    """Agent answers to this exact input (`is_answer`)."""
+    return [
+        event for event in events if is_answer(event) and event["responds"] == for_event
     ]
 
 
@@ -290,8 +297,9 @@ def post_reply(
     to: str | None,
     text,
     markup: str,
-    awaits: bool = False,
+    question: bool = False,
     *,
+    task: str | None = None,
     for_event: str | None,
     quote: str = "",
     section: str = "",
@@ -329,6 +337,11 @@ def post_reply(
 
     ``failure`` records a harness-owned failure code alongside its presentation text;
     ordinary agent answers omit it.
+
+    ``question`` makes the reply a prose Question on the user (`questions`).
+    ``task`` titles work the reply promises and does not deliver: the reply opens
+    that task on its thread, under the reply's own id (`tasks.task_reading`), so
+    the user's message is answered and the work stays on the agent in one write.
 
     ``ephemeral`` posts progress at the same response address without answering it.
     It remains content, and cannot carry a question, widgets, failure or relocation.
@@ -377,6 +390,17 @@ def post_reply(
                     or not same_scope
                 ):
                     sys.exit(f"attempt {attempt!r} already belongs to another event")
+                if (bool(existing.get("question")), existing.get("task")) != (
+                    question,
+                    task,
+                ):
+                    # A repeat that asks or promises differently would otherwise
+                    # return the first answer and drop what this one declares.
+                    sys.exit(
+                        f"{existing['id']!r} already answered this with a different "
+                        "declaration; ask or promise in a new message with "
+                        "`leaf thread reply`"
+                    )
                 return existing
         if (
             when_settled == "post"
@@ -455,9 +479,9 @@ def post_reply(
         ):
             return None
         moving = bool(quote or section or part)
-        if ephemeral and (awaits or markup or failure or moving or detach):
+        if ephemeral and (question or task or markup or failure or moving or detach):
             sys.exit(
-                "--ephemeral is for progress text; it cannot ask a question, carry widgets, report failure, or move the thread"
+                "--ephemeral is for progress text; it cannot ask a question, open a task, carry widgets, report failure, or move the thread"
             )
         if in_hand is not None and start_line_error(text.strip()):
             sys.exit(
@@ -543,7 +567,7 @@ def post_reply(
             if markup
             else None
         )
-        if awaits and fragment:
+        if question and fragment:
             from leaf.registry.storage import require_registry
 
             registry = require_registry(page_dir)
@@ -560,7 +584,7 @@ def post_reply(
             )
             if structural:
                 sys.exit(
-                    "--awaits is for a prose question; reply markup already declares "
+                    "--question is for a prose question; reply markup already declares "
                     "a local Question "
                     f"({', '.join(f'<{tag}>' for tag in structural)})"
                 )
@@ -609,8 +633,10 @@ def post_reply(
                 "item": in_hand,
                 **({"turn": turn} if turn else {}),
             }
-        if awaits:
-            event["awaits"] = True
+        if question:
+            event["question"] = True
+        if task is not None:
+            event["task"] = task
         if markup:
             event["markup"] = markup
         if attempt is not None:
@@ -756,23 +782,20 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
     The message event is immutable: the edit points back to it, so the log retains
     every wording while thread folds project the latest one. Markup stays frozen with
     the original message because user actions may already rest on widgets it sent.
+    Admission refuses a message another voice wrote (`event_contracts._edit_error`).
     """
     from leaf.registry.storage import require_registry
 
     body = read_text_arg(page_dir, text)
     with PageTransaction(page_dir) as page:
         require_registry(page_dir)
-        events = page.events
-        target = _message(page_dir, events, to)
-        if target["author"] != "agent":
-            sys.exit(f"message {to!r} is not agent-authored")
-        identity = message_identity()
+        _message(page_dir, page.events, to)
         return append_admitted(
             page,
             {
                 "kind": "edit",
                 "author": "agent",
-                **identity,
+                **message_identity(),
                 "message": to,
                 "text": body,
             },

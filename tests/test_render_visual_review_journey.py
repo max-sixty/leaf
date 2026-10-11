@@ -1,6 +1,5 @@
 """Authenticated website-journey proof for the visual-review package."""
 
-import hashlib
 import json
 import re
 import shutil
@@ -17,6 +16,7 @@ from render_cases_layout import (
     ring_faults,
     standing_ring,
 )
+from render_cases_navigation import source_revision
 from render_harness import (
     CORPUS_SOURCES,
     consume_browser_errors,
@@ -89,6 +89,59 @@ def test_a_visual_review_in_flow_takes_its_evidence_height(browser, serve):
     host.click()
     page.keyboard.press("d")
     page.wait_for_function("document.scrollingElement.scrollTop > 0")
+
+
+def test_a_visual_review_in_flow_keeps_its_navigation_over_a_tall_pair(browser, serve):
+    """Scrolling a document through a pair taller than the window keeps the case
+    navigation stuck under the banner and the view controls under it, and focusing
+    either where it sticks leaves the page where it is."""
+    url = serve(VISUAL_REVIEW_GALLERY)
+    stamp_page(
+        serve.page_dir,
+        leaf_page(
+            "visual inspection in flow",
+            """<h1>Review the package change</h1>
+<p>The review follows this context.</p>
+<section><lf-visual-review id="visual-review-run" source="gallery-visual-run"></lf-visual-review></section>
+<p style="min-height: 40rem">The decision record continues after the evidence.</p>""",
+        ),
+        "put visual inspection in document flow",
+    )
+    url = url.rsplit("/versions/", 1)[0] + "/?" + url.partition("?")[2]
+    page = open_page(browser, url)
+    resized(page, 1000, 700)
+    widget = page.locator("#visual-review-run")
+    widget.get_by_text("Inspect comparison", exact=True).click()
+    widget.get_by_role("radio", name="Full frame").click()
+    widget.get_by_role("radio", name="100%").click()
+    widget.get_by_role("radio", name="Flip").click()
+    host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
+    assert host.evaluate("node => node.getBoundingClientRect().height") > 700
+    page.evaluate(
+        "y => scrollTo({top: scrollY + y, behavior: 'instant'})",
+        host.evaluate("node => node.getBoundingClientRect().top + 300"),
+    )
+    scroll_settled(page)
+    read = """() => {
+      const box = (selector) => document.querySelector(selector).getBoundingClientRect();
+      const banner = document.querySelector('.lf-banner').getBoundingClientRect().bottom;
+      return {banner, queue: box('#visual-review-run .lf-vr-queue'),
+              toolbar: box('#visual-review-run .lf-vr-case:not([hidden]) .lf-vr-toolbar-slot'),
+              y: document.scrollingElement.scrollTop};
+    }"""
+    stuck = page.evaluate(read)
+    assert stuck["queue"]["top"] == pytest.approx(stuck["banner"], abs=1), stuck
+    assert stuck["toolbar"]["top"] == pytest.approx(stuck["queue"]["bottom"], abs=1), (
+        stuck
+    )
+    for control in (
+        widget.get_by_role("button", name="Next", exact=True),
+        widget.get_by_role("combobox", name="Selected visual case"),
+        widget.get_by_role("radio", name="Flip"),
+    ):
+        control.focus()
+        scroll_settled(page)
+        assert page.evaluate(read)["y"] == stuck["y"], control
 
 
 def go_to(page, target, kind="Control"):
@@ -417,9 +470,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     assert capture_key not in json.dumps(record)
     data_model.cmd_data_set(review_dir, "journey-run", record)
     # The draft begun on this value keeps its revision across the replacement below.
-    drafted_revision = hashlib.sha256(
-        data_model.source_file(review_dir, "journey-run").read_bytes()
-    ).hexdigest()[:16]
+    drafted_revision = source_revision(review_dir, "journey-run")
 
     user = open_page(browser, review_url)
     resized(user, 1366, 768)
@@ -794,7 +845,7 @@ def test_visual_review_reports_an_image_failure_after_its_peer_has_loaded(
     url = serve(VISUAL_REVIEW_GALLERY)
     run = json.loads(
         data_model.source_file(serve.page_dir, "gallery-visual-run").read_text()
-    )
+    )["value"]
     failed_source = run["cases"][0]["after"]
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
@@ -853,7 +904,7 @@ def test_visual_review_case_navigation_keeps_equal_stable_step_targets(
     )
     record = json.loads(
         data_model.source_file(serve.page_dir, "gallery-visual-run").read_text()
-    )
+    )["value"]
     for index in range(3):
         next_button.click()
         expect(selected).to_have_js_property(

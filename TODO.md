@@ -137,6 +137,10 @@ has tried; settle that before building it.
 
 ### User continuity and mobile access
 
+- **Bring back a rewrite Escape discarded.** Escape drops a rewrite's changed words, as
+  in Slack, Discord and Telegram, so an accidental press loses a long rewrite. Offer a
+  way back, such as `g D` restoring the last discarded rewrite into its editor (the
+  user's suggestion, 2026-10-06).
 - **Decide when a page merits a separate phone composition.** Many pages are
   ephemeral and authored for a user reading on a large screen, so a bespoke phone
   animation may not repay its cost. Decide how the agent weighs the user's viewing
@@ -156,24 +160,15 @@ has tried; settle that before building it.
   handoff and reproduce the interactive-reply crash on a real iPhone. Browser emulation
   covers element targeting, commenting, passage geometry, and viewport sizing, but cannot
   show the native selection menu or software keyboard.
-- **Finish what a phone user still cannot reach.** Give touch users visible passage
-  threads, and remove keyboard-only hints, hover-only reasons, clipped diagram content,
-  and remaining undersized touch targets. Hover-only today: why Approve version is
-  disabled, and "Press z" once approved; a reaction's word before it is sent; a margin
-  marker's label and its status (Sent, Stalled); the diff's line "+"; and the
-  latest-edit error, a dead passage's reason, a disabled More entry's reason, and the
-  compare state. A finger also lacks exits a key has: a mode's or search's steps take
-  Threads off the row until it ends, Android's back gesture closes nothing
-  (the Escape ladder could answer it), Draw mode blocks scrolling and zoom, and an
-  `lf-draft` has no close that keeps the edit.
-- **Decide whether the response bar's reactions and Suggest need a pointer route.**
-  The floating comment bar shows no ellipsis (⋯), so its field spans the bar and a sent
-  message keeps the card's measure. Its other responses, Suggest and the emoji
-  reactions, open only by key: Tab from the field, or `e`. A mouse alone has no
-  route to them, and a finger has none at all. Decide whether to make them more
-  available, such as a banner control under a coarse pointer, a reaction row on the
-  sent card, or a control that keeps the field's measure
-  (`skills/leaf/assets/runtime/composing/selection.js`).
+- **Finish what a phone user still cannot reach.** Remove keyboard-only hints,
+  hover-only reasons, clipped diagram content, and remaining undersized touch targets.
+  Hover-only today: why Approve version is disabled, and "Press z" once approved; a
+  reaction's word before it is sent; a margin marker's label and its status (Sent,
+  Stalled); the diff's line "+"; and the latest-edit error, a dead passage's reason, a
+  disabled More entry's reason, and the compare state. A finger also lacks exits a key
+  has: a mode's or search's steps take Threads off the row until it ends, Android's back
+  gesture closes nothing (the Escape ladder could answer it), Draw mode blocks scrolling
+  and zoom, and an `lf-draft` has no close that keeps the edit.
 - **Reconsider thread navigation.** Decide how the Threads panel should change
   before refining it (`skills/leaf/assets/AGENTS.md`, "Space and scrolling").
 
@@ -231,7 +226,7 @@ and its chrome coordinate.
     growing along it and changed cells outlined. `lf-visual-review` steps through one
     case at a time, so the grid is a new view, in that package or beside it.
   - For comment placement alone, an SVG atlas of the side `comment-placement.js`
-    chooses (`commentSide`) over a grid of inputs, which `npm run test:runtime` can
+    chooses (`commentSide`) over a grid of inputs, which `pnpm run test:runtime` can
     draw without a browser.
 
   How to keep the candidates maintainable is not yet thought through, and comes before
@@ -249,7 +244,12 @@ and its chrome coordinate.
   keeping its comments. They hold if revisions happen by ordinary composition. Include
   a cold agent asked for "a dashboard", the likeliest trigger for over-tiling. Run it
   with the agent-usability baseline (#19), by extending the document, dashboard and
-  queue tasks in `evals/`.
+  queue tasks in `evals/`. For a workspace, also measure what a screenshot of the
+  document cannot show: each pane's contents through its own scroll, how much of each
+  pane is empty, and whether a reader reaches every pane by key. The arrangement
+  judge sees only the first screen of a pane that scrolls and is told not to infer
+  interaction, so no case yet measures whether a workspace works as a screen. The
+  plain-HTML control (`--condition html`) has never run.
 - **Layout values that wait for a task:** a selection-and-detail component whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.
@@ -417,6 +417,10 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Product and harness ideas
 
+- **Learn how users prefer to dictate comments.** Observe whether people use
+  browser dictation, OS dictation, or their own dictation app. Defer a microphone
+  button until an unmet need justifies the extra visual noise in Leaf's text boxes.
+
 - **Assess whether automatic measurement freshness is useful (#7 in the simplification audit).**
   Keep the current `lf-num` source/write-time reminder for now. Look for cases where
   its warnings lead an author to update a stale claim, and weigh that benefit against
@@ -473,8 +477,13 @@ Revisit these when their stated trigger becomes real; they are not an active que
   its active pane and one key moves to the next. In a workspace today the arrow keys
   walk a side list, `q` reaches the next open Question, and a pane body that scrolls is a
   Tab stop, but nothing marks the active pane and no key moves from one pane to the
-  next. Pane focus belongs to the panes and the keyboard layer, not the Layout, so it
-  works the same wherever panes stand. Draw it as a playground before building it.
+  next. The runtime already tracks it: `userReadingRegion` (`reading-regions.js`) is the
+  pane holding focus, or else the last one pressed, wheeled or touched, and `j`/`k`/`d`/`u`
+  scroll it. Until the user picks a pane those keys reach the page, which a workspace
+  doesn't scroll, so they appear to do nothing. The feature is a mark on that region and
+  a key that moves it. Pane focus belongs to the
+  panes and the keyboard layer, not the Layout, so it works the same wherever panes
+  stand. Draw it as a playground before building it.
   Trigger: a user loses track of the active pane, or tabs through a pane to reach the
   next one.
 - **Expand everything waiting with a keypress.** A held notice, a collapsed summary,

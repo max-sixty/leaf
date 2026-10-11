@@ -30,19 +30,23 @@ package authors continue to use native JavaScript without a build.
   each consumer needs or adapting an upstream browser module. `pierre/` and
   `webawesome/` hold the inputs their builders use.
   `floating-ui-zoom.patch` backports upstream #3492 to the locked 1.8.0 ESM;
-  its builder records the upstream commit and applies it to private package copies.
+  `floating-ui-element-zoom.patch` locally completes that conversion for a floating
+  element zoomed relative to an Element offset parent, including border origins
+  and overflow lengths.
+  The builder records the upstream commit and applies both to private package copies.
 
-After `npm ci`, both builds reproduce the tracked bytes, so a diff after a rebuild
-means the lock, a build script, or the registry input a bundle reads changed.
+After `pnpm install --frozen-lockfile`, both builds reproduce the tracked bytes, so a
+diff after a rebuild means the lock, a build script, or the registry input a bundle
+reads changed.
 Rebuild after any of those changes:
 
 ```sh
-npm ci
-npm run build:browser      # npm run check:browser compares without writing
+pnpm install --frozen-lockfile
+pnpm run build:browser      # pnpm run check:browser compares without writing
 uv run build/vendor.py     # all bundles, or name the ones to rebuild
 ```
 
-Rebuild after `npm install` moves a pin or the lock, or after changing registry
+Rebuild after `pnpm install` moves a pin or the lock, or after changing registry
 input a bundle reads. `package.json` pins every JavaScript version that ships.
 `lit-html` is held at 3.3.0, below what `lit` would take: from 3.3.1, `repeat` leaves
 a comment behind for each item it removes (lit/lit#5298), so a list the chrome redraws

@@ -69,7 +69,7 @@ The optional bundled packages are:
 | Package | Adds |
 | --- | --- |
 | `code-review` | Review-authoring instructions; select alongside the evidence packages the page needs. |
-| `diagram` | `lf-diagram` and its Agentic Mermaid renderer. |
+| `diagram` | `lf-diagram` and its Mermaid renderer. |
 | `diff` | `lf-diff`, its `unified-diff` data contract and Pierre renderer, and `lf-call-diff` with links to exact patch evidence. |
 | `file-editor` | `lf-file-editor`, a CodeMirror editor for an explicitly bound local text file, with quiet automatic saving and inline conflict recovery. |
 | `playground` | Controls and structured state with shared reset, restore, preview, output, and typed configuration submission. |
@@ -184,9 +184,9 @@ Package checks refuse imports of private kernel modules as well as replacements,
 so source checkouts and prepared installations expose the same extension contract.
 `/runtime/widget-api.js` is the public behavior-module interface, shared with
 the running kernel rather than copied into each widget.
-A later package replaces a tag's complete element
-declaration and one member inside a shared `$` declaration. A tag can be added or
-replaced whole, but it has no deletion marker.
+A later package replaces a complete ordinary vocabulary entry, whether an element
+or an idiom, and one member inside a shared `$` declaration. An ordinary entry can
+be added or replaced whole, but it has no deletion marker.
 Shared `$` entries compose by member, and map-valued members compose one level further
 by key; `null` deletes at either of those shared-entry grains when the merged registry
 still validates. Instructions files with the same audience name concatenate in package order.
@@ -198,25 +198,23 @@ composed text sets each package's passage under a heading naming the package, so
 a file begins with its first rule rather than a title of its own. Packages define
 audiences such as `author`, `coordinator`, or `worker`; Leaf does not keep a role
 list. A data contract's `instructions` map holds audience-specific text beside
-its schema. A widget's `x-instructions` is one non-empty string for the page author.
+its schema. An ordinary vocabulary entry's `x-instructions` is one non-empty string for the page author.
 
 ```bash
-leaf page instructions PAGE
-leaf page instructions PAGE author --widget lf-options --widget lf-chart
-leaf page instructions PAGE producer --contract unified-diff
+leaf page instructions PAGE | jq 'keys'
+leaf page instructions PAGE --use lf-options --use .eyebrow | jq -er '.author'
+leaf page instructions PAGE --contract unified-diff | jq -er '.producer'
 ```
 
-With no audience, the command lists the audiences available for that selection
-as a JSON array.
-With an audience, it prints shared package instructions and instructions for the
-explicitly selected widgets and contracts. Without a selection, it prints only
-shared package instructions. Each repeated `--widget TAG` includes the widget's
-required members, custom tags in its worked example, and declared `x-data`
-contracts; the reader derives those dependencies from the registry. Widget
-instructions join the `author` audience. Contract instructions join their
-declared audience. The author instructions name other available audiences so
-an agent can assign work with the right instructions. "Read the registry" in
-`page-authoring.md` owns when an author reads each part.
+The command returns a JSON map from audience to complete instructions; no
+instructions is `{}`. Without a selection, it includes only shared package
+instructions. Each repeated `--use ENTRY` selects an ordinary registry entry,
+including an idiom. Its `x-instructions` joins the `author` audience. Elements and idioms used
+in its `x-example` and its declared `x-data` contracts join the selection
+recursively, once each. Contract instructions join their declared audiences.
+Whoever takes a role reads that audience's value for the same selection before
+acting. "Read the registry" in `page-authoring.md` owns when an author reads each
+part.
 
 The reader uses the candidate vocabulary: the layer just vendored and any
 `page/registry.json` declarations. It is available before the page has markup
@@ -237,10 +235,10 @@ Tokens change every surface that reads them: `--accent`, `--r`, the three faces
 `--serif` (body prose), `--sans` (apparatus: chrome, injected controls, and annotations
 embedded in evidence), and `--mono` (literal evidence). Ordinary selectors tune one
 element or widget. A shape the project reuses across pages is an idiom — declare it
-under `$idioms` in the package's
-`registry.json` (a selector, a description, an example) and style it in the layer's
+under its CSS selector in the package's `registry.json`, beside element names
+(a `description`, `x-example`, and optional `x-instructions`) and style it in the layer's
 `theme.css`; the page's merged `registry.json` then carries it beside the shipped ones.
-An idiom may declare one `x-` key, `x-space`, the width it takes, as `.callout` keeps
+An idiom may also declare `x-space`, the width it takes, as `.callout` keeps
 the column; delivery paints it on every element the selector matches.
 
 A package's rules read the box a widget is given and the theme's tokens, never the Layout
@@ -575,14 +573,13 @@ sed -n '20,44p' CHANGELOG.md | jq -Rs . | leaf data set PAGE release-notes
 leaf data clear PAGE release-ci
 ```
 
-Each source's value is an ordinary JSON file at `data/<source>.json` in the page
-directory, and `data.json` records the current contract each source id was set under.
-`data set` checks the binding and validates the value before replacing that file
-atomically; a rejected value leaves the file untouched. Once a source has been set,
-any process may rewrite its file with plain JSON. Every reading validates the file
-against the contract, so a value that fails it reaches users as that source's error
-rather than as data, and `page check` and `page state` report it. Tabs hear a
-rewritten file as they hear any other page change.
+Each source is one JSON publication at `data/<source>.json`, holding its opaque
+`run` receipt, `updated` instant, and complete `value`; `data.json` records its
+contract. Write a value through `leaf data set`, which checks the binding, validates
+the value and replaces the publication atomically. A rejected value leaves it
+untouched. Every reading validates the publication and value against the contract,
+so corrupted data reaches users as that source's error, and `page check` and
+`page state` report it. Tabs hear a new publication as they hear any page change.
 
 A contract that carries media URLs declares `resources`, a list of
 [JMESPath expressions](https://jmespath.org/tutorial.html) selecting each URL string
@@ -594,8 +591,10 @@ Snapshots capture the selected local media with the current data value; offline
 exports embed those bytes. Remote media stays remote. These resources belong to
 the data reading, so capturing them does not change a stored authored revision.
 
-A source's revision is a digest of its file's bytes, and its `updated` instant is the
-file's modification time. Nothing keeps a replaced value: every document that binds a
+A source's revision identifies its encoded value, its `run` receipt identifies the
+write, and `updated` records when it was written. A rerun with the same value keeps
+its revision and produces a new run. Copying a page preserves those identities.
+Nothing keeps a replaced value: every document that binds a
 source reads its current value, including stamped versions and widgets frozen into
 threads. A document that must keep one value binds its own source id and nothing
 rewrites that source. Source revisions and event sequences are independent: an old poll
@@ -648,7 +647,7 @@ rendering every patch first.
 
 ```json
 {
-  "records": { "items": "files", "key": "key", "deferred": "patch" },
+  "records": { "items": "files", "key": "path", "deferred": "patch" },
   "schema": {
     "type": "object",
     "properties": {
@@ -657,10 +656,10 @@ rendering every patch first.
         "items": {
           "type": "object",
           "properties": {
-            "key": { "type": "string" },
+            "path": { "type": "string" },
             "patch": { "type": "string" }
           },
-          "required": ["key", "patch"]
+          "required": ["path", "patch"]
         }
       }
     },
@@ -737,8 +736,11 @@ and a blank image stands in for any media an example names. The checks:
   rows are empty. A
   box whose task needs its own scroll, such as an inspector whose contents change
   under a playing recording, declares `--lf-holds-height: 1` on itself; a bounded
-  block's theme already does. A box that asks to scroll only sideways is named only
-  while its content runs past its height.
+  block's theme and the workspace Layout's scrolling regions already declare it. A
+  widget that scrolls a part within the height a workspace gives it
+  (`--lf-full-height`) declares it on that part too, though this check never sees
+  that part scroll, since a worked example stands outside a workspace. A box that
+  asks to scroll only sideways is named only while its content runs past its height.
 
 After `leaf page init` re-vendors the page (`serving-pages.md`, "Re-vendoring and
 layer epochs"), run `leaf page check <page> --render` on the version that uses

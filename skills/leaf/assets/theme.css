@@ -1,4 +1,4 @@
-/* Generated from skills/leaf/assets/styles/theme.css by npm run build:styles. */
+/* Generated from skills/leaf/assets/styles/theme.css by build/styles.mjs. */
 /* skills/leaf/assets/styles/theme.css */
 @property --lf-banner-rows { syntax: "<integer>"; inherits: true; initial-value: 1; }
 @property --lf-motion-flash { syntax: "<time>"; inherits: true; initial-value: 1200ms; }
@@ -23,8 +23,8 @@
   --lf-bottom-status-translate: 0 50%;
   --lf-view-height: calc(100dvh - var(--lf-banner-h) - var(--lf-bottom-bar-h));
   --lf-top: var(--lf-banner-h);
-  --lf-landing-gap: 12px;
-  --lf-landing-room: calc(var(--lf-root-headers, 0px) + var(--lf-landing-gap));
+  --lf-top-covered: calc(var(--lf-banner-h) + var(--lf-root-headers, 0px));
+  --lf-landing-room: 12px;
   --lf-tabstrip-h: calc(9px + max(38px, var(--aim-floor)));
   --lf-z-page-paint: 8890;
   --lf-z-margin-raised: 8895;
@@ -239,7 +239,7 @@ html {
     height: 100%;
     overflow-x: hidden;
     overflow-y: scroll;
-    scroll-padding-top: calc(var(--lf-banner-h) + var(--lf-landing-room));
+    scroll-padding-top: calc(var(--lf-top-covered) + var(--lf-landing-room));
     scroll-padding-bottom: calc(var(--lf-bottom-bar-h) + max(12px, var(--focus-ring-room)));
     body {
       min-height: 100%;

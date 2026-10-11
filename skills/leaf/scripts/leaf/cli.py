@@ -343,23 +343,22 @@ def media(dir: str, files) -> None:
         print(json.dumps({"path": url, "source": str(src)}, ensure_ascii=False))
 
 
-@page.command(short_help="Read instructions for selected components and audience.")
+@page.command(short_help="Read selected-component instructions by audience as JSON.")
 @click.argument("dir", metavar="PAGE")
-@click.argument("audience", required=False, metavar="AUDIENCE")
-@click.option("--widget", "widgets", multiple=True, metavar="TAG")
+@click.option("--use", "entries", multiple=True, metavar="ENTRY")
 @click.option("--contract", "contracts", multiple=True, metavar="ID")
 def instructions(
-    dir: str, audience: str | None, widgets: tuple[str, ...], contracts: tuple[str, ...]
+    dir: str, entries: tuple[str, ...], contracts: tuple[str, ...]
 ) -> None:
-    """List audiences, or print AUDIENCE's selected-component instructions.
+    """Print a JSON object mapping each audience to its composed instructions.
 
     With no component selection, read only shared package instructions. Select
-    widgets before writing markup; their examples, required members, and data
+    vocabulary entries before writing markup; their examples and data
     contracts bring their own instructions into the same reading.
     """
     from leaf.page import cmd_instructions
 
-    cmd_instructions(resolve_dir(dir), audience, widgets=widgets, contracts=contracts)
+    cmd_instructions(resolve_dir(dir), entries=entries, contracts=contracts)
 
 
 @page.command(short_help="Print where the page, a thread, or a widget stands.")
@@ -1017,7 +1016,15 @@ def _reply_options(command):
             "--markup", default="", help="frozen HTML fragment after the text"
         ),
         click.option(
-            "--awaits", is_flag=True, help="the reply asks the user a question"
+            "--question",
+            is_flag=True,
+            help="the reply asks the user a question, which waits on them",
+        ),
+        click.option(
+            "--task",
+            metavar="TITLE",
+            help="the reply promises work it doesn't deliver; opens that task on the "
+            "thread, ended by `leaf task end` with the reply's id",
         ),
         click.option(
             "--ephemeral", is_flag=True, help="one-line progress, without answering"
@@ -1039,13 +1046,21 @@ def response() -> None:
     "--attempt", help="retry identity (ordinary replies default to the reference)"
 )
 @click.option("--failure", help="failure code when no answer is coming")
+@click.option(
+    "--done", is_flag=True, help="the reply delivers what the message asked for"
+)
 @_reply_options
 def response_reply(
-    reference: str, attempt: str | None, failure: str | None, **options
+    reference: str, attempt: str | None, failure: str | None, done: bool, **options
 ) -> None:
     """Answer the exact REFERENCE printed in a delivery's answer.ref.
 
-    Text, frozen HTML, prose questions, titles and anchor moves share this command.
+    An answer says what it leaves the thread with: --done when it delivers what the
+    message asked for, --question when it asks the user something back, or --task
+    TITLE when it promises work it doesn't deliver, which stays on you as a task.
+    Progress (--ephemeral) and failure receipts (--failure) take none of them.
+
+    Text, frozen HTML, titles and anchor moves share this command.
     It validates and activates saved page edits, then commits the reply immediately.
     A provider's later final yields to the recorded answer; failure receipts are
     refused while that provider still owns the answer.
@@ -1054,6 +1069,29 @@ def response_reply(
     """
     from leaf.thread import post_response
 
+    declared = [
+        flag
+        for flag, given in (
+            ("--done", done),
+            ("--question", options["question"]),
+            ("--task", options["task"] is not None),
+        )
+        if given
+    ]
+    if len(declared) > 1:
+        raise click.UsageError(f"{' and '.join(declared)} cannot be used together")
+    answers = not options["ephemeral"] and failure is None
+    if declared and not answers:
+        raise click.UsageError(
+            f"{declared[0]} declares what an answer leaves; progress and failure "
+            "receipts answer nothing"
+        )
+    if not declared and answers:
+        raise click.UsageError(
+            "say what the answer leaves: --done when it delivers what was asked, "
+            "--question when it asks the user something back, or --task TITLE when "
+            "it promises work it doesn't deliver"
+        )
     if attempt is not None:
         options["attempt"] = attempt
     _print_records(post_response(reference, failure=failure, **options))
@@ -1152,12 +1190,12 @@ def task() -> None:
     help="Whose queue the task is on: yours, or the user's.",
 )
 def task_open(dir: str, subject: str, title: str, owner: str) -> None:
-    """Open a task titled TITLE on SUBJECT: an open thread, by any message in it or a
-    widget its messages carry; a page widget, which for your own task must declare
-    x-work or hold an unsettled update; any other element of the page by its id, such
-    as a section; or `page` for the page as a whole. With `--on user` the task is on
-    the user, on anything but a thread, where a reply with `--awaits` asks them: it
-    ends at their Done, and you can end it too. Its id is the printed record's `id`."""
+    """Open a task titled TITLE on SUBJECT: a page widget, which for your own task
+    must declare x-work or hold an unsettled update; any other element of the page by
+    its id, such as a section; or `page` for the page as a whole. With `--on user`
+    the task is on the user: it ends at their Done, and you can end it too. Its id is
+    the printed record's `id`. In a thread, the reply that promises work opens it
+    (`--task`), and one that asks the user is their Question (`--question`)."""
     from leaf.tasks import cmd_open
 
     _print_records(cmd_open(resolve_dir(dir), subject, title, owner))

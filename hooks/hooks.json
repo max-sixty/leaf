@@ -23,7 +23,7 @@
           },
           {
             "type": "command",
-            "command": "exec python3 \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/loop-guard.py\" hook --harness claude-code --watch",
+            "command": "exec python3 \"$CLAUDE_PLUGIN_ROOT/hooks/scripts/background-watch.py\" hook --harness claude-code --watch",
             "asyncRewake": true,
             "rewakeMessage": "Leaf:",
             "timeout": 604800

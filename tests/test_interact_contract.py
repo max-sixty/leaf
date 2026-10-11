@@ -4559,55 +4559,6 @@ def test_check_requires_the_vendored_layer(tmp_path):
     assert f"run `leaf page init {d}`" in result.output
 
 
-def test_check_advises_page_css_that_scrolls_a_box_and_leaves_arrangement_alone(
-    page_dir,
-):
-    """Page CSS stays free, so a scroller is advice: one Leaf did not make is one its
-    reading features cannot reach. Arranging is the page's own business, panes included,
-    so a rule that places a pane, or scrolls only sideways, says nothing."""
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<title>t</title>",
-            "<title>t</title><style>.feed { overflow-y: auto; max-height: 20rem }"
-            " main lf-pane { display: flex; grid-column: 1 / -1 }"
-            " .wide { overflow-x: auto } #cells { grid-template-columns: 1fr }</style>",
-        ).replace(
-            "<h2>Plan</h2>",
-            '<h2>Plan</h2><div id="cells"><lf-pane id="queue" label="Queue"><p>One</p></lf-pane></div>'
-            '<div class="feed" style="overflow: scroll"><p>Log</p></div>',
-        )
-    )
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-    assert "rule `.feed` sets overflow-y to scroll" in result.output
-    assert "sets overflow to scroll" in result.output
-    for quiet in ("main lf-pane", ".wide", "#cells"):
-        assert quiet not in result.output, result.output
-
-
-def test_check_advises_the_same_css_in_a_stylesheet_the_page_links(page_dir):
-    """A stylesheet the page links from page/, and one that sheet imports, are page CSS
-    as much as its <style>, so the advice reads them and names the file."""
-    (page_dir / "page").mkdir(exist_ok=True)
-    (page_dir / "page" / "app.css").write_text(
-        '@import "log.css";\n.feed { overflow-y: auto }\n'
-    )
-    (page_dir / "page" / "log.css").write_text("#log { overflow: scroll }\n")
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<title>t</title>",
-            '<title>t</title><link rel="stylesheet" href="/page/app.css">',
-        ).replace(
-            "<h2>Plan</h2>",
-            '<h2>Plan</h2><pre id="log">x</pre><div class="feed"><p>Log</p></div>',
-        )
-    )
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-    assert "/page/app.css rule `.feed` sets overflow-y to scroll" in result.output
-    assert "/page/log.css rule `#log` sets overflow to scroll" in result.output
-
-
 def test_check_rejects_an_invalid_bound_and_loose_pane_text(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace(

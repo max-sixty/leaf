@@ -4,12 +4,9 @@ Bounded readings of exact CSS text keep state requests from reparsing unchanged
 stylesheets. Their results are read-only; edits select a new cache entry.
 """
 
-from collections.abc import Mapping
 from functools import lru_cache
 
 import tinycss2
-
-from .structure import SourceDocument
 
 # tinycss2 reads every stylesheet and style="" here. Patterns over the text came first,
 # and each was right only about the grammar it was written against: a brace walk that
@@ -21,19 +18,6 @@ def css_block(css):
     """What a block holds: the declarations it states, and the rules nested inside it. A
     style="" attribute is a block written without the braces around it."""
     return tinycss2.parse_blocks_contents(css, skip_comments=True, skip_whitespace=True)
-
-
-@lru_cache(maxsize=32)
-def css_rules(css: str) -> tuple:
-    """(selector, block, conditional) per qualified rule, at every depth — a rule that
-    holds both declarations and a nested rule states one of its own. `conditional` is
-    true for a rule inside an at-rule, which applies only when a condition this check
-    never evaluates holds: `@media print`, a viewport query. Nesting alone is not a
-    condition, so a rule nested in a conditional one is conditional and no more, and
-    neither is `@layer`, which orders its rules and always applies them."""
-    return tuple(
-        _rules(tinycss2.parse_stylesheet(css, skip_comments=True, skip_whitespace=True))
-    )
 
 
 def _css_unclosed_blocks(css: str) -> int:
@@ -121,19 +105,6 @@ def css_syntax_errors(css: str, source: str, *, block=False) -> tuple[str, ...]:
     return tuple(errors)
 
 
-def _rules(nodes, conditional=False):
-    """`nodes` and every rule nested inside them, as (selector, block, conditional)."""
-    for node in nodes:
-        if node.type == "qualified-rule":
-            block = css_block(node.content)
-            yield tinycss2.serialize(node.prelude).strip(), block, conditional
-            yield from _rules(block, conditional)
-        elif node.type == "at-rule" and node.content:
-            # A cascade layer orders rules rather than conditioning them.
-            layered = node.lower_at_keyword == "layer"
-            yield from _rules(css_block(node.content), conditional or not layered)
-
-
 def scoped(css: str, root: str) -> str:
     """Place one package stylesheet inside its browser-owned widget scope.
 
@@ -146,48 +117,3 @@ def scoped(css: str, root: str) -> str:
 def inline_style_at(inline: dict) -> str:
     """Name one style="" by the element and line an author finds it at."""
     return f"<{inline['tag']} style> (line {inline['line']})"
-
-
-# ---------- page CSS that fights the layout ----------
-# Leaf keeps the user's place in the regions it knows: the page, a pane, a bounded
-# block. Page CSS stays free inside a block, so this is advice rather than an error: a box
-# the page makes scroll vertically keeps no reading position across a revision or a
-# reflow. Sideways scrolling is the theme's own answer to a wide table or listing, and a
-# bound says nothing about it, so only the block axis is read.
-SCROLL_VALUES = {"auto", "scroll"}
-SCROLL_PROPS = {"overflow", "overflow-y", "overflow-block"}
-
-
-def _scrolls(block) -> list:
-    return [
-        declaration.lower_name
-        for declaration in block
-        if declaration.type == "declaration"
-        and declaration.lower_name in SCROLL_PROPS
-        and SCROLL_VALUES
-        & {t.lower_value for t in declaration.value if t.type == "ident"}
-    ]
-
-
-def scroller_css_advice(parser: SourceDocument, stylesheets: Mapping[str, str]) -> list:
-    """Page CSS that makes a box scroll, each line naming the rule and the property. The
-    page's CSS is its `<style>`, its `style` attributes, and `stylesheets`: the files it
-    links from `page/`, by path, as the revision's capture resolved them
-    (`RevisionArtifact.page_stylesheets`)."""
-    # Each sheet by the prefix its rules are named with: the page's own <style> needs
-    # none, and a linked file is named by its path.
-    sheets = {"": parser.css, **{f"{path} ": css for path, css in stylesheets.items()}}
-    stated = [
-        (f"{prefix}rule `{selector}`", block)
-        for prefix, css in sheets.items()
-        for selector, block, _ in css_rules(css)
-    ] + [
-        (inline_style_at(inline), css_block(inline["style"]))
-        for inline in parser.inline_styles
-    ]
-    return [
-        f"{where} sets {prop} to scroll, and Leaf keeps no reading position "
-        "in a scroller page CSS makes; bound the block with data-bound=start|end instead"
-        for where, block in stated
-        for prop in _scrolls(block)
-    ]

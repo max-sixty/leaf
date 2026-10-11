@@ -206,162 +206,6 @@ def test_the_render_gate_renders_where_the_margin_content_changes(browser, serve
     assert seen[4:] == [(width, 900, "light") for width in reading.margin_widths]
 
 
-def test_the_render_gate_reports_trapped_margins_as_advice(browser, serve):
-    """An author's inset and the heading's margin both count inside its selectable
-    box. The report names the rendered sum without forbidding an intentional inset;
-    a card declaring edge trim keeps its padding and needs no advice."""
-    source = leaf_page(
-        "Authored block edges",
-        """
-<style>
-@media (max-width:600px) { #compact-frame { padding:16px; } }
-@media (prefers-color-scheme:dark) { #dark-frame { padding:16px; } }
-</style>
-<h1>Audit</h1>
-<aside class="sidenote">This note introduces a margin viewport.</aside>
-<section id="finding" style="padding:16px">
-  <h2 style="margin-block:32px 0">Finding</h2>
-  Plain text prevents a second edge margin.
-</section>
-<section id="structural" style="display:flow-root">
-  <h2 style="margin-block:32px 0">Undeclared structural frame</h2>Words
-</section>
-<section style="display:flow-root;--lf-block-frame:trim">
-  <h2>Trimmed structural frame</h2><p>Wide content retains the page's room.</p>
-</section>
-<div id="card" style="padding:16px;--lf-block-frame:1">
-  <h2>A deliberately padded card</h2><p>Its inset remains intentional.</p>
-</div>
-<section id="compact-frame"><h2 style="margin-block:32px 0">Compact inset</h2>Words</section>
-<section id="dark-frame"><h2 style="margin-block:32px 0">Dark inset</h2>Words</section>
-""",
-    )
-    reading = render_gate_model.render_version(browser, serve(source, packages=()))
-    assert reading.failures == [], reading.failures
-    assert reading.margin_widths
-    assert reading.advice == [
-        (
-            "<section id=finding> draws 16px of inset and shows 48px above its <h2>: "
-            "32px of child margin stays inside the box. Use --lf-block-frame: 1 for a "
-            "drawn frame, or --lf-block-frame: trim for a transparent grouping; "
-            "put spacing between "
-            "selectable blocks in the parent's gap or outside margins"
-        ),
-        (
-            "<section id=structural> draws 0px of inset and shows 32px above its <h2>: "
-            "32px of child margin stays inside the box. Use --lf-block-frame: 1 for a "
-            "drawn frame, or --lf-block-frame: trim for a transparent grouping; "
-            "put spacing between "
-            "selectable blocks in the parent's gap or outside margins"
-        ),
-        (
-            "[dark] <section id=dark-frame> draws 16px of inset and shows 48px above its <h2>: "
-            "32px of child margin stays inside the box. Use --lf-block-frame: 1 for a "
-            "drawn frame, or --lf-block-frame: trim for a transparent grouping; "
-            "put spacing between "
-            "selectable blocks in the parent's gap or outside margins"
-        ),
-        (
-            "<section id=compact-frame> draws 16px of inset and shows 48px above its <h2>: "
-            "32px of child margin stays inside the box. Use --lf-block-frame: 1 for a "
-            "drawn frame, or --lf-block-frame: trim for a transparent grouping; "
-            "put spacing between "
-            "selectable blocks in the parent's gap or outside margins (at 540x720)"
-        ),
-    ]
-
-
-def test_framing_advice_leaves_chrome_findings_to_leaf(browser, serve):
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Chrome ownership",
-                """<style>
-#member-frame { padding:16px;border:0;--lf-block-frame:0; }
-</style><h1>Audit</h1>
-<lf-board id="board"><lf-column id="column" label="Cards">
-  <lf-card id="member-frame">
-    <h2 style="margin-block:32px 0">Member title</h2>
-    <section id="member-inset" style="padding:16px">
-      <h2 style="margin-block:32px 0">Member content</h2>Words
-    </section>
-  </lf-card>
-</lf-column></lf-board>""",
-            )
-        ),
-    )
-    page.locator(".lf-chrome").evaluate(
-        """chrome => {
-          const box = document.createElement('section');
-          box.id = 'chrome-inset';
-          box.style.cssText = 'padding:16px';
-          box.innerHTML = '<h2 style="margin-block:32px 0">Chrome title</h2>Words';
-          chrome.append(box);
-        }"""
-    )
-    page.locator("main").evaluate(
-        """main => {
-          const generated = document.createElement('div');
-          generated.className = 'lf-ui';
-          generated.innerHTML = '<section id="generated-inset" style="padding:16px">'
-            + '<h2 style="margin-block:32px 0">Generated title</h2>Words</section>';
-          document.getElementById('member-frame').append(generated);
-          const layout = document.createElement('div');
-          layout.innerHTML = '<section id="member-module-inset" style="padding:16px">'
-            + '<h2 style="margin-block:32px 0">Module layout</h2>Words</section>'
-            + '<button class="lf-ui">Module control</button>';
-          document.getElementById('column').append(layout);
-          customElements.define('module-frame', class extends HTMLElement {});
-          const host = document.createElement('module-frame');
-          host.attachShadow({ mode: 'open' }).innerHTML =
-            '<section id="module-inset" style="padding:16px">'
-            + '<h2 style="margin-block:32px 0">Module title</h2>Words</section>';
-          main.append(host);
-          const markup = document.createElement('lf-card');
-          markup.id = 'markup-frame';
-          markup.style.cssText = 'display:block;padding:16px;border:0';
-          markup.innerHTML = '<h2 style="margin-block:32px 0">Host title</h2>'
-            + '<section id="authored-inset" style="padding:16px">'
-            + '<h2 style="margin-block:32px 0">Authored title</h2>Words</section>';
-          markup.attachShadow({ mode: 'open' }).innerHTML =
-            '<section id="shadow-inset" style="padding:16px">'
-            + '<h2 style="margin-block:32px 0">Shadow title</h2>Words</section><slot></slot>';
-          main.append(markup);
-        }"""
-    )
-    page.add_style_tag(
-        content="#markup-frame::before, #member-frame::before { content: none; }"
-    )
-    traps = {
-        box["id"]: box
-        for box in render_checks_model.evaluate_probe(page, "trappedMargins")
-    }
-    assert traps["chrome-inset"]["chrome"]
-    for ident in (
-        "chrome-inset",
-        "generated-inset",
-        "module-inset",
-        "shadow-inset",
-        "member-module-inset",
-    ):
-        assert not traps[ident]["authored"]
-    assert traps["markup-frame"]["authored"]
-    assert traps["authored-inset"]["authored"]
-    assert traps["member-frame"]["authored"]
-    assert traps["member-inset"]["authored"]
-    advice = render_gate_readings.framing_advice(page)
-    assert len(advice) == 4, advice
-    for ident, tag in (
-        ("markup-frame", "lf-card"),
-        ("authored-inset", "section"),
-        ("member-frame", "lf-card"),
-        ("member-inset", "section"),
-    ):
-        assert any(line.startswith(f"<{tag} id={ident}> draws 16px") for line in advice)
-    assert render_checks_model.evaluate_probe(page, "apparatusAmongAuthored") == []
-
-
 def test_the_render_gate_reports_a_defect_specific_to_the_compact_viewport(
     browser, serve
 ):
@@ -424,39 +268,6 @@ def test_the_render_gate_fails_a_wide_page_that_scrolls_sideways_only_between_vi
         failure
     )
     assert reading.advice == []
-
-
-def test_a_screen_region_that_runs_past_its_room_gets_advice(browser, serve):
-    """A workspace is a screen the reader moves through, so a region of it that has to
-    scroll is the exception, and the gate names each one with the swept widths it runs
-    past its room at, as advice: the page still passes. Here the detail pane runs past
-    its room and the queue fits, so only the detail is named."""
-    source = leaf_page(
-        "screen regions",
-        """
-  <header><h1>Alerts</h1></header>
-  <div id="regions">
-    <lf-pane id="queue" label="Queue"><div><p>Three alerts wait.</p></div></lf-pane>
-    <lf-pane id="detail" label="Detail"><div><p>Disk pressure on db-2.</p>"""
-        + "".join(f"<p>Evidence line {n}.</p>" for n in range(60))
-        + """</div></lf-pane>
-  </div>
-""",
-        head="<style>#regions { display: grid; grid-template-columns: 1fr 2fr; "
-        "}</style>",
-        layout="workspace",
-    )
-
-    reading = render_gate_model.render_version(browser, serve(source, packages=()))
-
-    assert reading.failures == []
-    (advice,) = reading.advice
-    spans = re.match(
-        r"at (\d+)–1920px wide and 900px tall <lf-pane id=detail> runs past the region "
-        r"it scrolls in, \d+px at \1px: ",
-        advice,
-    )
-    assert spans and int(spans[1]) < 1200, advice
 
 
 # Four drawings in the idiom. The first is drawn wider than the column holds, so the fit
@@ -3184,7 +2995,7 @@ def test_page_fixture_renders(browser, serve, source):
     render_gate.version.render_version — the pass `page check --render` runs on
     agent-authored pages — so this sweep also proves the gate a user's page goes through.
 
-    The frame readings the gate offers as advice must be empty for shipped pages:
+    The frame readings must be empty for shipped pages:
     every box a shipped theme or example frames declares its frame, and a row at a
     frame's edge holds it, so no box shows more inset than it draws.
 

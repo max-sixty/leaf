@@ -21,7 +21,6 @@ from leaf.structure import LF_META, SourceDocument, script_kind
 from leaf.styles import (
     css_syntax_errors,
     inline_style_at,
-    scroller_css_advice,
 )
 from leaf.thread_context import thread_ids, thread_structure
 from leaf.validation.instances import (
@@ -118,12 +117,6 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
 
     errors.extend(document_declaration_errors(parser))
 
-    for encoding in parser.encoding_metas:
-        errors.append(
-            f"<meta charset> (line {encoding['line']}) belongs to delivery; "
-            "Leaf declares UTF-8 before authored head content"
-        )
-
     for meta in parser.named_metas:
         if not meta["name"].startswith("lf-"):
             continue  # ordinary document metadata: a title, a description, a card
@@ -193,7 +186,6 @@ def _source_advice(
     stored_data: dict,
     revision: PredecessorReading,
     dropped_ids: list[str],
-    artifact: RevisionArtifact | None,
 ) -> list[str]:
     """Report non-blocking drift after every error-producing phase has run."""
     return [
@@ -214,9 +206,6 @@ def _source_advice(
         ),
         *(f"data source unreadable: {error}" for error in data_errors(stored_data)),
         *unpointable_blocks(parser),
-        *scroller_css_advice(
-            parser, artifact.page_stylesheets if artifact is not None else {}
-        ),
     ]
 
 
@@ -307,7 +296,6 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
         stored_data,
         revision,
         dropped_advice,
-        artifact,
     )
     reanchors, anchor_advice = revision_reanchors(
         events, reading, revision, candidate_revision=revision.candidate

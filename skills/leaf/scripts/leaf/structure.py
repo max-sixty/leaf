@@ -303,7 +303,6 @@ class SourceDocument:
         # document metadata alike: one index of what the head names, so a user
         # after a description does not need a second parse of the same head.
         self.named_metas = []
-        self.encoding_metas = []  # {charset, line} per authored encoding declaration
         # The authored page lives under one direct body > main because that is the
         # element the first-replay presentation boundary withholds. Both assets that
         # establish that boundary belong in head; anything paintable outside main would
@@ -484,8 +483,6 @@ class SourceDocument:
             self.named_metas.append(
                 {"name": attrs["name"], "content": attrs.get("content"), "line": line}
             )
-        if tag == "meta" and attrs.get("charset"):
-            self.encoding_metas.append({"charset": attrs["charset"], "line": line})
         if attrs.get("style"):
             self.inline_styles.append(
                 {"tag": tag, "line": line, "style": attrs["style"]}

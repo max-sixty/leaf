@@ -579,31 +579,6 @@ def shrunk_label_advice(readings) -> list[str]:
     ]
 
 
-def overflowing_region_advice(readings, height: int) -> list[str]:
-    """Advice naming each region of a screen that runs past the room it has, as
-    `overflowingRegions` reads it in a sweep taken at `height`.
-
-    A full-height workspace is a screen the reader moves through rather than scrolls,
-    so its regions should show what they hold, and one that scrolls is the exception
-    (page-authoring.md, A workspace). Advice rather than a failure: a region that
-    scrolls still shows everything, and whether to trim it or split it is the author's
-    call."""
-    found = []
-    regions = _swept(
-        readings,
-        lambda reading: ((region["id"], region) for region in reading["regions"]),
-    )
-    for widths, region in regions:
-        found.append(
-            f"at {_span(widths)} wide and {height}px tall {region['at']} runs past "
-            f"the region it scrolls in, {region['over']}px at {min(widths)}px: a "
-            "workspace is a screen the reader moves through, so trim it to what the "
-            "region shows or split it, unless the region is a reader for something "
-            "long, such as a source file or a log (page-authoring.md, A workspace)"
-        )
-    return found
-
-
 def unreserved_height_advice(page, declarations: dict) -> list[str]:
     """Advice naming each widget whose module drew it at a height its first paint did
     not reserve (x-height), with the data-height that would have.
@@ -623,32 +598,3 @@ def unreserved_height_advice(page, declarations: dict) -> list[str]:
         + f', so what follows it moves when it is drawn: state data-height="{w["drawn"]}"'
         for w in evaluate_probe(page, "unreservedHeights", declarations)
     ]
-
-
-def framing_advice(page) -> list[str]:
-    """Report authored boxes whose visible inset includes a child's outer margin.
-
-    Padding and margins can be intentional, so these measurements refuse nothing.
-    The shared probes also inspect Leaf's chrome and module implementations; their
-    findings belong to the suite rather than the author editing the page.
-    """
-
-    found = []
-    for box in evaluate_probe(page, "trappedMargins"):
-        if not box["authored"]:
-            continue
-        through = "".join(f" through <{tag}>" for tag in box["through"])
-        trim = (
-            "Restore the declared frame's content-edge trim"
-            if box["frameDeclared"]
-            else "Use --lf-block-frame: 1 for a drawn frame, or --lf-block-frame: trim "
-            "for a transparent grouping"
-        )
-        found.append(
-            f"{box['at']} draws {box['drawn']:g}px of inset and shows "
-            f"{box['drawn'] + box['margin']:g}px {box['edge']} its <{box['child']}>"
-            f"{through}: {box['margin']:g}px of child margin stays inside the box. "
-            f"{trim}; put spacing between selectable blocks in the parent's gap "
-            "or outside margins"
-        )
-    return list(dict.fromkeys(found))

@@ -307,10 +307,9 @@ Layout allocate the height: page-specific positioning should not be needed to ke
 pane or footer reachable. Where the window is too small to hold the regions, they take
 their natural height and the page scrolls.
 
-Keep a region's decision visible with its supporting content. `page check
---render` reports panes or bodies that overflow their regions and the window
-widths where this happens; trim or split them. A region for reading long content,
-such as a source file or log, can keep its scrolling and the advisory finding.
+Keep a region's decision visible with its supporting content: trim or split a pane
+whose body runs past its region. A region for reading long content, such as a source
+file or log, can keep its scrolling.
 
 ### Bounds and widths
 
@@ -326,7 +325,7 @@ the end its newest entry is at. A list that grows downward takes
 leaves them where they scrolled back to otherwise. A newest-first list takes
 `data-bound="start"`, which opens at the top, as the page's activity feed does.
 Don't make a box scroll vertically with page CSS: Leaf keeps no reading position
-in a scroller it did not make, and `page check` advises against one.
+in a scroller it did not make.
 
 An individual block or section may request a responsive allocation with
 `data-width="column"`, `data-width="wide"`, or `data-width="available"`. `column`

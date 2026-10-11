@@ -43,7 +43,6 @@ export function geometryReading(open) {
     scrollbars: scrollbarClearance(),
     margin: marginResidents(),
     arrangement: arrangedBoxes(open),
-    regions: overflowingRegions(),
     labels: shrunkLabelReading(),
   };
 }

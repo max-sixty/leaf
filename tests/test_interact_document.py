@@ -1318,17 +1318,6 @@ def test_version_descriptors_select_only_available_stamped_revisions():
     ]
 
 
-def test_check_leaves_the_documents_encoding_to_delivery(page_dir):
-    """One declaration at delivery's first-byte boundary owns document encoding."""
-    version = page_dir / "index.html"
-    authored = version.read_text().replace("</head>", '<meta charset="utf-8">\n</head>')
-    version.write_text(authored)
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "<meta charset>" in result.output
-    assert "belongs to delivery" in result.output
-
-
 def test_check_refuses_noscript_words_the_browser_never_renders(page_dir):
     """In a scripting browser noscript is hidden, while the file reader takes its
     content for page words. Refusal prevents anchoring on text no user can see."""

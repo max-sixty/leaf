@@ -28,10 +28,9 @@ import { recordInteraction } from "./interaction-log.js";
 import { offlineInteractive, pageUrl, runtime } from "./context.js";
 import { notice } from "./notifications.js";
 import { layerGeneration } from "./layer-generation.js";
+import { DELIVERY } from "./storage.js";
 
-const runtimeScript = document.querySelector("script[data-lf-server]");
-const documentLayer = runtimeScript?.dataset.lfLayer;
-const release = runtimeScript?.dataset.lfRelease;
+const { layer: documentLayer, release, probe } = DELIVERY;
 
 if (documentLayer && documentLayer !== layerGeneration) {
   window.dispatchEvent(
@@ -53,7 +52,6 @@ if (documentLayer && documentLayer !== layerGeneration) {
 // True when the source has a different document, false when it does not, and undefined
 // when the probe could not be read at all, which settles nothing and leaves the question
 // open for the next foreign answer.
-const probe = runtimeScript?.dataset.lfProbe;
 async function sourceMovedOn() {
   if (!probe) return true;
   let response;

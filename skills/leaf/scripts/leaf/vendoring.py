@@ -24,6 +24,7 @@ from .layer import (
 )
 from .leases import lock_is_held, page_locked
 from .locations import located, locations_overlap, path_is_within, path_location
+from .refusals import Refused
 from .registry.storage import RegistryError, layer_metadata, layer_packages
 from .schema import (
     CURSOR_FILE,
@@ -60,7 +61,7 @@ def cmd_init(
     """
     made = not page_dir.exists()
     if dry_run and made:
-        sys.exit(
+        raise Refused(
             f"{page_dir} does not exist; initialize it before planning a re-vendor"
         )
     if made:
@@ -76,7 +77,7 @@ def cmd_init(
             print(json.dumps({"page": str(page_dir)}))
             return
     elif dry_run:
-        sys.exit(f"{page_dir} is not initialized")
+        raise Refused(f"{page_dir} is not initialized")
     with restarting_server(page_dir), page_locked(page_dir):
         try:
             _init_page(page_dir, selected)
@@ -107,14 +108,14 @@ def _refuse_package_target(page_dir: Path, inputs: list[Path]) -> None:
     state inside an input it was trying to protect."""
     target = page_dir.resolve()
     if package := next((root for root in inputs if path_is_within(target, root)), None):
-        sys.exit(f"{page_dir} is inside package {package}, not a page directory")
+        raise Refused(f"{page_dir} is inside package {package}, not a page directory")
 
 
 def _init_page(page_dir: Path, selected: tuple[str, ...] | None) -> None:
     # The restart around this took the server down, but the page lock came after
     # it, and a start can land in between.
     if lock_is_held(page_dir / SERVER_LOCK):
-        sys.exit(
+        raise Refused(
             f"a server started on {page_dir} while it was being re-vendored; "
             f"re-run `leaf page init {page_dir}`"
         )
@@ -237,7 +238,7 @@ def _refuse_input_destination_overlap(roots: list[Path], page_target: Path) -> N
         None,
     ):
         package, destination = overlap
-        sys.exit(
+        raise Refused(
             f"package {package} overlaps page destination "
             f"{destination}; package and page paths must be separate"
         )
@@ -289,7 +290,7 @@ def _checked_destinations(page_dir: Path, layer: _VendoredLayer) -> set[Path]:
     # where one vendored file belongs must not leave the top-level layer newer
     # than its modules.
     if (page_dir.exists() or page_dir.is_symlink()) and not page_dir.is_dir():
-        sys.exit(f"{page_dir} must be a directory")
+        raise Refused(f"{page_dir} must be a directory")
     file_targets = [
         *(page_dir / name for name in layer.top_files),
         *(
@@ -318,7 +319,7 @@ def _checked_destinations(page_dir: Path, layer: _VendoredLayer) -> set[Path]:
         None,
     ):
         left, right = collision
-        sys.exit(f"the incoming layer maps both {left} and {right} to one file")
+        raise Refused(f"the incoming layer maps both {left} and {right} to one file")
     if collision := next(
         (
             (file, directory)
@@ -329,19 +330,19 @@ def _checked_destinations(page_dir: Path, layer: _VendoredLayer) -> set[Path]:
         None,
     ):
         file, directory = collision
-        sys.exit(
+        raise Refused(
             f"the incoming layer maps {file} as a file and {directory} as a directory"
         )
     for destination in sorted(directories, key=lambda path: len(path.parts)):
         if destination.is_symlink():
-            sys.exit(f"{destination} must be a real directory, not a symlink")
+            raise Refused(f"{destination} must be a real directory, not a symlink")
         if (
             destination.exists() or destination.is_symlink()
         ) and not destination.is_dir():
-            sys.exit(f"{destination} must be a directory")
+            raise Refused(f"{destination} must be a directory")
     for target in file_targets:
         if (target.exists() or target.is_symlink()) and not target.is_file():
-            sys.exit(f"{target} must be a file")
+            raise Refused(f"{target} must be a file")
     return directories
 
 

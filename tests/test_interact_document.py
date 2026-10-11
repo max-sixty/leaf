@@ -73,6 +73,7 @@ from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
+from leaf.refusals import Refused
 from leaf.registry.storage import read_page_registry, require_registry
 from leaf.render_gate import readings as render_gate_readings
 from leaf.served_state.context import read_page
@@ -161,7 +162,7 @@ def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
             )
         finally:
             release.set()
-        with pytest.raises(SystemExit, match="missing.js"):
+        with pytest.raises(Refused, match="missing.js"):
             replacing.result(timeout=STATED_TIMEOUT)
         activated = activating.result(timeout=STATED_TIMEOUT)
     assert activated.revision == first and not activated.created
@@ -178,7 +179,7 @@ def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
     assert artifact_model.read_artifact(page_dir, first).resources[
         "/page/a.js"
     ].data == (b"export const a = 1;")
-    with pytest.raises(SystemExit, match="authored inputs changed"):
+    with pytest.raises(Refused, match="authored inputs changed"):
         publishing_model.cmd_stamp(
             page_dir, "Stale", from_directory=candidate, if_source=expected
         )
@@ -2575,7 +2576,7 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
         page_dir,
         {"kind": "comment", "id": "c1", "author": "agent", "revision": 1, "text": "?"},
     )
-    with pytest.raises(SystemExit) as refused:
+    with pytest.raises(Refused) as refused:
         thread_model.post_reply(
             page_dir,
             "c1",
@@ -2586,7 +2587,7 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
         )
     assert "'r1' does not match" in str(refused.value)
 
-    with pytest.raises(SystemExit) as unknown_widget:
+    with pytest.raises(Refused) as unknown_widget:
         thread_model.cmd_report(page_dir, "no-such-widget", "status", ())
     assert "unknown report widget 'no-such-widget'" in str(unknown_widget.value)
 
@@ -5628,6 +5629,8 @@ def test_a_unified_diff_capture_refuses_a_line_range(tmp_path):
 def test_markdown_body_file_words_match_the_shared_browser_dialect(case):
     from html import escape
 
+    import turbohtml
+
     document = structure_model.SourceDocument(
         f'<main><lf-draft id="note"><pre>{escape(case["source"])}</pre></lf-draft></main>'
     )
@@ -5639,6 +5642,10 @@ def test_markdown_body_file_words_match_the_shared_browser_dialect(case):
         }
     }
     assert passages_model.page_passages(document, registry).text == case["words"]
+    rendered = turbohtml.parse(passages_model.markdown_markup(case["source"]))
+    assert [
+        {"text": link.text, "href": link.attrs["href"]} for link in rendered.select("a")
+    ] == case["links"]
 
 
 @pytest.mark.parametrize("source", ["    code", "A ", "A\n", "A  \nB", "\nA"])

@@ -14,6 +14,7 @@ from typing import NamedTuple
 
 from .locations import path_location
 from .page_memory import Slot, memo
+from .refusals import Refused
 from .schema import REVISION_NAME, VERSION_NAME
 from .state import replace_bytes
 
@@ -222,7 +223,7 @@ def revision_names(page_dir: Path) -> dict[int, str]:
     """Each revision's immutable marker file name, in revision order."""
     markers = _revision_files(page_dir).current
     if any(len(names) > 1 for names in markers.values()):
-        sys.exit("more than one immutable revision has the same order")
+        raise Refused("more than one immutable revision has the same order")
     return {revision: names[0] for revision, names in markers.items()}
 
 
@@ -236,8 +237,8 @@ def revision_path(page_dir: Path, revision: int) -> Path:
     names = _revision_files(page_dir).current.get(revision, ())
     if len(names) != 1:
         if not names:
-            sys.exit(f"no revision r{revision} in {revisions}")
-        sys.exit(f"more than one immutable file records revision r{revision}")
+            raise Refused(f"no revision r{revision} in {revisions}")
+        raise Refused(f"more than one immutable file records revision r{revision}")
     return revisions / names[0]
 
 
@@ -255,7 +256,7 @@ def require_revision(page_dir: Path) -> int:
     """The newest valid revision; a command that needs one stops without it."""
     revision = latest_revision(page_dir)
     if revision is None:
-        sys.exit(missing_revision(page_dir))
+        raise Refused(missing_revision(page_dir))
     return revision
 
 
@@ -389,7 +390,7 @@ def replace_files(files: list) -> None:
         for index, left in enumerate(located_targets)
         for right in located_targets[index + 1 :]
     ):
-        sys.exit("two staged files resolve to the same target")
+        raise Refused("two staged files resolve to the same target")
     replace_bytes(
         [
             (target, data, follow_symlink or not path.is_symlink())

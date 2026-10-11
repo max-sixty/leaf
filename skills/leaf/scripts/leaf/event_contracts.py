@@ -8,7 +8,7 @@ This module selects each kind's gates. Their implementations stay with their
 domains: undo in `events` and widget meaning in `event_meaning`.
 """
 
-from leaf.event_log import EventRefused, Refusal, new_event_id
+from leaf.event_log import EventRefused, new_event_id
 from leaf.event_meaning import (
     AdmissionReadings,
     admit_widget_event,
@@ -24,6 +24,7 @@ from leaf.projection import (
 )
 from leaf.questions import asking, projected_action_holders, quoted_in
 from leaf.read_state import read_contract_error
+from leaf.refusals import Refusal
 from leaf.registry.contract import (
     WRITERS,
     created_child,

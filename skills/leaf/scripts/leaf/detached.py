@@ -24,14 +24,16 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from .harness import Harness, detached_environment
+from .refusals import Refused
 
 
-class StartRefused(RuntimeError):
+class StartRefused(Refused):
     """A detached start the producer refused, carrying its reason."""
 
 
-class StartUnconfirmed(RuntimeError):
-    """An accepted start whose publication confirmation did not arrive."""
+class StartUnconfirmed(Refused):
+    """An accepted start whose publication confirmation did not arrive. The caller
+    reports it like a refusal, though the child may have committed."""
 
 
 @contextmanager
@@ -107,7 +109,7 @@ class Handshake:
     """The child's end: refuse with a reason, or announce and wait for acceptance.
 
     Used as a context manager around the child's whole start, so a start that ends
-    in an exception before announcing — a `sys.exit` refusal or a fault — reaches the
+    in an exception before announcing — a refusal or a fault — reaches the
     caller as its reason rather than as a bare end of stream.
     """
 
@@ -151,16 +153,12 @@ class Handshake:
 
     def __exit__(self, kind, error, _traceback) -> None:
         if error is not None and not self._answered:
-            # Worded as the CLI words each at its own boundary: an exit's message,
-            # a RuntimeError's refusal, and any other fault by its class.
-            if isinstance(error, SystemExit):
-                reason = (
-                    error.code
-                    if isinstance(error.code, str)
-                    else f"exited with status {error.code}"
-                )
-            elif isinstance(error, RuntimeError):
+            # Worded as the CLI words each at its own boundary: a refusal by its
+            # reason, an exit by its status, and any other fault by its class.
+            if isinstance(error, Refused):
                 reason = str(error)
+            elif isinstance(error, SystemExit):
+                reason = f"exited with status {error.code}"
             else:
                 reason = "".join(traceback.format_exception_only(kind, error)).strip()
             try:

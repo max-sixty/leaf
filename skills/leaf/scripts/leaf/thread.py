@@ -1,6 +1,5 @@
 """Thread writes, addressed response admission, and provider reply reservations."""
 
-import sys
 from hashlib import sha256
 from pathlib import Path
 
@@ -29,6 +28,7 @@ from leaf.projection import (
     rewritten_bodies,
 )
 from leaf.questions import asking, local_question_entry, quoted_in
+from leaf.refusals import Refused
 from leaf.registry.schema import json_value
 from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.schema import MESSAGE_KINDS
@@ -49,7 +49,7 @@ def _messages(events: list) -> dict[str, dict]:
 
 def _unknown_message(page_dir: Path, events: list, name: str) -> None:
     held = logged_id(events, name, current_responses(page_dir, events))
-    sys.exit(
+    raise Refused(
         f"unknown comment id {name!r}"
         + (f"; {held}" if held else "")
         + f"; known: {json_value(sorted(_messages(events)))}"
@@ -73,7 +73,7 @@ def thread_addressed(page_dir: Path, events: list, name: str) -> tuple[str, str]
     if subject is None:
         _unknown_message(page_dir, events, name)
     if subject["kind"] == "widget":
-        sys.exit(f"{name} is a widget on the page, not a thread")
+        raise Refused(f"{name} is a widget on the page, not a thread")
     return subject["id"], thread_message(events, subject["id"], name)
 
 
@@ -158,7 +158,7 @@ def _current_anchor(
 
         activation = activate_source(page_dir, transaction=transaction)
         if activation.error and (quote or section or part):
-            sys.exit(f"cannot use invalid index.html: {activation.error}")
+            raise Refused(f"cannot use invalid index.html: {activation.error}")
         revision = require_revision(page_dir)
     if not (quote or section or part):
         return revision, None
@@ -206,7 +206,7 @@ def _capture_anchor(
             if held
             else ""
         )
-        sys.exit(f"can't anchor in revision r{revision}: {err}{recourse}")
+        raise Refused(f"can't anchor in revision r{revision}: {err}{recourse}")
     return anchor
 
 
@@ -232,7 +232,7 @@ def cmd_comment(
     body = read_text_arg(page_dir, text)
     with PageTransaction(page_dir) as page:
         if title is not None and (refusal := title_refusal(page_dir, title)):
-            sys.exit(refusal)
+            raise Refused(refusal)
         events = page.events
         revision, anchor = _current_anchor(
             page_dir, events, quote, section, part, transaction=page
@@ -386,14 +386,16 @@ def post_reply(
                     or (to is not None and existing["parent"] != to)
                     or not same_scope
                 ):
-                    sys.exit(f"attempt {attempt!r} already belongs to another event")
+                    raise Refused(
+                        f"attempt {attempt!r} already belongs to another event"
+                    )
                 if (bool(existing.get("question")), existing.get("task")) != (
                     question,
                     task,
                 ):
                     # A repeat that asks or promises differently would otherwise
                     # return the first answer and drop what this one declares.
-                    sys.exit(
+                    raise Refused(
                         f"{existing['id']!r} already answered this with a different "
                         "declaration; ask or promise in a new message with "
                         "`leaf thread reply`"
@@ -415,7 +417,7 @@ def post_reply(
                 )
                 if when_settled == "skip":
                     return None
-                sys.exit(refusal)
+                raise Refused(refusal)
             to = expected["to"]
         assert to is not None
         thread_id, to = thread_addressed(page_dir, events, to)
@@ -434,7 +436,7 @@ def post_reply(
                     return None
                 if when_settled != "post":
                     held = logged_id(events, for_event, responses)
-                    sys.exit(
+                    raise Refused(
                         f"event {for_event!r} no longer requires a reply to {to!r}; "
                         + (held or "read the current delivery or thread state")
                     )
@@ -463,11 +465,11 @@ def post_reply(
                             "use `leaf response reply <answer.ref>` to commit "
                             "an explicit answer"
                         )
-                    sys.exit(refusal)
+                    raise Refused(refusal)
         else:
             standing = thread_obligation(events, responses, thread_id)
             if standing is not None:
-                sys.exit(
+                raise Refused(
                     f"thread {thread_id!r} currently requires a response; "
                     f"{answer_command(standing)} answers it"
                 )
@@ -477,25 +479,27 @@ def post_reply(
             return None
         moving = bool(quote or section or part)
         if ephemeral and (question or task or markup or failure or moving or detach):
-            sys.exit(
+            raise Refused(
                 "--ephemeral is for progress text; it cannot ask a question, open a task, carry widgets, report failure, or move the thread"
             )
         if in_hand is not None and start_line_error(text.strip()):
-            sys.exit(
+            raise Refused(
                 f"progress on {in_hand!r}, a move you owe, takes it in hand, and its "
                 "text is the Working line beside the thread and in the banner: write "
                 "it as one line saying what you are doing"
             )
         if detach and moving:
-            sys.exit("--detach cannot be combined with --quote, --section, or --part")
+            raise Refused(
+                "--detach cannot be combined with --quote, --section, or --part"
+            )
         relocating = moving or detach
         if relocating and opening is None:
-            sys.exit(
+            raise Refused(
                 f"thread {thread_id!r} has no surviving opening comment, so its "
                 "anchor cannot be changed"
             )
         if relocating and opening.get("holds"):
-            sys.exit(
+            raise Refused(
                 f"thread {thread_id!r} holds the command goal named by its opening "
                 "comment, so its anchor cannot be changed"
             )
@@ -505,7 +509,7 @@ def post_reply(
             else None
         )
         if detach and (current_thread is None or current_thread["anchor"] is None):
-            sys.exit(f"thread {thread_id!r} has no current anchor to detach")
+            raise Refused(f"thread {thread_id!r} has no current anchor to detach")
         reply_revision = None
         prospective_reading = None
         prospective_anchor = None
@@ -535,7 +539,7 @@ def post_reply(
             checked = check_source(page_dir, source_events)
             if checked.errors:
                 operation = "reply" if validate_source or markup else "detach"
-                sys.exit(
+                raise Refused(
                     f"cannot {operation} while index.html is invalid: "
                     f"{'; '.join(checked.errors)}"
                 )
@@ -569,7 +573,7 @@ def post_reply(
                 }
             )
             if structural:
-                sys.exit(
+                raise Refused(
                     "--question is for a prose question; reply markup already declares "
                     "a local Question "
                     f"({', '.join(f'<{tag}>' for tag in structural)})"
@@ -659,7 +663,7 @@ def post_response(
     """
     address = response_address(reference)
     if address["kind"] != "reply":
-        sys.exit(
+        raise Refused(
             f"response {reference!r} requires {answer_command(address)}, not a reply"
         )
     attempt = options.pop("attempt", None)
@@ -907,7 +911,7 @@ def cmd_report(
     for field in fields:
         name, eq, value = field.partition("=")
         if not eq or not name:
-            sys.exit(f"detail fields are name=value, got {field!r}")
+            raise Refused(f"detail fields are name=value, got {field!r}")
         detail[name] = value
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, transaction=page)

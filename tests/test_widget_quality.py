@@ -20,7 +20,7 @@ from leaf.render_gate.widget_quality import widget_findings
 from leaf.revision_delivery import json_script
 from model_folds import leaf_page
 from playwright.sync_api import expect
-from render_harness import consume_browser_errors, displayed
+from render_harness import ROOT, consume_browser_errors, displayed
 
 
 def test_every_known_finding_names_a_bundled_package():
@@ -335,8 +335,19 @@ def test_a_widget_first_paints_the_box_it_presents(browser, serve, case):
         page.unroute_all(behavior="wait")
 
 
+@pytest.fixture
+def gallery_page_files():
+    """Keep the gallery's initial-paint tests on its actual page-owned assets."""
+    companion = ROOT / "examples/developer/feature-gallery.page"
+    return {
+        path.relative_to(companion).as_posix(): path.read_text(encoding="utf-8")
+        for path in companion.rglob("*")
+        if path.is_file()
+    }
+
+
 def test_an_export_first_paints_its_widgets_at_their_presented_boxes(
-    browser, serve, tmp_path
+    browser, serve, tmp_path, gallery_page_files
 ):
     """An export runs the runtime, so its widgets take the boxes their modules will
     draw from the first paint, as a served page's do; it draws no live chrome, so it
@@ -350,7 +361,9 @@ def test_an_export_first_paints_its_widgets_at_their_presented_boxes(
             + INITIAL_DRAWING_PAGE.replace('id="title"', 'id="drawing-title"').replace(
                 'id="after"', 'id="drawing-after"'
             ),
-        )
+            head='<link rel="stylesheet" href="/page/theme.css">',
+        ),
+        page_files=gallery_page_files,
     )
     exported = tmp_path / "exported.html"
     exporting_model.cmd_export(serve.page_dir, exported, None)
@@ -457,7 +470,7 @@ INITIAL_DRAWING_NODES = """lf-playground, lf-playground-control,
 
 @pytest.mark.parametrize("width", [1200, 390])
 def test_initial_drawings_keep_their_nodes_and_wrapped_geometry_on_upgrade(
-    browser, serve, width
+    browser, serve, width, gallery_page_files
 ):
     """Hold the full entry module to observe the actual parser-closing drawing.
     The default and a restored longer instruction keep the same control and gallery
@@ -468,10 +481,14 @@ def test_initial_drawings_keep_their_nodes_and_wrapped_geometry_on_upgrade(
         leaf_page(
             "First drawing",
             INITIAL_DRAWING_PAGE,
-            head="<style>:root { --sans: Georgia, serif; --mono: Courier, monospace; }</style>"
-            if width == 390
-            else "",
-        )
+            head='<link rel="stylesheet" href="/page/theme.css">'
+            + (
+                "<style>:root { --sans: Georgia, serif; --mono: Courier, monospace; }</style>"
+                if width == 390
+                else ""
+            ),
+        ),
+        page_files=gallery_page_files,
     )
     page = browser.new_page(
         viewport={"width": width, "height": 900}, has_touch=width == 390

@@ -33,6 +33,7 @@ from .locations import (
     paths_same,
 )
 from .machine import package_store
+from .refusals import Refused
 from .schema import (
     BROWSER_DIRS,
     ELEMENT_ID,
@@ -87,7 +88,7 @@ def create_package_files(package: Path, files: list[tuple[Path, bytes]]) -> list
                     0o666,
                 )
             except FileExistsError:
-                sys.exit(
+                raise Refused(
                     f"package member {path.relative_to(package)} was created "
                     "while package init was running; nothing was replaced"
                 )
@@ -188,7 +189,7 @@ def refuse_package_overlap(targets: list, protected: list) -> None:
     )
     if overlap:
         target, source = overlap
-        sys.exit(
+        raise Refused(
             f"package target {target} overlaps another package {source}; "
             "package scopes must be separate"
         )
@@ -259,10 +260,10 @@ def check_package_scripts(package: Path) -> None:
     if not (scripts.exists() or scripts.is_symlink()):
         return
     if not scripts.is_dir():
-        sys.exit(f"{scripts} must be a directory")
+        raise Refused(f"{scripts} must be a directory")
     for path in sorted(scripts.glob("*.py")):
         if not path.is_file():
-            sys.exit(f"{path} must be a file")
+            raise Refused(f"{path} must be a file")
         script_requirements(path)
 
 
@@ -275,7 +276,7 @@ def script_requirements(path: Path) -> list[Requirement]:
         if match["type"] == "script"
     ]
     if len(blocks) != 1:
-        sys.exit(
+        raise Refused(
             f"{path} needs one inline `# /// script` metadata block (PEP 723) "
             "declaring its dependencies, so `leaf package run` runs it in an "
             "environment of its own"
@@ -299,12 +300,12 @@ def script_requirements(path: Path) -> list[Requirement]:
         requirements = [Requirement(value) for value in dependencies]
         python = SpecifierSet(python)
     except (ValueError, InvalidRequirement, InvalidSpecifier) as error:
-        sys.exit(f"{path}: invalid script metadata ({error})")
+        raise Refused(f"{path}: invalid script metadata ({error})")
     if error := floor_error(python):
-        sys.exit(f"{path}: requires-python {error}")
+        raise Refused(f"{path}: requires-python {error}")
     for requirement in requirements:
         if requirement.url is not None or (error := floor_error(requirement.specifier)):
-            sys.exit(
+            raise Refused(
                 f"{path}: dependency {str(requirement)!r} "
                 f"{error or 'must name a version floor, not a URL'}"
             )
@@ -313,7 +314,7 @@ def script_requirements(path: Path) -> list[Requirement]:
 
 def validate_package_dir(package: Path) -> list:
     if (package.exists() or package.is_symlink()) and not package.is_dir():
-        sys.exit(f"{package} must be a directory")
+        raise Refused(f"{package} must be a directory")
     if package.is_dir():
         checked_inputs([package])
         check_package_scripts(package)
@@ -321,7 +322,7 @@ def validate_package_dir(package: Path) -> list:
     paths = input_paths([package]) if package.is_dir() else [package]
     if overlap := package_page_overlap(paths):
         target, page = overlap
-        sys.exit(
+        raise Refused(
             f"package path {target} is owned by initialized page {page}; "
             "packages must stay separate from page-owned paths, "
             "then run `page init` to re-vendor the page"
@@ -345,7 +346,7 @@ def check_package(
     """Validate one package through the same composition gate as a page."""
     package = package.expanduser().resolve()
     if require_exists and not package.is_dir():
-        sys.exit(f"{package} is not a package directory")
+        raise Refused(f"{package} is not a package directory")
     protected = validate_package_dir(package)
     roots = checked_layer_inputs(package_layer_inputs(package))
     composition = compose_layer(roots)
@@ -403,17 +404,17 @@ def init_starter_widget(
 ) -> None:
     """Add one checked upgraded-content starter without replacing package members."""
     if re.fullmatch(WIDGET_NAME, widget) is None:
-        sys.exit(f"invalid widget tag {widget!r}: {WIDGET_NAME_RULE}")
+        raise Refused(f"invalid widget tag {widget!r}: {WIDGET_NAME_RULE}")
     module_name = f"{widget}.js"
     module_path = package / "widgets" / module_name
     if widget in composition.registry:
-        sys.exit(f"widget tag <{widget}> already exists in the composed layer")
+        raise Refused(f"widget tag <{widget}> already exists in the composed layer")
     if (
         module_path.exists()
         or module_path.is_symlink()
         or module_name in composition.directory_files["widgets"]
     ):
-        sys.exit(
+        raise Refused(
             f"widget module widgets/{module_name} already exists in the composed layer"
         )
 
@@ -499,7 +500,7 @@ def cmd_package_install(source: Path) -> Path:
         package, _, _ = check_package(source, require_exists=True)
         name = package.name
         if re.fullmatch(HTML_NAME, name) is None:
-            sys.exit(
+            raise Refused(
                 f"package directory {name!r} cannot be selected by name; rename "
                 f"it to match {HTML_NAME} before installing it"
             )
@@ -544,7 +545,7 @@ def cmd_package_run(name: str, script: str, arguments: tuple[str, ...]) -> None:
         re.fullmatch(HTML_NAME, name) is None
         or (package := named_package(name)) is None
     ):
-        sys.exit(
+        raise Refused(
             f"unknown package {name!r}; name a bundled package or one "
             "`leaf package install` added"
         )
@@ -552,7 +553,9 @@ def cmd_package_run(name: str, script: str, arguments: tuple[str, ...]) -> None:
     available = sorted(path.name for path in scripts.glob("*.py") if path.is_file())
     if script not in available:
         offered = ", ".join(available) or "none"
-        sys.exit(f"package {name!r} has no script {script!r}; available: {offered}")
+        raise Refused(
+            f"package {name!r} has no script {script!r}; available: {offered}"
+        )
     command = ["uv", "run", "--quiet", "--script", str(scripts / script), *arguments]
     sys.stdout.flush()
     os.execvp(command[0], command)

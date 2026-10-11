@@ -54,6 +54,7 @@ from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
 from leaf.page import page_instructions
+from leaf.refusals import Refused
 from leaf.registry import contract as registry_contract
 from leaf.registry import storage as registry_storage
 from leaf.registry import widgets as registry_widgets
@@ -1846,7 +1847,7 @@ def test_the_browser_gate_opens_away_from_the_project_a_page_selected(
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
-    with pytest.raises(SystemExit):
+    with pytest.raises(Refused):
         layer_model.resolve_packages(("./.leaf",))
 
     with preview_server(page, structure_model.SourceDocument(PLAIN_PAGE), 1) as url:
@@ -2792,7 +2793,7 @@ def test_replace_files_rejects_case_aliased_future_targets(tmp_path, monkeypatch
     first = tmp_path / "Result.css"
     second = tmp_path / "rESULT.CSS"
 
-    with pytest.raises(SystemExit, match="resolve to the same target"):
+    with pytest.raises(Refused, match="resolve to the same target"):
         interact_files.replace_files(
             [(first, b"first", False), (second, b"second", False)]
         )

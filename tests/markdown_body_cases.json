@@ -1,74 +1,240 @@
 [
   {
     "source": "**Keep** `--dry-run`.\n\n- One\n- Two",
-    "words": "Keep --dry-run. One Two"
+    "words": "Keep --dry-run. One Two",
+    "links": []
   },
   {
     "source": "- [x] Done\n- [ ] Todo",
-    "words": "Done Todo"
+    "words": "Done Todo",
+    "links": []
   },
   {
     "source": "https://example.com and reader@example.com",
-    "words": "https://example.com and reader@example.com"
+    "words": "https://example.com and reader@example.com",
+    "links": [
+      {
+        "text": "https://example.com",
+        "href": "https://example.com"
+      },
+      {
+        "text": "reader@example.com",
+        "href": "mailto:reader@example.com"
+      }
+    ]
   },
   {
     "source": "<div>\n**bold**\n</div>",
-    "words": "<div> bold </div>"
+    "words": "<div> bold </div>",
+    "links": []
   },
   {
     "source": "<div>\nHeading\n---",
-    "words": "<div> Heading"
+    "words": "<div> Heading",
+    "links": []
   },
   {
     "source": "<span>**bold**</span>",
-    "words": "<span>bold</span>"
+    "words": "<span>bold</span>",
+    "links": []
   },
   {
     "source": "| Column | Count |\n| --- | --- |\n| **Ready** | 2 |",
-    "words": "Column Count Ready 2"
+    "words": "Column Count Ready 2",
+    "links": []
   },
   {
     "source": "~~gone~~ and H~2~O",
-    "words": "gone and H~2~O"
+    "words": "gone and H~2~O",
+    "links": []
   },
   {
     "source": "[unsafe label](javascript:alert(1)) ![unsafe alt](data:text/html,boom)",
-    "words": "unsafe label unsafe alt"
+    "words": "unsafe label unsafe alt",
+    "links": []
   },
   {
     "source": "first  \nsecond",
-    "words": "first second"
+    "words": "first second",
+    "links": []
   },
   {
     "source": "```html\n<div>**literal**</div>\n```",
-    "words": "<div>**literal**</div>"
+    "words": "<div>**literal**</div>",
+    "links": []
   },
   {
     "source": "> **Quoted** words\n>\n> - One\n> - Two",
-    "words": "Quoted words One Two"
+    "words": "Quoted words One Two",
+    "links": []
   },
   {
     "source": "www.example.com and reader@example.com",
-    "words": "www.example.com and reader@example.com"
+    "words": "www.example.com and reader@example.com",
+    "links": [
+      {
+        "text": "www.example.com",
+        "href": "http://www.example.com"
+      },
+      {
+        "text": "reader@example.com",
+        "href": "mailto:reader@example.com"
+      }
+    ]
   },
   {
     "source": "![**alt**](data:text/html,unsafe)",
-    "words": "alt"
+    "words": "alt",
+    "links": []
   },
   {
     "source": "![`alt`](javascript:boom)",
-    "words": "alt"
+    "words": "alt",
+    "links": []
   },
   {
     "source": "![alt &amp; more](javascript:boom)",
-    "words": "alt & more"
+    "words": "alt & more",
+    "links": []
   },
   {
     "source": "![*alt*](data:x)",
-    "words": "alt"
+    "words": "alt",
+    "links": []
   },
   {
     "source": "![A ![B &amp; `code`](https://example.com/b.svg) C](data:text/html,unsafe)",
-    "words": "A B & code C"
+    "words": "A B & code C",
+    "links": []
+  },
+  {
+    "source": "`AGENTS.md` `CLAUDE.md` `main.rs` `config.json` www.example.com https://AGENTS.md reader@example.com [instructions](CLAUDE.md)",
+    "words": "AGENTS.md CLAUDE.md main.rs config.json www.example.com https://AGENTS.md reader@example.com instructions",
+    "links": [
+      {
+        "text": "www.example.com",
+        "href": "http://www.example.com"
+      },
+      {
+        "text": "https://AGENTS.md",
+        "href": "https://AGENTS.md"
+      },
+      {
+        "text": "reader@example.com",
+        "href": "mailto:reader@example.com"
+      },
+      {
+        "text": "instructions",
+        "href": "CLAUDE.md"
+      }
+    ]
+  },
+  {
+    "source": "Read //example.com, <https://example.com>, or [AGENTS.md](AGENTS.md).",
+    "words": "Read //example.com, https://example.com, or AGENTS.md.",
+    "links": [
+      {
+        "text": "//example.com",
+        "href": "//example.com"
+      },
+      {
+        "text": "https://example.com",
+        "href": "https://example.com"
+      },
+      {
+        "text": "AGENTS.md",
+        "href": "AGENTS.md"
+      }
+    ]
+  },
+  {
+    "source": "Visit example.com, docs.example.org/guide and example.net#start.",
+    "words": "Visit example.com, docs.example.org/guide and example.net#start.",
+    "links": [
+      {
+        "text": "example.com",
+        "href": "http://example.com"
+      },
+      {
+        "text": "docs.example.org/guide",
+        "href": "http://docs.example.org/guide"
+      },
+      {
+        "text": "example.net#start",
+        "href": "http://example.net#start"
+      }
+    ]
+  },
+  {
+    "source": "`README.md` `main.rs` `setup.py` `build.sh` github.io example.uk `config.json`",
+    "words": "README.md main.rs setup.py build.sh github.io example.uk config.json",
+    "links": [
+      {
+        "text": "github.io",
+        "href": "http://github.io"
+      },
+      {
+        "text": "example.uk",
+        "href": "http://example.uk"
+      }
+    ]
+  },
+  {
+    "source": "www.readme.md/guide www.github.io https://main.rs //example.uk reader@readme.md [source](main.rs)",
+    "words": "www.readme.md/guide www.github.io https://main.rs //example.uk reader@readme.md source",
+    "links": [
+      {
+        "text": "www.readme.md/guide",
+        "href": "http://www.readme.md/guide"
+      },
+      {
+        "text": "www.github.io",
+        "href": "http://www.github.io"
+      },
+      {
+        "text": "https://main.rs",
+        "href": "https://main.rs"
+      },
+      {
+        "text": "//example.uk",
+        "href": "//example.uk"
+      },
+      {
+        "text": "reader@readme.md",
+        "href": "mailto:reader@readme.md"
+      },
+      {
+        "text": "source",
+        "href": "main.rs"
+      }
+    ]
+  },
+  {
+    "source": "`example.com` and [example.com](https://other.example.org)",
+    "words": "example.com and example.com",
+    "links": [
+      {
+        "text": "example.com",
+        "href": "https://other.example.org"
+      }
+    ]
+  },
+  {
+    "source": "AGENTS.md main.rs example.com",
+    "words": "AGENTS.md main.rs example.com",
+    "links": [
+      {
+        "text": "AGENTS.md",
+        "href": "http://AGENTS.md"
+      },
+      {
+        "text": "main.rs",
+        "href": "http://main.rs"
+      },
+      {
+        "text": "example.com",
+        "href": "http://example.com"
+      }
+    ]
   }
 ]

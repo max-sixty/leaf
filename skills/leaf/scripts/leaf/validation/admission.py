@@ -19,6 +19,7 @@ from leaf.thread_context import (
     thread_structure,
 )
 
+from ..refusals import Refused
 from .instances import reference_errors, thread_markup_contract_errors
 from .markup import (
     document_declaration_errors,
@@ -40,9 +41,9 @@ def read_text_arg(page_dir: Path, text, *, allow_empty: bool = False) -> str:
     the runtime resolves one — a path quoted in a sentence stays the author's words."""
     body = text if text is not None else sys.stdin.read()
     if not body and not allow_empty:
-        sys.exit("empty text (pass --text or pipe via stdin)")
+        raise Refused("empty text (pass --text or pipe via stdin)")
     if errs := text_media_errors(body, page_dir):
-        sys.exit(
+        raise Refused(
             "text names media the page won't show:\n"
             + "\n".join(f"  - {e}" for e in errs)
         )
@@ -152,8 +153,8 @@ def check_markup(
     door refuses `markup` outright, so nothing reaches the log under that name
     unvalidated. Text needs no vocabulary gate — the runtime renders it with every tag
     escaped, so it cannot claim a widget — but its Markdown can still point at a file,
-    which `read_text_arg` asks about wherever a body arrives. Exits with what's
-    wrong."""
+    which `read_text_arg` asks about wherever a body arrives. Refuses with
+    what's wrong."""
     frag = SourceDocument(markup)
     revisions = list_revisions(page_dir)
     effective_events = effective_thread_events(events, revisions)
@@ -182,7 +183,7 @@ def check_markup(
         extra_errors,
         effective_events=effective_events,
     ):
-        sys.exit(error)
+        raise Refused(error)
     return frag
 
 

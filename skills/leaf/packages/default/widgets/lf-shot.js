@@ -1,13 +1,13 @@
 /* lf-shot: registered before/after screenshots under one draggable divider.
  *
- * The target's shared margin entry shows a split circle: left filled for before, right for after.
- * Enter, Space, and clicks flip that projection between the endpoints without moving it.
- * Each rail label chooses its endpoint. Once the page has presented the static flip,
- * Web Awesome progressively upgrades it with pointer dragging and Arrow, Home, and End
- * adjustment; its bundle is not on the presentation path, and `afterPresentation` is
- * what holds it there, so the page still answers for the upgrade as an arrival of its
- * own. A click on either image keeps
- * the quick endpoint toggle, while a click on the handle only puts the user on it.
+ * The rail's Before/After labels choose their endpoint by click, Enter or Space;
+ * comparison controls stay in that rail or in the native divider, leaving captured
+ * image content clear of an additional floating action. After the page presents
+ * the static flip, Web Awesome upgrades it with pointer dragging and Arrow,
+ * Home, and End adjustment. `afterPresentation` keeps that bundle off the
+ * presentation path while the page answers for its upgrade as its own arrival.
+ * Clicking either image keeps the quick endpoint toggle; clicking the handle
+ * only puts the user on it.
  * A small expand link beside each rail label inspects that full-size image in the
  * shared media viewer; modified presses keep their native link destination. The
  * rail is one row, reserved before upgrade. Print stacks both frames.
@@ -47,12 +47,10 @@
 import {
   PRESS,
   afterPresentation,
-  commandScope,
   compareImages,
   describeDifference,
   differenceKind,
   once,
-  whileConnected,
   offer,
   failSoft,
   iconElement,
@@ -61,10 +59,8 @@ import {
   layoutChanged,
   commands,
   keeps,
-  contributionEntry,
   paintKeys,
   relabel,
-  registerContribution,
   scopedMediaUrl,
   selectableOffer,
   widgetController,
@@ -85,8 +81,6 @@ const loadComparison = () => (comparisonReady ??= import("/vendor/webawesome.esm
 export default class extends HTMLElement {
   #box;
   #alt;
-  #margin;
-  #flip;
   #comparison;
   #chromeState;
   #chose = false;
@@ -148,7 +142,6 @@ export default class extends HTMLElement {
     if (this.#box && controlsChanged) {
       this.#syncComparison();
       this.#requestComparison();
-      this.#offer();
       paintKeys();
     }
     this.#paintInspection();
@@ -184,8 +177,6 @@ export default class extends HTMLElement {
       error = `focus ${focus.x},${focus.y} ${focus.width}×${focus.height} CSS px falls outside its captured images`;
     if (error) {
       this.#frames = [];
-      this.#margin?.unregister();
-      this.#margin = null;
       failSoft(this, new Error(error));
       return;
     }
@@ -282,6 +273,8 @@ export default class extends HTMLElement {
       frame.dataset.lfState = state;
 
       const img = document.createElement("img");
+      // Opaque samples need CORS mode to keep pixels readable for comparison.
+      img.crossOrigin = "anonymous";
       const source = this.getAttribute(state);
       img.src = isCanonicalMediaUrl(source) ? scopedMediaUrl(source) : source;
       shots.push(img);
@@ -324,12 +317,8 @@ export default class extends HTMLElement {
       this.#chose = true;
       this.#paint();
     });
-    // One declaration, two controls: the native checkbox the user stands on inside
-    // the widget, and the margin entry the same flip is projected onto. A margin entry
-    // is generated elsewhere, so ancestry cannot find this row for it — the capability
-    // is how the flip keeps its name on both (`runtime/keyboard/scopes.js`,
-    // `commandScope`).
-    this.#flip = commandScope("On a screenshot", [
+    // The native checkbox owns endpoint toggling until the divider upgrades.
+    commands(box, "On a screenshot", [
       {
         id: "screenshot.toggle",
         keys: [" "],
@@ -338,17 +327,10 @@ export default class extends HTMLElement {
         run: () => this.#show(this.#nextState()),
       },
     ]);
-    commands(box, this.#flip);
     this.append(box);
     this.#paintAlt();
     this.#paintInspection();
-    whileConnected(this, () => {
-      this.#offer();
-      return () => {
-        this.#margin?.unregister();
-        this.#margin = null;
-      };
-    });
+
     // A visual-review run creates shots after authored descriptor capture. Its
     // authored controller explicitly owns that generated child's preparation;
     // standalone authored shots own their presentation themselves.
@@ -384,7 +366,6 @@ export default class extends HTMLElement {
     }
     keeps(this.#box, "aria-label", `Compare before and after — ${this.#alt}`);
     this.#paint();
-    this.#margin?.update();
   }
 
   attributeChangedCallback(name) {
@@ -566,44 +547,7 @@ export default class extends HTMLElement {
       const endpoint = state === "after" ? 100 : 0;
       keeps(caption, "aria-pressed", position === endpoint);
     }
-    this.#margin?.update();
     paintKeys();
-  }
-
-  #offer() {
-    if (!this.#controlsEnabled) {
-      this.#margin?.unregister();
-      this.#margin = null;
-      return;
-    }
-    if (!this.#box || this.#margin) return;
-    this.#margin = registerContribution({
-      key: `shot:${this.id}`,
-      target: () => this,
-      read: () => {
-        const next = this.#nextState();
-        const label = `Show ${next}`;
-        const position = this.#position();
-        return {
-          subject: null,
-          state: "idle",
-          side: "before",
-          notice: null,
-          entries: [
-            contributionEntry({
-              key: "toggle",
-              icon: position > 50 ? "compare-after" : "compare-before",
-              label,
-              accessibleLabel: `${label} — ${this.#alt}`,
-              activation: "screenshot.toggle",
-              className: "lf-shot-toggle",
-              scope: this.#flip,
-            }),
-          ],
-          readings: [],
-        };
-      },
-    });
   }
 
   // Both frames render at the frame's width, so a pair shot at two different

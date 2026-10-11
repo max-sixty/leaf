@@ -4,12 +4,12 @@ import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
-import click
 import jmespath
 from jmespath.exceptions import JMESPathError
 from referencing.exceptions import Unresolvable
 
 from .files import list_revisions
+from .refusals import Refused
 from .registry.schema import (
     json_validator,
     json_value,
@@ -21,7 +21,7 @@ from .structure import SourceDocument
 from .thread_context import effective_thread_events, logged_fragment
 
 
-class DataError(click.ClickException):
+class DataError(Refused):
     """A malformed data store or payload at the page data boundary."""
 
 
@@ -376,7 +376,7 @@ def payload_error(source: str, contract: str, value, registry: dict) -> str | No
         try:
             resource_urls(value, declaration)
         except DataError as error:
-            return f"source {source!r} contract {contract!r}: {error.message}"
+            return f"source {source!r} contract {contract!r}: {error}"
         records = declaration.get("records")
         items = (
             value.get(records["items"]) if records and isinstance(value, dict) else None

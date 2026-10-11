@@ -15,7 +15,6 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
-import sys
 import uuid
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
@@ -30,6 +29,7 @@ from leaf.files import (
     version_revisions,
 )
 from leaf.page_snapshot import capture_page_snapshot
+from leaf.refusals import Refused
 from leaf.revision_artifact import (
     Resource,
     RevisionArtifact,
@@ -448,12 +448,12 @@ def cmd_export(page_dir: Path, out: Path, version) -> int:
     events = read_events(page_dir)
     published = published_versions(page_dir, events)
     if not published:
-        sys.exit(
+        raise Refused(
             f"{page_dir} has no stamped version to export; run `leaf page stamp` first"
         )
     version = version if version else published[-1]
     if version not in published:
-        sys.exit(
+        raise Refused(
             f"v{version} is not stamped — stamped: "
             + ", ".join(f"v{v}" for v in published)
         )
@@ -461,7 +461,7 @@ def cmd_export(page_dir: Path, out: Path, version) -> int:
     revision = version_revisions(events)[version]
     document = read_revision(page_dir, revision).document
     if document.samples:
-        sys.exit(
+        raise Refused(
             "Live samples need a server, so a page that declares one "
             "cannot be exported."
         )

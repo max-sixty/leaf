@@ -1310,7 +1310,6 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     ) == ["Base · Candidate below", "Candidate"]
     expect(first.locator("lf-shot")).to_have_attribute("data-lf-shot-controls", "off")
     expect(first.locator(".lf-shotflip")).to_be_hidden()
-    expect(first.locator(".lf-shot-toggle")).to_be_hidden()
     expect(first.locator(".lf-shotcap[aria-keyshortcuts]")).to_have_count(0)
     expect(first.locator(".lf-shotflip[aria-keyshortcuts]")).to_have_count(0)
     frames = first.locator(".lf-shotframe")

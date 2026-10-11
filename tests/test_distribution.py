@@ -11,6 +11,7 @@ import subprocess
 import pytest
 from click import ClickException
 from interact_support import PAGE
+from leaf.refusals import Refused
 from leaf_dev import ROOT
 from leaf_dev import distribution as distribution_model
 from leaf_dev.arms import environment
@@ -240,5 +241,5 @@ def test_package_private_imports_are_refused(directory, suffix, tmp_path):
     (custom / directory / f"helper{suffix}").write_text(
         'export { runtime } from "/runtime/context.js";\n'
     )
-    with pytest.raises(SystemExit, match="imports private kernel module"):
+    with pytest.raises(Refused, match="imports private kernel module"):
         compose_layer([*layer_inputs(), custom])

@@ -55,6 +55,7 @@ from leaf.files import (
 )
 from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
+from leaf.refusals import Refused
 from leaf.registry.contract import element_declarations
 from leaf.render_checks import PROBE_SOURCES
 from leaf.schema import BROWSER_DIRS, CONTENT_TYPES, SERVED_PATH, VENDORED_FILES
@@ -111,7 +112,7 @@ JAVASCRIPT_SUFFIXES = frozenset(
 )
 
 
-class ArtifactError(ValueError):
+class ArtifactError(Refused):
     """A candidate cannot be captured as a complete local revision."""
 
 

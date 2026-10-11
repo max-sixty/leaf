@@ -88,7 +88,7 @@ const applicationOwners = [
   "keyboard/controller.js",
   "thread-panel.js",
   "pending/state.js",
-  "projection/commands.js",
+  "undo.js",
   "state-application.js",
   "state-feed.js",
 ];

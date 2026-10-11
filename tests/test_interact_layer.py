@@ -213,7 +213,7 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     references.append(reference)
 
     def response_args(*extra):
-        return ["response", "reply", reference, "--text", "Answer", *extra]
+        return ["response", "reply", reference, "--text", "Answer", "--done", *extra]
 
     record(response_args(), 0)
     record(response_args(), 0)
@@ -225,14 +225,8 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     )
     assert code == 200, response
     ids.append(events_model.read_events(page)[-1]["id"])
-    record(["response", "reply", "not-a-response-ref", "--text", "Answer"], 1)
+    record(["response", "reply", "not-a-response-ref", "--text", "Answer", "--done"], 1)
     record(["thread", "resolve", str(page), ids[-1]], 0)
-    # The title harness stand-in runs asynchronously; retain this fixture until
-    # its jobs have reported, before the page/state home are retired.
-    for worker in threading.enumerate():
-        if worker.name == "leaf-thread-title":
-            worker.join(timeout=STATED_TIMEOUT)
-            assert not worker.is_alive(), "the title stand-in outlived its page fixture"
     regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
 
 
@@ -487,8 +481,10 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     assert both.exit_code == 2
     assert "No such option '--for'" in both.output
 
-    [task] = written(["task", "open", str(page_dir), later, "Trace the store"])
-    assert task["subject"] == {"kind": "thread", "id": root}
+    [task] = written(
+        ["thread", "reply", str(page_dir), later, "--text", "On it.", "--task", "Trace"]
+    )
+    assert (task["parent"], task["task"]) == (later, "Trace")
 
     [closed] = written(["thread", "resolve", str(page_dir), later])
     assert (closed["kind"], closed["parent"]) == ("resolve", later)
@@ -654,7 +650,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "hooks/hooks.json",
         "hooks/claude-code.ts",
         "hooks/codex.json",
-        "hooks/scripts/loop-guard.py",
+        "hooks/scripts/background-watch.py",
         "skills/leaf/SKILL.md",
         "skills/leaf/references/authoring-questions.md",
         "skills/leaf/references/authoring-evidence.md",
@@ -942,8 +938,8 @@ def test_init_vendors_the_layer(page_dir):
     # which is what lets a widget import `/vendor/…` without knowing where it came
     # from page_packages().
     assert (page_dir / "widgets" / "lf-diagram.js").is_file()
-    assert (page_dir / "vendor" / "agentic-mermaid.esm.js").is_file()
-    assert (page_dir / "vendor" / "agentic-mermaid.LICENSES.txt").is_file()
+    assert (page_dir / "vendor" / "mermaid.esm.js").is_file()
+    assert (page_dir / "vendor" / "mermaid.LICENSES.txt").is_file()
     assert (page_dir / "widgets" / "lf-diff.js").is_file()
     assert (page_dir / "vendor" / "pierre-diffs.esm.js").is_file()
 

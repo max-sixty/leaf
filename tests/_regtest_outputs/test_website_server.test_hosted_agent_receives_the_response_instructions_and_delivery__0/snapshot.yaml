@@ -39,11 +39,12 @@ thread/start:
     commits the reply through the same durable writer as `leaf response reply`,
     unless an explicit successful reply already answered it.
 
-    For a reply needing widgets, a prose question awaiting the user, a title or a
-    changed anchor, author it with `leaf response reply <answer.ref>` and the rich
-    options in [threads](threads.md). The command validates saved edits and commits
-    immediately. The completed final yields to an explicit successful answer already
-    in the log; otherwise Leaf commits your opening and final text. A later failure or
+    For a reply needing widgets, a prose question awaiting the user (`--question`),
+    work promised beyond this turn (`--task`), a title or a changed anchor, author it
+    with `leaf response reply <answer.ref>` and the rich options in
+    [threads](threads.md). The command validates saved edits and commits immediately.
+    The completed final yields to an explicit successful answer already in the log;
+    otherwise Leaf commits your opening and final text. A later failure or
     interruption cannot discard an explicit committed reply. Leaf may title an
     untitled thread from its opening before your reply arrives; that name stands.
 
@@ -172,11 +173,12 @@ turn/start:
       tool call, open with a short message to the user: the answer, or what you
       are about to do. Later working messages stay in Codex. Finish with the answer
       or what changed and where it appears. For an explicit answer, including widgets,
-      a question awaiting the user, a title or relocation, use `leaf response reply
-      <answer.ref>` and the rich options in `references/threads.md`; it validates
-      saved edits and commits immediately. Your later final yields to that recorded
-      answer.","h2":"Your reply renders as Markdown in a narrow column: give each
-      point its own short paragraph or list item, link a page section as `[its name](#section-id)`,
+      a question awaiting the user (`--question`), work promised beyond this turn
+      (`--task`), a title or relocation, use `leaf response reply <answer.ref>`
+      and the rich options in `references/threads.md`; it validates saved edits
+      and commits immediately. Your later final yields to that recorded answer.","h2":"Your
+      reply renders as Markdown in a narrow column: give each point its own short
+      paragraph or list item, link a page section as `[its name](#section-id)`,
       and fence code or markup."},"events":[{"attention":true,"kind":"comment","author":"user","text":"Use
       backfill first.","id":"user-event","ts":"2026-09-22T10:00:00-07:00","seq":1,"subject":{"kind":"thread","id":"user-event"},"threads":["user-event"],"handling":["h1","h2"],"answer":{"kind":"reply","to":"user-event","for":"user-event","ref":"00000001:0:user-event","writer":"turn"}}]}]}'
   turnTrigger: leaf

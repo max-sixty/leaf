@@ -188,9 +188,9 @@ so a phase does not depend on discovering a chain of references.
   sign-off, before choosing its widgets.
 - `references/authoring-revisions.md`: before changing a handed-over page,
   proposing a rewrite, using a user-owned draft, or revising standing state.
-- `references/authoring-evidence.md`: before drawing a figure, or using measured
-  facts, diagrams, charts, source files or text edits, images, recordings, or
-  before/after captures.
+- `references/authoring-evidence.md`: for work updates or reviews, before drawing
+  a figure, or using measured facts, diagrams, charts, source files or text edits,
+  images, recordings, or before/after captures.
 
 ### First handoff
 

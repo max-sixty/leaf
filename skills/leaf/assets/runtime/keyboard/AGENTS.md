@@ -115,9 +115,8 @@ More. Choosing a match is the soft keyboard's Enter, or selecting the marked wor
 The ⌥ aim names a target, which a finger does by selecting words or through Select
 element. `c` and `e` act on a selection, the item the user stands on, or the page: a
 selection's Comment on selection step, a thread's own controls, and Comment on the page
-in More all take a tap. One gap is accepted for now: the response bar's other responses, Suggest
-and the reactions on a selection or item, open only by key, since the bar shows no
-ellipsis (`composing/selection.js`; `TODO.md` asks whether to restore a route). Question
+in More all take a tap. Other responses in the comment field opens Suggest and
+reactions on a selection or item. Question
 digits duplicate the Decision's own control. The command reference and caret browsing
 describe or extend the keyboard itself.
 

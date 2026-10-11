@@ -24,6 +24,7 @@ from .presence import claimant_reading
 from .registry.contract import RegistryError
 from .registry.kernel import kernel_event_ownership
 from .registry.schema import json_value
+from .schema import MESSAGE_KINDS
 from .service import PageTransaction, requires_agent_attention
 from .thread_titles import name_admitted_thread
 
@@ -166,7 +167,7 @@ def _execute_event(
             # accepts or refuses at once, and input after a refusal tries again.
             if requires_agent_attention(admitted):
                 nudge_unwatched(page)
-            if event["kind"] in ("comment", "reply") and claim:
+            if event["kind"] in MESSAGE_KINDS and claim:
                 spoken = admitted["id"], claim
     # A comment opens a thread with no name, and the claimant's harness names it from
     # its words while the agent is still reading them; a reply names a thread its

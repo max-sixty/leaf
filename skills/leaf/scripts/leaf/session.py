@@ -28,6 +28,7 @@ from .locations import path_location, paths_same
 from .machine import state_home
 from .schema import (
     ANSWER_ASK_INSTRUCTION,
+    MESSAGE_KINDS,
     SERVICE_FILE,
     VIEWED_FILE,
 )
@@ -614,7 +615,7 @@ def wake_inputs(page: PageTransaction, batch: list[dict]) -> list[dict]:
     }
     pending = []
     for event in batch:
-        if event["kind"] in {"comment", "reply"} and event["id"] not in agent_inputs:
+        if event["kind"] in MESSAGE_KINDS and event["id"] not in agent_inputs:
             continue
         pending.append(event)
     return pending

@@ -202,7 +202,7 @@ its schema. An ordinary vocabulary entry's `x-instructions` is one non-empty str
 
 ```bash
 leaf page instructions PAGE | jq 'keys'
-leaf page instructions PAGE --use lf-options --use .eyebrow | jq -er '.author'
+leaf page instructions PAGE --use lf-options --use .eyebrow | jq -r '.author // empty'
 leaf page instructions PAGE --contract unified-diff | jq -er '.producer'
 ```
 

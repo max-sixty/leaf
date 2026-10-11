@@ -17,10 +17,11 @@ Write semantic HTML and use the registry's elements and class idioms. The vendor
 theme owns palette, type, spacing, headings, tables, code, and widget presentation.
 Use a page-local `<style>` only for presentation unique to this page.
 
-Read the shared author instructions before choosing vocabulary:
+Read the shared author instructions, when the page's packages carry any, before
+choosing vocabulary:
 
 ```bash
-leaf page instructions <page> | jq -er '.author'
+leaf page instructions <page> | jq -r '.author // empty'
 ```
 
 `<page>/registry.json` is the vocabulary `page init` vendored; a
@@ -46,7 +47,7 @@ Before writing markup, read the composed author instructions for the entries you
 will use, including examples you copy:
 
 ```bash
-leaf page instructions <page> --use lf-options --use .eyebrow | jq -er '.author'
+leaf page instructions <page> --use lf-options --use .eyebrow | jq -r '.author // empty'
 ```
 
 Each repeated `--use` selects an element or idiom. The command includes shared

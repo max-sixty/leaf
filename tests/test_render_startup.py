@@ -2596,9 +2596,8 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
 
     The shadow rules follow the same line: `/shadow.css` is what an `x-shadow` widget
     renders under, so a page with no such widget never asks for it, and the theme
-    arrives once, through the document's `<link>`. So do the composers: they stand
-    hidden until opened, and CodeMirror waits for a field to be needed
-    (composing/text-field.js).
+    arrives once, through the document's `<link>`. The composers stand hidden until
+    opened, so they build no editor (composing/text-field.js).
     """
     example = next(p for p in EXAMPLES if p.stem == "triage-board")
     context = browser.new_context(viewport={"width": 1280, "height": 800})
@@ -2613,12 +2612,16 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     ], modules
     assert not [p for p in asked if "pierre-diffs" in p], asked
     assert not [p for p in asked if "mermaid" in p], asked
-    assert not [p for p in asked if "codemirror" in p or "text-editor" in p], asked
     assert asked.count("/theme.css") == 1, [p for p in asked if p == "/theme.css"]
     assert "/shadow.css" not in asked, asked
     assert asked.count("/registry.json") == 1, [
         p for p in asked if p == "/registry.json"
     ]
+
+    for composer in [".lf-fab-input", ".lf-page-comment-card leaf-text"]:
+        assert not page.locator(composer).evaluate(
+            "field => field.matches(':state(ready)')"
+        ), composer
 
     assert page.evaluate("() => !!customElements.get('lf-board')")
 
@@ -2697,67 +2700,6 @@ def test_comment_focus_waits_for_the_lazy_placement_module(browser, serve):
         expect(field).to_be_visible()
         expect(field).to_be_focused()
         assert page.evaluate("() => getSelection().toString()") == ""
-    finally:
-        for route in held:
-            route.continue_()
-        context.unroute_all(behavior="wait")
-
-
-def test_words_written_while_the_editor_loads_reach_it_in_order(browser, serve):
-    """A composer opened before CodeMirror has arrived takes words from the first key.
-
-    The field's editor loads when the field is first needed (composing/text-field.js).
-    Until it lands, a native stand-in takes the keys, a moved caret, inserted text such
-    as dictation's, a paste and an input method's composition, and the editor carries
-    them across with focus, in order. An open field without its editor keeps the page
-    from reading ready, and the editor's arrival waits for an unfinished composition."""
-    context = browser.new_context(viewport={"width": 1280, "height": 800})
-    context.grant_permissions(["clipboard-read", "clipboard-write"])
-    held = []
-    context.route("**/vendor/codemirror.esm.js", lambda route: held.append(route))
-    page = open_page(browser, serve(LONG_PAGE), context=context)
-    readiness = (
-        "() => document.querySelector('script[data-lf-entry]').lfReadiness(null)"
-    )
-    try:
-        box = page_comment(page)
-        holding(page, held, 1, "CodeMirror")
-        page.keyboard.type("Hello wrld")
-        for _ in range(3):
-            page.keyboard.press("ArrowLeft")
-        page.keyboard.type("o")
-        for _ in range(3):
-            page.keyboard.press("ArrowRight")
-        page.keyboard.insert_text(" and dictated")
-        page.evaluate("navigator.clipboard.writeText(' and pasted ')")
-        page.keyboard.press("ControlOrMeta+v")
-        ime = context.new_cdp_session(page)
-        ime.send(
-            "Input.imeSetComposition",
-            {"text": "かな", "selectionStart": 2, "selectionEnd": 2},
-        )
-        expect(box).to_have_js_property(
-            "value", "Hello world and dictated and pasted かな"
-        )
-        assert page.evaluate(readiness) == "rendering"
-
-        held.pop().continue_()
-        page.evaluate(
-            "() => window.__lfRuntimeImport('/runtime/composing/text-editor.js')"
-            ".then(() => true)"
-        )
-        rendered(page, facts=("updatesSettled",))
-        assert box.evaluate("box => box.matches(':state(stand-in)')")
-        assert page.evaluate(readiness) == "rendering"
-
-        ime.send("Input.insertText", {"text": "かな"})
-        wait_until_ready(page)
-        assert not box.evaluate("box => box.matches(':state(stand-in)')")
-        expect(box).to_be_focused()
-        page.keyboard.type("!")
-        expect(box).to_have_js_property(
-            "value", "Hello world and dictated and pasted かな!"
-        )
     finally:
         for route in held:
             route.continue_()

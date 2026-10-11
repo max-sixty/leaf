@@ -1,4 +1,5 @@
-"""Page and neighboring-leaf presence readings."""
+"""Page and neighboring-leaf presence readings, and the one message they call
+for: to a claimant whose input nothing will carry (`nudge_unwatched`)."""
 
 import hashlib
 import json
@@ -7,7 +8,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from .activity import Turn, current_turn, declared_at
+from .activity import Turn, current_turn, declared_at, takes_input
 from .event_log import read_cursor
 from .file_changes import FileChanges, existing_root
 from .files import (
@@ -29,6 +30,7 @@ from .schema import (
 )
 from .server import running_server
 from .service import (
+    PageTransaction,
     claim_is_active,
     claim_path,
     page_claim,
@@ -359,3 +361,37 @@ def presence_reading(page_dir: Path) -> str:
         reading = presence_fingerprint(live_facts(page_dir, claim), neighbors)
         kept.token = (stamp, now + PRESENCE_CACHE_S, reading)
         return reading
+
+
+def nudge_unwatched(page: PageTransaction) -> None:
+    """Message the claimant of a page holding input nothing will carry, once per
+    ending of its turn (`session-lifetime.md`, Watchers).
+
+    Nothing carries it when no wait lease is held and the claimant takes no input
+    by the activity fold's own reading (`activity.takes_input`), because its turn
+    was seen to end: closed by the Stop hook, or interrupted as its harness's record
+    says. A turn Leaf only stopped believing in may still be running a long step,
+    and a running turn needs no nudge, because its Stop hook refuses to end with the
+    input unpicked. Each ending gets one nudge per page, named by the claim's turn
+    and the stamp that ended or last renewed it, so a user ticking three boxes queues
+    one turn or one approval rather than three, while a turn interrupted again after
+    a new prompt is messaged again. The claimant's harness decides whether its
+    session can be reached at all and what to say; a harness whose watcher is a
+    process of its own has nowhere to put this and answers no.
+
+    Admission calls it, and so does a watch giving up its lease. It runs under the
+    page's lock, so the mark it leaves is exact: a local socket accepts or refuses at
+    once, and input after a refusal tries again."""
+    claim, page_dir = page.active_claim, page.page_dir
+    if not claim or wait_is_live(page_dir, claim["id"]):
+        return
+    present, turn = claimant_reading(page_dir, page.events)
+    stamp = claim.get("turn_closed") or claim.get("turn_opened")
+    mark = f"{claim['turn']}@{stamp}"
+    if (
+        turn.ended is not None
+        and not takes_input(present, turn)
+        and claim.get("messaged_ending") != mark
+        and claim_harness(claim).nudge(page_dir)
+    ):
+        page.note_messaged(mark)

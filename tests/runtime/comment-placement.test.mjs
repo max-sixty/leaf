@@ -9,8 +9,10 @@ import test from "node:test";
 import {
   LEAST_HEIGHT,
   commentPlacement,
+  commentReference,
   commentSide,
 } from "/runtime/annotation-overlay/comment-placement.js";
+import { floatingPlacement } from "/runtime/annotation-overlay/floating.js";
 
 // The card's widths as theme.css declares them, which the placement reads off the root.
 document.documentElement.style.setProperty("--thread-card-min", "320px");
@@ -296,4 +298,91 @@ test("beside, clearing a margin row never costs the card width", async () => {
   });
   assert.equal(smaller.reference.right, 800);
   assert.equal((await smaller.middleware[0].fn(reduced)).reset, undefined);
+});
+
+test("zoom clearance reaches the solver through the floating driver", async () => {
+  const ui = await import("/vendor/floating-ui.esm.js");
+  const clear = block(300, 300, 300, 500);
+  for (const { scale, rowRight, expected } of [
+    { scale: 1.2, rowRight: 684, expected: clear.right + 8 },
+    { scale: 0.75, rowRight: 800, expected: 808 },
+  ]) {
+    const floating = document.createElement("div");
+    document.body.append(floating);
+    let width = 592;
+    const referenceRights = [];
+    const dimensions = () => ({ width, height: 100 });
+    const toClient = ({ rect }) => ({
+      x: rect.x * scale,
+      y: rect.y * scale,
+      width: rect.width * scale,
+      height: rect.height * scale,
+    });
+    // The platform supplies measured geometry; the real solver owns reset, offset,
+    // size and shift. Both application reference wrappers remain on the path.
+    const platform = {
+      getElementRects({ reference }) {
+        const rect = reference.getBoundingClientRect();
+        referenceRights.push(rect.right);
+        return {
+          reference: {
+            x: rect.left / scale,
+            y: rect.top / scale,
+            width: rect.width / scale,
+            height: rect.height / scale,
+          },
+          floating: { x: 0, y: 0, ...dimensions() },
+        };
+      },
+      getOffsetParent: () => window,
+      getDimensions: dimensions,
+      getClippingRect: () => ({
+        x: boundary.left,
+        y: boundary.top,
+        width: boundary.width,
+        height: boundary.height,
+      }),
+      convertOffsetParentRelativeRectToViewportRelativeRect: toClient,
+      isElement: () => false,
+      getDocumentElement: () => document.documentElement,
+      isRTL: () => false,
+    };
+    const rule = commentPlacement();
+    rule.choose({ clear, boundary, scroller: scroller(1000), coarse: false });
+    const { reference, placement, middleware, plane } = rule.options(ui, {
+      clear,
+      row: clear.top,
+      margin: { left: rowRight - 40, right: rowRight },
+      boundary,
+      fit: (room) => {
+        width = Math.min(592, room.width);
+      },
+    });
+    const driver = floatingPlacement({ floating, update() {} });
+    driver.begin();
+    const answer = await driver.position(
+      ui.computePosition,
+      commentReference(
+        {
+          element: null,
+          contextNode: null,
+          extent: clear,
+          row: clear.top,
+          geometry: { anchors: new Map(), origins: new Map() },
+        },
+        reference,
+      ),
+      { placement, middleware, platform },
+      plane,
+      null,
+    );
+    assert.ok(answer);
+    assert.notEqual(referenceRights[0], expected - 8);
+    assert.equal(referenceRights.at(-1), expected - 8);
+    assert.ok(
+      Math.abs(answer.x * scale - expected) < 0.01,
+      `${scale}: ${answer.x * scale}`,
+    );
+    floating.remove();
+  }
 });

@@ -5012,7 +5012,7 @@ def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, ser
         # is the one the route refuses.
         nudge(serve.page_dir)
         expect(page.locator(".lf-banner .lf-dot.offline")).to_be_visible()
-        offline = page.locator(".lf-status-detail").text_content()
+        offline = " ".join(page.locator(".lf-status-detail").text_content().split())
         assert offline.startswith("Server offline"), (
             f"the banner's offline line has moved: {offline!r}"
         )

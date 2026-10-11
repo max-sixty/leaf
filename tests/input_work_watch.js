@@ -142,14 +142,7 @@
     observedDetails.add(owner);
     // Retirement belongs to platform delivery even when the page has no listener.
     // Cache that delivery's source before its property or registered handlers run.
-    nativeAdd.call(
-      owner,
-      "toggle",
-      (event) => {
-        sources.set(event, eventSource(event));
-      },
-      true,
-    );
+    nativeAdd.call(owner, "toggle", captureDispatch, true);
   };
   const activatedDetails = (node) => {
     const summary = node?.closest?.(nativeActivation);
@@ -223,6 +216,17 @@
       handlerOriginals.set(wrapped, callback);
     }
     return wrapped;
+  };
+  const captureDispatch = (event) => {
+    // Reusing an Event starts another dispatch. Platform events become untrusted
+    // when redispatched too, so only this dispatch's executing caller can own it.
+    if (!event.isTrusted) sources.delete(event);
+    sources.set(event, eventSource(event));
+    // Parser-created handler attributes bypass the property setter. Adopt them
+    // at dispatch, before target callbacks, under the same source as listeners.
+    const name = `on${event.type}`;
+    for (const node of event.composedPath())
+      if (typeof node?.[name] === "function") node[name] = node[name];
   };
   for (const prototype of [
     HTMLElement.prototype,
@@ -452,18 +456,16 @@
     const callbacks = [];
     for (const type of inputTypes) {
       const callback = (event) => {
-        if (!event.isTrusted) return;
-        beginSource(
-          event,
-          event.composedPath()[0],
-          event.type === "beforeinput" || editorCommands.includes(event.type),
-        );
-        // The browser compiles handler attributes without invoking our setter.
-        // Adopt those callbacks before target dispatch, preserving getter identity.
-        for (const node of event.composedPath()) {
-          const name = `on${type}`;
-          if (typeof node?.[name] === "function") node[name] = node[name];
-        }
+        if (event.isTrusted) {
+          beginSource(
+            event,
+            event.composedPath()[0],
+            event.type === "beforeinput" || editorCommands.includes(event.type),
+          );
+        } else if (event.type !== "click") return;
+        // Synthetic clicks can still activate a native disclosure. Capture their
+        // caller even when the page has no click listener to enter that source.
+        captureDispatch(event);
       };
       callbacks.push([type, callback]);
     }

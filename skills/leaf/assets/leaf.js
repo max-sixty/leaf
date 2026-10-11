@@ -34,6 +34,7 @@ import { observeQueuedWork } from "./runtime/queued-work.js";
 import { mountApplication } from "./runtime/application.js";
 import {
   applicationState,
+  observeWidgetPreparations,
   whenApplicationPresented,
 } from "./runtime/semantic-state.js";
 import { createEngagement } from "./runtime/composing/engagement.js";
@@ -208,6 +209,52 @@ import { mediaViewer } from "./runtime/media.js";
 import { offer } from "./runtime/widget-elements.js";
 import { retainUserIntent, restrictUserIntent } from "./runtime/user-intent.js";
 
+<<<<<<< HEAD
+||||||| parent of 3106d4168 (Credit an input with its widget preparation's landing, not page-wide readiness)
+await document.documentElement.lfSample?.ready;
+initializeServedDocument();
+keepPageRulesOffLayer();
+holdArrivingBounds();
+
+// A published shell may bundle the entry without publishing its source modules beside
+// it. Keep the synchronous validation seam on Leaf's own bootstrap element so render
+// checks can inspect either distribution without turning it into a package API. These
+// scene readings answer different questions: which readiness fact the page has yet to state
+// (`pageReadiness`), and whether its chrome and geometry have caught up with the input
+// handled since, and which native layers currently expose reading and controls.
+// Job lifecycle tracing binds at enqueue without replacing any rendering callback.
+const validationEntry = document.querySelector("script[data-lf-entry]");
+if (validationEntry) {
+  validationEntry.lfReadiness = pageReadiness;
+  validationEntry.lfRenderingSettled = renderingSettled;
+  validationEntry.lfObserveQueuedWork = observeQueuedWork;
+  validationEntry.lfNativeLayers = nativeLayers;
+}
+
+=======
+await document.documentElement.lfSample?.ready;
+initializeServedDocument();
+keepPageRulesOffLayer();
+holdArrivingBounds();
+
+// A published shell may bundle the entry without publishing its source modules beside
+// it. Keep the synchronous validation seam on Leaf's own bootstrap element so render
+// checks can inspect either distribution without turning it into a package API. These
+// scene readings answer different questions: which readiness fact the page has yet to state
+// (`pageReadiness`), and whether its chrome and geometry have caught up with the input
+// handled since, and which native layers currently expose reading and controls.
+// Job lifecycle tracing binds at enqueue without replacing any rendering callback, and
+// widget preparation tracing at each declaration and its settlement.
+const validationEntry = document.querySelector("script[data-lf-entry]");
+if (validationEntry) {
+  validationEntry.lfReadiness = pageReadiness;
+  validationEntry.lfRenderingSettled = renderingSettled;
+  validationEntry.lfObserveQueuedWork = observeQueuedWork;
+  validationEntry.lfObserveWidgetPreparations = observeWidgetPreparations;
+  validationEntry.lfNativeLayers = nativeLayers;
+}
+
+>>>>>>> 3106d4168 (Credit an input with its widget preparation's landing, not page-wide readiness)
 // Automatic recovery belongs to this arrival. A press made while its presentation
 // waits owns the page; recovery must not capture a fresh focus intent after that wait.
 const recoverComposer = retainUserIntent({ since: 0 });

@@ -17,9 +17,10 @@
 // inline or in their tree's own rules, retain that scroller too; nested CSS
 // expressions, ambiguous names and rules that disagree receive no inferred ownership.
 //
-// Each trusted gesture owns its counted rendering until declared completion: the
-// rendering loop settled and the current publication presented, widget preparations
-// included.
+// Each trusted gesture owns its counted rendering until declared completion. A widget
+// preparation it began (`observeWidgetPreparations`) works on in a promise the loop
+// cannot see; the gesture owns that preparation's landing, as a rendering from the
+// task that settles it until the loop settles again, and nothing while it waits.
 // Native effects it began retain only their sampled displacement within their
 // own subtree; their continued lifetime never owns unrelated page movement.
 // Native scroll effects belong to their retained scroll source, regardless of the
@@ -132,18 +133,8 @@
   // Native media sources and nodes detached during a reading can have no computed
   // length. Keep that absence stable; NaN would disagree with itself every frame.
   const pixels = (value) => (/^-?[\d.]+px$/.test(value) ? parseFloat(value) : null);
-  // The page has answered the input so far: its rendering loop is quiet, and it has
-  // presented its current publication, including every preparation a widget declared
-  // pending (`present`), such as a closed lf-diff file loading on open. The loop alone
-  // cannot see work held in a promise (runtime/rendering.js), so reading it alone ends
-  // the gesture while its declared result is still on the way (`pageReadiness`).
-  const settled = () => {
-    const entry = document.querySelector("script[data-lf-entry]");
-    return (
-      (entry?.lfReadiness?.(null, "presented") ?? null) === null &&
-      (entry?.lfRenderingSettled?.() ?? true)
-    );
-  };
+  const settled = () =>
+    document.querySelector("script[data-lf-entry]")?.lfRenderingSettled?.() ?? true;
   // An animation that can move a box: one of its keyframes sets a geometric property.
   const moves = (animation) =>
     animation.effect
@@ -1175,6 +1166,45 @@
     };
     renderings.push(open);
   };
+  // The renderings preparations' landings opened, each running until the loop settles
+  // as an input's own does. A preparation declared while an input's rendering runs, or
+  // a landing's, is that input's; one declared outside them stays passive.
+  const landing = new Set();
+  const preparing = new WeakMap();
+  const prepared = (phase, preparation) => {
+    if (phase === "begin") {
+      const owner = open ?? [...landing].at(-1);
+      if (owner) preparing.set(preparation, owner);
+      return;
+    }
+    const owner = preparing.get(preparation);
+    if (!owner) return;
+    preparing.delete(preparation);
+    const rendering = {
+      start: nativePerformance.now(),
+      first: true,
+      through: Infinity,
+      own: owner.own,
+      told: false,
+      last: false,
+      typing: owner.typing,
+    };
+    landing.add(rendering);
+    renderings.push(rendering);
+  };
+  // The runtime publishes its observer on its entry script after this script runs.
+  Object.defineProperty(HTMLScriptElement.prototype, "lfObserveWidgetPreparations", {
+    configurable: true,
+    set(observe) {
+      Object.defineProperty(this, "lfObserveWidgetPreparations", {
+        value: observe,
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
+      observe(prepared);
+    },
+  });
   // Shifts whose frame has no reading after it yet.
   const waiting = [];
   const tick = (time) => {
@@ -1190,13 +1220,20 @@
       // callbacks may still move a box, so the rendering runs through the next.
       else open.last = settled();
     }
+    for (const rendering of landing) {
+      if (!rendering.told)
+        for (const animation of begun(rendering.start)) rendering.own.add(animation);
+      if (rendering.last) landing.delete(rendering);
+      else rendering.last = settled();
+    }
     // A gesture owns its counted rendering until canonical completion. News seals
     // that credit; continuing motion retains its separate ownership below. A newer
     // input still leaves the prior gesture its first two frame readings.
     for (const rendering of renderings) {
       if (
         !rendering.first &&
-        (rendering.through === Infinity || (rendering === open && !rendering.told))
+        (rendering.through === Infinity ||
+          ((rendering === open || landing.has(rendering)) && !rendering.told))
       )
         rendering.through = at;
       rendering.first = false;
@@ -1255,6 +1292,7 @@
   new MutationObserver(() => {
     unwatch();
     if (open) open.told = true;
+    for (const rendering of landing) rendering.told = true;
   }).observe(document, { subtree: true, attributeFilter: ["data-lf-reading"] });
   // Press, drag, release and native activation are phases of one pointer gesture.
   // Each phase keeps its own paint boundary while sharing the effects that press
@@ -2345,6 +2383,7 @@
       const rendering = renderings[i];
       if (
         rendering !== open &&
+        !landing.has(rendering) &&
         rendering.through < retainedFrom &&
         (rendering.typing?.until ?? -Infinity) < retainedFrom &&
         ![...rendering.own].some(({ playState }) => playState === "running")

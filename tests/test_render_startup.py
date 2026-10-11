@@ -1756,6 +1756,7 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     controls = gallery.locator(".lf-interaction-controls")
     expect(controls).to_have_count(1)
     expect(controls).to_be_hidden()
+    expect(page.locator(".lf-status-detail")).to_contain_text("Connecting")
     release_state = True
     for route in held:
         route.continue_()
@@ -1768,6 +1769,7 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
         "tab", name="Interactions", exact=True
     ).click()
     expect(controls).to_be_visible()
+    expect(page.locator(".lf-status-detail")).not_to_contain_text("Connecting")
 
 
 def test_playground_joins_initial_widget_settlement(browser, serve):

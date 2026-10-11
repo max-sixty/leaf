@@ -137,21 +137,25 @@ export function notice(
     if (userContext || userHoldTimer || noticeVisible()) return queueBackground(entry);
     return showBackground(entry);
   }
-  if (!background && showingBackground) queueBackground(showingBackground, true);
+  if (showingBackground) queueBackground(showingBackground, true);
   showNotice(msg);
+}
+
+// Take the notice down for something the user asked for, putting a background notice
+// it was showing back at the front of the queue. Unlike the notice's own timer, which
+// retires it, this keeps the news for later.
+function yieldNotice() {
+  if (showingBackground) queueBackground(showingBackground, true);
+  clearTimeout(noticeTimer);
+  presentNotice(noticePresentation.message, false);
+  showingBackground = null;
 }
 
 // A semantic walk is an immediate user command even though its feedback is the live
 // ordinal rather than a timed notice. Hold arriving news for one boundary interval;
 // beginWalk calls this only for gestures, so ordinary repaints never restart the hold.
 export function holdStatus(ms) {
-  if (noticeVisible()) {
-    if (showingBackground) queueBackground(showingBackground, true);
-    clearTimeout(noticeTimer);
-    noticeTimer = 0;
-    presentNotice(noticePresentation.message, false);
-    showingBackground = null;
-  }
+  if (noticeVisible()) yieldNotice();
   clearTimeout(userHoldTimer);
   userHoldTimer = setTimeout(() => {
     userHoldTimer = 0;
@@ -164,18 +168,8 @@ export function holdStatus(ms) {
 // A foreground notice may still replace the context briefly, then the context returns.
 export function setNoticeContext(active) {
   userContext = active;
-  if (active && showingBackground) {
-    queueBackground(showingBackground, true);
-    clearTimeout(noticeTimer);
-    noticeTimer = 0;
-    presentNotice(noticePresentation.message, false);
-    showingBackground = null;
-  } else if (
-    !active &&
-    !userHoldTimer &&
-    waitingBackground.length &&
-    !noticeVisible()
-  ) {
+  if (active && showingBackground) yieldNotice();
+  else if (!active && !userHoldTimer && waitingBackground.length && !noticeVisible()) {
     showBackground(waitingBackground.shift());
   }
 }

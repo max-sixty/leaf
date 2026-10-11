@@ -1,8 +1,7 @@
 /* Placement for threads: the page's order, which every reading of the threads
    shares, the panel's Recent order, and the page part each thread stands in. */
 import { addressableLabel, addressableWord, sectionOf } from "../anchor-resolution.js";
-import { pageParts } from "../passages.js";
-import { inChrome } from "../passages.js";
+import { inChrome, pageParts } from "../passages.js";
 import { serverNow } from "../presence.js";
 import { readingRegionFor } from "../reading-regions.js";
 import { hostIn, upFrom } from "../shadow.js";

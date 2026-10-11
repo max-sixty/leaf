@@ -2988,7 +2988,7 @@ def test_a_state_fault_after_append_leaves_the_attempt_retryable(
     def fail_state(*_args, **_kwargs):
         raise RuntimeError("state response failed")
 
-    layer = registry_storage.layer_generation(page_dir)
+    layer = registry_storage.layer_metadata(page_dir)["generation"]
     monkeypatch.setattr(served_page, "read_served_page", fail_state)
     status, body = fetch(
         f"{server}/api/event", data=json.dumps(sent).encode(), layer=layer

@@ -85,7 +85,7 @@ const siteManifestSchema = z
     }
   });
 
-export type SitePage = z.infer<typeof sitePageSchema>;
+type SitePage = z.infer<typeof sitePageSchema>;
 export type SiteManifest = z.infer<typeof siteManifestSchema>;
 export type PageRoute = Omit<SitePage, "directory"> & {
   root: string;

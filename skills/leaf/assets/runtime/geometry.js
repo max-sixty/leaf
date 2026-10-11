@@ -110,15 +110,6 @@ export function shownWindow({ within = null, gap = 0, viewport = "visual" } = {}
   return new DOMRect(left, top, Math.max(0, right - left), Math.max(0, bottom - top));
 }
 
-// Document-anchored chrome is positioned from the document origin, while the boxes it
-// follows are read in viewport coordinates. Convert once at that boundary.
-export function documentPoint(left, top) {
-  return {
-    left: left + scrollX,
-    top: top + scrollY,
-  };
-}
-
 // The composed affine basis of an element's own layout units in the viewport.
 // Translation and transform origins enter `elementFrame`; this basis also carries
 // local scroll distances through every transformed ancestor, including shadow hosts.
@@ -478,7 +469,7 @@ export const headerInset = (el, scroller) =>
   edgeInset(el, scroller, "--lf-top", "paddingTop");
 // The same reading at the foot, for a box sticking there (`--lf-bottom`, theme.css):
 // how far above the bottom of `scroller`'s band the view of `el` ends.
-export const footerInset = (el, scroller) =>
+const footerInset = (el, scroller) =>
   edgeInset(el, scroller, "--lf-bottom", "paddingBottom");
 export function visibleBand(scroller, item = null) {
   const band = shownBand(scroller);
@@ -816,7 +807,7 @@ export const startsAt = (item, clips) => {
 };
 // The clips standing over a box, applied to it. Taken apart from shownRect because the two
 // readings above and a painted Range want the same walk over different boxes.
-export const clippedRect = (box, item, clips) => clipped(box, item, clips, false);
+const clippedRect = (box, item, clips) => clipped(box, item, clips, false);
 // What cuts paint standing over an item's `box`, by the plane each cut stands in.
 // `plane` is the one the paint stands in: the window's where a fixed box escapes every
 // clip around it, and the page's otherwise, which the root scroll carries. `bands` are

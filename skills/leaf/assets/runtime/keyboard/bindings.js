@@ -315,7 +315,7 @@ function disabledByFieldset(control) {
   }
   return false;
 }
-export function controlAvailable(control) {
+function controlAvailable(control) {
   if (!control?.isConnected) return false;
   const outputs = [...(controlOutputs.get(control)?.values() ?? [])];
   const disabled = outputs.some((fields) => fields.disabled)

@@ -10174,7 +10174,10 @@ def test_a_reference_command_finishes_its_gesture_before_a_newer_control(
 
 
 @pytest.mark.parametrize("native_move", [True, False])
-def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, native_move):
+@pytest.mark.parametrize("renderer", ["children", "lit"])
+def test_retained_moves_keep_native_editor_and_frame_state(
+    browser, serve, native_move, renderer
+):
     """Moves survive named form fields; native moves also retain frame state."""
     page = open_page(
         browser,
@@ -10191,7 +10194,9 @@ def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, nativ
         ),
     )
     page.evaluate(
-        """async nativeMove => {
+        """async ([nativeMove, renderer]) => {
+      const {repeat} = await window.__lfRuntimeImport('/vendor/browser-runtime.js');
+      const {render} = await window.__lfRuntimeImport('/runtime/dom-children.js');
       const {orderChildren} = await window.__lfRuntimeImport('/runtime/dom-children.js');
       const {move, holdFocus} = await window.__lfRuntimeImport('/runtime/widget-api.js');
       const rows = document.querySelector('#rows');
@@ -10203,7 +10208,10 @@ def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, nativ
           <iframe title="${id}" srcdoc="<p>Retained frame</p>"></iframe>`;
         return row;
       });
-      orderChildren(rows, nodes);
+      const paint = nodes => renderer === 'lit'
+        ? render(repeat(nodes, node => node.dataset.row, node => node), rows)
+        : orderChildren(rows, nodes);
+      paint(nodes);
       const editor = rows.querySelector('[data-row=c] input');
       window.blurs = 0;
       editor.addEventListener('blur', () => window.blurs++);
@@ -10211,17 +10219,19 @@ def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, nativ
         if (event.key === 'ArrowUp' && event.altKey) {
           event.preventDefault();
           const restore = holdFocus(rows);
-          orderChildren(rows, [nodes[2], nodes[0], nodes[1]]);
+          paint([nodes[2], nodes[0], nodes[1]]);
           restore?.();
         } else if (event.key === 'ArrowDown' && event.altKey) {
           event.preventDefault();
           const restore = holdFocus(rows);
-          move(document.querySelector('#other'), editor.closest('[data-row]'), null);
+          const other = document.querySelector('#other');
+          if (renderer === 'lit') render(nodes[2], other);
+          else move(other, editor.closest('[data-row]'), null);
           restore?.();
         }
       });
     }""",
-        native_move,
+        [native_move, renderer],
     )
     editor = page.get_by_role("textbox", name="c", exact=True)
     editor.fill("unfinished words")

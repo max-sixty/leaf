@@ -30,8 +30,6 @@ export const DELIVERY = Object.freeze({
   release: served?.lfRelease,
   probe: served?.lfProbe,
 });
-// The public website declares the release it serves; a local server declares none.
-export const WEBSITE_DELIVERY = DELIVERY.release !== undefined;
 // Where a delivered document's layer, and so its captured resources, is addressed: the
 // directory its registry probe names, the revision's own root, as the document writes
 // it. Empty where nothing declared one, and the layer is at the document's own root.

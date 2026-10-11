@@ -57,7 +57,10 @@ input a bundle reads. `package.json` pins every JavaScript version that ships.
 a comment behind for each item it removes (lit/lit#5298), so a list the chrome redraws
 grows for as long as the page is open. `browser/build.mjs` backports lit/lit#5218
 to that pin so optional `ref(undefined)` survives disconnection and reconnection.
-The build adapts the published module in memory and fails if its locked seam changes.
+The build also routes lit-html's keyed and child-part insertions and root marker
+through `runtime/dom-move.js`, preserving native state where the browser supports
+it and bypassing named form properties. It adapts the published modules in memory
+and fails if a locked seam changes.
 Lift it to a release
 that carries lit/lit#5299; the closed-surface journey of
 `test_a_still_page_comes_back_from_every_journey_as_it_was` fails while the leak stands.

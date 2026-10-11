@@ -476,7 +476,9 @@ export class HeldNews {
 
   // Which of the threads new to the seat it holds back.
   #arrive(prior, reading, row) {
-    const arrived = reading.threads.filter(({ key }) => !this.#known.has(key));
+    const arrived = reading.threads.filter(
+      ({ key }) => !this.#known.has(key) && !this.#released.has(key),
+    );
     // A thread the user starts is their gesture, and the threads before it show with it.
     if (arrived.some(({ key }) => gestured(key))) this.#threads.clear();
     else if (arrived.length) {
@@ -598,7 +600,7 @@ export class HeldNews {
       changed = !gestured(key);
     }
     if (threads && this.#threads.size) {
-      this.#threads.clear();
+      this.#releaseThreads();
       changed = true;
     }
     // Native disclosure can report the same opening after its owner released the
@@ -623,6 +625,13 @@ export class HeldNews {
   #forget() {
     for (const thread of this.#shown?.threads ?? [])
       this.#released.set(thread.key, Symbol("release"));
+    this.#releaseThreads();
+  }
+
+  // A new arrival can be released before its prepared reading commits. Carry that
+  // intent through another preparation against the same committed membership.
+  #releaseThreads() {
+    for (const key of this.#threads) this.#released.set(key, Symbol("release"));
     this.#threads.clear();
   }
 

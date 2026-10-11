@@ -1870,7 +1870,9 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         expect(selected).to_have_attribute("open", "")
         page.wait_for_function("window.reservedListFailures >= 2")
     elif place == "leave-displaced-title":
-        expect(page.locator(".lf-thread[open] > .lf-thread-summary")).to_be_focused()
+        expect(
+            page.locator('[data-withdrawn="selected-thread"] button')
+        ).to_be_focused()
         page_comment(page)
     page.evaluate("window.releaseFirstListFailure()")
     page.wait_for_function(
@@ -1907,6 +1909,10 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
     ) == [6, 14, "backward"]
     assert "thread" in page.evaluate("window.readLeafPresentation().pending")
+    # The restored card must stand for a frame before retrying its withdrawal;
+    # the choice that dismissed the failed candidate cannot hide a later jump.
+    page.evaluate("lfShiftsJudged()")
+    restored_top = page.evaluate("window.keptPanel.getBoundingClientRect().top")
 
     # The retry paints the whole candidate again and then reaches the independently
     # held frozen-widget preparation. Only that complete reading may commit.
@@ -1948,9 +1954,206 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         kept["id"],
     ), "successful list retry replaced a committed panel card, seat, or editor"
     expect(editor).to_have_js_property("value", "draft survives sibling rollback")
-    consume_browser_errors(
-        page, "leaf: Presentation failed: injected complete-list failure"
+    if place == "choose-earlier":
+        expect(page.locator('[data-withdrawn="selected-thread"]')).to_have_count(1)
+        assert page.evaluate(
+            "window.keptPanel.getBoundingClientRect().top"
+        ) == pytest.approx(restored_top, abs=0.1)
+    if place == "choose-earlier":
+        # The new choice supersedes the failed presenter before it can report.
+        assert take_browser_errors(page) == []
+    else:
+        reported_browser_errors(
+            page, "leaf: Presentation failed: injected complete-list failure"
+        )
+
+
+@pytest.mark.parametrize("place", ["closed", "selected", "scrolled", "scaled"])
+def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, place):
+    """Absent threads retain room, never live controls or semantic membership."""
+    selected = place not in {"closed", "scaled"}
+    url = serve(
+        leaf_page(
+            "Withdrawn thread",
+            '<h1>Review</h1><p id="one">First passage.</p><p id="two">Next passage.</p>',
+        ),
+        layer_registry=PAGE_DECLARATION,
+        layer_widgets={"lf-local.js": PAGE_WIDGET},
     )
+    first = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "first-thread",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "one"},
+            "text": "The conversation that will be withdrawn."
+            + (
+                "\n\n"
+                + "\n\n".join(
+                    f"Paragraph {i}: A long conversation stays readable while the panel scrolls."
+                    for i in range(28)
+                )
+                if place == "scrolled"
+                else ""
+            ),
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "next-thread",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "two"},
+            "text": "The conversation that stays.",
+        },
+    )
+    if place == "scrolled":
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "id": "long-reply",
+                "author": "agent",
+                "revision": 1,
+                "parent": first["id"],
+                "text": "\n\n".join(
+                    f"Paragraph {i}: The full conversation remains available as the reader scrolls."
+                    for i in range(28)
+                ),
+            },
+        )
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "id": "widget-reply",
+                "author": "agent",
+                "revision": 1,
+                "parent": first["id"],
+                "text": "A frozen control in the withdrawn thread.",
+                "markup": '<lf-local id="withdraw-widget" choice="idle"></lf-local>',
+            },
+        )
+    page = open_page(browser, live_url(url))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    if place == "scaled":
+        page.add_style_tag(
+            content=".lf-thread-panel { transform:scale(1.2); transform-origin:top right; }"
+        )
+        assert (
+            page.locator(".lf-thread-panel").evaluate(
+                "node => getComputedStyle(node).transform"
+            )
+            == "matrix(1.2, 0, 0, 1.2, 0, 0)"
+        )
+    first_card = page.locator('.lf-threads > [data-id="first-thread"]')
+    next_card = page.locator('.lf-threads > [data-id="next-thread"]')
+    (first_card if selected else next_card).locator(".lf-thread-summary").click()
+    if place == "scrolled":
+        write(
+            first_card.locator(":scope > .lf-thread-reply leaf-text"),
+            "A draft for this conversation",
+        )
+        page.evaluate(
+            "window.withdrawnWidget = document.querySelector('#withdraw-widget')"
+        )
+        panel = page.locator("leaf-thread-list")
+        box = panel.bounding_box()
+        page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        page.mouse.wheel(0, 600)
+        page.wait_for_function(
+            "document.querySelector('leaf-thread-list').scrollTop > 0"
+        )
+        scroll_settled(page, "leaf-thread-list")
+        assert first_card.evaluate(
+            "node => node.getBoundingClientRect().top < node.parentElement.getBoundingClientRect().top"
+        )
+    rendered(page)
+    allocation = first_card.evaluate("node => node.getBoundingClientRect().height")
+    position = next_card.evaluate("node => node.getBoundingClientRect().top")
+    page.evaluate(
+        "() => { window.survivingCard = document.querySelector('.lf-threads > [data-id=next-thread]'); }"
+    )
+    if place == "scrolled":
+        for reply in ["long-reply", "widget-reply"]:
+            append_carried_log_record(
+                serve.page_dir, {"kind": "undo", "author": "agent", "undoes": reply}
+            )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "undo",
+            "id": "withdraw-first",
+            "author": "user",
+            "revision": 1,
+            "undoes": first["id"],
+        },
+    )
+    told(page)
+    withdrawn = page.locator('[data-withdrawn="first-thread"]')
+    expect(withdrawn).to_contain_text("Thread withdrawn")
+    expect(first_card).to_have_count(0)
+    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
+    expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
+    assert withdrawn.evaluate(
+        "node => node.getBoundingClientRect().height"
+    ) == pytest.approx(allocation, abs=0.1)
+    assert next_card.evaluate(
+        "node => node.getBoundingClientRect().top"
+    ) == pytest.approx(position, abs=0.1)
+    assert next_card.evaluate("node => node === window.survivingCard")
+    if selected:
+        expect(withdrawn.locator("button")).to_be_focused()
+        expect(next_card).not_to_have_attribute("open", "")
+        assert withdrawn.locator("button").evaluate("""node => {
+            const box = node.getBoundingClientRect();
+            const panel = node.closest('leaf-thread-list').getBoundingClientRect();
+            return box.top >= panel.top && box.bottom <= panel.bottom;
+        }""")
+    else:
+        expect(next_card.locator(".lf-thread-summary")).to_be_focused()
+        expect(next_card).to_have_attribute("open", "")
+    if place == "scrolled":
+        assert page.evaluate(
+            "window.withdrawnWidget && !window.withdrawnWidget.isConnected"
+        )
+        # The subject has left the document: its editor ends, while the draft's
+        # independent saved owner keeps the words for a genuine return.
+        page.evaluate("lfWordsJudged()")
+        assert take_browser_errors(page) == [
+            'typed words left the screen without a key or press: "A draft for this conversation" in leaf-text.lf-ui'
+        ]
+    # A view change or choosing another conversation releases retained news too.
+    if place == "scaled":
+        find = page.get_by_role("searchbox", name="Find in threads")
+        find.fill("stays")
+        rendered(page)
+        expect(withdrawn).to_have_count(0)
+        expect(find).to_be_focused()
+        find.press("Escape")
+    elif place == "selected":
+        page.keyboard.press("t")
+    else:
+        withdrawn.get_by_role("button", name="Dismiss").focus()
+        page.keyboard.press("Enter")
+    rendered(page)
+    expect(withdrawn).to_have_count(0)
+    expect(next_card).to_have_attribute("open", "")
+    expect(next_card.locator(".lf-thread-summary")).to_be_focused()
+
+    if place == "scrolled":
+        assert (
+            page.evaluate("""async () => {
+            const {loadDraft} = await window.__lfRuntimeImport('/runtime/drafts.js');
+            return loadDraft('reply:first-thread');
+        }""")
+            == "A draft for this conversation"
+        )
 
 
 def test_a_failed_state_read_preserves_the_selected_conversation(browser, serve):
@@ -3243,6 +3446,52 @@ def test_prepared_thread_reading_consumes_only_its_own_release(
       return opened && holdingAgain;
     }""",
         earlier_release,
+    )
+
+
+def test_a_prepared_new_thread_stays_released_until_its_reading_commits(browser, serve):
+    """Showing an arrival while its paint waits does not immediately hide it again."""
+    page = open_page(browser, package_workspace(serve))
+    assert page.evaluate(
+        """async () => {
+      const {HeldNews} = await window.__lfRuntimeImport('/runtime/thread/held-news.js');
+      const {readThreads} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const base = readThreads().threads.find(thread => thread.id === 'opening');
+      const descriptor = source => ({
+        id: source.id, key: source.key, source, messages: source.msgs,
+        resolved: source.resolved, summaries: source.summaries, reread: descriptor,
+      });
+      const initial = descriptor(base);
+      const arrival = descriptor({...base, id:'arriving', key:'arriving'});
+      const reading = {threads:[arrival, initial]};
+      const owner = document.querySelector('#workspace');
+      const options = {row:false};
+      // Preparation models the interval before frozen widgets prove the list.
+      // All release routes must survive both a synchronous reread and old completion.
+      for (const release of ['destination', 'notice', 'view']) {
+        let replacement;
+        const held = new HeldNews(owner, () => ({node:owner, newsMoves:()=>true}),
+          () => { replacement = held.prepare(reading, options); });
+        held.hold({threads:[initial]}, options);
+        const pending = held.prepare(reading, options);
+        if (pending.reading.threads.length !== 1) return false;
+        if (release === 'destination') {
+          if (!held.showThreads('arriving')) return false;
+        } else if (release === 'notice') pending.reading.threads[0].news.open();
+        else held.release();
+        replacement ??= held.prepare(reading, options);
+        if (replacement.reading.threads.length !== 2) return false;
+        pending.commit();
+        const next = held.prepare(reading, options);
+        if (next.reading.threads.length !== 2) return false;
+        next.commit();
+        const later = descriptor({...base, id:'later', key:'later'});
+        const newest = held.prepare({threads:[later, ...reading.threads]}, options);
+        if (newest.reading.threads.length !== 2) return false;
+        held.dispose();
+      }
+      return true;
+    }"""
     )
 
 

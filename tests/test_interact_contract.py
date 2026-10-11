@@ -3801,19 +3801,20 @@ def test_the_events_reference_names_the_fields_each_kind_declares():
     described_once = shared | {"revision", "agent", "session"}
     assert {name for name in described_once if f"`{name}`" not in opening} == set()
 
-    rows = {}
+    listed, rows = [], {}
     for line in table.split("\n\n", 1)[0].splitlines()[2:]:
         kind, _author, _door, cell, _meaning = (
             part.strip() for part in line.strip().strip("|").split("|")
         )
         while (bare := re.sub(r"\([^()]*\)", "", cell)) != cell:
             cell = bare
-        rows[kind.strip("`")] = {
+        listed.append(kind.strip("`"))
+        rows[listed[-1]] = {
             match[1]
             for span in re.findall(r"`([^`]*)`", cell)
             if (match := re.match(r"([a-z_]+)(?::|$)", span))
         }
-    assert sorted(rows) == sorted(kinds)
+    assert sorted(listed) == sorted(kinds)
 
     drift = {}
     for name, named in rows.items():

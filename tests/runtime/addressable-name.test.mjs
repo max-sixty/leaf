@@ -9,100 +9,45 @@
    The chrome's label (`addressableLabel`) reads that name first and an element's words
    only where they are its own.
 
-   The vocabulary is stated here rather than loaded, so the attribute route is caused
-   by this declaration and by nothing a page might have vendored. */
+   The words are the ones the author wrote, so the server names a Question's element
+   by the same rule off the document; `tests/name_cases.json` holds both runtimes to
+   one set of cases. Each case states its vocabulary rather than loading it, so the
+   attribute route is caused by that declaration and by nothing a page might have
+   vendored. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 
 import { addressableLabel, addressableName } from "/runtime/anchor-resolution.js";
+import { renderSaid } from "/runtime/presentation.js";
 import { registry } from "/runtime/registry.js";
+
+// The cases the server's `gesture_words.element_name` answers too.
+const CASES = JSON.parse(
+  readFileSync(new URL("../name_cases.json", import.meta.url), "utf8"),
+);
+
+const declare = (vocabulary = {}) => {
+  for (const tag of Object.keys(registry)) delete registry[tag];
+  Object.assign(registry, vocabulary);
+};
 
 const named = (markup) => {
   document.body.innerHTML = `<main>${markup}</main>`;
+  renderSaid(document.body);
   return addressableName(document.querySelector("#it"));
 };
 
-test("the contract's titles name their elements", () => {
-  assert.equal(
-    named('<section id="it"><h2>Plan</h2><p>Body words.</p></section>'),
-    "Plan",
-  );
-  assert.equal(
-    named('<details id="it"><summary>Method</summary><p>Steps.</p></details>'),
-    "Method",
-  );
-  // A titled member's comparison chips stand before its title and are not its name.
-  assert.equal(
-    named(
-      '<lf-option id="it"><small class="tag">effort: low</small><strong>Flag first</strong> Ship dark.</lf-option>',
-    ),
-    "Flag first",
-  );
-});
-
-test("an element the contract gives no title has no name", () => {
-  assert.equal(named('<p id="it">Some <em>plain</em> words.</p>'), "");
-  assert.equal(named('<lf-card id="it">Untitled card words.</lf-card>'), "");
-  assert.equal(addressableName(null), "");
-});
-
-test("a leading header holds the title, past an eyebrow above it", () => {
-  assert.equal(
-    named('<div id="it"><header><h1>Review</h1></header><p>Body.</p></div>'),
-    "Review",
-  );
-  assert.equal(
-    named(
-      '<section id="it"><header><p class="eyebrow">Stage 2</p><strong>Migration rehearsal</strong></header></section>',
-    ),
-    "Migration rehearsal",
-  );
-});
-
-test("words before a title mean it is not one", () => {
-  // Inline emphasis in prose is not the paragraph's name.
-  assert.equal(named('<p id="it">This is <strong>important</strong> text.</p>'), "");
-});
-
-test("a title group names itself and its owner by the heading alone", () => {
-  assert.equal(
-    named(
-      '<hgroup id="it"><p class="eyebrow">Stage 2</p><h1>Review</h1><p>Subtitle.</p></hgroup>',
-    ),
-    "Review",
-  );
-  assert.equal(
-    named(
-      '<section id="it"><hgroup><p class="eyebrow">Stage 2</p><h2>Migration</h2></hgroup><p>Body.</p></section>',
-    ),
-    "Migration",
-  );
-  assert.equal(
-    named(
-      '<section id="it"><header><hgroup><p class="eyebrow">Stage 2</p><h2>Migration</h2></hgroup></header></section>',
-    ),
-    "Migration",
-  );
-});
-
-test("the attribute a tag declares with x-name names its element", () => {
-  for (const tag of Object.keys(registry)) delete registry[tag];
-  Object.assign(registry, {
-    "lf-column": { "x-name": "label" },
-    // An attribute shown first is not a title unless it is declared as one.
-    "lf-reading": { "x-says": { value: "before" } },
+for (const { id, registry: vocabulary, markup, name } of CASES)
+  test(`name: ${id}`, () => {
+    declare(vocabulary);
+    assert.equal(named(markup), name);
+    declare();
   });
-  assert.equal(
-    named(
-      '<lf-column id="it" label="Ready"><lf-card><strong>A</strong></lf-card></lf-column>',
-    ),
-    "Ready",
-  );
-  assert.equal(named('<lf-reading id="it" value="312">daily visits</lf-reading>'), "");
-  // Without its attribute the element falls back to the contract's other titles.
-  assert.equal(named('<lf-column id="it"><h3>Later</h3></lf-column>'), "Later");
-  for (const tag of Object.keys(registry)) delete registry[tag];
+
+test("no element has no name", () => {
+  assert.equal(addressableName(null), "");
 });
 
 test("generated chrome names nothing, and does not hide the title behind it", () => {

@@ -1215,13 +1215,13 @@ leaf-text.lf-fab-input,
   background: var(--chip);
   color: var(--ink);
 }
-.lf-compose-submit,
+:is(.lf-compose-submit, .lf-compose-dictate),
 :is(.lf-resolve, .lf-reopen).lf-icon-action {
   border: 0;
   background: transparent;
   box-shadow: none;
 }
-:is(.lf-compose-submit, .lf-resolve.lf-icon-action, .lf-reopen.lf-icon-action)::before {
+:is(.lf-compose-submit, .lf-compose-dictate, .lf-resolve.lf-icon-action, .lf-reopen.lf-icon-action)::before {
   content: "";
   position: absolute;
   box-sizing: border-box;
@@ -1230,23 +1230,44 @@ leaf-text.lf-fab-input,
   border-radius: var(--r);
   background: transparent;
 }
-:is(.lf-compose-submit, .lf-resolve.lf-icon-action, .lf-reopen.lf-icon-action):hover {
+:is(.lf-compose-submit, .lf-compose-dictate, .lf-resolve.lf-icon-action, .lf-reopen.lf-icon-action):hover {
   background: transparent;
   box-shadow: none;
 }
-.lf-compose-submit {
+:is(.lf-compose-submit, .lf-compose-dictate) {
   position: absolute;
   z-index: 1;
   inset-inline-end: 6px;
   inset-block-end: 6px;
   color: var(--accent);
 }
-.lf-compose-submit:not(:disabled, [aria-disabled=true]):hover::before {
+:is(.lf-compose-submit, .lf-compose-dictate):not(:disabled, [aria-disabled=true]):hover::before {
   background: var(--accent-tint);
 }
-.lf-compose-submit:is(:disabled, [aria-disabled=true]) {
+:is(.lf-compose-submit, .lf-compose-dictate):is(:disabled, [aria-disabled=true]) {
   opacity: 1;
   color: var(--muted);
+}
+.lf-compose-dictate {
+  color: var(--muted);
+}
+.lf-compose-dictate:hover {
+  color: var(--ink);
+}
+.lf-compose-dictate:is([data-dictation=starting], [data-dictation=listening]) {
+  color: var(--accent);
+}
+.lf-compose-dictate[data-dictation=listening]::before {
+  background: var(--accent-tint);
+}
+.lf-compose-dictate[data-dictation=failed] {
+  color: var(--danger-ink);
+}
+.lf-compose-dictate[data-dictation=failed]:hover::before {
+  background: var(--danger-tint);
+}
+.lf-compose-dictate:not([data-dictation=failed]) .lf-mic-slash {
+  display: none;
 }
 :is(.lf-resolve, .lf-reopen).lf-icon-action {
   position: relative;
@@ -1524,7 +1545,7 @@ leaf-text.lf-fab-input {
   --lf-field-end-room: var(--lf-comment-send-room);
   overflow-y: auto;
 }
-.lf-fab-bar .lf-compose-submit {
+.lf-fab-bar :is(.lf-compose-submit, .lf-compose-dictate) {
   inset-inline-end: var(--lf-comment-send-inset);
   inset-block-end: var(--lf-comment-send-inset);
 }

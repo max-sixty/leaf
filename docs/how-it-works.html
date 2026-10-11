@@ -432,15 +432,15 @@ leaf page stamp ./review --text "Queue policy: drop oldest"</code></pre>
                   when the user presses Done.
                 </p>
                 <p id="delivery-envelope">
-                  A delivery is one JSON document, whose <code>format</code> field
-                  names its version. Its
-                  envelope contains one or more page batches, preserving the captured
-                  event order, thread context, and handling instructions. A delivery id
-                  supplied by the harness names this whole envelope; an event's
-                  <code>id</code> names one recorded event. The agent opens a delivery
-                  pointer with <code>leaf delivery read &lt;delivery-id&gt;</code>,
-                  follows its <code>next</code> commands through every part, then runs
-                  the displayed <code>acknowledge</code> instruction.
+                  A delivery is one JSON document, whose <code>format</code> field names
+                  its version. Its envelope contains one or more page batches,
+                  preserving the captured event order, thread context, and handling
+                  instructions. A delivery id supplied by the harness names this whole
+                  envelope; an event's <code>id</code> names one recorded event. The
+                  agent opens a delivery pointer with
+                  <code>leaf delivery read &lt;delivery-id&gt;</code>, follows its
+                  <code>next</code> commands through every part, then runs the displayed
+                  <code>acknowledge</code> instruction.
                 </p>
                 <table id="delivery-fields">
                   <thead>
@@ -840,12 +840,12 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
               agent a delivery of the same shape, which says who confirms receipt.
             </p>
             <p id="wait-ack">
-              The harness does the delivering, so Leaf records an update as received only
-              when the agent or the harness confirms it. A harness discards the output
-              of a hook it times out, so a hook confirms a delivery it puts in the turn
-              only once it has published it, well inside that timeout. When the delivery
-              is too large for the turn's context, or the hook ran too slowly to confirm
-              it, the hook hands over a pointer instead, and the agent's
+              The harness does the delivering, so Leaf records an update as received
+              only when the agent or the harness confirms it. A harness discards the
+              output of a hook it times out, so a hook confirms a delivery it puts in
+              the turn only once it has published it, well inside that timeout. When the
+              delivery is too large for the turn's context, or the hook ran too slowly
+              to confirm it, the hook hands over a pointer instead, and the agent's
               <code>leaf delivery read &lt;delivery-id&gt;</code> reads it without
               confirming receipt. The agent follows any <code>next</code> commands until
               every part is in context, then confirms with
@@ -869,8 +869,8 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
                 <tr>
                   <td>Claude Code</td>
                   <td>
-                    Harness hooks supply updates when a turn starts or ends and wake
-                    the session between turns. The hook confirms an inline delivery; a
+                    Harness hooks supply updates when a turn starts or ends and wake the
+                    session between turns. The hook confirms an inline delivery; a
                     pointer requires reading every part and following its explicit
                     acknowledgement instruction. The agent answers with
                     <code>leaf response reply &lt;answer.ref&gt;</code>.

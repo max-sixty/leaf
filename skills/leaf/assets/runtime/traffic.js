@@ -16,10 +16,11 @@
    `sends` and `acked` are posts to /api/event, counted as issued and as ended whichever
    way — answered, refused, or failed — so a retry is a second send. `asked` and `heard`
    are the same pair for reads of /api/state, `heard` once the body has been read or the
-   read has failed. `pending` names the attempts the published semantic state still holds as sending, in
-   ledger order, and changes with the publication that accepts or refuses one: an entry behind a head that is retrying
-   stays pending until its turn, even where a read has already shown its attempt landed,
-   because an applied reading does not replace a delivery outcome. A bookkeeping event
+   read has failed. `pending` names the attempts the published semantic state still
+   holds as sending, in ledger order, and changes with the publication that accepts or
+   refuses one: an entry behind a head that is retrying stays pending until its turn,
+   even where a read has already shown its attempt landed, because an applied reading
+   does not replace a delivery outcome. A bookkeeping event
    (delivery.js), the page's error report, and a media upload (layer-client.js) never
    enter that ledger, so a wait for "what this page sent has come back" consumes both
    facts: every send acked, and nothing pending. */

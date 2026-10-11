@@ -421,9 +421,13 @@ export function mountApplication(dependencies) {
         // ledger.accept; release itself waits for every owning presentation region
         // before undo and other semantic readers may observe the entry leave.
         releasePendingSafely("accepted event reconciliation");
-        // In that ordering a gesture that is not an action left on accept; the same
-        // descriptor invalidation belongs to whichever edge actually retires it.
-        if (!applicationState.entry(entry.event.attempt)) invalidateDom();
+        // In that ordering a gesture that is not an action left on accept; the key
+        // repaint and descriptor invalidation accountPending gives an entry leaving on
+        // presentation belong to whichever edge actually retires it.
+        if (!applicationState.entry(entry.event.attempt)) {
+          paintKeys();
+          invalidateDom();
+        }
         return;
       }
       paintKeys();

@@ -135,29 +135,32 @@ export class LayerRefused extends Error {}
 // The page's JSON requests beside the event door and the state reads: the layer's
 // headers out, the answer admitted, and the JSON read off the text so an error page a
 // proxy wrote fails as its status rather than as a parse. A failure throws the server's
-// `error`, or `<what>: HTTP <status>`, carrying the status, the raw body and the
-// answer's other fields (a file's `current`).
+// `error`, or `<what>: HTTP <status>`, carrying the status, the raw body and, for a
+// file the server holds newer than the draft, its `current`.
 export async function requestJson(url, init, what) {
   const response = await fetch(url, { ...init, headers: layerHeaders(init.headers) });
   if (!admitResponse(response))
     throw new LayerRefused(`Leaf's layer changed while requesting ${what}`);
   const text = await response.text();
-  let answer;
-  try {
-    answer =
-      response.ok ||
-      response.headers.get("Content-Type")?.split(";")[0].trim() === "application/json"
-        ? JSON.parse(text)
-        : null;
-  } catch (error) {
-    throw Object.assign(error, { status: response.status, body: text });
-  }
+  const failed = (message, cause) =>
+    Object.assign(new Error(message, { cause }), {
+      status: response.status,
+      body: text,
+    });
+  let answer = null;
+  if (
+    response.ok ||
+    response.headers.get("Content-Type")?.split(";")[0].trim() === "application/json"
+  )
+    try {
+      answer = JSON.parse(text);
+    } catch (error) {
+      throw failed(`${what}: HTTP ${response.status}`, error);
+    }
   if (!response.ok)
-    throw Object.assign(
-      new Error(answer?.error ?? `${what}: HTTP ${response.status}`),
-      answer,
-      { status: response.status, body: text },
-    );
+    throw Object.assign(failed(answer?.error ?? `${what}: HTTP ${response.status}`), {
+      current: answer?.current,
+    });
   return answer;
 }
 

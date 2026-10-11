@@ -10,6 +10,7 @@ import { mountSample } from "./sample.js";
 import { deferredArrival } from "./presentation.js";
 import { offer, reserve } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
+import { reportPageError } from "./layer-client.js";
 
 // Every word the playback control can say, out here because the row reserves the width
 // of all of them before it says the first. The button rewrites its own word as a demo
@@ -74,7 +75,7 @@ class Demo {
   command(method, detail) {
     return this.sample.call(`gallery.${method}`, detail).catch((error) => {
       if (!this.figure.isConnected && error.name === "AbortError") return;
-      console.error(error);
+      reportPageError(error, `interaction demo ${method} failed`);
       this.setState("error");
     });
   }
@@ -304,7 +305,7 @@ export function installInteractionGallery() {
         .load()
         .catch((error) => {
           if (!demo.figure.isConnected && error.name === "AbortError") return;
-          console.error(error);
+          reportPageError(error, "interaction demo failed to load");
           demo.loadState = "error";
           demo.setState("error");
         })

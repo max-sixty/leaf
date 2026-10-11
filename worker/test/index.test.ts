@@ -765,7 +765,7 @@ describe("product-site delivery", () => {
     }
   });
 
-  it("refuses unbound or non-canonical startup reports", async () => {
+  it("refuses unbound, oversized or non-canonical startup reports", async () => {
     const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
     try {
       const unbound = await worker.fetch(
@@ -783,9 +783,20 @@ describe("product-site delivery", () => {
         }),
         environment(),
       );
+      // A constructed Request declares no Content-Length, so the body's streamed bytes
+      // bound it: 1,025 two-byte characters are over 2,048 bytes.
+      const oversized = await worker.fetch(
+        new Request("https://leaf.page/api/performance", {
+          method: "POST",
+          headers: { Cookie: `__Host-leaf-page=${"14".repeat(16)}` },
+          body: "é".repeat(1025),
+        }),
+        environment(),
+      );
 
       expect(unbound.status).toBe(400);
       expect(privateField.status).toBe(400);
+      expect(oversized.status).toBe(413);
       expect(logged).not.toHaveBeenCalled();
       expect(getContainer).not.toHaveBeenCalled();
     } finally {

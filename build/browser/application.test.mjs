@@ -65,6 +65,7 @@ const state = (taken, events = []) => ({
   taken,
   layer: { generation: "test" },
   active: { revision: 1 },
+  revision_labels: {},
   events,
   workflows: [],
   activity: { phase: "user", held: false },
@@ -72,11 +73,21 @@ const state = (taken, events = []) => ({
   browser: {
     basis: { through_seq: events.length },
     receipts: events,
-    thread: { threads: [], projection: empty(), questions: noQuestions() },
+    tasks: [],
+    ended_tasks: [],
+    thread: {
+      threads: [],
+      projection: empty(),
+      questions: noQuestions(),
+      approval_history: [],
+    },
     views: {
       1: {
         basis: { revision: 1, through_seq: events.length },
         coverage: [],
+        undo: [],
+        updates: [],
+        published_at: null,
         document: {
           questions: noQuestions(),
           projection: {

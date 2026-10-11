@@ -28,17 +28,17 @@
  *
  * Once it has Claude Code's parent process, each Stop payload carries `leaf_watch:
  * "module"`, which stands the background registration beneath it down
- * (`hooks/scripts/loop-guard.py`). A Claude Code that does not load the module, or
- * a module without that parent process, passes the payload unmarked, so that
- * registration goes on watching. A native spawn handle does not prove startup:
+ * (`hooks/scripts/background-watch.py`). A Claude Code that does not load the
+ * module, or a module without that parent process, passes the payload unmarked, so
+ * that registration goes on watching. A native spawn handle does not prove startup:
  * a watch that fails later reports its error and releases the owner's slot.
  * The prompt, Stop, SessionStart and
  * SessionEnd registrations do the same work under either watch and stay in
  * `hooks.json`.
  *
  * TODO: once Claude Code loads modules without an opt-in, make this module the
- * only watcher and transport and drop the background Stop registration, `loop-guard.py`, and
- * the interrupt half of the nudge.
+ * only watcher and transport and drop the background Stop registration,
+ * `background-watch.py`, and the interrupt half of the nudge.
  *
  * A module's processes inherit Claude Code's own environment, which names no
  * session of its own, so every call states the session and Claude Code's process

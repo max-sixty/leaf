@@ -20,7 +20,14 @@
    failure neither rolls back accepted semantic state nor proves pending receipts were
    shown. The window error listener, module load failures, a widget's `failSoft`, and the
    render gate all report through the same page-level evidence. Do not catch an error merely to stamp readiness
-   or continue accounting for pending attempts. */
+   or continue accounting for pending attempts.
+
+   A fault that leaves part of the page not working as authored, such as the tab icon,
+   an interaction demo that fails to load or run a command, or a code block that fails
+   to highlight, reports here so the agent hears of it, not only the console. A failed
+   user-view observer stays silent: that context is optional and must not become agent
+   work. Code running inside a sample's child page reports to the child's own
+   disposable log, not the page that embeds it. */
 
 import { describeFailure } from "../vendor/browser-runtime.js";
 import { countTraffic } from "./traffic.js";

@@ -196,7 +196,7 @@ def _responses(
     source_error: str | None,
     blobs: _BlobSet,
 ) -> dict:
-    from leaf_website import WebsitePageEndpoint
+    from leaf_website import WebsitePageEndpoint, page_routes
 
     revision = latest_revision(page.page_dir)
     source = read_revision(page.page_dir, revision)
@@ -270,6 +270,7 @@ def _responses(
         for path in (page.page_dir / "media").glob("*")
         if path.is_file()
     )
+    routes = page_routes(site_root, manifest["pages"])
     result = {}
     for path in sorted(paths):
         address = urlsplit(f"{root.rstrip('/')}/{path}")
@@ -287,7 +288,7 @@ def _responses(
         endpoint = WebsitePageEndpoint(
             request,
             SimpleNamespace(server_id=f"website-{manifest['release']}"),
-            site_root=site_root,
+            routes=routes,
             pages=manifest["pages"],
             release=manifest["release"],
             agent_harness=None,

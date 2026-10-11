@@ -17,9 +17,12 @@
 // inline or in their tree's own rules, retain that scroller too; nested CSS
 // expressions, ambiguous names and rules that disagree receive no inferred ownership.
 //
-// Each trusted gesture owns its counted rendering until declared completion: the
-// rendering loop settled and the current publication presented, widget preparations
-// included.
+// Each trusted gesture owns its counted rendering until declared completion. A widget
+// preparation it began (`observePreparations`) works on in a promise the loop
+// cannot see; the gesture owns that preparation's landing, as a rendering from the
+// task that settles it until the loop settles again, and nothing while it waits. It
+// began one only where the widget declared it inside a callback that input's work
+// ran (`lfInputWork.current`), such as the toggle its summary activation opened.
 // Native effects it began retain only their sampled displacement within their
 // own subtree; their continued lifetime never owns unrelated page movement.
 // Native scroll effects belong to their retained scroll source, regardless of the
@@ -132,18 +135,10 @@
   // Native media sources and nodes detached during a reading can have no computed
   // length. Keep that absence stable; NaN would disagree with itself every frame.
   const pixels = (value) => (/^-?[\d.]+px$/.test(value) ? parseFloat(value) : null);
-  // The page has answered the input so far: its rendering loop is quiet, and it has
-  // presented its current publication, including every preparation a widget declared
-  // pending (`present`), such as a closed lf-diff file loading on open. Registered
-  // preparations hold mechanical quiet too; deferred presentation can still hold
-  // semantic proof alone, so both readings are needed before the gesture ends.
-  const settled = () => {
-    const entry = document.querySelector("script[data-lf-entry]");
-    return (
-      (entry?.lfReadiness?.(null, "presented") ?? null) === null &&
-      (entry?.lfRenderingSettled?.() ?? true)
-    );
-  };
+  const settled = () =>
+    document.querySelector("script[data-lf-entry]")?.lfRenderingSettled?.({
+      includePreparations: false,
+    }) ?? true;
   // An animation that can move a box: one of its keyframes sets a geometric property.
   const moves = (animation) =>
     animation.effect
@@ -1174,7 +1169,55 @@
       typing,
     };
     renderings.push(open);
+    return open;
   };
+  // The renderings preparations' landings opened, each running until the loop settles
+  // as an input's own does. A preparation is an input's only where its widget declared
+  // it inside a callback that input's work ran (`lfInputWork.current`), such as the
+  // toggle its summary activation opened; the identity the runtime hands to both phases
+  // carries that cause across the widget's native awaits to the settlement. One a
+  // timer, news or a script started stays passive, whatever input overlaps it. The
+  // landing inherits the input rendering's effects and typing where the watch began one
+  // for that input's own event.
+  const renderingOf = new WeakMap();
+  const landing = new Set();
+  const preparing = new WeakMap();
+  const prepared = (phase, preparation) => {
+    if (phase === "begin") {
+      const source = window.lfInputWork.current();
+      if (source && source.event.type !== "storage")
+        preparing.set(preparation, renderingOf.get(source.event) ?? null);
+      return;
+    }
+    if (!preparing.has(preparation)) return;
+    const owner = preparing.get(preparation);
+    preparing.delete(preparation);
+    if (phase === "cancel") return;
+    const rendering = {
+      start: nativePerformance.now(),
+      first: true,
+      through: Infinity,
+      own: owner?.own ?? new Set(),
+      told: false,
+      last: false,
+      typing: owner?.typing ?? null,
+    };
+    landing.add(rendering);
+    renderings.push(rendering);
+  };
+  // The runtime publishes its observer on its entry script after this script runs.
+  Object.defineProperty(HTMLScriptElement.prototype, "lfObserveWidgetPreparations", {
+    configurable: true,
+    set(observe) {
+      Object.defineProperty(this, "lfObserveWidgetPreparations", {
+        value: observe,
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
+      observe(prepared);
+    },
+  });
   // Shifts whose frame has no reading after it yet.
   const waiting = [];
   const tick = (time) => {
@@ -1190,13 +1233,20 @@
       // callbacks may still move a box, so the rendering runs through the next.
       else open.last = settled();
     }
+    for (const rendering of landing) {
+      if (!rendering.told)
+        for (const animation of begun(rendering.start)) rendering.own.add(animation);
+      if (rendering.last) landing.delete(rendering);
+      else rendering.last = settled();
+    }
     // A gesture owns its counted rendering until canonical completion. News seals
     // that credit; continuing motion retains its separate ownership below. A newer
     // input still leaves the prior gesture its first two frame readings.
     for (const rendering of renderings) {
       if (
         !rendering.first &&
-        (rendering.through === Infinity || (rendering === open && !rendering.told))
+        (rendering.through === Infinity ||
+          ((rendering === open || landing.has(rendering)) && !rendering.told))
       )
         rendering.through = at;
       rendering.first = false;
@@ -1210,12 +1260,12 @@
     nativeFrame(tick);
   };
   nativeFrame(tick);
-  window.lfInputWork.subscribeEdits(({ node: field }) => {
+  window.lfInputWork.subscribeEdits(({ event, node: field }) => {
     const holding = [];
     for (let at = field; at instanceof Element; at = up(at)) holding.push(at);
     const start = nativePerformance.now();
     const at = read(start, false);
-    begin(start, {
+    const rendering = begin(start, {
       field,
       at,
       found: boxes(
@@ -1235,6 +1285,7 @@
         .filter((animation) => animation.playState === "running" && moves(animation)),
       until: Infinity,
     });
+    renderingOf.set(event, rendering);
   });
   // A viewport resize is input, and its new size is the fact. Chrome lays out the
   // resized viewport before dispatching resize, which precedes the frame's callbacks,
@@ -1255,6 +1306,7 @@
   new MutationObserver(() => {
     unwatch();
     if (open) open.told = true;
+    for (const rendering of landing) rendering.told = true;
   }).observe(document, { subtree: true, attributeFilter: ["data-lf-reading"] });
   // Press, drag, release and native activation are phases of one pointer gesture.
   // Each phase keeps its own paint boundary while sharing the effects that press
@@ -1264,7 +1316,10 @@
   const heard = (event) => {
     if (!event.isTrusted || (event.type === "pointermove" && !event.buttons)) return;
     if (event.type === "pointerdown") presses.set(event.pointerId, new Set());
-    begin(nativePerformance.now(), null, presses.get(event.pointerId) ?? new Set());
+    renderingOf.set(
+      event,
+      begin(nativePerformance.now(), null, presses.get(event.pointerId) ?? new Set()),
+    );
     if (event.type === "click") presses.delete(event.pointerId);
   };
   for (let view = window; ; view = view.parent) {
@@ -2305,8 +2360,7 @@
     judge(entries);
   };
   const observer = new PerformanceObserver((list) => received(list.getEntries()));
-  if (PerformanceObserver.supportedEntryTypes.includes("layout-shift"))
-    observer.observe({ type: "layout-shift" });
+  observer.observe({ type: "layout-shift" });
   // Once two native frames and their task checkpoint complete, Chrome has painted
   // the work preceding `through`. Drain its native records before retiring that
   // history. Keep the entering pose and active typing's origin, whose comparison
@@ -2346,6 +2400,7 @@
       const rendering = renderings[i];
       if (
         rendering !== open &&
+        !landing.has(rendering) &&
         rendering.through < retainedFrom &&
         (rendering.typing?.until ?? -Infinity) < retainedFrom &&
         ![...rendering.own].some(({ playState }) => playState === "running")

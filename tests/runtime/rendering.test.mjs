@@ -34,6 +34,7 @@ const {
   sizeObserver,
   renderingSettled,
   holdRendering,
+  observePreparations,
 } = await import("/runtime/rendering.js");
 
 const { observeQueuedWork } = await import("/runtime/queued-work.js");
@@ -67,6 +68,7 @@ test("finite preparation retires once and owes its final quiet update", async ()
   const second = holdRendering();
   for (let i = 0; i < 10; i++) await update();
   assert.equal(renderingSettled(), false);
+  assert.equal(renderingSettled({ includePreparations: false }), true);
   assert.equal(queued.size, 0, "a pending preparation does not poll frames");
   first();
   first();
@@ -74,6 +76,36 @@ test("finite preparation retires once and owes its final quiet update", async ()
   assert.equal(renderingSettled(), false, "another preparation still stands");
   second();
   assert.equal(renderingSettled(), false, "the commit has not painted yet");
+  await update();
+  assert.equal(renderingSettled(), true);
+});
+
+test("preparation observers follow one hold through exactly one terminal", async () => {
+  const first = [];
+  const stopFirst = observePreparations((...event) => first.push(event));
+  const cancel = holdRendering();
+  stopFirst();
+  const second = [];
+  const stopSecond = observePreparations((...event) => second.push(event));
+  cancel("cancel");
+  cancel();
+  const settle = holdRendering();
+  settle();
+  settle("cancel");
+  stopSecond();
+  assert.deepEqual(
+    first.map(([phase]) => phase),
+    ["begin", "cancel"],
+  );
+  assert.deepEqual(
+    second.map(([phase]) => phase),
+    ["begin", "settle"],
+  );
+  assert.equal(first[0][1], first[1][1]);
+  assert.equal(second[0][1], second[1][1]);
+  assert.notEqual(first[0][1], second[0][1]);
+  assert.ok(Object.isFrozen(first[0][1]));
+  assert.ok(Object.isFrozen(second[0][1]));
   await update();
   assert.equal(renderingSettled(), true);
 });

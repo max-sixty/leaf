@@ -2477,7 +2477,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
 
     write(page_comment(page), "This comment belongs to the live draft.")
     with sending(page, "the comment on the live draft"):
-        page.locator(".lf-general button").click()
+        page.locator(".lf-general .lf-compose-submit").click()
     assert events_model.read_events(serve.page_dir)[-1]["revision"] == 2
 
 

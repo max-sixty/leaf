@@ -67,7 +67,13 @@
 
    Finite asynchronous preparation registers a `holdRendering` until it commits or its
    owner retires. Registration unsettles synchronously; release requires a final quiet
-   update, including the preparation's DOM writes and observer deliveries. A held local
+   update, including the preparation's DOM writes and observer deliveries. Its opaque
+   frozen identity is announced to `observePreparations` at registration and once on
+   settlement or cancellation. The registration-time observer cohort follows that hold
+   to retirement even if unsubscribed meanwhile. Capable work owns one hold per producer,
+   independently of whether an aggregate semantic presentation has already failed or
+   been superseded. Reconnecting work registers a new hold and observation identity.
+   A held local
    edit is not rendering work: it defers a semantic reading until the gesture ends.
 
    What the reading cannot see is unregistered work an owner holds in a timer or a
@@ -108,16 +114,28 @@ let quiet = false;
 let checking = false;
 let preparations = 0;
 
+const preparationObservers = new Set();
+
+/** Observe each finite preparation's begin and terminal settle or cancel. */
+export function observePreparations(observer) {
+  preparationObservers.add(observer);
+  return () => preparationObservers.delete(observer);
+}
+
 /** Keep finite preparation pending until it commits or its owner retires. */
 export function holdRendering() {
   preparations++;
   unsettle();
+  const identity = Object.freeze({});
+  const observers = [...preparationObservers];
+  for (const observer of observers) observer("begin", identity);
   let released = false;
-  return () => {
+  return (phase = "settle") => {
     if (released) return;
     released = true;
     preparations--;
     unsettle();
+    for (const observer of observers) observer(phase, identity);
   };
 }
 
@@ -205,7 +223,10 @@ export function sizeObserver(callback, { counted = true } = {}) {
   });
 }
 
-export const renderingSettled = () => (quiet && preparations === 0) || !rendered();
+// A sensor that tracks each preparation's landing separately reads the rendering pass
+// without waiting for unrelated preparations. Other readers wait for the full result.
+export const renderingSettled = ({ includePreparations = true } = {}) =>
+  (quiet && (!includePreparations || preparations === 0)) || !rendered();
 
 function rendered() {
   if (document.hidden) return false;

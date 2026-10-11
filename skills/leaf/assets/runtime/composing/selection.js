@@ -62,7 +62,8 @@ import { textField } from "./text-field.js";
 // Tab from the field, or `e` while it stands unfocused, unfolds every other response
 // the target offers. The field is the group's stable primary control; reaction
 // vocabulary changes the choices, not the disclosure or the field's place.
-// The comment field deliberately has only Send, including on phones. Suggest and
+// The comment field deliberately has one primary action: Dictate when available while empty,
+// Send with words, including on phones. Suggest and
 // reactions retain keyboard routes; reconsidering a pointer or touch disclosure is
 // a product decision ("Touch routes" in keyboard/AGENTS.md).
 // One affordance, raised only where the user has already pointed: a native text
@@ -404,6 +405,7 @@ export function createSelectionComposer({
   // a guard testing for one of them ran on every mousedown in the page and swallowed the
   // click. Painting hangs off the same call, so the mark and the box are up together.
   function showComposer(open) {
+    if (!open) syncComposer?.cancelDictation();
     // Hiding keeps the words and used to say nothing at all, so a press on the banner took
     // the box off screen with the user's sentence in it and left no sign the sentence
     // still existed — recoverable only by reselecting that exact passage on that exact

@@ -441,7 +441,7 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     box = page_comment(page)
-    send = page.locator(".lf-page-comment-card .lf-general button")
+    send = page.locator(".lf-page-comment-card .lf-general .lf-compose-submit")
     write(box, "Pending **words**")
     send.click()
     holding(page, held, 1, "the shared collection's pending root")
@@ -540,7 +540,7 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
     before = [widget.evaluate("node => node.updates") for widget in (first, second)]
     with sending(page, "a Thread visible to both package widgets"):
         write(page_comment(page), "Cedar")
-        page.locator(".lf-page-comment-card .lf-general button").click()
+        page.locator(".lf-page-comment-card .lf-general .lf-compose-submit").click()
     expect(second.locator("li")).to_have_text("Cedar")
     expect(first.locator("li")).to_have_text("Alpine")
     for widget, count in zip((first, second), before):
@@ -559,7 +559,7 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
     first_before = first.evaluate("node => node.updates")
     with sending(page, "another Thread after one widget disconnected"):
         write(page_comment(page), "Delta")
-        page.locator(".lf-page-comment-card .lf-general button").click()
+        page.locator(".lf-page-comment-card .lf-general .lf-compose-submit").click()
     expect(first.locator("li")).to_have_text("Delta")
     assert first.evaluate("node => node.updates") > first_before
     assert removed.evaluate("node => node.updates") == stopped_at

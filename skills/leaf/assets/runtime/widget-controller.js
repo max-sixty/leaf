@@ -115,19 +115,20 @@ function createWidgetController(owner) {
     return preparationHandle;
   };
 
-  const holdPreparation = (settled) => {
-    if (pendingPreparations.has(settled)) {
-      if (owner.isConnected && !pendingPreparations.get(settled))
-        pendingPreparations.set(settled, holdRendering());
+  const holdPreparation = (promise) => {
+    if (pendingPreparations.has(promise)) {
+      if (owner.isConnected && !pendingPreparations.get(promise))
+        pendingPreparations.set(promise, holdRendering());
       return;
     }
-    pendingPreparations.set(settled, owner.isConnected ? holdRendering() : null);
+    pendingPreparations.set(promise, owner.isConnected ? holdRendering() : null);
     // A failed child reports immediately, but its siblings can still commit DOM.
     // Superseded batches can also still report failure into this connected owner.
-    settled.then(() => {
-      pendingPreparations.get(settled)?.();
-      pendingPreparations.delete(settled);
-    });
+    const settled = () => {
+      pendingPreparations.get(promise)?.();
+      pendingPreparations.delete(promise);
+    };
+    Promise.resolve(promise).then(settled, settled);
   };
 
   const presentPreparation = (handle, { value, completion }) =>
@@ -228,7 +229,7 @@ function createWidgetController(owner) {
 
   const connect = () => {
     if (!owner.isConnected) return;
-    for (const settled of pendingPreparations.keys()) holdPreparation(settled);
+    for (const promise of pendingPreparations.keys()) holdPreparation(promise);
     if (subscriptions.size && !stopSelection) {
       const parentChanged = connectedParent !== owner.parentElement;
       connectedParent = owner.parentElement;
@@ -259,9 +260,9 @@ function createWidgetController(owner) {
     renderHandle = null;
     preparationHandle?.disconnect();
     preparationHandle = null;
-    for (const [settled, release] of pendingPreparations) {
-      release?.();
-      pendingPreparations.set(settled, null);
+    for (const [promise, release] of pendingPreparations) {
+      release?.("cancel");
+      pendingPreparations.set(promise, null);
     }
     deferredHold?.release();
     deferredHold = null;
@@ -342,8 +343,8 @@ function createWidgetController(owner) {
       const batch = preparationBatch;
       const completion = Promise.all(batch.promises);
       batch.completion = completion;
-      preparation = { value, completion, settled: Promise.allSettled(batch.promises) };
-      holdPreparation(preparation.settled);
+      preparation = { value, completion };
+      holdPreparation(promise);
       const handle = prepared();
       if (handle) void presentPreparation(handle, preparation);
       const clear = () => {

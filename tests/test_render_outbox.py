@@ -1093,14 +1093,10 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
         if lifted:
             route.continue_()
             return
-        if malformed_reads:
+        if malformed_reads or held_reads:
             refuse(route)
             return
-        response = route.fetch()
-        state = response.json()
-        state["others"] = [None]
-        malformed_reads.append(True)
-        route.fulfill(status=response.status, json=state)
+        held_reads.append(route)
 
     def malformed_event_state(route):
         response = route.fetch()
@@ -1109,24 +1105,31 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
         route.fulfill(status=response.status, json=answer)
 
     malformed_reads = []
+    held_reads = []
     lifted = False
     page.route("**/api/state*", malformed_read_state)
     page.route("**/api/event", malformed_event_state)
     heater = page.locator("#card-heater .lf-grip")
-    with (
-        # The move's malformed answer fails to present, which state application
-        # reports.
-        page.expect_console_message(
-            lambda message: "leaf: State presentation failed" in message.text
-        ),
-        # The move's own append is what the page hears next, so the malformed read
-        # it prompts is answered here rather than on a later timer. Its failure reads
-        # like the event answer's, so the test waits on the read itself.
-        page.expect_response("**/api/state*"),
+    # The move's malformed answer fails to present, which state application reports;
+    # the read the move's append prompts is held meanwhile, so this report can only be
+    # the answer's.
+    with page.expect_console_message(
+        lambda message: "leaf: State presentation failed" in message.text
     ):
         heater.focus()
         for key in ["Enter", "ArrowRight", "Enter"]:
             page.keyboard.press(key)
+    # Then that read is answered malformed too, here rather than on a later timer.
+    holding(page, held_reads, 1, "the read the move's append prompts")
+    held = held_reads.pop()
+    response = held.fetch()
+    state = response.json()
+    state["others"] = [None]
+    malformed_reads.append(True)
+    with page.expect_console_message(
+        lambda message: "leaf: State presentation failed" in message.text
+    ):
+        held.fulfill(status=response.status, json=state)
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
     page.unroute("**/api/event")
 

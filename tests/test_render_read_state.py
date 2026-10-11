@@ -435,7 +435,7 @@ def test_edit_reopens_only_its_new_content_version(browser, serve):
     page.locator(f'.lf-thread[data-id="{user}"] > .lf-thread-summary').click()
     page.locator('.lf-thread-panel [aria-label="Close threads"]').click()
 
-    edit = thread_model.cmd_edit(serve.page_dir, root, "Revised answer.")
+    [edit] = thread_model.cmd_edit(serve.page_dir, root, "Revised answer.")
     told(page)
     expect(page.locator(".lf-first-unread")).to_have_text("Next unread")
     page.locator(".lf-threads-toggle").click()

@@ -117,7 +117,9 @@
 :is(.lf-trace-call-bar, .lf-trace-input-label, .lf-trace-moment-pin):hover { z-index: 1; filter: brightness(0.94); }
 .lf-trace-input-bar[data-current] { background: color-mix(in srgb, var(--accent) 35%, transparent); border-color: var(--accent); }
 /* The selected mark's own name is highlighted, inside a shared label too. */
-:is(.lf-trace-word, .lf-trace-more)[data-current] { border-radius: 2px; background: var(--accent); color: var(--paper); }
+:is(.lf-trace-word, .lf-trace-more)[data-current] { border-radius: 2px; background: var(--accent); color: var(--paper); box-shadow: 0 0 0 2px var(--accent); }
+/* A moment flag shows its selection on its staff and pill instead. */
+.lf-trace-moment-flag .lf-trace-word[data-current] { background: none; color: inherit; box-shadow: none; }
 .lf-trace-more { margin-inline-start: 2px; padding-inline: 3px; border-radius: 6px; background: var(--paper-2, var(--paper)); color: var(--ink); font-weight: 600; }
 .lf-trace-call-bar[data-current] { background: var(--accent-tint); border-inline-start-color: var(--accent); color: var(--accent); }
 .lf-trace-bar[data-active] { outline: 1px solid var(--accent); outline-offset: 0; }

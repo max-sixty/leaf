@@ -271,7 +271,6 @@ customElements.define(
     #resize = () => {
       this.#resizeFrame ||= nextRender(() => {
         this.#resizeFrame = 0;
-        this.#hidePlayback();
         if (!this.imageViewport.clientWidth) {
           this.#pause();
           if (this.#pendingPicture) this.#closePicture();
@@ -289,6 +288,7 @@ customElements.define(
         this.#picture.resize();
         const image = this.#trace.images.find((image) => image.id === this.#pictureId);
         this.#applyPictureView(this.#picture, image);
+        this.#placePlayback();
         this.#imageZoom();
         this.#parts.update();
       });
@@ -468,15 +468,16 @@ customElements.define(
         this.playbackImage.hidden =
           true;
       this.imageViewport.append(this.missingImage, ...this.#overlays());
+      this.playbackImage.alt = "";
       this.#timeline = new RecordingTimeline(this.timeline, {
         quoted: quoted(this),
         onSeek: (time, final) => this.#seek(time, final),
         onPick: (lane, id, time) => this.#pick(lane, id, time),
         onUserPan: () => {
           if (this.#playing) this.#pause();
-          // Zoom availability follows the window the gesture left.
-          paintKeys();
         },
+        // Zoom availability follows the window a gesture left.
+        onZoom: () => paintKeys(),
       });
       this.addEventListener("lf-inspect", (event) => this.#inspect(event));
       this.#parts = registerVisualParts(this, () => this.#inventory, {
@@ -771,6 +772,7 @@ customElements.define(
       if (this.#playFrame) cancelAnimation(this.#playFrame);
       this.#playFrame = 0;
       this.#playing = false;
+      this.#playbackWanted = null;
       if (this.#scrubbing) {
         this.#scrubbing = false;
         dragging(this, false);
@@ -1243,7 +1245,7 @@ customElements.define(
     }
 
     #overlays() {
-      return [this.playbackImage, this.inputBadge, this.inputPoint];
+      return [this.inputBadge, this.inputPoint];
     }
 
     // The image on screen: the playback image while it shows, else the Viewer's.
@@ -1277,22 +1279,19 @@ customElements.define(
       loader.src = scopedMediaUrl(image.url);
       loader.decode().then(
         () => {
-          if (this.#playbackWanted !== image.id || !this.#picture?.viewed) return;
+          if (
+            this.#playbackWanted !== image.id ||
+            !this.#playing ||
+            !this.#picture?.viewed
+          )
+            return;
           this.#playbackWanted = null;
-          const raster = this.#picture.image.getBoundingClientRect();
-          const host = this.imageViewport.getBoundingClientRect();
           const layer = this.playbackImage;
-          for (const [name, value] of [
-            ["left", raster.left - host.left],
-            ["top", raster.top - host.top],
-            ["width", raster.width],
-            ["height", raster.height],
-          ])
-            if (layer.style[name] !== layoutPx(value))
-              layer.style[name] = layoutPx(value);
           keeps(layer, "src", loader.src);
-          keepsHidden(layer, false);
+          keeps(layer, "alt", this.#targets.get(this.#id("image", image.id)).label);
           this.#playbackId = image.id;
+          this.#placePlayback();
+          keepsHidden(this.playbackImage, false);
           this.#draw();
         },
         () => {
@@ -1300,6 +1299,37 @@ customElements.define(
         },
       );
       return true;
+    }
+    // The playback image stands inside the committed Viewer's canvas, over its
+    // image at the same place and scale, so a hit on it reaches the canvas part.
+    #placePlayback() {
+      if (this.#playbackId === null || !this.#picture?.viewed) return;
+      const canvas = this.#picture.element.parentElement;
+      const raster = this.#picture.image.getBoundingClientRect();
+      const host = canvas.getBoundingClientRect();
+      const place = [
+        ["left", raster.left - host.left - canvas.clientLeft],
+        ["top", raster.top - host.top - canvas.clientTop],
+        ["width", raster.width],
+        ["height", raster.height],
+      ].map(([name, value]) => [name, layoutPx(value)]);
+      let layer = this.playbackImage;
+      // A new canvas, or a hidden image returning elsewhere, gets a new element:
+      // it appears where it stands rather than travelling there.
+      if (
+        layer.parentElement !== canvas ||
+        (layer.hidden && place.some(([name, value]) => layer.style[name] !== value))
+      ) {
+        const fresh = el("img", "lf-trace-playback-image");
+        fresh.hidden = layer.hidden;
+        fresh.alt = layer.alt;
+        fresh.src = layer.src;
+        layer.remove();
+        this.playbackImage = layer = fresh;
+        canvas.append(layer);
+      }
+      for (const [name, value] of place)
+        if (layer.style[name] !== value) layer.style[name] = value;
     }
     #hidePlayback() {
       this.#playbackWanted = null;
@@ -1447,10 +1477,16 @@ customElements.define(
                 event.preventDefault();
                 return;
               }
-              if (event.detail.originalEvent) this.#inspectEvidence();
+              if (event.detail.originalEvent) {
+                this.#inspectEvidence();
+                this.#hidePlayback();
+              }
             },
             zoom: (event) => {
-              if (event.detail.originalEvent) this.#inspectEvidence();
+              if (event.detail.originalEvent) {
+                this.#inspectEvidence();
+                this.#hidePlayback();
+              }
             },
             view: (event) =>
               event.detail.image.addEventListener("error", failed, { once: true }),
@@ -1517,7 +1553,7 @@ customElements.define(
         return INPUT_PHASES[image.phase];
       // Before the Action checkpoint the input has not been sent; after it, and
       // until the call ends, it may have been.
-      const send = action.phases.action ? this.#phaseTime(action, "action") : null;
+      const send = action.phases.action?.timestamp ?? null;
       if (image.timestamp < (send ?? action.startTime)) return "before";
       if (send !== null && Math.abs(image.timestamp - send) < 0.5) return "next";
       if (image.timestamp > (action.endTime ?? action.startTime)) return "after";
@@ -1610,7 +1646,9 @@ customElements.define(
           active: inside(action),
         };
         if (action.input) {
-          const send = action.phases.action ? this.#phaseTime(action, "action") : null;
+          // The notch is the Action snapshot's own time: the archive orders it,
+          // not its image, before the input is sent.
+          const send = action.phases.action?.timestamp ?? null;
           inputs.push({
             ...mark,
             send: send === null ? null : send - origin,
@@ -1774,7 +1812,7 @@ customElements.define(
       // place, hidden, so an inspected metadata scroll position is not clamped.
       const metadataPoint = this.#metadataPoint;
       const metadataAction = metadataPoint?.action;
-      const committed = trace?.images.find((item) => item.id === this.#pictureId);
+      const committed = this.#shownImage();
       const caption = committed
         ? `${this.#targets.get(this.#id("image", committed.id)).label}${this.#picturePreview ? " · First capture after this point" : ""}`
         : this.#pendingPicture
@@ -2185,10 +2223,13 @@ customElements.define(
         const label = this.#targets.get(this.#id("image", committed.id)).label;
         keeps(displayed, "width", String(committed.width));
         keeps(displayed, "height", String(committed.height));
-        add(this.#id("image", committed.id), displayed, label, [
-          "images",
-          this.#trace.images.indexOf(committed),
-        ]);
+        add(
+          this.#id("image", committed.id),
+          this.#playbackId ? this.#picture.element.parentElement : displayed,
+          label,
+          ["images", this.#trace.images.indexOf(committed)],
+          displayed,
+        );
       }
       if (treePoint && this.treeDetails.open)
         for (const [index, { id }] of rows.entries())

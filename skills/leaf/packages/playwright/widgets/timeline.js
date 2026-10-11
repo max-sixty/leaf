@@ -99,7 +99,8 @@ export class RecordingTimeline {
 
   /**
    * `host` receives the timeline. `options`: `onSeek(time, final)`, `onPick(lane,
-   * id, time)`, `onUserPan()`, and `quoted` (a frozen copy takes no input).
+   * id, time)`, `onUserPan()`, `onZoom()`, and `quoted` (a frozen copy takes no
+   * input).
    */
   constructor(host, options) {
     this.#host = host;
@@ -284,7 +285,11 @@ export class RecordingTimeline {
     // A width change rescales the track. Keep the window's left time in place.
     const resized = this.#width !== 0;
     this.#width = width;
-    this.#layoutLabels();
+    if (this.#zoom > this.#maxZoom()) {
+      this.#zoom = this.#maxZoom();
+      this.#options.onZoom?.();
+    }
+    this.#applyZoom();
     if (resized) this.#scrollTo(this.#timeToPx(this.#start));
     this.#drawRuler();
   }
@@ -393,7 +398,7 @@ export class RecordingTimeline {
           data-tip=${
             cluster.spread
               ? `${cluster.items.length - 1} more ${kind}: zoom to separate them`
-              : `${cluster.items.length - 1} more ${kind} at this time; the Moments list reaches each`
+              : `${cluster.items.length - 1} more ${kind} at this time; ${kind === "moments" ? "the Moments list" : "Shift with Left and Right"} reaches each`
           }
           >+${cluster.items.length - 1}</span
         >`;
@@ -455,6 +460,10 @@ export class RecordingTimeline {
             model.signature,
             html`<div
               class="lf-trace-track"
+              @touchstart=${{
+                handleEvent: (event) => this.#landed(event),
+                passive: true,
+              }}
               @pointerdown=${(event) => this.#press(event)}
               @click=${(event) => this.#tap(event)}
               @pointerover=${(event) => this.#hover(event)}
@@ -730,6 +739,7 @@ export class RecordingTimeline {
       event.clientX - scroller.getBoundingClientRect().left + scroller.scrollLeft;
     this.zoomBy(Math.exp(-event.deltaY / 200), this.#pxToTime(x));
     this.#options.onUserPan?.();
+    this.#options.onZoom?.();
   }
 
   // Zoom until neighbouring marks stand at least a label apart, then center them.
@@ -738,10 +748,32 @@ export class RecordingTimeline {
     const gaps = items.slice(1).map((item, index) => item.at - items[index].at);
     const gap = Math.max(1, Math.min(...gaps.filter((value) => value > 0)));
     const perMs = this.#span() / this.#zoom / Math.max(1, this.#model.duration);
-    this.#zoom = Math.max(this.#zoom, Math.min(this.#maxZoom(), 48 / (gap * perMs)));
+    // Enough to set them a label apart, but never so far that the cluster no
+    // longer fits the window; a second press zooms further.
+    const range = Math.max(1, items.at(-1).at - items[0].at);
+    const whole = (0.8 * scroller.clientWidth) / (range * perMs);
+    const apart = 48 / (gap * perMs);
+    this.#zoom = Math.max(
+      this.#zoom,
+      Math.min(
+        this.#maxZoom(),
+        whole > this.#zoom * 1.05 ? Math.min(apart, whole) : apart,
+      ),
+    );
     this.#applyZoom();
     const middle = (items[0].at + items.at(-1).at) / 2;
     this.#scrollTo(this.#timeToPx(middle) - scroller.clientWidth / 2);
+  }
+
+  // Chrome adjusts a tap's target, and its pointer and click events, toward a
+  // nearby larger target such as the label above a thin bar. The touch point is
+  // where the finger landed, so the tap acts on the element under it.
+  #landed(event) {
+    const touch = event.touches[0];
+    if (!touch || event.touches.length > 1) return (this.#touched = null);
+    const target = document.elementFromPoint(touch.clientX, touch.clientY);
+    this.#touched =
+      target && this.#host.contains(target) ? { target, clientX: touch.clientX } : null;
   }
 
   #eventTime(event) {
@@ -757,10 +789,7 @@ export class RecordingTimeline {
     // A finger pans the track natively; only the handle scrubs under touch.
     // Chrome adjusts a tap's click toward a nearby larger target, so the tap
     // keeps the element its finger landed on.
-    if (event.pointerType === "touch") {
-      this.#touched = handle ? null : { target: event.target, x: event.clientX };
-      if (!handle) return;
-    }
+    if (event.pointerType === "touch" && !handle) return;
     if (!handle && (event.target.closest("[data-pick]") || this.#nearMark(event)))
       return;
     event.preventDefault();
@@ -791,9 +820,7 @@ export class RecordingTimeline {
     const touched = event.pointerType === "touch" ? this.#touched : null;
     this.#touched = null;
     const target = touched?.target ?? event.target;
-    const at = touched
-      ? { target, clientX: touched.x }
-      : { target, clientX: event.clientX };
+    const at = touched ?? { target, clientX: event.clientX };
     const time = this.#eventTime(at);
     const pick = target.closest("[data-pick]") ?? this.#nearMark(at);
     if (pick) {
@@ -804,6 +831,7 @@ export class RecordingTimeline {
       if (cluster && target.closest("[data-more]") && cluster.spread) {
         this.#separate(cluster.items);
         this.#options.onUserPan?.();
+        this.#options.onZoom?.();
         return;
       }
       // A name in a shared label is its own mark; elsewhere the label is its first.

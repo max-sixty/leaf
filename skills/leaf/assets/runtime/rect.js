@@ -44,12 +44,19 @@ export function nearestScrollBy(start, end, low, high) {
 }
 
 // Which padding-box edges clip descendants. Overflow is per axis; paint containment
-// and content visibility clip both even when overflow computes visible.
+// and content visibility clip both even when overflow computes visible. Each names the
+// values that clip rather than the one that does not, so an engine that computes no
+// value for a property, as WebKit before 18 does for `content-visibility`, reads as not
+// clipping rather than clipping every box. The function names nothing outside itself:
+// the shift watch carries its source into the page under test (`shift_watch_source` in
+// tests/render_harness.py).
 export const clippingAxes = (style) => {
+  const clips = /^(hidden|clip|scroll|auto)$/;
   const both =
-    /paint|strict|content/.test(style.contain) || style.contentVisibility !== "visible";
+    /paint|strict|content/.test(style.contain) ||
+    /^(auto|hidden)$/.test(style.contentVisibility);
   return {
-    x: both || style.overflowX !== "visible",
-    y: both || style.overflowY !== "visible",
+    x: both || clips.test(style.overflowX),
+    y: both || clips.test(style.overflowY),
   };
 };

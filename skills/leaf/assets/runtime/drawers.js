@@ -48,10 +48,11 @@ import { registerReadingRegion } from "./reading-regions.js";
 // name on it.
 const DRAWER_SLOT_W = 300;
 const DRAWER_SLOT_MIN = 220;
-// Where the standing width is written, and where the cascade reads it. theme.css and
-// chrome.css spell the same name, and theme.css the same default for the first paint of
-// a reloaded page, and the layer test holds the spellings equal, since a stylesheet
-// cannot read a constant.
+// Where the standing width is written, and where the cascade reads it. chrome.css spells
+// the same name, and the layer test holds the spellings equal, since a stylesheet cannot
+// read a constant. No stylesheet states a default: the drawer is built by script, and
+// drawn-edge.js writes the width when it makes or restores the handle, before the drawer
+// first paints.
 export const DRAWER_SLOT_PROP = "--lf-drawer-slot-width";
 
 // The rows' own box, one per drawer. Collected privately as they are made, because what

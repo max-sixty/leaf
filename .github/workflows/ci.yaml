@@ -149,7 +149,12 @@ jobs:
             --function --rate "$PY_SPY_RATE" --format raw --output .tmp/test-results/stacks.txt &
           profiler=$!
           wait "$tests" && status=0 || status=$?
-          wait "$profiler" || echo "py-spy exited with $?"
+          # A profile that failed fails the job, keeping pytest's own failure status.
+          wait "$profiler" && profiled=0 || profiled=$?
+          if [ "$profiled" -ne 0 ]; then
+            echo "::error::py-spy exited with $profiled"
+            [ "$status" -ne 0 ] || status=1
+          fi
           if $accounting; then
             sudo accton off
             sudo chmod a+r /var/log/account/suite

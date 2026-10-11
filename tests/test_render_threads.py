@@ -4143,7 +4143,6 @@ def test_diff_news_waits_only_where_its_growth_would_be_seen(browser, serve, foo
         expect(notice).to_have_count(0)
 
 
-
 def test_growth_is_seen_only_below_where_scroll_anchoring_holds(browser, serve):
     """Scroll anchoring keeps still the first box in the root's landing band, which
     starts a gap below the banner. A paragraph ending in that gap grows into what was
@@ -4188,6 +4187,7 @@ def test_growth_is_seen_only_below_where_scroll_anchoring_holds(browser, serve):
     assert abs(readings["gap"]["moved"]) < 1, readings
     assert readings["band"] == {**readings["band"], "seen": True}, readings
     assert readings["band"]["moved"] > 30, readings
+
 
 def test_an_agent_settling_a_diff_thread_above_the_screen_moves_nothing_below(
     browser, serve

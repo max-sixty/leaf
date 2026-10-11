@@ -2210,11 +2210,11 @@ def test_a_weaker_old_receipt_does_not_duplicate_a_thread_claim(page_dir):
 def test_a_widget_task_outlives_its_seat_and_its_widget(page_dir):
     """An admitted task stays open when its widget or work seat disappears."""
     work_page = PAGE.replace(
-        '<lf-diagram id="flow">',
+        "</section>",
         '<lf-board id="rollout"><lf-column id="rollout-now" label="Now">\n'
         '  <lf-card id="rollout-card"><strong>Ship the rollout</strong> '
         "Check the fallback before cutover.</lf-card>\n"
-        '</lf-column></lf-board>\n<lf-diagram id="flow">',
+        "</lf-column></lf-board>\n</section>",
     )
     (page_dir / "index.html").write_text(work_page)
     publish(page_dir)
@@ -5890,10 +5890,10 @@ def test_revendoring_can_change_x_work_while_the_target_holds_a_task(page_dir):
     the page-edge margin entry continues to present the task already admitted.
     """
     work_page = PAGE.replace(
-        '<lf-diagram id="flow">',
+        "</section>",
         '<lf-board id="rollout"><lf-column id="rollout-now" label="Now">\n'
         '  <lf-card id="rollout-card"><strong>Ship the rollout</strong></lf-card>\n'
-        '</lf-column></lf-board>\n<lf-diagram id="flow">',
+        "</lf-column></lf-board>\n</section>",
     )
     (page_dir / "index.html").write_text(work_page)
     publish(page_dir)
@@ -12139,8 +12139,7 @@ def test_codex_app_server_restart_finishes_an_accepted_batch_without_starting_it
             [*LEAF_COMMAND, "page", "init", claimed], env=codex_env, check=True
         )
     # The turn's answer is a reply, which needs a valid page to land on.
-    source = re.sub(r"\s*<lf-diagram.*?</lf-diagram>", "", PAGE, flags=re.DOTALL)
-    (page / "index.html").write_text(source, encoding="utf-8")
+    (page / "index.html").write_text(PAGE, encoding="utf-8")
     publish(page)
     program, _log = fake_codex_cli(tmp_path)
     append_carried_log_record(
@@ -12646,8 +12645,7 @@ def test_an_offline_sibling_does_not_stop_browser_comments_reaching_codex(
 ):
     """One unavailable leaf cannot break another page's browser-to-task path."""
     live = page_dir
-    source = re.sub(r"\s*<lf-diagram.*?</lf-diagram>", "", PAGE, flags=re.DOTALL)
-    (live / "index.html").write_text(source, encoding="utf-8")
+    (live / "index.html").write_text(PAGE, encoding="utf-8")
     stamped = CliRunner().invoke(
         cli_model.cli,
         ["page", "stamp", str(live), "--text", "published"],

@@ -2,7 +2,6 @@
 (`shift_watch.js`): a shift without input, and typing that carries its field."""
 
 import json
-from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from html import escape
 from urllib.parse import quote
@@ -1307,132 +1306,131 @@ def test_a_preparation_no_input_began_lands_passive(browser, serve, input_at):
     assert any(error.startswith("button#control ") for error in moved), moved
 
 
-@contextmanager
-def input_work_page(browser, markup):
-    """Read the source sensor without subscribers whose click listeners could mask gaps."""
-    context = browser.unwatched.new_context()
-    page = context.new_page()
+@pytest.fixture
+def input_work_page(browser):
+    """Isolate the source sensor from subscriber listeners; the browser owns contexts."""
     errors = []
-    page.on("pageerror", lambda error: errors.append(str(error)))
-    page.on(
-        "console",
-        lambda message: (
-            errors.append(message.text)
-            if message.type in {"error", "warning"}
-            else None
-        ),
-    )
-    page.add_init_script(
-        script=f"{WATCH_PLATFORM_SOURCE.read_text()}\n"
-        "window.nativeWatchListen = EventTarget.prototype.addEventListener;\n"
-        f"{INPUT_WORK_WATCH_SOURCE.read_text()}"
-    )
-    try:
+
+    def open_page(markup):
+        context = browser.unwatched.new_context()
+        page = context.new_page()
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.on(
+            "console",
+            lambda message: (
+                errors.append(message.text)
+                if message.type in {"error", "warning"}
+                else None
+            ),
+        )
+        page.add_init_script(
+            script=f"{WATCH_PLATFORM_SOURCE.read_text()}\n"
+            "window.nativeWatchListen = EventTarget.prototype.addEventListener;\n"
+            f"{INPUT_WORK_WATCH_SOURCE.read_text()}"
+        )
         page.goto("data:text/html," + quote(markup))
-        yield page
-    finally:
-        context.close()
-        assert errors == [], errors
+        return page
+
+    yield open_page
+    assert errors == [], errors
 
 
 @pytest.mark.parametrize("route", ["pointer", "keyboard", "passive"])
-def test_disclosure_dispatch_carries_source_without_click_listeners(browser, route):
+def test_disclosure_dispatch_carries_source_without_click_listeners(
+    input_work_page, route
+):
     """Native activation and callback forms share the dispatch's exact source."""
-    with input_work_page(
-        browser,
+    page = input_work_page(
         """<button id="press">Open</button>
       <details ontoggle="window.inlineSource = lfInputWork.current()?.event.type ?? null">
-      <summary>Fold</summary>Content</details>""",
-    ) as page:
-        page.evaluate("""() => {
-          document.querySelector('details').addEventListener('toggle', () => {
-            window.registeredSource = lfInputWork.current()?.event.type ?? null;
-          });
-          document.querySelector('#press').addEventListener('keydown', event => {
-            if (event.key !== 'Enter') return;
-            event.preventDefault();
-            document.querySelector('summary').click();
-          });
-        }""")
-        if route == "pointer":
-            page.locator("summary").click()
-        elif route == "keyboard":
-            page.locator("#press").focus()
-            page.keyboard.press("Enter")
-        else:
-            page.evaluate("document.querySelector('summary').click()")
-        page.wait_for_function(
-            "window.registeredSource !== undefined && window.inlineSource !== undefined"
-        )
-        source = {"pointer": "click", "keyboard": "keydown", "passive": None}[route]
-        assert page.evaluate("[window.inlineSource, window.registeredSource]") == [
-            source,
-            source,
-        ]
+      <summary>Fold</summary>Content</details>"""
+    )
+    page.evaluate("""() => {
+      document.querySelector('details').addEventListener('toggle', () => {
+        window.registeredSource = lfInputWork.current()?.event.type ?? null;
+      });
+      document.querySelector('#press').addEventListener('keydown', event => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        document.querySelector('summary').click();
+      });
+    }""")
+    if route == "pointer":
+        page.locator("summary").click()
+    elif route == "keyboard":
+        page.locator("#press").focus()
+        page.keyboard.press("Enter")
+    else:
+        page.evaluate("document.querySelector('summary').click()")
+    page.wait_for_function(
+        "window.registeredSource !== undefined && window.inlineSource !== undefined"
+    )
+    source = {"pointer": "click", "keyboard": "keydown", "passive": None}[route]
+    assert page.evaluate("[window.inlineSource, window.registeredSource]") == [
+        source,
+        source,
+    ]
 
 
 @pytest.mark.parametrize("kind", ["synthetic-click", "native-toggle"])
-def test_redispatching_an_event_uses_the_new_dispatch_source(browser, kind):
+def test_redispatching_an_event_uses_the_new_dispatch_source(input_work_page, kind):
     """An Event object can be reused; its old dispatch cannot own passive work."""
-    with input_work_page(
-        browser,
+    page = input_work_page(
         '<button id="press">Dispatch</button>'
         '<button id="result">Result</button>'
-        "<details><summary>Fold</summary>Content</details>",
-    ) as page:
-        page.evaluate(
-            """kind => {
-          window.readings = [];
-          const details = document.querySelector('details');
-          const result = document.querySelector('#result');
-          const native = kind === 'native-toggle';
-          window.dispatchOwner = native ? details : result;
-          window.reusedEvent = native ? null : new MouseEvent('click', {bubbles:true, composed:true});
-          dispatchOwner.addEventListener(native ? 'toggle' : 'click', event => {
-            reusedEvent ??= event;
-            readings.push(lfInputWork.current()?.event.type ?? null);
-          });
-          document.querySelector('#press').addEventListener('keydown', event => {
-            if (event.key !== 'Enter') return;
-            event.preventDefault();
-            if (native) details.querySelector('summary').click();
-            else result.dispatchEvent(reusedEvent);
-          });
-        }""",
-            kind,
-        )
-        page.locator("#press").focus()
-        page.keyboard.press("Enter")
-        page.wait_for_function("window.readings.length === 1")
-        page.evaluate("dispatchOwner.dispatchEvent(reusedEvent)")
-        assert page.evaluate("readings") == ["keydown", None]
+        "<details><summary>Fold</summary>Content</details>"
+    )
+    page.evaluate(
+        """kind => {
+      window.readings = [];
+      const details = document.querySelector('details');
+      const result = document.querySelector('#result');
+      const native = kind === 'native-toggle';
+      window.dispatchOwner = native ? details : result;
+      window.reusedEvent = native ? null : new MouseEvent('click', {bubbles:true, composed:true});
+      dispatchOwner.addEventListener(native ? 'toggle' : 'click', event => {
+        reusedEvent ??= event;
+        readings.push(lfInputWork.current()?.event.type ?? null);
+      });
+      document.querySelector('#press').addEventListener('keydown', event => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        if (native) details.querySelector('summary').click();
+        else result.dispatchEvent(reusedEvent);
+      });
+    }""",
+        kind,
+    )
+    page.locator("#press").focus()
+    page.keyboard.press("Enter")
+    page.wait_for_function("window.readings.length === 1")
+    page.evaluate("dispatchOwner.dispatchEvent(reusedEvent)")
+    assert page.evaluate("readings") == ["keydown", None]
 
 
-def test_a_delivered_disclosure_toggle_releases_its_input_source(browser):
+def test_a_delivered_disclosure_toggle_releases_its_input_source(input_work_page):
     """Native delivery retires input ownership even without a wrapped page listener."""
-    with input_work_page(
-        browser, "<details><summary>Open</summary>Content</details>"
-    ) as page:
-        page.evaluate("""() => {
-          window.nativeToggles = 0;
-          nativeWatchListen.call(document.querySelector('details'), 'toggle', () => nativeToggles++);
-        }""")
-        page.locator("summary").click()
-        page.wait_for_function("window.nativeToggles === 1")
-        page.evaluate("""() => {
-          const details = document.querySelector('details');
-          details.ontoggle = () => {
-            window.propertyToggleSource = lfInputWork.current()?.event.type ?? null;
-          };
-          details.addEventListener('toggle', () => {
-            window.passiveToggleSource = lfInputWork.current()?.event.type ?? null;
-          });
-          details.attributes.removeNamedItem('open');
-        }""")
-        page.wait_for_function("window.passiveToggleSource !== undefined")
-        assert page.evaluate(
-            "[window.passiveToggleSource, window.propertyToggleSource]"
-        ) == [None, None]
+    page = input_work_page("<details><summary>Open</summary>Content</details>")
+    page.evaluate("""() => {
+      window.nativeToggles = 0;
+      nativeWatchListen.call(document.querySelector('details'), 'toggle', () => nativeToggles++);
+    }""")
+    page.locator("summary").click()
+    page.wait_for_function("window.nativeToggles === 1")
+    page.evaluate("""() => {
+      const details = document.querySelector('details');
+      details.ontoggle = () => {
+        window.propertyToggleSource = lfInputWork.current()?.event.type ?? null;
+      };
+      details.addEventListener('toggle', () => {
+        window.passiveToggleSource = lfInputWork.current()?.event.type ?? null;
+      });
+      details.attributes.removeNamedItem('open');
+    }""")
+    page.wait_for_function("window.passiveToggleSource !== undefined")
+    assert page.evaluate(
+        "[window.passiveToggleSource, window.propertyToggleSource]"
+    ) == [None, None]
 
 
 def test_shift_judgement_waits_for_paint_instead_of_a_time_cap(browser):

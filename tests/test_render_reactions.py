@@ -579,8 +579,9 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve, s
 
 def test_a_target_hint_opens_comment_and_a_token_seats_only_its_glyph(browser, serve):
     """Keyboard target choosing opens Comment. Choosing a token puts an
-    element anchor in the log, which paints a glyph seated at the element's first line
-    and nothing on the element itself: a contour is for a moment, not a standing fact."""
+    element anchor in the log, which paints a glyph seated at the element's first line.
+    The returned focus rings the element until focus leaves; the reaction adds no
+    standing contour to it."""
     page = open_page(browser, serve(TARGETS_PAGE))
     page.keyboard.type(hint_code(page, "#prose", 3))
     bar = page.locator(".lf-fab-bar")
@@ -594,6 +595,9 @@ def test_a_target_hint_opens_comment_and_a_token_seats_only_its_glyph(browser, s
     assert sent["token"] == "prioritize" and sent["anchor"] == {"section": "prose"}
     shown = painted(page, [["prose", "prioritize"]])
     assert shown["projected"] == 0 and shown["washed"] == "", shown
+    expect(page.locator("#prose")).to_have_attribute("data-lf-focus", "")
+    expect(page.locator("#prose")).to_have_css("outline-style", "solid")
+    page.evaluate(RELEASE_FOCUS)
     expect(page.locator("#prose")).to_have_css("outline-style", "none")
 
 

@@ -161,6 +161,7 @@ ignore_names = [
   "show_differences",
   # http.server, socketserver, logging
   "do_*",
+  "list_directory",
   "log_message",
   "daemon_threads",
   "handlers",

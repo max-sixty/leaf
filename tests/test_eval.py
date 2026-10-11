@@ -11,9 +11,8 @@ from leaf_dev.eval import catalog, native_provider, prepare, select_cases
 from leaf_dev.review_detection_eval import grading, summarize
 
 
-def test_ui_review_judge_has_no_run_wide_evidence_grant(
-    tmp_path, monkeypatch, codex_cli
-):
+@pytest.mark.usefixtures("codex_cli")
+def test_ui_review_judge_has_no_run_wide_evidence_grant(tmp_path, monkeypatch):
     """Only the assertion's per-sample profile grants evidence access."""
     login = tmp_path / "login"
     login.mkdir()

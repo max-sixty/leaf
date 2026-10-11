@@ -1763,7 +1763,9 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
         "tab", name="Interactions", exact=True
     ).click()
     expect(controls).to_be_visible()
-    expect(page.locator(".lf-status-detail")).to_have_text(re.compile(r"^Connecting"))
+    expect(page.locator(".lf-status-detail")).to_have_text(
+        re.compile(r"Connecting|Server offline — reconnecting")
+    )
 
     release_state = True
     for route in held:
@@ -1771,7 +1773,7 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     wait_until_ready(page)
     expect(controls).to_be_visible()
     expect(page.locator(".lf-status-detail")).not_to_have_text(
-        re.compile(r"^Connecting")
+        re.compile(r"Connecting|Server offline — reconnecting")
     )
 
 

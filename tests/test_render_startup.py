@@ -2331,6 +2331,36 @@ def test_the_diff_marks_a_card_the_author_relocated(browser, serve):
     ), "the card's passenger marked as its own move"
 
 
+def test_the_diff_marks_the_card_the_author_reordered_and_no_other(browser, serve):
+    """A card moved within its column changes no words and no column, and the state
+    half still marks it. Only the card whose move explains the new order is marked:
+    the cards it passed kept their order among themselves."""
+    cards = {
+        name: f'<lf-card id="card-{name}"><strong>{name.title()}</strong></lf-card>'
+        for name in ("y", "z")
+    }
+    v1 = JOURNEY_V1.replace(_CARD, _CARD + cards["y"] + cards["z"])
+    url = serve(v1)
+    _publish(
+        serve.page_dir,
+        2,
+        JOURNEY_V1.replace(_CARD, cards["y"] + cards["z"] + _CARD),
+        "moved card x to the end",
+    )
+    page = open_page(browser, url.replace("v1.html", "v2.html"))
+    compare_with(page)
+    page.wait_for_function(
+        "() => document.getElementById('card-x').classList.contains('lf-ins-block')"
+    )
+    assert (
+        page.evaluate(
+            "['card-y', 'card-z'].filter(id =>"
+            " document.getElementById(id).classList.contains('lf-ins-block'))"
+        )
+        == []
+    )
+
+
 def test_accepting_a_suggestion_resolves_its_thread_in_one_event(browser, serve):
     """Accepting answers the thread the change was written for, and the answer
     rides the accept itself — the wrapper holding the `resolves` mapping is

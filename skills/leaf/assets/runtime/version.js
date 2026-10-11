@@ -783,6 +783,27 @@ export function createVersionController({
     if (!answer.browser) throw new Error(`revision r${baseRevision} has no projection`);
     return answer.browser;
   }
+  // The longest run of `after` that keeps the order `before` gave the same units:
+  // the units that did not move.
+  function inOrder(before, after) {
+    const lengths = before.map(() => after.map(() => 0));
+    const at = (i, j) => lengths[i]?.[j] ?? 0;
+    for (let i = before.length - 1; i >= 0; i--)
+      for (let j = after.length - 1; j >= 0; j--)
+        lengths[i][j] =
+          before[i] === after[j]
+            ? at(i + 1, j + 1) + 1
+            : Math.max(at(i + 1, j), at(i, j + 1));
+    const kept = new Set();
+    for (let i = 0, j = 0; i < before.length && j < after.length;)
+      if (before[i] === after[j]) {
+        kept.add(before[i]);
+        i++;
+        j++;
+      } else if (at(i + 1, j) >= at(i, j + 1)) i++;
+      else j++;
+    return kept;
+  }
   function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
     const baseRevision = stamped(baseVersion)?.revision;
     if (baseRevision == null)
@@ -851,19 +872,23 @@ export function createVersionController({
         if (!spec.record || spec.record.kind === "body" || !before.specs.has(verb))
           continue;
         if (spec.record.kind === "position") {
-          const holder = (widgetState, unit) =>
-            Object.entries(widgetState.state[verb].value).find(([, ids]) =>
-              ids.includes(unit),
-            )?.[0];
-          for (const ids of Object.values(now.state[verb].value))
+          // The moved card itself is where the change reads: one in another
+          // container, or one out of order among those its container held at the
+          // base, the fewest cards whose moving explains the new order.
+          const was = before.state[verb].value;
+          const placed = Object.values(was).flat();
+          for (const [container, ids] of Object.entries(now.state[verb].value)) {
+            const stayed = was[container] ?? [];
+            const kept = inOrder(
+              stayed.filter((unit) => ids.includes(unit)),
+              ids.filter((unit) => stayed.includes(unit)),
+            );
             for (const unit of ids) {
-              const was = holder(before, unit);
-              // The moved card itself is where the change reads.
-              if (was !== undefined && was !== holder(now, unit)) {
-                const moved = elementById(unit);
-                if (moved) mark(moved);
-              }
+              if (!placed.includes(unit) || kept.has(unit)) continue;
+              const moved = elementById(unit);
+              if (moved) mark(moved);
             }
+          }
           continue;
         }
         const { value } = questionValue(now, verb, true);

@@ -9,6 +9,7 @@ from ..gesture_words import GestureWords, RevisionReader
 from ..history import history, wants_history
 from ..passages import SourceReading
 from ..projection import FrozenThreadReading, canonical_updates, page_reading
+from ..schema import WIDGET_KINDS
 from .context import PageRead
 from .document import browser_document, browser_undo_candidates
 from .thread import browser_thread
@@ -173,7 +174,7 @@ def browser_state(
         }
         coverage = []
         for event in events:
-            if event["kind"] in {"action", "report"}:
+            if event["kind"] in WIDGET_KINDS:
                 classified_entry = classified.get(event["id"])
             elif event["kind"] == "undo":
                 classified_entry = classified.get(event["undoes"])

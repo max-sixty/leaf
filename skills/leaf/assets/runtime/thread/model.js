@@ -45,7 +45,7 @@ const threadOffers = (thread) => ({
 /** @template {Pick<Message, "id" | "author" | "parent" | "token" | "addressable" | "agent"> & {key: string}} T
  * @param {{key: string, resolved: Thread["resolved"], msgs: T[]}} thread
  * @param {T} message
- * @param {Record<string, {glyph: string, means?: string}>} tokens
+ * @param {Record<string, {glyph: string}>} tokens
  */
 function reactionChoices(thread, message, tokens) {
   if (
@@ -69,7 +69,7 @@ function reactionChoices(thread, message, tokens) {
     choices: Object.entries(tokens).map(([name, entry]) => ({
       name,
       glyph: entry.glyph,
-      label: entry.means ? `${name} — ${entry.means}` : name,
+      label: name,
       standing: standing.find((item) => item.token === name) ?? null,
     })),
   };

@@ -24,7 +24,7 @@ from leaf import structure as structure_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate.scheme import collect_page_exceptions
 from leaf.served_state import context as served_context
-from leaf.validation import compatibility as validation_model
+from leaf.validation import composition as validation_model
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (

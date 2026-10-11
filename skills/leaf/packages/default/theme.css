@@ -1599,6 +1599,7 @@
       --lf-top: 0px;
       overscroll-behavior: contain;
       scrollbar-gutter: stable;
+      --lf-holds-height: 1;
     }
   }
   :where(:scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page]) {
@@ -1827,7 +1828,6 @@
   display: block;
   box-sizing: border-box;
   min-inline-size: 0;
-  block-size: min(70vh, 40rem);
   overflow: auto;
   border: 1px solid var(--border-2);
   border-radius: var(--sp-2);
@@ -2765,6 +2765,7 @@
     max-block-size: var(--lf-bound, 28rem);
     overflow: auto;
     --lf-bound-box: 1;
+    --lf-holds-height: 1;
     --lf-top: 0px;
   }
 }

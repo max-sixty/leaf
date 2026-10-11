@@ -66,10 +66,12 @@ customElements.define(
         gap:12px; padding:12px; border:1px solid var(--rule); border-radius:8px; }
       .toolbar,.compose { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
       .body { display:grid; grid-template-columns:minmax(0,12rem) minmax(0,1fr); gap:16px; min-height:0; }
-      .index,.reader { min-width:0; min-height:0; overflow:auto; }
+      /* The index, each queue in it, and the reader scroll on their own within the
+         reader's fixed height, as a mail client's panes do. */
+      .index,.reader { min-width:0; min-height:0; overflow:auto; --lf-holds-height:1; }
       .index { display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,2fr) repeat(3,minmax(0,1fr)); gap:8px; }
       .group { min-width:0; min-height:0; display:flex; flex-direction:column; }
-      .group ul { overflow:auto; min-height:0; }
+      .group ul { overflow:auto; min-height:0; --lf-holds-height:1; }
       .group h4 { flex:none; margin:0 0 6px; }
       .counts { flex:none; min-height:2lh; margin:0 0 6px; }
       .index button { width:100%; min-width:0; text-align:start; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }

@@ -52,11 +52,11 @@ import { focusThread, threadFocusStop } from "./focus.js";
 import { renderMarkdown } from "../markdown.js";
 import { summaryRanges, unreadBoundaries } from "./summary-ranges.js";
 import { threadAttention } from "./workflow.js";
-import { seenRect, shownRect } from "../geometry.js";
+import { growthAfterIsSeen, growthIsSeen, seenRect, shownRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollThreadIntoView, replyPinned, revealEditor } from "./reply-landing.js";
-import { newsNotice, growthAfterIsSeen, growthInsideIsSeen } from "./held-news.js";
+import { newsNotice } from "./held-news.js";
 import { ReplyContinuity } from "./reply-continuity.js";
 
 function quoteReading(thread, anchors) {
@@ -566,17 +566,11 @@ export class ThreadView {
         (news.appended || news.settled) && this.#foot,
       ].some((node) => node && node !== followed && growthAfterIsSeen(node)) ||
       (!(idleAppend && foot) &&
-        growthInsideIsSeen(
-          [
-            ...folds.messages.map((message) => this.#messageNode(message)),
-            ...folds.summaries.map((summary) => this.#summaryNode(summary)),
-          ].filter(Boolean),
-        )) ||
-      Boolean(
-        news.settled &&
-        this.#settlementRow &&
-        growthInsideIsSeen([this.#settlementRow]),
-      )
+        [
+          ...folds.messages.map((message) => this.#messageNode(message)),
+          ...folds.summaries.map((summary) => this.#summaryNode(summary)),
+        ].some((node) => node && growthIsSeen(node))) ||
+      Boolean(news.settled && this.#settlementRow && growthIsSeen(this.#settlementRow))
     );
   }
 
@@ -712,6 +706,12 @@ export class ThreadView {
     }
     if (model.surface === "outlet" && this.#outletReplyShown !== reply) {
       this.node.toggleAttribute("open", reply);
+      // Chrome drops scroll anchoring for a layout that both opens or shuts a `details`
+      // and changes what it holds, so an outlet folding above the screen as the agent
+      // resolves it would carry what the user reads by the fold's height. Laying out
+      // the disclosure before the render below changes the thread lets anchoring take
+      // each change.
+      this.node.getBoundingClientRect();
       this.#outletReplyShown = reply;
     }
     const wanted = new Set(model.messages.map((message) => message.key));

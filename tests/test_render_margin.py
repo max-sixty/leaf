@@ -11170,6 +11170,48 @@ def test_the_margin_layer_follows_the_page_in_the_tab_order(browser, serve):
     expect(page.locator("#after-margin-entries")).to_be_focused()
 
 
+def test_the_rail_s_way_in_is_a_marker_in_front_of_the_user(browser, serve):
+    """Tab into the rail lands on a marker the user can see. One scrolled under the
+    banner is still in the window but out of sight, so the rail's one stop passes from
+    it to the marker below."""
+    filler = "".join(f"<p>Filler paragraph {i}.</p>" for i in range(40))
+    source = leaf_page(
+        "the rail's way in",
+        '<h1 id="t">Rail</h1><p id="first">The first commented paragraph.</p>'
+        "<p>One between.</p><p>Another between.</p>"
+        f'<p id="second">The second commented paragraph.</p>{filler}'
+        '<p><a id="last" href="#t">The last link</a></p>',
+    )
+    page = open_page(
+        browser, serve(source, events=[_comment_on("first"), _comment_on("second")])
+    )
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    first = page.locator('[data-lf-margin-for="first"] .lf-margin-marker')
+    second = page.locator('[data-lf-margin-for="second"] .lf-margin-marker')
+    expect(first).to_have_attribute("tabindex", "0")
+    banner = first.evaluate(
+        """async row => {
+          const {bannerFoot} = await window.__lfRuntimeImport('/runtime/geometry.js');
+          scrollBy({top: row.getBoundingClientRect().bottom - bannerFoot() + 4,
+            behavior: 'instant'});
+          return bannerFoot();
+        }"""
+    )
+    rendered(page)
+    margins_laid_out(page)
+    row = first.bounding_box()
+    assert 0 < row["y"] + row["height"] < banner, (row, banner)
+    page.locator("#last").evaluate("link => link.focus({preventScroll: true})")
+    for _ in range(20):
+        page.keyboard.press("Tab")
+        if page.evaluate(
+            "() => document.activeElement?.matches('.lf-margin-marker') ?? false"
+        ):
+            break
+    expect(second).to_be_focused()
+
+
 def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serve):
     """Margin coordinates do not cross the author's CSS anchor scope. Both scoped
     and ordinary targets keep their controls reachable, with the same target and

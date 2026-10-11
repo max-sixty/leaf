@@ -12,6 +12,7 @@ import {
   effectiveScroller,
   userReadingRegion,
   readingRegionFor,
+  scrollChainOf,
   scrollersOf,
 } from "./reading-regions.js";
 import { walkOrigin, heldQuestion, placeOf } from "./standing-target.js";
@@ -146,9 +147,10 @@ export function placeThreadEdge(thread, edge) {
 
 // j/k take small pixel steps; d/u move 60% of the visible reading page. Both follow
 // the active region and share one glide, so mixed or repeated presses add up from
-// the pending goal. At a region's edge they follow its CSS scroll chain, stopping at
-// the same task or modal boundary as native input. Space, Home/End and PageUp/Down
-// stay the browser's own keys.
+// the pending goal. At a region's edge they follow its CSS scroll chain
+// (`scrollChainOf`), stopping at the same task or modal boundary as native input, so
+// a floating thread's turns, once spent, hand the step to the document as the wheel
+// does. Space, Home/End and PageUp/Down stay the browser's own keys.
 //
 // They move the region the user is reading. The thread list is that region when
 // focus stands on its frame; a nested region keeps its own scrollport. Scrolling a
@@ -244,7 +246,7 @@ function stepReading(amount, unit, coveringAuxiliaryScroller) {
   const first = stepScroller(coveringAuxiliaryScroller);
   if (!first) return;
   const clips = new Map();
-  for (const box of scrollersOf(first.box)) {
+  for (const box of scrollChainOf(first.box)) {
     const step = box === first.box ? first : readingStep(box, clips);
     const canMove = amount > 0 ? !atScrollEnd(box) : box.scrollTop > 0;
     if (step && canMove) {

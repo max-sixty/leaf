@@ -1216,12 +1216,19 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
     assert any("in shadow of lf-diff#patch" in error for error in moved), moved
 
 
-def test_a_preparation_no_input_aimed_at_lands_passive(browser, serve):
-    """Overlapping an input's rendering does not make a preparation that input's.
+@pytest.mark.parametrize(
+    "pressed",
+    ["#press", "#patch .lf-diff-search input"],
+    ids=["elsewhere", "in the same widget"],
+)
+def test_a_preparation_no_input_began_lands_passive(browser, serve, pressed):
+    """Neither overlapping an input's rendering nor sharing its widget makes a
+    preparation that input's.
 
-    A press outside the diff keeps its counted work running until a response the page
-    asked for before the press opens a diff file; that file's landing, once the press
-    has settled, moves the control after it without input."""
+    A press keeps its counted work running until a response the page asked for before
+    the press opens a diff file; that file's landing, once the press has settled, moves
+    the control after it without input, whether the press landed outside the diff or
+    on its own filter field."""
     patch = "diff --git a/first.md b/first.md\n--- a/first.md\n+++ b/first.md\n"
     patch += "@@ -1 +1 @@\n-old\n+new\n"
     page = open_page(
@@ -1243,14 +1250,14 @@ def test_a_preparation_no_input_aimed_at_lands_passive(browser, serve):
       const details = document.querySelector('#patch').shadowRoot.querySelector('details');
       const opens = () => { details.open = true; };
       fetch('/held-answer').then(opens, opens);
-      document.querySelector('#press').addEventListener('click', () => {
+      addEventListener('click', () => {
         let after = 0;
         const work = () => { if (!details.open || ++after < 3) nextFrame(work); };
         nextFrame(work);
-      }, {once: true});
+      }, {once: true, capture: true});
     }""")
     holding(page, answer, 1, "the page's own request")
-    page.locator("#press").click()
+    page.locator(pressed).click()
     answer[0].fulfill(status=204)
     holding(page, grammar, 1, "the markdown grammar")
     rendered(page)

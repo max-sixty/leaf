@@ -21,7 +21,8 @@
 // preparation it began (`observeWidgetPreparations`) works on in a promise the loop
 // cannot see; the gesture owns that preparation's landing, as a rendering from the
 // task that settles it until the loop settles again, and nothing while it waits. It
-// began one only if it was aimed inside the declaring widget while its rendering ran.
+// began one only where the widget declared it inside a callback that input's work
+// ran (`lfInputWork.current`), such as the toggle its summary activation opened.
 // Native effects it began retain only their sampled displacement within their
 // own subtree; their continued lifetime never owns unrelated page movement.
 // Native scroll effects belong to their retained scroll source, regardless of the
@@ -1154,8 +1155,7 @@
     }
     open = null;
   };
-  // `target` is the node the input was aimed at, where it has one.
-  const begin = (start, typing = null, own = new Set(), target = null) => {
+  const begin = (start, typing = null, own = new Set()) => {
     end();
     open = {
       start,
@@ -1165,41 +1165,39 @@
       told: false,
       last: false,
       typing,
-      target,
     };
     renderings.push(open);
+    return open;
   };
   // The renderings preparations' landings opened, each running until the loop settles
-  // as an input's own does. A preparation is an input's only where that input was aimed
-  // inside the widget that declared it, in the rendered tree, and was declared while
-  // that input's rendering, or a landing it owns, still ran. Overlap alone is not
-  // cause: a preparation a timer, news or another widget's input started stays passive.
+  // as an input's own does. A preparation is an input's only where its widget declared
+  // it inside a callback that input's work ran (`lfInputWork.current`), such as the
+  // toggle its summary activation opened; the identity the runtime hands to both phases
+  // carries that cause across the widget's native awaits to the settlement. One a
+  // timer, news or a script started stays passive, whatever input overlaps it. The
+  // landing inherits the input rendering's effects and typing where the watch began one
+  // for that input's own event.
+  const renderingOf = new WeakMap();
   const landing = new Set();
   const preparing = new WeakMap();
-  const aimedInside = (rendering, widget) => {
-    for (let at = rendering?.target; at; at = up(at)) if (at === widget) return true;
-    return false;
-  };
   const prepared = (phase, preparation) => {
     if (phase === "begin") {
-      const owner = [open, ...[...landing].reverse()].find((rendering) =>
-        aimedInside(rendering, preparation.owner),
-      );
-      if (owner) preparing.set(preparation, owner);
+      const source = window.lfInputWork.current();
+      if (source && source.event.type !== "storage")
+        preparing.set(preparation, renderingOf.get(source.event) ?? null);
       return;
     }
+    if (!preparing.has(preparation)) return;
     const owner = preparing.get(preparation);
-    if (!owner) return;
     preparing.delete(preparation);
     const rendering = {
       start: nativePerformance.now(),
       first: true,
       through: Infinity,
-      own: owner.own,
+      own: owner?.own ?? new Set(),
       told: false,
       last: false,
-      typing: owner.typing,
-      target: owner.target,
+      typing: owner?.typing ?? null,
     };
     landing.add(rendering);
     renderings.push(rendering);
@@ -1259,36 +1257,32 @@
     nativeFrame(tick);
   };
   nativeFrame(tick);
-  window.lfInputWork.subscribeEdits(({ node: field }) => {
+  window.lfInputWork.subscribeEdits(({ event, node: field }) => {
     const holding = [];
     for (let at = field; at instanceof Element; at = up(at)) holding.push(at);
     const start = nativePerformance.now();
     const at = read(start, false);
-    begin(
-      start,
-      {
-        field,
-        at,
-        found: boxes(
-          holding.filter((node) => {
-            const paint = paintAt(node, at);
-            return (
-              node === field ||
-              paint.reading ||
-              paint.control ||
-              paint.reflow ||
-              paintedHolder(node)
-            );
-          }),
-        ),
-        moving: holding
-          .flatMap((node) => node.getAnimations())
-          .filter((animation) => animation.playState === "running" && moves(animation)),
-        until: Infinity,
-      },
-      new Set(),
+    const rendering = begin(start, {
       field,
-    );
+      at,
+      found: boxes(
+        holding.filter((node) => {
+          const paint = paintAt(node, at);
+          return (
+            node === field ||
+            paint.reading ||
+            paint.control ||
+            paint.reflow ||
+            paintedHolder(node)
+          );
+        }),
+      ),
+      moving: holding
+        .flatMap((node) => node.getAnimations())
+        .filter((animation) => animation.playState === "running" && moves(animation)),
+      until: Infinity,
+    });
+    renderingOf.set(event, rendering);
   });
   // A viewport resize is input, and its new size is the fact. Chrome lays out the
   // resized viewport before dispatching resize, which precedes the frame's callbacks,
@@ -1319,11 +1313,9 @@
   const heard = (event) => {
     if (!event.isTrusted || (event.type === "pointermove" && !event.buttons)) return;
     if (event.type === "pointerdown") presses.set(event.pointerId, new Set());
-    begin(
-      nativePerformance.now(),
-      null,
-      presses.get(event.pointerId) ?? new Set(),
-      event.composedPath()[0] ?? null,
+    renderingOf.set(
+      event,
+      begin(nativePerformance.now(), null, presses.get(event.pointerId) ?? new Set()),
     );
     if (event.type === "click") presses.delete(event.pointerId);
   };

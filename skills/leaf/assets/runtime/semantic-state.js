@@ -42,10 +42,11 @@ export const widgetRegions = (widget) =>
 // A widget preparation is work a widget declared it is still doing in a promise, such
 // as lf-diff loading a file the reader opened, which the rendering loop cannot see.
 // Observers hear each declaration as it is made ("begin") and once its completion
-// settles ("settle"), in the task that committed it, under one frozen identity naming
-// the widget's element (`owner`). A render check reads this to give an input aimed
-// inside that widget the movement the preparation's landing causes, and nothing that
-// happens while it waits.
+// settles ("settle"), in the task that committed it, under one frozen identity. The
+// declaration runs synchronously in whatever callback declared it, so a render check
+// can read that callback's cause there, and carry it by this identity across the
+// widget's native awaits to the landing: the input that began a preparation owns the
+// movement its landing causes, and nothing that happens while it waits.
 const preparationObservers = new Set();
 /** Observe each widget preparation from its declaration to its settlement. */
 export function observeWidgetPreparations(observer) {
@@ -59,7 +60,7 @@ export const attachWidgetPresentation = (widget, kind, renderer) => {
     present(value, completion, failSoft) {
       const observers = [...preparationObservers];
       if (observers.length) {
-        const preparation = Object.freeze({ widget, owner: renderer });
+        const preparation = Object.freeze({ widget });
         for (const observer of observers) observer("begin", preparation);
         const settle = () => {
           for (const observer of observers) observer("settle", preparation);

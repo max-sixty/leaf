@@ -22,6 +22,7 @@
 :scope:host(.lf-rendered) .lf-diff-metadata { padding: 7px 10px; font-size: var(--t-5);
                                      font-family: var(--sans); color: var(--code-ink);
                                      background: var(--code-chrome); }
+:scope:host(.lf-rendered) .lf-diff-fold > .lf-error { padding: 10px; }
 /* The file's row pins over the rows it names (below), so it is one line of a stated
    height (`--lf-diff-head-h`, at .lf-diff-file), which is what the rows under it add
    to `--lf-top` and to the room a landing leaves above them. A path too long for the

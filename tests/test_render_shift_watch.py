@@ -1158,12 +1158,11 @@ def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve, wo
 
 
 def test_an_input_owns_a_widget_preparation_it_began_until_presented(browser, serve):
-    """A press's declared widget preparation is its result, however late it lands.
+    """A press's registered widget preparation owns its result until it commits.
 
-    Opening a closed lf-diff file loads its evidence in a promise the widget presents
-    (`present`), which holds both mechanical rendering and publication proof. Holding
-    the file's grammar leaves that preparation pending, as a loaded machine does;
-    the files after it still move only for the press that opened it."""
+    Opening a closed lf-diff file registers its asynchronous evidence preparation
+    (`present`). Holding the grammar keeps rendering and presentation pending across
+    a paint; the following files still move only for the press that opened it."""
     patch = "".join(
         f"diff --git a/{name}.md b/{name}.md\n--- a/{name}.md\n+++ b/{name}.md\n"
         "@@ -1 +1 @@\n-old\n+new\n"

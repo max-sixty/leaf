@@ -94,7 +94,7 @@ def test_ui_review_summary_keeps_execution_and_grading_failures_unscored(tmp_pat
 def codex_cli(monkeypatch):
     """Use the eval dependency's real CLI for model-free installation checks;
     the suite otherwise puts a failing harness stub ahead of installed programs."""
-    programs = Path(__file__).parents[1] / "evals/node_modules/.bin"
+    programs = Path(__file__).parents[1] / "node_modules/.bin"
     assert (programs / "codex").is_file(), "Install eval dependencies with npm ci"
     monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
 

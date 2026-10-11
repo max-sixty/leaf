@@ -48,7 +48,7 @@ from leaf_dev.arms import (
 )
 from leaf_dev.leaf_assets import pinned_copy
 
-PROMPTFOO = ROOT / "evals/node_modules/.bin/promptfoo"
+PROMPTFOO = ROOT / "node_modules/.bin/promptfoo"
 RUNS = ROOT / ".tmp/eval"
 SKILL_PREFIX = "Use the Leaf skill ($leaf in Codex; leaf:leaf in Claude Code).\n\n"
 
@@ -436,7 +436,7 @@ def eval(args: tuple[str, ...], base: str | None, harness: str, condition: str):
     """Score CASE globs or task/context addresses on the working tree.
 
     Options Promptfoo takes follow the cases, such as `--repeat 3` or `-j 4`.
-    `npm run view --prefix evals` opens the results.
+    `npm run eval:view` opens the results.
     """
     split = next((i for i, arg in enumerate(args) if arg.startswith("-")), len(args))
     globs, promptfoo_args = args[:split], args[split:]
@@ -457,9 +457,7 @@ def eval(args: tuple[str, ...], base: str | None, harness: str, condition: str):
     else:
         base = None
     if not PROMPTFOO.is_file():
-        raise click.ClickException(
-            "Install eval dependencies first: npm ci --prefix evals"
-        )
+        raise click.ClickException("Install development dependencies first: npm ci")
     RUNS.mkdir(parents=True, exist_ok=True)
     out = Path(
         tempfile.mkdtemp(
@@ -485,7 +483,7 @@ def eval(args: tuple[str, ...], base: str | None, harness: str, condition: str):
         config_file = out / "promptfooconfig.json"
         config_file.write_text(json.dumps(config, indent=2) + "\n")
         # Promptfoo resolves the agent SDK packages from the config's directory.
-        (out / "node_modules").symlink_to(ROOT / "evals/node_modules")
+        (out / "node_modules").symlink_to(ROOT / "node_modules")
         click.echo(config["description"])
         env = environment(
             PROMPTFOO_DISABLE_TELEMETRY="1", PROMPTFOO_DISABLE_UPDATE_CHECK="1"
@@ -517,5 +515,5 @@ def eval(args: tuple[str, ...], base: str | None, harness: str, condition: str):
             stdin=subprocess.DEVNULL,
             check=False,
         ).returncode
-    click.echo(f"evidence: {out}\nview: npm run view --prefix evals")
+    click.echo(f"evidence: {out}\nview: npm run eval:view")
     sys.exit(status)

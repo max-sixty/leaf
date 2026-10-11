@@ -24,7 +24,7 @@ From the checkout, install the eval dependencies and check the fixtures without
 calling a model:
 
 ```sh
-npm ci --prefix evals
+npm ci
 uv run leaf-dev eval-ui-review --prepare-only
 ```
 

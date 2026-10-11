@@ -77,10 +77,6 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            worker/package-lock.json
-            evals/package-lock.json
 
       # The runner supplies installed Chrome for the two launcher tests. The rest of
       # the browser suite uses the headless shell matching the locked Playwright, and
@@ -94,15 +90,8 @@ jobs:
       - name: Fetch pinned image assets
         run: uv run leaf-dev fetch-assets
 
-      - name: Install browser-build dependencies
+      - name: Install development dependencies
         run: npm ci
-
-      # Python exercises the real Wrangler wrapper, including on main/nightly runs.
-      - name: Install website dependencies
-        run: npm ci
-        working-directory: worker
-
-      - run: npm ci --prefix evals
 
       # The bundles build from the installed lock, so a rebuild reproduces the
       # tracked bytes exactly and any difference is a lock nobody rebuilt from.

@@ -73,9 +73,10 @@
 // input, focus, scroll, drag, resize, load, reset and beforetoggle events; the
 // emulated media tests change; this frame's own visibility; and the calls that
 // restyle without a DOM write (custom states, constructed and adopted sheets,
-// form-control values and ranges, animation mutators). Every VERIFY-th unannounced
-// frame, and the first one once the fixture asks for the test's verdict, reads
-// completely and fails the test where any reading differs, naming the innermost
+// form-control values and ranges, animation mutators). A child cannot observe every
+// change in its embedding page, so child-frame readings remain complete. Every
+// VERIFY-th unannounced frame, and the first one once the fixture asks for the test's
+// verdict, reads completely and fails where any reading differs, naming the innermost
 // node that changed, so a source missing from this list is found rather than
 // leaving the readings between entries stale. A page that writes while it is read
 // announces its change by that write. A change to this gate runs the suite with
@@ -802,6 +803,7 @@
     const drawn = drawing();
     const announced =
       unread ||
+      window !== top ||
       drawn !== wasDrawn ||
       running ||
       wasRunning ||

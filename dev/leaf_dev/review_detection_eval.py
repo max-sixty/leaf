@@ -162,17 +162,18 @@ def stage(output):
     shutil.copyfile(fixtures / "private/provenance.json", output / "provenance.json")
     shutil.copyfile(Path(__file__), output / "runner.py")
     for name in ("package.json", "package-lock.json"):
-        shutil.copyfile(ROOT / "evals" / name, output / f"dependency-{name}")
-    dependencies = json.loads((ROOT / "evals/package.json").read_text())["dependencies"]
+        shutil.copyfile(ROOT / name, output / f"dependency-{name}")
+    package = json.loads((ROOT / "package.json").read_text())
+    dependencies = package["devDependencies"] | package["dependencies"]
     installed = {
-        name: json.loads(
-            (ROOT / "evals/node_modules" / name / "package.json").read_text()
-        )["version"]
+        name: json.loads((ROOT / "node_modules" / name / "package.json").read_text())[
+            "version"
+        ]
         for name in dependencies
     }
     if installed != dependencies:
         raise click.ClickException(
-            "Installed eval dependencies differ; run npm ci in evals"
+            "Installed development dependencies differ; run npm ci"
         )
     write_json(
         output / "environment.json",
@@ -186,7 +187,7 @@ def stage(output):
             "installation_limit": "Lock retained; transitive installed bytes are not independently hashed.",
         },
     )
-    (output / "node_modules").symlink_to(ROOT / "evals/node_modules")
+    (output / "node_modules").symlink_to(ROOT / "node_modules")
     return provenance
 
 
@@ -503,6 +504,6 @@ def eval_ui_review(models, condition, mode, repeat, prepare_only, output):
             f"{summary['unsupported_observations']} unsupported observations; "
             f"{summary['unscored']} unscored."
         )
-    click.echo(f"Results: {output / 'results.json'}\nview: npm run view --prefix evals")
+    click.echo(f"Results: {output / 'results.json'}\nview: npm run eval:view")
     if result.returncode:
         raise click.exceptions.Exit(result.returncode)

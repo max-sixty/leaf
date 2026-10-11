@@ -1,5 +1,5 @@
 {
-  "name": "leaf-browser-build",
+  "name": "leaf",
   "private": true,
   "type": "module",
   "engines": {
@@ -19,14 +19,22 @@
     "test:browser": "node --test build/browser/*.test.mjs build/*.test.mjs .github/scripts/*.test.mjs",
     "test:runtime": "node --import ./tests/runtime/dom.mjs --test tests/runtime/*.test.mjs",
     "check:framework": "npm run check:browser && npm run test:browser",
-    "check:worker": "npm run typecheck --prefix worker && npm test --prefix worker",
+    "check:worker": "tsc --noEmit --project worker/tsconfig.json && npm run test:worker",
     "check:bundles": "npm run build:styles && uv run build/vendor.py > /dev/null && git status --porcelain && test -z \"$(git status --porcelain)\"",
-    "check": "npm run check:framework && npm run test:runtime && npm run check:worker && npm test --prefix evals",
+    "check": "npm run check:framework && npm run test:runtime && npm run check:worker && npm run test:evals",
     "build:styles": "node build/styles.mjs",
-    "check:styles": "node build/styles.mjs --check"
+    "check:styles": "node build/styles.mjs --check",
+    "test:worker": "vitest run --root worker",
+    "test:evals": "node --test evals/test_*.cjs",
+    "eval:view": "PROMPTFOO_DISABLE_TELEMETRY=1 PROMPTFOO_DISABLE_UPDATE_CHECK=1 promptfoo view -y",
+    "site:dev": "uv run leaf-dev site && wrangler dev --config worker/wrangler.toml",
+    "deploy:dev": "worker/deploy-dev.sh"
   },
   "devDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.287",
     "@awesome.me/webawesome": "3.14.0",
+    "@cloudflare/containers": "0.3.7",
+    "@cloudflare/workers-types": "5.20261009.1",
     "@codemirror/autocomplete": "6.20.3",
     "@codemirror/commands": "6.11.1",
     "@codemirror/lang-markdown": "6.5.2",
@@ -34,6 +42,7 @@
     "@codemirror/merge": "6.12.2",
     "@codemirror/state": "6.7.6",
     "@codemirror/view": "6.43.13",
+    "@earendil-works/pi-ai": "1.0.4",
     "@floating-ui/dom": "1.8.0",
     "@happy-dom/global-registrator": "20.14.5",
     "@lezer/highlight": "1.2.5",
@@ -44,6 +53,7 @@
     "@shikijs/core": "4.5.0",
     "@shikijs/engine-javascript": "4.5.0",
     "@shikijs/langs": "4.5.0",
+    "@types/node": "26.4.1",
     "@zumer/snapdom": "3.3.0",
     "acorn": "8.19.0",
     "agentic-mermaid": "0.4.1",
@@ -58,10 +68,26 @@
     "markdown-it-task-lists": "2.1.1",
     "modern-screenshot": "4.7.0",
     "photoswipe": "5.4.4",
+    "playwright": "1.63.0",
+    "promptfoo": "0.124.1",
+    "smol-toml": "1.9.0",
     "sortablejs": "1.15.7",
     "typescript": "7.0.2",
     "viewerjs": "1.15.2",
     "vis-data": "8.0.5",
-    "vis-timeline": "8.5.4"
+    "vis-timeline": "8.5.4",
+    "vitest": "5.0.0",
+    "wrangler": "4.149.0",
+    "yaml": "2.9.1",
+    "zod": "4.6.5"
+  },
+  "dependencies": {
+    "@openai/codex": "0.153.4"
+  },
+  "overrides": {
+    "@anthropic-ai/claude-agent-sdk": "$@anthropic-ai/claude-agent-sdk",
+    "get-uri": {
+      "basic-ftp": "6.2.1"
+    }
   }
 }

@@ -107,6 +107,34 @@
 .lf-vr-toolbar-slot {
   padding-block: var(--focus-ring-w);
 }
+@media screen {
+  .lf-vr-evidence-region {
+    --lf-vr-queue-h: calc(max(30px, var(--aim-floor)) + 2 * var(--sp-2) + 1px);
+    --lf-top-outer: var(--lf-top);
+  }
+  .lf-vr-queue {
+    position: sticky;
+    top: var(--lf-top);
+    z-index: 2;
+    box-sizing: border-box;
+    block-size: var(--lf-vr-queue-h);
+    background: var(--paper);
+  }
+  .lf-vr-cases {
+    --lf-top: calc(var(--lf-top-outer) + var(--lf-vr-queue-h));
+  }
+  .lf-vr-toolbar-slot {
+    position: sticky;
+    top: var(--lf-top);
+    z-index: 1;
+    margin-inline: calc(-1 * var(--sp-3));
+    padding: var(--focus-ring-room) var(--sp-3) var(--focus-ring-w);
+    background: var(--paper);
+  }
+  .lf-vr-shot-host {
+    isolation: isolate;
+  }
+}
 .lf-vr-inspector[hidden] {
   display: none;
 }
@@ -390,6 +418,9 @@
   .lf-vr-case-select {
     grid-column: 1 / -1;
     grid-row: 1;
+  }
+  .lf-vr-evidence-region {
+    --lf-vr-queue-h: calc(2 * max(30px, var(--aim-floor)) + 3 * var(--sp-2) + 1px);
   }
 }
 @media print {

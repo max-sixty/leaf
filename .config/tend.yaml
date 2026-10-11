@@ -23,6 +23,11 @@ merge: yolo
 setup:
   - uses: astral-sh/setup-uv@v7
   - run: uv sync --frozen
+  - uses: actions/setup-node@v7
+    with:
+      node-version: "22"
+  # Prepare the browser, Worker and eval dependencies before the sandbox starts.
+  - run: npm ci
   - name: Install Chromium headless shell, WebKit and Firefox
     run: uv run playwright install --with-deps chromium webkit firefox --only-shell
   - name: Launch all browsers

@@ -313,6 +313,7 @@ export function transferDraft(from, to, text) {
   return true;
 }
 export const loadDraft = (ctx) => activeDraftRecord(ctx)?.text ?? null;
+export const loadDraftPayload = (ctx) => activeDraftRecord(ctx)?.payload;
 export const draftContexts = () =>
   new Set([
     ...draftCache.keys(),
@@ -467,27 +468,56 @@ const draftEditors = new Set();
 // not. The one context and caret survive reload with the words. Reveal capabilities
 // belong to the editor's existing owner, and reply mirrors use the canonical thread
 // destination supplied by the composition root. No editor node is stored as identity.
+// The places written in before the current one stand behind it, newest last, one for
+// each context, so a place whose words are put away hands Resume writing back to the
+// latest earlier one still holding words; they survive reload with it.
 const WRITING_PLACE = "lf-writing-place";
-let writingPlace = (() => {
+const isPlace = (place) =>
+  typeof place?.context === "string" &&
+  typeof place.generation === "string" &&
+  Array.isArray(place.selection) &&
+  place.selection.slice(0, 2).every(Number.isInteger);
+let [writingPlace, earlierPlaces] = (() => {
   try {
-    const place = JSON.parse(draftStore.get(WRITING_PLACE));
-    return typeof place?.context === "string" &&
-      typeof place.generation === "string" &&
-      Array.isArray(place.selection) &&
-      place.selection.slice(0, 2).every(Number.isInteger)
-      ? place
-      : null;
+    const stored = JSON.parse(draftStore.get(WRITING_PLACE));
+    if (!isPlace(stored)) return [null, []];
+    const { earlier = [], ...place } = stored;
+    return [place, Array.isArray(earlier) ? earlier.filter(isPlace) : []];
   } catch {
-    return null;
+    return [null, []];
   }
 })();
 const writingRoutes = new Map();
 const editorInput = (editor) =>
   typeof editor.input === "function" ? editor.input() : editor.input;
+const storeWritingPlace = () =>
+  draftStore.set(
+    WRITING_PLACE,
+    writingPlace && JSON.stringify({ ...writingPlace, earlier: earlierPlaces }),
+  );
 const keepWritingPlace = (place) => {
+  if (writingPlace && writingPlace.context !== place.context)
+    earlierPlaces = [
+      ...earlierPlaces.filter(
+        ({ context }) => context !== writingPlace.context && context !== place.context,
+      ),
+      writingPlace,
+    ].slice(-8);
   writingPlace = place;
-  draftStore.set(WRITING_PLACE, JSON.stringify(place));
+  storeWritingPlace();
 };
+// Words put away, discarded or sent, leave nowhere to resume there: Resume writing goes
+// back to the latest place written in before them that still holds words.
+export function forgetWritingPlace(ctx) {
+  earlierPlaces = earlierPlaces.filter(({ context }) => context !== ctx);
+  if (writingPlace?.context !== ctx) return storeWritingPlace();
+  writingPlace = null;
+  while (earlierPlaces.length && !writingPlace) {
+    const place = earlierPlaces.pop();
+    if (draftHasContent(place.context)) writingPlace = place;
+  }
+  storeWritingPlace();
+}
 const writingEditor = () =>
   [...draftEditors].find((editor) => editorInput(editor) === focused());
 const keepWritingCaret = () => {
@@ -533,14 +563,19 @@ export function registerWritingDestination(prefix, reveal) {
   return () => writingRoutes.delete(prefix);
 }
 
-export function createWritingResume({ revealReply, arriveEditor }) {
+// The drafts a thread view holds, which the thread's own destination reveals: its
+// reply box (`reply:<thread key>`) and a rewrite of one of its messages
+// (`rewrite:<message id>`, thread/message-edit.js).
+const THREAD_HELD = /^(reply|rewrite):/;
+
+export function createWritingResume({ revealInThread, arriveEditor }) {
   const resume = async () => {
     const place = writingPlace;
     if (!place) return;
     const intent = retainUserIntent();
     let input;
-    if (place.context.startsWith("reply:"))
-      input = await revealReply(place.context.slice("reply:".length), intent);
+    if (THREAD_HELD.test(place.context))
+      input = await revealInThread(place.context, intent);
     else {
       const resolve = () => {
         const route = [...writingRoutes].find(([prefix]) =>
@@ -694,17 +729,25 @@ addEventListener("storage", (ev) => {
 // that lifetime on committed removal. Ordinary inputs retire on disconnection. The
 // owner receives the original notification after hydration: null can mask a provisional
 // send or report settlement, so its lifecycle reads canonical draft availability.
+// `blank` answers what the box holds with no draft: nothing for a new message, and the
+// message's own words for a rewrite of it.
 export function mirrorDraft(
   ta,
   sync,
   ctx,
-  { retained = false, mirrored = false, resume = null, onChange = () => {} } = {},
+  {
+    retained = false,
+    mirrored = false,
+    resume = null,
+    onChange = () => {},
+    blank = () => "",
+  } = {},
 ) {
   const off = watchDraft(
     ctx,
     (value) => {
       if (!retained && !ta.isConnected) return off();
-      sync.load(value ?? "");
+      sync.load(value ?? blank());
       onChange(value);
     },
     { input: ta, mirrored, resume },

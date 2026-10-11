@@ -325,9 +325,40 @@ def test_question_context_frames_any_number_of_independent_sources(page_dir):
         in " ".join(control_first)
     )
 
+    # A context framing no live source would show a question the banner never
+    # counts. A retired source still counts: settling a decision keeps its context.
+    assert "registers no Question: it holds no widget that declares x-awaits" in (
+        " ".join(
+            fragment_errors(
+                '<lf-ask id="decision-empty"><h2>Nothing to answer</h2></lf-ask>',
+                registry,
+            )
+        )
+    )
+    unasked = first.replace(" choose", "")
+    assert (
+        '<lf-options id="g-one"> (line 1) asks only where choose is present'
+        in " ".join(
+            fragment_errors(
+                f'<lf-ask id="decision-unasked"><h2>Choose</h2>{unasked}</lf-ask>',
+                registry,
+            )
+        )
+    )
+    settled = first.replace(" choose", " choose settled")
     assert (
         fragment_errors(
-            '<lf-ask id="decision-empty"><h2>Nothing to answer</h2></lf-ask>',
+            f'<lf-ask id="decision-settled"><h2>Chosen</h2>{settled}</lf-ask>',
+            registry,
+        )
+        == []
+    )
+    # A quoted Ask is a mention, and its widgets ask nothing by design.
+    assert (
+        fragment_errors(
+            '<lf-sample id="quoted-ask" label="an Ask">'
+            f'<lf-ask id="decision-quoted"><h2>Choose</h2>{second}</lf-ask>'
+            "</lf-sample>",
             registry,
         )
         == []

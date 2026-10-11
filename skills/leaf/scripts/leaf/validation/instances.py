@@ -4,7 +4,7 @@ import re
 
 from leaf.passages import COLLAPSE_CHARS
 from leaf.projection import enclosing_widgets
-from leaf.questions import asking
+from leaf.questions import asking, local_question_entry, quoted_in
 from leaf.registry.contract import (
     is_element_name,
     registry_path,
@@ -153,20 +153,81 @@ def visual_part_errors(lf_elements: list, registry: dict) -> list:
     return errors
 
 
+def unasked(rec: dict, entry: dict) -> str:
+    """The `x-awaits.when` conditions a widget never met, worded for the author, or
+    "" where it asks, was asked, or can be made to ask.
+
+    A condition that only requires an attribute absent is how an author retires a
+    Question already asked, such as a settled decision kept with its context, so
+    failing it leaves the widget counted. One that requires an attribute present or
+    a value is how the widget opts into asking; one a recorded value writes can
+    still be met by a gesture."""
+    when = entry["x-awaits"].get("when") or {}
+    recorded = {
+        (spec.get("record") or {}).get("attr")
+        for spec in entry.get("x-state", {}).values()
+        if (spec.get("record") or {}).get("kind") == "value"
+    }
+    return " and ".join(
+        " or ".join(
+            f"{attr} is present" if value is True else f"{attr}={json_value(value)}"
+            for value in values
+        )
+        for attr, values in when.items()
+        if values != [False]
+        and attr not in recorded
+        and not asking(rec["attrs"], {attr: values})
+    )
+
+
 def question_context_errors(lf_elements: list, registry: dict) -> list:
     """A context supplies a leading title and arrival region for nested Questions.
 
     Context never owns Question identity or registration. Any number of sources
     can select it, and each source retains its independent answer and lifecycle.
+    A context framing no source asks nothing: the page shows a question the banner
+    never counts and the user can't answer, so the error names what each framed
+    widget lacks to ask (`unasked`).
     """
+
+    def context_of(rec):
+        return next(
+            (
+                holder
+                for holder in enclosing_widgets(rec)
+                if registry.get(holder["tag"], {}).get("x-question-context")
+            ),
+            None,
+        )
+
+    def named(rec):
+        return f"id={json_value(rec['attrs']['id'])}" if "id" in rec["attrs"] else ""
 
     regions = [
         rec
         for rec in lf_elements
         if registry.get(rec["tag"], {}).get("x-question-context")
     ]
+    framed = {id(region): [] for region in regions}
+    for rec in lf_elements:
+        entry = registry.get(rec["tag"], {})
+        region = context_of(rec)
+        if local_question_entry(entry) and region and not quoted_in(rec, registry):
+            framed[id(region)].append((rec, unasked(rec, entry)))
     errors = []
     for region in regions:
+        # A quoted context is a mention whose widgets ask nothing by design.
+        if not quoted_in(region, registry) and all(
+            lacks for _, lacks in framed[id(region)]
+        ):
+            widgets = "; ".join(
+                f"{at(rec, named(rec))} asks only where {lacks}"
+                for rec, lacks in framed[id(region)]
+            )
+            errors.append(
+                f"{at(region)}: a Question context registers no Question: "
+                + (widgets or "it holds no widget that declares x-awaits")
+            )
         headings = [
             child
             for child in region["children"]

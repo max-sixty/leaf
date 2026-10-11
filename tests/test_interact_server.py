@@ -2553,7 +2553,7 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
     old_page = old_page.replace(
         "</section>",
         '<lf-ask id="other-decision"><h3>Another choice</h3>'
-        '<lf-options id="other-picks"><lf-option id="other-option">'
+        '<lf-options id="other-picks" choose><lf-option id="other-option">'
         "Another option</lf-option></lf-options></lf-ask></section>",
     )
     new_page = (
@@ -2726,9 +2726,9 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
     """
     old_page = PAGE.replace("<lf-options>", '<lf-options id="picks">').replace(
         "</section>",
-        '<lf-ask id="kept-decision"><h3>Kept</h3><lf-options id="kept">'
+        '<lf-ask id="kept-decision"><h3>Kept</h3><lf-options id="kept" choose>'
         '<lf-option id="kept-one">One</lf-option></lf-options></lf-ask>'
-        '<lf-ask id="gone-decision"><h3>Gone</h3><lf-options id="gone">'
+        '<lf-ask id="gone-decision"><h3>Gone</h3><lf-options id="gone" choose>'
         '<lf-option id="gone-one">One</lf-option></lf-options></lf-ask></section>',
     )
     new_page = re.sub(

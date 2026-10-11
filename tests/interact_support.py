@@ -492,7 +492,7 @@ PAGE = """<!doctype html>
 <section id="plan">
   <h2>Plan</h2>
   <p>The cutoff lives in <a href="https://example.test/jobs/backfill.py#L88"><code>jobs/backfill.py:88</code></a>.</p>
-  <lf-ask id="plan-choice-decision">
+  <div id="plan-choice-decision">
     <h3>Which plan should lead?</h3>
     <lf-options>
       <lf-option id="flag-first"><small class="tag">effort: low</small><small class="tag">risk: med</small>
@@ -502,7 +502,7 @@ PAGE = """<!doctype html>
         <strong>Backfill first</strong> Verify, then flip. <em>My take: do this first.</em>
       </lf-option>
     </lf-options>
-  </lf-ask>
+  </div>
   <lf-diagram id="flow"><pre>
 graph LR
   A --> B
@@ -800,8 +800,8 @@ SUGGESTION = """<lf-suggestion id="sug-refill">
 
 
 def before_choice(page, markup):
-    """Insert a fixture before the base page's titled choice Ask."""
-    start = '<lf-ask id="plan-choice-decision">'
+    """Insert a fixture before the base page's titled choice."""
+    start = '<div id="plan-choice-decision">'
     return page.replace(start, markup + start)
 
 

@@ -12,9 +12,17 @@ the smallest set that exposes distinct plausible failures beyond existing covera
 Retain a broad sweep only when its extra samples catch a failure that representative
 states or transitions miss; an investigation's sampling grid is not itself a regression
 requirement. Every run pays for the test's compute, so weigh the additional cost against
-the additional coverage. Each CI `test` job's summary says where its run's time went, by
-file, phase, Playwright call and the suite's own functions; `leaf-dev suite-profile`
-prints the same from the job's `pytest-results-*` artifact. When a high-level browser test is slow, or fails on timing or
+the additional coverage.
+
+Measure the suite's cost in CPU time. It is what a run consumes, it is recorded for
+each test, and the runner time CI bills follows from it through how many workers share
+the runner: CPU a change saves becomes runner time saved once more workers use it. A test's
+time beyond its CPU is waiting, on a fixed delay, a deadline, or other workers' CPU;
+added workers fill those waits only while CPU is spare, so remove a fixed delay rather
+than relying on parallelism to absorb it.
+Each CI `test` job's summary says where its run's CPU and time went, by file, phase,
+Playwright call and the suite's own functions; `leaf-dev suite-profile` prints the same
+from the job's `pytest-results-*` artifact. When a high-level browser test is slow, or fails on timing or
 geometry outside its contract, repair its arrangement or move its contract to the lower
 boundary.
 

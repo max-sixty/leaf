@@ -2,7 +2,8 @@
 
 Loaded as a pytest plugin (`-p leaf_dev.suite_profile`, as CI's `test` job loads it),
 it gives every test one junit property, `profile`: JSON holding the seconds each
-phase took (`setup`, `call`, `teardown`) and, under `playwright`, the seconds and
+phase took (`setup`, `call`, `teardown`), under `cpu` the CPU seconds the worker and
+its process tree used meanwhile, and, under `playwright`, the seconds and
 calls the test spent in Playwright's sync API, keyed `"<method> from <caller>"`, the
 caller being the first frame outside Playwright. That sync API runs its event loop in
 a second greenlet and switches to it for every call, so a sampling profiler, which
@@ -11,8 +12,14 @@ the waiting test off the stack. Timing each call where the test makes it keeps t
 attribution. A call made from a handler's greenlet overlaps the main greenlet's wait
 and is not counted.
 
+`cpu` is the measure `tests/AGENTS.md` costs the suite in. A worker's process tree holds
+its browsers, their driver, and the servers and commands its tests start, so it covers
+the browser work no Python stack shows. A process that leaves the tree is not counted:
+one whose parent exits, as a server `leaf server start` detaches, is reparented outside
+it, and its CPU appears only in `sa`'s table of the whole machine.
+
 `leaf-dev suite-profile DIR` reads one run's results from DIR and prints where its
-worker time went: the junit report's phases, files and Playwright calls; py-spy's
+CPU and worker time went: the junit report's phases, CPU, files and Playwright calls; py-spy's
 sampled stacks (`stacks.txt`), for the suite's own Python by function; and `sa`'s
 table of CPU by command (`cpu-by-command.txt`), for the browsers and servers no
 Python stack shows. Accounting names a process after the last of its threads to
@@ -32,6 +39,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 import click
+import psutil
 import pytest
 
 from leaf_dev import ROOT
@@ -98,10 +106,29 @@ def _caller():
     return f"{place}:{frame.f_code.co_qualname}"
 
 
+_cpu = pytest.StashKey[float]()
+
+
+def tree_cpu() -> float:
+    """CPU seconds used so far by this process and its live descendants, with the
+    children each has reaped. A descendant reaped during a test moves its time into
+    its parent's reaped total, so the difference across the test still holds it."""
+    total = 0.0
+    me = psutil.Process()
+    for process in (me, *me.children(recursive=True)):
+        try:
+            times = process.cpu_times()
+        except psutil.NoSuchProcess:  # exited between listing and reading
+            continue
+        total += times.user + times.system + times.children_user + times.children_system
+    return total
+
+
 @pytest.hookimpl(wrapper=True)
-def pytest_runtest_protocol():
+def pytest_runtest_protocol(item):
     global _calls
     _calls = {}
+    item.stash[_cpu] = tree_cpu()
     try:
         return (yield)
     finally:
@@ -118,8 +145,9 @@ def pytest_runtest_makereport(item, call):
             key: [round(seconds, 3), calls]
             for key, (seconds, calls) in sorted((_calls or {}).items())
         }
+        cpu = round(tree_cpu() - item.stash[_cpu], 3)
         report.user_properties.append(
-            ("profile", json.dumps({**phases, "playwright": playwright}))
+            ("profile", json.dumps({**phases, "cpu": cpu, "playwright": playwright}))
         )
     return report
 
@@ -136,7 +164,7 @@ def pytest_runtest_makereport(item, call):
 )
 @click.option("--top", default=20, show_default=True, help="Rows per table.")
 def suite_profile(directory: Path, rate: float | None, top: int) -> None:
-    """Print where one suite run's worker time went, from the results in DIRECTORY:
+    """Print where one suite run's CPU and worker time went, from the results in DIRECTORY:
     `results.xml` with this module's `profile` properties, and, where present,
     py-spy's `stacks.txt` and `sa`'s `cpu-by-command.txt`. CI's `test` job uploads
     all three as its `pytest-results-*` artifact."""
@@ -176,7 +204,17 @@ def report_cases(cases: list[dict], top: int) -> None:
     profiled = [c["profile"] for c in cases if c["profile"]]
     phases = {p: sum(prof.get(p, 0) for prof in profiled) for p in PHASES}
     waits = sum(s for prof in profiled for s, _ in prof["playwright"].values())
-    section(f"{len(cases)} tests, {minutes(total)} worker-minutes")
+    # A run from before tests recorded their CPU ranks by worker time instead.
+    timed = bool(profiled) and all("cpu" in prof for prof in profiled)
+    cpu = sum(prof["cpu"] for prof in profiled) if timed else None
+    section(
+        f"{len(cases)} tests, {minutes(total)} worker-minutes"
+        + (
+            f", {minutes(cpu)} CPU-minutes in the workers' process trees"
+            if timed
+            else ""
+        )
+    )
     if profiled:
         click.echo(
             "  ".join(f"{p} {minutes(s)}" for p, s in phases.items())
@@ -194,11 +232,13 @@ def report_cases(cases: list[dict], top: int) -> None:
     for name, group in by_file.items():
         seconds = sum(c["seconds"] for c in group)
         profiles = [c["profile"] for c in group if c["profile"]]
+        used = sum(p["cpu"] for p in profiles) if timed else 0.0
         setup = sum(p.get("setup", 0) for p in profiles)
         waited = sum(s for p in profiles for s, _ in p["playwright"].values())
         median = statistics.median(c["seconds"] for c in group)
         rows.append(
             (
+                used,
                 seconds,
                 name,
                 len(group),
@@ -207,12 +247,12 @@ def report_cases(cases: list[dict], top: int) -> None:
                 share(waited, seconds),
             )
         )
-    section("By file")
+    section("By file" + (", most CPU first" if timed else ""))
     table(
-        ("minutes", "tests", "median s", "setup", "Playwright", "file"),
+        ("CPU min", "minutes", "tests", "median s", "setup", "Playwright", "file"),
         [
-            (minutes(s), n, f"{m:.1f}", su, pw, name)
-            for s, name, n, m, su, pw in sorted(rows, reverse=True)[:top]
+            (minutes(c) if timed else "-", minutes(s), n, f"{m:.1f}", su, pw, name)
+            for c, s, name, n, m, su, pw in sorted(rows, reverse=True)[:top]
         ],
     )
     if not profiled:

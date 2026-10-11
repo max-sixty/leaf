@@ -36,7 +36,8 @@ export const shadowHost = (root) =>
 // which section, which block, which passage cell, whether it is chrome — is asked of the
 // page, and a climb that stops at a shadow root answers about the widget's own markup
 // instead.
-export const upFrom = (node) => node?.parentElement ?? shadowHost(node?.getRootNode());
+export const upFrom = (node) =>
+  node?.parentElement ?? shadowHost(node && Node.prototype.getRootNode.call(node));
 // Explicit inertness excludes a node through its composed ancestry. A standing native
 // modal escapes inherited inertness outside itself, but an inert modal or descendant
 // remains excluded. Read node kind rather than realm-specific Element: a sample asks
@@ -85,7 +86,8 @@ export const under = (node, root) => {
 // questions, which the platform answers only within one tree, are asked of this.
 export const hostIn = (node, root) => {
   let at = node;
-  while (at && at.getRootNode() !== root) at = shadowHost(at.getRootNode());
+  while (at && Node.prototype.getRootNode.call(at) !== root)
+    at = shadowHost(Node.prototype.getRootNode.call(at));
   return at;
 };
 

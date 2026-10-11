@@ -8,6 +8,7 @@ const runtimePrimitives = [
   "anchor-coordinate.js",
   "chrome.js",
   "dom-children.js",
+  "dom-move.js",
   "focus.js",
   "control-selectors.js",
   "keeps.js",
@@ -1369,9 +1370,9 @@ export default [
   {
     // These primitives may use the browser, but importing an application owner
     // would make every caller acquire that owner's initialization and paint graph.
-    // A vendored bundle is not an owner: it initializes nothing, paints nothing, and
-    // reaches no other module, so a primitive may take an algorithm from one rather
-    // than write a second copy of it beside the layer's. Nor is another primitive,
+    // A vendored algorithm is not an application owner, so a primitive may reuse
+    // one rather than write a second copy of it beside the layer's, with its imports
+    // subject to the same boundary. Nor is another primitive,
     // whose own imports this same rule holds: `rendering.js`, which every rendering
     // callback is counted through, or `focus.js`, which a primitive that moves the
     // user's node asks to keep them standing on it.

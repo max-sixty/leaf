@@ -93,6 +93,17 @@ readiness stage.
 A declared `x-shadow` widget gets the same transition protection when it builds its root
 with `shadowStage`.
 
+## Template containers
+
+Once `render(template, container)` owns a container, update its children through
+`render` so Lit retains its markers and disconnects removed directives. `failSoft`
+resets the container and renders an error box; a later template render replaces
+that box. It also supports native recovery and repeated failures.
+
+`shadowStage(host, nodes)` owns the shadow root's structure and styles. For a
+template, stage a concrete container with `shadowStage(host, [container])` and
+call `render(template, container)`. Retain that container on later stage updates.
+
 ## What a behavior module owes
 
 A behavior module follows these rules:
@@ -116,8 +127,7 @@ A behavior module follows these rules:
   observation, so checks and tests wait for that work too. `nextRender` runs in
   the current rendering callback's frame, or in the next frame when called
   elsewhere. Use `nextFrame` for a step that must run in a later frame, such as
-  an animation tick. A playback loop keeps `requestAnimationFrame`, so playing
-  does not prevent the page from settling.
+  an animation tick.
 - Use `afterScript(callback)` to coalesce a stable callback at the current
   script's microtask checkpoint when synchronous updates yield one final
   mechanical reading.
@@ -441,9 +451,8 @@ state. `reducedMotion()`, `scrollBehavior()`, and `onMotionPreferenceChange()` a
 same preference where a module has to branch on it. `foldDuration()` reads how long a
 unit takes to leave from the document-root `--lf-motion-fold` stylesheet input; a widget
 retiring one calls that reader rather than choosing a number or caching a value.
-`flashDuration()` and `agentArrivalDuration()` read the corresponding shared cues.
-These typed time inputs accept CSS calculations and are set on the document root,
-including when the animated element lives in a shadow tree. Spend
+The `--lf-motion-*` time inputs accept CSS calculations and are set on the document
+root, including when the animated element lives in a shadow tree. Spend
 a duration only on letting the eye follow a box from where it was to where it is. A result
 the module can already draw is drawn in the gesture rather than after a wait.
 
@@ -793,7 +802,7 @@ omitting the attribute keeps the visual as one target.
 
 ## Projection subscriptions
 
-Register `watchQuestions`, `watchUpdates`, `watchHistory`, and `watchThreads` once for each
+Register `watchQuestions`, `watchReports`, `watchHistory`, and `watchThreads` once for each
 owner. They coalesce reads at the script's microtask checkpoint, pause while the owner
 is absent, and read the latest projection when it returns, even when unchanged.
 Moving the owner within one mutation batch retains its subscription. Their returned
@@ -861,7 +870,7 @@ a grab or removing hoisted dialog content, belongs in `disconnectedCallback`.
 checks connection again before painting. Returning permits fresh scheduling; it does
 not replay cancelled work.
 
-Time readings made synchronously in controller, `watchData`, `watchUpdates`, and
+Time readings made synchronously in controller, `watchData`, `watchReports`, and
 `watchHistory` callbacks subscribe that paint to Leaf's shared clock. Calls to `ago`,
 `shortAgo` and `quietSince` refresh the callback only when their result changes. `ago(ts)`
 says how long ago `ts` was as the page words it everywhere ("2h ago"), and `shortAgo(ts)`
@@ -1257,7 +1266,8 @@ Escape may return focus. Widgets do not receive draft, submission, or event APIs
 ## Page annotation presentation
 
 With `data-annotations="page"` on `body`, one connected Element may register
-`placePageThreads(owner, render)` to nominate page-owned conversation outlets.
+`placePageThreads(owner, render)` to nominate page-owned conversation outlets; both
+registrations in this section throw on a page without it.
 Its callback receives the same admitted target batch and `{signal, collection}` context,
 and returns the same matching outlet array as a widget-local surface. Page targets
 include exact passages and visual details, as well as projected data. The complete
@@ -1294,5 +1304,8 @@ holding layout never authorizes old actions. Both handles provide `read()`,
 `update()` and `unregister()`. Unregister on disconnect. Retain keyed rows and
 hold visible size changes with the shared `HeldReading` mechanism. Hold only layout
 identities and allocations, while updating surviving records and controls immediately;
-retired slots retain space with no interactive descendants. The bundled `lf-annotation-rail` is the worked
-implementation. Omitting either consumer retains the core Threads and Questions routes.
+retired slots retain space with no interactive descendants. An owner that scrolls
+inside a box of its own is a reading region: a page bounds it with `data-bound`, which
+registers it, and a widget whose theme makes it scroll calls `registerReadingRegion`.
+At narrow widths the owner stays where touch and the keyboard reach it. Omitting either
+consumer retains the core Threads and Questions routes.

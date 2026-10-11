@@ -51,7 +51,7 @@ COUNT_FIELDS = frozenset(
 
 
 def compact_activity(activity: dict) -> dict:
-    """The bounded presentation contract; owed moves and reply bodies stay local."""
+    """The bounded presentation contract; owed updates and reply bodies stay local."""
     return {key: activity[key] for key in ACTIVITY_FIELDS}
 
 

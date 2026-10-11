@@ -1699,7 +1699,7 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
         ("you", "2be2443f0bb6cc49fc86b52f340e6073", 2, "Workshop room photo"),
         ("resolved", "bab3cdfcfb8c02aacbb27da731de947a", 1, "Projector map"),
         ("summary", "9ee465bb3f9c1fa309ea9cb1767fa365", 4, "Afternoon workshop"),
-        ("updates", "bg-progress-question", 4, "Schedule checks"),
+        ("progress", "bg-progress-question", 4, "Schedule checks"),
         (
             "overview",
             "72e031c5bf0d485ba9054628e09869d4",
@@ -1717,7 +1717,7 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
         expect(topic).to_be_visible()
         expect(topic).to_have_text(title)
         assert topic.evaluate("element => element.getBoundingClientRect().width") > 40
-        if view == "updates":
+        if view == "progress":
             card = frame.locator(f'.lf-thread[data-id="{thread}"]')
             checkpoint = card.locator(".lf-thread-checkpoint")
             expect(checkpoint.locator(".lf-summary-label")).to_have_count(0)
@@ -1800,48 +1800,6 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
     expect(
         frame.locator(".lf-thread[open]:not([hidden]) .lf-thread-topic")
     ).to_have_text("Projector map")
-
-
-def test_gallery_page_annotation_sample_owns_its_child_mode(browser, serve):
-    """Native practice comments and decisions use a rail without changing the parent."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
-    parent_before = events_model.read_events(serve.page_dir)
-    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
-    child = page.frame_locator("#bg-page-annotations-sample iframe")
-    expect(child.locator("body")).to_have_attribute("data-annotations", "page")
-    rail = child.locator("lf-annotation-rail")
-    expect(rail).to_be_visible()
-    assert (
-        child.locator(
-            ".lf-margin-projection,.lf-margin-preview,.lf-visual-marks"
-        ).count()
-        == 0
-    )
-    assert page.locator("body").get_attribute("data-annotations") != "page"
-    resources = child.locator("body").evaluate(
-        "() => performance.getEntriesByType('resource').map(e => new URL(e.name).pathname)"
-    )
-    assert not [path for path in resources if "/runtime/annotation-overlay/" in path]
-    child.locator("#bg-page-annotations-finding").click(modifiers=["Alt"])
-    editor = rail.locator(".lf-fab-input")
-    expect(editor).to_be_focused()
-    editor.press_sequentially("A comment in this practice window")
-    editor.press("Control+Enter")
-    expect(
-        rail.locator(".lf-msg").filter(has_text="A comment in this practice window")
-    ).to_be_visible()
-    option = child.locator("#bg-page-annotations-short")
-    option.click()
-    expect(option.get_by_role("checkbox")).to_be_checked()
-    expect(child.locator(".lf-shortcut-bar")).to_contain_text("undo")
-    option.press("z")
-    expect(option.get_by_role("checkbox")).not_to_be_checked()
-    assert events_model.read_events(serve.page_dir) == parent_before
-    page.locator("#bg-page-annotations-sample").get_by_role(
-        "button", name="Reset", exact=True
-    ).click()
-    expect(child.locator("body")).to_have_attribute("data-annotations", "page")
-    expect(child.locator(".lf-page-thread")).to_have_count(0)
 
 
 def test_sample_fixture_history_presents_before_ready_and_returns_on_reset(

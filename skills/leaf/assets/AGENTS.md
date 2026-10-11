@@ -257,7 +257,7 @@ one-sided borders and reflexive cards, tints, gradients, or soft shadows.
 Each Thread's `unread` and `attention` are single readings that every surface
 painting them consumes, so the Threads toggle, filters, panel, margin entry, and
 Page Map change together. Workflow state rides the existing semantic control
-rather than competing with attention for color. Green marks a move the user owes;
+rather than competing with attention for color. Green marks the user's turn;
 other thread controls stay blue. Pickup and work use status words, with one brief
 pulse when work begins that a repaint never replays. Reading is bookkeeping and
 never moves the user.
@@ -284,17 +284,17 @@ values for JavaScript. The theme's guard answers for CSS.
 `leaf.js` is the boot-only entry: every owner is a module that exports its
 capability and imports what it needs, and `leaf.js` imports them and runs the
 boot sequence. Two classic scripts run before the first paint, which no module
-reaches. `runtime/bootstrap.js` runs in a served page only and loads before everything
-else. It marks the page live (`data-lf-live`), so the theme reserves the chrome's room;
-it shows a startup failure and waits for a server that can start the page, even if
-the module graph never loads; and it holds page keys pressed before presentation.
-`runtime/prepaint.js` runs in every document the runtime runs in, served or exported,
-ahead of the bootstrap. It marks the root `data-lf-interactive`, so the themes give
-each widget its upgraded box, and takes the mark off when the runtime could not start
-because something it needs did not arrive (naming why in `data-lf-startup-error`), so
-the themes give back the readable fallback for every widget at once; it declares the
-page's storage scope;
-and it decides which member an `x-views` holder opens on. Content modules import only
+reaches. `runtime/prepaint.js` runs first, inline in the head after the canonical
+link, in every document the runtime runs in, served or exported. It marks the root
+`data-lf-interactive`, so the themes give each widget its upgraded box, and takes the
+mark off when the runtime could not start because something it needs did not arrive
+(naming why in `data-lf-startup-error`), so the themes give back the readable fallback
+for every widget at once; it declares the page's storage scope; and it decides which
+member an `x-views` holder opens on. `runtime/bootstrap.js` runs next, in a served
+page only, before any resource the page loads. It marks the page live
+(`data-lf-live`), so the theme reserves the chrome's room; it shows a startup failure
+and waits for a server that can start the page, even if the module graph never loads;
+and it holds page keys pressed before presentation. Content modules import only
 `runtime/widget-api.js`, the public helper surface; owners never reach back
 through it or the entry module. Owners are constructed with explicit capabilities
 and cross-owner reads happen in their mounts. Pure projection, thread, and
@@ -324,12 +324,12 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Threads | `thread/`, `thread-panel.js` |
 | Annotation inventory and controls | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js` |
 | Annotation records and Page Map | `margin-model.js`, `margin-map-model.js`, `page-map-dialog.js`, `pointed-place.js` |
-| Physical annotation presentation | `../packages/default/runtime/annotation-overlay/` |
+| Physical annotation presentation | `../../packages/default/runtime/annotation-overlay/` |
 | Passages and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js` |
 | Anchor placement, decoration and travel | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`, `indication.js` |
 | Banner and approvals | `banner*.js` |
 | Drawers and neighboring pages | `drawers.js`, `queue-panel.js`, `queue-list.js`, `live-leaves*.js` |
-| Activity and updates | `presence.js`, `updates.js` |
+| Activity and reports | `presence.js`, `reports.js` |
 | Notices and announcements | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js` |
 | Reactions and design review | `reactions.js`, `design.js`, `design-readings.js` |
 | Presentation and validation | `presentation.js`, `validation.js`, `projection-watch.js`, `retained-face.js` |
@@ -544,12 +544,6 @@ through the publisher's own reading, never a test-only interpretation of it.
 | `trappedMargins`, `splitEdges` | authored-page spacing advice; the suite enforces frame trim on Leaf's own boxes |
 | `relativeReplays` | rendering a complete widget state twice changes nothing |
 | `shrunkLabels` | advice only |
-
-Put a check on the side that can observe the fact: static validation owns schema,
-ids, nesting, passages, event shapes, and file readings; the browser owns computed
-layout, composed trees, module writes, focus, and replay idempotence.
-Readings of widget state use the publisher's own reading; never write a test-only
-interpretation of it.
 
 The gates judge contracts, not how the page looks. A change to what the page
 draws, including one made for geometry, is proved with before/after screenshots

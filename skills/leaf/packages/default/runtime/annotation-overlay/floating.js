@@ -383,8 +383,10 @@ export function floatingPlacement({ floating, update }) {
       const { getOverflowAncestors } = await floatingUi();
       if (placement !== epoch) return null;
       // Solver coordinates, physical attachment and scroll origins are one reading.
-      // Freezing it before asynchronous solving keeps native and observed placements
-      // consistent, regardless of when the solver reads.
+      // Capturing it before asynchronous solving keeps native and observed placements
+      // consistent, regardless of when the solver reads. Retain the synthetic rectangle
+      // itself: placement middleware can refine it and request remeasurement without
+      // reading live DOM again.
       const measured = {
         contextElement: reference.contextElement ?? beside,
         getBoundingClientRect: () => client,

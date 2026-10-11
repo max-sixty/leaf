@@ -1515,14 +1515,12 @@ def take_browser_errors(page):
 def reported_browser_errors(page, *expected):
     """Wait for the complete report a fault draws, then consume it.
 
-    One fault is reported by every boundary that carried it, and the later words can be
-    separated from the first by whatever the page does on the way: the feed names a read
-    whose application failed only once the queued projection retry that application left
-    behind has finished presenting. A list read at the moment the first word lands is a
-    report still arriving, so an equality assertion over it turns the gap between the
-    boundaries into a race. This waits for the inventory the caller names before taking
-    it, and a problem past that inventory still reaches the browser fixture's own
-    reading.
+    One exception is reported once, but one injected fault can raise several, and the
+    later reports can be separated from the first by whatever the page does on the way.
+    A list read at the moment the first word lands may be a report still arriving, so
+    an equality assertion over it turns that gap into a race. This waits for the
+    inventory the caller names before taking it, and a problem past that inventory
+    still reaches the browser fixture's own reading.
 
     The wait is a Playwright call rather than a sleep, because the sync driver hands
     console messages to this process only while it is inside one."""

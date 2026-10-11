@@ -289,15 +289,19 @@ export const uploadMedia = async (file) => {
 // live-session fault was the user pasting a console nobody told them to
 // open. The event lands in the log as kind "error", author "page" — the
 // watcher hears it beside comments and reports; the user's pending count
-// never claims it. Deduped per message per load (a reload may repeat one —
-// bounded noise over silence), capped so a fault in a loop cannot flood the
-// log, and sent bare rather than through post(): a poll fault reporting
+// never claims it. Logged once per message text per load (a reload may repeat
+// one — bounded noise over silence), capped so a fault in a loop cannot flood
+// the log, and sent bare rather than through post(): a poll fault reporting
 // itself through the poll would recurse, and nothing here needs the answer.
 // Not part of the helper surface a module gets: an upgrade that throws is already on
 // this path through window.error, and a widget that wants to say so itself has
 // failSoft, which puts the message where the user is looking and reports it here.
+const reportedReasons = new WeakSet();
+const reportedPrimitives = new Set();
 const reportedErrors = new Set();
 export function reportPageError(reason, context = "") {
+  if (typeof reason === "object" && reason !== null) reportedReasons.add(reason);
+  else reportedPrimitives.add(String(reason));
   const text = exceptionText(reason, context);
   console.error(`leaf: ${text}`);
   if (offlineInteractive) return;
@@ -308,6 +312,22 @@ export function reportPageError(reason, context = "") {
     text,
     ...(runtime.currentRevision != null && { revision: runtime.currentRevision }),
   }).catch(() => {});
+}
+
+// What a consumer reports of a fault it carries: a rejection that travelled up to it
+// from the presentation coordinator or state application, say. Where the producer
+// already reported that fault, a second report would add only the consumer's context
+// and make one fault read as several, so it is dropped; for a fault no producer saw,
+// such as a malformed state body, the consumer is the only reporter. A producer that
+// shares one exception among owners, as a cached rejected load does among its widgets,
+// reports through reportPageError, once per owner. A primitive reason has no identity,
+// so its text stands for it.
+export function reportCarried(reason, context = "") {
+  const reported =
+    typeof reason === "object" && reason !== null
+      ? reportedReasons.has(reason)
+      : reportedPrimitives.has(String(reason));
+  if (!reported) reportPageError(reason, context);
 }
 
 // This is the only exception formatter. Callers pass the original exception (or

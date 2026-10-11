@@ -130,7 +130,7 @@ const MANIFEST = {
 
 const startupReport = (overrides: Record<string, unknown> = {}) => ({
   version: 2,
-  loadId: "123e4567-e89b-42d3-a456-426614174000",
+  loadId: "123e4567e89b42d3a456426614174000",
   release: RELEASE,
   layer: LAYER,
   outcome: "presented",
@@ -401,7 +401,7 @@ describe("product-site delivery", () => {
     ];
     try {
       for (const [index, path] of [sample, nested].entries()) {
-        const body = JSON.stringify({ session: `child-${index}`, entries: [entries[index]] });
+        const body = JSON.stringify({ session: String(index).repeat(32), entries: [entries[index]] });
         const response = await worker.fetch(new Request(`https://leaf.page/examples/triage-board${path}/api/interaction`, {
           method: "POST", headers: { Origin: "null" }, body,
         }), env);
@@ -413,13 +413,13 @@ describe("product-site delivery", () => {
       expect(logged.mock.calls.map(call => call[0])).toEqual([
         {
           component: "leaf-interaction", event: "client_batch", route: "/examples/triage-board",
-          release: RELEASE, sampleReference: "645988520964", session: "child-0",
+          release: RELEASE, sampleReference: "645988520964", session: "0".repeat(32),
           entries: [{ ts: entries[0].ts, sequence: 1, type: "sample", phase: "failed",
             sampleReference: "380479911687", error: { name: "AuthoredSampleError", status: 503 } }],
         },
         {
           component: "leaf-interaction", event: "client_batch", route: "/examples/triage-board",
-          release: RELEASE, sampleReference: "380479911687", session: "child-1",
+          release: RELEASE, sampleReference: "380479911687", session: "1".repeat(32),
           entries: [{ ts: entries[1].ts, sequence: 1, type: "click", target: ["button"] }],
         },
       ]);
@@ -443,7 +443,7 @@ describe("product-site delivery", () => {
       idFromString: vi.fn(() => ({})), get: vi.fn(() => ({ fetch: containerFetch })),
     } as unknown as Env["PAGES"] });
     const entry = { ts: "2026-10-10T12:00:00.000Z", sequence: 1, type: "click" };
-    const batch = { session: "child-1", entries: [entry] };
+    const batch = { session: "1".repeat(32), entries: [entry] };
     const cases = [
       { status: 404, body: JSON.stringify(batch), expected: 404 },
       { status: 503, body: JSON.stringify(batch), expected: 503 },
@@ -511,7 +511,7 @@ describe("product-site delivery", () => {
     try {
       const response = await worker.fetch(new Request("https://leaf.page/examples/triage-board/api/interaction", {
         method: "POST", headers: { Cookie: `__Host-leaf-page=${"17".repeat(16)}` },
-        body: JSON.stringify({ session: "tab-1", entries }),
+        body: JSON.stringify({ session: "a".repeat(32), entries }),
       }), environment());
       expect(response.status).toBe(204);
       const batch = logged.mock.calls[0][0] as { entries: unknown[] };
@@ -562,7 +562,7 @@ describe("product-site delivery", () => {
     const url = "https://leaf.page/examples/triage-board/api/interaction";
     const headers = { Cookie: `__Host-leaf-page=${sessionId}` };
     const batch = {
-      session: "tab-1",
+      session: "a".repeat(32),
       entries: [
         {
           ts: "2026-09-25T12:00:00.000Z",
@@ -634,7 +634,7 @@ describe("product-site delivery", () => {
         reference: "964433995543",
         route: "/examples/triage-board",
         release: RELEASE,
-        session: "tab-1",
+        session: "a".repeat(32),
         entries: [
           {
             ts: "2026-09-25T12:00:00.000Z",

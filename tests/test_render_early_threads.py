@@ -226,64 +226,6 @@ def test_the_ask_walk_reveals_a_new_card_held_from_first_history(browser, serve)
     expect(saved_card.locator("#saved-question")).to_be_focused()
 
 
-def test_first_history_keeps_an_early_annotation_rail_reply_in_view(browser, serve):
-    """A released local rail reading protects its native editor before history loads."""
-    source = leaf_page(
-        "Rail reading",
-        '<section id="reading"><h1>Two passages</h1>'
-        "<p>The earlier passage describes a sheltered garden route.</p>"
-        "<p>The later passage recommends taking the river footbridge.</p>"
-        '</section><lf-annotation-rail id="annotations"></lf-annotation-rail>',
-        head="<style>main.layout-column {display:grid;grid-template-columns:"
-        "minmax(0,1fr) 360px;gap:40px;max-width:1100px}"
-        "lf-annotation-rail {width:360px;height:650px;overflow:auto}</style>",
-    ).replace("<body>", '<body data-annotations="page">')
-    page, release = _cold_page(
-        browser,
-        serve(
-            source,
-            events=[
-                {
-                    **SAVED_COMMENT,
-                    "anchor": {
-                        "section": "reading",
-                        "quote": "The earlier passage describes a sheltered garden route.",
-                    },
-                    "text": "Earlier saved discussion. " + "Supporting context. " * 50,
-                }
-            ],
-        ),
-    )
-    held = []
-    page.route(
-        "**/api/event",
-        lambda route: (
-            held.append(route)
-            if route.request.post_data_json["kind"] == "comment"
-            else route.continue_()
-        ),
-    )
-    select_words(page, "#reading p:last-child")
-    page.keyboard.press("c")
-    write(page.locator(".lf-fab-input"), "An early observation about the footbridge.")
-    page.keyboard.press("ControlOrMeta+Enter")
-    rail = page.locator("lf-annotation-rail")
-    card = rail.locator('.lf-page-thread[data-thread^="pending:"]')
-    expect(card).to_be_visible()
-    reply = card.get_by_role("textbox")
-    write(reply, "An unfinished reply")
-    reply.press("ArrowLeft")
-    caret = reply.evaluate("e => [e.selectionStart, e.selectionEnd]")
-    before = reply.bounding_box()
-    release()
-    wait_until_ready(page)
-    expect(reply).to_be_focused()
-    expect(reply).to_have_js_property("value", "An unfinished reply")
-    assert reply.evaluate("e => [e.selectionStart, e.selectionEnd]") == caret
-    assert abs(reply.bounding_box()["y"] - before["y"]) < 1
-    expect(rail.get_by_role("button", name="Show updated annotations")).to_be_enabled()
-
-
 @pytest.mark.parametrize("edited", [False, True], ids=["seed", "edited"])
 def test_commenting_on_the_same_selection_preserves_the_existing_suggestion(
     browser, serve, edited

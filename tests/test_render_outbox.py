@@ -56,6 +56,7 @@ from render_harness import (
     pane_posture,
     panel_settled,
     refuse,
+    reported_browser_errors,
     resized,
     root_overflow,
     round_trip,
@@ -501,9 +502,12 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
         route.fulfill(status=response.status, json=answer)
 
     page.route("**/api/event", break_first_state)
+    # State application reports the answer it could not present; delivery, which
+    # carried that answer, adds no second report of the same fault.
     with page.expect_console_message(
         lambda message: (
-            message.type == "error" and "leaf: state in event response" in message.text
+            message.type == "error"
+            and message.text.startswith("leaf: State presentation failed:")
         )
     ) as reported:
         suggestion_control(page, "sug-thistle", "accept").click()
@@ -569,7 +573,6 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
         "data-lf-state", "accept"
     )
     expect(page.locator("#sug-in-card lf-old")).to_be_visible()
-    assert "leaf: state in event response" in reported.value.text
     # This test transforms event responses with route.fetch(). A news-triggered POST
     # can enter that handler after the last assertion; closing its context then disposes
     # the APIResponse while the handler is still reading it, and Playwright reports that
@@ -577,17 +580,9 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     # the routes and wait for any handler already running before their owning page goes.
     page.unroute_all(behavior="wait")
     errors = take_browser_errors(page)
-    assert reported.value.text in errors
-    presentation_errors = [
-        error
-        for error in errors
-        if error.startswith("leaf: State presentation failed:")
-    ]
-    assert len(presentation_errors) == 1, errors
-    assert all(
-        error == reported.value.text or error in presentation_errors or "400" in error
-        for error in errors
-    ), errors
+    assert [error for error in errors if "400" not in error] == [reported.value.text], (
+        errors
+    )
 
 
 def test_a_failed_background_presentation_keeps_the_new_undo_authority(browser, serve):
@@ -619,7 +614,7 @@ def test_a_failed_background_presentation_keeps_the_new_undo_authority(browser, 
     page.route("**/api/state*", malformed_state)
     with (
         page.expect_console_message(
-            lambda message: "read failed" in message.text
+            lambda message: "State presentation failed" in message.text
         ) as reported,
         page.expect_request("**/api/state*"),
     ):
@@ -652,12 +647,7 @@ def test_a_failed_background_presentation_keeps_the_new_undo_authority(browser, 
     assert logged_undo["undoes"] != first["id"]
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
     expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
-    assert take_browser_errors(page) == [
-        reported.value.text.replace(
-            "leaf: read failed:", "leaf: State presentation failed:", 1
-        ),
-        reported.value.text,
-    ]
+    assert take_browser_errors(page) == [reported.value.text]
 
 
 def test_a_newer_queued_action_survives_an_older_refusal(browser, serve):
@@ -1103,14 +1093,10 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
         if lifted:
             route.continue_()
             return
-        if malformed_reads:
+        if malformed_reads or held_reads:
             refuse(route)
             return
-        response = route.fetch()
-        state = response.json()
-        state["others"] = [None]
-        malformed_reads.append(True)
-        route.fulfill(status=response.status, json=state)
+        held_reads.append(route)
 
     def malformed_event_state(route):
         response = route.fetch()
@@ -1119,21 +1105,31 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
         route.fulfill(status=response.status, json=answer)
 
     malformed_reads = []
+    held_reads = []
     lifted = False
     page.route("**/api/state*", malformed_read_state)
     page.route("**/api/event", malformed_event_state)
     heater = page.locator("#card-heater .lf-grip")
-    with (
-        page.expect_console_message(
-            lambda message: "leaf: state in event response" in message.text
-        ),
-        # The move's own append is what the page hears next, so the malformed read
-        # it prompts fails here rather than on a later timer.
-        page.expect_console_message(lambda message: "read failed" in message.text),
+    # The move's malformed answer fails to present, which state application reports;
+    # the read the move's append prompts is held meanwhile, so this report can only be
+    # the answer's.
+    with page.expect_console_message(
+        lambda message: "leaf: State presentation failed" in message.text
     ):
         heater.focus()
         for key in ["Enter", "ArrowRight", "Enter"]:
             page.keyboard.press(key)
+    # Then that read is answered malformed too, here rather than on a later timer.
+    holding(page, held_reads, 1, "the read the move's append prompts")
+    held = held_reads.pop()
+    response = held.fetch()
+    state = response.json()
+    state["others"] = [None]
+    malformed_reads.append(True)
+    with page.expect_console_message(
+        lambda message: "leaf: State presentation failed" in message.text
+    ):
+        held.fulfill(status=response.status, json=state)
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
     page.unroute("**/api/event")
 
@@ -1201,8 +1197,6 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
     consume_browser_errors(
         page,
         "leaf: State presentation failed:",
-        "leaf: state in event response",
-        "read failed",
         "400",
     )
 
@@ -2807,10 +2801,10 @@ def test_a_failed_candidate_presentation_keeps_version_approval(browser, serve):
         route.continue_()
     nudge(serve.page_dir)
     expect(approval).to_have_text("✓ Version approved")
-    assert take_browser_errors(page) == [
+    reported_browser_errors(
+        page,
         "leaf: State presentation failed: injected approval commit fault",
-        "leaf: read failed: injected approval commit fault",
-    ]
+    )
 
 
 def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
@@ -2917,10 +2911,10 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
     page.unroute("**/api/state*")
     for route in held_states:
         route.continue_()
-    assert take_browser_errors(page) == [
+    reported_browser_errors(
+        page,
         "leaf: State presentation failed: injected candidate commit fault",
-        "leaf: read failed: injected candidate commit fault",
-    ]
+    )
 
 
 def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
@@ -3082,7 +3076,7 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
     expect(suggestion_control(page, "sug-refill", "undo")).to_be_enabled()
     expect(suggestion_control(page, "sug-refill", "undo")).to_be_enabled()
-    assert take_browser_errors(page) == [
+    reported_browser_errors(
+        page,
         "leaf: State presentation failed: injected wake candidate fault",
-        "leaf: read failed: injected wake candidate fault",
-    ]
+    )

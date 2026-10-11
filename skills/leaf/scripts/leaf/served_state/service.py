@@ -92,7 +92,7 @@ class PageStateService:
 
         No neighboring-page discovery runs here. The reading and live facts
         name the inputs the publisher keeps, so a concurrent writer invalidates
-        this publication on its next look. Owed moves and reply bodies stay in
+        this publication on its next look. Owed updates and reply bodies stay in
         the page's projection; the row carries their counts, never their copies.
         """
         from ..server_rows import compact_activity

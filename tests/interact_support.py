@@ -2125,11 +2125,11 @@ SnapshotHandlerRegistry.add_handler(
 def consume_pending_input(session_id):
     """Hand the session its pending input as a hook does inline: one complete
     envelope, confirmed as it is handed over."""
-    from leaf import delivery
+    from leaf import delivery, state
 
     batches = delivery.pending_batches(session_id)
     if not batches:
         return None
     payload = delivery.freeze_delivery(batches)
-    delivery.receive_held(payload, session_id)
+    delivery.receive_held(payload, session_id, state.session_record(session_id))
     return payload

@@ -77,14 +77,14 @@ def recovered(page_dir: Path, claim: dict) -> None:
 def publishing_notices(
     harness: str | None, session_id: str, expected: dict | None
 ) -> Iterator[list[str] | None]:
-    """Hold notice reservation and stdout publication in one lifecycle decision.
+    """Hold notice reservation and the decision to publish in one lifecycle reading.
 
-    Callers prepare page input and freeze deliveries before entering, then only
-    render and print inside. Sorted service/page locks serialize stop, transfer,
-    and recovery; the session lock is last and stays held through output. A stale
+    Callers prepare page input and freeze deliveries before entering, and publish
+    what they took inside only if it yielded notices. Sorted service/page locks
+    serialize stop, transfer, and recovery; the session lock is last. A stale
     lifecycle yields None without reserving anything. None for the harness skips
-    reconnect inspection, while still holding the session lock around the caller's
-    output.
+    reconnect inspection, while still holding the session lock for the lifecycle
+    reading.
     """
     pages = (
         sorted(

@@ -701,29 +701,36 @@ def receive(payload: dict, session_id: str | None) -> list[Path]:
 
 
 def receive_held(
-    payload: dict, session_id: str, *, deadline: float | None = None
-) -> list[Path]:
-    """Confirm each batch of a delivery its hook handed to `session_id`'s open
-    turn, where the session still holds the batch's page.
+    payload: dict, session_id: str, expected: dict, *, deadline: float | None = None
+) -> bool:
+    """Confirm each batch of a delivery its hook is handing to `session_id`'s open
+    turn, the lifecycle `expected` it planned under, and whether every batch was
+    confirmed.
 
-    The hook has already handed the delivery over, so a page that changed hands
-    or went, or a turn that ended, refuses only its own batch: that input stays
-    pending, and a later delivery carries it. So does a batch whose locks are still
-    held at `deadline`, for a hook that must exit by then for its handover to
-    stand."""
-    pages = []
+    A refusal is the batch's own: a page that changed hands or went, a turn that
+    ended or was replaced, a log this Leaf may not write
+    (`layer.foreign_event_contract`), or locks still held at `deadline`, for a hook
+    that must exit by then for its handover to stand. The other batches are still
+    confirmed, and the hook hands the whole delivery to its reader to confirm
+    (`hook_transport.render`)."""
+    confirmed = True
     for batch in payload["batches"]:
         try:
-            pages.append(receive_one(batch, session_id, deadline=deadline))
-        except (FileNotFoundError, ReceiptRefused, TimeoutError):
-            continue
-    return pages
+            receive_one(batch, session_id, deadline=deadline, expected=expected)
+        except (FileNotFoundError, Refused, TimeoutError):
+            confirmed = False
+    return confirmed
 
 
 def receive_one(
-    batch: dict, session_id: str | None, *, deadline: float | None = None
+    batch: dict,
+    session_id: str | None,
+    *,
+    deadline: float | None = None,
+    expected: dict | None = None,
 ) -> Path:
-    """Confirm one consumer-read batch under its current page ownership."""
+    """Confirm one consumer-read batch under its current page ownership, into the
+    session lifecycle `expected` where the caller names one."""
     page_dir = Path(batch["page"])
     with (
         PageTransaction(page_dir, deadline=deadline) as page,
@@ -734,6 +741,8 @@ def receive_one(
             observed = session_record(session_id)
             if observed["turn_closed"] is not None:
                 raise ReceiptRefused("the receiving provider turn has ended")
+            if expected is not None and observed != expected:
+                raise ReceiptRefused("the receiving turn has been replaced")
             # Receipt observes the consumer turn. The explicit acknowledgement
             # boundary can open an unnamed turn; hooks and providers cannot.
             turn = observed["turn"]

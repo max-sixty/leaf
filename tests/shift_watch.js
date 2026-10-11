@@ -17,7 +17,9 @@
 // inline or in their tree's own rules, retain that scroller too; nested CSS
 // expressions, ambiguous names and rules that disagree receive no inferred ownership.
 //
-// Each trusted gesture owns its counted rendering until declared completion.
+// Each trusted gesture owns its counted rendering until declared completion: the
+// rendering loop settled and the current publication presented, widget preparations
+// included.
 // Native effects it began retain only their sampled displacement within their
 // own subtree; their continued lifetime never owns unrelated page movement.
 // Native scroll effects belong to their retained scroll source, regardless of the
@@ -130,8 +132,18 @@
   // Native media sources and nodes detached during a reading can have no computed
   // length. Keep that absence stable; NaN would disagree with itself every frame.
   const pixels = (value) => (/^-?[\d.]+px$/.test(value) ? parseFloat(value) : null);
-  const settled = () =>
-    document.querySelector("script[data-lf-entry]")?.lfRenderingSettled?.() ?? true;
+  // The page has answered the input so far: its rendering loop is quiet, and it has
+  // presented its current publication, including every preparation a widget declared
+  // pending (`present`), such as a closed lf-diff file loading on open. The loop alone
+  // cannot see work held in a promise (runtime/rendering.js), so reading it alone ends
+  // the gesture while its declared result is still on the way (`pageReadiness`).
+  const settled = () => {
+    const entry = document.querySelector("script[data-lf-entry]");
+    return (
+      (entry?.lfReadiness?.(null, "presented") ?? null) === null &&
+      (entry?.lfRenderingSettled?.() ?? true)
+    );
+  };
   // An animation that can move a box: one of its keyframes sets a geometric property.
   const moves = (animation) =>
     animation.effect

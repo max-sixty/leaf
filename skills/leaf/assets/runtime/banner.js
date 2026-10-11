@@ -1,5 +1,6 @@
-/* This module owns banner wording, tone, tab-icon paint, and announcing a status kind
- * that has changed. */
+/* This module owns banner wording, tone, tab-icon paint, and announcing changes
+ * after the first status reading. Provisional interface readiness paints the banner
+ * without establishing that announcement baseline; saved state or a failed read does. */
 import { html, nothing, render } from "../vendor/browser-runtime.js";
 import { JUST_NOW, ago, clocked } from "./presence.js";
 import { el, offer, reserve } from "./widget-elements.js";
@@ -376,6 +377,9 @@ const presentStatus = (status) => {
     }),
   );
   paintTab();
+  // Interface readiness precedes the first saved reading. It paints usable chrome,
+  // but only a state or failed read establishes the status announcement baseline.
+  if (kind === "loading") return;
   const changed =
     saidKind !== undefined &&
     (saidKind !== kind ||

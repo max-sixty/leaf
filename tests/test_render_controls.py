@@ -102,6 +102,7 @@ from render_harness import (
     opened_tab,
     page_comment,
     panel_settled,
+    refuse,
     resized,
     root_overflow,
     round_trip,
@@ -4997,7 +4998,12 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     expect(page.locator(".lf-banner-more")).to_be_visible()
 
 
-def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, serve):
+@pytest.mark.parametrize(
+    "held_first_state", [False, True], ids=["immediate", "held-history"]
+)
+def test_a_status_kind_change_is_announced_in_the_banners_own_words(
+    browser, serve, held_first_state
+):
     """The dot going red is not an announcement.
 
     The banner flipped to the offline colour and rewrote its line while the live region
@@ -5009,7 +5015,20 @@ def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, ser
     url = serve(SUGGESTION_PAGE)
     # The agent has the page in hand when the user opens it.
     working(serve.page_dir, "Writing the page")
-    page = open_page(browser, url)
+    if held_first_state:
+        page = browser.new_page()
+        held = []
+        page.route("**/api/state*", lambda route: held.append(route))
+        page.goto(url, wait_until="load")
+        holding(page, held, 1, "the first saved-state reading")
+        expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+        expect(page.locator(".lf-status-text")).to_have_text("Loading saved state…")
+        assert page.locator(".lf-live").text_content() == ""
+        page.unroute("**/api/state*")
+        held[0].continue_()
+        wait_until_ready(page)
+    else:
+        page = open_page(browser, url)
     live = page.locator(".lf-live")
     expect(page.locator(".lf-banner .lf-dot.working")).to_be_visible()
     # The page arriving is the document's own announcement, not a change in it.
@@ -5045,26 +5064,19 @@ def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, ser
     expect(live).to_contain_text("Claude is waiting for approval")
     leases_model.release_lease(lease)
 
-    held = []
-
-    def refuse_state(route):
-        held.append(route)
-        route.fulfill(status=503, body="down")
-
-    page.route("**/api/**", refuse_state)
+    page.route("**/api/**", refuse)
     try:
         # A healthy page never asks without news, so give it one: the read that follows
         # is the one the route refuses.
         nudge(serve.page_dir)
         expect(page.locator(".lf-banner .lf-dot.offline")).to_be_visible()
-        offline = page.locator(".lf-status-detail").text_content()
+        offline = " ".join(page.locator(".lf-status-detail").text_content().split())
         assert offline.startswith("Server offline"), (
             f"the banner's offline line has moved: {offline!r}"
         )
         expect(live).to_have_text(offline)
     finally:
         page.unroute("**/api/**")
-    consume_browser_errors(page, "503")
 
 
 def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(

@@ -66,18 +66,36 @@ function* members(value) {
   if (value instanceof Set) yield* value;
 }
 // Whether a node lies under the value, through containers. `holding` keeps each
-// container's answer for one comparison, a cycle reading as no node until it closes.
+// container's answer for one comparison. Every container the value reaches is found
+// before any is answered, and a node then marks each container that reaches it, so a
+// container in a cycle holds a node wherever on the cycle that node hangs.
 function holdsNode(value, holding) {
   if (isNode(value)) return true;
   if (!container(value)) return false;
   if (holding.has(value)) return holding.get(value);
-  holding.set(value, false);
-  for (const member of members(value))
-    if (holdsNode(member, holding)) {
-      holding.set(value, true);
-      return true;
+  const holders = new Map([[value, []]]);
+  const marked = [];
+  for (const pending = [value]; pending.length;) {
+    const at = pending.pop();
+    for (const member of members(at)) {
+      const node = isNode(member);
+      if (node || holding.get(member)) marked.push(at);
+      if (node || !container(member) || holding.has(member)) continue;
+      if (!holders.has(member)) {
+        holders.set(member, []);
+        pending.push(member);
+      }
+      holders.get(member).push(at);
     }
-  return false;
+  }
+  for (const at of holders.keys()) holding.set(at, false);
+  while (marked.length) {
+    const at = marked.pop();
+    if (holding.get(at)) continue;
+    holding.set(at, true);
+    marked.push(...holders.get(at));
+  }
+  return holding.get(value);
 }
 
 // The value with each node it holds replaced by its reference. One reading per

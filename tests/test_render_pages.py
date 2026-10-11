@@ -1486,7 +1486,7 @@ def test_a_diagram_follows_the_scheme_it_is_read_in(browser, serve):
     expected = page.evaluate(
         """() => {
           const probe = document.createElement('i');
-          probe.style.cssText = 'color:color-mix(in srgb, var(--accent) 14%, var(--paper))';
+          probe.style.cssText = 'color:color-mix(in srgb, var(--accent) 10%, var(--paper))';
           document.body.append(probe);
           const color = getComputedStyle(probe).color;
           probe.remove();

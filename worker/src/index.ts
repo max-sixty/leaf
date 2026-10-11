@@ -375,17 +375,22 @@ function modelRequestFields(
   };
 }
 
+// Every leaf-agent record. Callers project the fields they log, and never spread an
+// AgentTaskParams, whose sourceId is the client's IP.
+function leafAgentLog(event: string, fields: Record<string, unknown>): void {
+  console.log({ component: "leaf-agent", event, ...fields });
+}
+
+function errorName(error: unknown): string {
+  return error instanceof Error ? error.name : "unknown";
+}
+
 function modelLog(
   event: string,
   request: ModelRequestFields,
   fields: Record<string, unknown> = {},
 ): void {
-  console.log({
-    component: "leaf-agent",
-    event,
-    ...request,
-    ...fields,
-  });
+  leafAgentLog(event, { ...request, ...fields });
 }
 
 function observeModelBody(
@@ -520,7 +525,7 @@ LeafWebsiteSession.outboundByHost = {
     } catch (error) {
       modelLog("model_request_failed", modelRequest, {
         durationMs: Date.now() - started,
-        error: error instanceof Error ? error.name : "unknown",
+        error: errorName(error),
       });
       throw error;
     }
@@ -574,27 +579,10 @@ function agentLog(
   params: Pick<AgentTaskParams, "reference" | "route" | "eventId">,
   fields: Record<string, unknown> = {},
 ): void {
-  console.log({
-    component: "leaf-agent",
-    event,
+  leafAgentLog(event, {
     reference: params.reference,
     route: params.route,
     eventId: params.eventId,
-    ...fields,
-  });
-}
-
-function prewarmLog(
-  event: string,
-  reference: string,
-  route: string,
-  fields: Record<string, unknown> = {},
-): void {
-  console.log({
-    component: "leaf-agent",
-    event,
-    reference,
-    route,
     ...fields,
   });
 }
@@ -746,7 +734,7 @@ async function measuredAgentOperation<T>(
   } catch (error) {
     agentLog(`${event}_failed`, params, {
       durationMs: Date.now() - started,
-      error: error instanceof Error ? error.name : "unknown",
+      error: errorName(error),
     });
     throw error;
   }
@@ -835,7 +823,7 @@ async function dispatchAgentTask(
   } catch (error) {
     agentLog("dispatch_failed", params, {
       durationMs: Date.now() - started,
-      error: error instanceof Error ? error.name : "unknown",
+      error: errorName(error),
     });
     try {
       await measuredAgentOperation("failure_receipt", params, () =>
@@ -846,7 +834,7 @@ async function dispatchAgentTask(
       );
     } catch (receiptError) {
       agentLog("dispatch_abandoned", params, {
-        error: receiptError instanceof Error ? receiptError.name : "unknown",
+        error: errorName(receiptError),
       });
     }
   }
@@ -860,25 +848,31 @@ async function prewarmContainer(
   sourceId: string,
 ): Promise<void> {
   const started = Date.now();
-  prewarmLog("container_prewarm_started", reference, route);
+  leafAgentLog("container_prewarm_started", { reference, route });
   try {
     const allowed = await env.SOURCE_AGENT_RATE_LIMITER.limit({
       key: `prewarm:${sourceId}`,
     });
     if (!allowed.success) {
-      prewarmLog("container_prewarm_denied", reference, route, {
+      leafAgentLog("container_prewarm_denied", {
+        reference,
+        route,
         durationMs: Date.now() - started,
       });
       return;
     }
     await getContainer(env.PAGES, id).start();
-    prewarmLog("container_prewarm_completed", reference, route, {
+    leafAgentLog("container_prewarm_completed", {
+      reference,
+      route,
       durationMs: Date.now() - started,
     });
   } catch (error) {
-    prewarmLog("container_prewarm_failed", reference, route, {
+    leafAgentLog("container_prewarm_failed", {
+      reference,
+      route,
       durationMs: Date.now() - started,
-      error: error instanceof Error ? error.name : "unknown",
+      error: errorName(error),
     });
   }
 }

@@ -204,6 +204,11 @@ def log_agent(event: str, **fields) -> None:
         )
 
 
+def elapsed_ms(started: float) -> int:
+    """Milliseconds since a `time.monotonic()` reading, as records' durationMs."""
+    return round((time.monotonic() - started) * 1000)
+
+
 def bounded_detail(message: str) -> str:
     """Keep a refusal's own words, and only as much of them as a record carries.
 
@@ -444,7 +449,7 @@ class HostedTurn(CarriedTurn):
         )
 
     def elapsed(self) -> int:
-        return round((time.monotonic() - self.started) * 1000)
+        return elapsed_ms(self.started)
 
     def record(self, event: str, **fields) -> None:
         log_agent(event, **self.fields, turnId=self.turn_id, **fields)
@@ -676,13 +681,13 @@ class WebsiteCodexHarness:
         except (OSError, RuntimeError) as error:
             log_agent(
                 "app_server_prewarm_failed",
-                durationMs=round((time.monotonic() - started) * 1000),
+                durationMs=elapsed_ms(started),
                 **fault_fields(error),
             )
             return
         log_agent(
             "app_server_prewarm_completed",
-            durationMs=round((time.monotonic() - started) * 1000),
+            durationMs=elapsed_ms(started),
         )
 
     def _warm_leaf_cli(self) -> None:
@@ -701,13 +706,13 @@ class WebsiteCodexHarness:
         except (OSError, subprocess.SubprocessError) as error:
             log_agent(
                 "leaf_cli_prewarm_failed",
-                durationMs=round((time.monotonic() - started) * 1000),
+                durationMs=elapsed_ms(started),
                 **fault_fields(error),
             )
             return
         log_agent(
             "leaf_cli_prewarm_completed",
-            durationMs=round((time.monotonic() - started) * 1000),
+            durationMs=elapsed_ms(started),
         )
 
     def _hold_waiter(self, page_dir: Path, thread_id: str) -> None:
@@ -775,7 +780,7 @@ class WebsiteCodexHarness:
             if self.socket_path.exists():
                 log_agent(
                     "app_server_spawn_completed",
-                    durationMs=round((time.monotonic() - started) * 1000),
+                    durationMs=elapsed_ms(started),
                 )
                 return self.process
             if self.process.poll() is not None:
@@ -1050,7 +1055,7 @@ class WebsiteCodexHarness:
             "turn_start_acknowledged",
             **agent_event_fields(prepared_events),
             turnId=turn_id,
-            durationMs=round((time.monotonic() - started) * 1000),
+            durationMs=elapsed_ms(started),
         )
         # App Server answered for the turn it made from this delivery, so the follower
         # knows which turn is its own before it reads anything. The answer names a turn
@@ -1111,7 +1116,7 @@ class WebsiteCodexHarness:
                     "turn_abandoned_interrupt_completed",
                     eventId=event_id,
                     turnId=(message.get("params") or {}).get("turn", {}).get("id"),
-                    durationMs=round((time.monotonic() - started) * 1000),
+                    durationMs=elapsed_ms(started),
                 )
                 return
         raise RuntimeError("the running Codex App Server turn did not stop")
@@ -1163,7 +1168,7 @@ class WebsiteCodexHarness:
         log_agent(
             "thread_start_completed",
             eventId=event_id,
-            durationMs=round((time.monotonic() - started) * 1000),
+            durationMs=elapsed_ms(started),
         )
         return result["thread"]["id"]
 
@@ -1200,7 +1205,7 @@ class WebsiteCodexHarness:
         log_agent(
             "thread_resume_completed",
             eventId=event_id,
-            durationMs=round((time.monotonic() - started) * 1000),
+            durationMs=elapsed_ms(started),
         )
         return True
 
@@ -1224,7 +1229,7 @@ class WebsiteCodexHarness:
                     log_agent(
                         "app_server_available",
                         eventId=event_id,
-                        durationMs=round((time.monotonic() - server_started) * 1000),
+                        durationMs=elapsed_ms(server_started),
                     )
                     claim = page_claim(page_dir)
                     thread_id = (
@@ -1262,14 +1267,14 @@ class WebsiteCodexHarness:
             log_agent(
                 "container_start_failed",
                 eventId=event_id,
-                durationMs=round((time.monotonic() - started) * 1000),
+                durationMs=elapsed_ms(started),
                 **fault_fields(error),
             )
             raise
         log_agent(
             "container_start_completed",
             eventId=event_id,
-            durationMs=round((time.monotonic() - started) * 1000),
+            durationMs=elapsed_ms(started),
         )
         # The Worker dispatches each move here as the page admits it, so a thread the
         # move opens is named now, even when a running turn leaves the move to the

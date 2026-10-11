@@ -30,8 +30,8 @@ without first enabling the filmstrip. The evidence grows with the page.
 
 One timeline steps through recorded calls' available Before, Action and After
 checkpoints in timestamp order (or Start and Completion when no checkpoints
-were captured). The review opens at the first checkpoint with saved elements,
-or the first image when no elements were saved. Earlier stops remain reachable.
+were captured). The `lf-trace` entry's initial-selection instruction defines
+where the review opens.
 The timeline includes every operation in the recording, including browser and
 context calls with no associated page. A single-page recording needs no page
 selector. For recordings with several browser pages, All pages shows the complete

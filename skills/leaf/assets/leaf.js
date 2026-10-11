@@ -78,7 +78,6 @@ import { createPageGeometry } from "./runtime/page-geometry.js";
 import * as targetPaint from "./runtime/target-paint.js";
 import { pointerAt } from "./runtime/pointer.js";
 import { createWritingResume } from "./runtime/drafts.js";
-import { threadKey } from "./runtime/thread/model.js";
 import { allThreads, threadList } from "./runtime/thread/state.js";
 import { anchorLabel } from "./runtime/thread/messages.js";
 import {
@@ -481,7 +480,6 @@ app = mountApplication({
     pointerModeActive: () =>
       designMode.active() || drawing.drawModeActive() || regionCapture.active(),
     comparisonBase: version.comparisonBase,
-    comparisonChanges: version.comparisonChanges,
     inlineComparison: version.inlineComparison,
     toggleInlineComparison: version.toggleInlineComparison,
     leavePageMap: (...args) => pageMapDialog.leavePageMap(...args),
@@ -503,7 +501,6 @@ app = mountApplication({
   },
   feed: {
     prepareActivation: (state) => version.prepareActivation(state),
-    notifyDataSubscribers,
     renderStatus,
   },
 });
@@ -814,12 +811,8 @@ drawers = createDrawers({
 });
 const writingResume = createWritingResume({
   arriveEditor: anchorTravel.arriveEditor,
-  revealReply: (key, intent) => {
-    const thread = allThreads().find((thread) => threadKey(thread) === key);
-    return thread
-      ? app.threadDestinations.openPageThread(thread.id, { part: "reply", intent })
-      : null;
-  },
+  revealInThread: (context, intent) =>
+    app.threadDestinations.openThreadDraft(context, intent),
 });
 goToSequence = createGoToSequence({
   panelIsOpen,
@@ -1123,7 +1116,7 @@ async function startPage() {
     }),
     offlineInteractive
       ? Promise.resolve()
-      : loadIcon().catch((error) => console.error(error)),
+      : loadIcon().catch((error) => reportPageError(error, "tab icon failed to load")),
     replayReady,
   ]);
   if (!upgraded) return;

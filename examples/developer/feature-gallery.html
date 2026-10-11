@@ -8,6 +8,8 @@
     />
     <meta name="lf-review" content="sign-off" />
     <style>
+      @import url("/page/theme.css");
+
       #bg-metrics > dl {
         margin: 0;
         padding: var(--sp-3);
@@ -433,7 +435,7 @@
           you: "2be2443f0bb6cc49fc86b52f340e6073",
           resolved: "bab3cdfcfb8c02aacbb27da731de947a",
           summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
-          updates: "bg-progress-question",
+          progress: "bg-progress-question",
         }[view];
         void sample.showThread(thread, {
           surface: "panel",
@@ -799,7 +801,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 <kbd>w</kbd> again and start over this guide: the stroke joins the kept
                 drawing rather than replacing it. On a touch screen, “Draw mode” is in
                 “More page controls”, and “Undo stroke” and “Exit Draw mode” stand on
-                the banner while the mode holds.
+                the banner while the mode holds. Try drawing over a choice control: the
+                stroke marks the choice without selecting it. Leaf’s comment box and
+                draft editing controls remain usable while Draw mode holds.
               </p>
             </section>
 
@@ -945,7 +949,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <button
                 type="button"
                 class="button"
-                data-view="updates"
+                data-view="progress"
                 aria-pressed="false"
               >
                 Progress messages
@@ -979,7 +983,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   <strong>A summarized discussion.</strong> The workshop planning thread
                   keeps its earlier decisions in a summary.
                 </p>
-                <p id="bg-thread-updates">
+                <p id="bg-thread-progress">
                   <strong>Progress messages.</strong> Show the folded checks from the
                   answer’s header, then hide them again.
                 </p>
@@ -987,46 +991,6 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </lf-sample>
           </section>
 
-          <section id="bg-page-annotations">
-            <p class="eyebrow bg-feature-elements">lf-annotation-rail</p>
-            <h3>Page-owned annotations</h3>
-            <p>
-              Alt-click the recommendation in this practice window to comment. The reply
-              and actions stay in the allocated annotation area. Choose a route, then
-              use Undo to return to the open question.
-            </p>
-            <lf-sample
-              id="bg-page-annotations-sample"
-              label="practice route review"
-              window
-            >
-              <template
-                id="bg-page-annotations-page"
-                data-sample
-                data-annotations="page"
-              >
-                <style>
-                  #bg-page-annotations-rail {
-                    display: block;
-                    inline-size: 100%;
-                    block-size: 20rem;
-                  }
-                </style>
-                <h1>Workshop route</h1>
-                <p id="bg-page-annotations-finding">
-                  The shorter path leaves more time to inspect the cooling loop.
-                </p>
-                <lf-ask id="bg-page-annotations-ask">
-                  <h2>Which path should the inspection take?</h2>
-                  <lf-options id="bg-page-annotations-options" choose>
-                    <lf-option id="bg-page-annotations-short">Short path</lf-option>
-                    <lf-option id="bg-page-annotations-long">Full circuit</lf-option>
-                  </lf-options>
-                </lf-ask>
-                <lf-annotation-rail id="bg-page-annotations-rail"> </lf-annotation-rail>
-              </template>
-            </lf-sample>
-          </section>
           <section id="bg-threads">
             <h2>
               <strong>Threads</strong
@@ -1167,8 +1131,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               page opens: its status-line notice also reaches the live region without
               moving focus. A new question, response failure, or return to page activity
               uses that same line. Replies still unread when the page opens are
-              announced once on arrival; rereading a stage or tool update creates no new
-              notice.
+              announced once on arrival; rereading a stage change or tool activity
+              creates no new notice.
             </p>
             <p id="bg-reply-lifetime">
               <strong>An unfinished reply.</strong> Open a thread inline or in Threads
@@ -1221,6 +1185,23 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
   title: "Keep",
   description: "keep the active card",
 };</code></pre>
+            <p id="bg-rewrite-guide">
+              <strong>Rewriting your own words.</strong> The thread on the line below
+              holds a message of yours and the agent's answer. Double-click your
+              message, or press the Edit control at the end of its header, to open its
+              words where they stand: a finger always sees that control, and a pointer
+              finds it on hover. In the thread's empty reply box,
+              <kbd>&uarr;</kbd> opens your latest message the same way, and
+              <kbd>&uarr;</kbd> from the start of an open rewrite opens your message
+              before it. Nothing around the message moves: its words stay where they
+              were, and Cancel and Save take its header. <kbd>Enter</kbd> saves.
+              <kbd>Escape</kbd> and Cancel leave the message as it was and drop your
+              words; words a reload interrupts wait as an "unsaved edit". Each puts you
+              back in the reply box. The new words show at once, labelled edited, whose
+              tooltip says what it said before, and the agent owes the message, as it
+              now reads, an answer.
+            </p>
+            <p id="bg-rewrite">The kickoff runs from nine to eleven.</p>
             <p id="bg-markdown-draft">
               <strong>Markdown as you type.</strong> Every box Leaf gives you to write
               in shows the draft the way the sent message will read. Type
@@ -1292,7 +1273,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     <strong>An existing thread.</strong> The sample agenda has room for
                     one more topic. Its speech-bubble control is green, and hovering it
                     shows “On you” under the label. The image question still needs an
-                    answer even though the agent added a later progress update. In
+                    answer even though the agent added a later progress message. In
                     Threads, “On you” still says to answer the question. Open the
                     control and reply: the control turns blue as the thread comes back
                     to the agent. The same reading fills the panel’s “On you” filter and
@@ -1366,7 +1347,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 latest exchange stays below the summary, and keyboard focus can reach
                 the disclosure.
               </p>
-              <p id="bg-thread-updates">
+              <p id="bg-thread-progress">
                 <strong>Progress messages.</strong> The ephemeral schedule checks fold
                 automatically when their final answer arrives, without adding a digest.
                 Choose “Progress messages” in the practice page, then use “Show 2
@@ -2127,8 +2108,8 @@ gallery/
                 reactions, user actions, and published versions. The board move near the
                 end was taken back, so its row stays struck through and marked “undone”.
                 Press a thread row to open its thread, or a widget row to travel to the
-                widget. New updates wait behind the fixed control while you read; press
-                it to reveal them.
+                widget. New rows wait behind the fixed control while you read; press it
+                to reveal them.
               </p>
               <lf-activity id="bg-activity"></lf-activity>
             </section>
@@ -2662,11 +2643,11 @@ switch --readers checkout-api,orders-api</code></pre>
                 <lf-num
                   id="bg-latency"
                   source="gallery-latency"
-                  at="2000-01-01T00:00:00Z"
+                  run="a41f103e236c985b"
                   via="uv run bench-gallery"
                   >184 ms</lf-num
-                >, its timestamp, and the command that produced it. Because the source
-                has a newer update, <code>page check</code> reports that the measurement
+                >, its run receipt, and the command that produced it. Because the source
+                has a newer value, <code>page check</code> reports that the measurement
                 is behind its source.
               </p>
             </section>

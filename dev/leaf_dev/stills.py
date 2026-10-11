@@ -269,7 +269,7 @@ def progress_messages(page: Page) -> None:
     page.locator("#bg-gallery-tabs").get_by_role(
         "tab", name="Threads", exact=True
     ).click()
-    page.locator('#bg-panel-presets [data-view="updates"]').click()
+    page.locator('#bg-panel-presets [data-view="progress"]').click()
     frame = page.frame_locator("#bg-panel-sample iframe")
     frame.locator(
         '.lf-thread[data-id="bg-progress-question"] .lf-summary-expand'
@@ -1012,6 +1012,17 @@ STATES = (
         contents_by_keyboard,
         scheme="dark",
     ),
+    # Where the margin has no room for the map, and where a coarse pointer keeps the
+    # sidebar's contents in the flow, at a roomy width and on a phone.
+    State("contents-narrow", "developer/feature-gallery", at_rest, viewport=(900, 900)),
+    State("contents-coarse", "developer/feature-gallery", at_rest, touch=True),
+    State(
+        "contents-phone",
+        "developer/feature-gallery",
+        at_rest,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("playground-controls", "notification-playground", playground_controls),
     State(
         "playground-controls-phone",
@@ -1089,6 +1100,12 @@ STATES = (
     State("plan-dark", "review-a-plan", at_rest, scheme="dark"),
     State("plan-beside", "review-a-plan", at_rest, viewport=BESIDE),
     State("plan-card", "review-a-plan", card_by_pointer),
+    State(
+        "plan-card-message-width",
+        "review-a-plan",
+        card_by_pointer,
+        viewport=(1920, 900),
+    ),
     State("plan-card-keyboard", "review-a-plan", card_by_keyboard),
     State("plan-card-keyboard-dark", "review-a-plan", card_by_keyboard, scheme="dark"),
     State("plan-card-reply", "review-a-plan", card_reply),

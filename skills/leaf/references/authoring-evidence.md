@@ -2,30 +2,19 @@
 
 ## Measured facts
 
-Use `lf-num` for a repeatably measured scalar inside a sentence, with the snapshot
-that established it. A hand-authored headline KPI belongs in ordinary HTML; a number without a
-repeatable measurement feed remains ordinary text. Freeze a measured prose value
-with its provenance:
+Use `lf-num` for a repeatably measured scalar inside a sentence. Write the
+value with its unit, bind its measurement source, and pin the `run` receipt
+returned by `leaf data set`:
 
 ```html
 The import takes <lf-num source="import-latency"
-  at="2026-08-27T09:00:00Z" via="uv run bench-import">184 ms</lf-num> at p95.
+  run="a41f103e236c985ba938c643b78bfc21" via="uv run bench-import">184 ms</lf-num> at p95.
 ```
 
-The number and its `at` are part of the authored version; the source is only the
-freshness channel. To record a measurement:
-
-1. Run the measurement.
-2. Record it with `leaf data set PAGE import-latency`. The command stamps the
-   source's `updated` instant at wall-clock and prints it.
-3. Write that printed `updated` instant into `at`, not the time the measurement
-   itself ran; an earlier instant is already behind the write and reads as stale
-   the moment it is authored.
-
-If the source's `updated` instant later moves past `at`, `page check` advises
-that the pinned number needs another look. This detects a rerun the version
-missed, not a measurement that is merely old. Use one source id for one stable
-measurement definition.
+The authored value stays frozen. A later source write, even with the same value,
+makes `page check` advise that the measurement needs another look. Age alone
+does not. Use one source id per measurement definition; use ordinary HTML for
+numbers without a repeatable feed.
 
 ## Interactive and visual evidence
 
@@ -33,16 +22,13 @@ Introduce each interaction in the page's own language: say that a board takes a
 drag, an options group takes a click, or a review task's nested Question takes a pick.
 Do not copy the connective sentence from another page.
 
-Use `lf-diagram` for flows, state machines, sequences, class relationships, ER
-schemas, and the other Mermaid families its entry lists. It travels in the `diagram`
-package rather than in every page: initialize a page that wants one with
-`leaf page init --package diagram <page>`, then read the entry for styling and where
-its renderer differs from Mermaid. `page check --render` reports a diagram the
-renderer refuses or draws empty, not one it draws only in part, so inspect each
-rendered diagram. Without visual access, check the source's labels and relations
-against the claims it supports, and state those claims in prose or a table beside it
-so the user need not rely on an uninspected picture. Follow `page-authoring.md`,
-"Pre-handover review", for the checks and what remains unverified.
+Use `lf-diagram` for Mermaid diagrams. It travels in the `diagram` package rather
+than in every page: initialize a page that wants one with
+`leaf page init --package diagram <page>`. `page check --render` reports syntax
+refusals and empty drawings. Inspect each rendered diagram for the relationships it
+should communicate. Without visual access, check the source's labels and relations
+against its claims and state those claims in prose or a table beside it. Follow
+`page-authoring.md`, "Pre-handover review", for the checks and what remains unverified.
 
 Draw what Mermaid's automatic layout cannot put where it belongs, such as a page
 layout, geometry, a wireframe, or a thumbnail inside an option, as the `svg.drawing`
@@ -106,6 +92,9 @@ coloring. Other previews, such as a diagram, image, or live sample, can share an
 with the source widget. Switching views is local reading state; it records no
 decision. When the user reviews an edit to source text, including prose or
 configuration, show its exact patch in `lf-diff` and explain the effect beside it.
+For updates or reviews of current work, consider including the patch so the user
+can inspect and comment on the changes. Choose the comparison that covers the work
+being discussed; `wt step diff`, when available, often fits a current branch's work.
 The per-file view makes insertions and deletions visible and gives each source
 line a stable comment coordinate. `lf-diff` and the
 `unified-diff` contract travel in the `diff` package: initialize such a page with
@@ -115,7 +104,7 @@ source its current contract:
 ```html
 <lf-text-document id="skill-source" source="leaf-skill" label="SKILL.md" language="markdown"></lf-text-document>
 
-<lf-diff id="review-patch" source="pr-patch-8f61c2a" collapsed><pre></pre></lf-diff>
+<lf-diff id="review-patch" source="review-patch" collapsed><pre></pre></lf-diff>
 ```
 
 Then set the source. Text is one JSON string, of the whole file or an inclusive line
@@ -126,8 +115,22 @@ jq -Rs . SKILL.md | leaf data set <page> leaf-skill
 sed -n '71,102p' SKILL.md | jq -Rs . | leaf data set <page> leaf-skill
 ```
 
-A patch goes through the `diff` package's producer script; the contract's
-instructions give the command:
+Pipe the chosen diff into the source as one JSON string; the widget parses and
+validates the patch:
+
+```bash
+wt step diff | jq -Rs . | leaf data set <page> review-patch
+```
+
+Rerun the pipeline with the same source id to refresh the open page; the widget's
+markup stays as written.
+
+`lf-diff` accepts textual entries with `@@` hunks and exact path-only renames.
+If the comparison includes binary, mode-only, copy, or empty added/deleted files,
+describe those changes in prose and supply only supported entries to the widget.
+The raw form transfers and renders the whole supported patch. For a large supported
+patch whose files should load only when opened, the `unified-diff` contract's
+producer instructions describe the optional file manifest:
 
 ```bash
 leaf page instructions <page> --contract unified-diff | jq -er '.producer'
@@ -163,7 +166,7 @@ the producer instructions give the import command:
 ```bash
 leaf page instructions <page> --contract playwright-trace | jq -er '.producer'
 ```
- Give native `<video>` and `<audio>` elements `controls`, label their
+Give native `<video>` and `<audio>` elements `controls`, label their
 content, and give a video a `poster` image. MP4 and WebM video, and MP3, M4A,
 Ogg, and WAV audio are admitted; codec playback is the browser's. Export embeds
 the complete recording for offline playback with no size cap or omissions: base64
@@ -179,7 +182,7 @@ links.
 For a page-scale visual change, use `lf-shot` with before and after captures from
 the same viewport, of the versions the page compares. For a small change, crop
 both frames to the changed area or show the element itself at real size.
-Its Open before and Open after links inspect each capture at full size; clicking
+The expand symbol beside each label opens that capture at full size; clicking
 the comparison itself still flips between its endpoints.
 Before writing the prose and `alt` around a pair, open both images and compare
 them where the change should be.

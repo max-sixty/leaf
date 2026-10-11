@@ -57,10 +57,11 @@ from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
+from leaf.refusals import Refused
 from leaf.registry.storage import load_registry
 from leaf.revision_artifact import active_enclosing
 from leaf.served_state import page as served_page
-from leaf.validation import compatibility as compatibility_model
+from leaf.validation import composition as composition_model
 from leaf.validation import instances as validation_model
 from pytest_regtest.snapshot_handler import (
     BaseSnapshotHandler,
@@ -182,7 +183,7 @@ def model_layer(*packages: str) -> dict:
     cached per selection, because every stated page asking for the same packages
     is asking for the same registry. Nothing may mutate what this returns.
     """
-    return compatibility_model.incoming_registry(layer_model.layer_inputs(packages))
+    return composition_model.incoming_registry(layer_model.layer_inputs(packages))
 
 
 def queue_board_registry(registry: dict) -> dict:
@@ -404,9 +405,9 @@ def running_http_server(httpd):
         yield httpd
     finally:
         httpd.shutdown()
-        httpd.server_close()
         thread.join(timeout=STATED_TIMEOUT)
         assert not thread.is_alive(), "the fixture HTTP server did not stop"
+        httpd.server_close()
 
 
 def pytest_configure(config):
@@ -1006,7 +1007,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     def init_result():
         try:
             vendoring_model.cmd_init(page_dir, selected=(*page_packages(), "./.leaf"))
-        except SystemExit as error:
+        except Refused as error:
             return str(error)
         return None
 
@@ -1100,8 +1101,8 @@ def _report_without_upgrade(registry):
     registry["lf-test-task"]["x-upgrade"] = False
 
 
-def _user_verb_update(registry):
-    registry["lf-options"]["x-state"]["choose"]["update"] = True
+def _user_verb_report(registry):
+    registry["lf-options"]["x-state"]["choose"]["report"] = True
 
 
 def _agent_verb_answers(registry):
@@ -1375,6 +1376,7 @@ def retire_test_services(tmp_path, isolated_session):
     Detached adapters hold session leases outside any subprocess group. Their
     lifecycle must end while its state directory still exists, so they can
     retire normally rather than retry a deleted startup lock forever.
+    In-process title workers also finish before page loans or state disappear.
     """
     while HELD_LEASES:
         leases_model.release_lease(HELD_LEASES.pop())
@@ -1397,6 +1399,12 @@ def retire_test_services(tmp_path, isolated_session):
         lambda held: not held,
         failure="a detached adapter outlived its test's ended sessions",
     )
+    # Servers have stopped accepting input, so no new title request can start.
+    # The worker reports under the page lock even when its generator fails.
+    for worker in threading.enumerate():
+        if worker.name == "leaf-thread-title":
+            worker.join(timeout=STATED_TIMEOUT)
+            assert not worker.is_alive(), "a title worker outlived its test's page"
 
 
 @contextmanager
@@ -1423,10 +1431,10 @@ def neighbour_page(directory, title=None, dead=False, published=True, port=59999
     initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(directory)])
     assert initialized.exit_code == 0, initialized.output
     write_revision(directory, 1, html.encode())
-    # A neighbour the agent has finished with.
+    # A neighbour waiting on its user: a closed one is not listed (`other_leaves`).
     cleanup_model.write_json(
         directory / "status.json",
-        {"state": "idle", "detail": "", "ts": None},
+        {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
     )
     if published:
         append_carried_log_record(

@@ -33,7 +33,7 @@
    existing focus owner only when that graph changes. The frame ignores pointer input;
    each surface's own CSS retains its interaction policy. Without the needed native
    capability, the existing observed placement path invalidates on scroll instead.
-   A page attachment solved in the window plane retains its physical attachment point,
+   Every attachment solved in the window plane retains its physical attachment point,
    carrying sources' measured scroll offsets, and written solver point. The physical
    point may move less than those scrolls (a sticky boundary), and the solver may move
    less than that point (a viewport constraint). Readers can distinguish both from
@@ -164,17 +164,20 @@ const held = {
     if (Math.abs(shifted.y ?? 0) >= 0.5) edges.y = shifted.y < 0 ? "bottom" : "top";
     const parent = await platform.getOffsetParent(elements.floating);
     const block = parent === window ? document.documentElement : parent;
-    // In standards mode the root's client dimensions are already viewport pixels;
-    // only the floating box's scale converts them to its positioning pixels.
-    const scale = parent === window ? await positioningScale(state) : { x: 1, y: 1 };
+    // Client dimensions belong to the block's CSS pixels, except the standards-mode
+    // root's viewport pixels. Cross through the platform's viewport conversion so
+    // a surface zoomed relative to an element block keeps the same positioning units.
+    const scale = await positioningScale(state);
+    const blockScale =
+      parent === window ? { x: 1, y: 1 } : await platform.getScale(parent);
     return {
       data: {
         edges,
         width: rects.floating.width,
         height: rects.floating.height,
         block: {
-          width: block.clientWidth / scale.x,
-          height: block.clientHeight / scale.y,
+          width: (block.clientWidth * blockScale.x) / scale.x,
+          height: (block.clientHeight * blockScale.y) / scale.y,
         },
       },
     };
@@ -183,9 +186,10 @@ const held = {
 
 const INSETS = ["left", "right", "top", "bottom"];
 
-// The mechanical owner's last written placement, never a rectangle read back from
-// its rendered box. Consumers can distinguish a native plane change from a local
-// child/holder displacement without granting that displacement to the owner.
+// The mechanical owner's last written placement in viewport pixels, relative to
+// its frame, never a rectangle read back from its rendered box. Consumers can
+// distinguish a native plane change from a local child/holder displacement
+// without granting that displacement to the owner.
 const stood = new Map();
 export const floatingSelections = () => [...stood.values()];
 
@@ -370,8 +374,10 @@ export function floatingPlacement({ floating, update }) {
       const { getOverflowAncestors } = await floatingUi();
       if (placement !== epoch) return null;
       // Solver coordinates, physical attachment and scroll origins are one reading.
-      // Freezing it before asynchronous solving keeps native and observed placements
-      // consistent, regardless of when the solver reads.
+      // Capturing it before asynchronous solving keeps native and observed placements
+      // consistent, regardless of when the solver reads. Retain the synthetic rectangle
+      // itself: placement middleware can refine it and request remeasurement without
+      // reading live DOM again.
       const measured = {
         contextElement: reference.contextElement ?? beside,
         getBoundingClientRect: () => client,
@@ -477,9 +483,7 @@ export function floatingPlacement({ floating, update }) {
             at,
             reference: Object.freeze({ left: point.left, top: point.top }),
             scrollOffsets:
-              wanted === "page" && plane === "window"
-                ? answer.middlewareData.anchorAt.scrollOffsets
-                : null,
+              plane === "window" ? answer.middlewareData.anchorAt.scrollOffsets : null,
           }
         : null;
       return answer;
@@ -494,6 +498,7 @@ export function floatingPlacement({ floating, update }) {
         return;
       }
       const { edges, width, height, block } = answer.middlewareData.held;
+      const { offset, scale } = answer.middlewareData.anchorAt;
       const {
         subject,
         anchor,
@@ -517,6 +522,8 @@ export function floatingPlacement({ floating, update }) {
           : fromStart
             ? atLayoutPrecision(spot)
             : extent - atLayoutPrecision(extent - spot - length);
+        point[axis] =
+          (point[axis] - (frameAnchor ? 0 : offset[coordinate])) * scale[coordinate];
       }
       stood.set(
         floating,
@@ -531,7 +538,7 @@ export function floatingPlacement({ floating, update }) {
           reference,
           edges: Object.freeze({ left: edges.x, top: edges.y }),
           point: Object.freeze(point),
-          size: Object.freeze({ width, height }),
+          size: Object.freeze({ width: width * scale.x, height: height * scale.y }),
         }),
       );
     },

@@ -1,4 +1,4 @@
-/* Generated from skills/leaf/packages/diff/styles/theme.css by npm run build:styles. */
+/* Generated from skills/leaf/packages/diff/styles/theme.css by build/styles.mjs. */
 /* skills/leaf/packages/diff/styles/palette.css */
 :where(:scope, :scope:host) {
   --lf-code-add-fill: color-mix(in srgb, var(--ok) 16%, var(--pre-bg));

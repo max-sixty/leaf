@@ -26,6 +26,7 @@ import { threadKey } from "./model.js";
 import { closestAcross } from "../passages.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 import { THREAD, SAY_ROW } from "./selectors.js";
+import { editContext } from "./message-edit.js";
 import { offer } from "../widget-elements.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 
@@ -111,6 +112,12 @@ export function holdReplyCompositions(threads, realize) {
   };
 }
 
+// Whether the thread under `key` holds words the user has not sent: in its reply box,
+// or in a rewrite of one of its messages, `ids`, they closed without saving.
+export const threadHoldsDraft = (key, ids) =>
+  draftHasContent(replyContext(key)) ||
+  ids.some((id) => draftHasContent(editContext(id)));
+
 // Revision admission asks the owner about every native editing session, including
 // one the user left by Tab. Persisted words alone do not create a session.
 export const replyDraftsHold = (retains) =>
@@ -175,7 +182,7 @@ export function wireReply(
   row,
   input,
   send,
-  { actions, wireInput, landSent, onChange },
+  { actions, wireInput, landSent, onChange, editLast },
 ) {
   row.classList.add("lf-comment-box");
   const draftCtx = replyContext(key);
@@ -213,6 +220,19 @@ export function wireReply(
       landSent(closestAcross(input, THREAD));
       sendLanding(input, focused())();
     },
+    // ↑ from an empty box reaches back to the user's own last words in the thread, to
+    // rewrite them where they stand (`message-edit.js`). A box holding words keeps the
+    // key for its caret.
+    rows: [
+      {
+        id: "message.edit.last",
+        keys: ["ArrowUp"],
+        description: "Edit your last message in the thread",
+        title: "edit last message",
+        when: () => !sync.value() && Boolean(editLast?.available()),
+        run: () => editLast?.open(),
+      },
+    ],
   });
   sync();
   // Construction supplies a mirror, not ownership: a hidden panel mirror cannot
@@ -277,12 +297,20 @@ export async function restoreReplyEditing(editing, land) {
 
 // Native editor construction has one home; cards and package fragments share its
 // draft, input, delivery and recovery lifetime rather than constructing another one.
-export function createReplyView(key, commands, { onChange = () => {} } = {}) {
+export function createReplyView(
+  key,
+  commands,
+  { onChange = () => {}, editLast = null } = {},
+) {
   const row = offer("div", "lf-thread-reply");
   const input = offer(TEXT_FIELD);
   input.name = "reply";
   const send = offer("button", "lf-btn lf-thread-send", "Send");
   row.append(input, send);
-  const lifetime = wireReply(key, row, input, send, { ...commands, onChange });
+  const lifetime = wireReply(key, row, input, send, {
+    ...commands,
+    onChange,
+    editLast,
+  });
   return { node: row, input, dispose: lifetime.dispose };
 }

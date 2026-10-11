@@ -1,4 +1,5 @@
-import { shownBox, shownParts, TEXT_BOX } from "/runtime/widget-api.js";
+import { shownParts, TEXT_BOX } from "/runtime/widget-api.js";
+import { shownBox } from "/runtime/check-api.js";
 import { at } from "./locate.js";
 import { coveredWords } from "./words.js";
 

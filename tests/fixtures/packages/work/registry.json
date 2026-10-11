@@ -148,7 +148,7 @@
       "state": {
         "writer": "agent",
         "unit": "widget",
-        "update": true,
+        "report": true,
         "record": {
           "kind": "value",
           "attr": "state"

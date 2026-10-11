@@ -1469,7 +1469,8 @@
    * as a full-height workspace's body is, takes that height, and its list and its open
    * item each scroll on their own, as a mail client's do: walking a long queue never
    * moves the item being read, and reading down a long item never moves the queue. Each
-   * is a reading region (lf-tabs.js). Stacked, the list is a row of its own height over
+   * is a reading region (lf-tabs.js) that holds the height it was given on purpose
+   * (`--lf-holds-height`). Stacked, the list is a row of its own height over
    * the item, which takes the rest; beside the item, both span the two rows, and an item
    * spanning the flexible row adds nothing to the row its own height would size. */
   @container style(--lf-full-height: 1) {
@@ -1495,6 +1496,7 @@
       --lf-top: 0px;
       overscroll-behavior: contain;
       scrollbar-gutter: stable;
+      --lf-holds-height: 1;
     }
   }
 
@@ -1530,9 +1532,6 @@
     --lf-head-inset: 8px;
     z-index: 2;
     block-size: var(--lf-tabstrip-h);
-  }
-  :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > lf-tab {
-    --lf-landing-room: var(--lf-landing-gap);
   }
   :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > .lf-tabstrip {
     border-radius: 0;
@@ -1701,41 +1700,6 @@
   }
 }
 
-/* lf-annotation-rail: an author-allocated inspection box, independent of overlay geometry. */
-:scope:is(lf-annotation-rail) { display: block; box-sizing: border-box; min-inline-size: 0;
-  block-size: min(70vh, 40rem); overflow: auto;
-  border: 1px solid var(--border-2); border-radius: var(--sp-2); }
-:scope:is(lf-annotation-rail) .lf-ar-region { padding: var(--sp-3); }
-:scope:is(lf-annotation-rail) .lf-ar-heading { margin: 0 0 var(--sp-3);
-  font: 600 var(--t-4)/1.4 var(--sans); }
-:scope:is(lf-annotation-rail) .lf-ar-source { margin: var(--sp-3) 0 var(--sp-2);
-  color: var(--ink-2); font: 600 var(--t-5)/1.4 var(--sans);
-  block-size: 1.4em;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-:scope:is(lf-annotation-rail) .lf-ar-entry { display: flow-root; margin-block: var(--sp-2);
-  border-block-start: 1px solid var(--border-2); }
-:scope:is(lf-annotation-rail) .lf-ar-open { margin-block: var(--sp-2);
-  min-block-size: 32px; }
-:scope:is(lf-annotation-rail) .lf-ar-outlet { min-inline-size: 0; }
-:scope:is(lf-annotation-rail) .lf-ar-notice { block-size: 32px; max-inline-size: 100%;
-  overflow: hidden; white-space: nowrap; }
-:scope:is(lf-annotation-rail) .lf-ar-action-row { display: flow-root; }
-:scope:is(lf-annotation-rail) .lf-ar-action-controls { display: flex; flex-wrap: wrap;
-  gap: var(--sp-2); align-items: center; }
-:scope:is(lf-annotation-rail) .lf-ar-slot { display: inline-flex; flex: none;
-  block-size: 32px; max-inline-size: 100%; min-inline-size: 0; }
-:scope:is(lf-annotation-rail) .lf-ar-item { block-size: 32px; inline-size: 100%; min-inline-size: 0; text-align: start;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@media screen and (pointer: coarse) {
-  :scope:is(lf-annotation-rail) :is(.lf-ar-open, .lf-ar-notice, .lf-ar-slot, .lf-ar-item) {
-    min-block-size: var(--aim-floor); }
-}
-:scope:is(lf-annotation-rail) .lf-ar-entry:has(.lf-page-thread) > .lf-ar-open { display: none; }
-:scope:is(lf-annotation-rail) .lf-ar-empty { color: var(--ink-2); }
-/* Preparation may retire a row, but only the shared cohort can empty its seat. */
-:scope:is(lf-annotation-rail) [data-lf-ar-retired]:not(:has(.lf-ar-outlet > *)) { display: none; }
-:scope:is(lf-annotation-rail) .lf-ar-group:not(:has(.lf-ar-entry:not([data-lf-ar-retired]),
-  .lf-ar-entry .lf-ar-outlet > *)) { display: none; }
 /* lf-toc: the page's route. In ordinary flow it is a compact, open outline. Its roomy
  * margin form is a reading map: the widget gives each row the length of the section it
  * leads, flex lays those shares down the full available height, and the darker lens on
@@ -2224,13 +2188,18 @@
 :scope:is(lf-sample)[data-lf-sample-live]:has(> [data-lf-said="label"])::before { content: none; }
 :scope:is(lf-sample)[data-lf-sample-live] > [data-lf-said="label"]::before { content: "live sample · "; }
 /* Like the label, host controls describe the exhibit; they stand outside its gutter.
+ * A table lays out only its first caption in Firefox, so the controls cannot be a
+ * second one beside the label: a live sample's gutter moves from the table box to the
+ * exhibit around its frame, and the controls stand in the cell above it.
  * The frame's height is a placeholder until its child presents and the widget sizes it
  * to the child's page. */
 .lf-sample-view { position: static; display: contents; width: auto; max-width: none;
                   max-height: none; margin: 0; padding: 0; border: 0;
                   color: inherit; background: transparent; }
 :scope:is(lf-sample):has(> .lf-sample-view:modal) { height: var(--lf-sample-height); }
-.lf-sample-controls { display: table-caption; margin-bottom: 10px; }
+:scope:is(lf-sample)[data-lf-sample-live] { padding-left: 0; border-left: 0; }
+.lf-sample-exhibit { padding-left: var(--sp-4); border-left: 3px solid var(--border-2); }
+.lf-sample-controls { margin-bottom: 10px; }
 .lf-sample-controls > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .lf-sample-status { color: var(--muted); font: var(--t-6)/1.4 var(--sans); }
 .lf-sample-frame { display: block; box-sizing: border-box; width: 100%; height: 32rem;
@@ -2249,14 +2218,16 @@
                        background: var(--paper); overflow: hidden; overscroll-behavior: contain; }
 .lf-sample-view:modal::backdrop { background: var(--paper); }
 .lf-sample-view:modal > .lf-sample-controls { flex: none; }
-.lf-sample-view:modal > .lf-sample-frame { flex: 1; min-height: 0; }
+.lf-sample-view:modal > .lf-sample-exhibit { flex: 1; min-height: 0; display: flex;
+                                             flex-direction: column; padding: 0; border: 0; }
+.lf-sample-view:modal .lf-sample-frame { flex: 1; min-height: 0; }
 /* Inside a block sample the viewport follows the content, so there a window takes a
  * fixed height rather than a share of the frame it is growing. */
 @scope (html[data-lf-sample-block] :scope) {
   :scope:is(lf-sample)[window] .lf-sample-frame{ height: 32rem; }
 }
 @media print {
-  .lf-sample-controls, .lf-sample-frame { display: none; }
+  .lf-sample-controls, .lf-sample-exhibit, .lf-sample-frame { display: none; }
 }
 /* A quoted choose group renders as one that never declared `choose`. That promise is
  * kept where each pressable look is granted, not undone here: every affordance rule in
@@ -2408,7 +2379,7 @@
   :scope:is(lf-text-document)[data-lf-bound] { max-block-size: none; overflow: visible;
     --lf-top: inherit; }
   :scope:is(lf-text-document):not([preview])[data-lf-bound] pre { max-block-size: var(--lf-bound, 28rem);
-    overflow: auto; --lf-bound-box: 1; --lf-top: 0px; }
+    overflow: auto; --lf-bound-box: 1; --lf-holds-height: 1; --lf-top: 0px; }
 }
 /* A long capture becomes a keyboard-reachable scroller inside the evidence frame.
    Keep its generic focus ring inside that frame: the figure clips at its rounded

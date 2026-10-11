@@ -71,8 +71,9 @@ has tried; settle that before building it.
   (2026-10-06): the panels dominate focus, so moving focus never closes or changes a
   standing panel, focus never lands on page content a panel covers, and Threads still
   stands beside a full-width workspace. A comment box already refuses a covered seat
-  (`underOccluder`, geometry.js). Tab still walks onto `annotation-workspace`'s rail
-  under Threads, or the Questions panel that shares its right edge, at 1440×900. Making what a panel covers inert was built and withdrawn: it left the visible
+  (`underOccluder`, geometry.js). Tab walked onto page content under Threads, or the
+  Questions panel that shares its right edge, at 1440×900 on an example since retired;
+  no surviving page has been checked for it. Making what a panel covers inert was built and withdrawn: it left the visible
   part of a partly covered element dead to clicks and selection, and focus still reached
   chrome markers, sample frames, overflowing children and content an attribute revealed.
   Decide between laying the page out in the width a panel leaves beside it, which
@@ -137,6 +138,10 @@ has tried; settle that before building it.
 
 ### User continuity and mobile access
 
+- **Bring back a rewrite Escape discarded.** Escape drops a rewrite's changed words, as
+  in Slack, Discord and Telegram, so an accidental press loses a long rewrite. Offer a
+  way back, such as `g D` restoring the last discarded rewrite into its editor (the
+  user's suggestion, 2026-10-06).
 - **Decide when a page merits a separate phone composition.** Many pages are
   ephemeral and authored for a user reading on a large screen, so a bespoke phone
   animation may not repay its cost. Decide how the agent weighs the user's viewing
@@ -165,14 +170,6 @@ has tried; settle that before building it.
   has: a mode's or search's steps take Threads off the row until it ends, Android's back
   gesture closes nothing (the Escape ladder could answer it), Draw mode blocks scrolling
   and zoom, and an `lf-draft` has no close that keeps the edit.
-- **Decide whether the response bar's reactions and Suggest need a pointer route.**
-  The floating comment bar shows no ellipsis (⋯), so its field spans the bar and a sent
-  message keeps the card's measure. Its other responses, Suggest and the emoji
-  reactions, open only by key: Tab from the field, or `e`. A mouse alone has no
-  route to them, and a finger has none at all. Decide whether to make them more
-  available, such as a banner control under a coarse pointer, a reaction row on the
-  sent card, or a control that keeps the field's measure
-  (`skills/leaf/assets/runtime/composing/selection.js`).
 - **Reconsider thread navigation.** Decide how the Threads panel should change
   before refining it (`skills/leaf/assets/AGENTS.md`, "Space and scrolling").
 
@@ -230,7 +227,7 @@ and its chrome coordinate.
     growing along it and changed cells outlined. `lf-visual-review` steps through one
     case at a time, so the grid is a new view, in that package or beside it.
   - For comment placement alone, an SVG atlas of the side `comment-placement.js`
-    chooses (`commentSide`) over a grid of inputs, which `npm run test:runtime` can
+    chooses (`commentSide`) over a grid of inputs, which `pnpm run test:runtime` can
     draw without a browser.
 
   How to keep the candidates maintainable is not yet thought through, and comes before
@@ -420,6 +417,15 @@ on 2026-10-07.
 Revisit these when their stated trigger becomes real; they are not an active queue.
 
 ### Product and harness ideas
+
+- **Link filenames to their repository context.** When a page or thread knows the
+  repository and revision, offer a GitHub source link for a filename such as
+  `AGENTS.md` rather than treating it as a web domain. Establish how that context
+  reaches Markdown before inferring a destination from the filename alone.
+
+- **Learn how users prefer to dictate comments.** Observe whether people use
+  browser dictation, OS dictation, or their own dictation app. Defer a microphone
+  button until an unmet need justifies the extra visual noise in Leaf's text boxes.
 
 - **Assess whether automatic measurement freshness is useful (#7 in the simplification audit).**
   Keep the current `lf-num` source/write-time reminder for now. Look for cases where

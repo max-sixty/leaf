@@ -20,6 +20,7 @@ from render_cases_interaction import (
     ASK_PAGE,
     SEATED_QUESTION_PAGE,
     live_url,
+    panel_comment,
 )
 from render_cases_layout import (
     glyph_action_face,
@@ -183,6 +184,81 @@ def test_a_visible_focused_element_is_the_reading_place_until_the_reader_scrolls
     rendered(page)
     expect(field).to_be_focused()
     assert not in_view(), "stale focus displaced the reader's new place"
+
+
+@pytest.mark.parametrize("region", [False, True], ids=["page", "pane"])
+def test_a_page_keeps_its_place_below_the_banner_as_the_window_changes_width(
+    browser, serve, region
+):
+    """The banner takes a second row when the window narrows. The browser's scroll
+    anchoring holds the line the reader landed on where it stood in the window, which is
+    now under the banner; the page moves with the banner instead, in a document as in
+    a pane the page carries, and back again when the window widens. A control the reader
+    has focused at the top of the page, where the browser anchors nothing, stays in view
+    as the words above it rewrap."""
+    lines = "".join(
+        f'<p id="line-{n}">Line {n} of the incident, long enough to rewrap when the '
+        "window narrows to a phone and the banner takes its second row.</p>"
+        for n in range(60)
+    )
+    lines = (
+        f'<lf-pane id="reading" label="Reading"><div>{lines}</div></lf-pane>'
+        if region
+        else lines
+    )
+    question = (
+        '<lf-ask id="ask"><h2>Which way?</h2><lf-options id="way" choose>'
+        '<lf-option id="way-one"><strong>One</strong> the first way.</lf-option>'
+        '<lf-option id="way-two"><strong>Two</strong> the second way.</lf-option>'
+        "</lf-options></lf-ask>"
+    )
+    opening = "".join(
+        f"<p>Paragraph {n} opens the page with enough words that it rewraps to more "
+        "lines when the window narrows, pushing what follows further down.</p>"
+        for n in range(6)
+    )
+    source = leaf_page("Keeping a place", f"{opening}{question}{lines}")
+    page = open_page(browser, serve(source))
+    resized(page, 1280, 800)
+    rendered(page)
+    reading = """async (id) => {
+      const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+      let node = document.getElementById(id) ?? document.activeElement;
+      while (!id && node.shadowRoot?.activeElement) node = node.shadowRoot.activeElement;
+      return {band: landingBand(document.scrollingElement).top,
+              top: node.getBoundingClientRect().top,
+              bottom: node.getBoundingClientRect().bottom};
+    }"""
+
+    page.evaluate("location.hash = 'line-30'")
+    rendered(page)
+    landed = page.evaluate(reading, "line-30")
+    below = landed["top"] - landed["band"]
+    resized(page, 700, 800)
+    rendered(page)
+    narrowed = page.evaluate(reading, "line-30")
+    assert narrowed["band"] > landed["band"], "the banner should take a second row"
+    assert narrowed["top"] - narrowed["band"] == pytest.approx(below, abs=2), narrowed
+    resized(page, 1280, 800)
+    rendered(page)
+    assert page.evaluate(reading, "line-30") == pytest.approx(landed, abs=2)
+
+    page = open_page(browser, serve(source))
+    resized(page, 1280, 1100)
+    rendered(page)
+    page.locator("#way-one").evaluate(
+        """option => [option, ...option.shadowRoot?.querySelectorAll('*') ?? [],
+                     ...option.querySelectorAll('*')].find(node => node.tabIndex >= 0).focus()"""
+    )
+    rendered(page)
+    focused = page.evaluate(reading, None)
+    assert page.evaluate("document.scrollingElement.scrollTop") == 0
+    assert focused["bottom"] < 1100, focused
+    resized(page, 420, 1100)
+    rendered(page)
+    assert page.evaluate(reading, None)["bottom"] < 1100, (
+        "the focused option left the window"
+    )
 
 
 @pytest.mark.parametrize("bounded", [False, True])
@@ -4457,6 +4533,9 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
     second_inserted = "".join(second_delta.locator("ins").all_inner_texts())
     assert "before" in second_deleted and "deploying" in second_deleted
     assert "afterthebackup" in re.sub(r"\s+", "", second_inserted)
+    # Comparisons preserve source whitespace; template indentation is visible here.
+    comparison = second_delta.locator(".lf-draft-delta").text_content()
+    assert comparison == comparison.strip()
 
     draft.get_by_role("button", name="Restore edit 1 · v1").focus()
     page.keyboard.press("Enter")
@@ -4466,6 +4545,7 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
         "Changes · 3 edits"
     )
     expect(draft.locator(".lf-draft-history > summary")).to_be_focused()
+    expect(draft.locator(".lf-draft-history")).to_have_attribute("open", "")
     expect(draft).to_have_attribute("data-lf-user-override", "1")
 
     events = [
@@ -5489,6 +5569,39 @@ def test_executable_revision_preserves_non_editor_thread_standing(browser, serve
     )
 
 
+def test_executable_revision_keeps_a_reader_who_scrolled_away_from_their_reply(
+    browser, serve
+):
+    """A replaced reply box takes focus back without pulling the reader back to it.
+
+    The reader wrote in a thread at the top of the Threads list, then scrolled the
+    list on with no other input, so the box keeps focus but no longer marks their
+    place (user-place.js, `focusedInView`). A revision that replaces the document
+    returns focus and words to the new box and leaves the list where they read."""
+    url = live_url(serve(editing_revision_source("before")))
+    ids = [panel_comment(serve.page_dir, f"General thread {n}.") for n in range(40)]
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-threads .lf-thread[data-id="{ids[0]}"]')
+    thread.click()
+    reply = thread.locator(".lf-thread-reply leaf-text")
+    words = "Words the reader left to read on."
+    write(reply, words)
+    threads = page.locator(".lf-threads")
+    threads.evaluate("list => { list.scrollTop = list.scrollHeight; }")
+    scroll_settled(page, ".lf-threads")
+    expect(reply).to_be_focused()
+    expect(reply).not_to_be_in_viewport()
+    held = threads.evaluate("list => list.scrollTop")
+    assert held > 0
+    replace_editing_document(page, serve)
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", words)
+    scroll_settled(page, ".lf-threads")
+    assert threads.evaluate("list => list.scrollTop") == pytest.approx(held, abs=2)
+
+
 def test_executable_revision_does_not_restore_a_new_draft_generation(browser, serve):
     page = editing_reply_page(browser, serve)
     editor = page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
@@ -6090,9 +6203,57 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     expect(edit).to_have_js_property("value", "")
 
 
-def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
-    browser, serve
+@pytest.mark.parametrize("keyboard", ["desktop", "touch", "android"])
+def test_composer_return_edits_or_sends_according_to_its_keyboard(
+    browser, serve, keyboard
 ):
+    """Mobile Return keeps a source newline, including Android's EditContext path."""
+    options = {
+        "viewport": {"width": 360 if keyboard != "desktop" else 1280, "height": 732},
+        "is_mobile": keyboard != "desktop",
+        "has_touch": keyboard != "desktop",
+    }
+    if keyboard == "android":
+        options["user_agent"] = (
+            "Mozilla/5.0 (Linux; Android 16; Pixel 10) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/155.0.8059.12 Mobile Safari/537.36"
+        )
+    context = browser.new_context(**options)
+    page = open_page(browser, serve(LONG_PAGE), context=context)
+    editor = page_comment(page)
+    page.keyboard.type("First sentence.")
+    editor.press("Shift+Enter" if keyboard == "desktop" else "Enter")
+    expect(editor).to_have_js_property("value", "First sentence.\n")
+    page.keyboard.type("Second sentence.")
+    exact = "First sentence.\nSecond sentence."
+    expect(editor).to_have_js_property("value", exact)
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    with sending(page, "the complete multiline comment"):
+        editor.press("Enter" if keyboard == "desktop" else "ControlOrMeta+Enter")
+    comments = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert [event["text"] for event in comments] == [exact]
+
+
+@pytest.mark.parametrize("android", [False, True])
+def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
+    browser, serve, android
+):
+    context = browser.new_context(
+        user_agent=(
+            "Mozilla/5.0 (Linux; Android 16; Pixel 10) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/155.0.8059.12 Mobile Safari/537.36"
+        )
+        if android
+        else None,
+    )
     page = open_page(
         browser,
         serve(
@@ -6102,6 +6263,7 @@ def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
                 '<lf-draft id="source"><pre>Original **source**.</pre></lf-draft>',
             )
         ),
+        context=context,
     )
     draft = page.locator("#source")
     draft_control(page, "edit", "source").click()
@@ -6109,7 +6271,9 @@ def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
     write(editor, "First **paragraph**.")
     editor.press("End")
     editor.press("Enter")
+    expect(editor).to_have_js_property("value", "First **paragraph**.\n")
     editor.press("Enter")
+    expect(editor).to_have_js_property("value", "First **paragraph**.\n\n")
     page.keyboard.insert_text("Second `paragraph`.")
     exact = "First **paragraph**.\n\nSecond `paragraph`."
     expect(editor).to_have_js_property("value", exact)

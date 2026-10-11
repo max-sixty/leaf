@@ -1338,7 +1338,12 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
                 None,
             )
 
-        url = wait_for(announced, bool, failure=log.read_text)
+        url = wait_for(
+            announced,
+            bool,
+            failure=log.read_text,
+            timeout=hosting.PORT_WAIT_SECONDS + STATED_TIMEOUT,
+        )
         status, body = fetch(url, token=None)
         assert status == 200, body
         return task, url, log
@@ -1373,7 +1378,14 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     )
     reply = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", comment["answer"]["ref"], "--text", "Preserved reply"],
+        [
+            "response",
+            "reply",
+            "--done",
+            comment["answer"]["ref"],
+            "--text",
+            "Preserved reply",
+        ],
     )
     assert reply.exit_code == 0, reply.output
     status, body = fetch(
@@ -1792,6 +1804,7 @@ def test_a_preview_captures_acquisition_before_an_accepted_commit_is_interrupted
 def test_private_startup_keeps_previous_owner_until_acceptance(
     page_dir, monkeypatch, refusal
 ):
+    from leaf.detached import StartRefused
     from leaf.hosting import claim_and_start, cmd_stop
     from leaf.service import page_claim
     from leaf.state import end_session, ensure_session
@@ -1806,7 +1819,7 @@ def test_private_startup_keeps_previous_owner_until_acceptance(
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "candidate")
     try:
-        expected = ValueError if refusal == "abort_reuse" else RuntimeError
+        expected = ValueError if refusal == "abort_reuse" else StartRefused
         with pytest.raises(expected), claim_and_start(page_dir) as prepared:
             assert prepared.claim["acquisition"] != previous["acquisition"]
             assert page_claim(page_dir) == previous

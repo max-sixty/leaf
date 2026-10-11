@@ -177,8 +177,8 @@
    widget wears. The chrome holds itself out instead, from inside its own scope. */
 body:is(.lf-aiming, [data-lf-design-mode]) { cursor: default; }
 body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item { cursor: pointer; }
-/* Page words accept drawing presses; runtime surfaces and widget offers keep their
-   controls usable. An aim box adds semantic context where one is available. */
+/* The document plane, including page-widget controls, accepts drawing presses.
+   Runtime surfaces keep their controls usable wherever their owner seats them. */
 html[data-lf-region-capture],
 html[data-lf-region-capture] body,
 html[data-lf-draw-mode],
@@ -188,9 +188,7 @@ html[data-lf-region-capture] main *,
 html[data-lf-draw-mode] main,
 html[data-lf-draw-mode] main * { cursor: crosshair !important; }
 html[data-lf-draw-mode] main [data-lf-runtime],
-html[data-lf-draw-mode] main [data-lf-runtime] *,
-html[data-lf-draw-mode] main [data-lf-offer],
-html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
+html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
 /* The glyphs of the reactions standing on a target — a margin entry per reaction,
    revealing a separately named removal action. */
 .lf-react-mark { text-align: center; }
@@ -485,6 +483,10 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
     -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
     white-space: normal; overflow-wrap: anywhere; line-height: 1.25; color: var(--ink); }
   @container style(--lf-notice-seat: banner) {
+    /* Reserve both notice lines even for ordinary status. News starts at the same
+       edge whether it takes one line or two; the ordinary sentence stays centred. */
+    .lf-status-words { min-block-size: 2.5em; }
+    .lf-status-notice { align-self: start; }
     .lf-banner-status[data-lf-notice] .lf-status-notice { display: -webkit-box; }
     .lf-banner-status[data-lf-notice] .lf-status-text { opacity: 0; }
   }
@@ -829,7 +831,7 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-queue-done > summary:is(:focus-visible, .lf-focus-visible) {
     outline: var(--focus-ring); --lf-focus-ring: queue-row;
     outline-offset: calc(-1 * var(--focus-ring-w)); }
-  /* Green marks a move the user owes, as it does on a thread; the agent's live work wears
+  /* Green marks the user's turn, as it does on a thread; the agent's live work wears
      the accent; what is done goes quiet. */
   .lf-queue-kind { grid-row: span 2; align-self: start; justify-self: start;
     padding: 0 5px; border-radius: 4px; background: var(--chip); color: var(--ink-2);
@@ -992,8 +994,7 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
     padding: var(--focus-ring-room) var(--lf-list-inset); --lf-block-frame: 1;
     scroll-padding: var(--focus-ring-room) 0;
     --lf-top-start: calc(-1 * var(--focus-ring-room)); --lf-top: var(--lf-top-start);
-    --lf-landing-room-start: var(--focus-ring-room);
-    --lf-landing-room: var(--lf-landing-room-start); }
+    --lf-landing-room-start: var(--focus-ring-room); }
   /* The list holds focus itself only while it shows no thread (thread-list-view.js):
      an empty list, or the last one folding away as it resolves. That folding card is
      positioned, so it paints after the scrollport and an outline on the list itself
@@ -1045,8 +1046,7 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
      unisolated, so what a row raises still stands over the rows after it. */
   .lf-threads > .lf-thread-compact { --lf-top-outer: var(--lf-top); }
   .lf-threads > .lf-thread-compact > .lf-thread-summary {
-    position: sticky; top: var(--lf-top); z-index: var(--lf-thread-title-z);
-    --lf-head-inset: 0px; }
+    position: sticky; top: var(--lf-top); z-index: var(--lf-thread-title-z); }
   .lf-threads > .lf-thread-compact > :not(.lf-thread-summary) {
     --lf-top: calc(var(--lf-top-outer) + var(--lf-thread-title-h)); }
   :is(.lf-threads > .lf-thread-compact > :not(.lf-thread-summary),
@@ -1192,11 +1192,10 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   /* The reply box stands at the card's foot, the edge the fold draws up, so it leaves
      as the fold begins rather than ride that edge. */
   .lf-going > .lf-thread-reply { visibility: hidden; }
-  /* Resolve drawn done: on its way out, and as the Reopen that stands in its place. */
-  :is(.lf-going .lf-resolve, .lf-reopen:has(> .lf-action-icon)) {
-    color: var(--ok-ink); }
-  :is(.lf-going .lf-resolve, .lf-reopen:has(> .lf-action-icon))::before {
-    background: var(--ok-tint); }
+  /* Resolve drawn done on its way out, as the Reopen standing in its place is
+     (shadow.css). */
+  .lf-going .lf-resolve { color: var(--ok-ink); }
+  .lf-going .lf-resolve::before { background: var(--ok-tint); }
   /* Direct navigation cues the same bounded box it revealed: a short card, one
      message, the reply row, or an oversized editor. */
   .lf-thread.flash, .lf-msg.flash, .lf-thread-reply.flash, .lf-thread-reply leaf-text.flash {

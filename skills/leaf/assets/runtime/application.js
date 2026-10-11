@@ -6,12 +6,10 @@
 import { annotationMode, runtime } from "./context.js";
 import {
   applicationState,
-  readApplication,
   setPresentationFailureReporter,
   whenApplicationRegionsPresented,
   whenWidgetsPresented,
   presentDocument,
-  whenDocumentPresented,
 } from "./semantic-state.js";
 import { announce, notice } from "./notifications.js";
 import {
@@ -19,14 +17,10 @@ import {
   readQuestions,
 } from "./questions/model.js";
 import { paintKeys } from "./keyboard/scopes.js";
-import { pendingTraffic } from "./traffic.js";
+import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
 import { createDelivery, deliverBookkeeping } from "./delivery.js";
-import {
-  createProjectionPresentation,
-  shallowSigs as projectionShallowSigs,
-} from "./projection/presentation.js";
-import { projectionDeferred } from "./projection/state.js";
+import { createProjectionPresentation } from "./projection/presentation.js";
 import { createProjectionCommands } from "./projection/commands.js";
 import { createDataProjection } from "./projection/data.js";
 import { createThreadPresentation } from "./thread/presentation.js";
@@ -44,6 +38,7 @@ import { createReadTracking } from "./thread/read.js";
 import { renderMarginThread } from "./thread/inline.js";
 import { showHeld } from "./thread/held-news.js";
 import { threadBox as buildThreadBox } from "./thread/box.js";
+import { isMessageEvent } from "./pending/model.js";
 import {
   placeThreads as registerConsumer,
   placePageThreads as registerPageConsumer,
@@ -51,7 +46,7 @@ import {
 } from "./thread/surfaces.js";
 import { createStateApplication } from "./state-application.js";
 import { beginRead as beginStateRead, createStateFeed } from "./state-feed.js";
-import { watchUpdates as observeUpdates } from "./updates.js";
+import { watchReports as observeReports } from "./reports.js";
 
 const commandDispatch = createCommandDispatch();
 let application = null;
@@ -64,6 +59,7 @@ export function mountApplication(dependencies) {
   if (application) throw new Error("Leaf application mounted twice");
   setPresentationFailureReporter(dependencies.reportPageError);
   const { ledger } = commandDispatch;
+  watchPendingTraffic(applicationState.select((root) => root.effective.sending));
   const hasPending = () => ledger.snapshot().length > 0;
   const engagement = dependencies.createEngagement({
     hasPending,
@@ -76,7 +72,6 @@ export function mountApplication(dependencies) {
 
   const stateApplying = () => stateApplication?.isApplying() ?? false;
 
-  const currentReceipts = () => readApplication().authoritative?.browser.receipts ?? [];
   const approvalBlockingQuestions = readApprovalBlockingQuestions;
 
   // Retire the entries the ledger's lifecycle says wait only for release, once every
@@ -135,19 +130,10 @@ export function mountApplication(dependencies) {
     return presentDocument();
   };
 
-  const retryProjection = () => {
-    if (!projectionDeferred()) return false;
-    if (stateApplying()) {
-      queuedInvalidation = true;
-      return false;
-    }
-    invalidateDom();
-    return true;
-  };
-
+  // The drag that deferred the projection has ended: present the reading it held.
   const projection = createProjectionPresentation({
     onDeferredReady: () => {
-      if (!retryProjection()) return;
+      invalidateDom();
       releasePendingSafely("deferred pending release");
     },
   });
@@ -163,35 +149,20 @@ export function mountApplication(dependencies) {
 
   /** @param {import("./pending/state.js").DeliveryHandle} entry */
   function afterEnqueue(entry) {
-    let presentationError = null;
-    let threadPresentation = Promise.resolve();
+    // Enqueue has already published and claimed its presentation, whose coordinator
+    // reports any failed paint. The entry's answer describes the server's durable
+    // decision, so a local announcement or key-paint failure is reported here rather
+    // than turning an accepted gesture into an apparent refusal, and it cannot strand
+    // the gesture before transport or leave later sends behind an unanswered entry.
     try {
-      pendingTraffic(readApplication().effective.sending);
-      // Enqueue publishes and claims its presentation synchronously, including while an
-      // accepted reading is still preparing. Observe that pass without starting another;
-      // its coordinator reports any failed paint, and transport proceeds independently.
-      threadPresentation = whenDocumentPresented().catch(() => undefined);
+      if (isMessageEvent(entry.event)) announce("Message sent");
+      if (entry.event.kind === "edit") announce("Message edited");
+      paintKeys();
     } catch (error) {
-      presentationError = error;
+      console.error("leaf: optimistic presentation", error);
     } finally {
-      try {
-        if (entry.message) announce("Message sent");
-        paintKeys();
-      } catch (error) {
-        presentationError ??= error;
-      } finally {
-        // The durable gesture has entered the one ledger. A local paint failure cannot
-        // strand it before transport or leave every later send waiting behind an
-        // unanswered entry.
-        void delivery.drain();
-      }
+      void delivery.drain();
     }
-    // The returned promise describes the server's durable decision. Report a local
-    // optimistic-presentation failure without turning an accepted gesture into an
-    // apparent refusal for callers that restore drafts or clear busy state from it.
-    if (presentationError)
-      console.error("leaf: optimistic presentation", presentationError);
-    return threadPresentation;
   }
 
   commandDispatch.mount({
@@ -240,6 +211,7 @@ export function mountApplication(dependencies) {
     actions: threadActions,
     wireInput: dependencies.wireInput,
     landSent: dependencies.landSent,
+    landInThread: dependencies.landInThread,
     changed: refreshThread,
   };
   const settlementView = {
@@ -280,7 +252,6 @@ export function mountApplication(dependencies) {
   const annotations = createAnnotationInventory({
     readQuestions,
     comparisonBase: dependencies.annotationCommands.comparisonBase,
-    comparisonChanges: dependencies.annotationCommands.comparisonChanges,
     inlineComparison: dependencies.annotationCommands.inlineComparison,
     toggleInlineComparison: dependencies.annotationCommands.toggleInlineComparison,
     placedAt: dependencies.anchorPlacement.placedAt,
@@ -430,7 +401,6 @@ export function mountApplication(dependencies) {
 
   delivery = createDelivery({
     ledger,
-    currentReceipts,
     applyAcceptedState: receiveState,
     settleRejected: async (entry, state) => {
       if (state)
@@ -450,9 +420,13 @@ export function mountApplication(dependencies) {
         // ledger.accept; release itself waits for every owning presentation region
         // before undo and other semantic readers may observe the entry leave.
         releasePendingSafely("accepted event reconciliation");
-        // In that ordering a gesture that is not an action left on accept; the same
-        // descriptor invalidation belongs to whichever edge actually retires it.
-        if (!applicationState.entry(entry.event.attempt)) invalidateDom();
+        // In that ordering a gesture that is not an action left on accept; the key
+        // repaint and descriptor invalidation accountPending gives an entry leaving on
+        // presentation belong to whichever edge actually retires it.
+        if (!applicationState.entry(entry.event.attempt)) {
+          paintKeys();
+          invalidateDom();
+        }
         return;
       }
       paintKeys();
@@ -463,12 +437,8 @@ export function mountApplication(dependencies) {
 
   const feed = createStateFeed({
     prepareActivation: dependencies.feed.prepareActivation,
-    notifyDataSubscribers: dependencies.feed.notifyDataSubscribers,
     renderStatus: dependencies.feed.renderStatus,
-    projectionDeferred,
-    retryProjection,
     stateApplying,
-    releasePending,
     invalidateDom,
     receiveState,
   });
@@ -484,10 +454,15 @@ export function mountApplication(dependencies) {
     composition: dependencies.compositionSurface,
     reveal: (...args) => threadDestinations.openPageThread(...args),
   };
-  let annotationRegistration = null;
-  const consumeAnnotations = (owner, render) => {
+  // data-annotations=page is the one switch that hands presentation to the page: both
+  // page consumers refuse a document that keeps Leaf's own margin.
+  const requirePageAnnotations = () => {
     if (annotationMode !== "page")
       throw new Error("Page annotation presentation requires data-annotations=page");
+  };
+  let annotationRegistration = null;
+  const consumeAnnotations = (owner, render) => {
+    requirePageAnnotations();
     if (annotationRegistration)
       throw new Error("The document already has a page annotation view");
     const registration = Symbol("page annotation view");
@@ -504,8 +479,10 @@ export function mountApplication(dependencies) {
   };
   const placeThreads = (owner, render) =>
     registerConsumer(owner, render, threadSurfaceCommands);
-  const placePageThreads = (owner, render) =>
-    registerPageConsumer(owner, render, threadSurfaceCommands);
+  const placePageThreads = (owner, render) => {
+    requirePageAnnotations();
+    return registerPageConsumer(owner, render, threadSurfaceCommands);
+  };
   const mountThreadViews = (owner, render) =>
     registerMirrorConsumer(owner, render, { commands: inlineView });
 
@@ -541,7 +518,7 @@ export function mountApplication(dependencies) {
 
   application = {
     ...projectionCommands,
-    watchUpdates: observeUpdates,
+    watchReports: observeReports,
     ...engagement,
     approvalBlockingQuestions,
     beginRead: beginStateRead,
@@ -591,7 +568,6 @@ export function mountApplication(dependencies) {
         readQuestions().all,
       );
     },
-    shallowSigs: projectionShallowSigs,
     startFeed: feed.startFeed,
     wireInput: dependencies.wireInput,
   };
@@ -638,10 +614,9 @@ export const queueActions = Object.freeze({
   open: (...args) => app().queueActions.open(...args),
   done: (...args) => app().queueActions.done(...args),
 });
-export const shallowSigs = (...args) => app().shallowSigs(...args);
 export const startFeed = (...args) => app().startFeed(...args);
 export const unaccountedGesture = (...args) => app().unaccountedGesture(...args);
 export const undoable = (...args) => app().undoable(...args);
 export const undoLast = (...args) => app().undoLast(...args);
-export const watchUpdates = (...args) => app().watchUpdates(...args);
+export const watchReports = (...args) => app().watchReports(...args);
 export const wireInput = (...args) => app().wireInput(...args);

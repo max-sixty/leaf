@@ -1,4 +1,4 @@
-/* Generated from skills/leaf/packages/diff/styles/shadow.css by npm run build:styles. */
+/* Generated from skills/leaf/packages/diff/styles/shadow.css by build/styles.mjs. */
 /* skills/leaf/packages/diff/styles/palette.css */
 :where(:scope, :scope:host) {
   --lf-code-add-fill: color-mix(in srgb, var(--ok) 16%, var(--pre-bg));
@@ -58,11 +58,17 @@
   display: none;
 }
 .lf-diff-head .lf-diff-dir {
-  flex: 1 1 0;
+  flex: 0 1 auto;
   min-width: 0;
   max-width: max-content;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.lf-diff-head .lf-diff-dir-ancestor {
+  flex: 1 1 0;
+}
+.lf-diff-head :is(.lf-diff-source-path, .lf-diff-destination-path) .lf-diff-dir {
+  flex: 1 1 0;
 }
 .lf-diff-head .lf-diff-dir::before {
   content: "…" / "";
@@ -79,6 +85,9 @@
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.lf-diff-head > .lf-diff-path > .lf-diff-base {
+  flex-shrink: 0;
 }
 .lf-diff-head > .lf-diff-stat {
   flex: none;
@@ -261,7 +270,6 @@
   :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details > summary {
     position: sticky;
     --lf-top: var(--lf-top-outer);
-    --lf-head-inset: 0px;
     top: var(--lf-top, 0px);
     z-index: 2;
   }

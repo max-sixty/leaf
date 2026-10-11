@@ -98,8 +98,14 @@ into the design reconsideration instead of polishing a surface that may go away.
 Widgets in ordinary document flow grow with their content by default. Internal
 vertical scrolling needs a task that benefits from keeping a region in view while
 its contents move, or a live stream whose newest entry the reader follows; being
-an inspection object is not enough. Page-authoring choices live in
-`../references/page-authoring.md`, "Bounds and widths". A necessary scroller chains
+an inspection object is not enough. A box that holds its own height declares
+`--lf-holds-height: 1`, as a bounded block's theme and a full-height workspace's
+scrolling regions do, and the widget quality check `grows-with-content` names every
+other widget box that scrolls vertically within a height it keeps
+(`scripts/leaf/render_gate/widget_quality.py`), in each package's worked examples and,
+in the suite, on every corpus page, where the widgets hold data. Page-authoring
+choices live in `../references/page-authoring.md`, "Bounds and widths". A necessary
+scroller chains
 into the document at its edges; isolate scrolling only at a bounded task or modal
 boundary. Wheel and touch keep their navigation meaning; deliberate controls enter
 pan and zoom.
@@ -128,7 +134,12 @@ that boundary, and neighbours and ordinary page reading content stay put. Typing
 still cannot carry its field.
 An `append` region declares a transcript whose new children may grow its end within
 its stationary scrollport. Existing messages stay put; the idle reply row and later
-cards may move by that growth. The declaration permits no changes to existing
+cards may move by that growth. A reply still streaming at the transcript's end is
+that growth arriving: it may change at its foot in place as its words come and as its
+answer completes it. So is an answer that folds the progress run standing at the
+transcript's end into Previous updates, unless the reader stands on a message it puts
+away, by focus or by a selection reaching into it: what stood from that run down may
+move, and nothing above it. The declaration permits no other changes to existing
 messages or independent movement of following content.
 News grows where the reader isn't looking: above the screen, where scroll anchoring
 takes the growth into what they scrolled past, or below it. A short thread's reply
@@ -160,7 +171,12 @@ the Threads panel, a card news takes out of the view, as another actor resolving
 thread under Open does, stays where it stands, holding the news behind that notice
 and, once shown, in the shape it stood in, until its going would move nothing the
 user sees or they change the view
-(`thread/thread-list-view.js`, `keeping`). A region whose rows only the
+(`thread/thread-list-view.js`, `keeping`). A turn of the user's own that takes its
+card out of the view, as a reply under "Waiting on you" or a rewrite or Reopen under
+Resolved does, takes them with it: the view widens to one that holds the thread, and a
+refusal puts it back only while they have not acted since (`thread/thread-card.js`,
+`#speak`); news keeps its card in the view, and Resolve moves them to the neighbouring
+card. A region whose rows only the
 log or the clock decides, so no first paint can size it, shows none of them until the
 reader opens them through a control of fixed size the widget already draws, as the
 Atlas plan's Stopped work disclosure opens its list; after that a change to its rows
@@ -241,7 +257,7 @@ one-sided borders and reflexive cards, tints, gradients, or soft shadows.
 Each Thread's `unread` and `attention` are single readings that every surface
 painting them consumes, so the Threads toggle, filters, panel, margin entry, and
 Page Map change together. Workflow state rides the existing semantic control
-rather than competing with attention for color. Green marks a move the user owes;
+rather than competing with attention for color. Green marks the user's turn;
 other thread controls stay blue. Pickup and work use status words, with one brief
 pulse when work begins that a repaint never replays. Reading is bookkeeping and
 never moves the user.
@@ -268,17 +284,17 @@ values for JavaScript. The theme's guard answers for CSS.
 `leaf.js` is the boot-only entry: every owner is a module that exports its
 capability and imports what it needs, and `leaf.js` imports them and runs the
 boot sequence. Two classic scripts run before the first paint, which no module
-reaches. `runtime/bootstrap.js` runs in a served page only and loads before everything
-else. It marks the page live (`data-lf-live`), so the theme reserves the chrome's room;
-it shows a startup failure and waits for a server that can start the page, even if
-the module graph never loads; and it holds page keys pressed before presentation.
-`runtime/prepaint.js` runs in every document the runtime runs in, served or exported,
-ahead of the bootstrap. It marks the root `data-lf-interactive`, so the themes give
-each widget its upgraded box, and takes the mark off when the runtime could not start
-because something it needs did not arrive (naming why in `data-lf-startup-error`), so
-the themes give back the readable fallback for every widget at once; it declares the
-page's storage scope;
-and it decides which member an `x-views` holder opens on. Content modules import only
+reaches. `runtime/prepaint.js` runs first, inline in the head after the canonical
+link, in every document the runtime runs in, served or exported. It marks the root
+`data-lf-interactive`, so the themes give each widget its upgraded box, and takes the
+mark off when the runtime could not start because something it needs did not arrive
+(naming why in `data-lf-startup-error`), so the themes give back the readable fallback
+for every widget at once; it declares the page's storage scope; and it decides which
+member an `x-views` holder opens on. `runtime/bootstrap.js` runs next, in a served
+page only, before any resource the page loads. It marks the page live
+(`data-lf-live`), so the theme reserves the chrome's room; it shows a startup failure
+and waits for a server that can start the page, even if the module graph never loads;
+and it holds page keys pressed before presentation. Content modules import only
 `runtime/widget-api.js`, the public helper surface; owners never reach back
 through it or the entry module. Owners are constructed with explicit capabilities
 and cross-owner reads happen in their mounts. Pure projection, thread, and
@@ -308,12 +324,12 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Threads | `thread/`, `thread-panel.js` |
 | Annotation inventory and controls | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js` |
 | Annotation records and Page Map | `margin-model.js`, `margin-map-model.js`, `page-map-dialog.js`, `pointed-place.js` |
-| Physical annotation presentation | `../packages/default/runtime/annotation-overlay/` |
+| Physical annotation presentation | `../../packages/default/runtime/annotation-overlay/` |
 | Passages and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js` |
 | Anchor placement, decoration and travel | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`, `indication.js` |
 | Banner and approvals | `banner*.js` |
 | Drawers and neighboring pages | `drawers.js`, `queue-panel.js`, `queue-list.js`, `live-leaves*.js` |
-| Activity and updates | `presence.js`, `updates.js` |
+| Activity and reports | `presence.js`, `reports.js` |
 | Notices and announcements | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js` |
 | Reactions and design review | `reactions.js`, `design.js`, `design-readings.js` |
 | Presentation and validation | `presentation.js`, `validation.js`, `projection-watch.js`, `retained-face.js` |
@@ -411,7 +427,7 @@ unresolved local work into the one reading every component selects from:
 | the row inside a target a comment stands by | `pointed-place.js`: the line a pointing gesture landed on, held by the composer until sent, then under the thread's key with the words that find it again; where it stands now is `anchor-placement.js`'s placement record (`point`, `pointRow`), written in its read, the only writer, which takes in what a send hands over; presentation only, and only the pointed threads' row, card and travel follow it |
 | the side and line a comment's box and its thread card stand by, whether they stand past its margin row, and which edge a growing one holds | the default package's `comment-placement.js` (`commentSide`, `options`, `holding`), from the card's declared widths, for both surfaces; each surface's own module measures its content and reports its gestures, and decides neither |
 | whether a margin row stands in the rail or as a pin, its seat, and the order rows are seated in | `margin-layout.js`, through `margin-placement.js`'s folds (`rowPosture`, `seatRows`, `packRows`, `arrivals`) |
-| geometry readings: what a scroller shows, what a surface hides, what sticky headers stand over, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareOccluder`, `headerInset`, `shownWindow`, `seenRect`), so being on screen has one answer |
+| geometry readings: what a scroller shows, what a surface hides, what sticky headers stand over, how much of the window the page shows, where a change of size moves what is seen | `geometry.js` (`visibleBand`, `declareOccluder`, `headerInset`, `shownWindow`, `seenRect`, `motionBand`), so being on screen, and moving what is, each have one answer |
 
 Do not add a second cache, pending map, widget-specific replay list, or DOM
 attribute as another source for one of these facts; a rendering may expose state,
@@ -526,12 +542,6 @@ through the publisher's own reading, never a test-only interpretation of it.
 | `relativeReplays` | rendering a complete widget state twice changes nothing |
 | `shrunkLabels` | advice only |
 
-Put a check on the side that can observe the fact: static validation owns schema,
-ids, nesting, passages, event shapes, and file readings; the browser owns computed
-layout, composed trees, module writes, focus, and replay idempotence.
-Readings of widget state use the publisher's own reading; never write a test-only
-interpretation of it.
-
 The gates judge contracts, not how the page looks. A change to what the page
 draws, including one made for geometry, is proved with before/after screenshots
 of each state it touches. `uv run leaf-dev stills` takes them for a catalogue of
@@ -540,9 +550,13 @@ visible change").
 
 ## Working on the runtime
 
+`../references/module-authoring.md`, "Template rendering", owns template timing
+and container ownership. Paints whose contract requires the current turn use the
+public `render`; `LitElement` belongs only to faces that permit its microtask delay.
+
 `build/browser/build.mjs` compiles the TypeScript foundation into
 `vendor/browser-runtime.js` and the modules beside it in `vendor/browser-runtime/`,
 which import the runtime's own modules, and writes `vendor/lit.js`, the page's one copy of Lit
 (`build/AGENTS.md` owns the commands). What a module decides on its own is
-tested under `tests/runtime/` (`npm run test:runtime`; `tests/AGENTS.md` says
+tested under `tests/runtime/` (`pnpm run test:runtime`; `tests/AGENTS.md` says
 which readings may go there).

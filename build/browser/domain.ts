@@ -17,7 +17,7 @@ export interface ActionSpec {
   unit: string;
   record?: StateRecord;
   writer?: "user" | "agent";
-  update?: boolean;
+  report?: boolean;
   creates?: { child: string; [key: string]: unknown };
   detail?: object | boolean;
 }
@@ -42,6 +42,8 @@ export type LocalMessage = Extract<Command, { kind: "comment" | "reply" }> & {
 export type StreamingMessage = {
   id: string;
   attempt: string;
+  key: string;
+  provisional: true;
   kind: "reply";
   addressable: false;
   author: "agent";
@@ -51,10 +53,29 @@ export type StreamingMessage = {
   ts: string;
   pending: boolean;
 };
+/** The user's rewrite of one of their messages, as this tab draws it before the log
+ * has it. */
+export type LocalEdit = Extract<Command, { kind: "edit" }> & {
+  id: string;
+  author: "user";
+  ts: string;
+  pending: true;
+};
+/** A user's edit as a thread holds it, with the words it replaced. */
+export type Revision = (EventMap["edit"] | LocalEdit) & { was: string };
+/** What the ledger hands `foldThreads`: each message or rewrite as the thread draws it,
+ * each settlement, and each undo. */
+export type ThreadGesture =
+  | LocalMessage
+  | LocalEdit
+  | Settlement
+  | Extract<Command, { kind: "undo" }>;
 export type Message = CompleteUnion<MessageEvent | LocalMessage | StreamingMessage> & {
+  // The name it is drawn under where the server gives one (`thread.messageKey`).
+  key?: string;
   agent?: string | null;
   pending?: boolean;
-  edited?: { id: string; seq: number; ts: string };
+  edited?: { id: string; seq?: number; ts: string; was: string; pending?: true };
   addressable?: boolean;
   plainText?: string;
 };
@@ -71,6 +92,7 @@ export interface Thread {
   anchor: Anchor | null;
   detached_from: Anchor | null;
   rewritten_from: Anchor | null;
+  revisions: readonly Revision[];
   resolved:
     EventMap["resolve"] | EventMap["action"] | { author: string; pending: true } | null;
   user_prompt: { message: string; [key: string]: unknown } | null;

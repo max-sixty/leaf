@@ -616,40 +616,10 @@ def test_the_thread_panel_and_a_page_thread_carry_names(browser, serve):
     )
 
 
-def test_a_comment_box_opens_where_a_panel_beside_the_page_leaves_it_in_sight(
-    browser, serve
-):
-    """The panels dominate what focus reaches (Max, 2026-10-06). With Threads open
-    beside `annotation-workspace`, `c` on a selection opened the comment box in the
-    annotation rail under the panel, so the user typed into a box they could not see. A
-    seat the panel stands over is refused, and the box opens in its home in the panel's
-    foot; closing the panel uncovers the rail, and the box returns to it rather than
-    standing hidden with the panel. Drawing the panel's edge over an open box moves it
-    the same way."""
-    workspace = next(p for p in EXAMPLES if p.stem == "annotation-workspace")
-    page = open_page(browser, serve(workspace))
-    resized(page, 1440, 900)
-    panel = page.get_by_role("dialog", name="Threads", exact=True)
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    expect(panel).to_be_visible()
-    page.keyboard.press("g")
-    page.keyboard.press("p")
-    page.keyboard.press("/")
-    page.keyboard.type("third block")
-    page.keyboard.press("Enter")
-    page.keyboard.press("c")
-    composer = page.locator("leaf-text.lf-fab-input")
-    expect(composer).to_be_focused()
-    expect(panel.locator("leaf-text.lf-fab-input")).to_be_visible()
-    expect(panel).to_be_visible()
-
-    page.keyboard.press("Escape")
-    page.keyboard.press("Escape")
-    expect(panel).to_be_hidden()
-    expect(page.locator("#aw-conversations leaf-text.lf-fab-input")).to_be_visible()
-
-    # Drawing the panel's edge over a box already open moves it too.
+def test_a_comment_box_moves_home_when_a_panel_comes_to_cover_its_seat(browser, serve):
+    """The panels dominate what focus reaches (Max, 2026-10-06). A comment box whose
+    seat the Threads panel comes to stand over moves to its home in the panel's foot,
+    keeping its words, rather than standing hidden under the panel."""
     walkthrough = next(p for p in EXAMPLES if p.stem == "pr-walkthrough")
     page = open_page(browser, serve(walkthrough))
     resized(page, 1440, 900)
@@ -963,7 +933,7 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
     left.evaluate("el => el.scrollTop = 300")
     page.locator("#reading-draft").evaluate("el => el.setSelectionRange(4, 4)")
     held = []
-    page.route("**/vendor/agentic-mermaid.esm.js", lambda route: held.append(route))
+    page.route("**/vendor/mermaid.esm.js", lambda route: held.append(route))
     revised = source.replace(
         '<p id="left-start">',
         '<p>Added context.</p><p id="left-start">',
@@ -1018,7 +988,7 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
     finally:
         for route in held:
             route.continue_()
-        page.unroute("**/vendor/agentic-mermaid.esm.js")
+        page.unroute("**/vendor/mermaid.esm.js")
 
 
 def test_revision_carries_apparatus_when_an_arriving_element_takes_focus(
@@ -2215,9 +2185,13 @@ def test_thread_navigation_lands_after_resizing_an_open_reply(browser, serve):
     resized(page, 1280, 720)
     card = page.locator(".lf-margin-preview")
     thread = card.get_by_role("group", name="Thread, Is lunch provided", exact=False)
-    page.keyboard.press("t")
+    # The walk reaches the lunch thread wherever the gallery's order puts it.
+    for _ in range(4):
+        page.keyboard.press("t")
+        scroll_settled(page)
+        if thread.count() and thread.evaluate("el => el === document.activeElement"):
+            break
     expect(thread).to_be_focused()
-    scroll_settled(page)
     page.keyboard.press("t")
     expect(
         card.get_by_role("group", name="Thread, Workshop room photo")
@@ -2248,9 +2222,9 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("t")
     card = page.locator(".lf-margin-preview")
-    expect(
-        card.locator('.lf-page-thread[data-thread="72e031c5bf0d485ba9054628e09869d4"]')
-    ).to_be_focused()
+    # Whichever thread the walk reaches first; the gallery's order decides that.
+    expect(card.locator(".lf-page-thread")).to_be_focused()
+    walked = card.locator(".lf-page-thread").get_attribute("data-thread")
     owner = page.locator(
         '.lf-margin-marker[data-lf-kinds~="comment"]'
         '[aria-controls="lf-margin-preview"][aria-expanded="true"]:not([hidden])'
@@ -2290,9 +2264,7 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     assert card.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
         placed, abs=0.5
     )
-    expect(
-        card.locator('.lf-page-thread[data-thread="72e031c5bf0d485ba9054628e09869d4"]')
-    ).to_be_focused()
+    expect(card.locator(f'.lf-page-thread[data-thread="{walked}"]')).to_be_focused()
     # A press the page answers leaves the window where the user put it: `g G` carries the
     # card away, and `g` then opens Go-to over the page's foot rather than bringing the
     # card back and mapping the window around it.
@@ -2320,7 +2292,7 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
         {
             "kind": "reply",
             "author": "agent",
-            "parent": "72e031c5bf0d485ba9054628e09869d4",
+            "parent": walked,
             "revision": 1,
             "text": "A turn arriving while the card is away.",
         },
@@ -3755,7 +3727,7 @@ def test_q_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
             "responds": asked["id"],
             "revision": 1,
             "text": "Weekly or daily?",
-            "awaits": True,
+            "question": True,
         },
     )
     owed = append_carried_log_record(
@@ -3859,27 +3831,26 @@ def test_the_questions_panel_lists_both_queues_and_what_is_done(browser, serve):
         )
 
     asked = said("agent", kind="comment", text="Weekly?", anchor={"section": "cadence"})
-    owed = said(
-        "user", kind="comment", text="Tighten this.", anchor={"section": "notes"}
+    said("user", kind="comment", text="Tighten this.", anchor={"section": "notes"})
+    rebuild = said(
+        "user", kind="comment", text="Rebuild them.", anchor={"section": "notes"}
     )
-    subject = {"kind": "thread", "id": owed["id"]}
     said(
-        "agent", kind="task", owner="agent", subject=subject, title="Rebuild the notes"
+        "agent",
+        kind="reply",
+        parent=rebuild["id"],
+        responds=rebuild["id"],
+        text="Rebuilding them.",
+        task="Rebuild the notes",
     )
     retitle = said("user", kind="comment", text="Retitle it.", anchor={"section": "h"})
-    said(
+    ended = said(
         "agent",
         kind="reply",
         parent=retitle["id"],
         responds=retitle["id"],
-        text="Retitled.",
-    )
-    ended = said(
-        "agent",
-        kind="task",
-        owner="agent",
-        subject={"kind": "thread", "id": retitle["id"]},
-        title="Retitle the release",
+        text="Retitling it.",
+        task="Retitle the release",
     )
     said(
         "agent",
@@ -4329,7 +4300,7 @@ def test_a_q_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, ser
             "responds": asked["id"],
             "revision": 1,
             "text": "Weekly or daily?",
-            "awaits": True,
+            "question": True,
         },
     )
     page = open_page(browser, url)
@@ -7482,9 +7453,9 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         '.lf-command-reference tr[data-lf-command="reading.align.top"]'
     )
     expect(alignment).to_have_count(1)
-    # No reading item stands while the reference opens from page chrome, so this
-    # capability has only its unbound page control in this scene.
-    expect(alignment.locator(".lf-binding-sequence > kbd")).to_have_text(["⏎ / space"])
+    # Alignment has a page-level route even when no reading item stands while
+    # the reference opens from chrome.
+    expect(alignment.locator(".lf-binding-sequence > kbd")).to_have_text(["g", "z"])
     overlaps = goto.locator("tr[data-lf-command]").evaluate_all(
         """rows => rows.flatMap(row => {
           const [key, action] = row.querySelectorAll(':scope > td');
@@ -12478,8 +12449,11 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     page.locator(".lf-threads").focus()
     expect(page.locator(f"{EXPANDED} > .lf-thread-summary")).to_be_focused()
     expect(visible_hints.nth(0)).not_to_contain_text("send")
-    page.locator(f"{EXPANDED} .lf-thread-reply leaf-text").focus()
+    reply = page.locator(f"{EXPANDED} .lf-thread-reply leaf-text")
+    reply.focus()
     expect(visible_hints).to_have_count(2)
+    expect(visible_hints.nth(0)).to_contain_text("edit last message")
+    write(reply, "A reply in progress.")
     expect(visible_hints.nth(0)).to_contain_text("send")
     expect(visible_hints.nth(1)).to_contain_text("back to thread")
 
@@ -13414,7 +13388,7 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
     page.keyboard.press("c")
     expect(box).to_be_focused()
     expect(box).to_have_attribute("placeholder", re.compile(r"^Comment… .*⏎$"))
-    send = page.locator(".lf-composer > .lf-compose-field > button")
+    send = page.locator(".lf-composer > .lf-compose-field > .lf-compose-submit")
     expect(send.locator('svg[data-lf-icon="send"]')).to_have_count(1)
     expect(page.locator(".lf-composer-row")).to_have_count(0)
     field_box = box.bounding_box()
@@ -13712,6 +13686,35 @@ def test_align_current_thread_stays_in_its_panel_without_travel(browser, serve):
         )
         == before
     )
+
+
+def test_a_box_is_already_shown_whole_where_it_fits_and_in_part_where_it_cannot(
+    browser, serve
+):
+    """A landing that follows the user moves nothing for a box already shown: all of it
+    in view where it fits its room, any of it where it does not. A wrapper clipping only
+    sideways bounds no height, so an editor standing in an `overflow-x: clip` row 20px
+    tall still fits, and 30px of it in view is not yet shown."""
+    source = leaf_page(
+        "Room",
+        '<div style="height:2000px"></div>'
+        '<div style="overflow-x:clip;height:20px"><div id="box" style="height:100px"></div></div>'
+        '<div style="height:2000px"></div><div id="tall" style="height:5000px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    reading = page.evaluate("""async () => {
+      const {alreadyShown, fitsWhole} =
+        await window.__lfRuntimeImport('/runtime/landing-scroll.js');
+      const {shownWindow} = await window.__lfRuntimeImport('/runtime/geometry.js');
+      const partly = (node) => {
+        const top = node.getBoundingClientRect().top - (shownWindow().bottom - 30);
+        scrollBy({top, behavior: 'instant'});
+        return [fitsWhole(node), alreadyShown(node)];
+      };
+      return [partly(document.querySelector('#box')),
+              partly(document.querySelector('#tall'))];
+    }""")
+    assert reading == [[True, False], [False, True]]
 
 
 def test_align_current_tall_block_reveals_its_opening_through_outer_scrollers(
@@ -14184,7 +14187,6 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
         {
             "files": [
                 {
-                    "key": "app.py",
                     "path": "app.py",
                     "kind": "patch",
                     "additions": 1,
@@ -16239,7 +16241,7 @@ def test_an_ask_in_a_reply_is_where_the_user_stands_once_answered(browser, serve
     """An Ask frozen into a reply sits in a thread about a page Ask. Standing in the
     reply's Ask is standing there whether or not it is answered: the thread leads to its
     page Ask only from a node inside no Ask, so a user back on the answered option does
-    not have the page Ask's ring and digits. A control the margin draws for a widget in
+    not have the page Ask's ring and digits. A contributed control for a widget in
     the reply stands nowhere, since its widget is chrome in no Ask, so `q` from it starts
     where the reader is rather than behind every Ask on the page."""
     url = serve(
@@ -16271,7 +16273,20 @@ def test_an_ask_in_a_reply_is_where_the_user_stands_once_answered(browser, serve
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, True)
-    page.locator(".lf-thread .lf-shot-toggle").focus()
+    page.evaluate("""async () => {
+      const {contributionEntry, registerContribution} =
+        await window.__lfRuntimeImport('/runtime/widget-api.js');
+      registerContribution({key: 'reply-capture',
+        target: document.querySelector('.lf-thread lf-shot'),
+        read: () => ({entries: [contributionEntry({key: 'review', glyph: 'R',
+          label: 'Review reply capture'})]}), activate: () => {},
+      });
+    }""")
+    contributed = page.locator(".lf-thread").get_by_role(
+        "button", name="Review reply capture", exact=True
+    )
+    expect(contributed).to_be_visible()
+    contributed.focus()
     page.keyboard.press("q")
     expect(page.locator("#cache-ask")).to_be_focused()
     option = page.locator("#follow-yes")

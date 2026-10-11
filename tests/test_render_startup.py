@@ -1426,7 +1426,8 @@ def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
 
           // Hidden until it is removed below.
           previewHost.hidden = true;
-          const hiddenBounds = leaf.shownRegionBounds(previewId);
+          const { shownRegionBounds } = await window.__lfRuntimeImport('/runtime/check-api.js');
+          const hiddenBounds = shownRegionBounds(previewId);
 
           let refused;
           try {
@@ -2100,6 +2101,19 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
         expect(page.locator("body")).not_to_have_attribute("data-lf-applied", "1")
         expect(page.locator("#sug lf-old")).to_be_visible()
         expect(page.locator(".lf-signoff")).to_be_disabled()
+        # No producer below the feed saw the body, so the feed's report is the one
+        # that reaches the agent.
+        wait_for(
+            lambda: [
+                event["text"].splitlines()[0]
+                for event in events_model.read_events(serve.page_dir)
+                if event["kind"] == "error"
+            ],
+            lambda errors: any(
+                error.startswith("read failed: Unexpected token") for error in errors
+            ),
+            failure="the malformed state body never reached the log",
+        )
     finally:
         page.close()
     # As above: the malformed answer is given to every read, and the page keeps
@@ -2585,7 +2599,7 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
         "/widgets/lf-board.js",
     ], modules
     assert not [p for p in asked if "pierre-diffs" in p], asked
-    assert not [p for p in asked if "agentic-mermaid" in p], asked
+    assert not [p for p in asked if "mermaid" in p], asked
     assert asked.count("/theme.css") == 1, [p for p in asked if p == "/theme.css"]
     assert "/shadow.css" not in asked, asked
     assert asked.count("/registry.json") == 1, [
@@ -2602,7 +2616,7 @@ def test_diagrams_load_one_renderer_bundle_when_they_draw(browser, serve):
     page = open_page(browser, serve(TYPED_PARTS_PAGE), context=context)
 
     expect(page.locator("lf-diagram svg")).to_have_count(6)
-    assert [p for p in asked if "mermaid" in p] == ["/vendor/agentic-mermaid.esm.js"]
+    assert [p for p in asked if "mermaid" in p] == ["/vendor/mermaid.esm.js"]
 
 
 def test_floating_ui_loads_after_the_page_presents(browser, serve):
@@ -2790,6 +2804,7 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
         [
             "response",
             "reply",
+            "--done",
             response_reference(d, "c-store"),
             "--text",
             "Depends what you want to keep:",
@@ -3279,8 +3294,7 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
     panel_settled(page)
     status = page.locator(".lf-status-detail")
     port = serve.httpd.server_address[1]
-    serve.httpd.shutdown()
-    serve.httpd.server_close()
+    next(server for server in serve.servers if server.httpd is serve.httpd).close()
     expect(status).to_have_text(
         "Server offline — reconnecting. Keep this page open so pending changes can send."
     )
@@ -5130,7 +5144,7 @@ def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
         f"""
 <h1 id="title">Leaf skill</h1>
 <lf-text-document id="skill-source" source="leaf-skill" label="{long_label}" language="markdown"></lf-text-document>
-<p id="latency-line">Import latency: <lf-num source="import-latency" at="2026-08-29T12:00:00Z">10 ms</lf-num>.</p>
+<p id="latency-line">Import latency: <lf-num source="import-latency" run="a41f103e236c985b">10 ms</lf-num>.</p>
 """,
     )
     url = live_url(serve(source_page))
@@ -5452,6 +5466,68 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
     )
     ticked(page)
     expect(timestamp).to_have_text("1h ago")
+
+
+def test_data_subscribers_receive_each_publication_and_recover(browser, serve):
+    """A same-value rerun reaches a package with its own durable run receipt.
+
+    Repeated reads stay quiet; corruption and clearing remove the reading, and a
+    later valid publication restores the same subscription.
+    """
+    page = open_page(browser, data_projection_page(serve))
+    page.evaluate("""async () => {
+      const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      window.publications = [];
+      window.stopPublications = watchData(document.querySelector('lf-feed'), 'rows',
+        snapshot => window.publications.push(snapshot));
+    }""")
+    read = """async () => {
+      const {readAndApply} = await window.__lfRuntimeImport('/runtime/application.js');
+      await readAndApply();
+      return window.publications;
+    }"""
+    publication_file = data_model.source_file(serve.page_dir, "deployments")
+    original = json.loads(publication_file.read_text())
+    first = page.evaluate("window.publications")[0]
+
+    data_model.cmd_data_set(serve.page_dir, "deployments", original["value"])
+    deliveries = page.evaluate(read)
+    assert len(deliveries) == 2, deliveries
+    for snapshot, publication in zip(
+        deliveries, [original, json.loads(publication_file.read_text())], strict=True
+    ):
+        assert {
+            key: snapshot[key] for key in ("run", "updated", "value")
+        } == publication
+    second = deliveries[-1]
+    assert second["revision"] == first["revision"]
+    assert second["run"] != first["run"]
+    assert second["origin"] == first["origin"]
+    assert len(page.evaluate(read)) == 2
+
+    publication_file.write_text("{}")
+    deliveries = page.evaluate(read)
+    assert len(deliveries) == 3 and deliveries[-1] is None, deliveries
+    assert len(page.evaluate(read)) == 3
+
+    data_model.cmd_data_set(serve.page_dir, "deployments", original["value"])
+    deliveries = page.evaluate(read)
+    assert len(deliveries) == 4, deliveries
+    recovered = deliveries[-1]
+    assert recovered["revision"] == first["revision"]
+    assert recovered["run"] not in {first["run"], second["run"]}
+
+    data_model.cmd_data_clear(serve.page_dir, "deployments")
+    deliveries = page.evaluate(read)
+    assert len(deliveries) == 5 and deliveries[-1] is None, deliveries
+    assert len(page.evaluate(read)) == 5
+
+    data_model.cmd_data_set(serve.page_dir, "deployments", original["value"])
+    deliveries = page.evaluate(read)
+    assert len(deliveries) == 6, deliveries
+    assert deliveries[-1]["revision"] == first["revision"]
+    assert deliveries[-1]["run"] not in {first["run"], second["run"], recovered["run"]}
+    page.evaluate("window.stopPublications()")
 
 
 def test_an_idle_page_keeps_its_dom_and_data_subscriptions_at_rest(browser, serve):
@@ -6140,12 +6216,15 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
 
 
 def test_widget_errors_keep_exception_evidence(browser, serve):
-    """The user sees a short error while the agent retains the actual throw site."""
+    """A failed Lit paint can recover; the agent retains the actual throw site."""
     page = open_page(browser, data_projection_page(serve))
     page.evaluate(
         """async () => {
           const {failSoft} = await window.__lfRuntimeImport('/runtime/widget-upgrade.js');
+          const {html, render} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const widget = document.querySelector('lf-feed');
+          window.paintRecoveredWidget = text => render(html`<p>${text}</p>`, widget);
+          window.paintRecoveredWidget('Before failure');
           function widgetProjection() { throw new TypeError('projection rejected'); }
           let error;
           try { widgetProjection(); } catch (caught) { error = caught; }
@@ -6169,6 +6248,9 @@ def test_widget_errors_keep_exception_evidence(browser, serve):
         if event["kind"] == "error"
     ]
     assert any("widgetProjection" in error for error in agent_errors), agent_errors
+    page.evaluate("window.paintRecoveredWidget('Recovered reading')")
+    expect(page.locator("lf-feed")).to_have_text("Recovered reading")
+    expect(page.locator("lf-feed .lf-error")).to_have_count(0)
 
 
 def test_unchanged_source_waits_for_its_inflight_render(browser, serve):
@@ -6350,6 +6432,80 @@ def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser,
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
 
 
+def test_page_annotation_view_seats_questions_and_contributed_controls(browser, serve):
+    """A page that owns its annotations shows Questions and contributed actions in its
+    own box: Leaf hands the consumer each entry's items and native controls, and the
+    page only arranges them. Activating an item reaches its Question, and a seated
+    control still runs its contribution's action. The view follows the log: an answered
+    Question leaves once the server holds the answer, and Undo brings it back."""
+    url = serve(
+        leaf_page(
+            "Page annotation view",
+            """
+      <h1 id="title">Review</h1>
+      <lf-ask id="choice-question"><h2>Which route?</h2>
+        <lf-options id="routes" choose><lf-option id="route-a">Route A</lf-option>
+        <lf-option id="route-b">Route B</lf-option></lf-options>
+      </lf-ask>
+      <p id="subject">The export keeps one file per tenant.</p>
+      <aside id="review" aria-label="Review"></aside>
+    """,
+        ).replace("<body>", '<body data-annotations="page">')
+    )
+    page = open_page(browser, url)
+    page.evaluate("""async () => {
+      const {contributionEntry, registerContribution} =
+        await __lfRuntimeImport('/runtime/widget-api.js');
+      registerContribution({key: 'review', target: document.getElementById('subject'),
+        read: () => ({entries: [contributionEntry({key: 'reviewed', behavior: 'action',
+          icon: 'dot', label: 'Mark reviewed'})]}),
+        activate: (key) => { window.activated = key; }});
+      const {consumeAnnotations} = await __lfRuntimeImport('/runtime/widget-api.js');
+      const box = document.querySelector('#review');
+      consumeAnnotations(box, (entries, view) => {
+        box.replaceChildren();
+        for (const entry of entries) {
+          const row = document.createElement('div');
+          row.dataset.lfGen = '1';
+          box.append(row);
+          for (const item of view.items(entry)) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = [item.label, item.text].filter(Boolean).join(' · ');
+            button.addEventListener('click', () => view.activate(item));
+            row.append(button);
+          }
+          row.append(...view.controls(entry));
+          view.place(entry, row);
+        }
+      });
+    }""")
+    review = page.locator("#review")
+    question = review.get_by_role(
+        "button", name="Which route? · Waiting on you", exact=True
+    )
+    expect(question).to_be_visible()
+    question.click()
+    page.wait_for_function("!!document.activeElement?.closest('#choice-question')")
+    contributed = review.get_by_role("button", name="Mark reviewed", exact=True)
+    expect(contributed).to_be_visible()
+    contributed.click()
+    page.wait_for_function("window.activated === 'reviewed'")
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.locator("#route-a .lf-pick").click()
+    expect(page.locator("#route-a")).to_have_attribute("chosen", "")
+    expect(question).to_be_visible()
+    holding(page, held, 1, "the optimistic choice")
+    held[0].continue_()
+    page.unroute("**/api/event")
+    expect(question).to_have_count(0)
+    undo(page)
+    expect(page.locator("#route-a")).not_to_have_attribute("chosen", "")
+    expect(question).to_be_visible()
+
+
 def test_page_thread_surface_owns_exact_source_elsewhere_in_main(browser, serve):
     url = serve(
         leaf_page(
@@ -6358,12 +6514,12 @@ def test_page_thread_surface_owns_exact_source_elsewhere_in_main(browser, serve)
       <h1 id="title">Review</h1><p id="subject">The nightly export keeps one file per tenant.</p>
       <aside id="review" aria-label="Review" style="height: 500px; overflow:auto"></aside>
     """,
-        ),
+        ).replace("<body>", '<body data-annotations="page">'),
         anchored=[("subject", "one file per tenant")],
     )
     page = open_page(browser, url)
     page.evaluate("""async () => {
-      const {placePageThreads} = await __lfRuntimeImport('/runtime/application.js');
+      const {placePageThreads} = await __lfRuntimeImport('/runtime/widget-api.js');
       const rail = document.querySelector('#review');
       const outlets = new Map();
       window.pageSurface = placePageThreads(rail, (targets) => {
@@ -6484,7 +6640,7 @@ customElements.define('lf-test-seat', class extends HTMLElement {
       <p id="subject">The nightly export keeps one file per tenant.</p>
       <aside id="review" aria-label="Review" style="height:500px; overflow:auto"></aside>
     """,
-            ),
+            ).replace("<body>", '<body data-annotations="page">'),
             layer_registry={"lf-test-seat": entry},
             layer_widgets={"lf-test-seat.js": module},
             events=events,
@@ -6621,7 +6777,7 @@ customElements.define('lf-test-seat',class extends HTMLElement{
       <p id="subject">An ordinary source.</p><aside id="rail" style="height:300px;overflow:auto"></aside>
       <div id="foreign"></div>
     """,
-            ),
+            ).replace("<body>", '<body data-annotations="page">'),
             layer_registry={"lf-test-seat": entry},
             layer_widgets={"lf-test-seat.js": module},
             events=events,
@@ -6786,7 +6942,7 @@ def test_source_retired_during_required_panel_prepare_is_not_claimed(browser, se
       <button id="retire">Retire the target</button>
       <aside id="rail" style="height:220px;overflow:auto"></aside>
     """,
-            ),
+            ).replace("<body>", '<body data-annotations="page">'),
             anchored=[("subject", None)],
         ),
     )
@@ -6905,9 +7061,12 @@ def test_user_view_context_waits_for_a_samples_viewport_allocation(browser, serv
     # one frame later a zero-wide document stands as tall as its words wrapped one per
     # line. Either axis at zero is unallocated (user-view.js).
     frame.wait_for_function(
-        """() => window.frameElement.isConnected &&
-          document.documentElement.clientWidth === 0 && visualViewport.width === 0"""
+        """() => document.documentElement.clientWidth === 0 &&
+          visualViewport.width === 0"""
     )
+    # The sample has an opaque origin, so its window.frameElement is null; the
+    # parent can still verify that the iframe itself remains connected.
+    assert element.evaluate("frame => frame.isConnected")
     # Cover the observer's 10-second heartbeat and 300ms resize quiet interval.
     page.wait_for_timeout(11_000)
     assert reports[before:] == [], "the unallocated sample sent a user view"
@@ -6923,7 +7082,7 @@ def test_user_view_context_waits_for_a_samples_viewport_allocation(browser, serv
     assert recovered["viewport"]["height"] > 0
     assert recovered["visual_viewport"]["width"] > 0
     assert recovered["visual_viewport"]["height"] > 0
-    assert frame.evaluate("() => window.frameElement.isConnected")
+    assert element.evaluate("frame => frame.isConnected")
 
 
 def test_user_view_context_follows_real_tabs_without_changing_the_page(browser, serve):

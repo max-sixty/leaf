@@ -21,6 +21,12 @@
    Preserve the order of that list because the dispatcher and shortcut bar walk inward to
    outward while the full reference groups the same scopes for reading. */
 import {
+  AsyncDirective,
+  PartType,
+  directive,
+  nothing,
+} from "../../vendor/browser-runtime.js";
+import {
   activeRows,
   ariaShortcuts,
   bindings,
@@ -521,6 +527,44 @@ export function keys(where, title, rows, options) {
   // declaration along with itself.
   return attachScope(where, declaredScope(title, rows, options));
 }
+
+// Template scopes use the same attachment as `keys`, replacing the whole declaration
+// on each paint: titles, rows, callbacks and availability all belong to that reading.
+// Removing the directive withdraws only its own attachment, including when Lit keeps
+// the element. Temporary disconnection restores that declaration on reconnection.
+export const commandsOn = directive(
+  class extends AsyncDirective {
+    #element;
+    #arguments;
+    #scope;
+    constructor(part) {
+      super(part);
+      if (part.type !== PartType.ELEMENT)
+        throw new TypeError("commandsOn belongs in a template's element part");
+    }
+    render() {
+      return nothing;
+    }
+    update(part, args) {
+      this.#element = part.element;
+      this.#arguments = args;
+      if (this.isConnected) this.reconnected();
+      return nothing;
+    }
+    reconnected() {
+      keys(this.#element, ...this.#arguments);
+      this.#scope = elementScopes.get(this.#element);
+    }
+    disconnected() {
+      if (elementScopes.get(this.#element) !== this.#scope) return;
+      unpainted.delete(this.#scope);
+      elementScopes.delete(this.#element);
+      if (!projectedScopes.has(this.#element)) forgetScopedElement(this.#element);
+      reflectElementShortcuts(this.#element);
+      paintKeys();
+    }
+  },
+);
 
 /** Declare a command scope that presentation owners attach to generated controls.
  *

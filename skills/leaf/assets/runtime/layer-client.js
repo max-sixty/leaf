@@ -1,5 +1,5 @@
-/* The vendored-generation gate, the event and media doors, and the page's error channel
-   to the agent.
+/* The vendored-generation gate, the event and media doors, the page's JSON requests,
+   and the page's error channel to the agent.
 
    A vendored runtime and registry are one generation. This module carries the
    epoch from `layer-generation.js` and the registry carries the same epoch
@@ -20,7 +20,14 @@
    failure neither rolls back accepted semantic state nor proves pending receipts were
    shown. The window error listener, module load failures, a widget's `failSoft`, and the
    render gate all report through the same page-level evidence. Do not catch an error merely to stamp readiness
-   or continue accounting for pending attempts. */
+   or continue accounting for pending attempts.
+
+   A fault that leaves part of the page not working as authored, such as the tab icon,
+   an interaction demo that fails to load or run a command, or a code block that fails
+   to highlight, reports here so the agent hears of it, not only the console. A failed
+   user-view observer stays silent: that context is optional and must not become agent
+   work. Code running inside a sample's child page reports to the child's own
+   disposable log, not the page that embeds it. */
 
 import { describeFailure } from "../vendor/browser-runtime.js";
 import { countTraffic } from "./traffic.js";
@@ -28,10 +35,9 @@ import { recordInteraction } from "./interaction-log.js";
 import { offlineInteractive, pageUrl, runtime } from "./context.js";
 import { notice } from "./notifications.js";
 import { layerGeneration } from "./layer-generation.js";
+import { DELIVERY } from "./storage.js";
 
-const runtimeScript = document.querySelector("script[data-lf-server]");
-const documentLayer = runtimeScript?.dataset.lfLayer;
-const release = runtimeScript?.dataset.lfRelease;
+const { layer: documentLayer, release, probe } = DELIVERY;
 
 if (documentLayer && documentLayer !== layerGeneration) {
   window.dispatchEvent(
@@ -53,7 +59,6 @@ if (documentLayer && documentLayer !== layerGeneration) {
 // True when the source has a different document, false when it does not, and undefined
 // when the probe could not be read at all, which settles nothing and leaves the question
 // open for the next foreign answer.
-const probe = runtimeScript?.dataset.lfProbe;
 async function sourceMovedOn() {
   if (!probe) return true;
   let response;
@@ -128,6 +133,42 @@ export function layerHeaders(headers = {}) {
     ...(release && { "Leaf-Release": release }),
     ...headers,
   };
+}
+
+// An answer `admitResponse` refused: it came from another delivery, and whether the page
+// reloads is already settled there. Each caller says what that means for its request.
+export class LayerRefused extends Error {}
+
+// The page's JSON requests beside the event door and the state reads: the layer's
+// headers out, the answer admitted, and the JSON read off the text so an error page a
+// proxy wrote fails as its status rather than as a parse. A failure throws the server's
+// `error`, or `<what>: HTTP <status>`, carrying the status, the raw body and, for a
+// file the server holds newer than the draft, its `current`.
+export async function requestJson(url, init, what) {
+  const response = await fetch(url, { ...init, headers: layerHeaders(init.headers) });
+  if (!admitResponse(response))
+    throw new LayerRefused(`Leaf's layer changed while requesting ${what}`);
+  const text = await response.text();
+  const failed = (message, cause) =>
+    Object.assign(new Error(message, { cause }), {
+      status: response.status,
+      body: text,
+    });
+  let answer = null;
+  if (
+    response.ok ||
+    response.headers.get("Content-Type")?.split(";")[0].trim() === "application/json"
+  )
+    try {
+      answer = JSON.parse(text);
+    } catch (error) {
+      throw failed(`${what}: HTTP ${response.status}`, error);
+    }
+  if (!response.ok)
+    throw Object.assign(failed(answer?.error ?? `${what}: HTTP ${response.status}`), {
+      current: answer?.current,
+    });
+  return answer;
 }
 
 export function sameLayer(generation) {
@@ -262,27 +303,19 @@ export const uploadMedia = async (file) => {
     throw new Error("no agent or server is available in an interactive export");
   await layerReady;
   countTraffic("sends");
-  let response;
+  let answer;
   try {
-    response = await fetch(pageUrl("api/media"), {
-      method: "POST",
-      headers: layerHeaders({
-        "Content-Type": file.type,
-      }),
-      body: file,
-    });
+    answer = await requestJson(
+      pageUrl("api/media"),
+      { method: "POST", headers: { "Content-Type": file.type }, body: file },
+      "image upload",
+    );
+  } catch (error) {
+    if (error instanceof LayerRefused) return null;
+    throw error;
   } finally {
     countTraffic("acked");
   }
-  if (!admitResponse(response)) return null;
-  let answer;
-  try {
-    answer = await response.json();
-  } catch {
-    throw new Error(`image upload returned HTTP ${response.status}`);
-  }
-  if (!response.ok)
-    throw new Error(answer?.error ?? `image upload returned HTTP ${response.status}`);
   if (typeof answer?.path !== "string")
     throw new Error("image upload returned no media path");
   return answer.path;
@@ -293,15 +326,19 @@ export const uploadMedia = async (file) => {
 // live-session fault was the user pasting a console nobody told them to
 // open. The event lands in the log as kind "error", author "page" — the
 // watcher hears it beside comments and reports; the user's pending count
-// never claims it. Deduped per message per load (a reload may repeat one —
-// bounded noise over silence), capped so a fault in a loop cannot flood the
-// log, and sent bare rather than through post(): a poll fault reporting
+// never claims it. Logged once per message text per load (a reload may repeat
+// one — bounded noise over silence), capped so a fault in a loop cannot flood
+// the log, and sent bare rather than through post(): a poll fault reporting
 // itself through the poll would recurse, and nothing here needs the answer.
 // Not part of the helper surface a module gets: an upgrade that throws is already on
 // this path through window.error, and a widget that wants to say so itself has
 // failSoft, which puts the message where the user is looking and reports it here.
+const reportedReasons = new WeakSet();
+const reportedPrimitives = new Set();
 const reportedErrors = new Set();
 export function reportPageError(reason, context = "") {
+  if (typeof reason === "object" && reason !== null) reportedReasons.add(reason);
+  else reportedPrimitives.add(String(reason));
   const text = exceptionText(reason, context);
   console.error(`leaf: ${text}`);
   if (offlineInteractive) return;
@@ -312,6 +349,22 @@ export function reportPageError(reason, context = "") {
     text,
     ...(runtime.currentRevision != null && { revision: runtime.currentRevision }),
   }).catch(() => {});
+}
+
+// What a consumer reports of a fault it carries: a rejection that travelled up to it
+// from the presentation coordinator or state application, say. Where the producer
+// already reported that fault, a second report would add only the consumer's context
+// and make one fault read as several, so it is dropped; for a fault no producer saw,
+// such as a malformed state body, the consumer is the only reporter. A producer that
+// shares one exception among owners, as a cached rejected load does among its widgets,
+// reports through reportPageError, once per owner. A primitive reason has no identity,
+// so its text stands for it.
+export function reportCarried(reason, context = "") {
+  const reported =
+    typeof reason === "object" && reason !== null
+      ? reportedReasons.has(reason)
+      : reportedPrimitives.has(String(reason));
+  if (!reported) reportPageError(reason, context);
 }
 
 // This is the only exception formatter. Callers pass the original exception (or

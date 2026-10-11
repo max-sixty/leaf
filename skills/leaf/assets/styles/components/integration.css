@@ -4,13 +4,11 @@
 .lf-message-media img { display: block;
   max-width: 100%; max-height: min(60vh, 480px); border-radius: var(--r); }
 :is(.lf-btn, .button):is(.on, [aria-pressed="true"]) { border-color: var(--accent); color: var(--accent); background: var(--chip); }
-/* Draw mode takes page-word presses while offered controls keep their gestures.
+/* Draw mode takes document presses while Leaf surfaces keep their gestures.
    Document selectors do not cross a declared shadow root. */
 :host-context(html[data-lf-draw-mode]):host-context(main) * { cursor: crosshair !important; }
-:host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat,
-:host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat *,
-:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-offer],
-:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-offer] * {
+:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-runtime],
+:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-runtime] * {
   cursor: auto !important; }
 /* Copy floats over the code's corner without changing its box or scrolling text.
    Pointer and keyboard intent reveal it; touch keeps the control available. */
@@ -61,7 +59,8 @@ pre:hover + .lf-code-copy,
 }
 
 .lf-msg-body a.detached { color: var(--muted-2); text-decoration: underline dashed; cursor: default; }
-.lf-msg-body.lf-suggest-body { white-space: pre-wrap; }
+/* A suggestion's words keep their lines; the body's own markup whitespace keeps none. */
+.lf-suggest-body > .lf-msg-text { white-space: pre-wrap; }
 
 .lf-suggest-label { color: var(--muted-2); }
 

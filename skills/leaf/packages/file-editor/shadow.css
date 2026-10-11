@@ -1,6 +1,7 @@
 /* Fixed status allocation leaves the filename and editor still during delayed
  * writes. Normal writes and completion paint no status at all. Only this widget's
  * shadow stage receives these rules; CodeMirror owns its editing presentation. */
+:scope:host(lf-file-editor) .lf-file-editor-view { display: contents; }
 :scope:host(lf-file-editor) .lf-file-editor-head {
   display: flex; align-items: center; gap: .5rem 1rem;
   padding: .5rem 1rem; border-bottom: 1px solid var(--border-2);
@@ -37,7 +38,8 @@
   outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-ring-w));
   --lf-focus-ring: file-editor;
 }
-:scope:host(lf-file-editor) .cm-scroller { overflow: auto; }
+/* The editing region keeps the height the host states while typing grows the file. */
+:scope:host(lf-file-editor) .cm-scroller { overflow: auto; --lf-holds-height: 1; }
 @media (max-width: 36rem) {
   :scope:host(lf-file-editor) .lf-file-editor-head { padding-inline: .7rem; gap: .35rem .6rem; }
   :scope:host(lf-file-editor) .lf-file-editor-status { flex-basis: 9rem; }

@@ -233,10 +233,10 @@ handed to the user carries the fragment of the semantic block it is about
 `uv run leaf-dev preview <example>` serves a live page at `.tmp/previews/<example>`
 in the foreground, like a dev server, so run it as a long-running command
 (`run_in_background` in Claude Code). A desktop Codex `--user` preview instead
-detaches its watcher and returns its URL: the page and feedback stay available
+detaches its watcher and returns its URL: the page and its updates stay available
 when Codex unloads the chat's idle instance. `--source <file>` serves any authored HTML
 file in place of a shipped example. It follows source and runtime edits at one
-URL. A user preview resumes its existing page after a restart, preserving feedback,
+URL. A user preview resumes its existing page after a restart, preserving updates,
 decisions, data and revisions; a plain preview rebuilds from the fixture.
 `--slot <name>` starts another copy, with its own initial fixture history and data.
 
@@ -244,15 +244,31 @@ A plain preview takes no task claim, so its presses reach only the page's log;
 use it for screenshots and browser checks. `--user` claims the page at
 the directory printed at startup (`.tmp/previews/<example>-user` by default;
 `--slot` chooses the directory name) so the user's comments reach the harness, which
-also makes every click this session drives there read as an unanswered user
-move. So drive only claimless previews and start any `--user` preview from the
+also makes every click this session drives there read as an unanswered
+update. So drive only claimless previews and start any `--user` preview from the
 session the user talks to. Don't
 idle a preview to quiet the loop; `idle` closes the page in the browser.
+
+### Temporary review resources
+
+Keep a review's live resources proportional to the work being performed. Use the
+smallest fixture that preserves the journey and its relevant surroundings; `--source`
+can avoid serving an entire gallery for one interaction. Separate page directories
+isolate reviewers' comments and data; fresh browser contexts isolate browser storage.
+Neither alone requires another browser or Python process. Different historical server
+runtimes still need their own environments.
+
+For finite checks, prefer `leaf-dev probe` or `stills`, whose serving scopes
+close their temporary servers when the journey exits. A live preview also watches source
+and runtime edits, which an immutable revision does not need. Start comparison pages
+as reviewers need them. Any custom runner owns its temporary servers and browsers
+through completion, failure and cancellation, including waiting for its children to
+exit. Keep previews and trace viewers handed to the user available for their review.
 
 ### In Codex
 
 1. Start the preview with `--user` from the current
-   chat. It connects Leaf feedback to this Codex chat before printing the URL;
+   chat. It connects the page's updates to this Codex chat before printing the URL;
    desktop Codex returns after the detached watcher subscribes to source edits.
    Each restart reconnects the existing page automatically.
 2. Call `mcp__codex_app__open_in_codex` with the printed keyed URL and the semantic
@@ -294,8 +310,8 @@ harness promises:
   ends, comments after an Escape are answered, and quitting ends the session's claim
   and its watch. Run it, with and without `--hooks-module`, after a change to
   `hooks/hooks.json`, `hooks/claude-code.ts`, `ClaudeCodeHarness`, `hooks.py`,
-  `loop-guard.py`, or the watch between turns in `session.py`; with the flag it also
-  checks that Escape closes the turn and leaves a watch running.
+  `background-watch.py`, or the watch between turns in `session.py`; with the flag it
+  also checks that Escape closes the turn and leaves a watch running.
 - `codex-app-server` and `codex-queue`, a Codex task through each transport of
   automatic server handoff, the queue being the desktop app's: the page server
   titles each thread, the claim names the user's turn while it runs and the task's
@@ -308,7 +324,7 @@ harness promises:
   or the claim's turn in `service.py`. For a change to preview startup or lifetime,
   add `--preview`: setup starts the canonical user preview, every step checks the
   keyed URL, and a last step interrupts the isolated server to prove the preview
-  restores both the address and working feedback without a source edit.
+  restores both the address and update delivery without a source edit.
 - `pi`, the version `dev/pi/` pins, on a copy of the host's Codex login: a comment
   sent during a run is delivered into it with no run after, Escape closes the turn
   without waking Pi again, a comment held at Escape enters a fresh run, and quitting
@@ -363,9 +379,9 @@ only for a Leaf-specific development contract that neither can exercise. For cas
 in Leaf's suite, run both the merge base and the working tree:
 
 ```bash
-npm ci --prefix evals
+pnpm install --frozen-lockfile
 uv run leaf-dev eval [CASE]... --base --harness claude-code|codex [--repeat N]
-npm run view --prefix evals
+pnpm run eval:view
 ```
 
 `evals/README.md` owns selection, arms, conditions, the case format, where the

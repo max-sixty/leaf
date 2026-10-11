@@ -1,7 +1,7 @@
 """A prepared install needs no compiler, including native custom-package authoring.
 
 Exercise the actual copied launcher, kernel, render probes and offline document.
-Compiler shims fail every attempted node/npm invocation after CI preparation.
+Compiler shims fail every attempted Node/package-manager invocation after CI preparation.
 """
 
 import json
@@ -11,6 +11,7 @@ import subprocess
 import pytest
 from click import ClickException
 from interact_support import PAGE
+from leaf.refusals import Refused
 from leaf_dev import ROOT
 from leaf_dev import distribution as distribution_model
 from leaf_dev.arms import environment
@@ -29,7 +30,7 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
     assert "scripts" not in manifest
     blocked = tmp_path / "blocked"
     blocked.mkdir()
-    for name in ("node", "npm", "npx"):
+    for name in ("node", "npm", "npx", "pnpm"):
         shim = blocked / name
         shim.write_text("#!/bin/sh\necho 'unexpected consumer compiler' >&2\nexit 91\n")
         shim.chmod(0o755)
@@ -242,5 +243,5 @@ def test_package_private_imports_are_refused(directory, suffix, tmp_path):
     (custom / directory / f"helper{suffix}").write_text(
         'export { runtime } from "/runtime/context.js";\n'
     )
-    with pytest.raises(SystemExit, match="imports private kernel module"):
+    with pytest.raises(Refused, match="imports private kernel module"):
         compose_layer([*layer_inputs(), custom])

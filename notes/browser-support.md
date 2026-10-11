@@ -187,30 +187,39 @@ what fails and what still works.
 
 ### State-preserving content reordering (review #22)
 
-- **Impact: functional; support decision open.** Reordering retained content
-  calls `moveBefore` without a capability check. On an engine without that API,
-  the reorder throws `TypeError: parent.moveBefore is not a function`. This is
-  more than a layout difference. A page that has not reached that operation may
-  still render; Leaf currently has no explanatory startup refusal.
-- **Owner:** [`order` in `dom-children.js`](../skills/leaf/assets/runtime/dom-children.js),
-  shared by authored revisions and renderer child reconciliation.
-- **Browser support, checked 2026-10-08:** Chrome/Edge 133+ and Firefox 144+
+- **Impact: state preservation; functional fallback implemented.** Retained-node
+  reordering uses [`move` in `dom-move.js`](../skills/leaf/assets/runtime/dom-move.js).
+  Within one composed root it uses `moveBefore` when available; new nodes,
+  cross-root transfers, and engines without the API use `insertBefore`.
+- **Consumers:** authored revisions and renderer child reconciliation, board
+  placement, and the vendored Sortable move sites. The Sortable adaptation fails
+  if its pinned upstream seams change.
+- **Browser support, checked 2026-10-10:** Chrome/Edge 133+ and Firefox 144+
   support the API. Safari, including iOS Safari, is listed as unsupported in
   [MDN's compatibility data](https://developer.mozilla.org/en-US/docs/Web/API/Element/moveBefore#browser_compatibility).
   The [WebKit implementation tracker](https://bugs.webkit.org/show_bug.cgi?id=281223)
-  remains open.
-- **Observed:** Playwright 1.63.0's WebKit 26.6 lacks the API, and a connected
-  reorder through Leaf's `setChildren` throws and fails to reorder. The Codex
-  browser pane tested on the same date reports Chrome 155 and exposes the API;
-  it is distinct from the WebKit test browser.
-- **Reason for the dependency:** native moves preserve embedded iframe documents
-  and focus. Removing and reinserting the same node can reset that browser state,
-  so an `insertBefore` fallback cannot provide the same guarantee. See the
+  tracks the missing native capability.
+- **Observed:** the focused browser test
+  `test_retained_moves_keep_native_editor_and_frame_state` exercises retained-node
+  ordering and direct placement in Chrome, including named form controls. Native
+  moves retain focus, caret, typed text, and the embedded iframe document without a
+  blur. Disabling the capability exercises ordinary insertion with explicit focus
+  retention. Playwright's WebKit 26.6 has no `moveBefore`; a direct probe confirms
+  retained nodes reorder and a new fragment arrives through the shared primitive.
+- **Lit adoption skipped:** adapting lit-html's keyed and child-part move seams
+  preserves editor and iframe state in Chrome, but exposes a pre-existing passive
+  thread-withdrawal jump. In the complete-list rollback journey, withdrawing the
+  selected thread and opening the fallback moves the surviving closed card up
+  34px with the list at scroll zero. The original Lit bundle paints the same jump,
+  but its detach/reinsert behavior prevents Chrome from reporting it as a shift.
+  Native Lit moves must wait for a coherent policy for the departed allocation;
+  adding a fold or weakening the stability check does not preserve that reading.
+- **Fallback limit:** insertion reorders content but can blur a focused descendant
+  and reload an iframe. Lit continues to use ordinary insertion in every browser,
+  so Leaf's focus-holding `render` wrapper remains; it restores focus and caret,
+  but cannot preserve iframe documents. The native guarantee for Leaf's retained
+  moves is described in the
   [API's state-preservation contract](https://developer.mozilla.org/en-US/docs/Web/API/Element/moveBefore#description).
-- **Next decision:** retain the native capability requirement with a clear
-  explanation in unsupported browsers, or redesign content placement to preserve
-  state without it. Requiring the capability is the current recommendation;
-  a blanket Safari exclusion has not been approved or implemented.
 
 To check the installed test engine without downloading a browser:
 
@@ -229,14 +238,28 @@ PY
 This checks API availability, not preservation behavior or the installed Safari
 application. Recheck the affected Leaf journey when resolving this entry.
 
+### Live sample host controls
+
+- **Owner:** `lf-sample.js` and the default theme's sample rules.
+- **Observed, 2026-10-10:** Firefox 157 and Playwright's Firefox lay out only a
+  table's first caption. The sample's label was the first and its Reset and Full
+  view controls a second, so Firefox drew the controls at zero size. A minimal
+  table with two captions reproduces it.
+- **Disposition:** fixed. A live sample keeps the label as its only caption; the
+  controls stand in the cell and the gutter is drawn on the exhibit around the
+  frame. Firefox, Chrome and WebKit show the controls above the gutter.
+
 ### Area capture rendering
 
 - **Disposition: DOM reconstruction with accepted visual differences.** Capture
   area uses SnapDOM 3.3.0 to render the current DOM into an image. Text and native
-  form controls can differ slightly from the screen. Leaf rejects the library's
-  reported missing-image fallback; it cannot detect every omitted resource.
+  form controls can differ slightly from the screen. Leaf attaches a capture with
+  the library's reported missing-image fallback and a notice that an image near the
+  area may be missing, since SnapDOM reads resources a margin beyond the crop and does
+  not say where the image was; it cannot detect every omitted resource.
 - **Owner:** [`region-selector.js`](../skills/leaf/assets/runtime/composing/region-selector.js)
-  selects and anchors the crop; the vendored SnapDOM module owns rendering.
+  selects and anchors the crop; [`page-image.js`](../skills/leaf/assets/runtime/composing/page-image.js)
+  draws it, and the vendored SnapDOM module owns rendering.
 - **Observed, 2026-10-09:** Chrome 155.0.8059.39, Playwright 1.63.0's Firefox
   155.0, and its WebKit 26.6 produced the same 600 × 300 crop dimensions and
   preserved open-shadow styles, inline SVG, a changed input value, page and
@@ -257,8 +280,24 @@ application. Recheck the affected Leaf journey when resolving this entry.
   journey below checks this boundary and immediate first-tap confirmation.
 - **Observed resource gap:** an image loaded from another HTTP origin without
   CORS permission remained visible on the page but produced `image-fallback`
-  during capture. Leaf refuses that result. A CSS background from the same
+  during capture. Leaf attaches it with a notice. A CSS background from the same
   external origin was omitted without a capture warning.
+- **Live samples, 2026-10-10:** SnapDOM cannot read a sample's opaque-origin frame
+  and drew each one as a placeholder box. Each sample SnapDOM reaches now draws the
+  part of its viewport inside the crop, and the parent places that image in the
+  frame's box. Chrome 155,
+  Playwright's Firefox and WebKit 26.6 all capture two live samples, their host
+  controls and the child chrome; WebKit drew a large child image blank until the
+  placeholder `<img>` carried `decoding="sync"` into SnapDOM's markup. The reply
+  editor's placeholder text is missing from the child image in all three, an
+  accepted visual difference. `test_a_region_capture_draws_live_samples_and_survives_removed_links`
+  holds the Chrome journey.
+- **Upstream observer defect, 2026-10-10:** after a capture, SnapDOM 3.3.0–3.3.3
+  counts later mutations up the target's ancestors through `getRootNode().host`. A
+  removed `<a>` subtree answers with the link's host string, which SnapDOM uses as a
+  WeakMap key, throwing an uncaught page error (Firefox 157 and Chrome 155).
+  `build/vendor.py` patches that climb to follow only a shadow root's host; drop
+  the patch once upstream fixes it.
 - **Published limitations:** the upstream
   [3.3.0 limitations](https://github.com/zumerlab/snapdom/blob/b27b35adfae9d9a8993c56b067837014bcef4750/README.md#limitations)
   require readable images, fonts, and stylesheets; cross-origin iframe contents

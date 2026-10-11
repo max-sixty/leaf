@@ -1802,7 +1802,7 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
     expect(playground.locator(".lf-playground-actions")).to_be_visible()
     submit = playground.get_by_role("button", name="Create notification")
     expect(submit).to_be_disabled()
-    expect(page.locator(".lf-status-detail")).to_have_text(re.compile(r"^Connecting"))
+    expect(page.locator(".lf-status-detail")).to_have_text(re.compile(r"^\s*Connecting"))
 
     playground.get_by_role("button", name="Needs attention").click()
     compact = playground.get_by_role("switch", name="Compact spacing")
@@ -1814,7 +1814,7 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
     expect(submit).to_be_enabled()
     expect(compact).to_be_checked()
     expect(page.locator(".lf-status-detail")).not_to_have_text(
-        re.compile(r"^Connecting")
+        re.compile(r"^\s*Connecting")
     )
 
 
@@ -2280,7 +2280,7 @@ def test_user_overrides_identify_state_that_differs_from_authored_inputs(
     page.wait_for_function("() => document.querySelector('.lf-banner') !== null")
     # A poll has run once the status text resolves, so the origin pass has too.
     page.wait_for_function(
-        "() => !document.querySelector('.lf-status-detail').textContent.startsWith('Connecting')"
+        "() => !document.querySelector('.lf-status-detail').textContent.trimStart().startsWith('Connecting')"
     )
     expect(page.locator("[data-lf-user-override]")).to_have_count(0)
 
@@ -3096,7 +3096,7 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     second = first.fetch().json()
     with page.expect_request("**/api/state*"):
         first.fulfill(json=second)
-    expect(text).to_have_text(re.compile(r"^Agent is working — second"))
+    expect(text).to_have_text(re.compile(r"^\s*Agent is working — second"))
     assert len(held) == 2
 
     trailing = held[1]
@@ -3106,7 +3106,7 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     third = trailing.fetch().json()
     trailing.fulfill(json=third)
     told(page)
-    expect(text).to_have_text(re.compile(r"^Agent is working — third"))
+    expect(text).to_have_text(re.compile(r"^\s*Agent is working — third"))
 
 
 def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
@@ -3829,7 +3829,7 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
 
     claim("running the migration")
     expect(text).to_have_text(
-        re.compile(r"^Claude is working — running the migration \(just now\)\.")
+        re.compile(r"^\s*Claude is working — running the migration \(just now\)\.")
     )
 
     # An hour fast. A fixed time rather than an installed clock, so the page's own
@@ -3839,7 +3839,7 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
     # clock moved: an unchanged sentence would pass on the render before it.
     claim("waiting on the shard")
     expect(text).to_have_text(
-        re.compile(r"^Claude is working — waiting on the shard \(just now\)\.")
+        re.compile(r"^\s*Claude is working — waiting on the shard \(just now\)\.")
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
 
@@ -4116,7 +4116,7 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
     # The gallery's own queues end the disclosure, after the activity it shares.
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(
-            r"^Claude is working — Writing the page \(just now\)\. Waiting on you"
+            r"^\s*Claude is working — Writing the page \(just now\)\. Waiting on you"
         )
     )
 
@@ -4126,7 +4126,7 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
     expect(workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(
-            r"^Claude picked up your comment and hasn't said what it's doing yet"
+            r"^\s*Claude picked up your comment and hasn't said what it's doing yet"
             r" \(just now\)\. Waiting on you"
         )
     )
@@ -4345,7 +4345,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     # The page's own line is as fresh as it was, which is the whole case: this is one
     # claim going quiet beside a live one, not a page that has gone quiet all over.
     expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(r"^Agent is working — rerunning the failing shard")
+        re.compile(r"^\s*Agent is working — rerunning the failing shard")
     )
     expect(work_line).to_have_text("Update stale")
     expect(work_line).to_have_attribute(
@@ -4376,7 +4376,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
         )
     )
     expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(r"^Claude is working — rerunning the failing shard")
+        re.compile(r"^\s*Claude is working — rerunning the failing shard")
     )
     expect(work_line).to_have_text("Update stale")
     expect(work_line.locator("time")).to_have_count(0)

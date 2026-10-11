@@ -28,6 +28,10 @@ KNOWN = {
         # Residency (`data-lf-margin`, prepaint.js) already decides their form
         # before that paint.
         ("lf-toc", "keeps-first-box"),
+        # Edit, Save and Cancel answer the Ask's digits, which show only where the
+        # bottom bar's shortlist happens to name them. #2064 took their corner badges
+        # away with the margin controls they hung on.
+        ("lf-draft", "shows-context-keys"),
     },
     "file-editor": {
         # The problem panel caps itself at `min(50%, 20rem)` in an auto grid row, where

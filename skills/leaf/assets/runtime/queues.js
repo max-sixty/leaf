@@ -58,7 +58,7 @@ export const questionItem = (question) => {
 
 export function selectQueues({ threads, workflows, tasks, questions }) {
   const onYou = [
-    ...(questions?.user ?? []).map(questionItem),
+    ...questions.user.map(questionItem),
     ...tasks.filter((task) => task.owner === "user").map(taskItem),
   ];
   for (const thread of threads)
@@ -101,7 +101,7 @@ export function selectQueues({ threads, workflows, tasks, questions }) {
 
 export function selectDone({ tasks, questions }) {
   return [
-    ...(questions?.all ?? [])
+    ...questions.all
       .filter((question) => question.status !== "open")
       .map((question) => ({
         ...questionItem(question),

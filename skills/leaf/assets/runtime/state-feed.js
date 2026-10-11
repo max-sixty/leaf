@@ -46,13 +46,8 @@ async function readState(bound) {
     const signal = globalThis.AbortSignal.timeout(bound);
     let res;
     try {
-      const revision = runtime.currentRevision;
       res = await fetch(pageUrl("api/state"), {
-        headers: layerHeaders({
-          ...(Number.isInteger(revision) && {
-            "Leaf-View-Revision": String(revision),
-          }),
-        }),
+        headers: layerHeaders(),
         // Coalescing bounds concurrency; this bounds its other dimension. A proxy that
         // never answers cannot own the page's single read slot forever.
         signal,
@@ -64,12 +59,12 @@ async function readState(bound) {
       // recovery boundary.
       return null;
     }
-    if (res && !admitResponse(res)) return null;
+    if (!admitResponse(res)) return null;
     // A refusal is not state: the server answers a missing key with error-shaped JSON
     // at 401. A live server refusing the key and a dead one both leave the page
     // unreachable from here; the banner says which, since only the refused key has a
     // recourse the user takes (`runtime.keyRefused`).
-    if (!res?.ok) return null;
+    if (!res.ok) return null;
     try {
       return await res.json();
     } catch (error) {

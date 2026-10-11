@@ -61,8 +61,7 @@ export function domValue(el, record) {
     return ownedRecordMembers(el, `[${record.attr}]`)
       .map((o) => o.id)
       .filter(Boolean)
-      .sort()
-      .join(" ");
+      .sort();
   if (record.kind === "value") return el.getAttribute(record.attr);
   if (record.kind === "position") return el.closest(record.within)?.id ?? null;
   return elementReading(el);

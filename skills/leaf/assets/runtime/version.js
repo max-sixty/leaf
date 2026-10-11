@@ -140,6 +140,7 @@ import {
   stageAuthoredStates,
   stateCoordinate,
 } from "./projection/authored.js";
+import { sameStandingValue } from "./projection/model.js";
 import { runtimeRootState } from "./root-state.js";
 import {
   commitWidgetDescriptors,
@@ -846,11 +847,14 @@ export function createVersionController({
           const writer = baseProjection.desired.get(coordinate);
           const before = writer ? writer.value : domValue(baseEl, spec.record);
           const now = domValue(el, spec.record);
-          if (before === now) continue;
-          // The element the change reads on: the option now picked, or the moved
+          if (sameStandingValue(before, now)) continue;
+          // The element the change reads on: the one option now picked, or the moved
           // card itself.
           const target =
-            (spec.record.kind === "attribute" && now && elementById(now)) || el;
+            (spec.record.kind === "attribute" &&
+              now.length === 1 &&
+              elementById(now[0])) ||
+            el;
           if (!target.classList.contains("lf-ins-block")) {
             target.classList.add("lf-ins-block");
             diffMarked.push(target);

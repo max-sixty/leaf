@@ -12,12 +12,7 @@ import {
   questionValue,
   isProjectionEntry,
 } from "../../skills/leaf/assets/runtime/projection/model.js";
-import {
-  stateDefinition,
-  eventSpec,
-  sameStateDefinition,
-  sameStateOperation,
-} from "../../skills/leaf/assets/runtime/registry-contract.js";
+import { sameStateDefinition } from "../../skills/leaf/assets/runtime/registry-contract.js";
 import {
   discussed,
   foldThreads,
@@ -349,6 +344,9 @@ export interface AuthoritativeState {
         closes: Record<string, string>;
         /** The Questions approving this version waits on (`questions.approval_blocking`). */
         approval_blocking: string[];
+        /** Each tag's user verbs' admitted definitions under this version's registry
+         * (`registry.contract.state_definition`). */
+        state_definitions: Record<string, Record<string, unknown>>;
       }
     >;
     thread: {
@@ -372,10 +370,11 @@ type ServerView = AuthoritativeState["browser"]["views"][string];
 /** A server view with its basis, the transport identity, left off. */
 type PageView = Omit<ServerView, "basis">;
 
+// The server folded each entry under the registry of the document it read, and
+// carries the admitted meaning and value; the browser draws them as served.
 function normalizedProjection(
   view: PageView | null | undefined,
   thread: AuthoritativeState["browser"]["thread"] | undefined,
-  descriptors?: SemanticDocument["descriptors"],
 ) {
   const entries = [];
   const actionIds = [];
@@ -383,35 +382,18 @@ function normalizedProjection(
   const desiredIds = [];
   for (const projection of [view?.document.projection, thread?.projection]) {
     if (!projection) continue;
-    for (const wire of projection.entries) {
-      const e = wire.event;
-      const descriptor = descriptors?.get(e.widget);
-      const currentSpec = descriptor && eventSpec(descriptor.declaration, e);
-      if (
-        descriptor &&
-        (!currentSpec ||
-          !sameStateOperation(
-            e.meaning?.state,
-            stateDefinition(descriptor.tag, descriptor.declaration, currentSpec),
-          ))
-      )
-        continue;
-      const coordinate = JSON.stringify(wire.coordinate);
+    for (const wire of projection.entries)
       entries.push({
-        coordinate,
-        e,
+        coordinate: JSON.stringify(wire.coordinate),
+        e: wire.event,
         restated: wire.restated,
         absorbed: wire.absorbed,
         stands: wire.stands,
         scope: wire.scope,
         spec: wire.spec,
         unit: wire.coordinate[1],
-        value:
-          wire.spec.record?.kind === "attribute"
-            ? foldedValue(e, wire.spec.record)
-            : wire.value,
+        value: wire.value,
       });
-    }
     actionIds.push(...projection.actions);
     reportIds.push(...projection.reports);
     desiredIds.push(...projection.desired);
@@ -830,22 +812,25 @@ export function createSemanticApplication({
         ? (target.admitted?.id ?? null)
         : (receipts.find((receipt) => receipt.attempt === attempt)?.id ?? null);
     };
-    // A revision may reuse a widget/verb with a different operation. Keep its
-    // pending delivery, but stop drawing it against that new declaration. The
-    // server validates durable payloads; speculative state waits for its receipt
-    // when a revised payload schema cannot be compared directly.
+    // The shown revision's server view, resolved here once for every reader of this
+    // document's page state. Its basis is transport identity, which the adoption
+    // boundary has already matched to the log reading; left in, a read that only moved
+    // the log's sequence would publish a new semantic epoch.
+    const served = state?.browser.views[String(document.revision)];
+    const view: PageView | null = served
+      ? (({ basis: _basis, ...rest }) => rest)(served)
+      : null;
+    // A revision may reuse a widget/verb with a different operation, or give the verb
+    // to the agent. Keep its pending delivery, but stop drawing it against that new
+    // declaration: a move draws while the shown version defines its verb as the one it
+    // was made under (the view's `state_definitions`). The server validates durable
+    // payloads; speculative state waits for its receipt when a revised payload schema
+    // cannot be compared directly.
     const compatiblePending = (projection: NonNullable<LedgerEntry["projection"]>) => {
       const operation = projection.kind === "undo" ? projection.target : projection;
       const descriptor = document.descriptors.get(operation.e.widget);
-      if (!descriptor) return false;
-      const currentSpec = eventSpec(descriptor.declaration, operation.e);
-      return (
-        currentSpec &&
-        sameStateDefinition(
-          operation.e.meaning?.state,
-          stateDefinition(descriptor.tag, descriptor.declaration, currentSpec),
-        )
-      );
+      const current = descriptor && view?.state_definitions[descriptor.tag]?.[operation.e.action];
+      return Boolean(current) && sameStateDefinition(operation.e.meaning?.state, current);
     };
     const localProjections = local.flatMap((entry) => {
       const projection = entry.projection;
@@ -856,19 +841,7 @@ export function createSemanticApplication({
           : projection,
       ];
     });
-    // The shown revision's server view, resolved here once for every reader of this
-    // document's page state. Its basis is transport identity, which the adoption
-    // boundary has already matched to the log reading; left in, a read that only moved
-    // the log's sequence would publish a new semantic epoch.
-    const served = state?.browser.views[String(document.revision)];
-    const view: PageView | null = served
-      ? (({ basis: _basis, ...rest }) => rest)(served)
-      : null;
-    const admitted = normalizedProjection(
-      view,
-      state?.browser.thread,
-      document.descriptors,
-    );
+    const admitted = normalizedProjection(view, state?.browser.thread);
     const projection = foldProjection({
       ...admitted,
       pendingEntries: localProjections,
@@ -1390,6 +1363,12 @@ export function createSemanticApplication({
         event.kind === "action" && widget
           ? before.document.registry[widget.tag]?.["x-state"]?.[event.action]
           : null;
+      // The verb's definition as the shown version admits it, which the move is
+      // drawn under until a revision defines the verb differently.
+      const definition =
+        event.kind === "action" && widget
+          ? before.effective.view?.state_definitions[widget.tag]?.[event.action]
+          : undefined;
       const unit =
         event.kind === "action" && spec
           ? spec.unit === "widget"
@@ -1408,7 +1387,11 @@ export function createSemanticApplication({
               coordinate: target.coordinate,
               localOrder,
             }
-          : event.kind === "action" && widget && spec && typeof unit === "string"
+          : event.kind === "action" &&
+              widget &&
+              spec &&
+              definition &&
+              typeof unit === "string"
             ? {
                 unit,
                 spec,
@@ -1417,13 +1400,7 @@ export function createSemanticApplication({
                 e: {
                   ...event,
                   id: localId,
-                  meaning: {
-                    state: stateDefinition(
-                      widget.tag,
-                      before.document.registry[widget.tag],
-                      spec,
-                    ),
-                  },
+                  meaning: { state: definition },
                 },
                 value: spec.record ? foldedValue(event, spec.record) : event.action,
               }

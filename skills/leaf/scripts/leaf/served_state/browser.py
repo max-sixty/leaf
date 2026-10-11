@@ -15,6 +15,7 @@ from ..projection import (
     page_reading,
 )
 from ..questions import approval_blocking, closed_thread, collection
+from ..registry.contract import state_definition, state_specs
 from ..thread_context import event_threads
 from ..schema import WIDGET_KINDS
 from .context import PageRead
@@ -119,6 +120,21 @@ def _closes(
     return closes
 
 
+def _state_definitions(registry: dict, records) -> dict[str, dict[str, dict]]:
+    """Each tag among `records` → each verb its user writes → that verb's admitted
+    definition under `registry` (`registry.contract.state_definition`). The browser
+    stamps a move it has not sent yet with its verb's definition, and stops drawing
+    the move once a revision defines that verb differently; it never derives one."""
+    return {
+        tag: {
+            verb: state_definition(tag, registry[tag], spec)
+            for verb, spec in state_specs(registry[tag], writer="user")
+        }
+        for tag in sorted({record["tag"] for record in records})
+        if any(state_specs(registry.get(tag, {}), writer="user"))
+    }
+
+
 def browser_state(
     readings: dict[int, SourceReading],
     events: list,
@@ -221,6 +237,10 @@ def browser_state(
         )
         views[str(revision)] = {
             "basis": {"revision": revision, "through_seq": through_seq},
+            "state_definitions": _state_definitions(
+                page.registry,
+                [*page.document.by_id.values(), *thread_reading.by_id.values()],
+            ),
             "closes": _closes(
                 [
                     (page.document.by_id, page.registry, projection),

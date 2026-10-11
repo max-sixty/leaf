@@ -50,6 +50,7 @@ const reading = (events) => ({
         queues: { on_you: [], on_agent: [], done: [] },
         closes: {},
         approval_blocking: [],
+        state_definitions: { "lf-choice": { decide: { origin: "lf-choice" } } },
         document: {
           questions: noQuestions(),
           projection: {

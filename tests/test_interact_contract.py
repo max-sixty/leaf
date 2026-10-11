@@ -5874,7 +5874,7 @@ def test_revised_state_definitions_keep_original_history_and_admit_new_typed_sta
     json.loads((Path(__file__).with_name("state_definition_cases.json")).read_text()),
     ids=lambda case: case["id"],
 )
-def test_state_definition_identity_matches_the_browser_cases(case):
+def test_state_definition_identity_ignores_only_annotations(case):
     from leaf.registry.contract import same_state_definition, state_definition
 
     definitions = [

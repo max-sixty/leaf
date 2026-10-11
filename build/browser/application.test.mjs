@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createSemanticApplication } from "./application.ts";
 import { createPresentationCoordinator } from "./presentation.ts";
-import { stateDefinition } from "../../skills/leaf/assets/runtime/registry-contract.js";
 import {
   servedGestureSequence,
   servedQuestionItem,
@@ -29,6 +28,9 @@ const descriptor = {
   ancestors: [],
   quoted: false,
 };
+// The definition the server serves for lf-choice's decide verb. The browser only
+// compares definitions, so a test names one rather than spelling the server's.
+const DECIDE = { origin: "lf-choice", verb: "decide" };
 const empty = () => ({ entries: [], actions: [], reports: [], desired: [] });
 // The Question reading `served_state` sends, in its own wire spelling.
 const noQuestions = () => ({
@@ -108,19 +110,12 @@ const state = (taken, events = []) => ({
         queues: { on_you: [], on_agent: [], done: [] },
         closes: {},
         approval_blocking: [],
+        state_definitions: { "lf-choice": { decide: DECIDE } },
         document: {
           questions: noQuestions(),
           projection: {
             entries: events.map((event) => ({
-              event: {
-                ...event,
-                meaning: {
-                  ...event.meaning,
-                  state:
-                    event.meaning?.state ??
-                    stateDefinition("lf-choice", descriptor.declaration, spec),
-                },
-              },
+              event: { ...event, meaning: { ...event.meaning, state: DECIDE } },
               coordinate: [event.widget, event.widget, event.action],
               spec,
               scope: "page",
@@ -1464,9 +1459,7 @@ test("a standing report supplies desired widget state", () => {
     id: "report-1",
     seq: 1,
   };
-  report.meaning = {
-    state: stateDefinition(source.tag, source.declaration, valueSpec),
-  };
+  report.meaning = { state: { origin: source.tag, verb: "preview" } };
   accepted.events = [report];
   accepted.browser.basis.through_seq = 1;
   accepted.browser.receipts = [report];
@@ -1599,6 +1592,10 @@ test("a revision preserves pending delivery while replacing incompatible specula
   reading.active.revision = 2;
   reading.browser.views[2] = reading.browser.views[1];
   reading.browser.views[2].basis.revision = 2;
+  // The revised verb records a value, so the server defines it anew.
+  reading.browser.views[2].state_definitions = {
+    "lf-choice": { decide: { ...DECIDE, record: "status" } },
+  };
   assert.equal(app.adopt(reading, document), true);
   assert.equal(app.read().effective.widgets.get("choice").state.decide.value, 5);
   assert.equal(app.read().unresolved.length, 2);
@@ -1627,6 +1624,8 @@ test("a revision changing a verb's writer retains delivery without drawing the o
   reading.active.revision = 2;
   reading.browser.views[2] = reading.browser.views[1];
   reading.browser.views[2].basis.revision = 2;
+  // The agent writes the verb now, so the user has no definition of it.
+  reading.browser.views[2].state_definitions = {};
   assert.equal(app.adopt(reading, document), true);
   assert.equal(decision(app), null);
   assert.equal(app.read().unresolved.length, 1);
@@ -1755,11 +1754,10 @@ test("pending undo removes completed empty Question values and refusal restores 
     const reading = state(2, [accepted]);
     const entry = reading.browser.views[1].document.projection.entries[0];
     entry.spec = answer;
-    entry.event.meaning.state = stateDefinition(
-      declared.tag,
-      declared.declaration,
-      answer,
-    );
+    entry.event.meaning.state = { origin: declared.tag, verb: "answer" };
+    reading.browser.views[1].state_definitions = {
+      [declared.tag]: { answer: entry.event.meaning.state },
+    };
     const question = {
       ...wireQuestion("choice", "lf-choice"),
       status: "answered",

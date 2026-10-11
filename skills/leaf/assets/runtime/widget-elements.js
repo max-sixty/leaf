@@ -220,10 +220,11 @@ export function measure(el, take) {
 // material. An interactive widget consults this before wiring anything that would carry
 // input back (a choose path, a drag grip), so an exhibit never takes the user's edits.
 // Presentational upgrades and view state run regardless — a quoted diagram still
-// renders, a quoted settled group still collapses.
+// renders, a quoted settled group still collapses. Inside means strictly within: the
+// exhibit itself is no mention, as the server reads it (`questions.quoted_in`).
 export function quoted(el) {
   const exhibits = tagsDeclaring((entry) => entry["x-exhibit"]);
-  return exhibits.length > 0 && el.closest(exhibits.join(",")) !== null;
+  return exhibits.length > 0 && el.parentElement?.closest(exhibits.join(",")) != null;
 }
 
 // A container that takes a gesture on its whole box has to tell one aimed at itself from

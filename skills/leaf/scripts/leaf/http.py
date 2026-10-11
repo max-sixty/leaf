@@ -41,7 +41,6 @@ from .files import (
     list_revisions,
     missing_revision,
     published_versions,
-    read_json,
     revision_names,
     revision_num,
     revision_path,
@@ -80,13 +79,12 @@ from .schema import (
     NO_KEY,
     REVISION_NAME,
     SERVED_PATH,
-    VIEWED_FILE,
 )
 from .served_state import reading as served_reading
 from .served_state.service import PageStateService
 from .server import preview_metadata
 from .service import PageTransaction
-from .state import now_iso, write_json
+from .state import now_iso
 from .structure import FRAME_ANCESTORS_CSP
 from .user_views import FRESH_FOR_S, observe_user_view, read_user_views
 
@@ -472,10 +470,7 @@ class PageEndpoint:
                 served_reading.page_reading(self.page_dir),
                 presence_model.presence_reading(self.page_dir),
             )
-            viewed = (read_json(self.page_dir / VIEWED_FILE) or {"t": 0})["t"]
-            now = time.time()
-            if now - viewed > 30:
-                write_json(self.page_dir / VIEWED_FILE, {"t": now})
+            presence_model.renew_viewed(self.page_dir)
         return self._content(200, "text/plain; charset=utf-8", reading.encode())
 
     @property

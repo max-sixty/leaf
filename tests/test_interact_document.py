@@ -75,7 +75,7 @@ from leaf.registry.storage import read_page_registry, require_registry
 from leaf.render_gate import readings as render_gate_readings
 from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
-from leaf.validation import compatibility as validation_model
+from leaf.validation import composition as validation_model
 from leaf.validation.source import check_source
 from leaf.validation.source_history import predecessor_reading
 from leaf_dev.example_data import captured_value, patch_manifest
@@ -5236,6 +5236,8 @@ def test_a_unified_diff_capture_refuses_a_line_range(tmp_path):
 def test_markdown_body_file_words_match_the_shared_browser_dialect(case):
     from html import escape
 
+    import turbohtml
+
     document = structure_model.SourceDocument(
         f'<main><lf-draft id="note"><pre>{escape(case["source"])}</pre></lf-draft></main>'
     )
@@ -5247,6 +5249,10 @@ def test_markdown_body_file_words_match_the_shared_browser_dialect(case):
         }
     }
     assert passages_model.page_passages(document, registry).text == case["words"]
+    rendered = turbohtml.parse(passages_model.markdown_markup(case["source"]))
+    assert [
+        {"text": link.text, "href": link.attrs["href"]} for link in rendered.select("a")
+    ] == case["links"]
 
 
 @pytest.mark.parametrize("source", ["    code", "A ", "A\n", "A  \nB", "\nA"])

@@ -9,7 +9,7 @@ directly:
   check`, activation, `page stamp`, and `page init` all run ("Static validation");
 - message markup an agent hands in at `admission.check_markup`, which applies the same
   structure and vocabulary checks to an HTML fragment, with or without widgets;
-- a layer `page init` would vendor at `compatibility.incoming_registry`;
+- a layer `page init` would vendor at `composition.incoming_registry`;
 - what only a browser can see at `page check --render` ("Browser validation").
 
 ## Static validation

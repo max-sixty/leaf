@@ -19283,7 +19283,7 @@ def test_hook_snapshot_serializes_receipt_and_reply(claimed, monkeypatch):
         claimed, {"kind": "comment", "author": "user", "text": "why B?"}
     )
     [batch] = delivery_model.pending_batches("s1")
-    projected = hook_transport_model.live_work
+    projected = hook_transport_model.read_page
     lock_proved = threading.Event()
     errors = []
     writers = []
@@ -19320,7 +19320,7 @@ def test_hook_snapshot_serializes_receipt_and_reply(claimed, monkeypatch):
         )
         return projected(page_dir, events)
 
-    monkeypatch.setattr(hook_transport_model, "live_work", read_while_settlement_waits)
+    monkeypatch.setattr(hook_transport_model, "read_page", read_while_settlement_waits)
     plans = hook_transport_model.read_plans("s1")
     for writer in writers:
         writer.join(timeout=STATED_TIMEOUT)
@@ -19329,7 +19329,7 @@ def test_hook_snapshot_serializes_receipt_and_reply(claimed, monkeypatch):
     assert not plans[0].owed
     assert [event["id"] for event in plans[0].pending] == [asked["id"]]
     with service_model.PageTransaction(claimed) as page:
-        assert not projected(claimed, page.events).obligations
+        assert not projected(claimed, page.events).work.obligations
         assert page.cursor >= asked["seq"]
 
 

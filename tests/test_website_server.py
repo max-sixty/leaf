@@ -246,10 +246,8 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
     with durable_page_store() as (store_url, stored):
         monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
         monkeypatch.delenv("LEAF_PAGE_COMMIT", raising=False)
-        monkeypatch.setenv("LEAF", "/unrelated/leaf")
         # Restore installs the inherited transaction provider before serving.
         restore(site)
-        assert os.environ["LEAF"] == website_server.LEAF_COMMAND
         assert os.environ["LEAF_PAGE_COMMIT"] == "leaf_website.storage:publish"
         (private / "page" / "obsolete.txt").unlink()
         chosen = append_command(
@@ -451,7 +449,6 @@ def test_saved_website_record_restores_an_installed_layer(
     cmd_package_install(source)
     monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
     monkeypatch.delenv("LEAF_PAGE_COMMIT", raising=False)
-    monkeypatch.delenv("LEAF", raising=False)
     with durable_page_store() as (store_url, stored):
         monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
         restore(site)
@@ -2155,6 +2152,7 @@ def test_the_adapter_takes_its_app_server_with_it_when_it_is_told_to_stop(
 import os, socket, sys, time
 from pathlib import Path
 
+assert os.environ["LEAF"] == {website_server.LEAF_COMMAND!r}
 address = sys.argv[sys.argv.index("--listen") + 1].removeprefix("unix://")
 listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 listener.bind(address)
@@ -2182,7 +2180,12 @@ module.WebsiteCodexHarness = lambda: original_harness(
 module.main(["--port", "0"])
 """,
         ],
-        env=os.environ | {"LEAF_SITE_ROOT": str(site)},
+        env=os.environ
+        | {
+            "LEAF_SITE_ROOT": str(site),
+            "LEAF_PAGE_STORE_URL": "",
+            "LEAF": "/unrelated/leaf",
+        },
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
         text=True,

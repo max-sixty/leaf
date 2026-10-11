@@ -99,7 +99,7 @@ def environment(**extra: str) -> dict[str, str]:
     env = {
         key: value
         for key, value in os.environ.items()
-        if key not in (*IDENTITY_VARIABLES, APP_SERVER_ENV)
+        if key not in (*IDENTITY_VARIABLES, APP_SERVER_ENV, "LEAF")
         and not (key.startswith("CLAUDE") and key != "CLAUDE_CONFIG_DIR")
     }
     return {**env, **extra}

@@ -747,7 +747,7 @@ class WebsiteCodexHarness:
                     **os.environ,
                     APP_SERVER_ENV: self.endpoint,
                     # A login shell rebuilds PATH from the system's profile, so
-                    # the website image also links it into /usr/local/bin.
+                    # the website image also links this install's leaf into /usr/local/bin.
                     "PATH": os.pathsep.join(
                         (str(Path(LEAF_COMMAND).parent), os.environ.get("PATH", ""))
                     ),
@@ -1548,6 +1548,9 @@ def close_on_signal(agent_harness: WebsiteCodexHarness) -> None:
 )
 def main(port: int) -> None:
     os.environ.setdefault("LEAF_AGENT", WEBSITE_AGENT)
+    # Commands and native hooks share this host's ready Python environment,
+    # whether or not durable storage is configured for this server.
+    os.environ["LEAF"] = LEAF_COMMAND
     site_root = Path(os.environ.get("LEAF_SITE_ROOT", "/app/site"))
     os.environ["LEAF_SITE_ROOT"] = str(site_root)
     from leaf_website.storage import restore

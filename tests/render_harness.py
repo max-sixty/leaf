@@ -1455,23 +1455,6 @@ def consume_browser_errors(page, *expected):
     return errors
 
 
-def xfail_browser_problem(page, *expected, reason):
-    """Quarantine one verified main defect after the journey's assertions finish.
-
-    A fixed defect passes. Any other browser problem, including another report of
-    the named loss, fails. Keep the assertion after xfail so --runxfail exposes
-    the original failure rather than clearing it into a pass.
-    """
-    assert expected, "known browser problems cannot be empty"
-    page.evaluate("lfWordsJudged()")
-    errors = take_browser_errors(page)
-    if not errors:
-        return
-    assert errors == list(expected), errors
-    pytest.xfail(reason)
-    raise AssertionError(errors)
-
-
 # What navigate reports when a ResizeObserver loop notice comes back on the confirming
 # navigation, so a one-off notice is dropped and a recurring one fails the test.
 RECURRING_RESIZE_NOTICE = (
@@ -2015,13 +1998,8 @@ def margin_control(scope, owner: str, key: str | None = None, *, visible=True):
     return scope.locator(margin_entry(owner, key) + (":visible" if visible else ""))
 
 
-# A content widget's contribution key is its module's own choice, and these two are the
-# suite's one spelling of each: `lf-draft` registers as `draft:<id>`, `lf-suggestion`
-# as `suggestion:<id>`.
-def draft_owner(draft_id: str) -> str:
-    return f"draft:{draft_id}"
-
-
+# A content widget's contribution key is its module's own choice, and this is the
+# suite's one spelling of `lf-suggestion`'s: `suggestion:<id>`.
 def suggestion_owner(suggestion_id: str) -> str:
     return f"suggestion:{suggestion_id}"
 
@@ -2042,7 +2020,7 @@ def suggestion_control(scope, suggestion_id: str, key=None, *, visible=True):
 
 
 def any_owner_entry(kind: str, key: str | None = None) -> str:
-    """The selector for a margin entry any `kind` widget (`draft`, `suggestion`)
+    """The selector for a margin entry any `kind` widget (today only `suggestion`)
     registered, for a probe that plants one example on a page rather than tracking a
     particular id. `margin_entry` locates one owner exactly."""
     selector = f'[data-lf-margin-entry-owner^="{kind}:"]'

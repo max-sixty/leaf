@@ -11,7 +11,7 @@ from interact_support import append_carried_log_record
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.media import store_uploaded_media
-from leaf.render_checks import rendered
+from leaf.render_checks import SERVED_TIMEOUT_MS, rendered
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -2856,7 +2856,8 @@ def test_a_traffic_wait_stops_when_repaints_outlive_its_deadline(monkeypatch):
 
     page = BusyPage()
     page.lf_traffic = Traffic(page)
-    times = iter((0, 31, 31, 31))
+    expired = SERVED_TIMEOUT_MS / 1000 + 1
+    times = iter((0, expired, expired, expired))
     monkeypatch.setattr(time, "monotonic", lambda: next(times))
 
     with pytest.raises(AssertionError, match="never reached a false fact"):

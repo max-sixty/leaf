@@ -1900,6 +1900,10 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
     ) == [6, 14, "backward"]
     assert "thread" in page.evaluate("window.readLeafPresentation().pending")
+    # The restored card must stand for a frame before retrying its withdrawal;
+    # the choice that dismissed the failed candidate cannot hide a later jump.
+    page.evaluate("lfShiftsJudged()")
+    restored_top = page.evaluate("window.keptPanel.getBoundingClientRect().top")
 
     # The retry paints the whole candidate again and then reaches the independently
     # held frozen-widget preparation. Only that complete reading may commit.
@@ -1941,6 +1945,11 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         kept["id"],
     ), "successful list retry replaced a committed panel card, seat, or editor"
     expect(editor).to_have_js_property("value", "draft survives sibling rollback")
+    if place == "choose-earlier":
+        expect(page.locator('[data-withdrawn="selected-thread"]')).to_have_count(1)
+        assert page.evaluate(
+            "window.keptPanel.getBoundingClientRect().top"
+        ) == pytest.approx(restored_top, abs=0.1)
     expected_errors = (
         []
         if place == "choose-earlier"
@@ -1951,9 +1960,8 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
             )
         ]
     )
-    assert [
-        error.splitlines()[0] for error in take_browser_errors(page)
-    ] == expected_errors
+    errors = take_browser_errors(page)
+    assert [error.splitlines()[0] for error in errors] == expected_errors, errors
 
 
 @pytest.mark.parametrize("place", ["closed", "selected", "scrolled", "scaled"])

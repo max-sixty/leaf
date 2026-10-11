@@ -67,6 +67,7 @@ class ThreadListView extends RetainedFace {
   #restoreFocusAfterPaint = null;
   #generation = 0;
   #rows = [];
+  #committedRows = [];
   #retaining = false;
   #rollbackFocus = null;
   #selection = [];
@@ -78,9 +79,12 @@ class ThreadListView extends RetainedFace {
   // An absent root is no longer a thread: disconnect its controls and keep only the
   // allocation the reader stood in. Membership and order come from the complete
   // committed reading, so refusing a candidate restores the same native cards.
-  withWithdrawals(rows, intent) {
+  #withWithdrawals(rows, intent) {
     const present = new Set(rows.map((row) => row.key));
-    const prior = this.committed.rows;
+    const prior = this.#committedRows;
+    const chosen = this.#selection.find((key) =>
+      this.#rows.some((row) => row.key === key),
+    );
     for (let i = prior.length - 1; i >= 0; i--) {
       const row = prior[i];
       if (present.has(row.key) || this.#dismissed.has(row.key)) continue;
@@ -95,9 +99,7 @@ class ThreadListView extends RetainedFace {
             !row.descriptor.visible ||
             row.descriptor.folding ||
             gesturedOn(row.descriptor.source))) ||
-        !(row.key === this.#expandedRow()?.key
-          ? this.checkVisibility()
-          : growthIsSeen(node))
+        !(row.key === chosen ? this.checkVisibility() : growthIsSeen(node))
       )
         continue;
       const withdrawn =
@@ -149,7 +151,7 @@ class ThreadListView extends RetainedFace {
   }
 
   #expandedRow() {
-    const present = new Set(this.model.rows.map((row) => row.key));
+    const present = new Set(this.#rows.map((row) => row.key));
     const preferred = this.#selection.find((key) => present.has(key));
     const visible = this.#visibleRows();
     return (
@@ -231,12 +233,13 @@ class ThreadListView extends RetainedFace {
 
   #watchKept() {
     const kept = new Set(
-      this.model.rows
+      this.#rows
         .filter(
           (row) =>
-            row.kind === "withdrawn" || (row.kind === "thread" && row.descriptor.kept),
+            row.kind === "withdrawn" ||
+            (row.kind === "thread" && this.#views.get(row.key).model.kept),
         )
-        .map((row) => this.#rows.find((drawn) => drawn.key === row.key)?.node)
+        .map((row) => row.node)
         .filter(Boolean),
     );
     for (const [node, stop] of this.#leaving)
@@ -341,16 +344,29 @@ class ThreadListView extends RetainedFace {
     // Candidate fallback is only paint; the complete committed reading retires
     // departed choices and adopts the choice its narrowing left visible.
     if (model.count !== null) {
-      const present = new Set(model.rows.map((row) => row.key));
+      const present = new Set(this.#rows.map((row) => row.key));
       this.#selection = this.#selection.filter((key) => present.has(key));
       this.#dismissed = new Set(
-        model.rows
+        this.#rows
           .filter((row) => row.kind === "withdrawn" && this.#dismissed.has(row.key))
           .map((row) => row.key),
       );
       const chosen = this.#expandedRow();
       if (chosen) this.#select(chosen.key);
     }
+    this.#committedRows = this.#rows.map((row) =>
+      row.kind === "thread"
+        ? model.rows.find((candidate) => candidate.key === row.key)
+        : row.kind === "withdrawn"
+          ? Object.freeze({
+              kind: row.kind,
+              key: row.key,
+              id: row.id,
+              topic: row.topic,
+              extent: row.extent,
+            })
+          : row,
+    );
     for (const [key, view] of this.#views) {
       if (wanted.has(key)) view.commit();
       else {
@@ -384,10 +400,17 @@ class ThreadListView extends RetainedFace {
     this.#restoreFocusAfterPaint ??= holdFocus(this);
     // A change of view moves the cards, so they show what they hold.
     const viewChanged = this.#intent !== this.model.intent;
-    this.#intent = this.model.intent;
     const rows = [];
     const wanted = new Set();
-    for (const row of this.model.rows) {
+    // Allocations are mechanical paint state. Reconcile them on every attempt,
+    // including a retry after rollback restored a formerly dismissed live card.
+    const allocated = this.#retaining
+      ? this.#committedRows
+      : this.model.count === null
+        ? this.model.rows
+        : this.#withWithdrawals([...this.model.rows], this.model.intent);
+    this.#intent = this.model.intent;
+    for (const row of allocated) {
       if (row.kind !== "thread") {
         if (row.kind === "withdrawn") {
           const previous = this.#rows.find((drawn) => drawn.key === row.key);
@@ -396,6 +419,7 @@ class ThreadListView extends RetainedFace {
         } else rows.push(row);
         continue;
       }
+      this.#dismissed.delete(row.key);
       wanted.add(row.key);
       let view = this.#views.get(row.key);
       if (!view) {

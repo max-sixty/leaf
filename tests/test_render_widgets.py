@@ -5163,8 +5163,7 @@ def test_board_moves_preserve_live_sample_and_control_state(browser, serve, rout
     assert not [
         url
         for url in requests
-        if url.rstrip("/") == sample_url
-        or url.rstrip("/").endswith("/api/samples")
+        if url.rstrip("/") == sample_url or url.rstrip("/").endswith("/api/samples")
     ]
 
 

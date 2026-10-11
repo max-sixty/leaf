@@ -221,7 +221,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         f"After checkpoint · {(phase['timestamp'] - origin) / 1000:.3f} s"
     )
     expect(widget.locator(".lf-trace-clock")).to_have_text(
-        "Elapsed since recording started"
+        "Times are elapsed since the recording started"
     )
     widget.locator(".lf-trace-tree summary").click()
     rendered(user)
@@ -372,7 +372,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     )
     told(user)
     expect(widget.locator(".lf-trace-clock")).to_have_text(
-        "Elapsed from first captured event"
+        "Times are elapsed from the first captured event"
     )
     expect(widget.locator(f'[data-lf-datum="{captured}"]')).to_be_visible()
     user.keyboard.press("Escape")
@@ -813,8 +813,15 @@ def test_trace_bookmarks_jump_to_exact_evidence_in_page_flow(browser, serve):
             button.focus()
             user.keyboard.press("Enter")
         else:
-            # The numbered flag on the timeline reaches the same result.
-            widget.locator(f'.lf-trace-moment-pin[data-tip*="{label}"]').click()
+            # The numbered flag on the timeline reaches the same result, and,
+            # standing beside the evidence, moves nothing on the page.
+            scroll = user.evaluate("scrollY")
+            widget.locator(f'.lf-trace-word[data-tip*="{label}"]').click()
+            expect(widget.locator(".lf-trace-phase")).to_have_text(
+                f"After checkpoint · {elapsed:.3f} s"
+            )
+            assert user.evaluate("scrollY") == scroll
+            continue
         expect(widget.locator(".lf-trace-phase")).to_have_text(
             f"After checkpoint · {elapsed:.3f} s"
         )
@@ -1297,7 +1304,13 @@ def test_trace_page_scrolling_preserves_playback(browser, serve):
             )
             canvas.focus()
             canvas.evaluate("node => window.focusedCapture = node")
-            user.clock.run_for(round(duration * 0.05))
+            # Playback waits for each capture to prepare, so advance until the
+            # next one has replaced the focused canvas.
+            for _ in range(40):
+                user.clock.run_for(round(duration * 0.05))
+                user.wait_for_timeout(50)
+                if canvas.evaluate("node => node !== window.focusedCapture"):
+                    break
             expect(canvas).to_be_focused()
             assert canvas.evaluate("node => node !== window.focusedCapture")
             before_space = user.evaluate("scrollY")
@@ -2070,7 +2083,8 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
     expect(
         phone.locator(".lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img")
     ).to_have_attribute("data-lf-datum", frame_target)
-    phone.locator(".lf-trace-moment-pin").first.tap()
+    # A number in a shared flag selects its own moment.
+    phone.locator(".lf-trace-moment-pin .lf-trace-word").first.tap()
     first_target = min(targets, key=native_times.__getitem__)
     expect(phone.locator(f'[data-lf-datum="{first_target}"]')).to_be_visible()
     expect(phone.locator(".lf-trace-selection")).to_contain_text(
@@ -2558,11 +2572,15 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
         pointer["phases"]["after"]["timestamp"]
         > pointer["phases"]["action"]["timestamp"]
     )
-    expect(widget.locator(".lf-trace-input-badge")).to_have_text("After: Click")
+    expect(widget.locator(".lf-trace-input-badge")).to_have_text(
+        re.compile(r"^\d+\.\d{3} s · after Click$")
+    )
     navigate_to_phase(
         timeline, f"trace-{record['archive']['sha256']}-phase-{pointer['id']}-action"
     )
-    expect(widget.locator(".lf-trace-input-badge")).to_have_text("Next: Click")
+    expect(widget.locator(".lf-trace-input-badge")).to_have_text(
+        re.compile(r"^\d+\.\d{3} s · next: Click$")
+    )
     expect(widget.locator(".lf-trace-input-point")).to_be_visible()
     raster = widget.locator(
         ".lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img"
@@ -2622,7 +2640,6 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
     expect(
         widget.get_by_role("checkbox", name="Show intermediate frames")
     ).to_have_count(0)
-    user.close()
 
 
 def test_trace_play_press_belongs_to_its_pointer_click(browser, serve):
@@ -2668,7 +2685,6 @@ def test_trace_play_press_belongs_to_its_pointer_click(browser, serve):
         play.press("Enter")
         expect(pause).to_be_visible()
         pause.click()
-    user.close()
 
 
 def test_trace_overview_shows_every_row_and_preserves_page_scrolling(browser, serve):
@@ -2753,7 +2769,6 @@ def test_trace_overview_shows_every_row_and_preserves_page_scrolling(browser, se
         ) == widget.locator(".lf-trace-caption").evaluate(
             "node => getComputedStyle(node).color"
         )
-        context.close()
 
 
 def test_trace_pointer_annotation_stays_inside_the_panned_image_viewport(

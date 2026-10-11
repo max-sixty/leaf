@@ -176,9 +176,21 @@ export class RecordingTimeline {
     } else if (x < left + EDGE || x > left + width - EDGE) this.#scrollTo(x - width / 2);
   }
 
-  zoomBy(factor, anchor = null) {
+  zoomBy(factor, anchor = null, fit = null) {
     const scroller = this.scroller;
     if (!scroller) return;
+    if (fit) {
+      // Fit a time range into the middle three fifths of the window.
+      const [from, to] = fit;
+      const range = Math.max(10, to - from);
+      this.#zoom = Math.max(
+        1,
+        Math.min(this.#maxZoom(), (this.#model.duration * 0.6) / range),
+      );
+      this.#applyZoom();
+      this.#scrollTo(this.#timeToPx((from + to) / 2) - scroller.clientWidth / 2);
+      return;
+    }
     const time =
       anchor ??
       (this.#visible(this.#time)
@@ -278,6 +290,18 @@ export class RecordingTimeline {
     const pxPerMs = this.#pxPerMs();
     // Marks too close to label separately share one label, which starts at the
     // first and lists them in time order; each keeps its own mark.
+    const end = this.#span();
+    // A crowded label lists its first mark and a count of the rest.
+    const fit = (current, compact = false) => {
+      const full = current.items.map((item) => item.label).join(" ");
+      current.compact =
+        current.items.length > 1 && (compact || measure(full, font) > CLUSTER_WIDTH);
+      current.text = current.compact
+        ? `${current.items[0].label} +${current.items.length - 1}`
+        : full;
+      current.width = measure(current.text, font) + LABEL_CHROME;
+      current.flip = current.x + current.width > end;
+    };
     const cluster = (items) => {
       const clusters = [];
       for (const item of items) {
@@ -285,21 +309,12 @@ export class RecordingTimeline {
         let current = clusters.at(-1);
         if (current && x < current.x + current.width + LABEL_GAP) current.items.push(item);
         else clusters.push((current = { x, items: [item] }));
-        current.text = this.#clusterText(current.items, font);
-        current.width = measure(current.text, font) + LABEL_CHROME;
+        fit(current);
       }
       // A label that would run past the end of the time scale points back:
       // its staff still stands on its time, at the label's right edge. One that
       // would then meet its neighbour joins that neighbour's label instead.
       // A label near the end first shortens to its first mark and a count.
-      const end = this.#span();
-      const fit = (current, compact = false) => {
-        current.text = compact
-          ? `${current.items[0].label} +${current.items.length - 1}`
-          : this.#clusterText(current.items, font);
-        current.width = measure(current.text, font) + LABEL_CHROME;
-        current.flip = current.x + current.width > end;
-      };
       clusters.forEach((current) => fit(current));
       for (let index = clusters.length - 1; index >= 0; index--) {
         const current = clusters[index];
@@ -342,10 +357,21 @@ export class RecordingTimeline {
     const nextStart = next.flip ? next.x - next.width : next.x;
     return layoutPx(Math.max(12, nextStart - cluster.x - LABEL_GAP));
   }
-  #clusterText(items, font) {
-    const text = items.map((item) => item.label).join(" ");
-    if (measure(text, font) <= CLUSTER_WIDTH) return text;
-    return `${items[0].label} +${items.length - 1}`;
+  // Each name in a label is its own mark's target; a count zooms to its marks.
+  #labelWords(cluster, lane) {
+    const word = (item) =>
+      html`<span class="lf-trace-word" data-word=${item.id} data-tip=${item.title}
+        >${item.label}</span
+      >`;
+    if (cluster.compact)
+      return html`${word(cluster.items[0])}
+        <span
+          class="lf-trace-more"
+          data-more
+          data-tip=${`${cluster.items.length - 1} more ${lane === "moments" ? "moments" : "inputs"}: zoom to separate them`}
+          >+${cluster.items.length - 1}</span
+        >`;
+    return cluster.items.map((item, index) => html`${index ? " " : ""}${word(item)}`);
   }
 
   // Drawing ------------------------------------------------------------------------
@@ -358,18 +384,33 @@ export class RecordingTimeline {
       String(Math.max(0, this.#fraction(end ?? start) - this.#fraction(start)));
     const quoted = this.#options.quoted;
     const lanes = [
-      ...(model.moments.length ? [["moments", "Moments"]] : []),
-      ...(model.inputs.length ? [["input", "Input"]] : []),
-      ...(model.calls.length ? [["calls", "Calls"]] : []),
-      ["captures", "Captures"],
+      ...(model.moments.length
+        ? [["moments", "Moments", "Authored results, at their capture times"]]
+        : []),
+      ...(model.inputs.length
+        ? [
+            [
+              "input",
+              "Input",
+              "Each bar is the recorded input call; its notch is the Action checkpoint, taken just before the input is sent. Key-down and hold times are not recorded.",
+            ],
+          ]
+        : []),
+      ...(model.calls.length ? [["calls", "Calls", "Other recorded calls, start to end"]] : []),
+      [
+        "captures",
+        "Captures",
+        "Dark ticks have an image; light ticks are checkpoints without one",
+      ],
     ];
     render(
       html`<div class="lf-trace-lane-names" aria-hidden="true">
           <span class="lf-trace-lane-name lf-trace-lane-name-ruler"></span>
           ${lanes.map(
-            ([lane, name]) =>
+            ([lane, name, about]) =>
               html`<span
                 class="lf-trace-lane-name lf-trace-lane-name-${lane}"
+                title=${about}
                 style="--lf-trace-rows: ${lane === "calls" ? this.#callRows : 1}"
                 >${name}</span
               >`,
@@ -408,7 +449,9 @@ export class RecordingTimeline {
                           this.#labels.moments,
                           index,
                         )}"
-                        ><span class="lf-trace-moment-flag">${cluster.text}</span></span
+                        ><span class="lf-trace-moment-flag"
+                          >${this.#labelWords(cluster, "moments")}</span
+                        ></span
                       >`,
                   )}
                 </div>`
@@ -429,8 +472,21 @@ export class RecordingTimeline {
                           this.#labels.input,
                           index,
                         )}"
-                        >${cluster.text}</span
+                        >${this.#labelWords(cluster, "input")}</span
                       >`,
+                  )}
+                  ${repeat(
+                    model.inputs.filter((input) => input.send !== null),
+                    (input) => input.id,
+                    (input) =>
+                      html`<span
+                        class="lf-trace-input-send"
+                        data-pick="input"
+                        data-id=${input.id}
+                        data-tip=${input.title}
+                        ?data-current=${input.current}
+                        style="--t: ${fraction(input.send)}"
+                      ></span>`,
                   )}
                   ${repeat(
                     model.inputs,
@@ -483,7 +539,8 @@ export class RecordingTimeline {
                 (capture) => capture.id,
                 (capture) =>
                   html`<span
-                    class="lf-trace-capture lf-trace-capture-${capture.kind}"
+                    class="lf-trace-capture"
+                    ?data-image=${capture.image}
                     ?data-current=${capture.current}
                     style="--t: ${fraction(capture.time)}"
                   ></span>`,
@@ -587,6 +644,7 @@ export class RecordingTimeline {
         (tick) =>
           html`<span
             class="lf-trace-tick ${tick.major ? "lf-trace-tick-major" : ""}"
+            ?data-flip=${tick.major && (this.#model.duration - tick.time) * pxPerMs < 44}
             style="--t: ${this.#fraction(tick.time)}"
             >${tick.major ? tickLabel(tick.time, step) : nothing}</span
           >`,
@@ -668,17 +726,20 @@ export class RecordingTimeline {
 
   #tap(event) {
     if (this.#options.quoted) return;
-    const pick = event.target.closest("[data-pick]");
+    const time = this.#eventTime(event);
+    const pick = event.target.closest("[data-pick]") ?? this.#nearMark(event);
     if (pick) {
-      let id = pick.dataset.id;
-      const time = this.#eventTime(event);
-      // A shared label picks the mark nearest the press; ties keep time order.
-      if (pick.dataset.cluster !== undefined) {
-        const items = this.#labels[pick.dataset.pick][Number(pick.dataset.cluster)].items;
-        id = items.reduce((best, item) =>
-          Math.abs(item.at - time) < Math.abs(best.at - time) ? item : best,
-        ).id;
+      const cluster =
+        pick.dataset.cluster === undefined
+          ? null
+          : this.#labels[pick.dataset.pick][Number(pick.dataset.cluster)];
+      if (cluster && event.target.closest("[data-more]")) {
+        this.zoomBy(1, null, [cluster.items[0].at, cluster.items.at(-1).at]);
+        this.#options.onUserPan?.();
+        return;
       }
+      // A name in a shared label is its own mark; elsewhere the label is its first.
+      const id = event.target.closest("[data-word]")?.dataset.word ?? pick.dataset.id;
       this.#options.onPick(pick.dataset.pick, id, time);
       return;
     }
@@ -687,14 +748,29 @@ export class RecordingTimeline {
       this.#options.onSeek(this.#eventTime(event), true);
   }
 
+  // A press beside a thin mark in its lane still takes that mark.
+  #nearMark(event) {
+    const lane = event.target.closest?.(".lf-trace-lane-input, .lf-trace-lane-calls");
+    if (!lane) return null;
+    let best = null;
+    let distance = 8;
+    for (const mark of lane.querySelectorAll(".lf-trace-bar")) {
+      const box = mark.getBoundingClientRect();
+      const away = Math.max(box.left - event.clientX, event.clientX - box.right, 0);
+      if (away < distance) [best, distance] = [mark, away];
+    }
+    return best;
+  }
+
   #hover(event, leaving = false) {
-    const pick = event.target.closest?.("[data-pick]");
+    const pick = event.target.closest?.("[data-tip]");
     if (leaving || !pick || this.#scrubbing !== null) {
       if (!leaving || !pick?.contains(event.relatedTarget)) this.#hideTip();
       return;
     }
     const tip = this.#host.querySelector(".lf-trace-tip");
-    keepsText(tip, pick.dataset.tip);
+    // A time keeps its unit on its line.
+    keepsText(tip, pick.dataset.tip.replace(/(\d) s\b/g, "$1\u00a0s"));
     keepsHidden(tip, false);
     const host = this.#host.getBoundingClientRect();
     const box = pick.getBoundingClientRect();

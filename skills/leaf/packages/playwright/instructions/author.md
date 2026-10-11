@@ -27,8 +27,7 @@ equal elapsed times do not establish matching application states. Put paired vie
 inside `lf-trace-compare`, with a `label` on each recording and the same `key` on
 corresponding bookmarks. Result selection chooses each recording’s own target;
 the Recording chooser retains the shared inspection position. Manual seeking keeps
-independent positions. Separate viewers can share a `compare` token when the page
-needs to display them together.
+independent positions.
 
 An image comment names its actual capture. A saved-element comment names an
 action phase and accessibility-tree path, which distinguishes controls with the

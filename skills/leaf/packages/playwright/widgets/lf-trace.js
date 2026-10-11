@@ -112,9 +112,9 @@ const PHASES = {
 // How a capture of an input call relates to its dispatch. The Action checkpoint
 // is captured just before the input is sent.
 const INPUT_PHASES = {
-  before: "Before",
-  action: "Next",
-  after: "After",
+  before: "before",
+  action: "next",
+  after: "after",
 };
 // Native input methods by the gesture a reader recognizes.
 const INPUT_NAMES = {
@@ -344,7 +344,22 @@ customElements.define(
             run: () => this.#zoom(() => this.#timeline.fit()),
           },
           {
+            id: "trace.previous-event",
+            keys: () => (this.timeline.contains(focused()) ? ["Shift+ArrowLeft"] : []),
+            title: "previous input or moment",
+            when: () => this.#eventStop(-1) !== null,
+            run: () => this.#navigate(this.#eventStop(-1)),
+          },
+          {
+            id: "trace.next-event",
+            keys: () => (this.timeline.contains(focused()) ? ["Shift+ArrowRight"] : []),
+            title: "next input or moment",
+            when: () => this.#eventStop(1) !== null,
+            run: () => this.#navigate(this.#eventStop(1)),
+          },
+          {
             id: "trace.play",
+            keys: () => (this.timeline.contains(focused()) ? [" "] : []),
             title: () => (this.#playing ? "pause recording" : "play recording"),
             control: this.play,
             when: () => this.#items().length > 1,
@@ -708,7 +723,7 @@ customElements.define(
     #pick(lane, id, time) {
       if (lane === "moments") {
         const moment = this.#moments.find((moment) => String(moment.number) === id);
-        if (moment?.scope) this.#visitMoment(moment.target, moment.index);
+        if (moment?.scope) this.#visitMoment(moment.target, moment.index, false);
         return;
       }
       const action = this.#trace.actions.find((action) => action.id === id);
@@ -772,6 +787,13 @@ customElements.define(
         this.#playFrame = 0;
         if (!this.#playing) return;
         const now = performance.now();
+        // The clock waits while a capture prepares, so the playhead and its
+        // readout never run ahead of the image on screen.
+        if (this.#pendingPicture) {
+          previousTick = now;
+          this.#playFrame = nextAnimation(tick);
+          return;
+        }
         time = Math.min(
           end,
           advancePlayback(
@@ -786,6 +808,7 @@ customElements.define(
         if (point.id !== this.#selected) {
           this.#selected = point.id;
           this.#draw();
+          this.#warm(points.indexOf(point));
         } else this.#drawTime();
         this.#revealTime("page");
         if (time === end) this.#pause();
@@ -793,6 +816,43 @@ customElements.define(
       };
       this.#playFrame = nextAnimation(tick);
     }
+    // Fetch and decode the next captures playback will show.
+    #warmed = new Set();
+    #warm(index) {
+      for (const point of this.#items().slice(index + 1, index + 9)) {
+        const image = this.#evidence(point).image;
+        if (!image || this.#warmed.has(image.url)) continue;
+        this.#warmed.add(image.url);
+        const loader = new Image();
+        loader.src = scopedMediaUrl(image.url);
+        loader.decode().catch(() => this.#warmed.delete(image.url));
+      }
+    }
+
+    // The nearest input call or moment beyond the playhead, as a capture stop.
+    #eventStop(delta) {
+      const time = this.#playheadTime();
+      if (time === null) return null;
+      const stops = new Set(
+        [
+          ...this.#inputActions().map((action) => {
+            const phase = this.#phases(action).includes("action")
+              ? "action"
+              : this.#phases(action)[0];
+            return this.#phaseId(action, phase);
+          }),
+          ...this.#scopeMoments().map((moment) => this.#destination(moment.target)),
+        ].filter(Boolean),
+      );
+      const items = this.#items().filter((point) => stops.has(point.id));
+      return (
+        (delta > 0
+          ? items.find((point) => point.timestamp > time)
+          : items.findLast((point) => point.timestamp < time)
+        )?.id ?? null
+      );
+    }
+
     #phases(action) {
       return Object.keys(action.phases).length
         ? Object.keys(PHASES).filter((phase) => action.phases[phase])
@@ -1013,7 +1073,9 @@ customElements.define(
       this.#revealTime("center");
     }
 
-    async #visitMoment(id, bookmark) {
+    // From the Moments list a moment brings its evidence into view if it is not;
+    // from the timeline, which stands beside the evidence, it moves nothing.
+    async #visitMoment(id, bookmark, travel = true) {
       const mayArrive = retainUserIntent();
       this.#reveal(id, bookmark);
       const comparison = this.#comparison();
@@ -1029,6 +1091,7 @@ customElements.define(
             peer.#reveal(match.target, match.index);
         }
       }
+      if (!travel) return;
       await this.#pendingPicture?.ready;
       if (!mayArrive() || this.#chosenBookmark !== bookmark) return;
       const target = this.#targets.get(id);
@@ -1037,7 +1100,9 @@ customElements.define(
         : this.#pictureId
           ? this.stage
           : null;
-      if (destination)
+      const shown = destination?.getBoundingClientRect();
+      const view = target?.node ? shown : this.imageViewport.getBoundingClientRect();
+      if (destination && !(view.top >= 0 && view.bottom <= innerHeight))
         scrollIntoReadingBand(destination, destination, "center", scrollBehavior());
     }
 
@@ -1048,7 +1113,7 @@ customElements.define(
       );
     }
     #comparison() {
-      return this.getAttribute("compare") ?? this.closest("lf-trace-compare")?.id;
+      return this.closest("lf-trace-compare")?.id;
     }
     #bounds() {
       if (this.#boundsByScope.has(this.#scope))
@@ -1346,19 +1411,29 @@ customElements.define(
       return this.#actions().filter((action) => action.input);
     }
 
-    // The input the shown evidence belongs to: the selected checkpoint's own
-    // input call, or an input call the playhead stands inside. Nothing else.
+    // The input the shown evidence concerns: the selected checkpoint's own input
+    // call, or an input call the playhead stands inside. Nothing else.
     #currentInput() {
       const point = this.#point();
-      if (point?.action?.input && INPUT_PHASES[point.phase])
-        return { action: point.action, phase: point.phase };
+      if (point?.action?.input && INPUT_PHASES[point.phase]) return point.action;
       const time = this.#playheadTime();
       if (time === null) return null;
-      const action = this.#inputActions().find(
-        (action) =>
-          action.startTime <= time && time <= (action.endTime ?? action.startTime),
+      return (
+        this.#inputActions().find(
+          (action) =>
+            action.startTime <= time && time <= (action.endTime ?? action.startTime),
+        ) ?? null
       );
-      return action ? { action, phase: null } : null;
+    }
+
+    // How an image relates to an input call, from the image's own capture: its
+    // checkpoint phase when it is one of the call's, otherwise its time.
+    #inputRelation(image, action) {
+      if (image.callId === action.callId && INPUT_PHASES[image.phase])
+        return INPUT_PHASES[image.phase];
+      if (image.timestamp < action.startTime) return "before";
+      if (image.timestamp > (action.endTime ?? action.startTime)) return "after";
+      return "during";
     }
 
     #playheadTime() {
@@ -1373,28 +1448,25 @@ customElements.define(
       // A restored view adjusts zoom and pan together. Viewer emits each
       // intermediate pose synchronously; draw only after that view is complete.
       if (this.#applyingPictureView) return;
-      const point = this.#point();
-      const current = this.#currentInput();
-      const action = current?.action;
+      const action = this.#currentInput();
       const image = this.#trace?.images.find((image) => image.id === this.#pictureId);
-      const imageReady = point && image && this.#evidence(point).image?.id === image.id;
+      const imageReady = image && this.#picture?.viewed;
       keepsHidden(this.inputBadge, !action || !imageReady);
+      const relation = action && image ? this.#inputRelation(image, action) : null;
       const span = action
         ? `${this.#time(action.startTime, action.stream)}–${this.#time(action.endTime ?? action.startTime, action.stream)}`
         : "";
       keepsText(
         this.inputBadge,
-        action
-          ? current.phase
-            ? `${INPUT_PHASES[current.phase]}: ${this.#inputLabel(action)}`
-            : `During: ${this.#inputLabel(action)}`
+        relation
+          ? `${this.#time(image.timestamp, image.stream)} · ${relation === "next" ? "next:" : relation} ${this.#inputLabel(action)}`
           : "",
       );
       keeps(
         this.inputBadge,
         "title",
-        action
-          ? `${this.#inputLabel(action)}${action.input.selector ? ` · ${action.input.selector}` : ""} · call ${span}. The Input checkpoint is captured just before dispatch; the exact input time is not recorded.`
+        relation
+          ? `This image was captured ${relation === "next" ? "at the Action checkpoint, just before the input is sent" : `${relation} the input call`}. ${this.#inputLabel(action)}${action.input.selector ? ` · ${action.input.selector}` : ""} · call ${span}. Key-down and hold times are not recorded.`
           : null,
       );
       // The badge says whether the input is next, under way or done; the point
@@ -1450,11 +1522,12 @@ customElements.define(
           active: inside(action),
         };
         if (action.input) {
-          const input = action.phases.action;
+          const send = action.phases.action;
           inputs.push({
             ...mark,
+            send: send ? send.timestamp - origin : null,
             label: action.input.key ?? this.#inputLabel(action),
-            title: `${this.#inputLabel(action)} · call ${span(action)}${input ? ` · Input checkpoint ${this.#time(input.timestamp, action.stream)}` : ""}`,
+            title: `${this.#inputLabel(action)} · call ${span(action)}${send ? ` · Action checkpoint ${this.#time(send.timestamp, action.stream)}, just before it is sent` : ""}`,
           });
         } else
           calls.push({
@@ -1474,7 +1547,7 @@ customElements.define(
       const captures = this.#items().map((item) => ({
         id: item.id,
         time: item.timestamp - origin,
-        kind: item.image ? "frame" : "checkpoint",
+        image: !!(item.image ?? item.action?.phases[item.phase]?.imageId),
         current: item.id === this.#selected,
       }));
       return {
@@ -1523,12 +1596,14 @@ customElements.define(
           : point
             ? "Captured frame"
             : "";
-      // Between captures, say which capture is shown and when it was taken.
-      const between =
-        point && playhead !== null && Math.abs(playhead - point.timestamp) >= 0.5;
-      const selection = between
-        ? `Showing ${point.image ? "frame" : "checkpoint"} from ${this.#time(point.timestamp, this.#stream())} · ${description}`
-        : description;
+      // When the image on screen was taken at another time than the playhead,
+      // say so: between captures, at a checkpoint without its own image, or
+      // while the next image prepares.
+      const shown = this.#trace?.images.find((image) => image.id === this.#pictureId);
+      const selection =
+        shown && playhead !== null && Math.abs(playhead - shown.timestamp) >= 0.5
+          ? `Image from ${this.#time(shown.timestamp, shown.stream)} · ${description}`
+          : description;
       keepsText(this.selectionLabel, selection);
       keeps(this.selectionLabel, "title", selection);
       this.#drawInput();
@@ -1615,8 +1690,8 @@ customElements.define(
       const moments = this.#moments;
       const clockLabel =
         origin && origin.recordedStart !== null && origin.recordedStart === origin.start
-          ? "Elapsed since recording started"
-          : "Elapsed from first captured event";
+          ? "Times are elapsed since the recording started"
+          : "Times are elapsed from the first captured event";
       render(
         html`<div ${offered("lf-trace-controls")} ?hidden=${!trace}>
             <div ${offered("lf-trace-choices")} ?hidden=${choices.length < 2}>
@@ -1852,17 +1927,12 @@ customElements.define(
                     )}
                   </ul>
                 </details>
-                <p class="lf-trace-clock" ?hidden=${!origin}>
-                  ${trace?.streams.length > 1
-                    ? `${clockLabel} · each stream has its own clock`
-                    : clockLabel}
-                </p>
                 <p class="lf-trace-readout">
                   ${!trace
                     ? "Waiting for a Playwright recording."
                     : !items.length
                       ? "No recorded checkpoints or frames in this recording scope."
-                      : `Capture ${position + 1} of ${items.length}`}
+                      : `Step ${position + 1} of ${items.length}`}
                 </p>
                 <p class="lf-trace-action">${metadataAction?.title ?? ""}</p>
                 <h3 class="lf-trace-phase">
@@ -1872,6 +1942,11 @@ customElements.define(
                 </h3>
                 <p class="lf-trace-error" ?hidden=${!metadataAction?.error}>
                   ${metadataAction?.error ?? ""}
+                </p>
+                <p class="lf-trace-clock" ?hidden=${!origin}>
+                  ${trace?.streams.length > 1
+                    ? `${clockLabel} · each stream has its own clock`
+                    : clockLabel}
                 </p>
               </div>
             </div>

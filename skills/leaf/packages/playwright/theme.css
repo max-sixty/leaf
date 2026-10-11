@@ -85,18 +85,24 @@
 .lf-trace-lane { position: relative; block-size: calc(var(--lf-trace-rows, 1) * var(--lf-trace-row-h) + 6px); box-sizing: border-box; border-block-start: 1px solid var(--border-2); }
 .lf-trace-lane-input { block-size: var(--lf-trace-input-h); }
 .lf-trace-lane-captures { block-size: var(--lf-trace-capture-h); }
-:is(.lf-trace-tick, .lf-trace-moment-pin, .lf-trace-input-label, .lf-trace-bar, .lf-trace-capture) { position: absolute; left: calc(var(--lf-trace-edge) + var(--t) * var(--lf-trace-span)); }
+:is(.lf-trace-tick, .lf-trace-moment-pin, .lf-trace-input-label, .lf-trace-bar, .lf-trace-input-send, .lf-trace-capture) { position: absolute; left: calc(var(--lf-trace-edge) + var(--t) * var(--lf-trace-span)); }
 .lf-trace-tick { inset-block-end: 0; block-size: 4px; border-inline-start: 1px solid var(--border-2); }
 .lf-trace-tick-major { block-size: 100%; box-sizing: border-box; padding-inline-start: 3px; padding-block-start: 3px; border-inline-start-color: var(--muted); white-space: nowrap; }
+/* The last label reads back from its tick, inside the scale. */
+.lf-trace-tick-major[data-flip] { translate: -100% 0; padding-inline: 0 3px; border-inline-start: 0; border-inline-end: 1px solid var(--muted); }
+.lf-trace-tick-major[data-flip]::after { inset-inline: auto -1px; }
 /* Grid lines continue the major ticks through the lanes. */
 .lf-trace-tick-major::after { content: ""; position: absolute; inset-inline-start: -1px; inset-block-start: 100%; block-size: 400px; border-inline-start: 1px dashed color-mix(in srgb, var(--border-2) 70%, transparent); pointer-events: none; }
 .lf-trace-track { overflow: hidden; }
 /* Bars span their recorded call; a 2px floor keeps an instant visible. */
 .lf-trace-bar { inline-size: max(2px, calc(var(--d) * var(--lf-trace-span))); box-sizing: border-box; border-radius: 2px; cursor: pointer; }
 .lf-trace-call-bar { inset-block-start: calc(3px + var(--row, 0) * var(--lf-trace-row-h)); block-size: calc(var(--lf-trace-row-h) - 4px); background: color-mix(in srgb, var(--ink) 12%, var(--paper)); border-inline-start: 2px solid var(--lf-trace-mark); overflow: hidden; display: flex; align-items: center; color: var(--ink-2, var(--ink)); }
-.lf-trace-call-name { padding-inline: 3px; white-space: nowrap; overflow: hidden; text-overflow: clip; pointer-events: none; }
+.lf-trace-call-name { min-inline-size: 0; padding-inline: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
 .lf-trace-call-bar[data-error] { border-inline-start-color: var(--danger); background: var(--danger-tint, var(--paper-2)); }
-.lf-trace-input-bar { inset-block-end: 4px; block-size: 8px; background: var(--lf-trace-input); opacity: 0.55; }
+/* An input bar is its call's window, drawn open so it cannot read as a key held
+ * down; the solid notch is the Action checkpoint, just before the input is sent. */
+.lf-trace-input-bar { inset-block-end: 4px; block-size: 8px; border: 1px solid color-mix(in srgb, var(--lf-trace-input) 70%, transparent); background: color-mix(in srgb, var(--lf-trace-input) 14%, transparent); }
+.lf-trace-input-send { inset-block-end: 2px; block-size: 12px; inline-size: 2px; translate: -1px 0; z-index: 1; background: var(--lf-trace-input); cursor: pointer; }
 /* A label sits above its first call's bar, its left edge on that bar's start. */
 .lf-trace-input-label { inset-block-start: 3px; padding: 2px 4px; border-inline-start: 2px solid var(--lf-trace-input); background: var(--paper); color: var(--ink); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-sizing: border-box; cursor: pointer; }
 /* A moment flag's staff stands on its time; its numbers read to the right. */
@@ -106,11 +112,13 @@
 :is(.lf-trace-moment-pin, .lf-trace-input-label)[data-flip] { translate: -100% 0; border-inline-start: 0; border-inline-end: 2px solid var(--ink); }
 .lf-trace-input-label[data-flip] { border-inline-end-color: var(--lf-trace-input); }
 .lf-trace-moment-pin[data-flip] .lf-trace-moment-flag { border-radius: 8px 0 0 8px; border-inline-start: 1px solid var(--border-2); border-inline-end: 0; }
-.lf-trace-capture { inset-block: 3px; inline-size: 1px; background: var(--border-2); }
-.lf-trace-capture-checkpoint { inline-size: 2px; background: var(--lf-trace-mark); }
+/* Ticks with an image are the strong ones; a checkpoint without one is faint. */
+.lf-trace-capture { inset-block: 4px; inline-size: 1px; background: var(--border-2); }
+.lf-trace-capture[data-image] { inset-block: 2px; background: var(--lf-trace-mark); }
 :is(.lf-trace-call-bar, .lf-trace-input-label, .lf-trace-moment-pin):hover { z-index: 1; filter: brightness(0.94); }
-.lf-trace-input-bar[data-current], .lf-trace-input-label[data-current] { opacity: 1; background-color: var(--accent); color: var(--paper); }
-.lf-trace-input-label[data-current] { background: var(--accent); }
+.lf-trace-input-bar[data-current] { background: color-mix(in srgb, var(--accent) 35%, transparent); border-color: var(--accent); }
+.lf-trace-input-label[data-current] { background: var(--accent); color: var(--paper); }
+.lf-trace-more { margin-inline-start: 2px; padding-inline: 3px; border-radius: 6px; background: var(--paper-2, var(--paper)); color: var(--ink); font-weight: 600; }
 .lf-trace-call-bar[data-current] { background: var(--accent-tint); border-inline-start-color: var(--accent); color: var(--accent); }
 .lf-trace-bar[data-active] { outline: 1px solid var(--accent); outline-offset: 0; }
 .lf-trace-moment-pin[data-current] { border-inline-start-color: var(--accent); border-inline-end-color: var(--accent); }

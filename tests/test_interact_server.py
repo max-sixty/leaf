@@ -4472,8 +4472,15 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     ] == []
 
 
-def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
+def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
     """A browser check cannot combine state written after its candidate was frozen."""
+    now = datetime.now().astimezone().replace(microsecond=0)
+    monkeypatch.setattr(served_context, "now_iso", lambda: now.isoformat())
+    monkeypatch.setattr(page_snapshot_model, "now_iso", lambda: now.isoformat())
+    cleanup_model.write_json(
+        page_dir / "status.json",
+        {"state": "waiting", "detail": "", "ts": now.isoformat()},
+    )
     schema = {
         "type": "object",
         "properties": {
@@ -4517,9 +4524,17 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
         active["revision"],
         url=active["url"],
     )
-    projection = served_service.PageStateService(
-        page_dir, page_snapshot=snapshot
-    ).page_state()
+    projection = served_service.PageStateService(page_dir, source=snapshot).page_state()
+    # Live input can age on its clock; a capture changes only when replaced.
+    deadline = (now + activity_model.WORKING_GRACE).isoformat()
+    assert (
+        served_service.PageStateService(page_dir).page_state()["activity"][
+            "next_transition_at"
+        ]
+        == deadline
+    )
+    assert snapshot.context.work.activity["next_transition_at"] == deadline
+    assert projection["activity"]["next_transition_at"] is None
 
     append_carried_log_record(
         page_dir,
@@ -4538,9 +4553,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
     )
     publish(page_dir)
 
-    after = served_service.PageStateService(
-        page_dir, page_snapshot=snapshot
-    ).page_state()
+    after = served_service.PageStateService(page_dir, source=snapshot).page_state()
     assert after["active"] == projection["active"]
     assert after["events"] == projection["events"]
     assert after["data"] == projection["data"]
@@ -4604,7 +4617,7 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
         active["revision"],
         url=active["url"],
     )
-    service = served_service.PageStateService(page_dir, page_snapshot=snapshot)
+    service = served_service.PageStateService(page_dir, source=snapshot)
     before = service.page_state()
     [gesture] = [
         row for row in before["browser"]["history"] if row["id"] == picked["id"]
@@ -5916,7 +5929,7 @@ def test_the_live_document_keeps_its_revision_and_version_in_one_transaction(
                 publishing_model.cmd_stamp(page_dir, "Concurrent publication")
             return answer
 
-    monkeypatch.setattr(http_model, "PageTransaction", ConcurrentPublication)
+    monkeypatch.setattr(served_service, "PageTransaction", ConcurrentPublication)
     status, body = fetch(f"{server}/")
     assert status == 200
     document = body.decode()

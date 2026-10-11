@@ -1525,7 +1525,6 @@ def initial_state(
     """Build the canonical state shared by users before any private mutation."""
     state = PageStateService(
         page_dir,
-        layer_identity=layer_metadata(page_dir),
         preview=preview_metadata(page_dir),
         publication={**PUBLICATION, "kind": kind},
     ).page_state(view_revision)

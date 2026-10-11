@@ -5848,7 +5848,9 @@ def test_dragging_an_edge_preserves_user_state(browser, serve, pointer):
                 )
         if pointer == "mouse":
             # A pointer drag leaves the existing keyboard focus standing.
-            assert handle.evaluate("e => e.matches(':focus') && e.hasAttribute('data-lf-focus')")
+            assert handle.evaluate(
+                "e => e.matches(':focus') && e.hasAttribute('data-lf-focus')"
+            )
             assert handle.evaluate("e => getComputedStyle(e).outlineStyle") == "solid"
         else:
             assert handle.evaluate("e => getComputedStyle(e).outlineStyle") == "none"

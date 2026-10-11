@@ -1,5 +1,5 @@
 /* Leaf's one rendering loop, and the one settled reading for the page's chrome and
-   geometry: nothing Leaf has queued for a rendering update is still waiting, and the
+   geometry: no registered preparation or queued rendering update is still waiting, and the
    last update produced no size change a Leaf observer heard. A reader outside the page
    waits on it after a gesture rather than guessing a number of frames.
 
@@ -65,8 +65,13 @@
    one quiet update. A counted request or delivery unsettles it synchronously, so a
    reader asking straight after an input handler that queued work reads false.
 
-   What the reading cannot see is work an owner holds in a timer or a promise before it
-   asks for a rendering update, an IntersectionObserver delivery (a task after the
+   Finite asynchronous preparation registers a `holdRendering` until it commits or its
+   owner retires. Registration unsettles synchronously; release requires a final quiet
+   update, including the preparation's DOM writes and observer deliveries. A held local
+   edit is not rendering work: it defers a semantic reading until the gesture ends.
+
+   What the reading cannot see is unregistered work an owner holds in a timer or a
+   promise before it asks for a rendering update, an IntersectionObserver delivery (a task after the
    update, which may land after the check), what vendored bundles schedule for
    themselves, and a layout change no counted callback or observer takes part in. A
    reader outside the page that caused such a change lets one rendering update pass
@@ -101,6 +106,20 @@ let frame = 0;
 let heard = false;
 let quiet = false;
 let checking = false;
+let preparations = 0;
+
+/** Keep finite preparation pending until it commits or its owner retires. */
+export function holdRendering() {
+  preparations++;
+  unsettle();
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    preparations--;
+    unsettle();
+  };
+}
 
 function request(into, callback) {
   const id = ++lastId;
@@ -186,7 +205,7 @@ export function sizeObserver(callback, { counted = true } = {}) {
   });
 }
 
-export const renderingSettled = () => quiet || !rendered();
+export const renderingSettled = () => (quiet && preparations === 0) || !rendered();
 
 function rendered() {
   if (document.hidden) return false;

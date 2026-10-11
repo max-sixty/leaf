@@ -86,7 +86,18 @@ user outside it waits on the page rather than on a widget it would have to know 
 A declared `x-shadow` widget gets the same transition protection when it builds its root
 with `shadowStage`.
 
-## Template containers
+## Template rendering
+
+Use Leaf's public `render(template, container)` when a paint must land in the
+turn that caused it, including a forward widget gesture. `LitElement` schedules
+updates on a microtask; use it only for runtime faces whose contract permits that
+delay. Package widgets extend `HTMLElement` and
+receive semantic state through `widgetController`, without a LitElement widget
+base or a reactive copy of that state.
+
+Templates own generated containers or bounded ranges, rather than authored
+children. Retain concrete native nodes with `setChildren` for rows holding
+iframes or editors: `repeat` currently moves rows by disconnecting them.
 
 Once `render(template, container)` owns a container, update its children through
 `render` so Lit retains its markers and disconnects removed directives. `failSoft`
@@ -110,7 +121,8 @@ A behavior module follows these rules:
   control anatomy. `offered` owns the element's class and chrome markers; native
   button type defaults to `button`. A native input's `type` binding precedes
   `offered` so its press marker reads that type. Bind values and handlers normally, and use
-  `repeat(items, identity, template)` to retain editable controls under their identities.
+  `repeat(items, identity, template)` to retain keyed controls, subject to the
+  container and native-state rules in "Template rendering".
   `said(true)`, `said(false)`, or `said("echo")` marks a template element's words with
   the same passage and print meaning as `relabel`; Lit owns the element's content.
 - Read UI based on element geometry synchronously from `PRESENTATION` for its
@@ -1094,6 +1106,18 @@ focus. Materializing a message without focus leaves clearance to its later arriv
 Whole conversations include settlement controls; a fragment feed supplies
 Resolve/Reopen through `threadActions`. Unregister on disconnect. The worked `lf-conversation-workspace` in the
 feature gallery switches Conversation, Shelf and Feed with these APIs.
+
+## Reading version changes
+
+`comparisonChanges(owner)` returns the changed descendant Elements in the standing
+version comparison, excluding the owner itself. Omit the owner to read every changed
+Element. It reads the comparison's identities, so CSS markers do not determine
+membership. With no comparison standing it returns an empty array.
+
+`watchComparison(owner, callback)` calls the callback immediately when the owner is
+connected and whenever the comparison changes. It pauses while the owner is detached
+and reads again on reconnection. Its returned function permanently ends the watch.
+Use `comparisonChanges` in the callback to update counts or other local presentations.
 
 ## Reading Questions and obligation queues
 

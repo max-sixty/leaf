@@ -17,6 +17,13 @@
   }
   const script = document.currentScript;
   const root = document.documentElement;
+  // runtime/ids.js's randomId, which this classic script cannot import: a sample
+  // child served by `leaf --host` over plain HTTP has no crypto.randomUUID, nor does a
+  // site build served that way.
+  const randomId = () =>
+    Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
+      byte.toString(16).padStart(2, "0"),
+    ).join("");
   // The sample URL grants this document its own server operations. An opaque
   // origin keeps it out of its parent's DOM and storage; native network APIs keep
   // their ordinary browser behavior. Only presentation values use the private port.
@@ -77,7 +84,7 @@
           window.addEventListener(type, enterSample, true);
       };
       const sample = new URL(`${script.dataset.lfPageRoot}/`, location.origin).pathname;
-      const nonce = crypto.randomUUID();
+      const nonce = randomId();
       const connect = (event) => {
         if (
           event.source !== window.parent ||
@@ -304,7 +311,7 @@
         keepalive: true,
         body: JSON.stringify({
           version: 2,
-          loadId: crypto.randomUUID(),
+          loadId: randomId(),
           release,
           layer,
           outcome,

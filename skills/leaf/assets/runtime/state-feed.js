@@ -28,6 +28,7 @@ import { completeReadingReturn, readingReturn } from "./reading-continuity.js";
 import {
   layerHeaders,
   admitResponse,
+  reportCarried,
   reportPageError,
   sessionIsActive,
 } from "./layer-client.js";
@@ -116,6 +117,14 @@ export function createStateFeed({
 }) {
   let readAnswered = false;
 
+  // A read that did not land: the page asks again on the next tick and says why. A fault
+  // its producer already reported (a paint, a state application) is reported once.
+  function failed(error) {
+    readAnswered = false;
+    reportCarried(error, `read failed`);
+    renderStatus(error);
+  }
+
   // The clock has no state to replay. Only an explicitly deferred projection needs
   // another attempt; time-dependent paints remember their own displayed readings.
   async function tick() {
@@ -171,7 +180,7 @@ export function createStateFeed({
       await tick();
     } catch (error) {
       readAnswered = false;
-      reportPageError(error, `tick failed`);
+      reportCarried(error, `tick failed`);
     }
   }
 
@@ -198,9 +207,7 @@ export function createStateFeed({
           outcome = "applied";
         } catch (error) {
           outcome = "failed";
-          readAnswered = false;
-          reportPageError(error, `read failed`);
-          renderStatus(error);
+          failed(error);
         }
       })().finally(() => {
         clearTimeout(waited);
@@ -219,9 +226,7 @@ export function createStateFeed({
         if (outcome === "waiting") await readNothing();
         await present();
       } catch (error) {
-        readAnswered = false;
-        reportPageError(error, `read failed`);
-        renderStatus(error);
+        failed(error);
       }
     };
     // What the page does when a freshness look says it has moved. State application remains
@@ -262,16 +267,14 @@ export function createStateFeed({
                   completeReadingReturn(returned);
               },
               async (error) => {
-                readAnswered = false;
-                reportPageError(error, `read failed`);
-                renderStatus(error);
+                failed(error);
                 await present();
               },
             )
             // Presentation's own fault is reported as its own: the read behind it
             // stands, and the tick retries the presentation rather than the read.
             .catch((error) => {
-              reportPageError(error, `presentation failed`);
+              reportCarried(error, `presentation failed`);
             })
             .finally(() => {
               applyingReads -= 1;
@@ -282,16 +285,10 @@ export function createStateFeed({
               await present();
               if (!applyingReads && !stateApplying()) completeReadingReturn(returned);
             })
-            .catch((error) => {
-              readAnswered = false;
-              reportPageError(error, `read failed`);
-              renderStatus(error);
-            });
+            .catch(failed);
         }
       } catch (error) {
-        readAnswered = false;
-        reportPageError(error, `read failed`);
-        renderStatus(error);
+        failed(error);
       }
     };
     const ask = () => {
@@ -384,7 +381,7 @@ export function createStateFeed({
           if (offlineInteractive || passiveSample || !sessionIsActive())
             completeReadingReturn(returned);
         })
-        .catch((error) => reportPageError(error, `return presentation failed`));
+        .catch((error) => reportCarried(error, `return presentation failed`));
       listen();
     });
     document.addEventListener("lf-session-active", listen);

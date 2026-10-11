@@ -7,17 +7,17 @@ its file signature before both paths meet at the same content-addressed writer.
 """
 
 import hashlib
-import sys
 from pathlib import Path
 
 from leaf.files import replace_files
+from leaf.refusals import Refused
 from leaf.schema import MEDIA_DIGEST, MEDIA_DIR, MEDIA_TYPES
 from leaf.service import PageTransaction
 
 MAX_MEDIA_UPLOAD_BYTES = 10 * 1024 * 1024
 
 
-class MediaUploadError(ValueError):
+class MediaUploadError(Refused):
     """A browser upload that cannot become served page media."""
 
 
@@ -91,7 +91,7 @@ def cmd_media(page_dir: Path, files: list) -> list:
     out = []
     for src in files:
         if src.suffix.lower() not in MEDIA_TYPES:
-            sys.exit(
+            raise Refused(
                 f"{src}: not a media type leaf serves — {', '.join(sorted(MEDIA_TYPES))}"
             )
         data = src.read_bytes()

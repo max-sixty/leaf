@@ -17,7 +17,7 @@ import {
 } from "./resolved-target.js";
 import { overlaps } from "./rect.js";
 import { clippedContents } from "./geometry.js";
-import { inUi, uiInside, under, upFrom } from "./shadow.js";
+import { inUi, shadowHost, uiInside, under, upFrom } from "./shadow.js";
 import {
   registeredVisualPart,
   registeredVisualPartAt,
@@ -276,9 +276,11 @@ export function addressableAt(node) {
   return null;
 }
 
-// Markdown block structure is reading geometry, not authored annotation identity.
-// A whole-body formatter replaces one authored data record with paragraphs/lists;
-// its declared host remains the seat that comments and reactions can name durably.
+// The seat of a node: the element its margin row, response bar, note and reaction
+// receipt stand at. Markdown block structure is reading geometry, not authored
+// annotation identity. A whole-body formatter replaces one authored data record with
+// paragraphs/lists; its declared host remains the seat that comments and reactions can
+// name durably. A resolved passage's `place` is its first segment's seat.
 export function annotationAt(node) {
   const formatted = tagsDeclaring(
     (entry) => entry["x-text-format"] === "markdown",
@@ -289,6 +291,9 @@ export function annotationAt(node) {
     addressableAt(node)
   );
 }
+
+// A seat inside a shadow root stands at its host, where light-DOM chrome can sit.
+export const lightSeat = (seat) => (seat && shadowHost(seat.getRootNode())) ?? seat;
 
 const HTML_WORDS = {
   input: "control",
@@ -844,7 +849,7 @@ export function resolveAnchor(anchor, text = "") {
     return segments.length
       ? {
           ...resolvedPassage({
-            place: segments[0].block ?? datums[0],
+            place: annotationAt(segments[0].node) ?? datums[0],
             segments,
           }),
           datumElement: datums[0],
@@ -906,7 +911,7 @@ export function resolveAnchor(anchor, text = "") {
   const controlFace =
     face && segments.every(({ node }) => closestAcross(node, WORKS) === face);
   return resolvedPassage({
-    place: controlFace ? face : (segments[0].block ?? addressableAt(segments[0].node)),
+    place: controlFace ? face : annotationAt(segments[0].node),
     segments,
   });
 }

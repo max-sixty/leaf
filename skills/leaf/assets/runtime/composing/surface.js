@@ -49,6 +49,7 @@
 import {
   addressableWord,
   anchoringIsReady,
+  lightSeat,
   resolveAnchor,
   visualAt,
 } from "../anchor-resolution.js";
@@ -117,7 +118,7 @@ import {
   closeLayer,
 } from "../focus.js";
 import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
-import { shadowHost, under, upFrom } from "../shadow.js";
+import { under, upFrom } from "../shadow.js";
 import { nativeLayers } from "../keyboard/layer-stack.js";
 import { heldQuestion } from "../standing-target.js";
 
@@ -491,10 +492,10 @@ export function createResponseSurface({
     return false;
   }
   // The durable anchor names the authored coordinate an event can replay, while the
-  // margin needs the rendered block the gesture is visibly on. Those are deliberately
+  // margin needs the rendered seat the gesture is visibly on. Those are deliberately
   // different for selected words inside a paragraph without an ID: the event names its
-  // enclosing section, but both the temporary picker and the standing receipt sit at
-  // the paragraph. Match seatReactions' shadow-boundary rule so live and replay agree.
+  // enclosing section, but the bar, margin row, note and reaction receipt all stand at
+  // the resolved `place`, lifted out of a shadow root by `lightSeat`.
   //
   // Asked of any anchor rather than only of the standing one: a draft the composer put
   // away carries its own anchor and nothing else in the runtime can say which block that
@@ -504,9 +505,7 @@ export function createResponseSurface({
     const found = resolveAnchor(anchor, pageText());
     if (!found) return null;
     if (!anchor.quote) return targetElement(found);
-    const place = targetPlace(found);
-    if (!place) return null;
-    return shadowHost(place.getRootNode()) ?? place;
+    return lightSeat(targetPlace(found));
   };
   const anchorTravelAt = (anchor) =>
     (anchor?.quote && targetRange(resolveAnchor(anchor, pageText()))) ||

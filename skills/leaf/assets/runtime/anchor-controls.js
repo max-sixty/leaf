@@ -25,6 +25,7 @@ import {
   fragmentId,
   fragmentTarget,
   annotationAt,
+  lightSeat,
   resolveAnchor,
   sectionOf,
   unclaimedVisualGesture,
@@ -354,14 +355,11 @@ export function createAnchorControls({
     for (const { thread, placement: found } of readings) {
       if (found.status === "outdated" || thread.resolved) continue;
       if (bareReaction(thread)) {
-        let at;
-        let before;
-        if (targetElement(found)) [at, before] = [found.place, true];
-        else {
-          const block = annotationAt(targetSegments(found)[0].node);
-          const host = shadowHost(block?.getRootNode());
-          [at, before] = host ? [host, true] : [block, false];
-        }
+        // An element target's receipt goes before it, as does a passage seated at a
+        // shadow host; a light-DOM passage's receipt goes inside its seat.
+        const element = Boolean(targetElement(found));
+        const at = element ? found.place : lightSeat(found.place);
+        const before = element || at !== found.place;
         if (at && !inChrome(at)) {
           const held = reactions.get(at) ?? { before: [], inside: [] };
           held[before ? "before" : "inside"].push(thread.root);

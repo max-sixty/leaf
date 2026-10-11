@@ -7453,9 +7453,9 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         '.lf-command-reference tr[data-lf-command="reading.align.top"]'
     )
     expect(alignment).to_have_count(1)
-    # No reading item stands while the reference opens from page chrome, so this
-    # capability has only its unbound page control in this scene.
-    expect(alignment.locator(".lf-binding-sequence > kbd")).to_have_text(["⏎ / space"])
+    # Alignment has a page-level route even when no reading item stands while
+    # the reference opens from chrome.
+    expect(alignment.locator(".lf-binding-sequence > kbd")).to_have_text(["g", "z"])
     overlaps = goto.locator("tr[data-lf-command]").evaluate_all(
         """rows => rows.flatMap(row => {
           const [key, action] = row.querySelectorAll(':scope > td');
@@ -12491,8 +12491,11 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     page.locator(".lf-threads").focus()
     expect(page.locator(f"{EXPANDED} > .lf-thread-summary")).to_be_focused()
     expect(visible_hints.nth(0)).not_to_contain_text("send")
-    page.locator(f"{EXPANDED} .lf-thread-reply leaf-text").focus()
+    reply = page.locator(f"{EXPANDED} .lf-thread-reply leaf-text")
+    reply.focus()
     expect(visible_hints).to_have_count(2)
+    expect(visible_hints.nth(0)).to_contain_text("edit last message")
+    write(reply, "A reply in progress.")
     expect(visible_hints.nth(0)).to_contain_text("send")
     expect(visible_hints.nth(1)).to_contain_text("back to thread")
 

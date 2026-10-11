@@ -2,7 +2,7 @@
    module: composing/selection.js builds its response button with an icon as it
    evaluates. */
 
-import { html } from "../vendor/browser-runtime.js";
+import { html, render } from "../vendor/browser-runtime.js";
 
 // Built-in margin entry faces use one stroked, currentColor icon vocabulary. Reaction tokens
 // are authored content and may supply emoji; structural Leaf faces keep their line
@@ -60,12 +60,7 @@ export function iconTemplate(icon, className = "lf-margin-entry-icon") {
 }
 
 export function iconElement(icon, className = "lf-margin-entry-icon") {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", "0 0 16 16");
-  svg.setAttribute("focusable", "false");
-  svg.setAttribute("aria-hidden", "true");
-  svg.classList.add(className);
-  svg.dataset.lfIcon = icon;
-  svg.innerHTML = iconMarkup(icon);
-  return svg;
+  const holder = document.createDocumentFragment();
+  render(iconTemplate(icon, className), holder);
+  return holder.querySelector("svg");
 }

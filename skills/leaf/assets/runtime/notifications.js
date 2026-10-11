@@ -9,14 +9,11 @@
    hears the same words. It is text rather than a control: what a notice names, the
    banner's own buttons reach. There is no second surface for news, so nothing floats in
    a corner to become a stale pointer target. */
-import { nothing, render } from "../vendor/browser-runtime.js";
-
 import { el } from "./widget-elements.js";
 import { afterScript } from "./rendering.js";
 
 export const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
-render(nothing, liveEl);
 
 // How long a notice holds the status line before the line's own words come back: long
 // enough to read a recorded acknowledgement, short enough that the state behind it is
@@ -57,13 +54,11 @@ const presentNotice = (message, visible) => {
 
 export function announce(msg) {
   // Removing and restoring the text node makes repeated identical announcements a
-  // fresh live-region change rather than a value Lit can correctly leave untouched.
-  render(nothing, liveEl);
+  // fresh live-region change, including when two arrivals' delays overlap.
+  if (liveEl.firstChild) liveEl.replaceChildren();
   setTimeout(() => {
-    // Each arrival owns a fresh insertion, including two equal announcements whose
-    // delays overlap. Lit would otherwise correctly reuse the first callback's text.
-    render(nothing, liveEl);
-    render(msg, liveEl);
+    if (liveEl.firstChild) liveEl.replaceChildren();
+    liveEl.append(msg);
   }, 30);
 }
 

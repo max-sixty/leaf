@@ -24,6 +24,7 @@
 import Sortable from "/vendor/sortable.esm.js";
 import {
   once,
+  move,
   offer,
   quoted,
   says,
@@ -460,7 +461,7 @@ customElements.define(
         });
       const first = card.getBoundingClientRect();
       const rest = this.#cards(col).filter((c) => c !== card);
-      col.moveBefore(card, rest[index] ?? null);
+      move(col, card, rest[index] ?? null);
       if (grip) {
         focusDestination(grip, "return");
         scrollIntoView(card, {
@@ -610,7 +611,7 @@ customElements.define(
         order.forEach((id, index) => {
           const card = cards.find((candidate) => candidate.id === id);
           if (card && this.#cards(column)[index] !== card)
-            column.moveBefore(card, this.#cards(column)[index] ?? null);
+            move(column, card, this.#cards(column)[index] ?? null);
         });
       }
       restoreFocus?.();

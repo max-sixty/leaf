@@ -145,7 +145,7 @@ export function liveStages() {
 }
 
 const stands = (el) => {
-  const root = el.getRootNode();
+  const root = Node.prototype.getRootNode.call(el);
   return root === document
     ? document.body.contains(el)
     : stages.has(root) && root.host.isConnected;
@@ -225,7 +225,7 @@ export function watchArrivalsIn(stage) {
 const scrollListeners = new Set();
 const SCROLL = { capture: true, passive: true };
 const heardIn = (stage) => (event) => {
-  if (event.target.getRootNode() !== stage) return;
+  if (Node.prototype.getRootNode.call(event.target) !== stage) return;
   for (const listener of scrollListeners) listener(event);
 };
 export function watchScrolls(listener) {

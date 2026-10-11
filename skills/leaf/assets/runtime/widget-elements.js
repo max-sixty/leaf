@@ -42,10 +42,17 @@ import { tagsDeclaring } from "./registry.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { shownBox } from "./geometry.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
-import { iconElement } from "./icons.js";
+import { iconElement, iconTemplate } from "./icons.js";
 import { renderedParent } from "./shadow.js";
 import { keeps, keepsText } from "./keeps.js";
-import { Directive, PartType, directive, nothing } from "../vendor/browser-runtime.js";
+import {
+  Directive,
+  PartType,
+  directive,
+  nothing,
+  html,
+  render,
+} from "../vendor/browser-runtime.js";
 
 // A scroll target can sit inside a collapsed container — a closed <details>, an
 // inactive tab. Opening what the platform owns (details) and letting a container
@@ -558,30 +565,17 @@ export function responseAction(
     control.setAttribute("aria-expanded", "false");
   if (behavior === "action") control.removeAttribute("aria-expanded");
   if (!control.hasAttribute("aria-label")) control.setAttribute("aria-label", label);
-  const [shownGlyph, , shownLabel] = control.children;
-  if (
-    shownLabel?.matches(".lf-response-action-label") &&
-    shownLabel.textContent === label &&
-    (icon
-      ? shownGlyph.dataset.lfIcon === icon
-      : shownGlyph.matches(".lf-response-action-glyph") &&
-        shownGlyph.textContent === glyph)
-  )
-    return control;
-  const glyphNode = icon ? iconElement(icon) : document.createElement("span");
-  if (!icon) {
-    glyphNode.className = "lf-response-action-glyph";
-    glyphNode.setAttribute("aria-hidden", "true");
-    glyphNode.textContent = glyph;
-  }
-  const spaceNode = document.createElement("span");
-  spaceNode.className = "lf-response-action-space";
-  spaceNode.setAttribute("aria-hidden", "true");
-  spaceNode.textContent = " ";
-  const labelNode = document.createElement("span");
-  labelNode.className = "lf-response-action-label";
-  labelNode.textContent = label;
-  control.replaceChildren(glyphNode, spaceNode, labelNode);
+  render(
+    html`${
+        icon
+          ? iconTemplate(icon)
+          : html`<span class="lf-response-action-glyph" aria-hidden="true"
+              >${glyph}</span
+            >`
+      }<span class="lf-response-action-space" aria-hidden="true"> </span
+      ><span class="lf-response-action-label">${label}</span>`,
+    control,
+  );
   return control;
 }
 

@@ -177,8 +177,8 @@
    widget wears. The chrome holds itself out instead, from inside its own scope. */
 body:is(.lf-aiming, [data-lf-design-mode]) { cursor: default; }
 body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item { cursor: pointer; }
-/* Page words accept drawing presses; runtime surfaces and widget offers keep their
-   controls usable. An aim box adds semantic context where one is available. */
+/* The document plane, including page-widget controls, accepts drawing presses.
+   Runtime surfaces keep their controls usable wherever their owner seats them. */
 html[data-lf-region-capture],
 html[data-lf-region-capture] body,
 html[data-lf-draw-mode],
@@ -188,9 +188,7 @@ html[data-lf-region-capture] main *,
 html[data-lf-draw-mode] main,
 html[data-lf-draw-mode] main * { cursor: crosshair !important; }
 html[data-lf-draw-mode] main [data-lf-runtime],
-html[data-lf-draw-mode] main [data-lf-runtime] *,
-html[data-lf-draw-mode] main [data-lf-offer],
-html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
+html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
 /* The glyphs of the reactions standing on a target — a margin entry per reaction,
    revealing a separately named removal action. */
 .lf-react-mark { text-align: center; }

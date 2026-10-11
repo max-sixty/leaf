@@ -354,10 +354,11 @@ function restingRail() {
 // inside it if a pointing gesture named one (pointed-place.js): the row standing there
 // now where one is shown, else where a rail row would stand at rest, `--rail-hang` off
 // `main`'s edge and one entry wide, and nothing where the rail does not stand beside
-// `target`, whose rows are pins placed as they come. A comment's surfaces keep it clear
-// (comment-placement.js), so the row a sent comment brings stays in view. A pin also
-// supplies its selected attachment and scroller, so both comment surfaces share the
-// boundary whose clip and native motion carry that seat.
+// `target`, whose rows are pins placed as they come. comment-placement.js keeps this
+// row clear when the full preferred message width fits beyond it; otherwise the
+// message takes priority over marker clearance. A pin also supplies its selected
+// attachment and scroller, so both comment surfaces share the boundary whose clip
+// and native motion carry that seat.
 export function marginSpot(target, point = null) {
   for (const [row, options] of rows)
     if (

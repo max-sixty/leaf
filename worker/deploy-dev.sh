@@ -11,7 +11,7 @@ set -euo pipefail
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 worker_root="$repo_root/worker"
 origin=https://leaf-website-dev.maxsixty.workers.dev
-wrangler="$worker_root/node_modules/.bin/wrangler"
+wrangler="$repo_root/node_modules/.bin/wrangler"
 secret_file=
 release_index=
 
@@ -30,7 +30,7 @@ if [[ -z ${CLOUDFLARE_API_TOKEN:-} ]]; then
   exit 2
 fi
 if [[ ! -x "$wrangler" ]]; then
-  echo "website dependencies are missing; run npm ci --prefix $worker_root" >&2
+  echo "website dependencies are missing; run npm ci in $repo_root" >&2
   exit 2
 fi
 

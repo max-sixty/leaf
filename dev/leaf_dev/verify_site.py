@@ -941,6 +941,46 @@ class LocalWorker:
         check(container not in self.containers(), "the page container did not stop")
         wait_for_host_network()
 
+    def diagnose(self) -> None:
+        """Retain owned containers' state and both log streams before teardown.
+
+        Worker proxy output cannot say whether Python restored its record or even
+        started. A failed verification therefore reads Docker directly while the
+        Worker and its containers still exist. Inspect only State, never Config,
+        which contains credentials. Diagnostic failures preserve the original error.
+        """
+        path = self.evidence / "containers.log"
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("w") as output:
+                containers = docker_command(
+                    "ps", "--all", "--quiet", "--filter", f"name=^workerd-{self.name}-"
+                ).split()
+                for container in containers:
+                    for arguments in (
+                        ("inspect", "--format", "{{json .State}}", container),
+                        ("logs", "--timestamps", "--tail", "200", container),
+                    ):
+                        output.write(f"docker {' '.join(arguments)}\n")
+                        output.flush()
+                        try:
+                            subprocess.run(
+                                ["docker", *arguments],
+                                stdout=output,
+                                stderr=subprocess.STDOUT,
+                                check=False,
+                                timeout=10,
+                            )
+                        except (subprocess.TimeoutExpired, OSError) as error:
+                            output.write(f"Container diagnostics: {error}\n")
+            sys.stderr.write(path.read_text(errors="replace"))
+        except (RuntimeError, subprocess.TimeoutExpired, OSError) as error:
+            try:
+                print(f"Container diagnostics: {error}", file=sys.stderr)
+            except OSError:
+                # A broken diagnostic sink must not replace the verification error.
+                pass
+
 
 @contextmanager
 def local_worker() -> Iterator[LocalWorker]:
@@ -1010,7 +1050,12 @@ def local_worker() -> Iterator[LocalWorker]:
                 180,
                 cwd=ROOT / "worker",
             ) as origin:
-                yield LocalWorker(origin, release, name, out)
+                worker = LocalWorker(origin, release, name, out)
+                try:
+                    yield worker
+                except BaseException:
+                    worker.diagnose()
+                    raise
     finally:
         failure = sys.exception()
         try:

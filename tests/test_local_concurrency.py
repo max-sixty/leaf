@@ -3,6 +3,7 @@
 import json
 import os
 import socket
+import subprocess
 import sys
 import urllib.request
 from contextlib import ExitStack
@@ -10,6 +11,7 @@ from pathlib import Path
 from threading import Event, Thread
 
 import leaf_website
+import pytest
 from interact_support import STATED_TIMEOUT, wait_for
 from leaf_dev import ROOT, verify_site
 
@@ -67,6 +69,86 @@ def test_a_delayed_prewarm_cannot_revive_a_closed_website_harness():
     assert not worker.is_alive()
     assert harness.process is None
     assert not harness.socket_path.parent.exists()
+
+
+def test_failed_worker_retains_container_state_and_both_log_streams(
+    tmp_path, monkeypatch, capsys
+):
+    """Docker's two streams survive even when the diagnostic command itself fails."""
+    executable = tmp_path / "docker"
+    calls = tmp_path / "calls.jsonl"
+    executable.write_text(
+        f"""#!{sys.executable}
+import json, sys
+from pathlib import Path
+with Path({str(calls)!r}).open('a') as output:
+    output.write(json.dumps(sys.argv[1:]) + '\\n')
+if sys.argv[1] == 'ps':
+    print('owned-page')
+    print('owned-other')
+elif sys.argv[1] == 'inspect':
+    print('{{"Running":true,"ExitCode":0}}')
+else:
+    print('restoring saved page record')
+    print('restore request stalled', file=sys.stderr)
+    sys.stderr.buffer.write(bytes([255]))
+    sys.exit(1)
+"""
+    )
+    executable.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ['PATH']}")
+    worker = verify_site.LocalWorker("unused", "release", "isolated", tmp_path)
+    failure = RuntimeError("saved-state write did not finish")
+    with pytest.raises(RuntimeError) as propagated:
+        try:
+            raise failure
+        except RuntimeError:
+            worker.diagnose()
+            raise
+    assert propagated.value is failure
+    evidence_path = tmp_path / "containers.log"
+    evidence = evidence_path.read_text(errors="replace")
+    assert b"\xff" in evidence_path.read_bytes()
+    assert "\ufffd" in evidence
+    assert '"Running":true' in evidence
+    assert "restoring saved page record" in evidence
+    assert "restore request stalled" in evidence
+    assert evidence == capsys.readouterr().err
+    assert [json.loads(line) for line in calls.read_text().splitlines()] == [
+        ["ps", "--all", "--quiet", "--filter", "name=^workerd-isolated-"],
+        ["inspect", "--format", "{{json .State}}", "owned-page"],
+        ["logs", "--timestamps", "--tail", "200", "owned-page"],
+        ["inspect", "--format", "{{json .State}}", "owned-other"],
+        ["logs", "--timestamps", "--tail", "200", "owned-other"],
+    ]
+    real_run = subprocess.run
+
+    def timeout_first_inspection(command, **kwargs):
+        if command[1] == "inspect" and command[-1] == "owned-page":
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+        return real_run(command, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(subprocess, "run", timeout_first_inspection)
+        worker.diagnose()
+    evidence = evidence_path.read_text(errors="replace")
+    assert "timed out after 10 seconds" in evidence
+    assert "docker logs --timestamps --tail 200 owned-other" in evidence
+    assert evidence.count("restore request stalled") == 2
+    assert evidence == capsys.readouterr().err
+    # The verifier enters this helper while propagating its original failure.
+    # An unusable evidence destination must not turn that into a filesystem error.
+    blocked = tmp_path / "blocked"
+    blocked.write_text("regular file, not a directory")
+    worker = verify_site.LocalWorker("unused", "release", "isolated", blocked)
+    with pytest.raises(RuntimeError) as propagated:
+        try:
+            raise failure
+        except RuntimeError:
+            worker.diagnose()
+            raise
+    assert propagated.value is failure
+    assert "Container diagnostics:" in capsys.readouterr().err
 
 
 def test_local_worker_wrapper_announces_independent_bound_ports(tmp_path, spawn):

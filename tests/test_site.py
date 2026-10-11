@@ -177,7 +177,8 @@ class ReleasedAssetEndpoint(website_server.WebsitePageEndpoint):
     the adapter up alone serves a document whose runtime nothing answers for.
 
     The rewrite is `releaseAssetRoute`'s: the key after the release names the page,
-    and what follows it is that page's own published path under the asset tree.
+    and what follows it is that page's own published path under the asset tree. The
+    delivery headers are `stampDelivery`'s, which the runtime's probes read.
     """
 
     def __init__(self, request, server, *, asset_tree: Path, **bound) -> None:
@@ -207,6 +208,8 @@ class ReleasedAssetEndpoint(website_server.WebsitePageEndpoint):
                 {
                     "Access-Control-Allow-Origin": "*",
                     "Access-Control-Expose-Headers": "*",
+                    "Leaf-Layer": page["layer"],
+                    "Leaf-Release": self.release,
                 }
             )
             return response

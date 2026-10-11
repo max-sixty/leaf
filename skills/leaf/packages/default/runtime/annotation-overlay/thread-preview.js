@@ -32,7 +32,8 @@
    and target landing; the card keeps Send's focus on the thread that received it. */
 import { atScrollEnd, scrollToEnd } from "/runtime/scrolling.js";
 import { cancelRender, nextRender } from "/runtime/rendering.js";
-import { labelWords, spokenSubject } from "/runtime/contribution-model.js";
+import { spokenSubject } from "/runtime/contribution-model.js";
+import { labelWords } from "/runtime/words.js";
 import { THREAD_CARD } from "./margin-layout.js";
 import { mapButton } from "/runtime/page-map-dialog.js";
 import { focusDestination, holdFocus, onStanding, focused } from "/runtime/focus.js";

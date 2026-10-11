@@ -8,7 +8,8 @@
    refreshes after current widget claims and required conversation commits. Mechanical
    paints and immediate contribution updates refresh this same directory. */
 import { replyAvailable } from "./thread/replies.js";
-import { KINDS, excerptWords, labelWords } from "./contribution-model.js";
+import { KINDS } from "./contribution-model.js";
+import { excerptWords, labelWords } from "./words.js";
 import { contributionEntries } from "./contributions.js";
 import { marginInventory } from "./margin-model.js";
 import { standingPoint } from "./pointed-place.js";

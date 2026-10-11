@@ -39,8 +39,8 @@ import { captureDrawingFrame, resolveDrawingFrame } from "./drawing-geometry.js"
 import { clippedContents, elementFrame } from "../geometry.js";
 import { clamp, overlaps } from "../rect.js";
 import { COLLAPSE } from "../collapse.js";
+import { excerptWords } from "../words.js";
 import {
-  cut,
   closestAcross,
   elementFromPointAcross,
   elementOver,
@@ -319,10 +319,7 @@ export function createDrawingController({
       }),
     );
     if (!said) return drawing;
-    const says =
-      [...said].length > MAX_DRAWING_SAYS_LENGTH
-        ? `${cut(said, 0, MAX_DRAWING_SAYS_LENGTH - 1)}…`
-        : said;
+    const says = excerptWords(said, MAX_DRAWING_SAYS_LENGTH);
     return { ...drawing, says };
   }
 

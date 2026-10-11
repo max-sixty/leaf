@@ -121,6 +121,7 @@ export {
   sizeObserver,
 } from "./rendering.js";
 export { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
+export { excerptWords } from "./words.js";
 export {
   CONTRIBUTION_ENTRY_SCHEMA,
   contributionItemKey,

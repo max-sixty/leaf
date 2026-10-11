@@ -37,9 +37,14 @@ const exactClosures = {
   "queued-work.js": [],
   "control-selectors.js": [],
   "image-difference.js": [],
-  "contribution-model.js": [],
-  "margin-model.js": ["contribution-model.js"],
-  "margin-map-model.js": ["margin-model.js", "contribution-model.js"],
+  "contribution-model.js": ["words.js", "collapse.js"],
+  "margin-model.js": ["contribution-model.js", "words.js", "collapse.js"],
+  "margin-map-model.js": [
+    "margin-model.js",
+    "contribution-model.js",
+    "words.js",
+    "collapse.js",
+  ],
   "projection/model.js": ["collapse.js"],
   "projection/state.js": ["semantic-state.js", "queued-work.js"],
   "thread/model.js": [

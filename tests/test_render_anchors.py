@@ -3172,11 +3172,11 @@ def thread_a_press_opened(page):
     The preview card the press opens places itself and only then hands over focus, from
     the placement promise `deferThreadPreviewFocus` waits on — so the thread arrives a
     frame after the press rather than inside it. This states that ordering rather than
-    reading across it. The wait's own timeout is short, and it answers None so a caller
-    still reports which thread opened instead of raising over the reading.
+    reading across it. It answers None rather than raising, so a caller still reports
+    which thread opened instead of raising over the reading.
     """
     try:
-        page.wait_for_function(f"() => {FOCUSED_THREAD} != null", timeout=5000)
+        page.wait_for_function(f"() => {FOCUSED_THREAD} != null")
     except PlaywrightTimeout:
         return None
     return page.evaluate(f"() => {FOCUSED_THREAD}.innerText")

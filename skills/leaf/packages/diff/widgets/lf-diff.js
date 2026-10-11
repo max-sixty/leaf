@@ -234,8 +234,9 @@ function renderedLines(file, rendered) {
   });
 }
 
-// A path is its folders and then the file's own name, each a span, so a row too narrow
-// for the whole path gives way from the folders before the name (shadow.css). Where
+// A path separates ancestors, the immediate parent, and the basename. A narrow row
+// elides ancestors first so repeated basenames keep their distinguishing parent;
+// a rename shares the space between both basenames before folders (shadow.css). Where
 // a path wraps, as in a rename's row, it breaks after its slashes before anywhere else:
 // with no break in it but the one the stylesheet forces, a narrow row cut names mid-word
 // ("skills/wor|ktrunk", "preview.|rs"). The text is unchanged; a <wbr> adds only the
@@ -243,11 +244,16 @@ function renderedLines(file, rendered) {
 function pathTemplate(path) {
   const parts = path.split("/");
   const base = parts.pop();
+  const parent = parts.pop();
   return html`${
       parts.length
-        ? html`<span class="lf-diff-dir"
+        ? html`<span class="lf-diff-dir lf-diff-dir-ancestor"
             >${parts.map((part) => html`${part}/<wbr />`)}</span
           >`
+        : ""
+    }${
+      parent !== undefined
+        ? html`<span class="lf-diff-dir lf-diff-dir-parent">${parent}/</span><wbr />`
         : ""
     }<span class="lf-diff-base">${base}</span>`;
 }

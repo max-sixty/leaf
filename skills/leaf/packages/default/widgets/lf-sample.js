@@ -44,6 +44,7 @@ customElements.define(
     };
     #scheduleFit = frameFor(this, this.#fit);
     #ready;
+    #focusedContent = false;
     #mounting = false;
     #viewOperation;
     #view;
@@ -51,6 +52,14 @@ customElements.define(
 
     get ready() {
       return this.#ready;
+    }
+
+    get focusedContent() {
+      return this.#focusedContent;
+    }
+
+    restoreStanding() {
+      return this.#host?.call("restore-standing");
     }
 
     connectedCallback() {
@@ -92,8 +101,15 @@ customElements.define(
           }
           this.#host = host;
           host.on("height", ({ height }) => this.#height(height));
-          host.on("loading", () => this.#track(host.ready));
+          host.on("loading", () => {
+            this.#focusedContent = false;
+            this.#track(host.ready);
+          });
+          host.on("standing", ({ focused }) => {
+            this.#focusedContent = focused;
+          });
           host.on("departed", () => {
+            this.#focusedContent = false;
             this.#ready = host.ready;
             keepsText(this.#status, "");
             keeps(this.#reset, "aria-disabled", null);

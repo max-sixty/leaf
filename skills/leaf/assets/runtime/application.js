@@ -283,7 +283,6 @@ export function mountApplication(dependencies) {
   const annotations = createAnnotationInventory({
     readQuestions,
     comparisonBase: dependencies.annotationCommands.comparisonBase,
-    comparisonChanges: dependencies.annotationCommands.comparisonChanges,
     inlineComparison: dependencies.annotationCommands.inlineComparison,
     toggleInlineComparison: dependencies.annotationCommands.toggleInlineComparison,
     placedAt: dependencies.anchorPlacement.placedAt,

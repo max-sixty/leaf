@@ -8,9 +8,12 @@ JavaScript: the browser tests import runtime modules inside Python strings
 (`__lfRuntimeImport('/runtime/…')`), the render gate calls probes by name, and
 packages load by tag. A word search sees all of them.
 
-A name counts as read when any other tracked text file mentions it as a word,
-prose included. So a name that collides with another word in the tree can hide an
-unused export; the check never reports a used one.
+A name counts as read where another tracked file names it as a word: in code,
+in a Python string, in a page, or in a contract's prose. A JavaScript comment or a
+stylesheet reads nothing, since a module's comment about another's helper keeps
+no caller alive, except for a JSDoc type import (`import("…").Name`). A name that
+collides with another word can still hide an unused export; the check never
+reports a used one.
 """
 
 import re
@@ -18,6 +21,9 @@ import re
 from interact_support import PLUGIN_ROOT, shipped_payload
 
 SOURCES = (".js", ".mjs", ".ts")
+# Not `//` after a colon, quote or backtick, which is a URL or a string.
+COMMENT = re.compile(r"/\*.*?\*/|(?<![:\"'`\\])//[^\n]*", re.DOTALL)
+TYPE_IMPORT = re.compile(r"import\(\s*[\"'][^\"']+[\"']\s*\)\.([A-Za-z_$][\w$]*)")
 # Committed bundles are generated from the sources this reads, and a bundle names
 # every export it inlined, so they neither export nor read.
 VENDORED = re.compile(r"(^|/)vendor/")
@@ -44,6 +50,16 @@ def exported_names(text):
     return names - {"default"}
 
 
+def read_names(relative, text):
+    if relative.endswith(".css"):
+        return set()
+    if relative.endswith(SOURCES):
+        return set(WORD.findall(COMMENT.sub(" ", text))) | set(
+            TYPE_IMPORT.findall(text)
+        )
+    return set(WORD.findall(text))
+
+
 def test_every_export_has_a_reader_in_another_file():
     texts = {}
     for path in shipped_payload():
@@ -63,7 +79,7 @@ def test_every_export_has_a_reader_in_another_file():
 
     readers = {}
     for relative, text in texts.items():
-        for name in set(WORD.findall(text)) & exporters.keys():
+        for name in read_names(relative, text) & exporters.keys():
             readers.setdefault(name, set()).add(relative)
 
     unread = sorted(

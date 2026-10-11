@@ -23,10 +23,9 @@
 
    A length measured off the page is written to a style property through `layoutPx`.
    Layout resolves lengths to 1/64px, but a length recombined from client coordinates and
-   a fractional scroll offset (geometry.js, `documentPoint`) differs below that from one
-   pass to the next on a box that has not moved. The style serializer keeps six
-   significant digits, so the property reads back the same while the set still rewrites
-   the style attribute. A custom property keeps its text verbatim instead, and the same
+   a fractional scroll offset differs below that from one pass to the next on a box that
+   has not moved. The style serializer keeps six significant digits, so the property
+   reads back the same while the set still rewrites the style attribute. A custom property keeps its text verbatim instead, and the same
    drift there is a write of different text, so it falls outside this rule. */
 
 // Attribute writes also exist before modules run. Adopt that initial writer, whose

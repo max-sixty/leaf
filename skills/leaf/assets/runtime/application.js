@@ -72,7 +72,7 @@ export function mountApplication(dependencies) {
 
   const currentReceipts = () => readApplication().authoritative?.browser.receipts ?? [];
   // The destinations are built after the overlay, whose thread preview they take, and
-  // the views below open threads before that; they reach the destinations through this.
+  // the views built below before them hold this forwarder to open a thread.
   const openPageThread = (...args) => threadDestinations.openPageThread(...args);
 
   // Retire the entries the ledger's lifecycle says wait only for release, once every
@@ -198,7 +198,7 @@ export function mountApplication(dependencies) {
       notice(`Couldn't send — attempt ${attempt} is already in use`),
   });
 
-  const { post, dispatchWidget } = commandDispatch;
+  const { post } = commandDispatch;
 
   const projectionCommands = createProjectionCommands({
     post,
@@ -538,15 +538,13 @@ export function mountApplication(dependencies) {
   };
 
   application = {
-    ...projectionCommands,
-    ...engagement,
+    withdraw: projectionCommands.withdraw,
+    midComposition: engagement.midComposition,
     threadBox,
-    dispatchWidget,
     hasPending,
     invalidateDom,
     landInThread: dependencies.landInThread,
     annotations,
-    refreshAnnotationInventory,
     renderAnnotations,
     mountAnnotations,
     overlay,
@@ -559,7 +557,6 @@ export function mountApplication(dependencies) {
     post,
     projectData: dataProjection.projectData,
     readAndApply: feed.readAndApply,
-    receiveState,
     refreshThread,
     presentThread,
     placeThreads,

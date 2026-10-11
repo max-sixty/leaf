@@ -583,7 +583,7 @@ html:not([data-lf-live]) {
  * clipped and inserted after the title, and each of them takes the trim off the block the
  * user can actually see — so a settled option kept 13px under its last paragraph and a
  * block change kept 13 over its first, in exactly the widgets that build the most chrome.
- * The generated markers are the same pair the anchor pass reads (`GENERATED`, leaf.js),
+ * The generated markers are the same pair the anchor pass reads (`GENERATED`, passages.js),
  * because it is the same question: which of these words are the page's. That also
  * dissolves the sample's two arrangements into one, its "quoted ·" note being a
  * generated child on a live page and a pseudo-element on a page carrying no script.

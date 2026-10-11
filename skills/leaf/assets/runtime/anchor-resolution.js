@@ -270,7 +270,7 @@ export function isAddressable(at) {
   return !(visual && at.parentElement && closestAcross(at.parentElement, visual));
 }
 
-export function addressableAt(node) {
+function addressableAt(node) {
   let at = node?.nodeType === 1 ? node : node?.parentElement;
   for (; at; at = upFrom(at)) if (isAddressable(at)) return at;
   return null;

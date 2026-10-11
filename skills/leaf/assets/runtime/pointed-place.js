@@ -45,10 +45,9 @@ const handed = new Map();
 // Boxes that are not a line of their own: laid out within one, or drawing no box.
 const WITHIN_A_LINE = /^(inline|contents$)/;
 
-// The row a press on `node` points at inside `target`, or null for none.
-//
-// The line `node` lies on inside `target`: the nearest element around it that lays out
-// as a line or a block of its own, short of the target itself. Words, a link or code
+// The row a press on `node` points at inside `target`, or null for none. The row is the
+// line `node` lies on, which is the nearest element around it that lays out as a line or
+// a block of its own, short of the target itself. Words, a link or code
 // inline in the target's own lines have none, and neither does a drawing's shape, whose
 // `display` says nothing about lines.
 //

@@ -7,7 +7,7 @@ import type {
   BrowserCommand,
   CompleteUnion,
 } from "./event-contract.js";
-export type { Event, EventMap, BrowserCommand };
+export type { Event, BrowserCommand };
 import type { Immutable } from "./snapshot.ts";
 export type StateRecord =
   | { kind: "body" }

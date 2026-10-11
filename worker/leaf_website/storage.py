@@ -96,7 +96,7 @@ def restore(site_root: Path) -> None:
     """Restore durable records before any HTTP request or agent can change them."""
     if not os.environ.get("LEAF_PAGE_STORE_URL"):
         return
-    from leaf_website import SITE_MANIFEST
+    from leaf_website import LEAF_COMMAND, SITE_MANIFEST
 
     manifest = json.loads((site_root / SITE_MANIFEST).read_text())
     for root, record in _request("/records").items():
@@ -140,6 +140,9 @@ def restore(site_root: Path) -> None:
                 os.link(source, target)
             else:
                 shutil.copyfile(source, target)
+    # Every child writer, including native plugin hooks, must retain the
+    # interpreter that can import this provider rather than create a plugin env.
+    os.environ["LEAF"] = LEAF_COMMAND
     os.environ["LEAF_PAGE_COMMIT"] = "leaf_website.storage:publish"
 
 

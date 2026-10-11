@@ -43,7 +43,7 @@ $ARGUMENTS
 
 ## Operate
 
-When the harness sets `$LEAF`, use that launcher for every command shown as `leaf`.
+When the harness sets `$LEAF`, use that absolute launcher path for every command shown as `leaf`.
 Otherwise resolve the directory containing this `SKILL.md` and use its
 `../../bin/leaf` launcher; your harness contract may name that path directly or put
 it on `PATH`. If the resolved file is absent, report that the plugin payload is

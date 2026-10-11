@@ -32,6 +32,16 @@ state="$root/skills/leaf/scripts/leaf/state.py"
 if [ "$#" -eq 1 ] && [ "$1" = session-end ]; then
     exec python3 -S "$state"
 fi
+# Hosts may select an absolute launcher with additional provider dependencies.
+# Native hooks must use that same environment as commands from the Leaf skill.
+# A skill may also point LEAF back at this launcher (including through a symlink).
+case "${LEAF:-}" in
+    ''|/*) ;;
+    *) printf '%s\n' 'LEAF must name an absolute launcher path' >&2; exit 2 ;;
+esac
+if [ -n "${LEAF:-}" ] && [ ! "$LEAF" -ef "$0" ]; then
+    exec "$LEAF" "$@"
+fi
 if [ "$#" -eq 3 ] && [ "$1" = hook ] && [ "$2" = --harness ] && [ "$3" = codex ] &&
     [ -x "$root/.venv/bin/python" ]; then
     payload=$(cat)

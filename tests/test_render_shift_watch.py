@@ -12,6 +12,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import ASK_PAGE
 from render_harness import (
     consume_browser_errors,
+    holding,
     judge_watches,
     leaf_page,
     open_page,
@@ -1254,6 +1255,107 @@ def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve, wo
     rendered(page)
     judge_watches()
     consume_browser_errors(page, "button#control moved without input")
+
+
+def test_an_input_owns_a_widget_preparation_it_began_until_presented(browser, serve):
+    """A press's declared widget preparation is its result, however late it lands.
+
+    Opening a closed lf-diff file loads its evidence in a promise the widget presents
+    (`present`), which the rendering loop cannot see. Holding the file's grammar keeps
+    that preparation pending after the loop settles, as a loaded machine does; the files
+    after it still move only for the press that opened it."""
+    patch = "".join(
+        f"diff --git a/{name}.md b/{name}.md\n--- a/{name}.md\n+++ b/{name}.md\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+        for name in ("first", "second")
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Preparation",
+                f'<lf-diff id="patch" collapsed><pre>{escape(patch)}</pre></lf-diff>'
+                '<button id="control">Keep this control usable</button>',
+            )
+        ),
+    )
+    held = []
+    page.route("**/vendor/syntax/markdown.js", lambda route: held.append(route))
+    first = page.locator("#patch .lf-diff-file").first
+    first.locator(".lf-diff-head").click()
+    holding(page, held, 1, "the markdown grammar")
+    rendered(page)
+    assert (
+        page.evaluate(
+            "document.querySelector('script[data-lf-entry]').lfReadiness(null, 'presented')"
+        )
+        == "presented"
+    )
+    held[0].continue_()
+    expect(first.locator("[data-line]").last).to_contain_text("new")
+    rendered(page)
+    judge_watches()
+    assert page.lf_errors == []
+
+    # Once that preparation is presented, the press owns nothing further.
+    page.locator("#control").evaluate("node => node.style.marginTop = '40px'")
+    rendered(page)
+    judge_watches()
+    consume_browser_errors(page, "button#control moved without input")
+
+
+def test_waiting_for_first_history_cannot_extend_completed_local_input(browser, serve):
+    """Saved history waiting after offline presentation does not extend a local press."""
+    page = browser.new_page()
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
+    page.goto(
+        serve(
+            leaf_page(
+                "Waiting history",
+                '<button id="press">Update locally</button>'
+                '<output id="result">Before</output><div></div>'
+                '<button id="control" style="display:block;margin:0">Keep this control usable</button>',
+            )
+        ),
+        wait_until="load",
+    )
+    holding(page, held, 1, "the first saved-state response")
+    # Use the actual bounded offline presentation, without stamping readiness.
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    assert (
+        page.evaluate(
+            "document.querySelector('script[data-lf-entry]').lfReadiness(null, 'presented')"
+        )
+        == "log"
+    )
+    page.evaluate("""() => {
+      document.querySelector('#press').onclick = () => {
+        document.querySelector('#result').textContent = 'Updated';
+      };
+    }""")
+    page.locator("#press").click()
+    expect(page.locator("#result")).to_have_text("Updated")
+    rendered(page)
+    judge_watches()
+    assert take_browser_errors(page) == []
+    page.locator("#control").evaluate("node => node.style.marginTop = '40px'")
+    rendered(page)
+    judge_watches()
+    errors = take_browser_errors(page)
+    page.unroute("**/api/state*")
+    for route in held:
+        route.continue_()
+    assert errors, "waiting for first history retained unrelated local-input ownership"
+    assert all(
+        "button#control moved without input" in error.splitlines()[0]
+        for error in errors
+    )
+    assert any(
+        comparison["residual"] == {"left": 0, "top": 40}
+        for error in errors
+        for comparison in shift_evidence(error)["comparisons"]
+    ), errors
 
 
 def test_shift_judgement_waits_for_paint_instead_of_a_time_cap(browser):

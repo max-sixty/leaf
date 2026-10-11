@@ -548,6 +548,9 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
     fake_uv.chmod(0o755)
     monkeypatch.setenv("PATH", f"{tmp_path}:{os.environ['PATH']}")
     shim = PLUGIN_ROOT / "bin" / "leaf"
+    selected = tmp_path / "selected-leaf"
+    selected.symlink_to(shim)
+    monkeypatch.setenv("LEAF", str(selected))
 
     result = subprocess.run(
         [shim, *args],
@@ -575,6 +578,51 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
         "leaf",
         *args,
     ]
+
+
+def test_the_launcher_uses_the_hosts_selected_leaf_for_commands_and_hooks(
+    tmp_path, monkeypatch
+):
+    """A native plugin must retain the host's Python environment and hook stdin."""
+    launcher = tmp_path / "plugin" / "bin" / "leaf"
+    launcher.parent.mkdir(parents=True)
+    shutil.copy2(PLUGIN_ROOT / "bin" / "leaf", launcher)
+    selected = tmp_path / "selected leaf"
+    selected.write_text(
+        f"#!{sys.executable}\n"
+        "import sys\n"
+        "from leaf_website.storage import publish\n"
+        'sys.stdout.write("".join(f"{arg}\\n" for arg in sys.argv[1:]) + sys.stdin.read())\n'
+        "sys.exit(23)\n"
+    )
+    selected.chmod(0o755)
+    monkeypatch.setenv("LEAF", str(selected))
+    for args, payload in [
+        (["page", "check", "a page"], ""),
+        (["hook", "--harness", "codex"], '{"session_id":"hosted"}'),
+    ]:
+        result = subprocess.run(
+            [launcher, *args],
+            input=payload,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert (result.returncode, result.stdout, result.stderr) == (
+            23,
+            "".join(f"{arg}\n" for arg in args) + payload,
+            "",
+        )
+    monkeypatch.setenv("LEAF", "leaf")
+    monkeypatch.setenv("PATH", f"{launcher.parent}:{os.environ['PATH']}")
+    refused = subprocess.run(
+        [launcher, "--version"], capture_output=True, text=True, timeout=5, check=False
+    )
+    assert (refused.returncode, refused.stdout, refused.stderr) == (
+        2,
+        "",
+        "LEAF must name an absolute launcher path\n",
+    )
 
 
 def test_the_version_and_root_flags_describe_the_payload_this_leaf_ran_out_of(tmp_path):

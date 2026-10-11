@@ -394,8 +394,10 @@ The local end-to-end journey (`leaf-dev journey website-adapter`) prints the sam
 container records and leaves them at `.tmp/verify-site/run-*/website-adapter.log` for a later
 agent to inspect. Each run builds its own site, binds an OS-assigned HTTP port, and gives
 each website harness a private App Server socket. It gives the child App
-Server a temporary plugin-free `CODEX_HOME` seeded with copies of the host login and
-website config, matching production without changing personal state. Its JSON result
+Server a temporary `CODEX_HOME` seeded with copies of the host login and website
+config, then installs the prepared Leaf plugin through Codex, matching production
+without changing personal state. Native installation output stays in the run's
+`plugin-install.log`, separate from the server's JSON-lines log. Its JSON result
 records `sinceSendMs.responseVisible` from the first non-empty agent reply the open
 Threads panel actually displays; `sinceAdmissionMs.replied` is when the container
 admitted that reply and is not a substitute for that user-visible milestone.
@@ -411,15 +413,15 @@ Codex App Server task rooted at the actual page directory and deliver the event 
 Leaf's immutable delivery envelope, passed
 inline as structured `leaf_delivery` when the task is idle. While a turn is active,
 Leaf retains that immutable delivery locally and starts it directly after the current
-turn completes. The website-specific App Server starts
-without the authoring plugin, so skill discovery cannot turn a small user response
-into a full authoring workflow. Its developer instructions are the shipped
-`skills/leaf/references/harness-codex-app-server.md`, whole, followed by leaf.page's own
-additions in `HOSTED_INSTRUCTIONS`, so the hosted agent and a terminal App Server task
-read one delivery and reply contract. The App Server's `PATH` starts with the
-container's own `leaf` launcher, the name that contract uses. The hosted task can
-revise `index.html`, validate it, append thread replies, and leave the page waiting. The
-initiating App Server connection projects the turn's native activity notifications back
+turn completes. The container installs the complete prepared Leaf plugin through
+Codex's native marketplace and plugin commands, just as a terminal agent does.
+The hosted task discovers the installed skill and reads the shared references,
+including `skills/leaf/references/harness-codex-app-server.md`, selected by
+`LEAF_CODEX_APP_SERVER`. Its developer instructions in `CODEX_INSTRUCTIONS` add only
+the session's environment and page scope. Full tasks use Codex's normal features
+and skill discovery; only the separate thread-title request disables tools and
+plugins. The App Server's `PATH` starts with the container's own `leaf` launcher.
+The initiating App Server connection projects the turn's native activity notifications back
 through Leaf. For deferred input it stays subscribed through the active turn, starts
 and records the delivery turn opening, and observes that turn to its terminal state. The container's
 pickup is idempotent, so a repeated dispatch does not start the work twice. A boundary

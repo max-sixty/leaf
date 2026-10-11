@@ -422,7 +422,8 @@ let readings = 0;
 let paintedFocus = null;
 let paintedWithin = new Set();
 function paintFocus(node) {
-  const next = node === document.body || node === document.documentElement ? null : node;
+  const next =
+    node === document.body || node === document.documentElement ? null : node;
   if (next !== paintedFocus) {
     if (paintedFocus) {
       keeps(paintedFocus, "data-lf-focus", null);
@@ -430,7 +431,10 @@ function paintFocus(node) {
     }
     if (next) {
       keeps(next, "data-lf-focus", "");
-      if (next.getRootNode().nodeType === Node.DOCUMENT_FRAGMENT_NODE && next.hasAttribute("part"))
+      if (
+        next.getRootNode().nodeType === Node.DOCUMENT_FRAGMENT_NODE &&
+        next.hasAttribute("part")
+      )
         next.part.add("lf-focus");
     }
     paintedFocus = next;
@@ -451,7 +455,10 @@ function paintFocus(node) {
 const refreshFocusPaint = () =>
   paintFocus(paintedFocus?.isConnected ? paintedFocus : null);
 function watchFocusPaintIn(root) {
-  new MutationObserver(refreshFocusPaint).observe(root, { childList: true, subtree: true });
+  new MutationObserver(refreshFocusPaint).observe(root, {
+    childList: true,
+    subtree: true,
+  });
   root.addEventListener("slotchange", refreshFocusPaint);
 }
 watchFocusPaintIn(document);

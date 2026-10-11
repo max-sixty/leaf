@@ -400,10 +400,14 @@ customElements.define(
           comparison.append(frame);
         }
         let dragged = false;
-        const handleOf = (event) => event.composedPath().find(
-          (node) => node instanceof Element &&
-            node.getAttribute("part")?.split(/\s+/).includes("handle"),
-        );
+        const handleOf = (event) =>
+          event
+            .composedPath()
+            .find(
+              (node) =>
+                node instanceof Element &&
+                node.getAttribute("part")?.split(/\s+/).includes("handle"),
+            );
         comparison.addEventListener("change", () => {
           dragged = true;
           this.#chose = true;

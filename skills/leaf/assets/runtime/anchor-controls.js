@@ -307,9 +307,7 @@ export function createAnchorControls({
             record.surface = context.surface ?? null;
             const standing = focused();
             setReactionRemoval(record, record.expanded === root.id ? null : root.id, {
-              focus:
-                context.input === "keyboard" &&
-                context.origin === standing,
+              focus: context.input === "keyboard" && context.origin === standing,
               surface: record.surface,
             });
           },

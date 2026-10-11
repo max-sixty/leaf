@@ -476,17 +476,6 @@ def gallery_plans(page: Page) -> None:
     page.locator("#bg-plans-and-history").scroll_into_view_if_needed()
 
 
-def gallery_page_annotations(page: Page) -> None:
-    """The practice window's page-owned annotation rail, at the height its rows take."""
-    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
-    page.locator("#bg-page-annotations-sample").evaluate(
-        "el => el.scrollIntoView({block: 'start'})"
-    )
-    page.frame_locator("#bg-page-annotations-sample iframe").locator(
-        "lf-annotation-rail"
-    ).evaluate("el => el.scrollIntoView({block: 'end'})")
-
-
 def theme_hierarchy(page: Page) -> None:
     """A neutral callout with open and closed support; exercise the closed row by key."""
     page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
@@ -1023,6 +1012,17 @@ STATES = (
         contents_by_keyboard,
         scheme="dark",
     ),
+    # Where the margin has no room for the map, and where a coarse pointer keeps the
+    # sidebar's contents in the flow, at a roomy width and on a phone.
+    State("contents-narrow", "developer/feature-gallery", at_rest, viewport=(900, 900)),
+    State("contents-coarse", "developer/feature-gallery", at_rest, touch=True),
+    State(
+        "contents-phone",
+        "developer/feature-gallery",
+        at_rest,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("playground-controls", "notification-playground", playground_controls),
     State(
         "playground-controls-phone",
@@ -1056,11 +1056,6 @@ STATES = (
     State("frame-edges", "developer/feature-gallery", frame_edges),
     State("gallery-metrics", "developer/feature-gallery", gallery_metrics),
     State("gallery-plans", "developer/feature-gallery", gallery_plans),
-    State(
-        "gallery-page-annotations",
-        "developer/feature-gallery",
-        gallery_page_annotations,
-    ),
     State("gallery-theme", "developer/feature-gallery", theme_hierarchy),
     State(
         "gallery-theme-dark",

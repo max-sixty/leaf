@@ -12,9 +12,10 @@ KNOWN = {
         # answer after the first paint and which the served document does not carry:
         # a text document's lines are its bound source's value, wrapped at the column's width.
         ("lf-text-document", "keeps-first-box"),
-        # Which form the contents takes, the fixed map in the margin or the outline in
-        # the flow, is the margin pass's residency decision (`data-lf-margin`,
-        # margin-layout.js), made from the room it measures after the first paint.
+        # The contents are written empty and build their list from the page's
+        # headings as the module upgrades, so the first paint has no box to keep.
+        # Residency (`data-lf-margin`, prepaint.js) already decides their form
+        # before that paint.
         ("lf-toc", "keeps-first-box"),
     },
 }

@@ -3187,7 +3187,9 @@ def test_a_note_the_page_does_not_show_takes_no_room(browser, serve):
     expect(page.locator("#frequency")).to_have_css("float", "right")
     page.locator("#more > summary").click()
     expect(main).to_have_attribute("data-lf-margin", "rail")
-    expect(main).not_to_have_attribute("style", re.compile("--lf-shift"))
+    expect(page.locator("body")).not_to_have_attribute(
+        "style", re.compile("--lf-column-shift")
+    )
     assert main.evaluate("node => node.getBoundingClientRect().left") == centred
 
 
@@ -3508,7 +3510,7 @@ aside.note { --lf-resident: note; display: none }
       const inert = !owner.residencyStarted();
       owner.openResidency({onRead: changed => window.completed.push(changed)});
       return {inert, tokens: main.getAttribute('data-lf-margin'),
-              shift: main.style.getPropertyValue('--lf-shift')};
+              shift: document.body.style.getPropertyValue('--lf-column-shift')};
     }""",
         {"asset": asset, "rail": rail},
     )
@@ -3521,8 +3523,8 @@ aside.note { --lf-resident: note; display: none }
     page.evaluate("document.documentElement.dir='rtl'; residency.scheduleResidency()")
     page.wait_for_function("completed.length >= 2")
     assert (
-        page.locator("main").evaluate(
-            "node => node.style.getPropertyValue('--lf-shift')"
+        page.locator("body").evaluate(
+            "node => node.style.getPropertyValue('--lf-column-shift')"
         )
         == expected["shift"]
     )

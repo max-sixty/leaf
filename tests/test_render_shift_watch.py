@@ -7,7 +7,7 @@ from html import escape
 from urllib.parse import quote
 
 import pytest
-from leaf.render_checks import rendered
+from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
 from render_cases_interaction import ASK_PAGE
 from render_harness import (
@@ -1158,12 +1158,11 @@ def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve, wo
 
 
 def test_an_input_owns_a_widget_preparation_it_began_until_presented(browser, serve):
-    """A press's declared widget preparation is its result, however late it lands.
+    """A press's registered widget preparation owns its result until it commits.
 
-    Opening a closed lf-diff file loads its evidence in a promise the widget presents
-    (`present`), which the rendering loop cannot see. Holding the file's grammar keeps
-    that preparation pending after the loop settles, as a loaded machine does; the files
-    after it still move only for the press that opened it."""
+    Opening a closed lf-diff file registers its asynchronous evidence preparation
+    (`present`). Holding the grammar keeps rendering and presentation pending across
+    a paint; the following files still move only for the press that opened it."""
     patch = "".join(
         f"diff --git a/{name}.md b/{name}.md\n--- a/{name}.md\n+++ b/{name}.md\n"
         "@@ -1 +1 @@\n-old\n+new\n"
@@ -1184,7 +1183,10 @@ def test_an_input_owns_a_widget_preparation_it_began_until_presented(browser, se
     first = page.locator("#patch .lf-diff-file").first
     first.locator(".lf-diff-head").click()
     holding(page, held, 1, "the markdown grammar")
-    rendered(page)
+    one_frame(page)
+    assert not page.evaluate(
+        "document.querySelector('script[data-lf-entry]').lfRenderingSettled()"
+    )
     assert (
         page.evaluate(
             "document.querySelector('script[data-lf-entry]').lfReadiness(null, 'presented')"

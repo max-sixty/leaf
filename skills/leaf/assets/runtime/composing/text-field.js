@@ -29,6 +29,8 @@
  * changes the words; the second announces the updated value and layout. A
  * write to `value` fires nothing, puts the caret at the end, and starts a new undo
  * history, so undo never walks back into a draft the runtime swapped out.
+ * `edit(text)` replaces the words as external text input, such as dictation: it keeps
+ * undo history and emits the same before-edit/input bracket as native typing.
  * A box owner that takes pasted pictures intercepts paste in capture; otherwise the field pastes
  * the clipboard's text, including text carried beside a picture.
  * `naturalBlockSize` reads the field's intrinsic border-box block size in CSS pixels,
@@ -626,6 +628,16 @@ class LeafText extends HTMLElement {
 
   get value() {
     return this.#state.doc.toString();
+  }
+
+  edit(text) {
+    text = String(text).replace(/\r\n?/g, "\n");
+    if (text === this.value) return;
+    this.#apply({
+      changes: { from: 0, to: this.#state.doc.length, insert: text },
+      selection: { anchor: text.length },
+      userEvent: "input.dictation",
+    });
   }
 
   // Records a change the owner has just made outside the words as a step of the words'

@@ -332,7 +332,14 @@ def answering(browser) -> Iterator[tuple[User, Callable]]:
     """The user at the page a Pi session serves, once it has, and the steps that
     follow."""
     subprocess.run(
-        ["npm", "ci", "--prefix", str(PI_PROJECT), "--silent"],
+        [
+            "pnpm",
+            "--dir",
+            str(PI_PROJECT),
+            "install",
+            "--frozen-lockfile",
+            "--silent",
+        ],
         check=True,
     )
     executable = PI_PROJECT / "node_modules" / ".bin" / "pi"

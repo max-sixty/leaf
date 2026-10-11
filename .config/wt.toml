@@ -23,13 +23,13 @@ setup = "uv run --frozen leaf-dev setup"
 # The bundles build from the installed lock, so a rebuild reproduces the tracked bytes
 # exactly, and any difference is a lock nobody rebuilt from.
 [[pre-merge]]
-bundles = "npm run check:bundles"
+bundles = "pnpm run check:bundles"
 
 # Broad discovery keeps the local gate quick, adding only the nightly-marked tests the
 # branch edits, as a pull request's gate does. CI runs the rest after main moves.
 [[pre-merge]]
 tests = "uv run pytest tests --nightly-changed-since main"
-node-checks = "npm run check"
+node-checks = "pnpm run check"
 
 # Prepare a new worktree while the agent starts working. The setup command also
 # serializes overlapping installs; its foreground entry below is the test barrier.

@@ -30,7 +30,7 @@ if [[ -z ${CLOUDFLARE_API_TOKEN:-} ]]; then
   exit 2
 fi
 if [[ ! -x "$wrangler" ]]; then
-  echo "website dependencies are missing; run npm ci in $repo_root" >&2
+  echo "website dependencies are missing; run pnpm install --frozen-lockfile in $repo_root" >&2
   exit 2
 fi
 

@@ -1036,7 +1036,7 @@ export default [
   // alone; beside another key it would ignore those paths for that config alone and
   // leave every later one linting them. `.venv` is uv's, and holds Playwright's
   // bundled JavaScript: the pre-commit hook passes staged files and never reaches it,
-  // but a bare `npx eslint .` walks it.
+  // but a bare `pnpm exec eslint .` walks it.
   {
     ignores: [
       ".tmp/**",

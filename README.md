@@ -30,7 +30,7 @@ You need [`uv`](https://docs.astral.sh/uv/),
 browser that can reach the machine the agent runs on. No Leaf account or
 configuration is required.
 Leaf ships a prepared browser runtime. Users and package authors never need to
-build Leaf or run npm; custom widgets are ordinary browser JavaScript.
+build Leaf or run a package manager; custom widgets are ordinary browser JavaScript.
 
 Claude Code:
 

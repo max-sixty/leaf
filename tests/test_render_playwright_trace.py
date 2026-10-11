@@ -729,6 +729,10 @@ def test_trace_bookmarks_jump_to_exact_evidence_in_page_flow(browser, serve):
     widget = user.locator("lf-trace")
     actions = [action for action in record["actions"] if "click" in action["title"]]
     origin = record["streams"][0]["monotonicTime"]
+    expect(widget.locator(".lf-trace-action")).to_have_text(actions[0]["title"])
+    expect(widget.locator(".lf-trace-phase")).to_have_text(
+        f"After · {(actions[0]['phases']['after']['timestamp'] - origin) / 1000:.3f} s"
+    )
     for index, label in enumerate(("Documentation reviewed", "API reviewed")):
         action = actions[index]
         elapsed = (action["phases"]["after"]["timestamp"] - origin) / 1000
@@ -802,6 +806,95 @@ def test_trace_bookmarks_jump_to_exact_evidence_in_page_flow(browser, serve):
         f"After · {api_elapsed:.3f} s"
     )
     assert phone.evaluate("document.documentElement.scrollWidth <= innerWidth")
+
+
+def test_trace_initial_moment_uses_capture_order_and_skips_unavailable_targets(
+    browser, serve
+):
+    """Review opens the first stream with a resolvable Moment, at its earliest one."""
+    source = ROOT / "examples/developer/playwright-trace-gallery.data.json"
+    record = json.loads(source.read_text())["release-journey"]
+    # An earlier recording stream has no authored Moments or saved captures.
+    record["streams"].insert(0, record["streams"][0] | {"id": "empty-stream"})
+    # Native archives can contain images and actions without any saved ARIA tree.
+    for action in record["actions"]:
+        for phase in action["phases"].values():
+            phase["tree"] = None
+    archive = record["archive"]["sha256"]
+    # A captured checkpoint image whose phase no longer names it has no exact stop.
+    orphan = next(image for image in record["images"] if image["kind"] == "checkpoint")
+    orphan_action = next(
+        action for action in record["actions"] if action["callId"] == orphan["callId"]
+    )
+    orphan_action["phases"][orphan["phase"]]["imageId"] = None
+    frames = sorted(
+        (image for image in record["images"] if image["kind"] == "frame"),
+        key=lambda image: image["timestamp"],
+    )
+    earlier, later = frames[-2:]
+    assert earlier["timestamp"] < later["timestamp"]
+    earlier_target = f"trace-{archive}-image-{earlier['id']}"
+    members = (
+        f'<lf-trace-bookmark label="Missing capture" target="trace-{archive}-image-absent"></lf-trace-bookmark>'
+        f'<lf-trace-bookmark label="Orphaned checkpoint" target="trace-{archive}-image-{orphan["id"]}"></lf-trace-bookmark>'
+        f'<lf-trace-bookmark label="Later" target="trace-{archive}-image-{later["id"]}"></lf-trace-bookmark>'
+        f'<lf-trace-bookmark label="Review begins" target="{earlier_target}"></lf-trace-bookmark>'
+    )
+    media = {
+        image["url"]: (example_media() / Path(image["url"]).name).read_bytes()
+        for image in record["images"]
+    }
+    url = serve(
+        leaf_page(
+            "Review entry",
+            f'<h1>Review entry</h1><lf-trace id="journey" source="review-trace">{members}</lf-trace>',
+        ),
+        packages=("playwright",),
+        media=media,
+    )
+    data_model.cmd_data_set(serve.page_dir, "review-trace", record)
+    user = open_page(browser, url)
+    widget = user.locator("#journey")
+    expect(widget.get_by_role("radio", name="Stream 2", exact=True)).to_have_attribute(
+        "aria-checked", "true"
+    )
+    expect(
+        widget.get_by_role("checkbox", name="Show intermediate frames")
+    ).to_be_checked()
+    expect(
+        widget.locator(
+            ".lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img"
+        )
+    ).to_have_attribute("data-lf-datum", earlier_target)
+    moments = widget.locator(".lf-trace-bookmarks")
+    expect(
+        moments.get_by_role("button", name=re.compile("Missing capture"))
+    ).to_be_disabled()
+    expect(
+        moments.get_by_role("button", name=re.compile("Review begins"))
+    ).to_have_attribute("aria-current", "true")
+    expect(
+        moments.get_by_role("button", name=re.compile("Orphaned checkpoint"))
+    ).to_be_disabled()
+    expect(widget.locator(".lf-trace-tree-clock")).to_have_text(
+        "No accessibility tree was saved at this point."
+    )
+    # A manual scope choice is retained instead of reopening the authored Moment.
+    widget.get_by_role("radio", name="Stream 1", exact=True).click()
+    expect(widget.get_by_role("radio", name="Stream 1", exact=True)).to_have_attribute(
+        "aria-checked", "true"
+    )
+    expect(widget.locator(".lf-trace-position")).to_have_text("No recorded points")
+    widget.get_by_role("radio", name="Stream 2", exact=True).click()
+    expect(
+        moments.get_by_role("button", name=re.compile("Review begins"))
+    ).to_have_attribute("aria-current", "true")
+    timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
+    timeline.focus()
+    timeline.press("Home")
+    first_call = min(record["actions"], key=lambda action: action["startTime"])
+    expect(widget.locator(".lf-trace-action")).to_have_text(first_call["title"])
+    expect(widget.locator(".lf-trace-phase")).to_contain_text("Start")
 
 
 def test_trace_transport_scrubs_plays_and_freezes_review_evidence(browser, serve):

@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /**
  * Build Leaf's committed browser framework from locked contributor dependencies.
+ * Invoke through pnpm run build:browser or check:browser; pnpm verifies that the
+ * installed dependencies match the manifest and lock before either script runs.
  *
  * Run with --check to compare a fresh, typechecked build with committed bytes
  * without writing them. This module owns its source root, outputs, and their layer
@@ -105,7 +107,7 @@ function compileModule(text, source) {
     if (!edge.startsWith(".")) edge = `./${edge}`;
     code = code.slice(0, node.start) + JSON.stringify(edge) + code.slice(node.end);
   }
-  const trailer = `// Generated from ${source} by npm run build:browser.\n`;
+  const trailer = `// Generated from ${source} by build/browser/build.mjs.\n`;
   return {
     code: code.endsWith("\n") ? code + trailer : `${code}\n${trailer}`,
     imports,
@@ -148,22 +150,7 @@ export async function buildOutputs() {
   const contractPath = path.join(root, sourceRoot, "event-contract.d.ts");
   const contract = await eventTypes(new URL("../../", import.meta.url));
   if ((await readFile(contractPath, "utf8")) !== contract)
-    throw new Error("Stale kernel event types; run npm run build:browser");
-  const packageJson = JSON.parse(
-    await readFile(path.join(root, "package.json"), "utf8"),
-  );
-  const lock = JSON.parse(await readFile(path.join(root, "package-lock.json")));
-  for (const [name, version] of Object.entries(packageJson.devDependencies)) {
-    const installed = JSON.parse(
-      await readFile(path.join(root, "node_modules", name, "package.json"), "utf8"),
-    );
-    if (
-      installed.version !== version ||
-      lock.packages[`node_modules/${name}`].version !== version
-    ) {
-      throw new Error(`${name} does not match its exact dependency pin; run npm ci`);
-    }
-  }
+    throw new Error("Stale kernel event types; run pnpm run build:browser");
   const typecheck = spawnSync(
     process.execPath,
     [
@@ -222,14 +209,6 @@ export async function buildOutputs() {
     outputs.set(name, Buffer.from(file.contents));
   }
   const packageRoots = bundledPackages(result.metafile, root);
-  for (const packageRoot of packageRoots) {
-    const pkg = JSON.parse(
-      await readFile(path.join(packageRoot, "package.json"), "utf8"),
-    );
-    if (lock.packages[path.relative(root, packageRoot)].version !== pkg.version) {
-      throw new Error(`${pkg.name} does not match package-lock.json; run npm ci`);
-    }
-  }
   outputs.set(
     `${assets}/vendor/browser-runtime.LICENSES.txt`,
     Buffer.from(licenseNotices("browser-runtime", packageRoots)),
@@ -261,14 +240,14 @@ export async function checkOutputs(outputs, directory = root) {
   }
   if (stale.length)
     throw new Error(
-      `Stale browser output; run npm run build:browser:\n${stale.join("\n")}`,
+      `Stale browser output; run pnpm run build:browser:\n${stale.join("\n")}`,
     );
 }
 
 async function main(args) {
   if (args.length === 1 && args[0] === "--help") {
     console.log(
-      "Usage: node build/browser/build.mjs [--check]\n\nBuild committed browser ESM, or check it without writing. Run npm ci first.",
+      "Usage: node build/browser/build.mjs [--check]\n\nBuild committed browser ESM, or check it without writing. Run pnpm install --frozen-lockfile first.",
     );
     return;
   }

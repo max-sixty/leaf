@@ -747,7 +747,6 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         {
             "files": [
                 {
-                    "key": "gateway/limits.py",
                     "path": "gateway/limits.py",
                     "kind": "patch",
                     "additions": 4,
@@ -2134,7 +2133,6 @@ def test_a_large_diff_filters_and_navigates_lazy_files(browser, serve):
     manifest = {
         "files": [
             {
-                "key": path,
                 "path": path,
                 "kind": "patch",
                 "additions": 1,

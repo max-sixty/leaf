@@ -434,7 +434,7 @@ def eval(args: tuple[str, ...], base: str | None, harness: str, condition: str):
     """Score CASE globs or task/context addresses on the working tree.
 
     Options Promptfoo takes follow the cases, such as `--repeat 3` or `-j 4`.
-    `npm run eval:view` opens the results.
+    `pnpm run eval:view` opens the results.
     """
     split = next((i for i, arg in enumerate(args) if arg.startswith("-")), len(args))
     globs, promptfoo_args = args[:split], args[split:]
@@ -455,7 +455,9 @@ def eval(args: tuple[str, ...], base: str | None, harness: str, condition: str):
     else:
         base = None
     if not PROMPTFOO.is_file():
-        raise click.ClickException("Install development dependencies first: npm ci")
+        raise click.ClickException(
+            "Install development dependencies first: pnpm install --frozen-lockfile"
+        )
     RUNS.mkdir(parents=True, exist_ok=True)
     out = Path(
         tempfile.mkdtemp(
@@ -513,5 +515,5 @@ def eval(args: tuple[str, ...], base: str | None, harness: str, condition: str):
             stdin=subprocess.DEVNULL,
             check=False,
         ).returncode
-    click.echo(f"evidence: {out}\nview: npm run eval:view")
+    click.echo(f"evidence: {out}\nview: pnpm run eval:view")
     sys.exit(status)

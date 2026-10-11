@@ -10,4 +10,4 @@ export {
 } from "./browser-runtime/presentation.js";
 
 
-// Generated from build/browser/index.ts by npm run build:browser.
+// Generated from build/browser/index.ts by build/browser/build.mjs.

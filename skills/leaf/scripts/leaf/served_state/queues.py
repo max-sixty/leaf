@@ -8,9 +8,11 @@ panel and an agent picking the page up read one selection. The browser places it
 unresolved sends against the served lists (`build/browser/application.ts`,
 `localQueues`); it never selects them again.
 
-An item names its subject and the thread it stands in. A Question item keeps its
-canonical record, and a task item the task's fields a row draws. Each done item adds
-how it ended (`state`), when (`ended`), and the outcome's detail.
+An item names its subject and the thread it stands in, and whether the agent has it
+in hand now (`live`): a task a start holds, or a move the agent is at work on whose
+work has not gone quiet or stopped. A Question item keeps its canonical record, and a
+task item the task's fields a row draws. Each done item adds how it ended (`state`),
+when (`ended`), and the outcome's detail.
 """
 
 def _task_item(task: dict) -> dict:
@@ -23,6 +25,7 @@ def _task_item(task: dict) -> dict:
         "thread": task["thread"],
         "title": task["title"],
         "running": task["running"],
+        "live": task["running"] is not None,
         "agent": task["agent"],
         "session": task["session"],
         "ends": task["ends"],
@@ -47,6 +50,7 @@ def _question_item(question: dict) -> dict:
         "thread": question["thread"],
         "title": question["prompt"]["text"],
         "running": None,
+        "live": False,
         "agent": None,
         "session": None,
         "ends": source["kind"],
@@ -77,6 +81,7 @@ def queues(
             "id": thread["id"],
             "subject": {"kind": "thread", "id": thread["id"]},
             "thread": thread["id"],
+            "live": False,
         }
         for thread in threads
         if thread["attention"] is not None
@@ -89,6 +94,7 @@ def queues(
             "id": workflow["id"],
             "subject": workflow["subject"],
             "thread": workflow["thread"],
+            "live": workflow["at_work"] and workflow["condition"] is None,
         }
         if workflow["next_actor"] == "user":
             if workflow["thread"] is None:

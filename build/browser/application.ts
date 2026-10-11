@@ -267,6 +267,8 @@ interface QueueItem {
   owner?: "user" | "agent";
   subject: { kind: "thread" | "widget"; id: string } | { kind: "page" };
   thread: string | null;
+  /** Whether the agent has it in hand now. */
+  live: boolean;
   question?: QuestionRecord;
   [field: string]: unknown;
 }
@@ -642,7 +644,9 @@ function localQueues(
     [...served.on_you, ...served.on_agent].map((item) => `${item.kind}:${item.id}`),
   );
   const retry = (id: string, subject: QueueItem["subject"], thread: string | null) =>
-    listed.has(`recovery:${id}`) ? [] : [{ kind: "recovery" as const, id, subject, thread }];
+    listed.has(`recovery:${id}`)
+      ? []
+      : [{ kind: "recovery" as const, id, subject, thread, live: false }];
   const reopenedFor = (owner: "user" | "agent") =>
     served.done.filter((item) => (item.owner ?? "user") === owner && reopened(item));
   return {
@@ -662,11 +666,17 @@ function localQueues(
     ].toSorted((a, b) => onYouRank(a) - onYouRank(b)),
     onAgent: [
       ...served.on_agent.filter((item) => item.kind !== "task" && standsOpen(item)),
-      ...sending.map((workflow) => ({
+      // One answer per thread, as the server lists one for the newest turn owed.
+      ...sending
+        .filter((workflow, at) =>
+          sending.slice(at + 1).every((later) => later.thread !== workflow.thread),
+        )
+        .map((workflow) => ({
         kind: "answer" as const,
         id: workflow.id,
         subject: workflow.subject,
         thread: workflow.thread,
+        live: false,
         answer: workflow.answer,
         stage: workflow.stage,
       })),
@@ -943,30 +953,37 @@ export function createSemanticApplication({
           return null;
       }
     };
-    // Every thread a gesture concerns, as `thread_context.event_threads` will file it
-    // once the log has it: the thread it stands in, and the thread a move would close
-    // (the view's `closes`), unless its outcome withdraws the request; an undo
-    // concerns the threads the gesture it takes back did, this tab's own entry or,
-    // once logged, the log's (`event_threads`).
+    // Every thread whose history a gesture changes, as `thread_memberships` will file
+    // it once the log has it (the browser state's `event_threads`): the thread it
+    // stands in; for a move, the thread it would close (the view's `closes`) unless
+    // its outcome withdraws the request, and every thread the logged move it replaces
+    // at its coordinate did; for an undo, every thread the gesture it takes back did,
+    // this tab's own entry or, once logged, the log's.
+    const logged = state?.browser.event_threads ?? {};
     const threadsOfEntry = (entry: LedgerEntry): string[] => {
       const { event } = entry;
       if (event.kind === "undo") {
         const target = unresolved.find(
           (each) => each.localId === event.undoes || each.admitted?.id === event.undoes,
         );
-        return target
-          ? threadsOfEntry(target)
-          : (state?.browser.event_threads[event.undoes] ?? []);
+        return target ? threadsOfEntry(target) : (logged[event.undoes] ?? []);
       }
-      const closing = event.kind === "action" ? view?.closes[event.widget] : undefined;
-      const closes =
-        closing &&
-        event.kind === "action" &&
-        closing.verbs.includes(event.action) &&
-        event.detail["outcome"] !== closing.withdrawn_as
-          ? closing.thread
-          : null;
-      return [threadOfEntry(entry), closes].filter((id): id is string => Boolean(id));
+      const threads = [threadOfEntry(entry)];
+      if (event.kind === "action") {
+        const closing = view?.closes[event.widget];
+        if (
+          closing?.verbs.includes(event.action) &&
+          event.detail["outcome"] !== closing.withdrawn_as
+        )
+          threads.push(closing.thread);
+        const coordinate =
+          entry.projection?.kind === "undo" ? null : entry.projection?.coordinate;
+        const replaced = [...admitted.entries]
+          .filter((each) => each.coordinate === coordinate && each.e.kind === "action")
+          .at(-1);
+        if (replaced) threads.push(...(logged[replaced.e.id] ?? []));
+      }
+      return [...new Set(threads.filter((id): id is string => Boolean(id)))];
     };
     // A refused send or move is the user's to retry from the thread it stood in.
     const recovery = new Map<string, string>();

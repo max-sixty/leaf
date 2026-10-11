@@ -230,7 +230,7 @@ export function createQueuePanel({ actions, next, announce }) {
       word,
       title: words,
       where,
-      live: item.kind === "work" || Boolean(item.running),
+      live: item.live,
       // A task on the user that no widget answers ends at their Done, which its row
       // carries.
       done: item.offers.done,

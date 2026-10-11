@@ -16,7 +16,7 @@ from ..projection import (
 )
 from ..questions import approval_blocking, answer_verbs, closed_thread, collection
 from ..registry.contract import state_definition, state_specs
-from ..thread_context import event_threads
+from ..thread_context import thread_memberships
 from ..schema import WIDGET_KINDS
 from .context import PageRead
 from .document import browser_document, browser_undo_candidates
@@ -104,13 +104,14 @@ def _apply_thread_attention(
 
 
 def _closes(
-    pages: list[tuple[dict, dict, StateProjection]], names: dict
+    pages: list[tuple[dict, dict, StateProjection]], threads: dict
 ) -> dict[str, dict]:
     """Each widget an answer on would close a thread (`questions.closed_thread`):
     that thread, the verbs that answer (`questions.answer_verbs`), and the outcome
     that withdraws the request instead (`x-withdrawn-as`), which closes nothing.
-    `pages` are each document's records by id, registry and projection; `names`
-    resolves a thread name. The browser places a move it has not sent yet in the
+    `pages` are each document's records by id, registry and projection; an answer
+    closes the thread `threads` holds under that exact id, as `build_threads` reads
+    it. The browser places a move it has not sent yet in the
     thread it would close by this, as `event_threads` places a logged one by its
     admitted meaning (`event_meaning.answer_meaning`)."""
     closes = {}
@@ -118,9 +119,9 @@ def _closes(
         for widget, record in by_id.items():
             entry = registry.get(record["tag"], {})
             name = closed_thread(record, entry, projection)
-            if name and (thread := names.get(name)):
+            if name and name in threads:
                 closes[widget] = {
-                    "thread": thread,
+                    "thread": name,
                     "verbs": sorted(answer_verbs(entry)),
                     "withdrawn_as": entry.get("x-withdrawn-as"),
                 }
@@ -256,7 +257,7 @@ def browser_state(
                     (page.document.by_id, page.registry, projection),
                     (thread_reading.by_id, active_registry, thread_projection),
                 ],
-                thread_reading.thread_by_name,
+                threads,
             ),
             "document": document,
             "updates": canonical_updates(projection),
@@ -316,16 +317,18 @@ def browser_state(
         "tasks": tasks,
         "ended_tasks": ended_tasks,
         "receipts": [event for event in events if event.get("attempt")],
-        # The threads each logged event belongs to, which the browser reads where
-        # an unsent undo names one (`thread_context.event_threads`).
+        # Every thread whose history each logged event changes
+        # (`thread_context.thread_memberships`), which the browser reads for the
+        # gesture an unsent undo takes back or an unsent move replaces.
         "event_threads": {
-            event["id"]: belongs
-            for event in events
-            if (
-                belongs := event_threads(
-                    event, thread_reading.thread_by_name, thread_reading.thread_by_widget
-                )
-            )
+            identity: threads
+            for identity, threads in thread_memberships(
+                events,
+                thread_reading.thread_by_name,
+                thread_reading.thread_by_widget,
+                active_page.within,
+            ).items()
+            if threads
         },
         "version_notes": {
             str(event["version"]): event["text"]

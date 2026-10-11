@@ -681,14 +681,56 @@ test("a move that would close a thread concerns that thread, before and after th
   );
   assert.deepEqual(rejecting.read().effective.thread.gestured, []);
 
-  // Taking back the logged acceptance concerns the thread it closed.
+  // Taking back the logged acceptance, or rejecting in its place, concerns the thread
+  // it closed, which either one reopens.
   const logged = servedReading("suggestion accepted");
   const accepted = logged.events.at(-1);
-  const later = createSemanticApplication();
-  later.identify(1);
-  later.adopt(logged);
-  later.enqueue({ kind: "undo", undoes: accepted.id, attempt: "take-back" }, "now");
-  assert.deepEqual(later.read().effective.thread.gestured, ["e1"]);
+  const after = () => {
+    const app = createSemanticApplication();
+    app.identify(1);
+    const declaration = {
+      "x-state": { decide: { unit: "widget", writer: "user" } },
+    };
+    app.captureDocument({
+      ...app.read().document,
+      registry: { "lf-suggestion": declaration },
+      authored: new Map([
+        [
+          "sug-refill",
+          {
+            tag: "lf-suggestion",
+            specs: new Map([["decide", { unit: "widget" }]]),
+            state: { decide: { action: null, value: null, detail: {} } },
+          },
+        ],
+      ]),
+      descriptors: new Map([
+        [
+          "sug-refill",
+          {
+            id: "sug-refill",
+            tag: "lf-suggestion",
+            document: { kind: "page", revision: 1 },
+            declaration,
+            parent: null,
+            ancestors: [],
+            quoted: false,
+          },
+        ],
+      ]),
+    });
+    app.adopt(logged);
+    return app;
+  };
+  const undoing = after();
+  undoing.enqueue({ kind: "undo", undoes: accepted.id, attempt: "take-back" }, "now");
+  assert.deepEqual(undoing.read().effective.thread.gestured, ["e1"]);
+  const replacing = after();
+  replacing.enqueue(
+    { ...decide, detail: { outcome: "reject" }, attempt: "instead" },
+    "now",
+  );
+  assert.deepEqual(replacing.read().effective.thread.gestured, ["e1"]);
 });
 
 test("a refused local message publishes one failed workflow before retirement", () => {

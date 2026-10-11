@@ -1,9 +1,9 @@
 """Agent-facing page state, canonical Questions, explicit Tasks and work queues.
 
-The reading uses one transaction and canonical queue selection. The on-you queue
-selects open Questions, explicit user Tasks and delivery recovery; on-agent selects
-owed responses and committed work. The Question inventory also retains answered
-and withdrawn records. `source` states whether a document is live and whether an
+The reading uses one transaction and prints the work queues the active view serves
+(`served_state.queues`): on-you holds open Questions, explicit user Tasks and
+delivery recovery; on-agent holds owed responses and committed work. The Question
+inventory also retains answered and withdrawn records. `source` states whether a document is live and whether an
 invalid source save leaves the last valid version active.
 """
 
@@ -119,7 +119,7 @@ def _base_state(
         "data_bindings": page_data_binding_inventory(page_dir, registry, events),
         "measurement_lag": [],
         # What is on the user and what is on the agent, each item naming its
-        # subject (`queues` below); explicit committed tasks on either side; and
+        # subject (`served_state.queues`); explicit committed tasks on either side; and
         # the complete canonical Question inventory selected by those queues.
         "queues": {"on_you": [], "on_agent": []},
         "tasks": [],
@@ -301,7 +301,7 @@ def _write_page_state(
     (`measurement_lag_entries`), each comment thread's current state, attention, and
     the agent messages in it the user has not read, every open task on either side,
     the canonical Questions, the two queues they and the workflows add up to
-    (`queues`, the banner's own counts), and presence beside what
+    (`served_state.queues`, the banner's own counts), and presence beside what
     answers for it. It is a
     selection from the reading /api/state serves (`read_served_page`), computed on
     demand from the log, revision, registry, and source store — no derived reading is

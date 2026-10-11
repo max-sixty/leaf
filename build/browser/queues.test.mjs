@@ -54,8 +54,14 @@ test("a follow-up sent in a thread stands for the answer it was owed", () => {
     { kind: "reply", parent: owed.thread, text: "Also this.", revision: 1, attempt: "a3" },
     "now",
   );
+  app.enqueue(
+    { kind: "reply", parent: owed.thread, text: "And this.", revision: 1, attempt: "a5" },
+    "now",
+  );
+  // The thread is owed one answer, for its newest turn, however many are sending.
   const answers = published(app).onAgent.filter((item) => item.kind === "answer");
-  assert.deepEqual(kinds(answers), [["answer", "pending:a3"]]);
+  assert.deepEqual(kinds(answers), [["answer", "pending:a5"]]);
+  app.refuse("a5");
   assert.equal(answers[0].thread, owed.thread);
   assert.equal(published(app).onAgent.at(-1).kind, "task");
   app.refuse("a3");

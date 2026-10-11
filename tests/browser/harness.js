@@ -132,6 +132,27 @@
     window.lfWrites = [];
     window.lfWriteStep = null;
     const rest = (window.lfRest = { frames: {}, focus: 0 });
+    // Page init scripts do not reach every nested srcdoc frame. When the shared
+    // write watcher is absent, observe this frame's document for the rest pass.
+    if (typeof window.lfUnwatched !== "function") {
+      const capture = (records) => {
+        for (const record of records)
+          if (Array.isArray(window.lfWrites))
+            window.lfWrites.push({
+              type: record.type,
+              attribute: record.attributeName,
+              target: record.target.localName ?? record.target.nodeName,
+            });
+      };
+      const observer = new MutationObserver(capture);
+      observer.observe(document, {
+        subtree: true,
+        attributes: true,
+        childList: true,
+        characterData: true,
+      });
+      Object.defineProperty(rest, "fallback", { value: { observer, capture } });
+    }
     const request = window.requestAnimationFrame;
     window.requestAnimationFrame = (callback) => {
       // The first caller past the runtime's scheduler, which is whose loop it is.
@@ -150,6 +171,9 @@
   };
 
   const readRest = () => {
+    const fallback = window.lfRest?.fallback;
+    fallback?.capture(fallback.observer.takeRecords());
+    fallback?.observer.disconnect();
     const writes = window.lfWrites;
     window.lfWrites = null;
     const endless = document

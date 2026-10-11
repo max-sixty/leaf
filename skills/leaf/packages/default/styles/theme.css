@@ -1469,7 +1469,8 @@
    * as a full-height workspace's body is, takes that height, and its list and its open
    * item each scroll on their own, as a mail client's do: walking a long queue never
    * moves the item being read, and reading down a long item never moves the queue. Each
-   * is a reading region (lf-tabs.js). Stacked, the list is a row of its own height over
+   * is a reading region (lf-tabs.js) that holds the height it was given on purpose
+   * (`--lf-holds-height`). Stacked, the list is a row of its own height over
    * the item, which takes the rest; beside the item, both span the two rows, and an item
    * spanning the flexible row adds nothing to the row its own height would size. */
   @container style(--lf-full-height: 1) {
@@ -1495,6 +1496,7 @@
       --lf-top: 0px;
       overscroll-behavior: contain;
       scrollbar-gutter: stable;
+      --lf-holds-height: 1;
     }
   }
 
@@ -1698,9 +1700,11 @@
   }
 }
 
-/* lf-annotation-rail: an author-allocated inspection box, independent of overlay geometry. */
+/* lf-annotation-rail: page annotations in authored flow, independent of overlay geometry.
+ * It grows with its rows in the page's scroll; where the page bounds its height, as a
+ * workspace region does, it scrolls inside that box. */
 :scope:is(lf-annotation-rail) { display: block; box-sizing: border-box; min-inline-size: 0;
-  block-size: min(70vh, 40rem); overflow: auto;
+  overflow: auto;
   border: 1px solid var(--border-2); border-radius: var(--sp-2); }
 :scope:is(lf-annotation-rail) .lf-ar-region { padding: var(--sp-3); }
 :scope:is(lf-annotation-rail) .lf-ar-heading { margin: 0 0 var(--sp-3);
@@ -2412,7 +2416,7 @@
   :scope:is(lf-text-document)[data-lf-bound] { max-block-size: none; overflow: visible;
     --lf-top: inherit; }
   :scope:is(lf-text-document):not([preview])[data-lf-bound] pre { max-block-size: var(--lf-bound, 28rem);
-    overflow: auto; --lf-bound-box: 1; --lf-top: 0px; }
+    overflow: auto; --lf-bound-box: 1; --lf-holds-height: 1; --lf-top: 0px; }
 }
 /* A long capture becomes a keyboard-reachable scroller inside the evidence frame.
    Keep its generic focus ring inside that frame: the figure clips at its rounded

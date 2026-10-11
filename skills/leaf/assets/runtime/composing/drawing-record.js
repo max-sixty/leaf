@@ -21,8 +21,8 @@
  */
 import { drawingSchema } from "./drawing-schema.js";
 
-// The bounds are the ones admission's schema states (generated from registry.json),
-// so the page keeps every drawing the log can hold and offers none the log refuses.
+// The bounds are read from the schema admission holds a comment's drawing to,
+// generated from registry.json, so a bound changes there alone.
 const FIELDS = drawingSchema.properties;
 const PATH = FIELDS.frame.properties.path;
 const STEP = PATH.items.properties;

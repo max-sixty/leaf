@@ -43,8 +43,11 @@ DECLARED = re.compile(
     re.MULTILINE,
 )
 LISTED = re.compile(r"^export\s+(?:type\s+)?\{([^}]*)\}", re.MULTILINE)
+# `export default …`, `export { x as default }` and `export { default } from …`, but not
+# `export { default as x } from …`, which is a named export.
 DEFAULT = re.compile(
-    r"^export\s+default\b|^export\s*\{[^}]*\bas\s+default\b", re.MULTILINE
+    r"^export\s+default\b|^export\s*\{[^}]*\b(?:as\s+default\b|default\s*[,}])",
+    re.MULTILINE,
 )
 # An escape is consumed whole, so `"\ndefine(…)"` in a Python string reads `define`.
 WORD = re.compile(r"\\[a-z]|([A-Za-z_$][\w$]*)")

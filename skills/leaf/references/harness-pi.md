@@ -14,8 +14,9 @@ leaf server start <page>
 ```
 
 It prints `{"url": ...}`, the page's keyed URL, on stdout and returns. Follow
-`references/conversation-loop.md`, "Status and handoff". `references/serving-pages.md` owns the key, the address it binds,
-and a URL the user cannot reach.
+`references/conversation-loop.md`, "Status and handoff".
+`references/serving-pages.md` owns the key, the address it binds, and a URL the
+user cannot reach.
 
 ## Wait loop
 
@@ -29,8 +30,9 @@ going.
 
 The extension confirms an envelope it puts in your context, so the user's moves
 read **Picked up** and its `acknowledge` is null: run no acknowledgement command.
-Large input arrives as a `leaf delivery read <id>` pointer instead; run it before
-working or replying, since follow its confirmation instruction after the complete reading.
+Large input arrives as a `leaf delivery read <id>` pointer instead: read every
+part before working or replying, then follow its confirmation instruction
+(`references/event-batches.md`, "Delivery and acknowledgement").
 
 To pick up a page this session did not serve, run `leaf page claim <page>`; the
 extension watches it from the end of the run.

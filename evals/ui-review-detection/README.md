@@ -24,7 +24,7 @@ From the checkout, install the eval dependencies and check the fixtures without
 calling a model:
 
 ```sh
-npm ci
+pnpm install --frozen-lockfile
 uv run leaf-dev eval-ui-review --prepare-only
 ```
 
@@ -101,7 +101,7 @@ they supplied identical evidence.
 The runner freezes and hashes its source, provider, grader, prompts, rubric, public assets
 and candidate packets before inference. It retains the dependency lock, installed
 direct dependency versions, and Node/Python/Chrome and grader Codex CLI identities. Installed transitive
-bytes rely on `npm ci` rather than independent hashes. The private provenance
+bytes rely on `pnpm install --frozen-lockfile` rather than independent hashes. The private provenance
 records historical sources and reconstruction limits. Screenshots are generated
 from text fixtures; run captures and raw outputs stay under `.tmp/`.
 

@@ -161,7 +161,7 @@ def stage(output):
         shutil.copyfile(SOURCE / name, output / name)
     shutil.copyfile(fixtures / "private/provenance.json", output / "provenance.json")
     shutil.copyfile(Path(__file__), output / "runner.py")
-    for name in ("package.json", "package-lock.json"):
+    for name in ("package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml"):
         shutil.copyfile(ROOT / name, output / f"dependency-{name}")
     package = json.loads((ROOT / "package.json").read_text())
     dependencies = package["devDependencies"] | package["dependencies"]
@@ -173,7 +173,7 @@ def stage(output):
     }
     if installed != dependencies:
         raise click.ClickException(
-            "Installed development dependencies differ; run npm ci"
+            "Installed development dependencies differ; run pnpm install --frozen-lockfile"
         )
     write_json(
         output / "environment.json",
@@ -504,6 +504,6 @@ def eval_ui_review(models, condition, mode, repeat, prepare_only, output):
             f"{summary['unsupported_observations']} unsupported observations; "
             f"{summary['unscored']} unscored."
         )
-    click.echo(f"Results: {output / 'results.json'}\nview: npm run eval:view")
+    click.echo(f"Results: {output / 'results.json'}\nview: pnpm run eval:view")
     if result.returncode:
         raise click.exceptions.Exit(result.returncode)

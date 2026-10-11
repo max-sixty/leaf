@@ -798,4 +798,4 @@ export function createPresentationSchedule(
 
   return Object.freeze({ presenter, passed });
 }
-// Generated from build/browser/presentation.ts by npm run build:browser.
+// Generated from build/browser/presentation.ts by build/browser/build.mjs.

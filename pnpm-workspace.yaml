@@ -1,0 +1,8 @@
+# This repository has one contributor package; Pi is an independent harness fixture.
+packages:
+  - .
+verifyDepsBeforeRun: error
+allowBuilds:
+  esbuild: true
+  workerd: true
+  fsevents: false

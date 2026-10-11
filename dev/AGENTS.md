@@ -103,7 +103,7 @@ The `prepared-install` workflow owns publication. Never merge that generated
 branch into a development branch. Source checkouts remain directly runnable;
 consumer installs and custom packages require no browser compiler.
 
-CI, the root npm scripts and `.config/wt.toml` run these. The images they
+CI, the root pnpm scripts and `.config/wt.toml` run these. The images they
 write live in `max-sixty/leaf-assets`, so outside `.tmp/` they write only the pin
 in `leaf-assets.json` and the README's image URLs that name it.
 
@@ -111,7 +111,7 @@ in `leaf-assets.json` and the README's image URLs that name it.
   `.tmp/site-assets`, and the prepared installation that vendors its pages and that
   the container image installs into `.tmp/site-install`; `--output` gives an
   independent build its own destination. Writes to one destination are serialized.
-  `npm run site:dev` builds and serves it through `wrangler dev`, which
+  `pnpm run site:dev` builds and serves it through `wrangler dev`, which
   chooses available HTTP and inspector ports.
 - `leaf-dev verify-site` verifies a release at an origin, or with `website-worker`
   the site `leaf-dev site` built, through the local Worker and container, and prints
@@ -130,7 +130,7 @@ in `leaf-assets.json` and the README's image URLs that name it.
   is also appended to `$XDG_STATE_HOME/leaf-dev/journey.jsonl` on the machine that
   ran it, and `leaf-dev journey-chart` prints an `lf-chart` of those samples, for
   the latest version each target ran at each user end, to put on a page.
-- `worker/deploy-dev.sh` (`npm run deploy:dev`) deploys the checkout
+- `worker/deploy-dev.sh` (`pnpm run deploy:dev`) deploys the checkout
   to the standing `leaf-website-dev` environment and verifies it. Production deploys
   only through `.github/workflows/publish-site.yaml`.
 - `leaf-dev fetch-assets` fetches the `max-sixty/leaf-assets` revision pinned in

@@ -1095,6 +1095,18 @@ Whole conversations include settlement controls; a fragment feed supplies
 Resolve/Reopen through `threadActions`. Unregister on disconnect. The worked `lf-conversation-workspace` in the
 feature gallery switches Conversation, Shelf and Feed with these APIs.
 
+## Reading version changes
+
+`comparisonChanges(owner)` returns the changed descendant Elements in the standing
+version comparison, excluding the owner itself. Omit the owner to read every changed
+Element. It reads the comparison's identities, so CSS markers do not determine
+membership. With no comparison standing it returns an empty array.
+
+`watchComparison(owner, callback)` calls the callback immediately when the owner is
+connected and whenever the comparison changes. It pauses while the owner is detached
+and reads again on reconnection. Its returned function permanently ends the watch.
+Use `comparisonChanges` in the callback to update counts or other local presentations.
+
 ## Reading Questions and obligation queues
 
 `readWork(scope)` projects a page-owned work hierarchy from the current application

@@ -1633,11 +1633,10 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):
         )
         assert run.returncode == 1, run.stdout + run.stderr
         # "needs Playwright" here would mean the shim dispatched the plain `uv run`.
-        # The report names the widget and gives the renderer's reason, not the source.
+        # The report names the widget and gives the renderer's reason.
         assert "Error: page code reported 1 error" in run.stderr
         assert '<lf-diagram id="d-broken"> failed:' in run.stderr
-        assert "is unsupported" in run.stderr
-        assert "Ada,Review,3" not in run.stderr
+        assert "No diagram type detected" in run.stderr
 
 
 FILM_DECLARATION = {

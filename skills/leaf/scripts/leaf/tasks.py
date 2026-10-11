@@ -12,7 +12,10 @@ text the line (`take_in_hand`), so the words the user reads in the thread and th
 Working line are one write.
 
 The agent's task is work it owes on a thread, a page widget, an element of the page,
-or the page as a whole. `leaf task open` writes a `task` event, and it stands until a
+or the page as a whole. `leaf task open` writes a `task` event, and a reply that
+promises work it does not deliver carries the task's title as `task`, opening it on
+the reply's thread under the reply's id (`task_reading`): the message is answered
+and the work stays on the agent in one write. Either stands until a
 `task_end` gives it one outcome, `done`, `failed` or `dropped`, with a detail saying
 where the result is or why there is none, or until a stamped version that names its
 widget with `--completes` ends it `done`, the note citing that version. A reply, a
@@ -47,10 +50,10 @@ which reads only the document and the log, sees it as every other reader does. A
 start on a page declared `idle` reopens the page with a bare `waiting` after it,
 which writes no `put_down`.
 
-The door admits the agent's task on an open thread, on a live page widget that
-declares `x-work` or holds an unsettled move (`work.widget_seat_error`), on any
-element of the page, or on the page, and a task on the user on any of those but a
-thread, a widget needing no seat; a start on an open task of the agent's or a move
+The door admits the agent's `task` event on a live page widget that declares
+`x-work` or holds an unsettled move (`work.widget_seat_error`), on any element of
+the page, or on the page, and a task on the user on any of those, a widget needing
+no seat; a start on an open task of the agent's or a move
 the agent owes; and an end of an open task, the user's only of one the agent opened
 on them (`task_error`). `TaskReading` holds the log's tasks, starts and endings
 for one event basis; `canonical_tasks` supplies the same fold to standalone callers.
@@ -69,12 +72,31 @@ from functools import cached_property
 from pathlib import Path
 
 from .events import note_settlements, taken_back
+from .thread_context import thread_names
 
 OUTCOMES = ("done", "failed", "dropped")
 
-# What `task open` takes for the page as a whole; any other id names a thread, a
-# widget, or an element of the page.
+# What `task open` takes for the page as a whole; any other id names a widget or an
+# element of the page.
 PAGE_SUBJECT = "page"
+
+
+def task_reading(event: dict, threads: dict[str, str]) -> dict | None:
+    """One task-opening reading, from an explicit task or a reply that carries one.
+
+    `threads` is `thread_context.thread_names`, which names the thread a reply's
+    task stands on. A reply's task keeps the reply's identity, as its start does."""
+    if event["kind"] == "task":
+        return event if "owner" in event else None
+    if event["kind"] == "reply" and "task" in event:
+        return {
+            **event,
+            "kind": "task",
+            "owner": "agent",
+            "subject": {"kind": "thread", "id": threads[event["id"]]},
+            "title": event["task"],
+        }
+    return None
 
 
 def start_reading(event: dict) -> dict | None:
@@ -177,10 +199,10 @@ def _tasks(events: list, withdrawn: set, standing: dict) -> list[dict]:
         task["state"] = state
         task["outcome"] = _outcome(event, detail)
 
+    threads = thread_names(events)
     for event in events:
-        if event["kind"] == "task":
-            if "owner" not in event:
-                continue
+        if opened := task_reading(event, threads):
+            event = opened
             tasks[event["id"]] = {
                 "id": event["id"],
                 "owner": event["owner"],
@@ -247,7 +269,6 @@ ENDS_BY_DONE = "done"
 def task_error(
     event: dict,
     log: TaskReading,
-    threads: dict,
     *,
     seat_error,
     element_error,
@@ -258,8 +279,9 @@ def task_error(
 ) -> str | None:
     """Why the append door refuses a task event, or None.
 
-    Explicit work stands on an admitted widget, page element, page or open thread;
-    user-owned work cannot stand on a thread. A start names an open agent task or
+    Explicit work stands on an admitted widget, page element or page; work on a
+    thread is opened by the reply that promises it (`task_reading`), which the
+    schema keeps off a `task` event. A start names an open agent task or
     an owed move. Either side can end explicit work within its ownership rules.
     An agent end may also withdraw an open prose Question by canonical id or source
     message id, while widget Questions remain owned by their declared state.
@@ -275,18 +297,6 @@ def task_error(
             )
         if subject["kind"] == "element":
             return element_error(subject["id"])
-        if subject["kind"] == "page":
-            return None
-        if event["owner"] == "user":
-            return (
-                f"{subject['id']!r} is a thread, where a task on the user is a "
-                "question: ask it there with `leaf thread reply --awaits`"
-            )
-        thread = threads.get(subject["id"])
-        if thread is None:
-            return f"{subject['id']!r} is not a thread on this page"
-        if thread["resolved"]:
-            return f"thread {subject['id']!r} is resolved; reopen it before a task"
         return None
     if kind == "start":
         if error := start_line_error(event["text"]):
@@ -331,10 +341,10 @@ def task_error(
 
 
 def cmd_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
-    """Open a task titled `title`, owed by `owner`, on what `subject` names: a thread,
-    by any message in it or a widget frozen in it (the agent's own task only), a page
+    """Open a task titled `title`, owed by `owner`, on what `subject` names: a page
     widget, any other element of the page by its id, or `page` for the page as a
-    whole; the record."""
+    whole; the record. A thread takes its work from the reply that promises it, and
+    its question for the user from a reply that asks it."""
     from .event_contracts import append_admitted
     from .harness import message_identity
     from .leases import contract_writer
@@ -354,8 +364,15 @@ def cmd_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
             )
             if named is None:
                 sys.exit(
-                    f"{subject!r} names no thread, widget or element on this page; "
+                    f"{subject!r} names no widget or element on this page; "
                     f"`{PAGE_SUBJECT}` names the page as a whole"
+                )
+            if named["kind"] == "thread":
+                sys.exit(
+                    f"{subject!r} is in a thread, where a reply asks the user "
+                    "(`--question`) or promises your work (`--task <title>`): "
+                    "`leaf response reply <answer.ref>`, or `leaf thread reply "
+                    "<page> <thread>` when no answer is owed"
                 )
             return append_admitted(
                 page,

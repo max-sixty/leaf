@@ -23,8 +23,11 @@
  * scrubs native captures; playback includes frames at their recorded timing and pauses
  * on manual navigation, inspection, hiding or retirement. Page scrolling keeps
  * playback running, including wheel input and vertical touch swipes over captures. Captured frames can join that
- * same timeline. Initial selection prefers its first nonempty saved tree, then
- * its first image; empty earlier stops stay navigable. Following a visual part restores its exact
+ * same timeline. Initial selection opens the first stream in recording order holding
+ * a resolvable authored moment, at its earliest one. Otherwise it opens the first
+ * stream's first nonempty saved tree, then its first image;
+ * empty earlier stops stay navigable. Updates within one archive keep the chosen scope.
+ * Following a visual part restores its exact
  * stop and its recording or page scope. Visible choices use the shared Web Awesome radio group;
  * source switching and timeline stepping have separate keyboard focus. Scope choices
  * and the bounded, always-visible Moments list keep evidence at a stable origin. The timeline sits directly above the capture; image
@@ -714,12 +717,18 @@ customElements.define(
       return { image, tree: phase?.tree ?? null };
     }
     #selectDefault() {
-      // Start with saved page content, otherwise an original image. A late
-      // filmstrip frame gets its own stop, never attached to an earlier call.
+      // Authored moments name the review's entry point.
+      // A late filmstrip frame keeps its own stop, never an earlier call's time.
       const items = this.#items(true);
+      const moment = this.#scopeMoments()[0];
+      const destination = moment ? this.#destination(moment.target) : null;
       const firstTree = items.find((point) => this.#evidence(point).tree?.nodes.length);
       const point =
-        firstTree ?? items.find((point) => this.#evidence(point).image) ?? items[0];
+        items.find((point) => point.id === destination) ??
+        firstTree ??
+        items.find((point) => this.#evidence(point).image) ??
+        items[0];
+      this.#chosenBookmark = moment?.button ?? null;
       if (point?.image) this.#intermediates = true;
       this.#selected = point?.id ?? null;
     }
@@ -846,8 +855,7 @@ customElements.define(
       if (this.#trace) {
         const choices = this.#scopeChoices();
         this.#drawScopes(choices);
-        if (!choices.some(([id]) => id === this.#scope))
-          this.#scope = choices[0]?.[0] ?? null;
+        const chooseScope = !choices.some(([id]) => id === this.#scope);
         keeps(this.viewer, "href", this.#trace.viewerUrl);
         this.#indexTargets();
         const scopeOrder = new Map(
@@ -861,6 +869,11 @@ customElements.define(
                 (scopeOrder.get(b.stream) ?? Infinity) || a.time - b.time,
           )
           .map((moment, index) => ({ ...moment, number: index + 1 }));
+        if (chooseScope)
+          this.#scope =
+            this.#moments.find((moment) => moment.scope)?.stream ??
+            choices[0]?.[0] ??
+            null;
         setChildren(this.bookmarkList, [
           ...this.#moments.map((moment) => moment.button),
           this.noMoments,
@@ -1046,7 +1059,9 @@ customElements.define(
       return bounds;
     }
     #moment(member) {
-      const target = this.#targets.get(member.target);
+      const target = this.#destination(member.target)
+        ? this.#targets.get(member.target)
+        : null;
       const capture = target?.image ?? target?.action?.phases[target.phase];
       return {
         ...member,
@@ -1058,6 +1073,11 @@ customElements.define(
             ? target?.action?.endTime
             : target?.action?.startTime),
       };
+    }
+    #scopeMoments() {
+      return this.#moments.filter(
+        (moment) => moment.scope === this.#scope || moment.stream === this.#scope,
+      );
     }
     #imageZoom() {
       keepsText(
@@ -1452,9 +1472,7 @@ customElements.define(
 
     #drawMoments() {
       const moments = this.#moments;
-      const available = moments.filter(
-        (moment) => moment.scope === this.#scope || moment.stream === this.#scope,
-      );
+      const available = this.#scopeMoments();
       const unavailable = moments.filter((moment) => !moment.scope);
       keepsHidden(this.bookmarkList, !moments.length);
       this.style.setProperty("--lf-trace-moment-rows", Math.min(3, moments.length));
@@ -1874,9 +1892,7 @@ customElements.define(
         this.treeClock,
         tree
           ? `Tree captured ${this.#time(tree.timestamp, action.stream)}. Element boxes describe this tree, not exact positions in the image.`
-          : action
-            ? "No accessibility tree was saved for this phase. Full DOM inspection is available in Playwright."
-            : "No saved elements at this frame. Choose an action checkpoint to inspect its saved tree.",
+          : "No accessibility tree was saved at this point.",
       );
       if (action) {
         for (const [index, node] of (tree?.nodes ?? []).entries()) {

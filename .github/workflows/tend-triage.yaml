@@ -47,10 +47,12 @@ jobs:
 
       - uses: astral-sh/setup-uv@v7
       - run: uv sync --frozen
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
-      - run: npm ci
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - run: uv run playwright install --with-deps chromium webkit firefox --only-shell
         name: Install Chromium headless shell, WebKit and Firefox
       - run: uv run python -c "from playwright.sync_api import sync_playwright; p = sync_playwright().start(); p.chromium.launch().close(); p.webkit.launch().close(); p.firefox.launch().close(); p.stop()"

@@ -44,6 +44,11 @@ if (child) {
       sampleNotice("height", { height });
     }
   };
+  // The containing page's image shows this part of the viewport where the frame stands.
+  registerSampleCommand("image", async ({ x, y, width, height }) => {
+    const { pageImage } = await import("./composing/page-image.js");
+    return pageImage({ x: scrollX + x, y: scrollY + y, width, height });
+  });
   registerSampleCommand("window", async ({ window: asWindow }) => {
     child.settings.window = asWindow;
     document.documentElement.lfInitial.setRuntimeRootAttribute(

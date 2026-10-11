@@ -640,7 +640,8 @@ def local_worker() -> Iterator[tuple[str, str]]:
                 [
                     "Dockerfile.website",
                     "package.json",
-                    "package-lock.json",
+                    "pnpm-lock.yaml",
+                    "pnpm-workspace.yaml",
                     "worker/codex-config.toml",
                 ],
                 context,

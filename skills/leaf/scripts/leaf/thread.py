@@ -290,8 +290,9 @@ def post_reply(
     to: str | None,
     text,
     markup: str,
-    awaits: bool = False,
+    question: bool = False,
     *,
+    task: str | None = None,
     for_event: str | None,
     quote: str = "",
     section: str = "",
@@ -329,6 +330,11 @@ def post_reply(
 
     ``failure`` records a harness-owned failure code alongside its presentation text;
     ordinary agent answers omit it.
+
+    ``question`` makes the reply a prose Question on the user (`questions`).
+    ``task`` titles work the reply promises and does not deliver: the reply opens
+    that task on its thread, under the reply's own id (`tasks.task_reading`), so
+    the user's message is answered and the work stays on the agent in one write.
 
     ``ephemeral`` posts progress at the same response address without answering it.
     It remains content, and cannot carry a question, widgets, failure or relocation.
@@ -377,6 +383,17 @@ def post_reply(
                     or not same_scope
                 ):
                     sys.exit(f"attempt {attempt!r} already belongs to another event")
+                if (bool(existing.get("question")), existing.get("task")) != (
+                    question,
+                    task,
+                ):
+                    # A repeat that asks or promises differently would otherwise
+                    # return the first answer and drop what this one declares.
+                    sys.exit(
+                        f"{existing['id']!r} already answered this with a different "
+                        "declaration; ask or promise in a new message with "
+                        "`leaf thread reply`"
+                    )
                 return existing
         if (
             when_settled == "post"
@@ -455,9 +472,9 @@ def post_reply(
         ):
             return None
         moving = bool(quote or section or part)
-        if ephemeral and (awaits or markup or failure or moving or detach):
+        if ephemeral and (question or task or markup or failure or moving or detach):
             sys.exit(
-                "--ephemeral is for progress text; it cannot ask a question, carry widgets, report failure, or move the thread"
+                "--ephemeral is for progress text; it cannot ask a question, open a task, carry widgets, report failure, or move the thread"
             )
         if in_hand is not None and start_line_error(text.strip()):
             sys.exit(
@@ -543,7 +560,7 @@ def post_reply(
             if markup
             else None
         )
-        if awaits and fragment:
+        if question and fragment:
             from leaf.registry.storage import require_registry
 
             registry = require_registry(page_dir)
@@ -560,7 +577,7 @@ def post_reply(
             )
             if structural:
                 sys.exit(
-                    "--awaits is for a prose question; reply markup already declares "
+                    "--question is for a prose question; reply markup already declares "
                     "a local Question "
                     f"({', '.join(f'<{tag}>' for tag in structural)})"
                 )
@@ -609,8 +626,10 @@ def post_reply(
                 "item": in_hand,
                 **({"turn": turn} if turn else {}),
             }
-        if awaits:
-            event["awaits"] = True
+        if question:
+            event["question"] = True
+        if task is not None:
+            event["task"] = task
         if markup:
             event["markup"] = markup
         if attempt is not None:

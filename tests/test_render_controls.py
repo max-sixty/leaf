@@ -10147,3 +10147,127 @@ def test_a_reference_command_finishes_its_gesture_before_a_newer_control(
         expect(page.locator(".lf-fab-input")).to_be_focused()
         expect(page.locator("#origin")).to_have_class(re.compile("lf-projected-mark"))
     assert page.evaluate("scrollY") == before
+
+
+@pytest.mark.parametrize("native_move", [True, False])
+def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, native_move):
+    """Moves survive named form fields; native moves also retain frame state."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Retained rows",
+                "<h1>Retained rows</h1>"
+                + "".join(
+                    f'<form id="{id}"><input name="moveBefore"><input name="getRootNode">'
+                    '<input name="insertBefore"></form>'
+                    for id in ["rows", "other"]
+                ),
+            )
+        ),
+    )
+    page.evaluate(
+        """async nativeMove => {
+      const {orderChildren} = await window.__lfRuntimeImport('/runtime/dom-children.js');
+      const {move, holdFocus} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const rows = document.querySelector('#rows');
+      if (!nativeMove) Element.prototype.moveBefore = undefined;
+      const nodes = ['a', 'b', 'c'].map(id => {
+        const row = document.createElement('div');
+        row.dataset.row = id;
+        row.innerHTML = `<input aria-label="${id}">
+          <iframe title="${id}" srcdoc="<p>Retained frame</p>"></iframe>`;
+        return row;
+      });
+      orderChildren(rows, nodes);
+      const editor = rows.querySelector('[data-row=c] input');
+      window.blurs = 0;
+      editor.addEventListener('blur', () => window.blurs++);
+      editor.addEventListener('keydown', event => {
+        if (event.key === 'ArrowUp' && event.altKey) {
+          event.preventDefault();
+          const restore = holdFocus(rows);
+          orderChildren(rows, [nodes[2], nodes[0], nodes[1]]);
+          restore?.();
+        } else if (event.key === 'ArrowDown' && event.altKey) {
+          event.preventDefault();
+          const restore = holdFocus(rows);
+          move(document.querySelector('#other'), editor.closest('[data-row]'), null);
+          restore?.();
+        }
+      });
+    }""",
+        native_move,
+    )
+    editor = page.get_by_role("textbox", name="c", exact=True)
+    editor.fill("unfinished words")
+    editor.evaluate("node => node.setSelectionRange(3, 9, 'backward')")
+    frame = page.locator("[data-row=c] iframe")
+    expect(page.frame_locator("[data-row=c] iframe").locator("p")).to_have_text(
+        "Retained frame"
+    )
+    frame.evaluate("node => window.heldDocument = node.contentDocument")
+    moves = [("Alt+ArrowUp", "#rows")]
+    if native_move:
+        moves.append(("Alt+ArrowDown", "#other"))
+    for key, parent in moves:
+        page.keyboard.press(key)
+        expect(page.locator(f"{parent} > [data-row=c]")).to_have_count(1)
+        if key == "Alt+ArrowUp":
+            expect(page.locator("#rows > [data-row]").first).to_have_attribute(
+                "data-row", "c"
+            )
+        expect(editor).to_be_focused()
+        expect(editor).to_have_value("unfinished words")
+        assert editor.evaluate(
+            "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
+        ) == [3, 9, "backward"]
+        if native_move:
+            assert page.evaluate("window.blurs") == 0
+            assert frame.evaluate(
+                "node => node.contentDocument === window.heldDocument"
+            )
+        else:
+            assert page.evaluate("window.blurs") > 0
+    assert page.evaluate(
+        """async () => {
+      const {selectionBackward} = await window.__lfRuntimeImport('/runtime/passages.js');
+      const form = document.querySelector('#rows');
+      const first = document.createElement('label'), last = document.createElement('label');
+      first.textContent = 'First'; last.textContent = 'Second';
+      form.prepend(first); form.append(last);
+      const selection = getSelection();
+      selection.setBaseAndExtent(first.firstChild, 0, last.firstChild, 6);
+      return [selection.getRangeAt(0).commonAncestorContainer === form,
+              selectionBackward(selection)];
+    }"""
+    ) == [True, False]
+
+
+def test_named_form_controls_leave_shadow_scroll_and_standing_readings_available(
+    browser, serve
+):
+    page = open_page(browser, serve(leaf_page("Named forms", "<h1>Named forms</h1>")))
+    page.evaluate(
+        """async () => {
+      const {watchArrivalsIn, watchScrolls} = await window.__lfRuntimeImport('/runtime/arrivals.js');
+      const host = document.createElement('div');
+      document.querySelector('main').append(host);
+      const stage = host.attachShadow({mode: 'open'});
+      stage.innerHTML = '<form style="height:40px;overflow:auto"><input name="getRootNode"><p style="height:200px">Scrollable words</p></form>';
+      const form = stage.querySelector('form');
+      watchArrivalsIn(stage);
+      watchScrolls(event => { if (event.target === form) window.namedFormScrolled = true; });
+      form.scrollTop = 50;
+    }"""
+    )
+    page.wait_for_function("window.namedFormScrolled === true")
+    assert (
+        page.evaluate(
+            """async () => {
+      const {standsOn} = await window.__lfRuntimeImport('/runtime/focus.js');
+      return standsOn(document.querySelector('main > div').shadowRoot.querySelector('form'));
+    }"""
+        )
+        is False
+    )

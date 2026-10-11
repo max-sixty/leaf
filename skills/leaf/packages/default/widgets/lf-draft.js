@@ -9,7 +9,9 @@
  * Editing controls belong to the box, in a persistent local footer. The same
  * command declarations own pointer activation, keyboard routes, availability and
  * accessible shortcut hints. Visual shortcuts belong to the shared shortcut bar. Comments and workflow receipts keep their own
- * annotation layer; hiding annotations cannot hide the editor's controls.
+ * annotation layer; hiding annotations cannot hide the editor's controls. The editor
+ * and its tools are Leaf surfaces even inside the document, so Draw and Design modes leave them
+ * operable while the saved reading and history remain the page's to draw on or comment on.
  * History shares the footer only when edits exist and the editor is closed.
  * It draws the controller's published reading; local control changes retain that
  * reading until the next publication, including while an editor defers replay.
@@ -292,7 +294,7 @@ export default class extends HTMLElement {
         <span ${offered("lf-draft-status")} role="status"
           >${this.#failed ? "Save failed. Your edit is kept." : ""}</span
         >
-        <div ${offered("lf-draft-tools")}>
+        <div ${offered("lf-draft-tools")} data-lf-runtime>
           ${ACTIONS.map(
             ([key, title, hint]) =>
               html`<button
@@ -369,23 +371,23 @@ export default class extends HTMLElement {
               <div class="lf-draft-revision-head">
                 <strong>${row.label}</strong>
                 ${
-                  row.text === standing
-                    ? nothing
-                    : html`<button
-                        ${offered("lf-btn lf-draft-restore")}
-                        aria-disabled=${String(blocked)}
-                        tabindex=${blocked ? -1 : 0}
-                        @click=${() => this.#restore(row.text, row.label)}
-                      >
-                        Restore ${row.label.toLowerCase()}
-                      </button>`
-                }
+                    row.text === standing
+                      ? nothing
+                      : html`<button
+                          ${offered("lf-btn lf-draft-restore")}
+                          aria-disabled=${String(blocked)}
+                          tabindex=${blocked ? -1 : 0}
+                          @click=${() => this.#restore(row.text, row.label)}
+                        >
+                          Restore ${row.label.toLowerCase()}
+                        </button>`
+                  }
               </div>
               ${
-                row.before === null
-                  ? html`<div class="lf-draft-snapshot">${row.text || "Empty"}</div>`
-                  : this.#delta(row.before, row.text)
-              }
+                  row.before === null
+                    ? html`<div class="lf-draft-snapshot">${row.text || "Empty"}</div>`
+                    : this.#delta(row.before, row.text)
+                }
             </li>`,
         )}
       </ol>
@@ -444,6 +446,7 @@ export default class extends HTMLElement {
     }
     if (this.#available()) this.#resumeProjection ??= this.#controller.defer();
     const editor = offer(TEXT_FIELD, "lf-draft-edit");
+    editor.dataset.lfRuntime = "";
     // A set-aside edit outranks the authored text here too: reopening resumes it.
     const effective = this.#controller.read().state.edit.value;
     editor.value = seed ?? loadEdit(this.id) ?? effective;

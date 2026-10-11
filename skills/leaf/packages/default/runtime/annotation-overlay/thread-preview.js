@@ -161,6 +161,7 @@ export function createThreadPreview({
       messageHeight:
         element.scrollHeight > element.clientHeight ? parseFloat(style.height) : null,
       endRoom: element.endRoom ?? "none",
+      writingEndRoom: element.writingEndRoom,
       scroll: element.scrollTop,
     };
   }
@@ -223,6 +224,8 @@ export function createThreadPreview({
         previewSession.messageViewport && origin.messageHeight !== null
           ? `${origin.messageHeight}px`
           : null,
+      "--lf-comment-send-room":
+        previewSession.messageViewport && `${origin.writingEndRoom}px`,
     };
     for (const [name, value] of Object.entries(properties))
       if (value) preview.style.setProperty(name, value);

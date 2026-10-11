@@ -229,8 +229,7 @@ function iconUrl(color) {
 }
 export async function loadIcon() {
   const response = await fetch(runtimeResource("/icon.svg"));
-  if (!response.ok)
-    throw new Error(`leaf: the tab icon failed to load (${response.status})`);
+  if (!response.ok) throw new Error(`icon.svg answered ${response.status}`);
   const doc = new DOMParser().parseFromString(await response.text(), "image/svg+xml");
   // Two failures, and the same symptom: no element to paint. A parse error is reported
   // as a document rather than thrown, so a mark that isn't SVG at all reaches the class
@@ -241,11 +240,11 @@ export async function loadIcon() {
     throw new Error(
       // Collapsed, because the browser's report is laid out as a page and reads as
       // several lines of it; what matters is the line and column it names.
-      `leaf: icon.svg is not SVG — ${broken.textContent.replace(/\s+/g, " ").trim()}`,
+      `icon.svg is not SVG — ${broken.textContent.replace(/\s+/g, " ").trim()}`,
     );
   if (!doc.querySelector(".lf-tone"))
     throw new Error(
-      "leaf: icon.svg carries no lf-tone element, which is where the page's " +
+      "icon.svg carries no lf-tone element, which is where the page's " +
         "status is painted",
     );
   iconMark = doc.documentElement;

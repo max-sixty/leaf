@@ -10,7 +10,7 @@ export { keyed, unsafeHTML } from "../vendor/lit.js";
 export { iconElement, iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
 export { initialRender } from "./initial-render.js";
-export { watchOwner } from "./arrivals.js";
+export { watchOwner, whileConnected, frameFor } from "./arrivals.js";
 // The rank a position record carries for a unit dropped at an index in a container.
 export { rankAt } from "./projection/model.js";
 export async function mountSample(frame, options) {

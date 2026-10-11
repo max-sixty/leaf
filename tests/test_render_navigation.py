@@ -963,7 +963,7 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
     left.evaluate("el => el.scrollTop = 300")
     page.locator("#reading-draft").evaluate("el => el.setSelectionRange(4, 4)")
     held = []
-    page.route("**/vendor/agentic-mermaid.esm.js", lambda route: held.append(route))
+    page.route("**/vendor/mermaid.esm.js", lambda route: held.append(route))
     revised = source.replace(
         '<p id="left-start">',
         '<p>Added context.</p><p id="left-start">',
@@ -1018,7 +1018,7 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
     finally:
         for route in held:
             route.continue_()
-        page.unroute("**/vendor/agentic-mermaid.esm.js")
+        page.unroute("**/vendor/mermaid.esm.js")
 
 
 def test_revision_carries_apparatus_when_an_arriving_element_takes_focus(
@@ -13415,7 +13415,7 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
     page.keyboard.press("c")
     expect(box).to_be_focused()
     expect(box).to_have_attribute("placeholder", re.compile(r"^Comment… .*⏎$"))
-    send = page.locator(".lf-composer > .lf-compose-field > button")
+    send = page.locator(".lf-composer > .lf-compose-field > .lf-compose-submit")
     expect(send.locator('svg[data-lf-icon="send"]')).to_have_count(1)
     expect(page.locator(".lf-composer-row")).to_have_count(0)
     field_box = box.bounding_box()
@@ -14214,7 +14214,6 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
         {
             "files": [
                 {
-                    "key": "app.py",
                     "path": "app.py",
                     "kind": "patch",
                     "additions": 1,

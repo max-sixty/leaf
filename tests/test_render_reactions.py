@@ -503,7 +503,7 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve, s
     face = """node => {
       const style = getComputedStyle(node);
       return {fill: style.backgroundColor, border: style.borderTopColor,
-              shadow: style.boxShadow};
+              outline: style.outlineStyle, ring: style.outlineColor};
     }"""
     page.mouse.move(0, 0)
     resting_face = reaction.evaluate(face)
@@ -514,7 +514,8 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve, s
         page.keyboard.press("ArrowRight")
         focused = surface.locator(f'[data-token="{token}"]')
         expect(focused).to_be_focused()
-        assert focused.evaluate(face)["shadow"] != resting_face["shadow"]
+        assert focused.evaluate(face)["outline"] == "solid"
+        assert focused.evaluate(face)["ring"] != resting_face["ring"]
     expect(page.locator(".lf-walk-position")).to_have_text("Response 7 of 7")
     page.keyboard.press("ArrowRight")
     expect(surface.get_by_role("button", name="Suggest", exact=True)).to_be_focused()
@@ -783,10 +784,7 @@ def test_the_fold_a_put_down_takes_back_does_not_take_the_users_focus(browser, s
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
 def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve, scheme):
-    """The response bar casts its focus ring as a shadow, and cast it at a quarter of
-    the accent: a faint 2px halo, all but invisible in dark, where every other control
-    the keyboard stands on wears the solid band. The shadow is the band's own token,
-    ink and all, so the two carriers cannot drift apart."""
+    """The response choice shares the comment field's solid accent focus ring."""
     page = open_page(browser, serve(PANEL_PAGE), color_scheme=scheme)
     select_paragraph(page, "#how-cap")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
@@ -806,11 +804,13 @@ def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve, scheme
       ink.remove();
       const band = getComputedStyle(document.documentElement)
         .getPropertyValue('--focus-ring-w').trim();
-      return {shadow: getComputedStyle(node).boxShadow, accent, band};
+      const style = getComputedStyle(node);
+      return {outline: style.outlineStyle, color: style.outlineColor,
+              width: style.outlineWidth, accent, band};
     }""")
-    assert ring["shadow"].startswith(f"{ring['accent']} 0px 0px 0px {ring['band']}"), (
-        ring
-    )
+    assert (ring["outline"], ring["color"], ring["width"]) == (
+        "solid", ring["accent"], ring["band"]
+    ), ring
 
 
 def test_the_response_choices_stay_reachable_beside_the_panel(browser, serve):

@@ -42,6 +42,7 @@ import { landingBand, shownRect, skipped, userScrollport } from "./geometry.js";
 import { pageScroller } from "./scrolling.js";
 import { reachReadingScroller } from "./reach.js";
 import { under, renderedUnder, renderedParent } from "./shadow.js";
+import { pageDocument } from "./passages.js";
 import { deepFocus, onStanding, pressing } from "./focus.js";
 
 const regions = new Map();
@@ -55,6 +56,11 @@ const depthOf = (node) => {
 
 const live = (region) => region?.host?.isConnected && region.body?.isConnected;
 
+// Three questions about a region's visibility, each asked where its cost and answer fit:
+// `concealed` reads the page's own attributes alone, so the inventory decides what to
+// sample without asking any geometry; `shown` (below) asks whether the browser draws
+// the host at all, which a region scrolled out of the window still is; `hidden` asks
+// whether the region has bounds to give now, concealed or clipped away entirely.
 const concealed = (region) =>
   region.host.hidden ||
   region.host.closest?.("[hidden], [aria-hidden='true']") !== null;
@@ -97,7 +103,7 @@ export function registerReadingRegion({ id, host, body }) {
 // Chrome layout asks on every pass, since a revision can replace `main`'s children.
 let layoutRegion = null;
 export function syncLayoutRegion() {
-  const main = document.querySelector("main");
+  const main = pageDocument();
   const body = main
     ? [...main.children].find(
         (child) =>
@@ -172,14 +178,13 @@ export const onReadingInput = (read) => readingInputReaders.add(read);
 const readingInput = (node) => {
   for (const read of readingInputReaders) read(node);
 };
-const pageRoot = () => document.querySelector("body > main");
 const actedAt = (at, arriving) => {
   const region = readingRegionFor(at);
   if (region) {
     recentRegionId = region.id;
-    if (under(region.host, pageRoot())) pageRegionId = region.id;
+    if (under(region.host, pageDocument())) pageRegionId = region.id;
   } else if (
-    (at === document.body || under(at, pageRoot())) &&
+    (at === document.body || under(at, pageDocument())) &&
     !(arriving && at === document.body && pressing())
   )
     recentRegionId = pageRegionId = null;
@@ -205,13 +210,13 @@ export const recentReadingRegion = () => readingRegion(recentRegionId);
 const shown = (region) => (region?.host.checkVisibility() ? region : undefined);
 export const pageReadingRegion = () => {
   const at = deepFocus();
-  if (under(at, pageRoot())) return readingRegionFor(at);
+  if (under(at, pageDocument())) return readingRegionFor(at);
   return shown(readingRegion(pageRegionId));
 };
 export const userReadingRegion = () => {
   const at = deepFocus();
   const region = readingRegionFor(at);
-  if (region || under(at, pageRoot())) return region;
+  if (region || under(at, pageDocument())) return region;
   return shown(recentReadingRegion()) ?? pageReadingRegion();
 };
 

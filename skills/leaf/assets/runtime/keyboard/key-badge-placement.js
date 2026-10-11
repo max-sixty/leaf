@@ -22,7 +22,13 @@
 import { closestAcross, elementFromPointAcross, inChrome } from "../passages.js";
 import { PRESSES } from "../control-selectors.js";
 import { bottomChromeBoxes } from "./shortcut-bar.js";
-import { bannerFoot, shownParts, shownRect, startsAt } from "../geometry.js";
+import {
+  bannerFoot,
+  layoutWindow,
+  shownParts,
+  shownRect,
+  startsAt,
+} from "../geometry.js";
 import { clamp, intersect, overlaps } from "../rect.js";
 import { renderedUnder } from "../shadow.js";
 
@@ -55,13 +61,14 @@ export function keyBadgePlacement() {
   // that read it would lose members as it armed and swap codes as its own legend grew. A
   // chip that would land there is moved by the placement pass instead (`spreadHints`,
   // hints.js), which keeps the route where dropping the member loses it.
+  const edges = layoutWindow();
   const clearBox = (box, sourceTop = box?.top) =>
     box
       ? rect(
           Math.max(box.left, 0),
           Math.max(box.top, covered),
-          Math.min(box.right, innerWidth),
-          Math.min(box.bottom, innerHeight),
+          Math.min(box.right, edges.right),
+          Math.min(box.bottom, edges.bottom),
           sourceTop,
         )
       : null;
@@ -160,8 +167,8 @@ export function keyBadgePlacement() {
             }));
     return (aims.length ? aims : [box]).some((aim) => {
       const onTop = elementFromPointAcross(
-        clamp((aim.left + aim.right) / 2, 0, innerWidth - 1),
-        clamp((aim.top + aim.bottom) / 2, covered, innerHeight - 1),
+        clamp((aim.left + aim.right) / 2, 0, edges.right - 1),
+        clamp((aim.top + aim.bottom) / 2, covered, edges.bottom - 1),
       );
       if (!member) return !inChrome(onTop);
       return exposure === "self"
@@ -209,8 +216,7 @@ export function keyBadgePlacement() {
   // chip with no room is hidden rather than removed, so a pass that changes nothing
   // writes nothing.
   function paint(seats, chips) {
-    const right = document.documentElement.clientWidth;
-    const bottom = document.documentElement.clientHeight;
+    const { right, bottom } = layoutWindow();
     const measured = chips.map(({ chip, owner, corner }) => {
       const seat = seats.seat(owner);
       if (chip.parentElement !== seat) seat.replaceChildren(chip);

@@ -41,12 +41,12 @@ import {
   sectionOf,
 } from "./anchor-resolution.js";
 import {
-  clippedContents,
+  clippedPlace,
   clipsPast,
   landingBand,
+  placeBox,
   placeHolder,
   shownBox,
-  shownRect,
 } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
 import { onReadingInput, scrollersOf } from "./reading-regions.js";
@@ -444,14 +444,13 @@ export function createAnchorTravel({
   function seenOf(where) {
     const holder = placeHolder(where);
     if (!holder) return null;
-    const destination =
-      where instanceof Range ? where.getBoundingClientRect() : shownBox(where);
+    const destination = placeBox(where);
     const standing = surfaces.selectedSurface();
-    const clips = standing ? clipsPast([standing]) : new Map();
-    const seen =
-      where instanceof Range
-        ? clippedContents(destination, holder, clips)
-        : shownRect(where, clips);
+    const seen = clippedPlace(
+      where,
+      standing ? clipsPast([standing]) : new Map(),
+      destination,
+    );
     return seen && { holder, destination, seen };
   }
 

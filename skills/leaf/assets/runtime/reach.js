@@ -6,6 +6,7 @@ import { LENT_REACH_STOP, TEXT_BOX } from "./control-selectors.js";
 import { scrollsBy, skipped, userScrollport } from "./geometry.js";
 import { afterScript, nextFrame, nextRender, sizeObserver } from "./rendering.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
+import { SCROLL_SLACK, atScrollEnd } from "./scrolling.js";
 import { shadowRootsIn, upFrom } from "./shadow.js";
 import { LAYOUT } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
@@ -178,10 +179,7 @@ function paintReadingReach(el) {
     if (!downwards.has(el) || unpainted(el)) return;
     const style = getComputedStyle(el);
     const scrolling = userScrollport(style.overflowY);
-    el.toggleAttribute(
-      PAGE_PAINT_ATTRIBUTE.moreBelow,
-      scrolling && el.scrollTop + el.clientHeight < el.scrollHeight - 1,
-    );
+    el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.moreBelow, scrolling && !atScrollEnd(el));
   });
 }
 
@@ -385,10 +383,13 @@ function paintSidewaysReach(el) {
     const raw = Math.abs(el.scrollLeft);
     const position = Math.min(maximum, Math.max(0, raw));
     keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, scrolling ? style.direction : null);
-    el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.moreBefore, scrolling && position > 1);
+    el.toggleAttribute(
+      PAGE_PAINT_ATTRIBUTE.moreBefore,
+      scrolling && position > SCROLL_SLACK,
+    );
     el.toggleAttribute(
       PAGE_PAINT_ATTRIBUTE.moreAfter,
-      scrolling && position < maximum - 1,
+      scrolling && position < maximum - SCROLL_SLACK,
     );
   });
 }

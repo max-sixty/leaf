@@ -117,16 +117,19 @@ button.lf-media-open { cursor: zoom-in; }
 .lf-composer-media-item > .lf-media-open[data-lf-focus] {
   outline-offset: calc(-1 * var(--focus-ring-w)); }
 
-/* Standard comment boxes share one frame around their editor and Send. Other
-   uses of the shared editor plumbing, such as option entry and the extended
-   anchored response control, supply their own face. Containers place comment
-   boxes; they do not supply a second frame. */
-.lf-comment-box > .lf-compose-field {
+/* Comment boxes and anchored response controls share their frame and focus paint.
+   Other uses of the editor plumbing, such as option entry, supply their own face.
+   Containers place comment boxes; they do not supply a second frame. */
+.lf-comment-box > .lf-compose-field, .lf-response-control {
           border: 1px solid var(--border-2);
           border-radius: var(--r); background: var(--card); }
-.lf-comment-box > .lf-compose-field:has(> leaf-text[data-lf-focus]) {
+.lf-comment-box > .lf-compose-field:has(> leaf-text[data-lf-focus]),
+.lf-response-control[data-lf-focus] {
           outline: var(--focus-ring); --lf-focus-ring: text-box;
           outline-offset: 0; border-color: transparent; }
+/* Floating comment surfaces have one elevation. The page card reserves the ring's
+   room inside its scrollport; a filter lets its shadow extend beyond that clip. */
+.lf-page-comment-card, .lf-response-control { filter: drop-shadow(0 2px 4px var(--shade)); }
 .lf-comment-box > .lf-compose-field > leaf-text {
           padding: var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);
           border: 0; border-radius: 0; background: transparent;
@@ -190,27 +193,14 @@ button.lf-media-open { cursor: zoom-in; }
     --lf-compose-pad-block: calc(var(--lf-thread-text-pad-block) - 1px);
   }
   /* The field and its choices are one anchored response control. This primitive owns
-     their height, vertical padding, type, border, corners, and elevation. Tab extends
+     their height, vertical padding and type. Tab extends
      the control at its trailing edge without replacing or moving the field.
      The field can grow with its words without changing its corner. The shared UI
      supplies the thread’s 14px face and line height; vertical padding keeps
      that face in the 32px resting box. */
   .lf-response-control { box-sizing: border-box; min-height: var(--lf-response-height);
-    border: 1px solid var(--border-2); background: var(--card);
-    border-radius: var(--r);
     color: var(--ink-2); font-weight: 400; line-height: inherit;
-    padding-block: var(--lf-compose-pad-block);
-    box-shadow: 0 2px 8px var(--shade); }
-  /* The bar keeps one silhouette through every state it has, so the focus ring is cast
-     as a shadow beside the lift rather than drawn as an outline the corner would have
-     to be re-stated for. It is still the layer's band (--focus-shadow, theme.css), and
-     the name goes with it: this rule takes the outline off the pressables the bar holds,
-     so without one they would credit the floor's `pressable` for a ring the floor is no
-     longer drawing. */
-  .lf-response-control[data-lf-focus] {
-    outline: none; --lf-focus-ring: response-control;
-    border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
-    box-shadow: var(--focus-shadow), 0 2px 8px var(--shade); }
+    padding-block: var(--lf-compose-pad-block); }
   /* The physical response presentation allocates the field's box. The host is
      the editor's scrollport; its content-sized editor keeps native caret reveals. */
   leaf-text.lf-fab-input { width: 100%; min-width: 0;
@@ -288,6 +278,6 @@ button.lf-media-open { cursor: zoom-in; }
  * visible platform ring when seated outside the private chrome scope as well. */
 @media (forced-colors: active) {
   .lf-response-control[data-lf-focus] {
-    outline: var(--focus-ring-w) solid Highlight; outline-offset: 2px; box-shadow: none;
+    outline: var(--focus-ring-w) solid Highlight; outline-offset: 2px; filter: none;
   }
 }

@@ -662,11 +662,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     max-height: calc(100dvh - var(--lf-banner-h));
     overflow-y: auto;
     padding: var(--focus-ring-w);
-    background: var(--card);
+    background: transparent;
     color: var(--ink);
     border: 0;
     border-radius: var(--r);
-    filter: drop-shadow(0 12px 18px var(--shade));
   }
   .lf-page-comment-card:popover-open {
     display: flex;

@@ -7,8 +7,8 @@
 // synchronously before awaiting delivery (drafts.js). A reactive element's update is
 // the exception the watch follows itself: Lit defers it behind a native await, and the
 // request that starts it names its cause (`adoptReactive`).
-// A summary activation owns the toggle task announcing its opening, including a
-// synthetic click dispatched by input-owned work.
+// Native summary activation and script changes retain the exact callback source
+// through the platform's later toggle dispatch. Reusing an Event starts a new dispatch.
 // The canonical input-start stream names each trusted input's creation order and
 // whether it starts an edit. Consumers select edits there; callbacks retain the
 // original source instead of minting another input. DOM capture and EditContext's
@@ -24,8 +24,6 @@
   const { later: task, microtask, listen, performance: clock } = window.lfWatchPlatform;
   const finishing = new Set();
   const nativeDefaults = new Map();
-  // Closed details a summary activation opens, and that activation's input.
-  const opening = new WeakMap();
   const finished = new Set();
   const subscribers = new Set();
   const inputSubscribers = new Set();
@@ -154,8 +152,21 @@
     "summary,a[href],audio[controls],button,details,embed,iframe," +
     'img[usemap],img[controls],input:not([type="hidden" i]),label,select,textarea,video[controls]';
 
-  // The details a click on `node` activates: its summary's, where that summary is the
-  // nearest interactive content and its details' own.
+  // A details toggle is queued by the platform after summary activation, outside
+  // the click dispatch. Retain that exact activation until its toggle is delivered.
+  // Scripted changes replace it with their own callback source, including null:
+  // passive work must not borrow an earlier click on this same disclosure. The
+  // actual activation can be a synthetic click inside a prevented key or pointer
+  // handler; only cancellation of that activation cancels its native default.
+  const detailsToggles = new WeakMap();
+  const observedDetails = new WeakSet();
+  const observeDetailsToggle = (owner) => {
+    if (observedDetails.has(owner)) return;
+    observedDetails.add(owner);
+    // Retirement belongs to platform delivery even when the page has no listener.
+    // Cache that delivery's source before its property or registered handlers run.
+    nativeAdd.call(owner, "toggle", captureDispatch, true);
+  };
   const activatedDetails = (node) => {
     const summary = node?.closest?.(nativeActivation);
     const details = summary?.parentElement;
@@ -165,33 +176,79 @@
       ? details
       : null;
   };
-
-  // A summary's activation opens its details after the click's listeners, and the
-  // browser announces that in a toggle task of its own, coalescing every flip since the
-  // last one. The first toggle after an activation settles it, whatever it says: its
-  // listeners answer to the activating input only where it announces an opening and
-  // the click was not cancelled. Any other toggle, such as an open the click's own
-  // listener made and its activation then closed, expires the activation, so a later
-  // opening a script makes has no activating input. Each details recorded here is
-  // watched directly, so expiry needs no listener of the page's.
-  const watchedDetails = new WeakSet();
-  const settleToggle = (event) => {
-    if (sources.has(event)) return;
-    const details = event.composedPath()[0];
-    const activation = opening.get(details);
-    if (!activation) return;
-    opening.delete(details);
-    if (event.newState === "open" && !activation.click.defaultPrevented)
-      sources.set(event, activation.source);
+  const pendingDetailsToggle = (owner) => {
+    let pending = detailsToggles.get(owner);
+    while (pending?.activation?.defaultPrevented) pending = pending.previous;
+    return pending;
   };
-  const recordOpening = (details, activation) => {
-    opening.set(details, activation);
-    if (watchedDetails.has(details)) return;
-    watchedDetails.add(details);
-    nativeAdd.call(details, "toggle", (event) => {
-      if (event.isTrusted) settleToggle(event);
+  const retainDetailsActivation = (owner, source, activation) => {
+    observeDetailsToggle(owner);
+    detailsToggles.set(owner, {
+      source,
+      activation,
+      previous: pendingDetailsToggle(owner),
     });
   };
+  const mutateDetails = (owner, mutate) => {
+    if (!(owner instanceof HTMLDetailsElement)) return mutate();
+    const before = owner.open;
+    const source = current();
+    const result = mutate();
+    if (owner.open !== before) {
+      observeDetailsToggle(owner);
+      detailsToggles.set(owner, { source, activation: null });
+    }
+    return result;
+  };
+  const detailsOpen = Object.getOwnPropertyDescriptor(
+    HTMLDetailsElement.prototype,
+    "open",
+  );
+  Object.defineProperty(HTMLDetailsElement.prototype, "open", {
+    ...detailsOpen,
+    set(value) {
+      mutateDetails(this, () => detailsOpen.set.call(this, value));
+    },
+  });
+  for (const name of [
+    "setAttribute",
+    "removeAttribute",
+    "toggleAttribute",
+    "setAttributeNS",
+    "removeAttributeNS",
+    "setAttributeNode",
+    "setAttributeNodeNS",
+    "removeAttributeNode",
+  ]) {
+    const mutate = Element.prototype[name];
+    Element.prototype[name] = function (...args) {
+      return mutateDetails(this, () => mutate.apply(this, args));
+    };
+  }
+
+  // NamedNodeMap has no owner accessor. Remember the platform's attribute-map
+  // owner when it is obtained, so its mutators use the same change boundary.
+  const attributeOwners = new WeakMap();
+  const attributes = Object.getOwnPropertyDescriptor(Element.prototype, "attributes");
+  Object.defineProperty(Element.prototype, "attributes", {
+    ...attributes,
+    get() {
+      const map = attributes.get.call(this);
+      if (this instanceof HTMLDetailsElement) attributeOwners.set(map, this);
+      return map;
+    },
+  });
+  for (const name of [
+    "setNamedItem",
+    "setNamedItemNS",
+    "removeNamedItem",
+    "removeNamedItemNS",
+  ]) {
+    const mutate = NamedNodeMap.prototype[name];
+    NamedNodeMap.prototype[name] = function (...args) {
+      return mutateDetails(attributeOwners.get(this), () => mutate.apply(this, args));
+    };
+  }
 
   const handlerOriginals = new WeakMap();
   const handlerWrappers = new WeakMap();
@@ -207,13 +264,24 @@
     }
     return wrapped;
   };
+  const captureDispatch = (event) => {
+    // Reusing an Event starts another dispatch. Platform events become untrusted
+    // when redispatched too, so only this dispatch's executing caller can own it.
+    if (!event.isTrusted) sources.delete(event);
+    sources.set(event, eventSource(event));
+    // Parser-created handler attributes bypass the property setter. Adopt them
+    // at dispatch, before target callbacks, under the same source as listeners.
+    const name = `on${event.type}`;
+    for (const node of event.composedPath())
+      if (typeof node?.[name] === "function") node[name] = node[name];
+  };
   for (const prototype of [
     HTMLElement.prototype,
     SVGElement.prototype,
     Document.prototype,
     Window.prototype,
   ]) {
-    for (const type of inputTypes) {
+    for (const type of [...inputTypes, "toggle"]) {
       const name = `on${type}`;
       const property = Object.getOwnPropertyDescriptor(prototype, name);
       if (!property?.set) continue;
@@ -257,8 +325,10 @@
     );
     const details =
       source.event.type === "click" ? activatedDetails(source.node) : null;
-    if (details?.open) closes.add(details);
-    else if (details) recordOpening(details, { source, click: source.event });
+    if (details) {
+      retainDetailsActivation(details, source, source.event);
+      if (details.open) closes.add(details);
+    }
     if (closes.size) nativeDefaults.set(source, closes);
     task(() => {
       // The dispatch is over. A native await continuation since dispatch is not owned by
@@ -291,8 +361,21 @@
     return source;
   };
   const eventSource = (event) => {
-    if (event.isTrusted && event.type === "toggle") settleToggle(event);
     if (sources.has(event)) return sources.get(event);
+    if (
+      event.isTrusted &&
+      event.type === "toggle" &&
+      detailsToggles.has(event.target)
+    ) {
+      const pending = pendingDetailsToggle(event.target);
+      detailsToggles.delete(event.target);
+      // A held-word release already activated its synthetic click before the
+      // browser's following click is swallowed. A cancelled later activation
+      // cannot erase that earlier default from the coalesced toggle.
+      const source = pending?.source ?? null;
+      sources.set(event, source);
+      return source;
+    }
     // EditContext's trusted textupdate does not travel through a DOM capture path.
     // Its attached element owns rendering. Expose the field a composed DOM event
     // would expose outside its closed shadow roots, without consulting the runtime.
@@ -312,7 +395,18 @@
         return beginSource(event, node, true);
       }
     }
-    return current();
+    const source = current();
+    // A keyboard command activates a native summary with click(), whose synthetic
+    // event still starts the platform's default. Its source is the calling key;
+    // a passive click() has null as its source and replaces any earlier activation.
+    if (event.type === "click") {
+      const details = activatedDetails(event.composedPath()[0]);
+      if (details) {
+        retainDetailsActivation(details, source, event);
+        sources.set(event, source);
+      }
+    }
+    return source;
   };
 
   // DOM nodes and Events cannot be cloned across an opaque frame boundary. Retain
@@ -415,21 +509,19 @@
     const callbacks = [];
     for (const type of inputTypes) {
       const callback = (event) => {
-        if (!event.isTrusted || (event.type === "pointermove" && !event.buttons))
-          return;
-        if (event.type === "cancel" && event.composedPath()[0][REQUESTING_CLOSE])
-          return;
-        beginSource(
-          event,
-          event.composedPath()[0],
-          event.type === "beforeinput" || editorCommands.includes(event.type),
-        );
-        // The browser compiles handler attributes without invoking our setter.
-        // Adopt those callbacks before target dispatch, preserving getter identity.
-        for (const node of event.composedPath()) {
-          const name = `on${type}`;
-          if (typeof node?.[name] === "function") node[name] = node[name];
-        }
+        if (event.isTrusted) {
+          if (event.type === "pointermove" && !event.buttons) return;
+          if (event.type === "cancel" && event.composedPath()[0][REQUESTING_CLOSE])
+            return;
+          beginSource(
+            event,
+            event.composedPath()[0],
+            event.type === "beforeinput" || editorCommands.includes(event.type),
+          );
+        } else if (event.type !== "click") return;
+        // Synthetic clicks can still activate a native disclosure. Capture their
+        // caller even when the page has no click listener to enter that source.
+        captureDispatch(event);
       };
       callbacks.push([type, callback]);
     }
@@ -446,20 +538,6 @@
     else connectParent(connect);
     if (view === view.parent) break;
   }
-  // A control may press a summary by dispatching its click from an input's own work,
-  // as a held word's release does (runtime/held-word.js). That click's activation is
-  // the input's; a summary a timer or other passive script clicks opens for none.
-  listen(
-    window,
-    "click",
-    (event) => {
-      if (event.isTrusted) return;
-      const source = current();
-      const details = source && activatedDetails(event.composedPath()[0]);
-      if (details && !details.open) recordOpening(details, { source, click: event });
-    },
-    true,
-  );
   listen(window, "storage", (event) => {
     if (!event.isTrusted) return;
     checkpoint(null);

@@ -492,8 +492,10 @@ authoritative presentation; its synchronous `PRESENTATION` signal lets
 box-derived apparatus replace provisional geometry before the presented state
 paints. A reader outside the page waits on `pageReadiness`, through
 `wait_until_ready` in Python, rather than combining these stamps.
-`renderingSettled` in `runtime/rendering.js` is its last stage and also a live
-reading of its own: whether chrome has caught up with input since.
+`renderingSettled` in `runtime/rendering.js` supplies its last stage and says the
+counted rendering queue is quiet. Current application presentation, including widget
+preparation and deferred local editing, belongs to `applicationPresented` in
+`runtime/semantic-state.js`; preparation can remain pending while the queue rests.
 
 ## Authoritative projection
 

@@ -343,8 +343,8 @@ def panel_by_keyboard(page: Page) -> None:
     )
 
 
-def composer_empty(page: Page) -> None:
-    """An empty comment on a passage selected by pointer."""
+def composer_resting(page: Page) -> None:
+    """An empty anchored comment opened by selecting a passage, without focus."""
     box = page.locator("#triage-lede").bounding_box()
     y = box["y"] + 10
     page.mouse.move(box["x"] + 2, y)
@@ -355,6 +355,11 @@ def composer_empty(page: Page) -> None:
     # arrives on a later frame, so the pointer decides, not whether it is there yet.
     if page.evaluate("matchMedia('(pointer: coarse)').matches"):
         page.get_by_role("button", name="Comment on selection").click()
+
+
+def composer_empty(page: Page) -> None:
+    """An empty comment on a passage selected by pointer, with its field focused."""
+    composer_resting(page)
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer leaf-text").focus()
 
@@ -369,6 +374,16 @@ def page_comment_empty(page: Page) -> None:
     """The page comment card's empty field and trailing action."""
     page.keyboard.press("c")
     expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
+
+
+def page_comment_resting(page: Page) -> None:
+    """The page comment's empty hint and resting frame after tabbing out."""
+    page_comment_empty(page)
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
+    page.wait_for_function(
+        "() => !document.querySelector('.lf-page-comment-card').matches(':focus-within')"
+    )
 
 
 def composer_space(page: Page) -> None:
@@ -1150,6 +1165,19 @@ STATES = (
         region=".lf-page-comment-card",
     ),
     State(
+        "plan-page-comment-resting",
+        "review-a-plan",
+        page_comment_resting,
+        region=".lf-page-comment-card",
+    ),
+    State(
+        "plan-page-comment-resting-dark",
+        "review-a-plan",
+        page_comment_resting,
+        scheme="dark",
+        region=".lf-page-comment-card",
+    ),
+    State(
         "plan-card-reply-empty",
         "review-a-plan",
         card_reply_empty,
@@ -1163,6 +1191,19 @@ STATES = (
         "triage-board",
         composer_empty,
         region=".lf-composer .lf-compose-field",
+    ),
+    State(
+        "triage-composer-resting",
+        "triage-board",
+        composer_resting,
+        region=".lf-fab-bar",
+    ),
+    State(
+        "triage-composer-resting-dark",
+        "triage-board",
+        composer_resting,
+        scheme="dark",
+        region=".lf-fab-bar",
     ),
     State("triage-composer-space", "triage-board", composer_space, viewport=(362, 900)),
     State("triage-composer-long", "triage-board", composer_long),

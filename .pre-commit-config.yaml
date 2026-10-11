@@ -61,7 +61,7 @@ repos:
   # pattern below only wakes it. dependency-cruiser is not an eslint plugin, so it
   # needs a hook of its own, pinned here as every other tool in this file is.
   # `package.json` is the `build/browser/` build's manifest; the lint gate runs no
-  # `npm ci`, so a tool pinned only there would never be installed.
+  # `pnpm install --frozen-lockfile`, so a tool pinned only there would never be installed.
   - repo: local
     hooks:
       - id: dependency-cruiser

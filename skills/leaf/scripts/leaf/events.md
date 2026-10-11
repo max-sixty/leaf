@@ -10,7 +10,7 @@ page and is not a global identifier. The kinds:
 | Kind | Author | Door | Fields | Meaning |
 | --- | --- | --- | --- | --- |
 | `comment` | user or agent | `POST /api/event`, `leaf thread open` | `text`, `drawing`, or `token`; optional `anchor`, `suggestion`, `about: "design"`, `response`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
-| `reply` | user or agent | `POST /api/event`, `leaf response reply`, proactive `leaf thread reply` | `parent`; `text` or `token`; agent `responds` when answering; `awaits`, `markup`, and a replacement `anchor` or null detachment (CLI only) | answers the exact named obligation without closing its thread; an agent reply may also replace or remove the thread's current location |
+| `reply` | user or agent | `POST /api/event`, `leaf response reply`, proactive `leaf thread reply` | `parent`; `text` or `token`; agent `responds` when answering; `question`, a `task` title, `markup`, and a replacement `anchor` or null detachment (CLI only) | answers the exact named obligation without closing its thread; an agent reply may also replace or remove the thread's current location |
 | `edit` | user or agent | `POST /api/event`, `leaf thread edit` | `message`, `text`; `base` (browser) | replaces the visible text of one message its own author wrote; the original stays in the log. A user's is a turn the agent answers |
 | `read` | user | `POST /api/event` | `messages: [{message, version}]` | records that this page's one user has read exact current or historical agent-content versions; `$events` declares it bookkeeping, so it adds no thread turn or agent work |
 | `thread_title` | agent | independent first naming or `leaf thread edit --title` | `thread`, `title` | names a thread in the panel; latest title wins without adding a turn or settling work |
@@ -24,7 +24,7 @@ page and is not a global identifier. The kinds:
 | `pickup` | page | the delivery transport; a harness failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named attention-bearing inputs reached the durable Codex queue or entered an exact agent turn, or the harness gave up on them with no answer coming; includes page errors and reports; idempotent per event, phase, session, and turn; never a work claim |
 | `note` | agent | `leaf page stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` (`report` ids it answered, and `task` ids its `--completes` ends) | one public version mapped to an immutable revision, naming the decisions it took back, the reports it answered and the widget tasks it completed |
 | `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the user |
-| `task` | agent | `leaf task open` | `owner` (`agent`, or `user` with `--on user`); `subject`: `{kind: thread, id}` (an open thread, for the agent's own task only), `{kind: widget, id}` (a live page widget, which for the agent's own task declares `x-work` or holds an unsettled move), `{kind: element, id}` (any other element of the page), or `{kind: page}`; `title`; server-stamped `revision` on a widget task | the agent takes on work it owes there, or puts a task on the user; the agent's stands through replies, resolutions, versions and session ends, and the user's until their Done (`tasks.py`) |
+| `task` | agent | `leaf task open`, or a reply's `task` (`leaf response reply --task`) | `owner` (`agent`, or `user` with `--on user`); `subject`: `{kind: thread, id}` (a reply's task only, on the reply's thread), `{kind: widget, id}` (a live page widget, which for the agent's own task declares `x-work` or holds an unsettled move), `{kind: element, id}` (any other element of the page), or `{kind: page}`; `title`; server-stamped `revision` on a widget task | the agent takes on work it owes there, or puts a task on the user; the agent's stands through replies, resolutions, versions and session ends, and the user's until their Done (`tasks.py`) |
 | `task_end` | agent or user | `leaf task end`, `POST /api/event` from a task's Done | `task`, an open explicit task id, or for an agent withdrawal a prose Question id (`reply:<message-id>`); `outcome` (`done`, `failed`, or `dropped`; the user's is `done`); optional `detail` from the agent | ends explicit work; the user can end only a task opened on them. For a prose Question, the agent withdraws the request without creating an answer, whatever the outcome. Widget Questions end through their declared widget state or an authored withdrawal |
 | `start` | agent | `leaf task start`; addressed progress carries the same declaration in its reply | `item`, a user move the agent owes (its event id) or an open task; the banner's `text`; `turn`, the claimant turn that wrote it, when the poster holds the page | takes the item in hand: a move reads Working and a task runs, until the move is answered, the task ends, or a `put_down` follows; the newest start on an item replaces the one before |
 | `put_down` | agent | `leaf status waiting` and `leaf status idle`, when a start stands | | ends every start before it: the moves they named go back to their delivery stage and the tasks stay open with nothing running (`tasks.item_starts`) |
@@ -264,9 +264,12 @@ across tabs and document revisions; they never answer a question, settle a workf
 or enter agent delivery. The one-user page assumption is the page's current
 lifecycle, not a per-account scope.
 
-An agent comment opens a question. A substantive reply opens or resumes the thread;
-when its prose leaves another question for the user, a reply command with `--awaits`
-records `awaits: true`. The browser cannot write that field. A user reply
+An agent comment opens a question. A substantive reply opens or resumes the thread,
+and an answering command declares what it leaves: `--done`, nothing further;
+`--question`, when its prose leaves another question for the user, records
+`question: true`; `--task <title>`, when it promises work it does not deliver, records
+`task: <title>`, which opens that task on the thread under the reply's id
+(`tasks.task_reading`). The browser cannot write either field. A user reply
 always hands the thread back to the agent, so it needs no parallel declaration.
 An agent reply records the delivery event it answers as `responds`, including a
 completed delivery answer whose move was settled during the turn. A proactive
@@ -284,7 +287,7 @@ reply from an agent's. Only the harness writer supplies `failure`, and the panel
 such a reply as a receipt whose head says the message answers nothing, since
 otherwise it is indistinguishable from the answer it stands in for.
 When a reply carries a widget with a local `x-awaits` Question, the widget's standing
-projection declares the Question instead; the CLI refuses a parallel `--awaits` flag on
+projection declares the Question instead; the CLI refuses a parallel `--question` flag on
 that markup. A frozen widget keeps the user's Question open until its
 `x-awaits.answered` condition holds. Moves on the widget before then have not been handed over: they carry no receipt and
 require no agent reply, and the move that answers carries the receipt and hands the
@@ -367,7 +370,7 @@ them:
   a fold without prose keeps the revised originals. A summary answers, resolves,
   and settles nothing.
 - An agent `reply` with `ephemeral: true` is retained progress text. It carries no
-  `responds`, `awaits`, markup, failure or anchor transition and participates in no
+  `responds`, `question`, `task`, markup, failure or anchor transition and participates in no
   semantic turn, work settlement or reopening. Posted to a move the agent owes, it
   carries `start: {item, turn?}` naming that exact delivered move, with its text
   as the line. `tasks.start_reading` reads this and explicit starts alike, so

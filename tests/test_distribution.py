@@ -1,7 +1,7 @@
 """A prepared install needs no compiler, including native custom-package authoring.
 
 Exercise the actual copied launcher, kernel, render probes and offline document.
-Compiler shims fail every attempted node/npm invocation after CI preparation.
+Compiler shims fail every attempted Node/package-manager invocation after CI preparation.
 """
 
 import json
@@ -30,7 +30,7 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
     assert "scripts" not in manifest
     blocked = tmp_path / "blocked"
     blocked.mkdir()
-    for name in ("node", "npm", "npx"):
+    for name in ("node", "npm", "npx", "pnpm"):
         shim = blocked / name
         shim.write_text("#!/bin/sh\necho 'unexpected consumer compiler' >&2\nexit 91\n")
         shim.chmod(0o755)

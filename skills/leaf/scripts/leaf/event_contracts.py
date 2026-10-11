@@ -723,7 +723,6 @@ def _task_error(view, event: dict, events: list, readings) -> str | None:
         for item in workflows
     ):
         return "progress must take in hand the reply input addressed by its parent"
-    threads = readings.work.threads if event["kind"] == "task" else {}
 
     def seat_error(widget: str) -> str | None:
         if not view.revisions:
@@ -759,7 +758,6 @@ def _task_error(view, event: dict, events: list, readings) -> str | None:
     return task_error(
         event,
         readings.log,
-        threads,
         seat_error=seat_error,
         element_error=element_error,
         user_widget_error=user_widget_error,

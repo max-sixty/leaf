@@ -4346,7 +4346,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
             "agent": "Claude",
             "parent": agent_comment["id"],
             "text": "Which visit should we choose?",
-            "awaits": True,
+            "question": True,
         },
     )
     told(page)

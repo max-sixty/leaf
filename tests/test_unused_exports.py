@@ -12,8 +12,9 @@ A name counts as read where another tracked file names it as a word: in code,
 in a Python string, in a page, or in a contract's prose. A JavaScript comment or a
 stylesheet reads nothing, since a module's comment about another's helper keeps
 no caller alive, except for a JSDoc type import (`import("…").Name`). A name that
-collides with another word can still hide an unused export; the check never
-reports a used one.
+collides with another word can still hide an unused export. The comment reading is
+textual, so a `/*` inside a string can only make the check report a used export,
+never pass an unused one.
 """
 
 import re

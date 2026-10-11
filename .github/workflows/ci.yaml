@@ -64,12 +64,6 @@ jobs:
           node-version: "22"
           cache: pnpm
 
-      # Hooks only check source, so lint can share the checkout with builds and tests.
-      - name: 🔍 Pre-commit hooks
-        id: lint
-        background: true
-        uses: pre-commit/action@v3.0.1
-
       # The runner supplies installed Chrome for the two launcher tests. The rest of
       # the browser suite uses the headless shell matching the locked Playwright, and
       # the phone contract uses WebKit, and native send-flash paint uses Firefox.
@@ -93,7 +87,14 @@ jobs:
       - name: Check browser, runtime, Worker and eval assertions
         run: pnpm run check
 
-      # Cheap gates fail before the complete Python suite spends its runner time.
+      # Rebuilds above finish writing tracked source before lint reads it. Hooks
+      # only check source, so they can overlap Python and the private website build.
+      - name: 🔍 Pre-commit hooks
+        id: lint
+        background: true
+        uses: pre-commit/action@v3.0.1
+
+      # The synchronous gates fail before Python spends its runner time.
       # The runner's four vCPUs sat ~41% idle under two workers; four left 7% idle
       # but slowed each test 1.3–1.46×, so three take the idle share without
       # saturating the deadlines browser tests wait under.

@@ -1,6 +1,6 @@
 # https://pre-commit.com/
 #
-# Hooks check without rewriting files, so lint can run beside tests and builds.
+# Hooks check without rewriting files, so lint can share a checkout with readers.
 # Captures and generated files are excluded: their source lives elsewhere.
 #
 # The vendored bundles are what build/vendor.py fetches and builds; a formatted

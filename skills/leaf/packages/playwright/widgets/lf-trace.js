@@ -81,6 +81,7 @@ import {
   projectData,
   quoted,
   registerVisualParts,
+  rowArrows,
   scopedMediaUrl,
   retainUserIntent,
   scrollBehavior,
@@ -305,9 +306,11 @@ customElements.define(
       this.#timeline.connect();
       if (!quoted(this))
         this.#keys ??= commands(this, "In a Playwright recording", [
+          // Back along the time scale is the arrow toward its start; the scale
+          // runs left to right in every text direction (theme.css).
           {
             id: "trace.previous",
-            keys: ["ArrowLeft"],
+            keys: () => [rowArrows(this.timeline)[0]],
             title: "previous timeline point",
             control: this.previous,
             when: () => this.#position() > 0 || this.#cursorTime !== null,
@@ -315,7 +318,7 @@ customElements.define(
           },
           {
             id: "trace.next",
-            keys: ["ArrowRight"],
+            keys: () => [rowArrows(this.timeline)[1]],
             title: "next timeline point",
             control: this.next,
             when: () => this.#position() < this.#items().length - 1,
@@ -347,14 +350,20 @@ customElements.define(
           },
           {
             id: "trace.previous-event",
-            keys: () => (this.timeline.contains(focused()) ? ["Shift+ArrowLeft"] : []),
+            keys: () =>
+              this.timeline.contains(focused())
+                ? [`Shift+${rowArrows(this.timeline)[0]}`]
+                : [],
             title: "previous input or moment",
             when: () => this.#eventStop(-1) !== null,
             run: () => this.#navigate(this.#eventStop(-1)),
           },
           {
             id: "trace.next-event",
-            keys: () => (this.timeline.contains(focused()) ? ["Shift+ArrowRight"] : []),
+            keys: () =>
+              this.timeline.contains(focused())
+                ? [`Shift+${rowArrows(this.timeline)[1]}`]
+                : [],
             title: "next input or moment",
             when: () => this.#eventStop(1) !== null,
             run: () => this.#navigate(this.#eventStop(1)),

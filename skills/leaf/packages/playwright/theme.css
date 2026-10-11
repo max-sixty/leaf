@@ -54,8 +54,11 @@
 
 /* The timeline: lane names, then a native horizontal scroller holding the ruler,
  * the lanes and the playhead. Every mark's left edge is its time:
- * left = edge + t × (track − 2 × edge), with t the fraction of the recording. */
+ * left = edge + t × (track − 2 × edge), with t the fraction of the recording.
+ * The scale runs left to right in every text direction, as a chart's time axis
+ * does; the step arrows read their direction from it (`rowArrows`). */
 .lf-trace-timeline:not([hidden]) {
+  direction: ltr;
   --lf-trace-ruler-h: 26px;
   --lf-trace-row-h: 18px;
   --lf-trace-input-h: 36px;

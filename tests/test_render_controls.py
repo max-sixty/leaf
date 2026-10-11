@@ -3107,9 +3107,7 @@ CONTROL_ARCHETYPES = (
         # The playground's action row: Reset, Copy instruction, and the send beside each
         # other under the controls. The send is the press with something to prove — it
         # posts the configuration and comes back disabled, and a control that changes its
-        # own paint on the press is where a neighbour moves. The row is also where the
-        # copy press used to say "Copied" in its own label; that feedback is a notice
-        # now, and this is the reading that keeps it off the row.
+        # own paint on the press is where a neighbour moves.
         "name": "playground-actions",
         "target": "#stable-playground .lf-playground-submit",
     },

@@ -304,6 +304,14 @@ itself at Back or Forward to one of them by claiming that traversal with
 the entry was left at (`runtime/history.js`), unless the element the entry's fragment
 names is no longer shown: that one reaches the widget holding it shut as `lf-reveal`
 and lands on it, as a followed link to it does.
+A widget that asks which of its parts a fragment names, as a traversal claim does,
+reads it with `fragmentTarget(hash)`, as Leaf's own arrival does: it finds ids inside
+shadow trees and names nothing for content a revision settled away, so the widget
+opens the part the landing goes to.
+
+A handler that takes over a press, as a link that travels to a source line does, acts
+only on `plainPress(event)`: the primary button with no modifier. A modified press
+keeps its platform meaning, such as a new tab or a context menu.
 
 A sticky header, a sticky box over the top of its scroller, has a stated height, sticks
 at `var(--lf-top)`, and adds its height to `--lf-top` for what it stands over. Its
@@ -669,6 +677,9 @@ const actions = commandScope("In a classifier", [
 ]);
 commands(classifier, actions);
 ```
+
+Arrows that step along a row of controls follow its text direction: `rowArrows(node)`
+returns `[back, ahead]`, which is `["ArrowRight", "ArrowLeft"]` in right-to-left text.
 
 For a native button, `control` and `run` declare one activation path: Leaf invokes
 `run` for both its click and its keyboard command, and paints native disabled state

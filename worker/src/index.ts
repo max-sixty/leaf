@@ -1227,10 +1227,8 @@ export default {
         agentLog("event_accepted", params, {
           durationMs: Date.now() - requestStarted,
         });
-        // TODO(2026-09-10): Persist the accepted event and active Codex turn identity
-        // in this container's Durable Object before returning the acknowledgement.
-        // TODO(2026-09-10): Add an alarm/status hook that recovers a dispatch when
-        // its container disappears or it exceeds the Worker's waitUntil window.
+        // TODO: a dispatch does not yet survive its container (TODO.md, "Make a
+        // leaf.page dispatch survive its container").
         ctx.waitUntil(dispatchAgentTask(env, params));
       }
     }

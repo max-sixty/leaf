@@ -127,9 +127,10 @@ install the tracked tree whole. Read the scoped `AGENTS.md` before changing its 
 - `skills/leaf/packages/`: the bundled packages (`skills/leaf/packages/AGENTS.md`);
 - `skills/leaf/references/`: contracts for page authors, package authors, and harnesses;
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary;
-- `hooks/`: each harness's registrations of the `leaf hook` entry: `hooks.json`
-  for Claude Code, with `claude-code.ts`, the opt-in hooks module that keeps its
-  watch, `codex.json` for Codex, and `pi.ts`, the Pi extension;
+- `hooks/`: each harness's registrations of the `leaf hook` entry (`hooks.json`
+  for Claude Code, `codex.json` for Codex) and the scripts they run, and the
+  modules that keep a session's watch between turns: `claude-code.ts`, the opt-in
+  Claude Code hooks module, and `pi.ts`, the Pi extension, which share `watch.ts`;
 - `evals/`: cases a headless agent answers, scoring the shipped instructions;
 - `examples/`: the pages the site publishes, which are also the render corpus
   (`examples/AGENTS.md`);

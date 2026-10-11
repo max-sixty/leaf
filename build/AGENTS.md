@@ -27,8 +27,9 @@ package authors continue to use native JavaScript without a build.
   complete sheets. `build:styles` writes them; `check:styles` verifies them through
   the existing browser and bundle gates. Consumers load no imports and run no compiler.
 - `vendor.py` rebuilds every third-party bundle outside the framework, bundling what
-  each consumer needs or adapting an upstream browser module. `pierre/` and
-  `webawesome/` hold the inputs their builders use.
+  each consumer needs or adapting an upstream browser module. An entry under
+  `build/` named after a key in its `BUILDS` table, a directory or a single
+  `.mjs`, holds that builder's inputs.
   `floating-ui-zoom.patch` backports upstream #3492 to the locked 1.8.0 ESM;
   `floating-ui-element-zoom.patch` locally completes that conversion for a floating
   element zoomed relative to an Element offset parent, including border origins

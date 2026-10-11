@@ -1,143 +1,147 @@
 (() => {
-  // skills/leaf/packages/gallery/initial.js
-  var GROUPS = [
+  /* The margin-entry exhibit's one grid producer. It runs while the authored document
+   * arrives, before widget upgrade, so labels wrap in the actual viewer's fonts and
+   * column. Upgrade adopts these nodes and adds the runtime's contribution paint and
+   * handlers; the fixed face hosts use that paint's shared geometry from first paint. */
+
+  const GROUPS = [
     {
       heading: "Rank and behavior",
-      summary: "Every action and disclosure rank \xB7 every tone",
+      summary: "Every action and disclosure rank · every tone",
       samples: [
         {
           name: "Save",
-          detail: "complete \xB7 positive action",
+          detail: "complete · positive action",
           icon: "check",
           behavior: "action",
           tone: "positive",
-          rank: "complete"
+          rank: "complete",
         },
         {
           name: "Cancel",
-          detail: "escape \xB7 negative action",
+          detail: "escape · negative action",
           icon: "cross",
           behavior: "action",
           tone: "negative",
-          rank: "escape"
+          rank: "escape",
         },
         {
           name: "Accept",
-          detail: "primary \xB7 positive action",
+          detail: "primary · positive action",
           icon: "check",
           behavior: "action",
           tone: "positive",
-          rank: "primary"
+          rank: "primary",
         },
         {
           name: "Reject",
-          detail: "secondary \xB7 negative action",
+          detail: "secondary · negative action",
           icon: "cross",
           behavior: "action",
           tone: "negative",
-          rank: "secondary"
+          rank: "secondary",
         },
         {
           name: "Thread",
-          detail: "reading \xB7 neutral disclosure",
+          detail: "reading · neutral disclosure",
           icon: "comment",
           behavior: "disclosure",
           tone: "neutral",
-          rank: "reading"
+          rank: "reading",
         },
         {
           name: "More",
-          detail: "overflow \xB7 neutral disclosure",
+          detail: "overflow · neutral disclosure",
           icon: "more",
           behavior: "disclosure",
           tone: "neutral",
-          rank: "overflow"
-        }
-      ]
+          rank: "overflow",
+        },
+      ],
     },
     {
       heading: "Turn and agent workflow",
-      summary: "On you \xB7 awaiting agent \xB7 picked up \xB7 working \xB7 awaiting continuation",
+      summary: "On you · awaiting agent · picked up · working · awaiting continuation",
       samples: [
         {
           name: "On you",
-          detail: "Thread \xB7 your answer is needed",
+          detail: "Thread · your answer is needed",
           icon: "comment",
           behavior: "disclosure",
           rank: "reading",
-          awaitsUser: true
+          awaitsUser: true,
         },
         {
           name: "Sent",
-          detail: "recorded \xB7 awaiting agent",
+          detail: "recorded · awaiting agent",
           icon: "sent",
           behavior: "status",
-          rank: "reading"
+          rank: "reading",
         },
         {
           name: "Waiting for pickup",
           detail: "unaccepted after the grace period",
           icon: "waiting",
           behavior: "status",
-          rank: "reading"
+          rank: "reading",
         },
         {
           name: "Queued",
           detail: "accepted for a later turn",
           icon: "pickup",
           behavior: "status",
-          rank: "reading"
+          rank: "reading",
         },
         {
           name: "Picked up",
-          detail: "Thread \xB7 agent turn opened",
+          detail: "Thread · agent turn opened",
           icon: "comment",
           behavior: "disclosure",
           rank: "reading",
-          workflowStage: "picked_up"
+          workflowStage: "picked_up",
         },
         {
           name: "Working",
-          detail: "Thread \xB7 agent preparing it",
+          detail: "Thread · agent preparing it",
           icon: "comment",
           behavior: "disclosure",
           rank: "reading",
-          workflowStage: "working"
+          workflowStage: "working",
         },
         {
           name: "Update stale",
-          detail: "work went quiet \xB7 awaiting continuation",
+          detail: "work went quiet · awaiting continuation",
           icon: "activity",
           behavior: "disclosure",
-          rank: "reading"
+          rank: "reading",
         },
         {
           name: "Turn ended",
-          detail: "unsettled \xB7 awaiting continuation",
+          detail: "unsettled · awaiting continuation",
           icon: "waiting",
           behavior: "status",
-          rank: "reading"
+          rank: "reading",
         },
         {
-          name: "Working \xB7 fallback",
+          name: "Working · fallback",
           detail: "no target control available",
           icon: "activity",
           behavior: "disclosure",
           rank: "reading",
-          workflowStage: "working"
-        }
-      ]
+          workflowStage: "working",
+        },
+      ],
     },
     {
       heading: "Face anatomy",
-      summary: "Icon or glyph \xB7 count badge \xB7 transient label and context",
+      summary: "Icon or glyph · count badge · transient label and context",
       samples: [
         {
           name: "Glyph face",
           detail: "author-supplied glyph",
-          glyph: "\u{1F914}",
+          glyph: "🤔",
           behavior: "disclosure",
-          rank: "reading"
+          rank: "reading",
         },
         {
           name: "Count badge",
@@ -145,7 +149,7 @@
           icon: "comment",
           behavior: "disclosure",
           rank: "reading",
-          count: 3
+          count: 3,
         },
         {
           name: "Label + context",
@@ -156,20 +160,20 @@
           context: "Patch ready",
           interactive: true,
           reveals: "Patch context revealed.",
-          showLabel: true
-        }
-      ]
+          showLabel: true,
+        },
+      ],
     },
     {
       heading: "User interaction",
-      summary: "Resting \xB7 hover or focus \xB7 open \xB7 selected",
+      summary: "Resting · hover or focus · open · selected",
       samples: [
         {
           name: "Resting",
           detail: "neutral disclosure",
           icon: "comment",
           behavior: "disclosure",
-          rank: "reading"
+          rank: "reading",
         },
         {
           name: "Hover or focus",
@@ -180,7 +184,7 @@
           context: "Inspect the source",
           interactive: true,
           reveals: "Source context revealed.",
-          showLabel: true
+          showLabel: true,
         },
         {
           name: "Open",
@@ -190,19 +194,20 @@
           rank: "reading",
           expanded: true,
           interactive: true,
-          reveals: "Source context revealed."
+          reveals: "Source context revealed.",
         },
         {
           name: "Selected",
-          detail: "Thread \xB7 accent border",
+          detail: "Thread · accent border",
           icon: "comment",
           behavior: "disclosure",
           rank: "reading",
-          selected: true
-        }
-      ]
-    }
+          selected: true,
+        },
+      ],
+    },
   ];
+
   function render(host, { offer }) {
     const labels = [];
     const samples = [];
@@ -215,13 +220,14 @@
       }
       return node;
     };
+
     const sampleNode = (sample, groupIndex, sampleIndex) => {
       const item = generated("div", "margin-entry-gallery-item");
       item.dataset.marginEntrySample = sample.name.toLowerCase();
       const key = `${host.id}-gallery-${groupIndex}-${sampleIndex}`;
       const control = offer(
         sample.behavior === "status" ? "span" : "button",
-        "margin-entry-gallery-face lf-margin-entry"
+        "margin-entry-gallery-face lf-margin-entry",
       );
       control.setAttribute("aria-label", sample.name);
       if (control instanceof HTMLButtonElement) {
@@ -230,51 +236,57 @@
       }
       let disclosure = null;
       if (sample.interactive) {
-        disclosure = generated("span", "margin-entry-gallery-disclosure", sample.reveals);
+        disclosure = generated(
+          "span",
+          "margin-entry-gallery-disclosure",
+          sample.reveals,
+        );
         disclosure.id = `${key}-disclosure`;
         disclosure.hidden = !sample.expanded;
       }
       const copy = generated("span", "margin-entry-gallery-copy");
       copy.append(
         generated("span", "margin-entry-gallery-name", sample.name),
-        generated("span", "margin-entry-gallery-detail", sample.detail)
+        generated("span", "margin-entry-gallery-detail", sample.detail),
       );
-      item.append(control, copy, ...disclosure ? [disclosure] : []);
+      item.append(control, copy, ...(disclosure ? [disclosure] : []));
       samples.push({ sample, key, control, disclosure });
       return item;
     };
+
     const groupNode = (group, groupIndex) => {
       const row = generated("div", "margin-entry-gallery-group");
       const introduction = generated("div", "margin-entry-gallery-introduction");
       introduction.append(
         generated("strong", "margin-entry-gallery-heading", group.heading),
-        generated("span", "margin-entry-gallery-summary", group.summary)
+        generated("span", "margin-entry-gallery-summary", group.summary),
       );
       const items = generated("div", "margin-entry-gallery-items");
       items.append(
-        ...group.samples.map((sample, index) => sampleNode(sample, groupIndex, index))
+        ...group.samples.map((sample, index) => sampleNode(sample, groupIndex, index)),
       );
       row.append(introduction, items);
       return row;
     };
+
     const projection = generated("div", "margin-entry-gallery-projection");
     projection.append(
       generated("strong", "margin-entry-gallery-heading", "Projection"),
       generated(
         "span",
         "margin-entry-gallery-summary",
-        "Compact margin face \xB7 full Page Map row"
+        "Compact margin face · full Page Map row",
       ),
       generated(
         "p",
         "margin-entry-gallery-projection-guide",
-        "Use the live Inspect projection control at this exhibit's margin. Press g then Shift+M to find the same disclosure as a labeled Page Map row."
-      )
+        "Use the live Inspect projection control at this exhibit's margin. Press g then Shift+M to find the same disclosure as a labeled Page Map row.",
+      ),
     );
     const result = generated(
       "p",
       "margin-entry-gallery-projection-result",
-      "The same contributed action serves both projections."
+      "The same contributed action serves both projections.",
     );
     result.id = `${host.id}-projection-result`;
     result.hidden = true;
@@ -282,5 +294,6 @@
     host.append(...GROUPS.map(groupNode), projection);
     return { samples, labels, result };
   }
+
   document.documentElement.lfInitial.register("lf-margin-entry-gallery", render);
 })();

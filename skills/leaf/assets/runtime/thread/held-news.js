@@ -14,9 +14,10 @@
    the agent starts at the foot of the seat. A turn of the user's that this page did not
    just send, such as one from another tab, grows it the same way. Where that growth
    starts above the screen, the browser's scroll anchoring takes it into what the user
-   has scrolled past; where it starts below, it moves nothing they see. Where it starts
-   on screen, everything after it would move under the reader, so the seat draws what it
-   drew before and says what is waiting in a row it already draws at a fixed size. A
+   has scrolled past; where it starts below, it moves nothing they see (geometry.js,
+   `motionBand`, says where that is). Where it starts on screen, everything after it
+   would move under the reader, so the seat draws what it drew before and says what is
+   waiting in a row it already draws at a fixed size. A
    thread resolved or reopened elsewhere changes shape the same way:
 
    - a thread's own news (its new turns, a reaction put on a reply or taken off it, a
@@ -72,8 +73,9 @@
      answers what came before it and so follows it;
    - changing the panel's view, which moves its cards anyway.
 
-   Held news also shows once none of the seat shows in the window, where its growth moves
-   nothing anyone sees. A press into the thread, such as into its reply box, shows
+   Held news also shows once growth anywhere in the seat would move nothing the user
+   sees: none of it stands where a change of size moves what is seen (geometry.js,
+   `growthIsSeen`), as when it is scrolled under the banner. A press into the thread, such as into its reply box, shows
    nothing: it asks for what it lands on, and drawing the news would move that under the
    press. Where the destination is itself held, a message or a Question in a held turn, or a
    thread a seat holds whole, the route shows it first (`showHeld`), since nothing
@@ -99,8 +101,7 @@
    that would change its size waits, the region standing as it was, while its growth
    would be seen, and a control of fixed size the widget already draws says so and
    shows it. */
-import { shownBand, whenOffScreen } from "../geometry.js";
-import { scrollersOf } from "../reading-regions.js";
+import { growthAfterIsSeen, growthIsSeen, whenNone } from "../geometry.js";
 import { offer } from "../widget-elements.js";
 import { keeps, keepsText, layoutPx } from "../keeps.js";
 import { keys } from "../keyboard/scopes.js";
@@ -290,34 +291,6 @@ function withheld(was, now) {
   });
 }
 
-// Whether growth after `node` would move what the user sees: the node's foot stands
-// inside every box that scrolls it. A node not drawn has no foot to grow from.
-export function growthAfterIsSeen(node) {
-  if (!readingIsContinuous()) return false;
-  const { bottom, height } = node?.getBoundingClientRect() ?? {};
-  if (!height) return false;
-  for (const box of scrollersOf(node)) {
-    const band = shownBand(box);
-    if (!band || bottom <= band.top || bottom >= band.bottom) return false;
-  }
-  return true;
-}
-
-// Whether growth inside `nodes`, wherever in them it starts, would move what the user
-// sees: some of them stands inside every box that scrolls it. Growth wholly above the
-// screen goes into what scroll anchoring holds, and wholly below it moves nothing seen.
-export function growthInsideIsSeen(nodes) {
-  if (!readingIsContinuous()) return false;
-  return nodes.some((node) => {
-    const { top, bottom, height } = node.getBoundingClientRect();
-    if (!height) return false;
-    return scrollersOf(node).every((box) => {
-      const band = shownBand(box);
-      return band && bottom > band.top && top < band.bottom;
-    });
-  });
-}
-
 const counted = (count, one, many) => count && `${count} ${count === 1 ? one : many}`;
 const newsLabel = ({
   settled,
@@ -490,7 +463,8 @@ export class HeldNews {
     const released = new Map(this.#released);
     // Waiting for all of the seat to go keeps news held a little longer than it needs,
     // never shorter.
-    if (this.#holding()) this.#stopWatching ??= whenOffScreen([this.#seat], this.#all);
+    if (this.#holding())
+      this.#stopWatching ??= whenNone([this.#seat], growthIsSeen, this.#all);
     else this.#stop();
     return {
       reading: shown,
@@ -512,7 +486,8 @@ export class HeldNews {
     if (arrived.some(({ key }) => gestured(key))) this.#threads.clear();
     else if (arrived.length) {
       const last = prior.threads.at(-1)?.key;
-      const seen = growthAfterIsSeen(last ? this.#view(last)?.node : this.#seat);
+      const after = last ? this.#view(last)?.node : this.#seat;
+      const seen = readingIsContinuous() && Boolean(after) && growthAfterIsSeen(after);
       if (seen && (last || row)) for (const { key } of arrived) this.#threads.add(key);
       else this.#threads.clear();
     }
@@ -652,10 +627,11 @@ export class HeldNews {
  *  `region()` gives the nodes the reading draws, and `changed()` draws the widget again.
  *  A reading is a value equal to the one drawn last exactly when it draws at the same
  *  size, such as the keys of its rows. `hold(reading)` returns the reading to draw:
- *  `reading` where it is the first, where it equals the one drawn last, or where none
- *  of the region shows in the window, since a row may change anywhere in it; otherwise
- *  the reading drawn last. What it holds shows when the user opens it
- *  (`release` or `show`), or once none of the region shows in the window. Current
+ *  `reading` where it is the first, where it equals the one drawn last, or where growth
+ *  anywhere in the region would move nothing the user sees (geometry.js,
+ *  `growthIsSeen`), since a row may change anywhere in it; otherwise the reading drawn
+ *  last. What it holds shows when the user opens it (`release` or `show`), or once
+ *  that growth would move nothing seen. Current
  *  activation availability is not a retained presentation: callers refresh it
  *  from its current owner even while the reading holds. */
 export class HeldReading {
@@ -683,7 +659,8 @@ export class HeldReading {
       this.#released ||
       this.#shown === null ||
       this.#shown === reading ||
-      !growthInsideIsSeen(nodes)
+      !readingIsContinuous() ||
+      !nodes.some((node) => growthIsSeen(node))
     ) {
       this.#released = false;
       this.#shown = reading;
@@ -694,7 +671,7 @@ export class HeldReading {
       this.#watch.nodes.some((node, at) => node !== nodes[at])
     ) {
       this.#stop();
-      this.#watch = { nodes, stop: whenOffScreen(nodes, this.show) };
+      this.#watch = { nodes, stop: whenNone(nodes, growthIsSeen, this.show) };
     }
     return this.#shown;
   }
@@ -722,13 +699,14 @@ export class HeldReading {
 }
 
 /** The threads one widget holds out of its flow: each thread the agent starts at a datum
- *  where the widget draws no thread, while the datum's foot is on screen. `hold` says
+ *  where the widget draws no thread, while growth at the datum's foot would be seen
+ *  (geometry.js, `growthAfterIsSeen`). `hold` says
  *  which threads the widget is not handed to place. The margin draws each as it draws
  *  a thread no widget places, and pressing its marker is opening the notice, which
  *  `show` answers. The margin draws a held thread's marker though the agent settled it,
  *  since the marker is its notice. A thread also shows when the user adds a turn to it,
- *  settles or reopens it, or starts a thread at its datum, and when none of the datum
- *  shows in the window. */
+ *  settles or reopens it, or starts a thread at its datum, and once growth anywhere in
+ *  the datum would move nothing seen. */
 export class HeldArrivals {
   #changed;
   // The keys of the page's threads at the last reading, or null before a reading drawn
@@ -795,7 +773,7 @@ export class HeldArrivals {
   // thread the user stands in (`standingNodes`), by focus or by a selection of its
   // words, in the margin's card, stays there with them, since its
   // release would take the card, and the reply they may be writing, away; it shows
-  // when they press its marker, or the next time its datum leaves the window.
+  // when they press its marker, or the next time its datum's growth goes unseen.
   #lapse(which) {
     const standing = new Set(
       standingNodes().map((node) => closestAcross(node, THREAD)?.dataset.thread),
@@ -818,7 +796,7 @@ export class HeldArrivals {
       const leave = () => {
         if (this.#lapse((held) => held.datum === datum)) this.#changed();
       };
-      this.#watching.set(datum, { node, stop: whenOffScreen([node], leave) });
+      this.#watching.set(datum, { node, stop: whenNone([node], growthIsSeen, leave) });
     }
   }
 

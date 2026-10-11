@@ -22,13 +22,13 @@ The file goes to the state home's `pictures/` directory for the page, named for 
 comment, since a file in the page directory would count as activity on the page.
 """
 
-import sys
 from pathlib import Path
 
 from leaf.event_log import read_events
 from leaf.render_checks import PageNotReady, rendered, wait_until_ready
 from leaf.revision_artifact import read_revision
 
+from ..refusals import Refused
 from .command import in_browser
 from .preview import preview_server
 from .scheme import served
@@ -85,9 +85,9 @@ def cmd_picture(page_dir: Path, message: str) -> int:
         (event for event in read_events(page_dir) if event["id"] == message), None
     )
     if comment is None:
-        sys.exit(f"{page_dir} has no message {message}")
+        raise Refused(f"{page_dir} has no message {message}")
     if "drawing" not in comment:
-        sys.exit(f"message {message} carries no drawing")
+        raise Refused(f"message {message} carries no drawing")
     out = page_files("pictures", page_dir) / f"{message}.png"
     out.parent.mkdir(parents=True, exist_ok=True)
     revision = comment["revision"]
@@ -104,7 +104,7 @@ def cmd_picture(page_dir: Path, message: str) -> int:
         return 1
     refused, _ = ran
     if refused:
-        sys.exit(f"message {message}: {refused}")
+        raise Refused(f"message {message}: {refused}")
     print(out)
     return 0
 

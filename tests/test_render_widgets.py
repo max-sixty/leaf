@@ -3512,6 +3512,49 @@ def test_contents_reconciles_live_title_boundaries_and_preserves_its_reading_pos
         reading_position, abs=1
     )
 
+    reordered = changed.replace(
+        sections[78] + sections[79], sections[79] + sections[78]
+    )
+    (serve.page_dir / "index.html").write_text(reordered, encoding="utf-8")
+    told(page)
+    rendered(page)
+    expect(survivor).to_be_focused()
+    assert (
+        survivor.evaluate(
+            "link => link.closest('li').nextElementSibling.querySelector('a').hash"
+        )
+        == "#part-79"
+    )
+
+    replacement = nav.get_by_role("link", name="New destination", exact=True)
+    replacement.focus()
+    changed_level = reordered.replace(
+        "<h2>New destination</h2>", "<h3>New destination</h3>"
+    )
+    (serve.page_dir / "index.html").write_text(changed_level, encoding="utf-8")
+    told(page)
+    rendered(page)
+    expect(replacement).to_have_attribute("href", "#new-part")
+    expect(replacement).to_be_focused()
+
+    renamed_body.focus()
+    ungrouped = changed_level.replace(
+        '<hgroup id="body-group"><p class="eyebrow">One section</p>'
+        '<h2 id="body-title">Named body</h2></hgroup>',
+        '<h2 id="body-title">Named body</h2>',
+    )
+    (serve.page_dir / "index.html").write_text(ungrouped, encoding="utf-8")
+    told(page)
+    rendered(page)
+    expect(renamed_body).to_have_attribute("href", "#body-title")
+    expect(renamed_body).to_be_focused()
+
+    # An address edit on the standing heading changes its Lit key. The new link
+    # still stands for the same place the user was on.
+    page.locator("#body-title").evaluate("node => node.id = 'renamed-body'")
+    expect(renamed_body).to_have_attribute("href", "#renamed-body")
+    expect(renamed_body).to_be_focused()
+
 
 def test_an_empty_contents_route_follows_headings_arriving_and_leaving(browser, serve):
     """A ToC with no initial outline can present one later and retire it again."""
@@ -3535,6 +3578,34 @@ def test_an_empty_contents_route_follows_headings_arriving_and_leaving(browser, 
     expect(nav.get_by_role("link", name="An arriving section")).to_have_attribute(
         "href", "#arrived"
     )
+
+    shared_destination = headed.replace(
+        '<h2 id="arrived">An arriving section</h2>',
+        '<hgroup id="group"><h2>First title</h2><h3>Second title</h3></hgroup>',
+    )
+    (serve.page_dir / "index.html").write_text(shared_destination, encoding="utf-8")
+    told(page)
+    rendered(page)
+    expect(nav.locator("li a")).to_have_text(["First title", "Second title"])
+    assert nav.locator("li a").evaluate_all(
+        "links => links.map(link => link.hash)"
+    ) == ["#group", "#group"]
+    second = nav.get_by_role("link", name="Second title", exact=True)
+    second.focus()
+    reordered = shared_destination.replace(
+        "<h2>First title</h2><h3>Second title</h3>",
+        "<h3>Second title</h3><h2>First title</h2>",
+    )
+    (serve.page_dir / "index.html").write_text(reordered, encoding="utf-8")
+    told(page)
+    rendered(page)
+    expect(nav.locator("li a")).to_have_text(["Second title", "First title"])
+    expect(second).to_be_focused()
+
+    (serve.page_dir / "index.html").write_text(headed, encoding="utf-8")
+    told(page)
+    rendered(page)
+    expect(nav.locator("li a")).to_have_text(["An arriving section"])
 
     (serve.page_dir / "index.html").write_text(source, encoding="utf-8")
     told(page)

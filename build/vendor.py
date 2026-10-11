@@ -588,13 +588,13 @@ def build_trace_images(work: Path) -> list[Path]:
     shutil.copytree(NODE_MODULES / "viewerjs", viewer)
     source = viewer / "dist/viewer.esm.js"
     original = """        setTimeout(function () {
-      toggleClass(image, CLASS_TRANSITION, options.transition);
-    }, 300);"""
+          toggleClass(image, CLASS_TRANSITION, options.transition);
+        }, 300);"""
     replacement = """        if (options.transition) {
-      setTimeout(function () {
-        toggleClass(image, CLASS_TRANSITION, options.transition);
-      }, 300);
-    }"""
+          setTimeout(function () {
+            toggleClass(image, CLASS_TRANSITION, options.transition);
+          }, 300);
+        }"""
     text = source.read_text(encoding="utf-8")
     if text.count(original) != 1:
         raise ValueError("Viewer post-view transition seam changed")

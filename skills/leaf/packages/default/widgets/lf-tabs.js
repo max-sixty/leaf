@@ -52,6 +52,7 @@
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
 import {
+  afterScript,
   HIDDEN,
   PRESS,
   readQuestions,
@@ -100,6 +101,13 @@ import {
 // The page's navigation strip, where one stands: the first tab set in main, drawn as
 // a row (`#syncRootContext`).
 const PAGE_STRIP = 'body > main > lf-tabs[data-lf-tabs-flow="page"]';
+const paintRootHeader = () => {
+  const root = document.documentElement;
+  if (document.querySelector(PAGE_STRIP))
+    setRuntimeRootStyle(root, "--lf-root-headers", "var(--lf-tabstrip-h)");
+  else removeRuntimeRootStyle(root, "--lf-root-headers");
+};
+const syncRootHeader = () => afterScript(paintRootHeader);
 
 const PLACE_KEY = "lf-tabs-place:";
 const substantiveChildren = (owner) =>
@@ -333,8 +341,7 @@ customElements.define(
           this.#contextObserver?.disconnect();
           this.#contextObserver = null;
           this.#covering = false;
-          if (!document.querySelector(PAGE_STRIP))
-            removeRuntimeRootStyle(document.documentElement, "--lf-root-headers");
+          syncRootHeader();
         };
       });
     }
@@ -544,11 +551,7 @@ customElements.define(
       const covering = this.#pageFlow && Boolean(this.#strip?.isConnected);
       if (covering === this.#covering) return;
       this.#covering = covering;
-      const root = document.documentElement;
-      if (covering)
-        setRuntimeRootStyle(root, "--lf-root-headers", "var(--lf-tabstrip-h)");
-      else if (!document.querySelector(PAGE_STRIP))
-        removeRuntimeRootStyle(root, "--lf-root-headers");
+      syncRootHeader();
     }
 
     // A press at one edge of the strip, which pages the names that run past it (the

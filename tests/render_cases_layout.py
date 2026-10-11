@@ -1540,7 +1540,7 @@ BADGE_CHROME = """      const row = document.createElement("div");
 # refused at the header, which is where the widget fails soft on any page, gated or not.
 UNPARSABLE_DIAGRAM = LONG_PAGE.replace(
     "</main>",
-    "<lf-diagram id='d-broken'><pre>\nsankey-beta\n  Ada,Review,3\n</pre></lf-diagram>\n</main>",
+    "<lf-diagram id='d-broken'><pre>\nleaf-unsupported\n  Ada,Review,3\n</pre></lf-diagram>\n</main>",
 )
 # The thread list is reconciled, not rebuilt, and the tests below are its faces: a
 # send is a gesture and reveals what it made; an arrival is news and moves nothing; a

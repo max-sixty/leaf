@@ -274,7 +274,8 @@ function scrollSources(node) {
   return sources;
 }
 
-const marginColumn = () => document.querySelector("main") || document.body;
+// The margin follows `main` or, on a page without one, the body.
+export const marginColumn = () => document.querySelector("main") || document.body;
 
 const railStands = (main) =>
   (main.getAttribute("data-lf-margin") ?? "").split(" ").includes("rail");

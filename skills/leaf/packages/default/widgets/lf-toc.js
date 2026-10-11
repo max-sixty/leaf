@@ -46,13 +46,12 @@
  * honor a generated target that did not exist during HTML parsing. */
 import {
   atLayoutPrecision,
-  cancelRender,
+  frameFor,
   inChrome,
   keeps,
   landingInsets,
   LAYOUT,
   layoutPx,
-  nextRender,
   once,
   PAGE_INTERFACE,
   PRESENTATION,
@@ -61,6 +60,7 @@ import {
   scrollLimit,
   sizeObserver,
   setChildren,
+  whileConnected,
   wrote,
 } from "/runtime/widget-api.js";
 
@@ -88,20 +88,13 @@ customElements.define(
     #contentEnd = 1;
     #currentLink = null;
     #scroller;
-    #scrollSource;
+    #stopWatching;
     #watching;
     #renamed;
-    #measureFrame = 0;
-    #paintFrame = 0;
     #navHeight = 0;
     #focusedLink = null;
     #focusedVisible = false;
 
-    #onScroll = () => this.#schedulePaint();
-    #onResize = () => this.#scheduleMeasure();
-    #onToggle = () => this.#scheduleMeasure();
-    #onLoad = () => this.#scheduleMeasure();
-    #onLayout = () => this.#scheduleMeasure();
     #onInterface = () => {
       this.#reconcile();
       this.#measure();
@@ -112,35 +105,20 @@ customElements.define(
       if (this.#nav.getBoundingClientRect().height === this.#navHeight)
         this.#rememberFocus();
     };
-    #onFocus = () => this.#rememberFocus();
 
     connectedCallback() {
       if (once(this)) this.#build();
-      if (!this.#nav) return;
-      this.#watch();
-    }
-
-    disconnectedCallback() {
-      this.#watching?.disconnect();
-      this.#watching = null;
-      this.#renamed?.disconnect();
-      this.#renamed = null;
-      this.#scrollSource?.removeEventListener("scroll", this.#onScroll);
-      this.#nav?.removeEventListener("scroll", this.#onNavScroll);
-      this.#nav?.removeEventListener("focusin", this.#onFocus);
-      this.#main?.removeEventListener("toggle", this.#onToggle, true);
-      this.#main?.removeEventListener("load", this.#onLoad, true);
-      this.#main?.removeEventListener(LAYOUT, this.#onLayout);
-      document.removeEventListener(PRESENTATION, this.#onPresentation);
-      document.removeEventListener(PAGE_INTERFACE, this.#onInterface);
-      window.removeEventListener("resize", this.#onResize);
-      cancelRender(this.#measureFrame);
-      cancelRender(this.#paintFrame);
-      this.#lensMotion?.cancel();
-      this.#lensMotion = null;
-      this.#lensInputs = "";
-      this.#measureFrame = 0;
-      this.#paintFrame = 0;
+      else {
+        const main = this.closest("main");
+        if (main === this.#main && scrollerFor(this) === this.#scroller) return;
+        // Moving to another reading region changes the resources, even if the
+        // arrival batch keeps this element connected throughout the move.
+        this.#stopWatching?.();
+        this.#main = main;
+        if (main) this.#reconcile();
+      }
+      if (!this.#nav || !this.#main) return;
+      this.#stopWatching = whileConnected(this, (signal) => this.#watch(signal));
     }
 
     #build() {
@@ -256,15 +234,14 @@ customElements.define(
       }
     }
 
-    #watch() {
-      if (this.#watching) return;
+    #watch(signal) {
       this.#main = this.closest("main");
       if (!this.#main) return;
       this.#scroller = scrollerFor(this);
       // Root scrolling is reported on Document; nested scrollports report on the
       // element itself. Keep one paint path while using the platform's event target for
       // each kind of scroller.
-      this.#scrollSource =
+      const scrollSource =
         this.#scroller === document.scrollingElement ? document : this.#scroller;
       this.#watching = sizeObserver(() => this.#scheduleMeasure());
       this.#watching.observe(this.#main);
@@ -273,25 +250,32 @@ customElements.define(
         this.#scheduleMeasure();
       });
       this.#observeDestinations();
-      this.#scrollSource.addEventListener("scroll", this.#onScroll, { passive: true });
-      this.#nav.addEventListener("scroll", this.#onNavScroll, { passive: true });
-      this.#nav.addEventListener("focusin", this.#onFocus);
-      this.#main.addEventListener("toggle", this.#onToggle, true);
-      this.#main.addEventListener("load", this.#onLoad, true);
-      this.#main.addEventListener(LAYOUT, this.#onLayout);
-      document.addEventListener(PRESENTATION, this.#onPresentation);
-      document.addEventListener(PAGE_INTERFACE, this.#onInterface);
-      window.addEventListener("resize", this.#onResize);
+      const passive = { passive: true, signal };
+      scrollSource.addEventListener("scroll", this.#schedulePaint, passive);
+      this.#nav.addEventListener("scroll", this.#onNavScroll, passive);
+      this.#nav.addEventListener("focusin", () => this.#rememberFocus(), { signal });
+      for (const type of ["toggle", "load"])
+        this.#main.addEventListener(type, this.#scheduleMeasure, {
+          capture: true,
+          signal,
+        });
+      this.#main.addEventListener(LAYOUT, this.#scheduleMeasure, { signal });
+      document.addEventListener(PRESENTATION, this.#onPresentation, { signal });
+      document.addEventListener(PAGE_INTERFACE, this.#onInterface, { signal });
+      window.addEventListener("resize", this.#scheduleMeasure, { signal });
       this.#scheduleMeasure();
+      return () => {
+        this.#watching.disconnect();
+        this.#watching = null;
+        this.#renamed.disconnect();
+        this.#renamed = null;
+        this.#lensMotion?.cancel();
+        this.#lensMotion = null;
+        this.#lensInputs = "";
+      };
     }
 
-    #scheduleMeasure() {
-      if (this.#measureFrame || !this.isConnected) return;
-      this.#measureFrame = nextRender(() => {
-        this.#measureFrame = 0;
-        this.#measure();
-      });
-    }
+    #scheduleMeasure = frameFor(this, () => this.#measure());
 
     #measure() {
       if (!this.#main || !this.#scroller || !this.#rows) return;
@@ -526,13 +510,7 @@ customElements.define(
       return mainBox.top + this.#scroller.scrollTop;
     }
 
-    #schedulePaint() {
-      if (this.#paintFrame || !this.isConnected) return;
-      this.#paintFrame = nextRender(() => {
-        this.#paintFrame = 0;
-        this.#paint();
-      });
-    }
+    #schedulePaint = frameFor(this, () => this.#paint());
 
     #paint() {
       if (!this.#rows || !this.#scroller) return;

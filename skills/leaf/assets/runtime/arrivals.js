@@ -19,6 +19,9 @@
      back in one batch has not left, so leaving is decided once the batch is read, from
      where the element stands then.
 
+   The returned offer function enrolls a connected element synchronously when its
+   resource setup starts before that first mutation delivery.
+
    Standing means in `document.body`, or in a declared shadow stage whose host is
    connected. No observer crosses a shadow boundary on its own, so shadow-stage.js, the
    one door a stage is built through, hands each one it fills to `watchArrivalsIn`. No
@@ -27,12 +30,13 @@
    its widget only as garbage. A stage built while its host was detached arrives with the
    host. */
 import { under } from "./shadow.js";
+import { cancelRender, nextRender } from "./rendering.js";
 
 const watches = new Set();
 const stages = new WeakSet();
 const stageRefs = new Set();
 const owners = new WeakMap();
-let watchingOwners = false;
+let offerOwner;
 
 // Independent subscriptions share their element's connection lifetime. The arrival
 // batch decides whether it actually left, so an in-document move retains them.
@@ -58,8 +62,7 @@ export function watchOwner(owner, lifecycle) {
   };
   let subscriptions = owners.get(owner);
   if (!subscriptions) owners.set(owner, (subscriptions = new Set()));
-  if (!watchingOwners) {
-    watchingOwners = true;
+  if (!offerOwner) {
     const notify = (element, method) => {
       for (const subscription of owners.get(element) ?? []) {
         try {
@@ -73,11 +76,14 @@ export function watchOwner(owner, lifecycle) {
         }
       }
     };
-    watchArrivals("*", [], {
+    offerOwner = watchArrivals("*", [], {
       arrive: (element) => notify(element, "connect"),
       leave: (element) => notify(element, "disconnect"),
     });
   }
+  // A synchronous connection can begin and end before the first arrival batch.
+  // Enroll it before setup so that batch still knows its resources must leave.
+  if (owner.isConnected) offerOwner(owner);
   subscriptions.add(subscription);
   const stop = () => {
     subscriptions.delete(subscription);
@@ -85,6 +91,47 @@ export function watchOwner(owner, lifecycle) {
   };
   subscription.connect();
   return stop;
+}
+
+/** Start mechanical resources for each connection, abort their listeners and run
+ * the optional returned cleanup when the owner leaves. Register once: moves within
+ * an arrival batch retain the same scope, and the returned stop retires it. */
+export function whileConnected(owner, start) {
+  let held;
+  return watchOwner(owner, {
+    connect() {
+      const controller = new AbortController();
+      held = { controller, cleanup: null };
+      // Hold the signal before setup: watchOwner also disconnects a failed start.
+      held.cleanup = start(controller.signal);
+    },
+    disconnect() {
+      const current = held;
+      held = null;
+      current.controller.abort();
+      current.cleanup?.();
+    },
+  });
+}
+
+/** One coalesced nextRender callback while the owner stands. A departure cancels
+ * pending work; the callback also checks connection before the arrival batch runs.
+ * A return permits fresh scheduling, without replaying the cancelled callback. */
+export function frameFor(owner, run) {
+  let frame = 0;
+  watchOwner(owner, {
+    disconnect() {
+      cancelRender(frame);
+      frame = 0;
+    },
+  });
+  return () => {
+    if (frame || !owner.isConnected) return;
+    frame = nextRender(() => {
+      frame = 0;
+      if (owner.isConnected) run();
+    });
+  };
 }
 
 export function liveStages() {
@@ -149,6 +196,7 @@ export function watchArrivals(selector, attributes, { arrive, leave }) {
   const watch = { selector, attributes, observer, offer };
   watches.add(watch);
   for (const root of [document.body, ...liveStages()]) enroll(watch, root);
+  return offer;
 }
 
 function enroll({ selector, attributes, observer, offer }, root) {

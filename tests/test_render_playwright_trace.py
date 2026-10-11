@@ -1860,7 +1860,8 @@ def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
 
         # Close moments share a flag at the overview; zoom separates them.
         pins = widget.locator(".lf-trace-moment-pin")
-        assert " ".join(pins.all_text_contents()).split() == ["1", "2", "3"]
+        tips = "\n".join(pins.evaluate_all("nodes => nodes.map(node => node.dataset.tip)"))
+        assert re.findall(r"^(\d+) · ", tips, re.M) == ["1", "2", "3"]
         third = widget.locator('.lf-trace-moment-pin[data-tip^="3 ·"]')
         for _ in range(8):
             if third.count():

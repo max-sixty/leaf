@@ -5,29 +5,42 @@ SessionEnd cleanup, which runs its standalone stdlib owner directly. A subproces
 starts has `sys.executable` in hand and needs no launcher or environment manager.
 
 Harnesses call `leaf hook --harness NAME` on every turn, including sessions holding no
-page. That invocation, and the same with `--watch` after it, enter the dependency-light
-hook owner without importing Click; they are the only route to it, so any other `hook`
-argv is refused with its usage line. `leaf session-end` delegates to the same cleanup
-owner in a managed interpreter. Help and every other invocation use the CLI, whose
-`prog_name` stays `leaf` for both entry forms.
+page, and `leaf session-end` as a session ends. Both are `HARNESS_ENTRIES`, routed
+here without importing Click, and this is their only route: `hook`, alone or with
+`--watch` after it, enters the dependency-light hook owner, and `session-end`
+delegates to the same cleanup owner `bin/leaf` runs cold, in a managed interpreter.
+Any other argv after one of their names is refused with its usage line. Help and
+every other invocation use the CLI, whose `prog_name` stays `leaf` for both entry
+forms.
 """
 
 import sys
 
 
+def _hook(args: list[str]) -> None:
+    if len(args) < 2 or args[0] != "--harness" or args[2:] not in ([], ["--watch"]):
+        sys.exit("usage: leaf hook --harness NAME [--watch]")
+    from leaf.hooks import main as hook
+
+    hook(args[1], watch=args[2:] == ["--watch"])
+
+
+def _session_end(args: list[str]) -> None:
+    if args:
+        sys.exit("usage: leaf session-end")
+    from leaf.state import main as end_session
+
+    end_session()
+
+
+# The commands harness registrations run, by name, each given the argv after it.
+HARNESS_ENTRIES = {"hook": _hook, "session-end": _session_end}
+
+
 def main() -> None:
     args = sys.argv[1:]
-    if args == ["session-end"]:
-        from leaf.state import main as end_session
-
-        end_session()
-        return
-    if args[:1] == ["hook"]:
-        if len(args) < 3 or args[1] != "--harness" or args[3:] not in ([], ["--watch"]):
-            sys.exit("usage: leaf hook --harness NAME [--watch]")
-        from leaf.hooks import main as hook
-
-        hook(args[2], watch=args[3:] == ["--watch"])
+    if args and (entry := HARNESS_ENTRIES.get(args[0])):
+        entry(args[1:])
         return
     from leaf.cli import cli
 

@@ -116,9 +116,10 @@ The ⌥ aim names a target, which a finger does by selecting words or through Se
 element. `c` and `e` act on a selection, the item the user stands on, or the page: a
 selection's Comment on selection step, a thread's own controls, and Comment on the page
 in More all take a tap. The comment field has only Send: Suggest and reactions on a
-selection or item open by Tab from the field, or `e` while it is unfocused. Their
-missing mouse and touch route is an accepted product limitation; restoring one needs
-the user's choice of a rendered design. Question
+selection or item open by Tab from the field, or `e` while it is unfocused. Omitting
+the ellipsis and its pointer/touch route is a deliberate product decision, including
+on phones. We can reconsider it with the user through a rendered design comparison;
+its absence is not an implementation defect to repair. Question
 digits duplicate the Decision's own control. The command reference and caret browsing
 describe or extend the keyboard itself.
 

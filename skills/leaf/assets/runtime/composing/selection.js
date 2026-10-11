@@ -61,8 +61,9 @@ import { textField } from "./text-field.js";
 // Tab from the field, or `e` while it stands unfocused, unfolds every other response
 // the target offers. The field is the group's stable primary control; reaction
 // vocabulary changes the choices, not the disclosure or the field's place.
-// The comment field has only its Send action, on every pointer. Suggest and reactions
-// have keyboard routes only; adding a pointer route is an unsettled product choice.
+// The comment field deliberately has only Send, including on phones. Suggest and
+// reactions retain keyboard routes; reconsidering a pointer or touch disclosure is
+// a product decision ("Touch routes" in keyboard/AGENTS.md).
 // One affordance, raised only where the user has already pointed: a native text
 // selection or an explicit Comment target gesture on an item or visual part.
 export const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");

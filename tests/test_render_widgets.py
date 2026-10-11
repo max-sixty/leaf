@@ -6898,23 +6898,30 @@ def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, 
         != "rgb(200, 0, 0)"
     )
 
-    # Every frame of the child a Reset makes that draws the note draws it loud.
-    painted = page.locator("#tone-sample").evaluate(
-        """async sample => {
-          const frames = [];
-          let sampling = true;
-          const tick = () => {
-            const note = sample.querySelector('iframe').contentDocument
-              ?.getElementById('child-note');
-            if (note) frames.push(getComputedStyle(note).color);
-            if (sampling) requestAnimationFrame(tick);
-          };
-          requestAnimationFrame(tick);
-          await sample.reset();
-          sampling = false;
-          return frames;
-        }"""
-    )
+    # The reset child has an opaque origin. Install the paint probe in its next
+    # document and read only color values sent across the browsing-context boundary.
+    page.add_init_script("""(() => {
+      if (window === top) return;
+      const tick = () => {
+        const note = document.getElementById('child-note');
+        if (note) parent.postMessage({
+          type: 'lf-test-tone-paint', color: getComputedStyle(note).color
+        }, '*');
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    })()""")
+    page.locator("#tone-sample").evaluate("""sample => {
+      window.lfTonePaints = [];
+      window.addEventListener('message', event => {
+        if (event.source === sample.querySelector('iframe').contentWindow
+            && event.data?.type === 'lf-test-tone-paint')
+          window.lfTonePaints.push(event.data.color);
+      });
+    }""")
+    page.locator("#tone-sample").evaluate("sample => sample.reset()")
+    page.wait_for_function("window.lfTonePaints.length > 0")
+    painted = page.evaluate("window.lfTonePaints")
     assert painted and set(painted) == {"rgb(200, 0, 0)"}
     expect(child.locator(":root")).to_have_attribute("data-playground-tone", "loud")
 

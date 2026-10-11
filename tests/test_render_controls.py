@@ -10422,6 +10422,9 @@ def test_editor_caret_hold_releases_after_unchanged_selection(browser, serve):
     }""")
     field = page.locator("#seat leaf-text")
     expect(field).to_be_focused()
+    # The hold belongs to the editor, which loads for the field focus needed.
+    rendered(page)
+    assert not field.evaluate("node => node.matches(':state(stand-in)')")
     # Exercise the reconnect path after the initial focus events have settled.
     field.evaluate(
         "node => { node.setSelectionRange(4, 4); node.connectedCallback(); }"
@@ -10439,6 +10442,50 @@ def test_editor_caret_hold_releases_after_unchanged_selection(browser, serve):
       document.dispatchEvent(new Event('selectionchange'));
     })""")
     assert field.evaluate("node => [node.selectionStart, node.selectionEnd]") == [9, 9]
+
+
+def test_undo_keeps_the_order_of_steps_made_while_the_editor_loads(browser, serve):
+    """Undo walks a field's words and its owner's recorded steps in the order they were
+    made, those made before its editor arrived included (composing/text-field.js)."""
+    context = browser.new_context()
+    held = []
+    context.route("**/vendor/codemirror.esm.js", lambda route: held.append(route))
+    page = open_page(
+        browser,
+        serve(
+            leaf_page("Editor history", "<h1>Editor history</h1><div id='seat'></div>")
+        ),
+        context=context,
+    )
+    try:
+        page.evaluate("""() => {
+          const field = document.createElement('leaf-text');
+          field.value = 'Draft';
+          document.querySelector('#seat').append(field);
+          window.steps = [];
+          field.focus();
+        }""")
+        field = page.locator("#seat leaf-text")
+        expect(field).to_be_focused()
+        holding(page, held, 1, "CodeMirror")
+        page.keyboard.type(" one")
+        field.evaluate(
+            "node => node.record(() => steps.push('undo'), () => steps.push('redo'))"
+        )
+        page.keyboard.type(" two")
+        held.pop().continue_()
+        rendered(page)
+        assert not field.evaluate("node => node.matches(':state(stand-in)')")
+        expect(field).to_be_focused()
+        undone = []
+        for _ in range(3):
+            page.keyboard.press("ControlOrMeta+z")
+            undone.append(field.evaluate("node => [node.value, steps.join()]"))
+        assert undone == [["Draft one", ""], ["Draft one", "undo"], ["Draft", "undo"]]
+    finally:
+        for route in held:
+            route.continue_()
+        context.unroute_all(behavior="wait")
 
 
 def test_unfocused_editor_move_leaves_later_selection_alone(browser, serve):
@@ -10459,6 +10506,8 @@ def test_unfocused_editor_move_leaves_later_selection_alone(browser, serve):
       field.focus();
       field.setSelectionRange(4, 4);
     })""")
+    # The move below is the editor's, which loads for the field focus needed.
+    rendered(page)
     held = page.evaluate("""() => {
       const field = document.querySelector('#first leaf-text');
       field.blur();

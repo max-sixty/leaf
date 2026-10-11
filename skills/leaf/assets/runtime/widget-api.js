@@ -245,4 +245,8 @@ export {
 } from "./widget-elements.js";
 export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
 
-export { LeafEditorView } from "./editor-view.js";
+// CodeMirror loads only for a module that edits with it, so a page without an editor
+// never fetches it.
+export async function loadEditorView() {
+  return (await import("./editor-view.js")).LeafEditorView;
+}

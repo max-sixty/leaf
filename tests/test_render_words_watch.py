@@ -6,6 +6,7 @@ from html import escape
 from urllib.parse import quote
 
 import pytest
+from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_harness import (
     consume_browser_errors,
@@ -322,6 +323,8 @@ def test_words_editcontext_tracks_the_exact_native_field_and_committed_words(
     }""")
     field = page.locator("#field")
     field.focus()
+    # The field's editor, and its EditContext, arrive once focus needs it.
+    rendered(page)
     assert field.evaluate("""field => {
       const content = editContextRoots.get(field).querySelector('.cm-content');
       window.nativeEditingContext = content.editContext;

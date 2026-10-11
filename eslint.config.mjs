@@ -1279,8 +1279,9 @@ export default [
           // The one placement, and the one handing on an arrival in progress.
           "skills/leaf/assets/runtime/focus.js",
           // The text field's own `focus()`, which the placement calls, hands on to the
-          // editor its shadow tree holds.
+          // stand-in or the editor its shadow tree holds.
           "skills/leaf/assets/runtime/composing/text-field.js",
+          "skills/leaf/assets/runtime/composing/text-editor.js",
           // The shared CodeMirror adapter places its own native editor.
           "skills/leaf/assets/runtime/editor-view.js",
         ],

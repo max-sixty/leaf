@@ -32,6 +32,7 @@ import json
 import os
 import posixpath
 import re
+import sys
 import tempfile
 import threading
 from collections.abc import Callable, Mapping
@@ -1064,6 +1065,20 @@ class RevisionReading(SourceReading):
             (self.bundle / "resources" / "registry.json").read_bytes()
         )
 
+    @cached_property
+    def inventory(self):
+        """Historical consumers outlive eviction of the expensive parse.
+
+        A long history can exceed the document budget. Keeping only these compact
+        immutable facts lets retries and new revisions reuse the completed scan.
+        """
+        return memo(self.marker.parent.parent, _CompactReadings).get(
+            self.marker,
+            file_stamp(self.marker),
+            lambda: SourceReading.inventory.func(self),
+            _inventory_size,
+        )
+
     def under(self, registry: dict) -> SourceReading:
         """This revision's document read under `registry`: this held reading where
         that is the captured vocabulary itself, else a reading of its own. A caller
@@ -1144,6 +1159,69 @@ class _Readings:
                     evicted_stamp, _evicted = self.held.pop(next(iter(self.held)))
                     self.size -= evicted_stamp[2]
         return reading
+
+
+def _inventory_size(value):
+    """Charge retained compact objects once, including each future dynamic slot."""
+    seen = set()
+
+    def size(item):
+        if id(item) in seen:
+            return 0
+        seen.add(id(item))
+        held = sys.getsizeof(item)
+        if isinstance(item, dict):
+            return held + sum(size(key) + size(value) for key, value in item.items())
+        if isinstance(item, (tuple, list, frozenset)):
+            return held + sum(size(value) for value in item)
+        if isinstance(item, Slot):
+            # Reserve the dict, pair and digest before the bool answer is filled.
+            return (
+                held
+                + sys.getsizeof(vars(item))
+                + sys.getsizeof((None, None))
+                + sys.getsizeof(bytes(32))
+            )
+        return held
+
+    return size(value)
+
+
+class _CompactReadings:
+    """Compact revision readings with their own byte budget and page lifetime.
+
+    Element identities, Question registration and data consumers are small facts
+    about immutable documents. Keeping them separately prevents long-history scans
+    from evicting their own completed work with full parses. Each owner charges its retained
+    representation; a Question source also reserves its last dynamic answer,
+    keyed by the event basis the canonical fold reads. Keys include the marker
+    stamp. No document, full registry, SourceReading or event log is retained.
+    """
+
+    BUDGET = 8 * 1024 * 1024
+
+    def __init__(self):
+        self.held = {}
+        self.size = 0
+        self.lock = threading.Lock()
+
+    def get(self, key, stamp, read, weight):
+        with self.lock:
+            held = self.held.pop(key, None)
+            if held is not None:
+                self.size -= held[2]
+                if held[0] == stamp:
+                    self.held[key] = held
+                    self.size += held[2]
+                    return held[1]
+            value = read()
+            size = weight(value)
+            self.held[key] = (stamp, value, size)
+            self.size += size
+            while self.size > self.BUDGET and len(self.held) > 1:
+                _, _, evicted_size = self.held.pop(next(iter(self.held)))
+                self.size -= evicted_size
+            return value
 
 
 def active_enclosing(page_dir: Path) -> dict:

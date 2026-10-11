@@ -53,10 +53,10 @@
    it holds them beside the words it stands at. A rewrite names the revision it was
    written over, and the log refuses it once another tab has rewritten the message
    since; opening a rewrite shows what its thread holds, so it starts from the words as
-   they stand, and until the user changes them the editor follows the message, so a
-   rewrite that lands while it stands open, or one a reader still held back as news
-   when it opened, moves its words and revision too. Words the message already says are no rewrite, so saving them closes the
-   editor and sends nothing. */
+   they stand. Until the user changes them, the editor follows the message: a rewrite
+   the reader draws on it, such as one held back as news until the editor opened,
+   moves the editor's words and revision too. Words the message already says are no
+   rewrite, so saving them closes the editor and sends nothing. */
 import {
   clearDraft,
   draftHasContent,
@@ -267,8 +267,8 @@ export class MessageEditor {
     this.node.append(this.input, this.foot, actions);
     // The words a closed rewrite left, or the message's own. An empty draft is none.
     this.input.value = loadDraft(ctx) || said();
-    // Until the user changes them, the words are the message's, so a rewrite of the
-    // message that lands meanwhile, as one a reader held back as news while this
+    // Until the user changes them, the words are the message's, so a rewrite the view
+    // draws on the message meanwhile, as one a reader held back as news while this
     // opened, carries them and its revision with it: Save then writes over what the
     // message says, rather than sending the old words over the new revision, which
     // the log refuses.

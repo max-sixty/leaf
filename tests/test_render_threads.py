@@ -12309,7 +12309,7 @@ def test_a_rewrite_opened_on_held_words_starts_from_the_words_as_they_stand(
     revision, so even a Save of words the user had not changed was sent, and the log
     refused it. Until the user changes them, the editor's words follow the message, so
     it shows the other rewrite and is written over it."""
-    page, _workspace, message = _rewrite_surface(browser, serve, "feed")
+    page, workspace, message = _rewrite_surface(browser, serve, "feed")
     mine = message.get_attribute("data-event")
     words = message.locator(".lf-msg-text")
     other = append_carried_log_record(
@@ -12323,6 +12323,9 @@ def test_a_rewrite_opened_on_held_words_starts_from_the_words_as_they_stand(
         },
     )
     round_trip(page)
+    # Feed holds the other rewrite back while the user reads the message.
+    expect(workspace.locator(".lf-primary-news").first).to_have_text("1 message edited")
+    expect(words).to_have_text("Fit the north bracket.")
     words.dblclick()
     editor = message.locator(".lf-msg-editor leaf-text")
     expect(editor).to_be_focused()

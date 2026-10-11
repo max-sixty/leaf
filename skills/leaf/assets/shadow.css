@@ -995,7 +995,7 @@ leaf-text.lf-fab-input,
 @media (pointer: coarse), (hover: none) {
   .lf-msg:is(.agent, .user) > .lf-msg-head {
     --lf-msg-control: max(26px, var(--aim-floor));
-    padding-inline-end: var(--lf-msg-control-room, var(--lf-msg-control));
+    padding-inline-end: calc(var(--lf-msg-control-room, var(--lf-msg-control)) + var(--lf-msg-head-room, 0px));
   }
 }
 .lf-msg-meta {

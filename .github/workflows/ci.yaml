@@ -122,9 +122,11 @@ jobs:
         background: true
         # The profilers write beside the junit report: `cpu-by-command.txt` is `sa`'s
         # table of every process that ran meanwhile, and `stacks.txt` holds one line
-        # per distinct stack and sample count at 20 Hz, rooted at its process, for
+        # per distinct stack and sample count at 5 Hz, rooted at its process, for
         # `leaf-dev suite-profile`, speedscope or flamegraph.pl. py-spy follows the
-        # process tree from `uv run` once it has a child, and stops when it exits.
+        # process tree from `uv run` once it has a child, and stops when it exits. At
+        # 20 Hz it took a tenth of the run's CPU; 5 Hz still samples the workers'
+        # functions thousands of times an hour.
         run: |
           mkdir -p .tmp/test-results
           sudo touch /var/log/account/suite
@@ -136,7 +138,7 @@ jobs:
             sleep 0.1
           done
           uvx py-spy@0.4.2 record --pid "$tests" --subprocesses --idle --nonblocking \
-            --function --rate 20 --format raw --output .tmp/test-results/stacks.txt &
+            --function --rate 5 --format raw --output .tmp/test-results/stacks.txt &
           profiler=$!
           wait "$tests" && status=0 || status=$?
           wait "$profiler" || echo "py-spy exited with $?"

@@ -15,12 +15,15 @@ and is not counted.
 worker time went: the junit report's phases, files and Playwright calls; py-spy's
 sampled stacks (`stacks.txt`), for the suite's own Python by function; and `sa`'s
 table of CPU by command (`cpu-by-command.txt`), for the browsers and servers no
-Python stack shows. CI writes all three and puts this command's output in the job's
+Python stack shows. Accounting names a process after the last of its threads to
+exit, so Chrome's processes appear under thread names such as `ThreadPoolForeg`, a
+Python process that watches files as `notify-rs inoti`, and py-spy as `ctrl-c`. CI writes all three and puts this command's output in the job's
 summary.
 """
 
 import json
 import os
+import re
 import statistics
 import sys
 import time
@@ -35,7 +38,16 @@ from leaf_dev import ROOT
 
 PLAYWRIGHT_DIR = f"{os.sep}playwright{os.sep}"
 PHASES = ("setup", "call", "teardown")
-SAMPLE_RATE = 20  # py-spy's `--rate` in CI's `test` job
+SAMPLE_RATE = 5  # py-spy's `--rate` in CI's `test` job
+# py-spy's raw format: one stack per line, `;`-separated frames and its sample count,
+# rooted at its process and that process's ancestors, `process PID:"COMMAND LINE"`.
+# A command line can hold `;` and newlines, so a record runs to the count that ends
+# a line before the next record or the end.
+STACK = re.compile(
+    r'^(?P<stack>process \d+:".*?) (?P<samples>\d+)$(?=\nprocess \d+:"|\n?\Z)',
+    re.MULTILINE | re.DOTALL,
+)
+FRAME = re.compile(r"\S+ \([^()]*:\d+\)")
 
 # The running test's Playwright tally, (method from caller) -> [seconds, calls], or
 # None outside a test.
@@ -149,10 +161,15 @@ def report_cases(cases: list[dict], top: int) -> None:
     phases = {p: sum(prof.get(p, 0) for prof in profiled) for p in PHASES}
     waits = sum(s for prof in profiled for s, _ in prof["playwright"].values())
     section(f"{len(cases)} tests, {minutes(total)} worker-minutes")
-    click.echo(
-        "  ".join(f"{p} {minutes(s)}" for p, s in phases.items())
-        + f"  in Playwright {minutes(waits)} ({share(waits, total)})"
-    )
+    if profiled:
+        click.echo(
+            "  ".join(f"{p} {minutes(s)}" for p, s in phases.items())
+            + f"  in Playwright {minutes(waits)} ({share(waits, total)})"
+        )
+    else:
+        click.echo(
+            "No test carries a `profile` property: the run did not load this plugin."
+        )
 
     by_file = defaultdict(list)
     for case in cases:
@@ -182,6 +199,8 @@ def report_cases(cases: list[dict], top: int) -> None:
             for s, name, n, m, su, pw in sorted(rows, reverse=True)[:top]
         ],
     )
+    if not profiled:
+        return
 
     methods, callers = Counter(), Counter()
     counts = Counter()
@@ -208,26 +227,24 @@ def report_cases(cases: list[dict], top: int) -> None:
 
 def report_stacks(path: Path, top: int) -> None:
     """The suite's own Python in py-spy's samples of the test protocol: inclusive
-    minutes by function, and the innermost frame each sample was in. Stacks outside
-    the protocol, Playwright's event loop and the threads of in-process servers among
-    them, are counted apart."""
+    minutes by function, and the innermost frame each sample was in. The protocol's
+    stack is off the thread while Playwright's event loop runs, so these minutes
+    and the report's Playwright minutes add up to the tests' time."""
     inclusive, innermost = Counter(), Counter()
-    inside = outside = 0
-    for line in path.read_text().splitlines():
-        stack, _, count = line.rpartition(" ")
-        samples = int(count)
-        frames = [f for f in stack.split(";") if f.endswith(")") and " (" in f]
+    inside = 0
+    for record in STACK.finditer(path.read_text(errors="replace")):
+        frames = [f for f in record["stack"].split(";") if FRAME.fullmatch(f)]
         if not any(f.startswith("pytest_runtest_protocol ") for f in frames):
-            outside += samples
             continue
+        samples = int(record["samples"])
         inside += samples
         for frame in set(frames):
             if not _harness_frame(frame):
                 inclusive[frame] += samples
         innermost[frames[-1]] += samples
     section(
-        f"Sampled stacks: {minutes(inside / SAMPLE_RATE)} minutes in the test "
-        f"protocol, {minutes(outside / SAMPLE_RATE)} in other threads and processes"
+        f"Sampled stacks: {minutes(inside / SAMPLE_RATE)} minutes of the test "
+        "protocol outside Playwright"
     )
     table(
         ("minutes", "inclusive, by function"),
@@ -241,10 +258,12 @@ def report_stacks(path: Path, top: int) -> None:
 
 
 def _harness_frame(frame: str) -> bool:
-    """A frame of pytest, its plugins or the worker's transport, which every test
-    stack passes through and so says nothing about where a test spends its time."""
+    """A frame of pytest, its plugins, the worker's transport and bootstrap, or the
+    click machinery under an in-process command, which every such stack passes through and so says nothing about where a test spends its time."""
     where = frame.rpartition(" (")[2]
-    return where.startswith(("_pytest/", "pluggy/", "xdist/", "execnet/", "pytest/"))
+    return where.startswith(
+        ("_pytest/", "pluggy/", "xdist/", "execnet/", "pytest/", "click/", "<string>:")
+    )
 
 
 def section(title: str) -> None:

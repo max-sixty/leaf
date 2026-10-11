@@ -157,6 +157,13 @@ const parseDraftRecord = (value) => {
     return null;
   }
 };
+// What storage holds for the draft at `ctx`, parsed as this store parses it, whatever
+// this tab has cached: the record another tab or a reload would find. A test reading
+// the stored draft asks it rather than parsing the record itself.
+export const storedDraft = (ctx) => {
+  const read = draftStore.read(DRAFT + ctx);
+  return read.available ? parseDraftRecord(read.value) : null;
+};
 const attemptAccepted = (attempt) =>
   (runtime.browser?.receipts ?? []).some((event) => event.attempt === attempt);
 const writeDraftRecord = (ctx, record) =>

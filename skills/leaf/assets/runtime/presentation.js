@@ -321,11 +321,7 @@ function withoutToken(value, token, insensitive = false) {
     .join(" ");
 }
 function writeLinkAttributes(link, values) {
-  for (const [name, value] of Object.entries(values)) {
-    if (link.getAttribute(name) === value) continue;
-    if (value === null) link.removeAttribute(name);
-    else link.setAttribute(name, value);
-  }
+  for (const [name, value] of Object.entries(values)) keeps(link, name, value);
 }
 function rememberExternalLinkChanges(link, state) {
   if (!state.painted) return;

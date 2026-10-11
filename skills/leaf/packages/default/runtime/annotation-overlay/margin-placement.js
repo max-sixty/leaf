@@ -3,9 +3,10 @@
    A row stands in one of two postures. In the rail it hangs off the column, in the strip
    the page reserves beside it. As a pin it stands over the page by its target, in room
    that covers none of the page's words where it finds some (`pinSpot`). Nothing here
-   moves the page's content: a row's posture, seat and push are the row's own geometry,
-   and the stylesheet places it from them by anchor positioning (theme.css, at
-   .lf-margin-cluster).
+   moves the page's content: a row's posture, seat and push are the row's own geometry.
+   The layout pass writes them as `--lf-margin-x` and `--lf-margin-y`, which
+   annotation-theme.css reads at .lf-margin-cluster; only the carrier a row stands in is
+   anchor-positioned.
 
    The layout pass (`margin-layout.js`) reads every rectangle first, asks these folds, and
    then writes. Each fold answers from its arguments alone, so `tests/runtime/` runs them

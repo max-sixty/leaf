@@ -3,7 +3,9 @@
 import json
 
 import pytest
-from leaf_dev.arms import commands, completed, trace_result
+from interact_support import TOKEN, publish
+from leaf.event_log import read_events
+from leaf_dev.arms import PageClient, commands, completed, trace_result
 from leaf_dev.eval_codex import records_for
 
 EVENT_ENVELOPE = {
@@ -414,3 +416,29 @@ def test_single_turn_timeout_retains_native_trace_without_fabricating_completion
     assert err.read_text() == "a native diagnostic\n"
     assert out.with_suffix(".timed-out").is_file()
     assert not completed(arms.read_trace(out))
+
+
+def test_a_move_posted_on_a_stale_layer_lands_on_the_current_one(
+    page_dir, server, monkeypatch
+):
+    """The server answers a post on another layer with that layer and admits
+    nothing, as when an agent re-vendors between the driver's state read and its
+    post. The driver posts again under the layer it was told, as a reloaded tab."""
+    publish(page_dir)
+    client = PageClient(f"{server}/?t={TOKEN}")
+    stale = client.state()
+    stale["layer"]["generation"] = "an-earlier-layer"
+    monkeypatch.setattr(client, "state", lambda: stale)
+
+    client.post(
+        {
+            "kind": "comment",
+            "revision": 1,
+            "text": "Ship it",
+            "attempt": "stale-layer-retry",
+        }
+    )
+
+    assert [
+        event["text"] for event in read_events(page_dir) if event["kind"] == "comment"
+    ] == ["Ship it"]

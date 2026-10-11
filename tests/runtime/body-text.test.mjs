@@ -288,3 +288,42 @@ test("Markdown paragraphs keep reading grain while annotations retain the author
     delete registry["lf-seat-contract"];
   }
 });
+
+test("annotation seats follow each publication's own formatting declaration", async () => {
+  const { annotationAt, resolveAnchor } = await import("/runtime/anchor-resolution.js");
+  const { bindVocabulary, rememberVocabulary } =
+    await import("/runtime/widget-contexts.js");
+  const root = document.createElement("main");
+  root.innerHTML =
+    '<lf-publication-seat id="formatted-seat"><p>Frozen formatted passage.</p></lf-publication-seat><lf-publication-seat id="prose-seat"><p>Current ordinary passage.</p></lf-publication-seat>';
+  document.body.append(root);
+  const hosts = [...root.children];
+  for (const [index, host] of hosts.entries()) {
+    const context = {
+      revision: 301 + index,
+      declarations: {
+        $layer: { generation: `annotation-seat-${index}` },
+        "lf-publication-seat": index === 0 ? { "x-text-format": "markdown" } : {},
+      },
+    };
+    rememberVocabulary(context);
+    bindVocabulary(host, context);
+  }
+  try {
+    // Revisit both after the other publication has arrived: sharing a tag is not
+    // sharing the declaration that decides the rendered passage's seat.
+    for (const index of [1, 0]) {
+      const host = hosts[index];
+      const paragraph = host.firstElementChild;
+      const seat = index === 0 ? host : paragraph;
+      assert.ok(annotationAt(paragraph.firstChild) === seat, host.id);
+      assert.ok(
+        resolveAnchor({ section: host.id, quote: paragraph.textContent }).place ===
+          seat,
+        host.id,
+      );
+    }
+  } finally {
+    root.remove();
+  }
+});

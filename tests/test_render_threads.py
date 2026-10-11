@@ -1913,9 +1913,7 @@ def test_a_held_inline_reply_reveal_yields_to_new_user_focus(browser, serve):
     page.locator(
         f'#jobs .lf-page-thread[data-thread="{root}"] .lf-page-thread-open'
     ).click()
-    page.wait_for_function(
-        "() => window.visibleThreadPresentationHeld === true", timeout=3000
-    )
+    page.wait_for_function("() => window.visibleThreadPresentationHeld === true")
     page.locator(".lf-threads-toggle").focus()
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
     page.evaluate("releaseVisibleThreadPresentation()")
@@ -2484,9 +2482,7 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_its_reveal(
 
     card.get_by_role("button", name=re.compile(r"\bReopen(?: thread)?$")).click()
     holding(page, held, 1, "the refused reopen with a held reveal")
-    page.wait_for_function(
-        "window.visibleThreadPresentationHeld === true", timeout=3000
-    )
+    page.wait_for_function("window.visibleThreadPresentationHeld === true")
     find.fill("newer user search")
     expect(find).to_be_focused()
     page.evaluate("releaseVisibleThreadPresentation()")
@@ -2531,9 +2527,7 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_restoration(
 
     hold_visible_thread_presentation(page, root)
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
-    page.wait_for_function(
-        "window.visibleThreadPresentationHeld === true", timeout=3000
-    )
+    page.wait_for_function("window.visibleThreadPresentationHeld === true")
     find.fill("newer user search")
     expect(find).to_be_focused()
     page.evaluate("releaseVisibleThreadPresentation()")
@@ -2656,8 +2650,8 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
             "button", name=re.compile(r"\bReopen(?: thread)?$"), include_hidden=True
         ),
     ):
-        expect(settled).to_be_enabled(timeout=1000)
-        expect(settled).not_to_have_attribute("aria-busy", "true", timeout=1000)
+        expect(settled).to_be_enabled()
+        expect(settled).not_to_have_attribute("aria-busy", "true")
 
     route.fulfill(response=accepted)
     page.unroute("**/api/event")
@@ -5183,7 +5177,6 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
         "() => window.threadChildFailed && window.threadRetryHeld && "
         "window.threadListPresentation.readApplicationPresentation().pending"
         ".includes('thread')",
-        timeout=5000,
     )
 
     recovered = page.locator(f'.lf-thread[data-id="{root}"]')
@@ -8195,9 +8188,7 @@ def test_a_delayed_accordion_reveal_yields_to_the_users_new_thread(browser, serv
     # The thread the list shows asks the user a question too, so focus on the list is
     # standing on that item of their queue; the hidden Ask stands before it on the page.
     page.keyboard.press("Shift+q")
-    page.wait_for_function(
-        "window.visibleThreadPresentationHeld === true", timeout=3000
-    )
+    page.wait_for_function("window.visibleThreadPresentationHeld === true")
     later = page.locator(".lf-thread:not([hidden])").first
     later_id = later.get_attribute("data-id")
     assert later_id != target_id
@@ -14323,7 +14314,7 @@ export default class extends HTMLElement {
     )
     reading = page.evaluate(
         """anchor => window.__lfRuntimeImport('/runtime/anchor-resolution.js')
-          .then(async ({resolveAnchor}) => {const {pageText} = await window.__lfRuntimeImport('/runtime/passages.js'); const {kind, exact, status} = resolveAnchor(anchor, pageText());
+          .then(({resolveAnchor}) => {const {kind, exact, status} = resolveAnchor(anchor);
             return {kind, exact, status};})""",
         comment["anchor"],
     )

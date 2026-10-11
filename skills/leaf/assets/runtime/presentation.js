@@ -98,7 +98,7 @@ import { highlightBlocks } from "./syntax.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 import { keeps } from "./keeps.js";
 
-import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
+import { PAGE_PAINT_ATTRIBUTE, pagePresented } from "./page-paint.js";
 
 const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 // Whether an attribute on the page's own element is paint rather than the author's: the
@@ -108,8 +108,6 @@ const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 export const isPagePaint = (name) =>
   PAGE_PAINT_ATTRIBUTES.has(name) ||
   Object.values(registry.$marks).some((mark) => mark.paint === name);
-export const pagePresented = () =>
-  document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
 // The stamp is written here and nowhere else, and never taken back, so the promise it
 // resolves answers every later waiter too.
 const { promise: presented, resolve: resolvePresented } = Promise.withResolvers();

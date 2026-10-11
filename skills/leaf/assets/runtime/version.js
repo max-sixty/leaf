@@ -125,8 +125,8 @@ import {
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
-import { LIVE_ROOT, PAGE_SCOPE, layerRoot, tabStore, unmarkedCopy } from "./storage.js";
-import { initialOrigin, restoreInitialSource } from "./initial-render.js";
+import { LIVE_ROOT, PAGE_SCOPE, layerRoot, tabStore } from "./storage.js";
+import { initialOrigin, restoreInitialSource, unmarkedCopy } from "./initial-render.js";
 import { alignInlineText } from "./text-alignment.js";
 import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
 import { keeps } from "./keeps.js";

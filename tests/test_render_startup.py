@@ -939,7 +939,7 @@ def test_a_page_that_never_presents_lets_its_held_keys_go(browser, serve):
     expect(echo).to_be_visible()
     assert page.evaluate("heard") == [], "the positive control: the press was held"
 
-    expect(echo).to_have_count(0, timeout=15_000)
+    expect(echo).to_have_count(0)
     page.keyboard.press("x")
     assert page.evaluate("heard") == ["x"]
 
@@ -2056,7 +2056,7 @@ def test_failed_anchor_presentation_keeps_visual_actions_withheld(browser, serve
     assert held, "the first state read completed before the visual was malformed"
     held.pop(0).continue_()
 
-    expect(page.locator(".lf-status-detail")).to_contain_text("reload", timeout=5000)
+    expect(page.locator(".lf-status-detail")).to_contain_text("reload")
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(page.locator(".lf-visual-actions")).to_have_count(0)
     assert page.evaluate("() => window.__lfVisualActionInsertions") == []
@@ -2921,7 +2921,6 @@ def test_a_durable_server_restart_keeps_the_current_editor(browser, serve):
             )
         ),
     )
-    page.set_default_timeout(5000)
     page.locator("#draft .lf-draft-body").dblclick()
     editor = page.locator("#draft leaf-text")
     write(editor, "An unfinished durable draft")
@@ -2940,7 +2939,6 @@ def test_a_durable_server_restart_keeps_the_current_editor(browser, serve):
             response.url.endswith("/api/news")
             and response.headers.get("leaf-server") == "replacement-server"
         ),
-        timeout=5000,
     ) as restarted:
         serve.httpd.server_id = "replacement-server"
     assert restarted.value.text() == reading
@@ -3055,9 +3053,7 @@ def test_a_presence_read_crossing_freshness_returns_to_the_current_lease(
 
         page.route("**/api/state*", crossing)
         release_lease(lease)
-        page.wait_for_function(
-            "root => root.state.listening === false", arg=runtime, timeout=6000
-        )
+        page.wait_for_function("root => root.state.listening === false", arg=runtime)
         assert crossed, "the state read did not cross the temporary lease"
         told(page)
         page.unroute_all(behavior="wait")
@@ -3195,7 +3191,11 @@ def test_a_first_read_still_out_does_not_decide_when_the_page_arrives(browser, s
     held = []
     page.route("**/api/state*", lambda route: held.append(route))
     page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
-    expect(page.locator("body[data-lf-presented]")).to_have_count(1, timeout=60_000)
+    # The page presents offline once the runtime's own wait for the read
+    # (PRESENTATION_WAIT_MS, state-feed.js) runs out, so the hang bound starts there.
+    expect(page.locator("body[data-lf-presented]")).to_have_count(
+        1, timeout=render_checks_model.SERVED_TIMEOUT_MS + 10_000
+    )
     expect(page.locator(".lf-status-detail")).to_contain_text(
         "Server offline — reconnecting"
     )
@@ -3240,7 +3240,7 @@ def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     page.wait_for_function("() => window.probePaints >= 2")
 
     page.unroute("**/api/state*")
-    with page.expect_request("**/api/state*", timeout=3000):
+    with page.expect_request("**/api/state*"):
         nudge(serve.page_dir)
     told(page)
     expect(page.locator(".lf-status-detail")).not_to_contain_text(
@@ -3396,7 +3396,8 @@ def test_a_page_asks_its_source_before_reloading_onto_the_same_document(browser,
         moved["pending"] = True
         wake("The source moved.")
         page.wait_for_function(
-            "() => window.lfSameDocument === undefined", timeout=15_000
+            "() => window.lfSameDocument === undefined",
+            timeout=render_checks_model.HANDOVER_DEADLINE_MS,
         )
     finally:
         page.unroute("**/api/state", foreign)
@@ -4740,6 +4741,33 @@ export default class extends HTMLElement {
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "undo"
     )
     assert withdrawn["undoes"] == marked["id"]
+
+    # A put-away draft follows the subject too: after selecting another passage opens
+    # its empty box and a replacement re-mints the row's anchor, aiming at the row again
+    # brings its stored words back.
+    row.click(modifiers=["Alt"])
+    expect(draft).to_be_focused()
+    write(draft, "Hold this hidden draft.")
+    page.keyboard.press("Escape")
+    page.locator("#title").click(click_count=3)
+    expect(draft).to_be_visible()
+    expect(draft).to_have_js_property("value", "")
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "deployments",
+        {
+            "rows": [
+                {"id": "b", "label": "Beta", "updated": 1},
+                {"id": "a", "label": "Alpha", "updated": 2},
+            ]
+        },
+    )
+    replaced = source_revision(serve.page_dir, "deployments")
+    assert replaced != current
+    expect(row).to_have_attribute("data-lf-source-revision", replaced)
+    row.click(modifiers=["Alt"])
+    expect(draft).to_be_focused()
+    expect(draft).to_have_js_property("value", "Hold this hidden draft.")
 
 
 @pytest.mark.parametrize(

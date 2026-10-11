@@ -1,6 +1,7 @@
 /* The isolated child's explicit interface to its containing page. Values cross the
  * port; documents, DOM nodes, functions and browser owners remain in this realm. */
 import { canPlaceFocus, focusDestination, onStanding } from "./focus.js";
+import { pagePresented } from "./page-paint.js";
 const child = document.documentElement.lfSample;
 const commands = new Map();
 const observers = new Map();
@@ -79,7 +80,7 @@ if (child) {
         "error",
         document.documentElement.lfStartupException ?? { message: error },
       );
-    if (presented || !document.body?.hasAttribute("data-lf-presented")) return;
+    if (presented || !(document.body && pagePresented())) return;
     presented = true;
     child.present();
     measure();

@@ -61,6 +61,7 @@ import {
   watchData,
   watchOwner,
   scrollIntoView,
+  layoutPx,
 } from "/runtime/widget-api.js";
 import {
   diffDatumKey,
@@ -322,8 +323,8 @@ const threadSizes = sizeObserver((entries) => {
     width: reader.clientWidth,
   }));
   for (const { reader, gutter, width } of widths) {
-    reader.style.setProperty("--lf-diff-gutter-width", `${gutter}px`);
-    reader.style.setProperty("--lf-diff-thread-width", `${width - gutter}px`);
+    reader.style.setProperty("--lf-diff-gutter-width", layoutPx(gutter));
+    reader.style.setProperty("--lf-diff-thread-width", layoutPx(width - gutter));
   }
 });
 
@@ -1313,10 +1314,8 @@ export default class extends HTMLElement {
         ? `span ${pair.contentRows + count}`
         : pair.contentGridRow;
       const gutterRow = count ? `span ${pair.gutterRows + count}` : pair.gutterGridRow;
-      if (pair.content.style.gridRow !== contentRow)
-        pair.content.style.gridRow = contentRow;
-      if (pair.gutter.style.gridRow !== gutterRow)
-        pair.gutter.style.gridRow = gutterRow;
+      pair.content.style.gridRow = contentRow;
+      pair.gutter.style.gridRow = gutterRow;
     }
     for (const target of this.threadSizeTargets ?? [])
       if (!targets.has(target)) threadSizes.unobserve(target);

@@ -102,7 +102,7 @@ import {
   shownRect,
 } from "/runtime/geometry.js";
 import { clamp, union } from "/runtime/rect.js";
-import { moveScrollerBy } from "/runtime/scrolling.js";
+import { moveScrollerBy, scrollLimit } from "/runtime/scrolling.js";
 
 import {
   containingReadingRegionFor,
@@ -240,7 +240,7 @@ function roomTravel(side, scroller) {
   const local =
     localDirection < 0
       ? scroller.scrollTop
-      : Math.max(0, scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop);
+      : Math.max(0, scrollLimit(scroller) - scroller.scrollTop);
   return { projection, direction, available: local * Math.abs(projection) };
 }
 

@@ -59,10 +59,8 @@ export function createStateApplication({
 
   async function runSerialized(operation) {
     const prior = admission;
-    let release;
-    admission = new Promise((resolve) => {
-      release = resolve;
-    });
+    const { promise, resolve: release } = Promise.withResolvers();
+    admission = promise;
     await prior;
     try {
       return await operation();

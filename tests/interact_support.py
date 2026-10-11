@@ -532,8 +532,7 @@ def page_packages() -> tuple[str, ...]:
     """The integration page's package selection, resolved where it is initialized.
 
     PAGE holds an lf-diagram, and the interact suite borrows lf-diagram and
-    lf-diff declarations from the vendored registry. The template cache names
-    this composition so one selection is never handed to another.
+    lf-diff declarations from the vendored registry.
     """
     return (package_path(COMMAND_HUB_PACKAGE), "diagram", "diff")
 
@@ -542,23 +541,11 @@ def page_packages() -> tuple[str, ...]:
 def page_dir(tmp_path, monkeypatch, initialized_page):
     """A mutable page with the default, Command Hub, diagram and diff vocabularies."""
     monkeypatch.chdir(tmp_path)  # resolve fixture package paths
-    d = tmp_path / "page"
-
-    def initialize(template):
-        result = CliRunner().invoke(
-            cli_model.cli,
-            [
-                "page",
-                "init",
-                *(arg for name in page_packages() for arg in ("--package", name)),
-                str(template),
-            ],
-        )
-        assert result.exit_code == 0, result.output
-        (template / "index.html").write_text(PAGE)
-
-    initialized_page("work-" + "-".join(page_packages()[1:]), d, initialize)
-    return d
+    return initialized_page(
+        tmp_path / "page",
+        page_packages(),
+        ("PAGE", lambda template: (template / "index.html").write_text(PAGE)),
+    )
 
 
 def check(d):

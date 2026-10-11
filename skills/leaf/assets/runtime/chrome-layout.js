@@ -1,6 +1,6 @@
 // `syncLayout` derives floating chrome placement and reservations from current chrome
 // boxes, and asks which residents stand in the page's margin (`scheduleResidency`,
-// margin-layout.js), the one posture JavaScript decides for the document: it reads the
+// content-layout.js), the one posture JavaScript decides for the document: it reads the
 // room beside `main`, which the page's own CSS sets. CSS owns the rest of the shell:
 // `body` is the named `lf-shell` inline-size container, and a query on it may answer a
 // narrow column's facts. `layoutSizes` schedules `syncLayout` and page repaint after a

@@ -38,8 +38,7 @@ export default class extends HTMLElement {
   #heightReading;
   #fit = () => {
     const frame = this.#frame;
-    const next = `${this.#heightReading + frame.offsetHeight - frame.clientHeight}px`;
-    if (frame.style.height !== next) frame.style.height = next;
+    frame.style.height = `${this.#heightReading + frame.offsetHeight - frame.clientHeight}px`;
   };
   #scheduleFit = frameFor(this, this.#fit);
   #ready;

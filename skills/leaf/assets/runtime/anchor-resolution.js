@@ -8,7 +8,7 @@
  */
 import { registryFor, tagsDeclaring } from "./registry.js";
 
-import { sameAnchor } from "./anchor-coordinate.js";
+import { anchorKey } from "./anchor-coordinate.js";
 import { isElementName } from "./registry-contract.js";
 import {
   resolvedElement,
@@ -18,7 +18,7 @@ import {
 } from "./resolved-target.js";
 import { overlaps } from "./rect.js";
 import { clippedContents } from "./geometry.js";
-import { inUi, uiInside, under, upFrom } from "./shadow.js";
+import { inUi, shadowHost, uiInside, under, upFrom } from "./shadow.js";
 import {
   registeredVisualPart,
   registeredVisualPartAt,
@@ -57,7 +57,7 @@ import {
 
 import { PRESSABLE } from "./widget-elements.js";
 import { PRESSES, WORKS } from "./control-selectors.js";
-import { excerptWords } from "./contribution-model.js";
+import { excerptWords } from "./words.js";
 
 // Anchors are durable coordinates, so every route that can mint one begins only after
 // replay has reconciled the authored document. The presentation root owns the writer.
@@ -166,6 +166,18 @@ const visualPartRank = (visual) =>
 const wholeVisualSurface = (element) =>
   registryFor(element)[element?.localName]?.["x-visual"] ? element : null;
 
+// Select actual providers through their own publications. A union of declared tags
+// is an inventory prefilter, not evidence that this node is a visual surface.
+function declaredVisualAt(node) {
+  for (
+    let at = node?.nodeType === Node.ELEMENT_NODE ? node : upFrom(node);
+    at;
+    at = upFrom(at)
+  )
+    if (wholeVisualSurface(at)) return at;
+  return null;
+}
+
 /** The registered parts a visual's declaration admits, in declaration order. */
 export function visualParts(visual) {
   const rank = visualPartRank(visual);
@@ -204,9 +216,9 @@ const genericVisualSelector = "svg, img, figure";
 export const visualSelector = () =>
   [declaredVisualSelector(), genericVisualSelector].filter(Boolean).join(",");
 
-const outermostAcross = (element, selector) => {
+const outermostAcross = (element, find) => {
   for (let parent = upFrom(element); parent;) {
-    const outer = closestAcross(parent, selector);
+    const outer = find(parent);
     if (!outer) break;
     element = outer;
     parent = upFrom(element);
@@ -231,12 +243,14 @@ export const unclaimedVisualGesture = (target) => {
 // picture is the visual reading. The nearest authored id remains the durable seat.
 export function visualAt(target, { unclaimed = true } = {}) {
   if (unclaimed && !unclaimedVisualGesture(target)) return null;
-  const declared = declaredVisualSelector();
-  let element = declared ? closestAcross(target, declared) : null;
-  if (element) element = outermostAcross(element, declared);
+  let element = declaredVisualAt(target);
+  if (element) element = outermostAcross(element, declaredVisualAt);
   else {
     element = closestAcross(target, genericVisualSelector);
-    if (element) element = outermostAcross(element, genericVisualSelector);
+    if (element)
+      element = outermostAcross(element, (node) =>
+        closestAcross(node, genericVisualSelector),
+      );
   }
   if (!element) return null;
   const seat = closestAcross(element, ADDRESSABLE);
@@ -268,8 +282,7 @@ export const ADDRESSABLE = '[id]:not(.lf-ui):not([id^="lf-"])';
 export function isAddressable(at) {
   if (!at.matches(ADDRESSABLE) || inChrome(at) || inUi(at) || settledAway(at))
     return false;
-  const visual = tagsDeclaring((entry) => entry["x-visual"]).join(",");
-  return !(visual && at.parentElement && closestAcross(at.parentElement, visual));
+  return !declaredVisualAt(upFrom(at));
 }
 
 export function addressableAt(node) {
@@ -278,19 +291,26 @@ export function addressableAt(node) {
   return null;
 }
 
-// Markdown block structure is reading geometry, not authored annotation identity.
-// A whole-body formatter replaces one authored data record with paragraphs/lists;
-// its declared host remains the seat that comments and reactions can name durably.
-export function annotationAt(node) {
-  const formatted = tagsDeclaring(
-    (entry) => entry["x-text-format"] === "markdown",
-  ).join(",");
-  return (
-    (formatted && closestAcross(node, formatted)) ||
-    blockAt(node) ||
-    addressableAt(node)
-  );
+// The seat of a node: the element its margin row, response bar, note and reaction
+// receipt stand at. Markdown block structure is reading geometry, not authored
+// annotation identity. A whole-body formatter replaces one authored data record with
+// paragraphs/lists; its declared host remains the seat that comments and reactions can
+// name durably. A resolved passage's `place` is its first segment's seat; a passage in
+// a datum falls back to the datum, where other text falls back to the nearest
+// addressable element. Each ancestor's formatting belongs to its own publication;
+// another publication declaring the same tag cannot make it a formatted seat.
+export function annotationAt(node, fallback = addressableAt) {
+  for (
+    let at = node?.nodeType === Node.ELEMENT_NODE ? node : upFrom(node);
+    at;
+    at = upFrom(at)
+  )
+    if (registryFor(at)[at.localName]?.["x-text-format"] === "markdown") return at;
+  return blockAt(node) || fallback(node);
 }
+
+// A seat inside a shadow root stands at its host, where light-DOM chrome can sit.
+export const lightSeat = (seat) => (seat && shadowHost(seat.getRootNode())) ?? seat;
 
 const HTML_WORDS = {
   input: "control",
@@ -507,7 +527,7 @@ export function anchorForRange(range) {
       ...(prefix && { prefix }),
       ...(suffix && { suffix }),
     };
-    const resolved = quote && resolveAnchor(anchor, reading);
+    const resolved = quote && resolveAnchor(anchor);
     if (resolved?.exact && resolved.kind === "passage") {
       // Quotes discard boundary whitespace. Compare the characters the passage
       // reader retained, rather than demanding the drag's cosmetic spaces survive.
@@ -624,8 +644,7 @@ function designTargetAt(
   const control =
     pressed?.matches(`${WORKS},${genericVisualSelector}`) && controlIdentity(pressed);
   const visual = visualAt(at, { unclaimed: false });
-  const declared = declaredVisualSelector();
-  if (declared && visual?.element.matches(declared)) at = visual.element;
+  if (wholeVisualSurface(visual?.element)) at = visual.element;
   else if (
     pressed?.control ||
     (visual && control?.matches(PRESSES) && under(visual.element, control))
@@ -695,7 +714,7 @@ function designTargetAt(
         for (const passage of controlPassages(face, partElement)) {
           if (!passage.length || !fileModelsPassage(passage)) continue;
           const captured = anchorForRange(rangeOf(passage));
-          const resolved = captured.quote && resolveAnchor(captured, pageText());
+          const resolved = captured.quote && resolveAnchor(captured);
           const attachment =
             resolved?.kind === "passage" && passageGeometry(resolved)?.attachment;
           // Hidden option words and repeated passages cannot establish an exact face.
@@ -780,13 +799,16 @@ export function aimTargets(options = {}) {
       return true;
     });
   }
-  return targets.filter(
-    (target, index) =>
-      !targets.slice(0, index).some((prior) => sameAnchor(prior.anchor, target.anchor)),
-  );
+  const keys = new Set();
+  return targets.filter((target) => {
+    const key = anchorKey(target.anchor);
+    if (keys.has(key)) return false;
+    keys.add(key);
+    return true;
+  });
 }
 
-export function resolveAnchor(anchor, text = "") {
+export function resolveAnchor(anchor) {
   // Capture exhausted the selected occurrence's real fences without identifying it.
   // Later uniqueness cannot prove that the survivor was the user's occurrence.
   if (anchor.detached) return null;
@@ -844,11 +866,11 @@ export function resolveAnchor(anchor, text = "") {
         exact: true,
         status: "exact",
       };
-    const segments = findQuote(text, anchor.quote, anchor, datums[0]);
+    const segments = findQuote(pageText(), anchor.quote, anchor, datums[0]);
     return segments.length
       ? {
           ...resolvedPassage({
-            place: segments[0].block ?? datums[0],
+            place: annotationAt(segments[0].node, () => datums[0]),
             segments,
           }),
           datumElement: datums[0],
@@ -902,7 +924,7 @@ export function resolveAnchor(anchor, text = "") {
     return anchor.part ? { ...target, exact: false, status: "fallback" } : target;
   }
 
-  const segments = findQuote(text, anchor.quote, anchor, sectionOf(anchor));
+  const segments = findQuote(pageText(), anchor.quote, anchor, sectionOf(anchor));
   if (!segments.length) return null;
   // An exact named-control quote identifies its actual readable face, so both the
   // editor and sent thread clear that face. Ordinary prose still clears its block.
@@ -910,7 +932,7 @@ export function resolveAnchor(anchor, text = "") {
   const controlFace =
     face && segments.every(({ node }) => closestAcross(node, WORKS) === face);
   return resolvedPassage({
-    place: controlFace ? face : (segments[0].block ?? addressableAt(segments[0].node)),
+    place: controlFace ? face : annotationAt(segments[0].node),
     segments,
   });
 }

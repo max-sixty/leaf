@@ -3,7 +3,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { initialRender, initialOrigin } from "/runtime/initial-render.js";
-import { tabStore, unmarkedCopy } from "/runtime/storage.js";
+import { unmarkedCopy } from "/runtime/initial-render.js";
+import { tabStore } from "/runtime/storage.js";
 import { bindVocabulary, normalizeDeclarations } from "/runtime/widget-contexts.js";
 import { addressableLabel } from "/runtime/anchor-resolution.js";
 import { adoptRegistry, registry, stateSpecs } from "/runtime/registry.js";

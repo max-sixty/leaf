@@ -91,3 +91,43 @@ test("an opted-in complete inventory derives targets while omission keeps the wh
   source.removeAttribute("parts");
   assert.deepEqual(frame(source, "two"), []);
 });
+
+test("visual ownership and authored IDs follow each publication's own declaration", async () => {
+  const { visualAt, isAddressable, addressableAt } =
+    await import("/runtime/anchor-resolution.js");
+  const { bindVocabulary, rememberVocabulary } =
+    await import("/runtime/widget-contexts.js");
+  const root = document.createElement("main");
+  root.innerHTML =
+    '<lf-publication-visual id="frozen-visual"><p id="generated-id">Frozen drawing.</p></lf-publication-visual><lf-publication-visual id="current-prose"><p id="authored-id">Current prose.</p><img id="ordinary-picture"></lf-publication-visual>';
+  document.body.append(root);
+  const [visual, prose] = root.children;
+  for (const [index, host] of [visual, prose].entries()) {
+    const context = {
+      revision: 401 + index,
+      declarations: {
+        $layer: { generation: `visual-ownership-${index}` },
+        "lf-publication-visual": index === 0 ? { "x-visual": "whole" } : {},
+      },
+    };
+    rememberVocabulary(context);
+    bindVocabulary(host, context);
+  }
+  try {
+    assert.ok(visualAt(prose.firstElementChild) === null);
+    assert.ok(visualAt(prose.lastElementChild)?.element === prose.lastElementChild);
+    assert.equal(isAddressable(prose.firstElementChild), true);
+    assert.ok(
+      addressableAt(prose.firstElementChild.firstChild) === prose.firstElementChild,
+    );
+    assert.ok(visualAt(visual.firstElementChild)?.element === visual);
+    assert.equal(isAddressable(visual.firstElementChild), false);
+    assert.ok(addressableAt(visual.firstElementChild.firstChild) === visual);
+    // The outermost provider reading skips a same-tag ancestor whose publication
+    // declares prose, rather than letting it take the nested drawing's identity.
+    prose.append(visual);
+    assert.ok(visualAt(visual.firstElementChild)?.element === visual);
+  } finally {
+    root.remove();
+  }
+});

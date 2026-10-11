@@ -135,6 +135,11 @@ from render_harness import (
 
 pytestmark = pytest.mark.nightly
 
+# The deadline of a wait these tests expect to expire, on a page held or refused on
+# purpose: long enough for the page to reach the stall on a busy runner, and well short
+# of the suite's hang bound, which would hold each of them for 30 s.
+EXPECTED_STALL_MS = 5_000
+
 BOUNDED_WORKSPACE_PAGE = leaf_page(
     "bounded workspace gate",
     """
@@ -864,7 +869,7 @@ def test_a_module_the_page_never_receives_names_the_wait_that_stopped(browser, s
     """
     source = leaf_page("held module", "<h1>Waiting on a module</h1>")
     page = browser.unwatched.new_page()
-    page.set_default_timeout(5_000)
+    page.set_default_timeout(EXPECTED_STALL_MS)
     holding = []
 
     def hold_module(route):
@@ -898,7 +903,7 @@ def test_a_wait_before_the_entry_is_released_names_only_the_page_s_own_request(
     the gate itself."""
     source = leaf_page("held theme", "<h1>Waiting on a theme</h1>")
     page = browser.unwatched.new_page()
-    page.set_default_timeout(5_000)
+    page.set_default_timeout(EXPECTED_STALL_MS)
     holding = []
 
     def hold_theme(route):
@@ -970,7 +975,7 @@ def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
     name, so the release has to hand the entry back to the page."""
     dropped, asked = dropped_entry_server
     page = dropped_entry_page
-    page.set_default_timeout(5_000)
+    page.set_default_timeout(EXPECTED_STALL_MS)
     with pytest.raises(RuntimeError) as stopped:
         render_gate_scheme.start_with_pre_upgrade_proof(page, dropped)
     entry_path = urlsplit(
@@ -992,7 +997,7 @@ def test_a_refused_document_reports_the_status_beside_the_wait_that_stopped(
     real_proof = render_gate_scheme.start_with_pre_upgrade_proof
 
     def promptly(page, url):
-        page.set_default_timeout(2_000)
+        page.set_default_timeout(EXPECTED_STALL_MS)
         return real_proof(page, url)
 
     monkeypatch.setattr(render_gate_scheme, "start_with_pre_upgrade_proof", promptly)
@@ -2651,10 +2656,10 @@ def test_the_readiness_wait_names_the_stage_a_page_still_owes(browser, serve):
     render_checks_model.wait_for_probe(page, "upgraded")
 
     with pytest.raises(render_checks_model.PageNotReady) as unready:
-        wait_until_ready(page, timeout_ms=1_000)
+        wait_until_ready(page, timeout_ms=EXPECTED_STALL_MS)
     assert unready.value.stage == "log"
     assert str(unready.value) == (
-        "the runtime never finished replaying the log within 1000ms"
+        f"the runtime never finished replaying the log within {EXPECTED_STALL_MS}ms"
     )
 
     for route in held:

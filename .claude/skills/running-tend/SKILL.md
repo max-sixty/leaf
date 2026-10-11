@@ -90,9 +90,9 @@ it. A session ends at GitHub's six-hour job limit, and a fix left unmerged then
 waits for someone else. Plan the work, including how to group it and what to run
 in parallel, from these facts:
 
-- The complete suite takes hours, so the run is already that old when the session
-  starts, and main has moved since. A failure that no longer reproduces on
-  current main needs no fix.
+- The complete suite takes hours, so the run is already old when the session
+  starts. Check current main: later changes may have removed a failure's cause.
+  A passing rerun alone does not clear a failure that comes and goes.
 - Failures often share a cause, and each pull request costs a CI run, so open
   one pull request per cause that no open pull request already covers.
 - A pull request's CI takes most of an hour, and the session is free while it

@@ -19,7 +19,7 @@ from leaf import layer as layer_model
 from leaf import service as service_model
 from leaf.registry import validation as registry_validation
 from leaf.structure import SourceDocument
-from leaf.validation import compatibility as validation_model
+from leaf.validation import composition as validation_model
 from leaf_dev import record_demo
 from leaf_dev import site as site_model
 from leaf_dev.page_fixtures import source_packages

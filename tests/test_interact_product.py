@@ -43,7 +43,7 @@ from leaf.registry import storage as registry_storage
 from leaf.registry.contract import element_declarations
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_digest
-from leaf.validation import compatibility as validation_model
+from leaf.validation import composition as validation_model
 from leaf.validation.instances import reference_errors
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import package_selection_args, prepare_page, read_fixture

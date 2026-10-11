@@ -75,7 +75,7 @@ from leaf.registry.storage import read_page_registry, require_registry
 from leaf.render_gate import readings as render_gate_readings
 from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
-from leaf.validation import compatibility as validation_model
+from leaf.validation import composition as validation_model
 from leaf.validation.source import check_source
 from leaf.validation.source_history import predecessor_reading
 from leaf_dev.example_data import captured_value, patch_manifest

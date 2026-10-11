@@ -32,7 +32,7 @@ from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from leaf.schema import ELEMENT_ID
-from leaf.validation import compatibility as validation_model
+from leaf.validation import composition as validation_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (

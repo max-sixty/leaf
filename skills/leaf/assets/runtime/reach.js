@@ -408,6 +408,11 @@ function gone(el) {
 // is painted as it registers, and a block can register in a hidden panel (bounds.js).
 const unpainted = (el) => gone(el) || skipped(el);
 function paintReach() {
+  // A retained widget can resize its scroller through several intermediate boxes in
+  // one script. Lend or return its keyboard stop from the final box only.
+  afterScript(paintReachNow);
+}
+function paintReachNow() {
   for (const el of waiting) if (!unpainted(el)) sweep(el);
   // A box holding a scroller that takes a stop holds a stop, so an outer box's answer
   // waits on its inner boxes': the deepest are asked first, and each box is written once.

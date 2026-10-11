@@ -368,11 +368,16 @@ export function createAnchorControls({
         }
         continue;
       }
+      // A passage seats a note at each block it spans, by the rule its `place` follows:
+      // inside a datum, the datum stands for text no block holds.
+      const fallback = found.datumElement ? () => found.datumElement : undefined;
       const blocks = targetElement(found)
         ? [found.place]
         : [
             ...new Set(
-              targetSegments(found).map((segment) => annotationAt(segment.node)),
+              targetSegments(found).map((segment) =>
+                annotationAt(segment.node, fallback),
+              ),
             ),
           ].filter(Boolean);
       for (const holder of blocks.length ? blocks : [sectionOf(thread.anchor)])

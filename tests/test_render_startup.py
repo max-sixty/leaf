@@ -1723,7 +1723,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
 
 
 def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
-    """Core page visuals paint after upgrade while agent state still waits."""
+    """Optional page interface preparation holds the first widget upgrade."""
     url = serve(FEATURE_GALLERY)
     held = []
     release_state = False
@@ -1749,32 +1749,25 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
 
     page.route("**/api/state*", hold_parent_state)
     page.goto(url, wait_until="load")
-    page.wait_for_function("() => window.releaseHeldPageInterface !== undefined")
+    holding(page, held, 1, "the first state response")
     expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")
-    assert held, "the positive control did not hold the first state response"
     gallery = page.locator("#bg-interactions")
     expect(gallery).to_have_attribute("data-interaction-installed", "1")
     controls = gallery.locator(".lf-interaction-controls")
     expect(controls).to_have_count(1)
     expect(controls).to_be_hidden()
+    release_state = True
+    for route in held:
+        route.continue_()
+    page.wait_for_function("() => window.releaseHeldPageInterface !== undefined")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-upgraded", "1")
+    expect(controls).to_be_hidden()
     page.evaluate("releaseHeldPageInterface()")
-    page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
+    wait_until_ready(page)
     page.locator("#bg-gallery-tabs").get_by_role(
         "tab", name="Interactions", exact=True
     ).click()
     expect(controls).to_be_visible()
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(r"Connecting|Server offline — reconnecting")
-    )
-
-    release_state = True
-    for route in held:
-        route.continue_()
-    wait_until_ready(page)
-    expect(controls).to_be_visible()
-    expect(page.locator(".lf-status-detail")).not_to_have_text(
-        re.compile(r"Connecting|Server offline — reconnecting")
-    )
 
 
 def test_playground_joins_initial_widget_settlement(browser, serve):

@@ -402,15 +402,21 @@ on 2026-10-07.
   into a page by hand. It is an experiment: the alternative is for the command to
   print the samples' rows and leave the chart to the agent writing the page. Keep it
   if it gets used for later readings; otherwise reduce it to the rows.
-- **Consider bundling the browser runtime.** A navigation loads about 220 JS modules
-  over HTTP/1.1's six connections. A prototype bundling `leaf.js` with esbuild cut a
-  widgetless page from 217 requests to 38 and its open from 332–483 ms to 238–258 ms,
-  roughly 10% of browser-test time. The bundle would hold `assets/runtime/` and Leaf's
-  own packages; custom packages stay unbuilt and import only `/runtime/widget-api.js`,
-  a bundle entry, which `page check` would then enforce, since any other runtime import
-  loads a second runtime. **Unconfirmed:** it needs automatic rebuilds on preview, test
-  and merge, since a committed bundle would conflict across concurrent runtime PRs.
-  Untested alternative: `modulepreload` hints.
+- **Run the suite on the compiled kernel.** Installs and leaf.page already run the
+  kernel `leaf-dev distribution` compiles for the `prepared` branch: 46 runtime files
+  and 1.9 MB, where the suite boots about 245 source modules and 4 MB. On the triage
+  board at a 4× CPU throttle the prepared runtime of the same commit opened 16% sooner
+  (748 ms against 886) and 30% sooner unthrottled, which would be roughly 6% of the
+  suite's cost. The cost is per-module overhead: `modulepreload` hints for all 245
+  modules left the source boot unchanged (912 ms against 923). The blocker is that the
+  suite reads private runtime modules from inside the page,
+  `window.__lfRuntimeImport('/runtime/…')` at 518 sites in about 30 files, including
+  the harness's own readings of state (`semantic-state.js`) and focus (`focus.js`); the
+  kernel bundles those modules into chunks, so with it compiled into a copy of the tree
+  121 of 479 tests in `test_render_widgets`, `test_render_drawing` and
+  `test_render_aim` failed on such imports. Move those readings onto what the page
+  exposes to every reader, then build the kernel once per suite run, which takes about
+  2 s, so local and CI runs test what ships.
 
 ## Etc
 

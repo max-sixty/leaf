@@ -17,7 +17,7 @@ import {
 import { iconElement } from "./icons.js";
 import { latestChip, versionBtn } from "./version-picker.js";
 import { othersBtn, queueBtn } from "./drawers.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
+import { pagePresented } from "./page-paint.js";
 import { repaint } from "./repaint.js";
 import { sizeObserver } from "./rendering.js";
 import {
@@ -915,9 +915,7 @@ export function paintApproval(blockingQuestions) {
     ? "Approved. Press z to undo while approval is still your latest update"
     : runtime.currentStamp === null
       ? "There is no stamped version to approve yet"
-      : !signoff ||
-          !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
-          blockingQuestions === null
+      : !signoff || !pagePresented() || blockingQuestions === null
         ? "Approval waits until this page has read its current state"
         : blockingQuestions.length
           ? "Answer every Question before approving this work"

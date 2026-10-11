@@ -19,9 +19,10 @@
    `u` remains paired with `d` in whichever reading region the user stands in. */
 import { nextRender, sizeObserver } from "../rendering.js";
 import { seenRect, shownBand } from "../geometry.js";
+import { intersect } from "../rect.js";
 import { SLIDE_END } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
-import { pagePresented } from "../presentation.js";
+import { pagePresented } from "../page-paint.js";
 import { moved } from "./model.js";
 import { readThreads } from "./state.js";
 import { excludedByInert, renderedParent } from "../shadow.js";
@@ -114,12 +115,7 @@ function visibleInterval(body, clips, band) {
   // withholds it.
   const clipped = seenRect(body, clips);
   if (!clipped || box.width <= 0 || box.height <= 0) return null;
-  const shown = {
-    left: Math.max(clipped.left, band.left),
-    top: Math.max(clipped.top, band.top),
-    right: Math.min(clipped.right, band.right),
-    bottom: Math.min(clipped.bottom, band.bottom),
-  };
+  const shown = intersect(clipped, band);
   if (shown.bottom <= shown.top) return null;
   if (shown.left > box.left + EPSILON || shown.right < box.right - EPSILON) return null;
   return {
@@ -278,6 +274,10 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
   function mount() {
     addEventListener("scroll", scheduleScan, true);
     addEventListener("resize", scheduleScan);
+    // Exposure reads the visual viewport (geometry.js, `shownWindow`), which a soft
+    // keyboard or a pinch-pan moves without a window scroll or resize.
+    window.visualViewport?.addEventListener("resize", scheduleScan);
+    window.visualViewport?.addEventListener("scroll", scheduleScan);
     addEventListener("focus", scheduleScan);
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState !== "visible") resetExposure();

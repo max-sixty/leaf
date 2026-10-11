@@ -23,7 +23,7 @@ import { closestAcross, elementFromPointAcross, inChrome } from "../passages.js"
 import { PRESSES } from "../control-selectors.js";
 import { bottomChromeBoxes } from "./shortcut-bar.js";
 import { bannerFoot, shownParts, shownRect, startsAt } from "../geometry.js";
-import { clamp, overlaps } from "../rect.js";
+import { clamp, intersect, overlaps } from "../rect.js";
 import { renderedUnder } from "../shadow.js";
 
 // A rectangle, or nothing where its edges crossed. `clippedTop` records that the source
@@ -129,17 +129,7 @@ export function keyBadgePlacement() {
   const clipOver = (item) => shownRect(item, clips);
   // A box with no element of its own, through the clip over the element that owns it.
   const clearPart = (box, clip) =>
-    box && clip
-      ? clearOfChrome(
-          {
-            left: Math.max(box.left, clip.left),
-            top: Math.max(box.top, clip.top),
-            right: Math.min(box.right, clip.right),
-            bottom: Math.min(box.bottom, clip.bottom),
-          },
-          box.top,
-        )
-      : null;
+    box && clip ? clearOfChrome(intersect(box, clip), box.top) : null;
 
   // Whether the user can see what this box was measured from. Geometry cannot answer it:
   // a panel, a drawer, a fixed sheet or an ordinary page box covers a member without clipping

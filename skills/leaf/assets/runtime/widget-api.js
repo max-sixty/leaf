@@ -130,6 +130,7 @@ export {
   sizeObserver,
 } from "./rendering.js";
 export { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
+export { excerptWords } from "./words.js";
 export {
   CONTRIBUTION_ENTRY_SCHEMA,
   contributionItemKey,
@@ -157,7 +158,7 @@ export {
   describeDifference,
   differenceKind,
 } from "./image-difference.js";
-export { pageScroller } from "./scrolling.js";
+export { pageScroller, scrollLimit } from "./scrolling.js";
 export { scrollIntoReadingBand, scrollIntoView } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";

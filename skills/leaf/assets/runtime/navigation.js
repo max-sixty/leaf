@@ -6,7 +6,7 @@ import { scrollGlides } from "./arrivals.js";
 import { clampedRow } from "./keyboard/bindings.js";
 import { coveringAuxiliarySurface, pageCommand } from "./keyboard/register.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
-import { atScrollEnd, pageScroller } from "./scrolling.js";
+import { atScrollEnd, pageScroller, scrollLimit } from "./scrolling.js";
 import { landingBand, shownRect } from "./geometry.js";
 import {
   effectiveScroller,
@@ -28,7 +28,7 @@ import { announce } from "./notifications.js";
 import { focusThread } from "./thread/focus.js";
 import { landWalkedThread } from "./thread/landing.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
-import { pagePresented } from "./presentation.js";
+import { pagePresented } from "./page-paint.js";
 
 // The walk's reading supplies both its destinations and their visible scope. A panel
 // may show resolved threads too; only the closed-panel page walk promises open threads.
@@ -261,7 +261,7 @@ function stepReading(amount, unit, coveringAuxiliaryScroller) {
 // goal is clamped here, so a step pressed on at the foot banks no debt for u to press
 // back through, and an edge may be asked for as the height it cannot exceed.
 export function glideTo(box, goal) {
-  goal = Math.max(0, Math.min(box.scrollHeight - box.clientHeight, goal));
+  goal = Math.max(0, Math.min(scrollLimit(box), goal));
   if (reducedMotion()) {
     box.scrollTo({ top: goal, behavior: "instant" });
     return;

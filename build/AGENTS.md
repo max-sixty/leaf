@@ -24,8 +24,8 @@ package authors continue to use native JavaScript without a build.
   `build:browser` and `check:browser` include these outputs.
 - `styles.mjs` resolves native CSS imports in component source entrypoints under
   `skills/leaf/assets/styles/` and bundled packages' `styles/` into the committed
-  complete sheets. `build:styles` writes them; `check:styles` verifies them through
-  the existing browser and bundle gates. Consumers load no imports and run no compiler.
+  complete sheets; `build:browser` and `check:browser` include these outputs.
+  Consumers load no imports and run no compiler.
 - `vendor.py` rebuilds every third-party bundle outside the framework, bundling what
   each consumer needs or adapting an upstream browser module. `pierre/` and
   `webawesome/` hold the inputs their builders use.

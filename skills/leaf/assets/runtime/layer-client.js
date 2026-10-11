@@ -236,8 +236,8 @@ function observeKey(response) {
   runtime.keyRefused = response.status === KEY_REFUSED;
 }
 
-export let revealLayer;
-const layerReady = new Promise((resolve) => (revealLayer = resolve));
+const { promise: layerReady, resolve: revealLayer } = Promise.withResolvers();
+export { revealLayer };
 
 // The page's one door to the log, spelled once. Two callers reach it — `post`, which
 // orders the user's own gestures through it, and the error report below, which

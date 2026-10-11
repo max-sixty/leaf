@@ -8,7 +8,8 @@ import { beforeShortcutCommand } from "./shortcut-bar.js";
 import { claimsEsc, paintKeys, watchCommandAvailability } from "./scopes.js";
 import { onStanding, takesLetters, typesText, focused } from "../focus.js";
 import { nextFrame } from "../rendering.js";
-import { pagePresented, pageUpgraded, UPGRADE, PRESENTATION } from "../presentation.js";
+import { pagePresented, pageUpgraded } from "../page-paint.js";
+import { UPGRADE, PRESENTATION } from "../presentation.js";
 export function mountKeyboard({
   goToSequenceActive,
   setGoToSequence,

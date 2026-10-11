@@ -1543,13 +1543,20 @@ def test_live_sample_full_view_keeps_the_child_and_returns_after_inner_escape(
     expect(full).to_be_focused()
 
     full.click()
-    sample.evaluate("""sample => {
+    expect(back).to_be_focused()
+    assert sample.locator("dialog").evaluate("view => view.matches(':modal')")
+    # Native removal ends modality; moving within one arrival batch retains the host.
+    assert sample.evaluate("""sample => {
       const parent = sample.parentNode;
       const next = sample.nextSibling;
+      const frame = sample.querySelector('iframe');
+      const ready = sample.ready;
       sample.remove();
       parent.insertBefore(sample, next);
+      return sample.ready === ready && sample.querySelector('iframe') === frame;
     }""")
     expect(full).to_be_visible()
+    expect(sample.locator("dialog")).to_have_attribute("role", "presentation")
     assert sample.locator("dialog").evaluate("view => !view.matches(':modal')")
 
 
@@ -1641,7 +1648,7 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
         "button", name="Reset", exact=True
     )
     reset.click()
-    expect(reset).to_be_enabled(timeout=30000)
+    expect(reset).to_be_enabled()
     expect(views["overview"].locator(".lf-thread-panel")).to_be_visible()
     expect(views["overview"].locator(".lf-thread:not([hidden])")).to_have_count(3)
     reset.focus()
@@ -5963,7 +5970,7 @@ def test_a_recorded_move_is_acknowledged_in_the_status_and_nowhere_else(browser,
     round_trip(page)
 
     # The line's own words come back once the notice has had its moment.
-    expect(status).to_be_visible(timeout=6_000)
+    expect(status).to_be_visible()
     expect(notice).to_be_hidden()
 
 
@@ -8960,7 +8967,7 @@ RING_CASES = (
                 ("lf-option > .lf-pick", "options-row"),
                 (
                     any_owner_entry("suggestion", "accept") + ":visible",
-                    ("ask", "margin-entry"),
+                    ("question", "margin-entry"),
                 ),
                 (".lf-draft-edit", "draft-editor"),
             ),
@@ -9132,7 +9139,7 @@ RING_EXAMPLE_FILES = {example.stem: example for example in (*EXAMPLES, FEATURE_G
 # control or one of its ancestors. Mark the exact carrier before reading the composed
 # paint so an unrelated ring with the same name cannot credit the sample.
 RING_REMOTE_CARRIER = {
-    "ask": None,
+    "question": None,
     "target-hint": ".lf-target-picker-hint.lf-current",
     # A pane draws its focused body's band inset over the body's cell (theme.css).
     "pane-body": '[data-lf-reading-role="pane"]:has(> :focus-visible)',
@@ -9565,7 +9572,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                     rendered(page)
                     open_containing_thread(target)
                     page.keyboard.press("Tab")
-                    target.focus(timeout=5_000)
+                    target.focus()
                     # A note on the details shelf is reached from the element that
                     # names it (details-shelf.js), never by Tab, and is focused here as
                     # a screen reader moving to it would focus it.
@@ -9585,8 +9592,8 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                         unseen.add(f"{where}: {lost}")
                 for ring_name in expected & RING_REMOTE_CARRIER.keys():
                     carrier_selector = RING_REMOTE_CARRIER[ring_name]
-                    if ring_name == "ask":
-                        ask_id = target.evaluate(
+                    if ring_name == "question":
+                        question_id = target.evaluate(
                             """async node => {
                               const { contributionEntrySource } = await window.__lfRuntimeImport(
                                 '/runtime/contribution-controls.js'
@@ -9594,8 +9601,10 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                               return contributionEntrySource(node)?.id ?? null;
                             }"""
                         )
-                        assert ask_id, f"{selector} {where} names no ask carrier"
-                        carrier_selector = f'[id="{ask_id}"]'
+                        assert question_id, (
+                            f"{selector} {where} names no Question carrier"
+                        )
+                        carrier_selector = f'[id="{question_id}"]'
                     page.locator(carrier_selector).evaluate(
                         "node => node.setAttribute('data-lf-ring-sample', '')"
                     )

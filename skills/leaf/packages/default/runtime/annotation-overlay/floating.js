@@ -63,7 +63,7 @@ import {
   anchorFor,
   anchorHolder,
   anchorName,
-} from "/runtime/anchor-names.js";
+} from "/runtime/css-anchors.js";
 import { holdFocus } from "/runtime/focus.js";
 import { shownBand } from "/runtime/geometry.js";
 import {
@@ -196,7 +196,7 @@ export const floatingSelections = () => [...stood.values()];
 const physicalContext = (context) =>
   context instanceof Element ? context : context?.parentElement;
 
-// A surface anchors to `context` where anchors reach (anchor-names.js, `anchorFor`). A
+// A surface anchors to `context` where anchors reach (css-anchors.js, `anchorFor`). A
 // motion layer would carry the same scroll, but Chrome can paint it a frame before or
 // after the words it carries; it stays for a scroll no anchor reaches, as inside a
 // shadow tree.

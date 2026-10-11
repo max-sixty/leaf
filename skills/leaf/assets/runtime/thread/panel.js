@@ -8,7 +8,7 @@
 import { scrollIntoView } from "../landing-scroll.js";
 import { keys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
-import { pagePresented } from "../presentation.js";
+import { pagePresented } from "../page-paint.js";
 import { focusDestination, focused } from "../focus.js";
 import { rowWalk } from "../walk-position.js";
 

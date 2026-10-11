@@ -2550,9 +2550,8 @@ def test_repeated_design_control_names_keep_context_without_inventing_identity(
     page.keyboard.press("s")
     inventory = page.evaluate("""async () => {
       const {aimTargets, resolveAnchor} = await import('/runtime/anchor-resolution.js');
-      const {pageText} = await import('/runtime/passages.js');
       return aimTargets({design: true}).filter(t => t.anchor.section === 'rows' && t.anchor.part).map(t => t.capture ? t.capture() : t).map(t => ({
-        anchor: t.anchor, label: t.label, resolution: (() => { const resolved = resolveAnchor(t.anchor, pageText()); return {exact: resolved?.exact, status: resolved?.status}; })()
+        anchor: t.anchor, label: t.label, resolution: (() => { const resolved = resolveAnchor(t.anchor); return {exact: resolved?.exact, status: resolved?.status}; })()
       }));
     }""")
     assert len(inventory) == 3
@@ -2615,8 +2614,7 @@ def test_repeated_design_control_names_keep_context_without_inventing_identity(
         resolution = page.evaluate(
             """async anchor => {
           const {resolveAnchor} = await import('/runtime/anchor-resolution.js');
-          const {pageText} = await import('/runtime/passages.js');
-          const result = resolveAnchor(anchor, pageText());
+          const result = resolveAnchor(anchor);
           return {exact: result.exact, status: result.status, owner: result.element.id};
         }""",
             event["anchor"],
@@ -4979,7 +4977,7 @@ def test_selected_words_grow_context_until_the_exact_span_resolves(
       const range = document.createRange();
       range.setStart(text, start); range.setEnd(text, start+6);
       const anchor = A.anchorForRange(range);
-      const resolved = A.resolveAnchor(anchor, P.pageText());
+      const resolved = A.resolveAnchor(anchor);
       const wanted = P.spanIn(P.pageText(), P.segmentsIn(range));
       const found = resolved && P.spanIn(P.pageText(), resolved.segments);
       return {anchor, wanted, found};
@@ -5040,7 +5038,7 @@ def test_a_detached_selection_still_has_a_live_writable_composer(
       range.setStart(text, start); range.setEnd(text, start+6);
       const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
       const anchor = A.anchorForRange(range);
-      if (A.resolveAnchor(anchor, P.pageText()) !== null) throw Error('fixture must stay ambiguous');
+      if (A.resolveAnchor(anchor) !== null) throw Error('fixture must stay ambiguous');
       return anchor;
     }""")
     assert anchor["detached"] is True
@@ -5096,7 +5094,7 @@ def test_a_detached_selection_still_has_a_live_writable_composer(
             """async anchor => {
           const A = await import('/runtime/anchor-resolution.js');
           const P = await import('/runtime/passages.js');
-          return A.resolveAnchor(anchor, P.pageText()) === null;
+          return A.resolveAnchor(anchor) === null;
         }""",
             anchor,
         )
@@ -5119,8 +5117,7 @@ def test_a_detached_selection_still_has_a_live_writable_composer(
     assert page.evaluate(
         """async anchor => {
       const {resolveAnchor} = await import('/runtime/anchor-resolution.js');
-      const {pageText} = await import('/runtime/passages.js');
-      return resolveAnchor(anchor, pageText()) === null;
+      return resolveAnchor(anchor) === null;
     }""",
         anchor,
     )
@@ -5238,7 +5235,7 @@ def test_design_captures_a_repeated_controls_real_associated_label(
     inventory = page.evaluate("""async () => {
       const A = await import('/runtime/anchor-resolution.js');
       const P = await import('/runtime/passages.js');
-      return A.aimTargets({design:true}).filter(t => t.anchor.part).map(t => t.capture()).map(t => ({anchor:t.anchor, label:t.label, exact:A.resolveAnchor(t.anchor,P.pageText())?.exact}));
+      return A.aimTargets({design:true}).filter(t => t.anchor.part).map(t => t.capture()).map(t => ({anchor:t.anchor, label:t.label, exact:A.resolveAnchor(t.anchor)?.exact}));
     }""")
     assert len(inventory) == 2
     assert all(t["exact"] and t["anchor"]["quote"] == "Notify me" for t in inventory)
@@ -5349,7 +5346,7 @@ def test_design_can_comment_on_a_generated_tab_with_a_repeated_summary(browser, 
         """async anchor => {
       const A=await import('/runtime/anchor-resolution.js');
       const P=await import('/runtime/passages.js');
-      const target=A.resolveAnchor(anchor,P.pageText());
+      const target=A.resolveAnchor(anchor);
       return target.exact===false && target.status==='fallback';
     }""",
         event["anchor"],
@@ -5366,7 +5363,7 @@ def test_design_can_comment_on_a_generated_tab_with_a_repeated_summary(browser, 
         """async anchor => {
       const A=await import('/runtime/anchor-resolution.js');
       const P=await import('/runtime/passages.js');
-      const target=A.resolveAnchor(anchor,P.pageText());
+      const target=A.resolveAnchor(anchor);
       return target.exact===false && target.status==='fallback';
     }""",
         event["anchor"],
@@ -5413,7 +5410,7 @@ def test_design_control_speech_uses_its_captured_context_and_visible_label(
     page.keyboard.press("s")
     inventory = page.evaluate("""async () => {
       const A=await import('/runtime/anchor-resolution.js');const P=await import('/runtime/passages.js');
-      return A.aimTargets({design:true}).filter(t=>t.anchor.part).map(t=>t.capture()).map(t=>({anchor:t.anchor, label:t.label, exact:A.resolveAnchor(t.anchor,P.pageText())?.exact}));
+      return A.aimTargets({design:true}).filter(t=>t.anchor.part).map(t=>t.capture()).map(t=>({anchor:t.anchor, label:t.label, exact:A.resolveAnchor(t.anchor)?.exact}));
     }""")
     assert len(inventory) == 2
     if shape == "clipped":
@@ -5474,7 +5471,7 @@ def test_a_unique_anonymous_control_captures_its_visible_face(browser, serve, ro
     target = page.evaluate("""async () => {
       const A=await import('/runtime/anchor-resolution.js');const P=await import('/runtime/passages.js');
       const target=A.aimTargetAt(document.querySelector('[aria-label="Choice B"]'),{design:true});
-      const resolved=A.resolveAnchor(target.anchor,P.pageText());
+      const resolved=A.resolveAnchor(target.anchor);
       return {anchor:target.anchor,label:target.label,exact:resolved.exact};
     }""")
     assert target["exact"] and target["anchor"]["quote"] == "Choice B"
@@ -5564,7 +5561,7 @@ def test_design_regions_keep_distinct_comments_and_ordinary_interaction(
       return [...document.querySelectorAll('#drafts > div')].map(el=>{
         const t=A.aimTargetAt(el,{design:true});
         return {anchor:t.anchor,label:t.label,
-          exact:A.resolveAnchor(t.anchor,P.pageText()).exact,
+          exact:A.resolveAnchor(t.anchor).exact,
           offered:inventory.some(i=>i.controlElement===el)};
       });
     }""")
@@ -5629,7 +5626,7 @@ def test_design_regions_keep_distinct_comments_and_ordinary_interaction(
         """async anchor=>{
       const A=await import('/runtime/anchor-resolution.js');
       const P=await import('/runtime/passages.js');
-      const r=A.resolveAnchor(anchor,P.pageText());
+      const r=A.resolveAnchor(anchor);
       return {exact:r.exact,status:r.status};
     }""",
         event["anchor"],
@@ -5670,7 +5667,7 @@ def test_automatic_design_capture_never_borrows_mutable_editor_context(
       const P=await import('/runtime/passages.js');
       return [...document.querySelectorAll('#controls > *')].map(el=>{
         const t=A.aimTargetAt(el,{design:true});
-        return {anchor:t.anchor,exact:A.resolveAnchor(t.anchor,P.pageText()).exact};
+        return {anchor:t.anchor,exact:A.resolveAnchor(t.anchor).exact};
       });
     }""")
     passages = passages_model.page_passages(structure_model.SourceDocument(markup))
@@ -5895,7 +5892,7 @@ def test_a_native_cross_cell_selection_sends_its_quote_without_claiming_location
         """async anchor=>{
       const A=await import('/runtime/anchor-resolution.js');
       const P=await import('/runtime/passages.js');
-      return A.resolveAnchor(anchor,P.pageText()) === null;
+      return A.resolveAnchor(anchor) === null;
     }""",
         event["anchor"],
     )
@@ -6006,7 +6003,7 @@ def test_native_textarea_defaults_never_supply_design_passage_context(browser, s
             fields:[...document.querySelectorAll('textarea')].map(el=>{
               const target=A.aimTargetAt(el,{design:true});
               return {anchor:target.anchor,label:target.label,
-                exact:A.resolveAnchor(target.anchor,P.pageText()).exact,
+                exact:A.resolveAnchor(target.anchor).exact,
                 says:P.textNodesUnder(el).map(s=>s.node.data).join('')};
             }),
             button:A.aimTargetAt(document.querySelector('#fields button'),{design:true}).anchor,

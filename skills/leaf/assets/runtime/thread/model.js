@@ -66,14 +66,24 @@ function reactionChoices(thread, message, tokens) {
     message: message.key,
     latest: latest?.id === message.id,
     agent: message.agent,
-    choices: Object.entries(tokens).map(([name, entry]) => ({
-      name,
-      glyph: entry.glyph,
-      label: name,
-      standing: standing.find((item) => item.token === name) ?? null,
-    })),
+    choices: tokenChoices(tokens, standing),
   };
 }
+
+// The declared reaction tokens as choices on one target, each with the standing reaction
+// a press takes back. The bar, a reply's strip and the margin form render these; each
+// surface keeps its own face, and the token names the control on all of them.
+/** @template {{token?: string}} S
+ * @param {Record<string, {glyph: string}>} tokens
+ * @param {S[]} standing
+ */
+export const tokenChoices = (tokens, standing) =>
+  Object.entries(tokens).map(([name, entry]) => ({
+    name,
+    glyph: entry.glyph,
+    label: name,
+    standing: standing.find((item) => item.token === name) ?? null,
+  }));
 /** @param {Thread} thread */
 const spoken = (thread) => thread.msgs.filter((message) => !isReaction(message));
 /** @template {{id: string, token?: string}} T @param {{msgs: T[], root: {id: string}}} thread */

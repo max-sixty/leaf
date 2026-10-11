@@ -10,6 +10,7 @@ import {
   onStanding,
   onUserInput,
 } from "./focus.js";
+import { pagePresented } from "./page-paint.js";
 
 const child = document.documentElement.lfSample;
 const commands = new Map();
@@ -130,7 +131,7 @@ if (child) {
         "error",
         document.documentElement.lfStartupException ?? { message: error },
       );
-    if (presented || !document.body?.hasAttribute("data-lf-presented")) return;
+    if (presented || !(document.body && pagePresented())) return;
     presented = true;
     child.present();
     sampleNotice("ready");

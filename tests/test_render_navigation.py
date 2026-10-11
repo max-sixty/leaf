@@ -10462,12 +10462,6 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     expect(quote).to_have_attribute("aria-keyshortcuts", "Enter Space")
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("return to the passage")
 
-    quote.evaluate(
-        """node => node.addEventListener('click', () => {
-          node.dataset.keyboardActivations =
-            String(Number(node.dataset.keyboardActivations || 0) + 1);
-        })"""
-    )
     passage = page.locator("#p1")
     passage.scroll_into_view_if_needed()
     page.evaluate(
@@ -10489,7 +10483,6 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     assert before["bottom"] < before["height"] - 48
     page.keyboard.press("Enter")
     page.keyboard.press("Space")
-    expect(quote).to_have_attribute("data-keyboard-activations", "2")
     after = page.evaluate(
         """() => ({
           scroll: document.scrollingElement.scrollTop,
@@ -10501,32 +10494,33 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
 
     # One painted pixel is not a readable arrival. Carry the passage almost entirely
     # behind the fixed banner, then the same quote must bring it back into view.
-    page.evaluate(
-        """() => {
-          const passage = document.querySelector('#p1').getBoundingClientRect();
-          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
-          document.scrollingElement.scrollBy(0, passage.bottom - banner.bottom - 1);
-        }"""
-    )
-    sliver = page.evaluate(
-        """() => {
-          const passage = document.querySelector('#p1').getBoundingClientRect();
-          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
-          return {scroll: document.scrollingElement.scrollTop, top: passage.top,
-                  bottom: passage.bottom, banner: banner.bottom};
-        }"""
-    )
-    assert sliver["top"] < sliver["banner"] < sliver["bottom"]
-    page.keyboard.press("Enter")
-    returned = page.evaluate(
-        """() => ({
-          scroll: document.scrollingElement.scrollTop,
-          top: document.querySelector('#p1').getBoundingClientRect().top,
-          banner: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
-        })"""
-    )
-    assert returned["scroll"] != pytest.approx(sliver["scroll"], abs=0.5)
-    assert returned["top"] > returned["banner"]
+    for key in ("Enter", "Space"):
+        page.evaluate(
+            """() => {
+              const passage = document.querySelector('#p1').getBoundingClientRect();
+              const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+              document.scrollingElement.scrollBy(0, passage.bottom - banner.bottom - 1);
+            }"""
+        )
+        sliver = page.evaluate(
+            """() => {
+              const passage = document.querySelector('#p1').getBoundingClientRect();
+              const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+              return {scroll: document.scrollingElement.scrollTop, top: passage.top,
+                      bottom: passage.bottom, banner: banner.bottom};
+            }"""
+        )
+        assert sliver["top"] < sliver["banner"] < sliver["bottom"]
+        page.keyboard.press(key)
+        returned = page.evaluate(
+            """() => ({
+              scroll: document.scrollingElement.scrollTop,
+              top: document.querySelector('#p1').getBoundingClientRect().top,
+              banner: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
+            })"""
+        )
+        assert returned["scroll"] != pytest.approx(sliver["scroll"], abs=0.5)
+        assert returned["top"] > returned["banner"]
 
     # A resolved thread keeps its page placement even though its quote has no live
     # mark. On a covering phone panel, that retained destination remains an enabled

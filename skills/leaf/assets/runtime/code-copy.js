@@ -9,7 +9,12 @@
    Enter on a document code block moves keyboard focus to its copy control. */
 import { offer } from "./widget-elements.js";
 import { watchArrivals } from "./arrivals.js";
-import { anchorReading, nameAnchor, anchorView, refreshAnchorView } from "./css-anchors.js";
+import {
+  anchorReading,
+  nameAnchor,
+  anchorView,
+  refreshAnchorView,
+} from "./css-anchors.js";
 import { focusDestination, onStanding } from "./focus.js";
 import { upFrom } from "./shadow.js";
 import { chromeRoot } from "./chrome.js";

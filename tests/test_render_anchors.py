@@ -1607,7 +1607,9 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
 
 
 def test_code_copy_reads_sources_before_positioning_many_controls(browser, serve):
-    blocks = "".join(f"<p>Example {i}</p><pre><code>code {i}</code></pre>" for i in range(60))
+    blocks = "".join(
+        f"<p>Example {i}</p><pre><code>code {i}</code></pre>" for i in range(60)
+    )
     url = live_url(serve(leaf_page("Many code blocks", blocks)))
     page = open_page(
         browser,

@@ -81,6 +81,7 @@ export const BANNER_CONTROL_RANK = Object.freeze({
 
 export const bannerActions = el("div", "lf-banner-actions");
 export const overflowMenu = el("div", "lf-ui lf-banner-menu");
+overflowMenu.id = "lf-banner-menu";
 overflowMenu.setAttribute("popover", "auto");
 overflowMenu.setAttribute("role", "group");
 overflowMenu.setAttribute("aria-label", "More page controls");
@@ -144,6 +145,7 @@ function rowTemplate() {
     <button
       class="lf-btn lf-banner-more"
       type="button"
+      popovertarget="lf-banner-menu"
       aria-expanded=${String(open)}
       aria-label=${name}
       title=${name}
@@ -167,7 +169,6 @@ render(rowTemplate(), bannerActions);
 render(menuTemplate(), overflowMenu);
 
 const overflowBtn = bannerActions.querySelector(".lf-banner-more");
-overflowBtn.popoverTargetElement = overflowMenu;
 overflowMenu.lfInvoker = overflowBtn;
 
 // More temporarily borrows the reader's focus. Context-preserving commands return

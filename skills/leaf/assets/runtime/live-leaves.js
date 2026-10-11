@@ -1,6 +1,6 @@
 /* This module derives the machine's immutable Leaves presentation and owns its walk. */
 import { clocked } from "./presence.js";
-import { pagePresented } from "./presentation.js";
+import { pagePresented } from "./page-paint.js";
 import { liveLeavesList, drawerIsOpen, othersPanel } from "./drawers.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { activityFacts } from "./banner.js";

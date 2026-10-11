@@ -7,7 +7,7 @@
  * its context identifies one occurrence.
  */
 
-import { sameAnchor } from "./anchor-coordinate.js";
+import { anchorKey } from "./anchor-coordinate.js";
 import { isElementName } from "./registry-contract.js";
 import {
   resolvedElement,
@@ -17,7 +17,7 @@ import {
 } from "./resolved-target.js";
 import { overlaps } from "./rect.js";
 import { clippedContents } from "./geometry.js";
-import { inUi, uiInside, under, upFrom } from "./shadow.js";
+import { inUi, shadowHost, uiInside, under, upFrom } from "./shadow.js";
 import {
   registeredVisualPart,
   registeredVisualPartAt,
@@ -56,7 +56,7 @@ import {
 import { registry, tagsDeclaring } from "./registry.js";
 import { PRESSABLE } from "./widget-elements.js";
 import { PRESSES, WORKS } from "./control-selectors.js";
-import { excerptWords } from "./contribution-model.js";
+import { excerptWords } from "./words.js";
 
 // Anchors are durable coordinates, so every route that can mint one begins only after
 // replay has reconciled the authored document. The presentation root owns the writer.
@@ -276,19 +276,24 @@ function addressableAt(node) {
   return null;
 }
 
-// Markdown block structure is reading geometry, not authored annotation identity.
-// A whole-body formatter replaces one authored data record with paragraphs/lists;
-// its declared host remains the seat that comments and reactions can name durably.
-export function annotationAt(node) {
+// The seat of a node: the element its margin row, response bar, note and reaction
+// receipt stand at. Markdown block structure is reading geometry, not authored
+// annotation identity. A whole-body formatter replaces one authored data record with
+// paragraphs/lists; its declared host remains the seat that comments and reactions can
+// name durably. A resolved passage's `place` is its first segment's seat; a passage in
+// a datum falls back to the datum, where other text falls back to the nearest
+// addressable element.
+export function annotationAt(node, fallback = addressableAt) {
   const formatted = tagsDeclaring(
     (entry) => entry["x-text-format"] === "markdown",
   ).join(",");
   return (
-    (formatted && closestAcross(node, formatted)) ||
-    blockAt(node) ||
-    addressableAt(node)
+    (formatted && closestAcross(node, formatted)) || blockAt(node) || fallback(node)
   );
 }
+
+// A seat inside a shadow root stands at its host, where light-DOM chrome can sit.
+export const lightSeat = (seat) => (seat && shadowHost(seat.getRootNode())) ?? seat;
 
 const HTML_WORDS = {
   input: "control",
@@ -503,7 +508,7 @@ export function anchorForRange(range) {
       ...(prefix && { prefix }),
       ...(suffix && { suffix }),
     };
-    const resolved = quote && resolveAnchor(anchor, reading);
+    const resolved = quote && resolveAnchor(anchor);
     if (resolved?.exact && resolved.kind === "passage") {
       // Quotes discard boundary whitespace. Compare the characters the passage
       // reader retained, rather than demanding the drag's cosmetic spaces survive.
@@ -691,7 +696,7 @@ function designTargetAt(
         for (const passage of controlPassages(face, partElement)) {
           if (!passage.length || !fileModelsPassage(passage)) continue;
           const captured = anchorForRange(rangeOf(passage));
-          const resolved = captured.quote && resolveAnchor(captured, pageText());
+          const resolved = captured.quote && resolveAnchor(captured);
           const attachment =
             resolved?.kind === "passage" && passageGeometry(resolved)?.attachment;
           // Hidden option words and repeated passages cannot establish an exact face.
@@ -776,13 +781,16 @@ export function aimTargets(options = {}) {
       return true;
     });
   }
-  return targets.filter(
-    (target, index) =>
-      !targets.slice(0, index).some((prior) => sameAnchor(prior.anchor, target.anchor)),
-  );
+  const keys = new Set();
+  return targets.filter((target) => {
+    const key = anchorKey(target.anchor);
+    if (keys.has(key)) return false;
+    keys.add(key);
+    return true;
+  });
 }
 
-export function resolveAnchor(anchor, text = "") {
+export function resolveAnchor(anchor) {
   // Capture exhausted the selected occurrence's real fences without identifying it.
   // Later uniqueness cannot prove that the survivor was the user's occurrence.
   if (anchor.detached) return null;
@@ -840,11 +848,11 @@ export function resolveAnchor(anchor, text = "") {
         exact: true,
         status: "exact",
       };
-    const segments = findQuote(text, anchor.quote, anchor, datums[0]);
+    const segments = findQuote(pageText(), anchor.quote, anchor, datums[0]);
     return segments.length
       ? {
           ...resolvedPassage({
-            place: segments[0].block ?? datums[0],
+            place: annotationAt(segments[0].node, () => datums[0]),
             segments,
           }),
           datumElement: datums[0],
@@ -898,7 +906,7 @@ export function resolveAnchor(anchor, text = "") {
     return anchor.part ? { ...target, exact: false, status: "fallback" } : target;
   }
 
-  const segments = findQuote(text, anchor.quote, anchor, sectionOf(anchor));
+  const segments = findQuote(pageText(), anchor.quote, anchor, sectionOf(anchor));
   if (!segments.length) return null;
   // An exact named-control quote identifies its actual readable face, so both the
   // editor and sent thread clear that face. Ordinary prose still clears its block.
@@ -906,7 +914,7 @@ export function resolveAnchor(anchor, text = "") {
   const controlFace =
     face && segments.every(({ node }) => closestAcross(node, WORKS) === face);
   return resolvedPassage({
-    place: controlFace ? face : (segments[0].block ?? addressableAt(segments[0].node)),
+    place: controlFace ? face : annotationAt(segments[0].node),
     segments,
   });
 }

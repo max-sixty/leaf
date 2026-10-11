@@ -26,8 +26,8 @@
    a fractional scroll offset differs below that from one pass to the next on a box that
    has not moved. The style serializer keeps six significant digits, so the property
    reads back the same while the set still rewrites the style attribute. A custom
-   property keeps its text verbatim instead, and the same drift there is a write of
-   different text, so it falls outside this rule. */
+   property keeps its text verbatim instead, so the same drift there is a write of
+   different text; a measured length written to one goes through `layoutPx` too. */
 
 // Attribute writes also exist before modules run. Adopt that initial writer, whose
 // null/string comparison governs both initial producers and later renderers.

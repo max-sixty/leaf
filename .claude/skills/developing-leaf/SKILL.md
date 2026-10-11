@@ -168,20 +168,14 @@ show a recorded journey with a timeline so the user can inspect intermediate
 states and motion. Review the final exported recording through playback or decoded
 frames at their recorded times, including its loop boundary; select the interval
 that shows the behavior being reviewed. Use that same probe with
-`--record .tmp/recordings/NAME`.
+`--record .tmp/recordings/NAME`; its `--help` owns the recording flags.
 Its Playwright trace has an action timeline, a screenshot
 filmstrip, DOM snapshots, console and network; its WebM shows the actual frames.
-Add `--gif` for a short shareable loop, or `--actions` to decorate clicks and keys.
-`--journey FILE` runs a Python file's `run(page)` using Playwright's full API,
-including assertions; it returns a JSON reading. Capture keeps the journey's
-timing without adding pauses, and defaults to normal motion. `--actions` is for
-demonstrations: Playwright waits 500 ms before each annotated input, so omit it
-from timing-sensitive reproductions. Native video holds the final frame for at
-least one second. `--motion reduce`
-reproduces the reduced-motion preference. A failed journey keeps its recording
-and exits unsuccessfully. The same command takes any HTTP(S) URL for general
-browser work. Keep the page and context open until the recorder finalizes:
-Playwright cannot save screencast video after its page closes. Serve the trace
+`--journey FILE` drives the page with Playwright's full API, including
+assertions. Omit `--actions` from timing-sensitive reproductions. A failed journey
+keeps its recording and exits unsuccessfully. Keep the page and context open until
+the recorder finalizes: Playwright cannot save screencast video after its page
+closes. Serve the trace
 without opening a desktop browser with:
 
 ```bash
@@ -300,41 +294,22 @@ Threads, each reply's showing timed by the page, and the release ask's reload
 checked. Use it when what the page shows is part of the change. A website target
 is always in Chrome, since delivery through the page is its subject.
 
-On a harness the journey runs a session of it with this working tree as its plugin,
-under a throwaway home holding the host's login, and goes on as the user at its
-terminal: it types turns, presses Escape, kills the adapter, and sends each step's
-comment, timing it from the page's log. Between
-steps it checks every comment so far is answered once and entered the session's
-context, and the page's claim names the session with its turn closed. The
-suite stands in for each harness, and only this run shows what the harness itself
-does. Run it on the harness a change touches; each target also checks what its
-harness promises:
+On a harness the journey runs a session of it with this working tree as its plugin
+and goes on as the user at its terminal. The suite stands in for each harness, and
+only this run shows what the harness itself does. Run it on the harness a change
+touches; each target's module header lists its steps and the harness promises it
+checks:
 
-- `claude-code`, an interactive session in a tmux pane: a comment sent during a turn
-  is picked up in it, the Stop hook keeps a turn going for a comment pending as it
-  ends, comments after an Escape are answered, and quitting ends the session's claim
-  and its watch. Run it, with and without `--hooks-module`, after a change to
-  `hooks/hooks.json`, `hooks/claude-code.ts`, `ClaudeCodeHarness`, `hooks.py`,
-  `background-watch.py`, or the watch between turns in `session.py`; with the flag it
-  also checks that Escape closes the turn and leaves a watch running.
-- `codex-app-server` and `codex-queue`, a Codex task through each transport of
-  automatic server handoff, the queue being the desktop app's: the page server
-  titles each thread, the claim names the user's turn while it runs and the task's
-  last turn by App Server's id after, and rich requests get clickable choices and a
-  question awaiting the user. On `codex-queue` a comment sent during the user's turn
-  must also enter that turn and be answered before its final response, and one sent
-  while an interrupted turn resumes with empty input must enter the resumed turn.
-  Run both
-  after a change to `codex.py`, `codex_adapter.py`, `hooks.py`, `hook_transport.py`,
-  or the claim's turn in `service.py`. For a change to preview startup or lifetime,
-  add `--preview`: setup starts the canonical user preview, every step checks the
-  keyed URL, and a last step interrupts the isolated server to prove the preview
-  restores both the address and update delivery without a source edit.
-- `pi`, the version `dev/pi/` pins, on a copy of the host's Codex login: a comment
-  sent during a run is delivered into it with no run after, Escape closes the turn
-  without waking Pi again, a comment held at Escape enters a fresh run, and quitting
-  ends the session's claim and its watch. Run it after a change to `hooks/pi.ts`,
-  `PiHarness`, `hooks.py`, or the watch between turns in `session.py`.
+- `claude-code` (`journey_claude_code.py`): run it, with and without
+  `--hooks-module`, after a change to `hooks/hooks.json`, `hooks/claude-code.ts`,
+  `ClaudeCodeHarness`, `hooks.py`, `background-watch.py`, or the watch between
+  turns in `session.py`.
+- `codex-app-server` and `codex-queue` (`journey_codex.py`): run both after a change
+  to `codex.py`, `codex_adapter.py`, `hooks.py`, `hook_transport.py`, or the claim's
+  turn in `service.py`, adding `--preview` for a change to preview startup or
+  lifetime.
+- `pi` (`journey_pi.py`): run it after a change to `hooks/pi.ts`, `PiHarness`,
+  `hooks.py`, or the watch between turns in `session.py`.
 
 For the website, TARGET is `website-adapter` for its adapter against the host's
 Codex login (no Worker, container limits, credential proxy or Docker),

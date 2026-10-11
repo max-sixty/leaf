@@ -37,9 +37,14 @@ const exactClosures = {
   "queued-work.js": [],
   "control-selectors.js": [],
   "image-difference.js": [],
-  "contribution-model.js": [],
-  "margin-model.js": ["contribution-model.js"],
-  "margin-map-model.js": ["margin-model.js", "contribution-model.js"],
+  "contribution-model.js": ["words.js", "collapse.js"],
+  "margin-model.js": ["contribution-model.js", "words.js", "collapse.js"],
+  "margin-map-model.js": [
+    "margin-model.js",
+    "contribution-model.js",
+    "words.js",
+    "collapse.js",
+  ],
   "projection/model.js": ["collapse.js"],
   "projection/state.js": ["semantic-state.js", "queued-work.js"],
   "thread/model.js": [
@@ -83,7 +88,7 @@ const applicationOwners = [
   "keyboard/controller.js",
   "thread-panel.js",
   "pending/state.js",
-  "projection/commands.js",
+  "undo.js",
   "state-application.js",
   "state-feed.js",
 ];

@@ -24,6 +24,7 @@ import { dressFor, registerSampleDress } from "./dress.js";
 import { widgetDescriptor } from "./widget-descriptors.js";
 import { excludedByInert, upFrom } from "./shadow.js";
 import { seenRect } from "./geometry.js";
+import { intersect } from "./rect.js";
 import {
   sampleVisibility,
   onSampleVisibility,
@@ -176,10 +177,10 @@ export function mountSample(
       const rect = frame.getBoundingClientRect();
       const shown = seenRect(frame, new Map());
       const band = shown ?? { left: 0, top: 0, right: 0, bottom: 0 };
-      const left = Math.max(rect.left, band.left, outer?.left ?? 0);
-      const top = Math.max(rect.top, band.top, outer?.top ?? 0);
-      const right = Math.min(rect.right, band.right, outer?.right ?? innerWidth);
-      const bottom = Math.min(rect.bottom, band.bottom, outer?.bottom ?? innerHeight);
+      const { left, top, right, bottom } = intersect(
+        intersect(rect, band),
+        outer ?? { left: 0, top: 0, right: innerWidth, bottom: innerHeight },
+      );
       const scaleX = rect.width / frame.offsetWidth || 1;
       const scaleY = rect.height / frame.offsetHeight || 1;
       port.postMessage({

@@ -58,6 +58,7 @@
    the readers outside a hold that take focus as that place. */
 import { cancelRender, nextFrame, nextRender } from "./rendering.js";
 import { headerInset, seenRect, stuckBox, visibleBand } from "./geometry.js";
+import { scrollLimit } from "./scrolling.js";
 import { pointerAt } from "./pointer.js";
 import { recentPlaceInput, focused } from "./focus.js";
 
@@ -115,7 +116,7 @@ export function placeKeeper(
   { items, identity, active = () => true, preferred = () => null },
 ) {
   let standing = null;
-  const limit = () => Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+  const limit = () => scrollLimit(scroller);
   // The box a node can hold the place by, or null where it holds nothing.
   const heldBox = (node) => {
     if (

@@ -142,12 +142,7 @@ class LiveLeavesList extends RetainedFace {
     if (!this.#handle)
       throw new Error("Leaves presentation needs its connected drawer");
     const generation = ++this.#generation;
-    let resolve;
-    let reject;
-    const completion = new Promise((done, failed) => {
-      resolve = done;
-      reject = failed;
-    });
+    const { promise: completion, resolve, reject } = Promise.withResolvers();
     // `present` writes the ticket synchronously before assigning either face, so a
     // waiter cannot resume between semantic publication and Lit scheduling.
     const ready = this.#handle.present(model, completion, failSoftAfterRetention(this));

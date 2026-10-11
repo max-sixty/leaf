@@ -126,7 +126,7 @@ import { decisionFor, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { COLLAPSE } from "./collapse.js";
 import { textUnits } from "./text-alignment.js";
-import { excerptWords } from "./contribution-model.js";
+import { excerptWords } from "./words.js";
 
 // Opaque widgets and their original direct children: each is a passage cell of its own.
 const passageFences = new WeakSet();

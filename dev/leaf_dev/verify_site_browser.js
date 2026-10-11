@@ -249,8 +249,9 @@
     revisionAtLeast(want) {
       return (
         Number(document.querySelector('meta[name="lf-revision"]')?.content) >= want &&
-        document.querySelector("script[data-lf-entry]")?.lfReadiness?.(null, "presented") ===
-          null
+        document
+          .querySelector("script[data-lf-entry]")
+          ?.lfReadiness?.(null, "presented") === null
       );
     },
     revision() {

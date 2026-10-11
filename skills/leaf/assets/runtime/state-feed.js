@@ -203,10 +203,7 @@ export function createStateFeed({
         }
       })().finally(() => {
         clearTimeout(waited);
-        reading = false;
-        if (!readQueued) return;
-        readQueued = false;
-        ask();
+        releaseSlot();
       });
       await Promise.race([settled, wait]);
       // An answer that arrived and could not be applied is a startup fault: the authored
@@ -241,6 +238,18 @@ export function createStateFeed({
     let reading = true;
     let readQueued = false;
     let applyingReads = 0;
+    // Give the read slot back, and start the trailing read a tick or freshness answer
+    // queued behind the read that held it.
+    const releaseSlot = () => {
+      reading = false;
+      if (!readQueued) return;
+      readQueued = false;
+      ask();
+    };
+    // Nothing is being read or applied: what the page shows is the latest it holds.
+    // The reading's own completions below ask less, since a newer read still in flight
+    // would otherwise hold a return open for as long as that read takes.
+    const feedQuiet = () => !reading && !applyingReads && !stateApplying();
     const askOnce = async () => {
       const returned = readingReturn();
       try {
@@ -299,12 +308,7 @@ export function createStateFeed({
         return;
       }
       reading = true;
-      void askOnce().finally(() => {
-        reading = false;
-        if (!readQueued) return;
-        readQueued = false;
-        ask();
-      });
+      void askOnce().finally(releaseSlot);
     };
     // Each visible document asks for a cheap reading, never holding a connection
     // between looks. State still travels through the coalesced read above, and an
@@ -343,19 +347,12 @@ export function createStateFeed({
           const observed = await response.text();
           if (listening === interval) {
             if (observed !== freshness && observed !== runtime.reading) ask();
-            else if (
-              returned !== null &&
-              observed === runtime.reading &&
-              !reading &&
-              !applyingReads &&
-              !stateApplying()
-            ) {
+            else if (returned !== null && observed === runtime.reading && feedQuiet()) {
               // There is no newer state to ask for. Still present what this tab
               // held before the absence, then protect its new baseline again.
               await invalidateDom();
               await present();
-              if (!reading && !applyingReads && !stateApplying())
-                completeReadingReturn(returned);
+              if (feedQuiet()) completeReadingReturn(returned);
             }
             freshness = observed;
           }

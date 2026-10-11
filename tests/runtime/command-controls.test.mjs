@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   commandScope,
+  commandsOn,
+  commandsWithin,
+  projectCommandScope,
   keys,
   paintKeys,
   reflectFirstScopes,
@@ -946,4 +949,85 @@ test("a held startup key resumes when its initial input arrives after presentati
     document.body.removeAttribute("data-lf-presented");
     owner.remove();
   }
+});
+
+test("template scopes follow current rows and retire without removing projected commands", async () => {
+  const { html, nothing, render } = await import("/vendor/browser-runtime.js");
+  const root = document.createElement("section");
+  document.body.append(root);
+  const invoked = [];
+  const rows = (id, key, available = true) => [
+    {
+      id,
+      title: id,
+      keys: [key],
+      when: () => available,
+      run: () => invoked.push(id),
+    },
+  ];
+  const paint = (title, declaration, options, active = true) =>
+    render(
+      html`<span ${active ? commandsOn(title, declaration, options) : nothing}></span>`,
+      root,
+    );
+  const part = paint("First scope", rows("probe.first", "x"));
+  const element = root.querySelector("span");
+  reflectFirstScopes();
+  assert.equal(element.getAttribute("aria-keyshortcuts"), "x");
+  commandsWithin(root)[0].row.run();
+
+  paint("Second scope", rows("probe.second", "y"), { when: () => false });
+  reflectFirstScopes();
+  assert.equal(commandsWithin(root).length, 0);
+  assert.equal(element.getAttribute("aria-keyshortcuts"), null);
+  paint("Second scope", rows("probe.second", "y"));
+  reflectFirstScopes();
+  const [current] = commandsWithin(root);
+  assert.equal(current.scope.title, "Second scope");
+  assert.equal(current.row.id, "probe.second");
+  current.row.run();
+  assert.deepEqual(invoked, ["probe.first", "probe.second"]);
+  assert.equal(root.querySelector("span"), element);
+  assert.equal(element.getAttribute("aria-keyshortcuts"), "y");
+  paint("Second scope", rows("probe.second", "y", false));
+  reflectFirstScopes();
+  assert.equal(commandsWithin(root).length, 0);
+  assert.equal(element.getAttribute("aria-keyshortcuts"), null);
+  paint("Second scope", rows("probe.second", "y"));
+  reflectFirstScopes();
+  const writes = new MutationObserver(() => {});
+  writes.observe(element, { attributes: true });
+  paint("Second scope", rows("probe.second", "y"));
+  reflectFirstScopes();
+  assert.deepEqual(writes.takeRecords(), [], "an unchanged scope writes no attributes");
+  writes.disconnect();
+
+  const projected = commandScope("Projected", rows("probe.projected", "z"));
+  projectCommandScope(element, "test", projected);
+  paint("Unused", [], undefined, false);
+  assert.deepEqual(
+    commandsWithin(root).map(({ row }) => row.id),
+    ["probe.projected"],
+  );
+  assert.equal(element.getAttribute("aria-keyshortcuts"), "z");
+
+  paint(commandScope("Returned", rows("probe.returned", "x")));
+  part.setConnected(false);
+  assert.deepEqual(
+    commandsWithin(root).map(({ row }) => row.id),
+    ["probe.projected"],
+  );
+  paint("While detached", rows("probe.detached", "y"));
+  assert.deepEqual(
+    commandsWithin(root).map(({ row }) => row.id),
+    ["probe.projected"],
+  );
+  part.setConnected(true);
+  assert.deepEqual(
+    commandsWithin(root).map(({ row }) => row.id),
+    ["probe.detached", "probe.projected"],
+  );
+  render(nothing, root);
+  assert.equal(commandsWithin(root).length, 0);
+  root.remove();
 });

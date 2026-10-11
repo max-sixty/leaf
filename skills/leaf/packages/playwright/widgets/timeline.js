@@ -303,7 +303,11 @@ export class RecordingTimeline {
       clusters.forEach((current) => fit(current));
       for (let index = clusters.length - 1; index >= 0; index--) {
         const current = clusters[index];
-        if (current.flip && current.items.length > 1) fit(current, true);
+        if (current.flip && current.items.length > 1) {
+          const full = current.width;
+          fit(current, true);
+          if (current.width >= full) fit(current);
+        }
         const previous = clusters[index - 1];
         if (!current.flip || !previous) continue;
         const previousEnd = previous.flip ? previous.x : previous.x + previous.width;

@@ -17,7 +17,9 @@
 // inline or in their tree's own rules, retain that scroller too; nested CSS
 // expressions, ambiguous names and rules that disagree receive no inferred ownership.
 //
-// Each trusted gesture owns its counted rendering until declared completion.
+// Each trusted gesture owns the page's counted rendering until declared completion.
+// That credit is global while presentation is pending: the sensor cannot distinguish
+// an unrelated script move during the same pending presentation from its completion.
 // Native effects it began retain only their sampled displacement within their
 // own subtree; their continued lifetime never owns unrelated page movement.
 // Native scroll effects belong to their retained scroll source, regardless of the
@@ -25,7 +27,9 @@
 // credit only source-collinear travel bounded by that source's viewport scroll.
 // A uniform keyframe origin rebase is removed from the sampled translation, so a
 // compensated placement cannot erase its scroll cause or adopt unrelated motion.
-// News starts passive rendering except the first frame shared with the gesture.
+// News starts passive rendering except the first frame shared with the gesture,
+// or while a gesture's presentation is still pending. It cannot retire the work
+// already requested by that gesture before the work presents.
 // A typing field is observed at its native edit start, independently of Chrome's
 // clipped or shadowed source rectangles. Its subject, protected reading/control and
 // declared-region ancestors, and visibly painted holders retain their poses.
@@ -130,8 +134,16 @@
   // Native media sources and nodes detached during a reading can have no computed
   // length. Keep that absence stable; NaN would disagree with itself every frame.
   const pixels = (value) => (/^-?[\d.]+px$/.test(value) ? parseFloat(value) : null);
+  // A native gesture can prepare a lazy widget before it queues a rendering turn.
+  // Presentation readiness includes that preparation ticket; the frame queue alone
+  // can be quiet mid-gesture. Deferred arrivals after presentation are independent
+  // of the gesture and cannot prolong its credit.
+  const entry = () => document.querySelector("script[data-lf-entry]");
+  const readiness = () => entry()?.lfReadiness?.(null, "presented") ?? null;
+  // Proof can commit before its queued chrome and geometry have one quiet update.
+  // Join that separate rendering owner without waiting for post-presentation arrivals.
   const settled = () =>
-    document.querySelector("script[data-lf-entry]")?.lfRenderingSettled?.() ?? true;
+    readiness() === null && (entry()?.lfRenderingSettled?.() ?? true);
   // An animation that can move a box: one of its keyframes sets a geometric property.
   const moves = (animation) =>
     animation.effect
@@ -1179,7 +1191,8 @@
       else open.last = settled();
     }
     // A gesture owns its counted rendering until canonical completion. News seals
-    // that credit; continuing motion retains its separate ownership below. A newer
+    // that credit once presentation permits it; continuing motion retains its
+    // separate ownership below. A newer
     // input still leaves the prior gesture its first two frame readings.
     for (const rendering of renderings) {
       if (
@@ -1242,7 +1255,10 @@
   // When the page adopted each server reading.
   new MutationObserver(() => {
     unwatch();
-    if (open) open.told = true;
+    // A new reading can be applied while a disclosure's lazy preparation is still
+    // pending. It does not complete the gesture's requested presentation. Ordinary
+    // news, including a held geometry queue, starts passive rendering as before.
+    if (open && readiness() !== "presented") open.told = true;
   }).observe(document, { subtree: true, attributeFilter: ["data-lf-reading"] });
   // Press, drag, release and native activation are phases of one pointer gesture.
   // Each phase keeps its own paint boundary while sharing the effects that press

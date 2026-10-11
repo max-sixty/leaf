@@ -378,7 +378,8 @@ def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serv
     # until it resolves, so it cannot start a parallel deferred request.
     page.keyboard.press("Tab")
     expect(retry).to_be_focused()
-    page.keyboard.press("Enter")
+    with page.expect_request("**/api/deferred*"):
+        page.keyboard.press("Enter")
     assert len(attempts) == 2 and len(pending) == 1
     expect(retry).to_have_attribute("aria-disabled", "true")
     expect(retry).to_be_focused()
@@ -391,11 +392,15 @@ def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serv
     assert failed.value.failure == "net::ERR_FAILED"
     reported_browser_errors(page, "Failed to load resource: net::ERR_FAILED")
     retry = page.get_by_role("button", name="Retry")
+    # Network failure precedes the new error paint. The old pending button can
+    # still hold focus, so wait for the replacement to accept another activation.
+    expect(retry).not_to_have_attribute("aria-disabled", "true")
     expect(retry).to_be_focused()
 
     # If the user tabs away during another pending retry, its failure must leave
     # focus at the newer control instead of restoring the old Retry button.
-    page.keyboard.press("Enter")
+    with page.expect_request("**/api/deferred*"):
+        page.keyboard.press("Enter")
     assert len(attempts) == 3 and len(pending) == 1
     expect(retry).to_have_attribute("aria-disabled", "true")
     page.keyboard.press("Tab")
@@ -407,6 +412,9 @@ def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serv
         pending.pop().abort("failed")
     assert failed.value.failure == "net::ERR_FAILED"
     reported_browser_errors(page, "Failed to load resource: net::ERR_FAILED")
+    expect(page.get_by_role("button", name="Retry")).not_to_have_attribute(
+        "aria-disabled", "true"
+    )
     expect(after).to_be_focused()
 
     # A successful retry falls back to the file disclosure when its error control

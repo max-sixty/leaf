@@ -1,8 +1,8 @@
 /* Keyboard reachability, containment, the sticky-header slot, and continuation paint for
    scrollable page and shadow content. */
 
-import { wearsLentStop } from "./focus.js";
-import { LENT_REACH_STOP, TAB_STOP, TEXT_BOX } from "./control-selectors.js";
+import { tabStops, wearsLentStop } from "./focus.js";
+import { LENT_REACH_STOP, TEXT_BOX } from "./control-selectors.js";
 import { scrollsBy, skipped, userScrollport } from "./geometry.js";
 import { afterScript, nextFrame, nextRender, sizeObserver } from "./rendering.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
@@ -18,7 +18,8 @@ import { keeps } from "./keeps.js";
 // entry, and it reaches the runtime's own boxes on the same terms as the page's — and
 // into the trees an x-shadow widget renders in, which the walk alone does not enter.
 //
-// A box holding a control is already reachable (lf-board, through its grips). Re-read
+// A box holding a control in Tab order is already reachable (lf-board, through its
+// grips). Programmatic-only buttons inside a diff do not provide that route. Re-read
 // that content when layout changes: an initially empty Page Map list must give up its
 // container stop once actions arrive inside it.
 //
@@ -70,7 +71,7 @@ import { keeps } from "./keeps.js";
 const overflows = (el) =>
   !el.hasAttribute("hidden") &&
   (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight);
-const holdsOwnStop = (el) => el.querySelector(TAB_STOP) !== null;
+const holdsOwnStop = (el) => tabStops(el).length > 0;
 // Each candidate with the `tabindex` its author gave it, or null for none. The pass
 // writes only the stop it lends, `0`, and takes back only that, to the author's value:
 // a box that stops scrolling is the box it was before, not one a click can now focus.

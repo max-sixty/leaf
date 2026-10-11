@@ -199,11 +199,11 @@ test("attention names the outstanding question rather than the latest message", 
     kind: "comment",
     text: "Does this crop show enough of the room?",
   });
-  const update = agent("update", {
+  const followup = agent("followup", {
     text: "I also added the room number.",
     seq: 2,
   });
-  const source = servedThread([question, update], {
+  const source = servedThread([question, followup], {
     attention: { kind: "needs_user", reason: "question", workflow: null },
     user_prompt: { message: "question", version: "question" },
   });
@@ -348,20 +348,23 @@ test("narrowing transitions reset what they contradict and counts name each subs
 
 test("a fold without prose is searchable by its visible label", () => {
   const thread = {
-    ...recentThread("updates", "2026-03-01T00:00:00Z"),
-    summaries: [{ id: "fold", label: "Previous updates", text: "" }],
+    ...recentThread("progress", "2026-03-01T00:00:00Z"),
+    summaries: [{ id: "fold", label: "Previous progress messages", text: "" }],
   };
   const places = new Map([[thread, { gone: false, section: "" }]]);
   const reading = narrowingReading(
-    { ...DEFAULT_INTENT, finding: "previous updates" },
+    { ...DEFAULT_INTENT, finding: "previous progress messages" },
     [thread],
     places,
   );
   assert.deepEqual(
     reading.shown.map(({ id }) => id),
-    ["updates"],
+    ["progress"],
   );
-  assert.deepEqual(threadSearchReading(thread, "previous updates").messages, []);
+  assert.deepEqual(
+    threadSearchReading(thread, "previous progress messages").messages,
+    [],
+  );
 });
 
 test("a pending narrowing reset gives way to a newer reading gesture", async () => {

@@ -52,7 +52,7 @@ import {
 } from "./thread/surfaces.js";
 import { createStateApplication } from "./state-application.js";
 import { beginRead as beginStateRead, createStateFeed } from "./state-feed.js";
-import { watchUpdates as observeUpdates } from "./updates.js";
+import { watchReports as observeReports } from "./reports.js";
 
 const commandDispatch = createCommandDispatch();
 let application = null;
@@ -551,7 +551,7 @@ export function mountApplication(dependencies) {
 
   application = {
     ...undo,
-    watchUpdates: observeUpdates,
+    watchReports: observeReports,
     ...engagement,
     approvalBlockingQuestions,
     beginRead: beginStateRead,
@@ -653,5 +653,5 @@ export const startFeed = (...args) => app().startFeed(...args);
 export const unaccountedGesture = (...args) => app().unaccountedGesture(...args);
 export const undoable = (...args) => app().undoable(...args);
 export const undoLast = (...args) => app().undoLast(...args);
-export const watchUpdates = (...args) => app().watchUpdates(...args);
+export const watchReports = (...args) => app().watchReports(...args);
 export const wireInput = (...args) => app().wireInput(...args);

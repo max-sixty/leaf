@@ -14,7 +14,7 @@ of the current behavior follow the Question.
 
 On a quick-answer page, open with the Question and put its backing in a disclosure
 after it. The first viewport should show the objective, current state, and
-available move together.
+what the user can do next together.
 
 On a record or system page, put each Question in the part of the page it decides,
 and let the page continue after it. A Question about one item of a list sits with
@@ -35,7 +35,7 @@ uses every column it gets takes `data-width="available"` (`page-authoring.md`,
 Write related, independently answerable Questions in page order. A widget can carry its
 own question and context, or an `lf-ask` can frame them around it. They remain visible
 as one complete page. The user can press `q` to reach the next thing waiting on them
-(an open Question, a thread whose question is theirs, a task you put on them, or a move
+(an open Question, a thread whose question is theirs, a task you put on them, or an update
 whose reply failed and needs sending again) and use a Question's displayed `1`–`9`
 actions. If a later Question depends on an earlier answer, publish it in the next turn
 instead of authoring every possible branch.

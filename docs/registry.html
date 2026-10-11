@@ -328,8 +328,8 @@
               <details class="reference-more">
                 <summary aria-label="Full x-history contract">Full contract</summary>
                 <p>
-                  The reading is the newest 50 logged moves, newest first, each naming
-                  who moved, what they did, the thread it belongs to and that thread's
+                  The reading is the newest 50 logged events, newest first, each naming
+                  who acted, what they did, the thread it belongs to and that thread's
                   title, whether a later undo took it back, and for a widget gesture the
                   words its ids had in the document it was made in, so a later version
                   rewording or removing what was chosen leaves the row as made. The
@@ -763,9 +763,9 @@
                   (<code>creates</code>). An agent verb requires a record form other
                   than <code>body</code>, since a report moves declared state and never
                   the page's words, which keeps the passage reading untouched by it; it
-                  may declare <code>update: true</code> to require non-empty
+                  may declare <code>report: true</code> to require non-empty
                   <code>detail.text</code> as the report's short human-readable news,
-                  which the canonical update feed exposes without guessing from a
+                  which the canonical report feed exposes without guessing from a
                   widget, verb, or field name. The runtime paints a standing report live
                   (data-lf-reported); it is provisional news, standing only until a
                   version answers it, as $report says. Each verb is its own state: the
@@ -1032,8 +1032,8 @@
             <div class="reference-copy">
               <p>
                 <code>true</code>: this widget is a block prose seat that can admit
-                <code>leaf task open</code> without a pending user move, so the task
-                shows as local chrome beside its authored markup.
+                <code>leaf task open</code> without a pending update, so the task shows
+                as local chrome beside its authored markup.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-work contract">Full contract</summary>

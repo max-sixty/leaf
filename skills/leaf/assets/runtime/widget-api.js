@@ -26,6 +26,7 @@ export {
   unsafeHTML,
   when,
 } from "../vendor/browser-runtime.js";
+export { move } from "./dom-move.js";
 export { iconElement, iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
 export { initialRender } from "./initial-render.js";
@@ -82,8 +83,7 @@ export {
   whenLeft,
 } from "./focus.js";
 export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
-// Making an element's children a list, moving only what is out of place and keeping the
-// user standing in a node it moves.
+// Making an element's children a list, moving only what is out of place.
 export { render, setChildren, setRenderedChildren } from "./dom-children.js";
 export { readQuestions, watchQuestions } from "./questions/model.js";
 export { questionWords } from "./questions/answer.js";
@@ -242,8 +242,8 @@ export {
   tokenLines,
 } from "./syntax.js";
 export { bodyText, dataBody, failSoft, once } from "./widget-upgrade.js";
-export { watchUpdates } from "./application.js";
-export { saidAt, updateSequence, watchHistory } from "./updates.js";
+export { watchReports } from "./application.js";
+export { saidAt, reportSequence, watchHistory } from "./reports.js";
 export {
   HIDDEN,
   LAYOUT,

@@ -156,7 +156,7 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
       })),
     );
   // Unread in what the page has presented and still unread in the current reading: a
-  // version this tab is marking read, or another tab or move already did, is not
+  // version this tab is marking read, or another tab or update already did, is not
   // offered again.
   const actionableUnread = () => {
     const live = new Set(

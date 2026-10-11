@@ -29,7 +29,13 @@ export function boundFile(binding) {
     get writable() {
       return writable();
     },
-    read: () => request(),
+    // The server answers a binding the page lacks as no file, keeping the console
+    // clean for a designed state; the editor still shows it as unavailable.
+    read: async () => {
+      const file = await request();
+      if (file === null) throw new Error(`No file is bound as '${binding}'.`);
+      return file;
+    },
     save: (snapshot) =>
       request({
         method: "POST",

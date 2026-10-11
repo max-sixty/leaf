@@ -2230,7 +2230,7 @@
           you: "2be2443f0bb6cc49fc86b52f340e6073",
           resolved: "bab3cdfcfb8c02aacbb27da731de947a",
           summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
-          updates: "bg-progress-question",
+          progress: "bg-progress-question",
         }[view];
         void sample.showThread(thread, {
           surface: "panel",
@@ -2540,8 +2540,8 @@ catalog.</p>
             pays twice.
           </p>
           <p>
-            Every other card is either cosmetic, has a safe retry, or affects one
-            customer who has a workaround. None gets worse by waiting a week.
+            None of the other cards gets worse by waiting a week. Each is cosmetic for
+            most users, safe to retry, has a manual workaround, or has few reports.
           </p>
         </section>
         <section class="panel" id="triage-moves">
@@ -6166,7 +6166,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
             <dd><output data-atlas-count="stopped">0</output></dd>
           </dl>
           <button type="button" class="button atlas-refresh" disabled>
-            Show updates
+            Show latest
           </button>
           <details class="atlas-stopped">
             <summary>Stopped work</summary>
@@ -7270,7 +7270,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 <kbd>w</kbd> again and start over this guide: the stroke joins the kept
                 drawing rather than replacing it. On a touch screen, “Draw mode” is in
                 “More page controls”, and “Undo stroke” and “Exit Draw mode” stand on
-                the banner while the mode holds.
+                the banner while the mode holds. Try drawing over a choice control: the
+                stroke marks the choice without selecting it. Leaf’s comment box and
+                draft editing controls remain usable while Draw mode holds.
               </p>
             </section>
 
@@ -7416,7 +7418,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <button
                 type="button"
                 class="button"
-                data-view="updates"
+                data-view="progress"
                 aria-pressed="false"
               >
                 Progress messages
@@ -7450,7 +7452,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   <strong>A summarized discussion.</strong> The workshop planning thread
                   keeps its earlier decisions in a summary.
                 </p>
-                <p id="bg-thread-updates">
+                <p id="bg-thread-progress">
                   <strong>Progress messages.</strong> Show the folded checks from the
                   answer’s header, then hide them again.
                 </p>
@@ -7598,8 +7600,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               page opens: its status-line notice also reaches the live region without
               moving focus. A new question, response failure, or return to page activity
               uses that same line. Replies still unread when the page opens are
-              announced once on arrival; rereading a stage or tool update creates no new
-              notice.
+              announced once on arrival; rereading a stage change or tool activity
+              creates no new notice.
             </p>
             <p id="bg-reply-lifetime">
               <strong>An unfinished reply.</strong> Open a thread inline or in Threads
@@ -7740,7 +7742,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     <strong>An existing thread.</strong> The sample agenda has room for
                     one more topic. Its speech-bubble control is green, and hovering it
                     shows “On you” under the label. The image question still needs an
-                    answer even though the agent added a later progress update. In
+                    answer even though the agent added a later progress message. In
                     Threads, “On you” still says to answer the question. Open the
                     control and reply: the control turns blue as the thread comes back
                     to the agent. The same reading fills the panel’s “On you” filter and
@@ -7814,7 +7816,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 latest exchange stays below the summary, and keyboard focus can reach
                 the disclosure.
               </p>
-              <p id="bg-thread-updates">
+              <p id="bg-thread-progress">
                 <strong>Progress messages.</strong> The ephemeral schedule checks fold
                 automatically when their final answer arrives, without adding a digest.
                 Choose “Progress messages” in the practice page, then use “Show 2
@@ -8575,8 +8577,8 @@ gallery/
                 reactions, user actions, and published versions. The board move near the
                 end was taken back, so its row stays struck through and marked “undone”.
                 Press a thread row to open its thread, or a widget row to travel to the
-                widget. New updates wait behind the fixed control while you read; press
-                it to reveal them.
+                widget. New rows wait behind the fixed control while you read; press it
+                to reveal them.
               </p>
               <lf-activity id="bg-activity"></lf-activity>
             </section>
@@ -9114,7 +9116,7 @@ switch --readers checkout-api,orders-api</code></pre>
                   via="uv run bench-gallery"
                   >184 ms</lf-num
                 >, its run receipt, and the command that produced it. Because the source
-                has a newer update, <code>page check</code> reports that the measurement
+                has a newer value, <code>page check</code> reports that the measurement
                 is behind its source.
               </p>
             </section>

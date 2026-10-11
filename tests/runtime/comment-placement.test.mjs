@@ -9,8 +9,10 @@ import test from "node:test";
 import {
   LEAST_HEIGHT,
   commentPlacement,
+  commentReference,
   commentSide,
 } from "/runtime/annotation-overlay/comment-placement.js";
+import { floatingPlacement } from "/runtime/annotation-overlay/floating.js";
 
 // The card's widths as theme.css declares them, which the placement reads off the root.
 document.documentElement.style.setProperty("--thread-card-min", "320px");
@@ -236,11 +238,11 @@ test("a growing card holds its top while read and its foot for the turn that joi
   assert.equal(card.heldHeight(), 200);
 });
 
-test("beside, a margin row stays usable where the card keeps its minimum width", async () => {
+test("beside, clearing a margin row never costs the card width", async () => {
   const ui = await import("/vendor/floating-ui.esm.js");
   // A paragraph ending at 600, and a margin row 40px wide out past it.
   const clear = block(300, 300, 300, 500);
-  const reference = (rowRight) => {
+  const options = (rowRight) => {
     const placement = commentPlacement();
     placement.choose({ clear, boundary, scroller: scroller(1000), coarse: false });
     return placement.options(ui, {
@@ -249,12 +251,138 @@ test("beside, a margin row stays usable where the card keeps its minimum width",
       margin: { left: rowRight - 40, right: rowRight },
       boundary,
       fit() {},
-    }).reference;
+    });
   };
-  // The card may narrow from its preferred measure to keep the row usable.
-  assert.equal(reference(693).right, 693);
-  // Past a row ending at 964, 320 remains to the boundary at 1292 after the gap.
-  assert.equal(reference(964).right, 964);
-  // One pixel less than its minimum sends the card over the row.
-  assert.equal(reference(965).right, clear.right);
+  const reference = (rowRight) => options(rowRight).reference;
+  // Exactly the preferred 592px remains beyond the row and the 8px gap.
+  assert.equal(reference(692).right, 692);
+  // Even one pixel of lost message width puts the card over the row.
+  assert.equal(reference(693).right, clear.right);
+  // A readable but narrower lane still gives its space back to the message.
+  assert.equal(reference(964).right, clear.right);
+
+  // 600 client pixels do not hold a 592 CSS-pixel card at 120% zoom.
+  const zoomed = options(684);
+  const state = {
+    rects: { reference: { x: clear.left, y: clear.top } },
+    elements: { floating: {} },
+    platform: {
+      getOffsetParent: () => window,
+      convertOffsetParentRelativeRectToViewportRelativeRect: () => ({
+        width: 1.2,
+        height: 1.2,
+      }),
+    },
+  };
+  const reset = await zoomed.middleware[0].fn(state);
+  assert.deepEqual(reset, { reset: { rects: true } });
+  assert.equal(zoomed.reference.right, clear.right);
+  const settled = await zoomed.middleware[0].fn(state);
+  assert.equal(settled.reset, undefined);
+  assert.deepEqual(settled.data.scale, { x: 1.2, y: 1.2 });
+
+  // At 75%, the same 484 client-pixel lane holds the full 444px footprint.
+  const smaller = options(800);
+  const reduced = {
+    ...state,
+    platform: {
+      ...state.platform,
+      convertOffsetParentRelativeRectToViewportRelativeRect: () => ({
+        width: 0.75,
+        height: 0.75,
+      }),
+    },
+  };
+  assert.deepEqual(await smaller.middleware[0].fn(reduced), {
+    reset: { rects: true },
+  });
+  assert.equal(smaller.reference.right, 800);
+  assert.equal((await smaller.middleware[0].fn(reduced)).reset, undefined);
+});
+
+test("zoom clearance reaches the solver through the floating driver", async () => {
+  const ui = await import("/vendor/floating-ui.esm.js");
+  const clear = block(300, 300, 300, 500);
+  for (const { scale, rowRight, expected } of [
+    { scale: 1.2, rowRight: 684, expected: clear.right + 8 },
+    { scale: 0.75, rowRight: 800, expected: 808 },
+  ]) {
+    const floating = document.createElement("div");
+    document.body.append(floating);
+    let width = 592;
+    const referenceRights = [];
+    const dimensions = () => ({ width, height: 100 });
+    const toClient = ({ rect }) => ({
+      x: rect.x * scale,
+      y: rect.y * scale,
+      width: rect.width * scale,
+      height: rect.height * scale,
+    });
+    // The platform supplies measured geometry; the real solver owns reset, offset,
+    // size and shift. Both application reference wrappers remain on the path.
+    const platform = {
+      getElementRects({ reference }) {
+        const rect = reference.getBoundingClientRect();
+        referenceRights.push(rect.right);
+        return {
+          reference: {
+            x: rect.left / scale,
+            y: rect.top / scale,
+            width: rect.width / scale,
+            height: rect.height / scale,
+          },
+          floating: { x: 0, y: 0, ...dimensions() },
+        };
+      },
+      getOffsetParent: () => window,
+      getDimensions: dimensions,
+      getClippingRect: () => ({
+        x: boundary.left,
+        y: boundary.top,
+        width: boundary.width,
+        height: boundary.height,
+      }),
+      convertOffsetParentRelativeRectToViewportRelativeRect: toClient,
+      isElement: () => false,
+      getDocumentElement: () => document.documentElement,
+      isRTL: () => false,
+    };
+    const rule = commentPlacement();
+    rule.choose({ clear, boundary, scroller: scroller(1000), coarse: false });
+    const { reference, placement, middleware, plane } = rule.options(ui, {
+      clear,
+      row: clear.top,
+      margin: { left: rowRight - 40, right: rowRight },
+      boundary,
+      fit: (room) => {
+        width = Math.min(592, room.width);
+      },
+    });
+    const driver = floatingPlacement({ floating, update() {} });
+    driver.begin();
+    const answer = await driver.position(
+      ui.computePosition,
+      commentReference(
+        {
+          element: null,
+          contextNode: null,
+          extent: clear,
+          row: clear.top,
+          geometry: { anchors: new Map(), origins: new Map() },
+        },
+        reference,
+      ),
+      { placement, middleware, platform },
+      plane,
+      null,
+    );
+    assert.ok(answer);
+    assert.notEqual(referenceRights[0], expected - 8);
+    assert.equal(referenceRights.at(-1), expected - 8);
+    assert.ok(
+      Math.abs(answer.x * scale - expected) < 0.01,
+      `${scale}: ${answer.x * scale}`,
+    );
+    floating.remove();
+  }
 });

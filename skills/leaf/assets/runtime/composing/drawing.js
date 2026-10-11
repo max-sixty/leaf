@@ -1,6 +1,8 @@
 /* Drawing gesture controller.
  *
- * Draw mode claims primary-pointer drags anywhere on the page until the user leaves it.
+ * Draw mode claims primary-pointer drags anywhere on the page until the user leaves it,
+ * including page-widget controls. Leaf's own surfaces remain operable wherever their
+ * owner seats them; an offered control alone does not make a widget a Leaf surface.
  * Every drawing belongs to the comment draft of one element: the semantic target under
  * a stroke's first point, or else the one on screen nearest it, so a stroke in empty
  * space opens its box beside the content it was drawn by, as any other does. (Strokes
@@ -41,7 +43,6 @@ import { clamp, overlaps } from "../rect.js";
 import { COLLAPSE } from "../collapse.js";
 import { excerptWords } from "../words.js";
 import {
-  closestAcross,
   elementFromPointAcross,
   elementOver,
   leafSurface,
@@ -369,8 +370,7 @@ export function createDrawingController({
   function begin(event) {
     if (!drawModeOn || !event.isPrimary || event.button !== 0) return;
     const origin = event.composedPath()[0];
-    // Runtime surfaces and widget offers remain operable wherever their owner seats them.
-    if (leafSurface(origin) || closestAcross(origin, "[data-lf-offer]")) return;
+    if (leafSurface(origin)) return;
     claimThroughClick = true;
     claimedPointer = event.pointerId;
     claim(event);

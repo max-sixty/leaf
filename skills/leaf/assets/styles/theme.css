@@ -282,9 +282,10 @@
   --note: 384px;
   /* A page thread's card is read as prose, so its preferred measure is the column's,
      720px at 17px, at the card's 14px face. A thread whose lines are shorter takes only
-     their width, down to the minimum. The minimum is what the room beside the words,
-     or past the margin cluster, must hold for the card, and the comment box before it,
-     to stand there (comment-placement.js). */
+     their width, down to the minimum. The minimum chooses whether the card and the
+     comment box before it fit beside their words. Clearing the margin cluster requires
+     the full preferred measure, so its controls never cost message width
+     (comment-placement.js). */
   --thread-card: 592px;
   --thread-card-min: 320px;
   /* A compact left margin for page-level wayfinding or reference. Unlike a sidenote,
@@ -449,7 +450,7 @@
   --ok-tint: light-dark(#dfeddf, #1d2b1f);
   --ok-wash: color-mix(in srgb, var(--ok-tint) 52%, var(--paper));
   --ok-ink: light-dark(#2f6b40, #97cca3);
-  /* Green identifies the user's next move. Unread and agent progress keep the blue
+  /* Green identifies the user's turn. Unread and agent progress keep the blue
      accent, so neither can be mistaken for a request to the user. */
   --turn-wash: var(--ok-wash);
   --turn-ink: var(--ok-ink);
@@ -1460,7 +1461,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   box-shadow: 0 1px 0 var(--border-2), 0 3px 6px var(--shade);
 }
 /* Margin and Page Map share the same attention reading. Blue is the ordinary
-   thread and work cue; green means the user owes a move, even when another thread
+   thread and work cue; green means it is the user's turn, even when another thread
    on the same carrier has active agent work. Progress stays in the status words and
    the one arrival pulse rather than competing for the attention color. */
 :where(.lf-margin-entry[data-lf-kinds~="comment"],

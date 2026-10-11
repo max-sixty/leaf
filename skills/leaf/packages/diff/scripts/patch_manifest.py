@@ -192,7 +192,6 @@ def _manifest_file(section: str) -> dict:
     if pure_rename is not None:
         previous, path = pure_rename
         return {
-            "key": path,
             "path": path,
             "previousPath": previous,
             "kind": "rename",
@@ -244,7 +243,6 @@ def _manifest_file(section: str) -> dict:
     path = renamed or _decode_git_path(new_path)
     patched = _parsed_hunks(section, path)
     return {
-        "key": path,
         "path": path,
         **({"previousPath": previous} if previous is not None else {}),
         "kind": "patch",
@@ -258,7 +256,7 @@ def patch_manifest(source: str) -> dict:
     """One captured Git patch as the `unified-diff` contract's file manifest.
 
     Leaf owns the manifest and unidiff owns the hunks inside it. Each entry
-    carries the file's key and paths, its change counts, and the verbatim section
+    carries the file's paths, its change counts, and the verbatim section
     of the captured text that `lf-diff` renders once its disclosure opens — which
     is why the source is split here rather than rebuilt from unidiff's reading.
 

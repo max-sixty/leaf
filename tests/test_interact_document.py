@@ -3445,14 +3445,12 @@ diff --git a/src/second file.py b/src/second file.py
         for file in source["value"]["files"]
     ] == [
         {
-            "key": "app.py",
             "path": "app.py",
             "kind": "patch",
             "additions": 1,
             "deletions": 1,
         },
         {
-            "key": "new.py",
             "path": "new.py",
             "previousPath": "old.py",
             "kind": "patch",
@@ -3460,7 +3458,6 @@ diff --git a/src/second file.py b/src/second file.py
             "deletions": 1,
         },
         {
-            "key": "docs/new.md",
             "path": "docs/new.md",
             "previousPath": "docs/old.md",
             "kind": "rename",
@@ -3468,14 +3465,12 @@ diff --git a/src/second file.py b/src/second file.py
             "deletions": 0,
         },
         {
-            "key": "café2026 notes.py",
             "path": "café2026 notes.py",
             "kind": "patch",
             "additions": 1,
             "deletions": 1,
         },
         {
-            "key": "src/second file.py",
             "path": "src/second file.py",
             "kind": "patch",
             "additions": 1,
@@ -4805,7 +4800,6 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
     assert initial["source"]["live"], initial["source"]["error"]
     patch = "--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-before\n+after\n"
     file = {
-        "key": "a.py",
         "path": "a.py",
         "kind": "patch",
         "additions": 1,
@@ -4830,6 +4824,41 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
                 "files": [{key: field for key, field in file.items() if key != "patch"}]
             }
         assert stored["sources"]["reading-patch"]["value"] == value
+
+
+@pytest.mark.parametrize(
+    ("files", "refusal"),
+    [
+        ([], "does not satisfy minItems: 1"),
+        (
+            [{"path": "b.py", "kind": "rename", "additions": 0, "deletions": 0}],
+            "'previousPath' is a required property",
+        ),
+        (
+            [{"path": "a.py", "kind": "patch", "additions": 1, "deletions": 1}] * 2,
+            "record keys must be unique",
+        ),
+    ],
+)
+def test_data_set_refuses_a_diff_manifest_the_widget_cannot_list(
+    page_dir, files, refusal
+):
+    """A diff manifest lists each file once, by its path, and a rename names the path
+    it came from, so the widget renders what `data set` accepted."""
+    (page_dir / "index.html").write_text(
+        before_choice(
+            PAGE,
+            '<lf-diff id="reading-diff" source="reading-patch"><pre></pre></lf-diff>',
+        )
+    )
+    patch = "--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-before\n+after\n"
+    written = CliRunner().invoke(
+        cli_model.cli,
+        ["data", "set", str(page_dir), "reading-patch"],
+        input=json.dumps({"files": [{**file, "patch": patch} for file in files]}),
+    )
+    assert written.exit_code == 1
+    assert refusal in written.output
 
 
 def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch):

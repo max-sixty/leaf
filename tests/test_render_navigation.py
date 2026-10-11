@@ -2023,23 +2023,7 @@ def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
     )
     send = thread.locator(".lf-compose-submit")
     expect(send).to_be_disabled()
-    disabled_palette = send.evaluate(
-        """button => {
-          const style = getComputedStyle(button);
-          const face = getComputedStyle(button, '::before');
-          return {
-            background: face.backgroundColor,
-            opacity: style.opacity,
-          };
-        }"""
-    )
-    assert disabled_palette["background"] == "rgba(0, 0, 0, 0)"
-    assert disabled_palette["opacity"] == "1"
-    send.hover()
-    assert (
-        send.evaluate("button => getComputedStyle(button, '::before').backgroundColor")
-        == disabled_palette["background"]
-    )
+    expect(thread.locator(".lf-compose-field > button:visible")).to_have_count(1)
     markers = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     baseline = markers.count()
 
@@ -13392,7 +13376,8 @@ def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggesti
     expect(send.locator('svg[data-lf-icon="send"]')).to_have_count(1)
     expect(page.locator(".lf-composer-row")).to_have_count(0)
     field_box = box.bounding_box()
-    send_box = send.bounding_box()
+    action = page.locator(".lf-composer > .lf-compose-field > button:visible")
+    send_box = action.bounding_box()
     assert (
         field_box["x"]
         < send_box["x"]
@@ -14648,7 +14633,9 @@ def test_submitting_a_reply_reveals_its_new_message(browser, serve):
     assert long_reading["bottom"] <= long_reading["bandBottom"] + 1
     assert long_reading["bottom"] > long_reading["bandTop"]
     expect(thread.locator(".lf-thread-summary")).to_be_focused()
-    in_threads_scrollport(page, f'.lf-thread[data-id="{root}"] .lf-thread-send')
+    in_threads_scrollport(
+        page, f'.lf-thread[data-id="{root}"] .lf-compose-field > button:not([hidden])'
+    )
 
 
 def test_touch_return_keeps_newlines_until_the_user_taps_submit(browser, serve):

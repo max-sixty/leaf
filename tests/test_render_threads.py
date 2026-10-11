@@ -3039,7 +3039,9 @@ def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):
     expect(bar).to_have_class(re.compile(r"\blf-response-open\b"))
     page.keyboard.press("Escape")
     expect(field).to_be_focused()
-    bar.locator(".lf-compose-submit").focus()
+    action = bar.locator(".lf-compose-field > button:visible")
+    action.focus()
+    expect(action).to_be_focused()
     page.keyboard.press("Escape")
     expect(bar).to_be_hidden()
 
@@ -7025,12 +7027,14 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
     )
 
     focus_panel_thread(page.locator(f'.lf-thread[data-id="{c1}"]'))
+    reply = page.locator(f'[data-id="{c1}"] .lf-thread-reply')
+    expect(reply).to_be_visible()
     page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolve').click()
     round_trip(page)
     outcome = page.locator(f'[data-id="{c1}"] .lf-resolve')
     expect(outcome).to_have_attribute("aria-label", "Resolved")
     expect(outcome.locator('svg[data-lf-icon="check"]')).to_have_count(1)
-    expect(page.locator(f'[data-id="{c1}"] .lf-thread-send')).to_be_hidden()
+    expect(reply).to_be_hidden()
     resolved = page.locator(f'[data-id="{c1}"] .lf-resolve').evaluate(
         "node => node.getBoundingClientRect().toJSON()"
     )

@@ -4977,15 +4977,16 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
     page.get_by_role("button", name="Close threads").tap()
     panel_settled(page, open=False)
 
-    # The page comment card's Send is the compact control a finger presses to start a
-    # page thread.
+    # The page comment's empty action and Send both keep a finger-sized aim.
     page_comment(page)
-    send = page.locator(".lf-page-comment-card .lf-general button")
-    expect(send).to_be_visible()
-    box = send.bounding_box()
-    assert box["width"] >= 43.9 and box["height"] >= 43.9, (
-        f"the page comment card's Send kept a mouse-sized aim: {box}"
-    )
+    for words in ("", "Review this page"):
+        write(page.locator(".lf-page-comment-card leaf-text"), words)
+        action = page.locator(".lf-page-comment-card .lf-general button:visible")
+        expect(action).to_be_visible()
+        box = action.bounding_box()
+        assert box["width"] >= 43.9 and box["height"] >= 43.9, (
+            f"the page comment card's action kept a mouse-sized aim: {box}"
+        )
     page.keyboard.press("Escape")
     expect(page.locator(".lf-page-comment-card")).to_be_hidden()
 
@@ -8232,7 +8233,9 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
     assert boxes["first"]["bottom"] <= boxes["height"] - insets["bottom"] + 1, boxes
 
 
-def test_the_page_comment_card_keeps_its_send_inside_the_side_safe_area(browser, serve):
+def test_the_page_comment_card_keeps_its_action_inside_the_side_safe_area(
+    browser, serve
+):
     """The page comment card stays inside both unsafe side edges, on a phone where it
     spans the window and beside it where it hangs from its control."""
     page = open_page(browser, serve(LONG_PAGE))
@@ -8245,6 +8248,9 @@ def test_the_page_comment_card_keeps_its_send_inside_the_side_safe_area(browser,
     for width in (500, 420):
         resized(page, width, 700)
         page_comment(page)
+        expect(
+            page.locator(".lf-page-comment-card .lf-general button:visible")
+        ).to_be_visible()
         boxes = page.evaluate(
             """() => {
               const rect = selector => {
@@ -8252,12 +8258,12 @@ def test_the_page_comment_card_keeps_its_send_inside_the_side_safe_area(browser,
                 return {left: r.left, right: r.right, top: r.top, bottom: r.bottom};
               };
               return {card: rect('.lf-page-comment-card'),
-                      send: rect('.lf-page-comment-card .lf-general button'),
+                      action: rect('.lf-page-comment-card .lf-general button:not([hidden])'),
                       viewport: {width: innerWidth, height: innerHeight}};
             }"""
         )
-        assert boxes["send"]["right"] <= boxes["viewport"]["width"] - 31 + 1, (
-            f"the page comment card's Send sat under the side safe area at {width}px: "
+        assert boxes["action"]["right"] <= boxes["viewport"]["width"] - 31 + 1, (
+            f"the page comment card's action sat under the side safe area at {width}px: "
             f"{boxes}"
         )
         assert boxes["card"]["left"] >= 23 - 1, (

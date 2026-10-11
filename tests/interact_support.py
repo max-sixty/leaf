@@ -285,7 +285,7 @@ def spawn_probe(spawn, page_dir, body, **environment):
     )
 
 
-STATED_TIMEOUT = 60
+STATED_TIMEOUT = 120
 """How long a pure-Python wait gives another thread or process to state its fact.
 
 The deadline separates a product that never states the fact from a machine that

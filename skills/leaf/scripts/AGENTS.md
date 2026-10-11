@@ -77,8 +77,8 @@ transport boundary exits, prints, or answers HTTP.
 - `http`: HTTP transport;
 - `layer`, `packages`, `vendoring`: package discovery and composition, package
   authoring gates, and page init and layer transitions;
-- `schema`, `structure`, `styles`: authored-page gates and the complete source
-  reading;
+- `schema`: the layer's JSON schemas and the page-directory vocabulary;
+- `structure`, `styles`: authored-page gates and the complete source reading;
 - `passages`, `anchor_capture`: the file-side text reading and anchor construction;
 - `render_checks`: browser probes;
 - `exporting`: a stamped version as one offline file;
@@ -110,9 +110,10 @@ author, `picture` owns the picture `page picture` draws of a drawing comment,
 
 Within `validation/`, `markup` owns shared document structure, `instances` owns
 registry-declared instance rules, `admission` owns what an agent's writer hands in,
-`compatibility` owns layer changes against the standing log, `source_history` owns
-predecessor readings and automatic anchor relocation,
-`source` composes current-document validation, and `command` owns the CLI and render handoff.
+`composition` validates a composed registry's catalog examples and builds the
+registry `page init` vendors, `source_history` owns predecessor readings and automatic
+anchor relocation, `source` composes current-document validation, and `command` owns
+the CLI and render handoff.
 
 ## Protocol references
 

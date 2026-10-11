@@ -210,7 +210,7 @@ def cmd_watch(harness: str, payload: dict) -> str | None:
 def main(harness: str, *, watch: bool = False) -> None:
     """Read one harness payload and dispatch it, without importing the CLI.
 
-    Both the application entry and the Click command enter here.
+    The application entry is the only caller.
     A watch owns leases, so it releases them when the harness terminates it.
     """
     import json

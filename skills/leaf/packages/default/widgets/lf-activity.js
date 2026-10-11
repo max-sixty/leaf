@@ -52,7 +52,7 @@ import {
   readThreads,
   relabel,
   watchHistory,
-  watchOwner,
+  whileConnected,
   keeps,
   keepsHidden,
   keepsText,
@@ -206,9 +206,9 @@ customElements.define(
         this.#printing = paper.matches;
         this.#watching.refresh();
       };
-      watchOwner(this, {
-        connect: () => paper.addEventListener("change", printing),
-        disconnect: () => paper.removeEventListener("change", printing),
+      whileConnected(this, (signal) => {
+        paper.addEventListener("change", printing, { signal });
+        return () => this.#reading.dispose();
       });
       this.#watching = watchHistory(this, (history, { ready }) => {
         this.#ready = ready;
@@ -219,10 +219,6 @@ customElements.define(
             if (loaded) this.#watching.refresh();
           });
       });
-    }
-
-    disconnectedCallback() {
-      this.#reading?.dispose();
     }
 
     #bind(item, row) {

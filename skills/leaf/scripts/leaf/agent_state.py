@@ -21,7 +21,6 @@ from .passages import page_passages
 from .projection import FrozenThreadReading, retirement_outcomes
 from .questions import collection
 from .refusals import Refused
-from .registry.reactions import described
 from .registry.storage import layer_metadata, require_registry
 from .revision_artifact import active_enclosing
 from .revisioning import activate_source
@@ -144,23 +143,19 @@ def _base_state(
             if not bare_reaction(thread)
         ],
         # Every reaction still standing — the agent-side reading of the marks
-        # the page paints. A package may attach `means` to its own vocabulary.
-        # On the page (`anchor`, or none for the page whole) while its thread is
-        # unresolved; in a thread (`parent`) while that thread is open.
+        # the page paints. On the page (`anchor`, or none for the page whole) while
+        # its thread is unresolved; in a thread (`parent`) while that thread is open.
         "reactions": [
-            described(
-                {
-                    "id": message["id"],
-                    "token": message["token"],
-                    "anchor": message.get("anchor"),
-                    "about": message.get("about"),
-                    "parent": message.get("parent"),
-                    "thread": thread_id,
-                    "revision": message.get("revision"),
-                    "seq": message["seq"],
-                },
-                registry,
-            )
+            {
+                "id": message["id"],
+                "token": message["token"],
+                "anchor": message.get("anchor"),
+                "about": message.get("about"),
+                "parent": message.get("parent"),
+                "thread": thread_id,
+                "revision": message.get("revision"),
+                "seq": message["seq"],
+            }
             for thread_id, thread in threads.items()
             if not thread["resolved"]
             for message in thread["msgs"]

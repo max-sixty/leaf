@@ -15582,26 +15582,30 @@ def test_every_carrying_hook_has_time_to_confirm_what_it_hands_over():
     and Stop hooks at least twice that: the rest covers uv's start, the imports,
     and the receipt after the clock stops."""
     floor = 2 * hook_transport_model.CONFIRM_WITHIN
-    for event in ("UserPromptSubmit", "Stop"):
-        [hook] = [
-            hook
-            for registration in _registrations("claude-code")[event]
-            for hook in registration["hooks"]
-            if not hook.get("asyncRewake")
-        ]
-        assert hook["timeout"] >= floor
-    [pi_timeout] = re.findall(
-        r"const HOOK_TIMEOUT_MS = ([\d_]+);",
-        (PLUGIN_ROOT / "hooks" / "pi.ts").read_text(),
-    )
-    assert int(pi_timeout.replace("_", "")) >= floor * 1000
+    for harness in REGISTRATIONS:
+        for event in ("UserPromptSubmit", "Stop"):
+            [hook] = [
+                hook
+                for registration in _registrations(harness)[event]
+                for hook in registration["hooks"]
+                if not hook.get("asyncRewake")
+            ]
+            assert hook["timeout"] >= floor, (harness, event)
+    # The modules that run the hook themselves bound it with their own copy.
+    for module in ("pi.ts", "claude-code.ts"):
+        [timeout] = re.findall(
+            r"const HOOK_TIMEOUT_MS = ([\d_]+);?$",
+            (PLUGIN_ROOT / "hooks" / module).read_text(),
+            re.MULTILINE,
+        )
+        assert int(timeout.replace("_", "")) >= floor * 1000, module
 
 
 def test_the_registered_watch_hook_wakes_the_session(claimed, tmp_path):
     """Claude Code's background Stop registration runs the watch, and its exit 2
     with stderr is the whole wake. Driven the way Claude Code drives it, through a
-    shell with the payload on stdin, because the wiring (the guard script, uv, the
-    exit status it passes through) is the subject."""
+    shell with the payload on stdin, because the wiring (the watch supervisor, uv,
+    the exit status it passes through) is the subject."""
     [hook] = [
         hook
         for entry in _registrations("claude-code")["Stop"]
@@ -15638,7 +15642,7 @@ def test_the_registered_watch_hook_wakes_the_session(claimed, tmp_path):
     (broken / "hooks" / "scripts").mkdir(parents=True)
     (broken / "pyproject.toml").write_text("not a project")
     shutil.copy(
-        PLUGIN_ROOT / "hooks" / "scripts" / "loop-guard.py",
+        PLUGIN_ROOT / "hooks" / "scripts" / "background-watch.py",
         broken / "hooks" / "scripts",
     )
     (broken / "bin").mkdir()
@@ -15654,9 +15658,11 @@ def test_cancelling_the_background_registration_never_wakes_the_session(
 ):
     """Cancellation stays quiet even if the child catches SIGTERM and exits zero."""
     project = tmp_path / "plugin"
-    guard = project / "hooks/scripts/loop-guard.py"
-    guard.parent.mkdir(parents=True)
-    guard.write_bytes((PLUGIN_ROOT / "hooks/scripts/loop-guard.py").read_bytes())
+    supervisor = project / "hooks/scripts/background-watch.py"
+    supervisor.parent.mkdir(parents=True)
+    supervisor.write_bytes(
+        (PLUGIN_ROOT / "hooks/scripts/background-watch.py").read_bytes()
+    )
     launcher = project / "bin/leaf"
     launcher.parent.mkdir()
     launcher.write_text(
@@ -15674,7 +15680,7 @@ def test_cancelling_the_background_registration_never_wakes_the_session(
     launcher.chmod(0o755)
     ready = tmp_path / "ready"
     watching = spawn(
-        [sys.executable, str(guard), str(ready)],
+        [sys.executable, str(supervisor), str(ready)],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -15773,9 +15779,11 @@ def test_the_registered_hook_leaves_library_execution_to_uv(
     Only the async watch needs a stdlib supervisor to translate its wake result.
     """
     project = tmp_path / "plugin"
-    guard = project / "hooks/scripts/loop-guard.py"
-    guard.parent.mkdir(parents=True)
-    guard.write_bytes((PLUGIN_ROOT / "hooks/scripts/loop-guard.py").read_bytes())
+    supervisor = project / "hooks/scripts/background-watch.py"
+    supervisor.parent.mkdir(parents=True)
+    supervisor.write_bytes(
+        (PLUGIN_ROOT / "hooks/scripts/background-watch.py").read_bytes()
+    )
     launcher = project / "bin/leaf"
     launcher.parent.mkdir()
     launcher.write_bytes((PLUGIN_ROOT / "bin/leaf").read_bytes())
@@ -15795,7 +15803,7 @@ def test_the_registered_hook_leaves_library_execution_to_uv(
     payload = json.dumps({"hook_event_name": event, "session_id": "hook-harness"})
     done = subprocess.run(
         (
-            [sys.executable, "-S", str(guard), *_registered_watch_arguments()]
+            [sys.executable, "-S", str(supervisor), *_registered_watch_arguments()]
             if watch
             else ["/bin/sh", "-c", _registered_hook_command(harness, event)]
         ),

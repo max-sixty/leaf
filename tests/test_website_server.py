@@ -3209,10 +3209,21 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     assert watcher is not None
     request.addfinalizer(watcher.close)
     thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
-    # An active editor holds the turn's update so this journey exercises the receipt
-    # beside held news; an idle panel thread now shows the update immediately.
+    # An active editor holds the turn's opening so this journey exercises the receipt
+    # beside held news; an idle panel thread streams it immediately. The reply joins
+    # the thread with its first words, not when the turn opens its seat.
     thread.locator("leaf-text").focus()
     turn.begin()
+    turn.reply_stream.update(
+        {
+            "message": {
+                "item": "msg-0",
+                "phase": "commentary",
+                "text": "Looking at the page.",
+                "complete": False,
+            }
+        }
+    )
     # Present the accepted turn before resolving it: coalescing these server writes
     # would never exercise a workflow receipt disappearing beside the news control.
     told(page)
@@ -4436,7 +4447,7 @@ def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
         "reply => window.__leafVerifier.replyShownAt(reply)", arg=reply
     )
     shown = page.evaluate("window.__leafVerifier.replyShownAt", reply)
-    assert shown["by"] == "message"
+    assert shown["by"] == "message" and shown["message"] == shown["at"]
     assert before <= shown["at"] <= page.evaluate("Date.now()")
 
 
@@ -5369,7 +5380,7 @@ class _DeployedPage:
         if script == "window.__leafVerifier.startVisibleReplyClock":
             return 100.0
         if script == "window.__leafVerifier.replyShownAt":
-            return {"at": 12_600.0, "by": "message"}
+            return {"at": 12_600.0, "by": "message", "message": 12_600.0}
         if script == "window.__leafStartup.reading":
             presented_at = (
                 self.presented_at
@@ -5787,6 +5798,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             "sinceSendMs": {
                 "acknowledged": [250.0],
                 "responseVisible": 12500.0,
+                "responseMessageVisible": 12500.0,
             },
             "responseShownBy": "message",
             "activity": [

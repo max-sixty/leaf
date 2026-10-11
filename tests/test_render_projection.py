@@ -186,7 +186,7 @@ def test_page_state_and_browser_share_the_decision_and_bound_sources(browser, se
         assert consumer["widget"] == identity
         stored = data_model.source_file(serve.page_dir, source)
         assert stored == serve.page_dir / inspection["data"]["dir"] / f"{source}.json"
-        assert json.loads(stored.read_text()) == value
+        assert json.loads(stored.read_text())["value"] == value
         widget = page.locator(f"#{identity}")
         expect(widget.locator("code")).to_have_text(value)
         rendered = widget.locator("[data-lf-origin]").evaluate(

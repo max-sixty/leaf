@@ -19,13 +19,21 @@
  * takes the target away. It is the draft's alone: `sentDrawing` leaves it out of the
  * comment.
  */
-export const DRAWING_FORMAT = "leaf-drawing/3";
-export const MAX_DRAWING_STROKES = 32;
-export const MAX_DRAWING_FRAME_DEPTH = 32;
-export const MAX_DRAWING_POINTS = 256;
-export const DRAWING_COORDINATE_LIMIT = 33554432;
-export const MAX_DRAWING_SAYS_LENGTH = 500; // code points
-const DRAWING_SCHEMES = ["light", "dark"];
+import { drawingSchema } from "./drawing-schema.js";
+
+// The bounds are the ones admission's schema states (generated from registry.json),
+// so the page keeps every drawing the log can hold and offers none the log refuses.
+const FIELDS = drawingSchema.properties;
+const PATH = FIELDS.frame.properties.path;
+const STEP = PATH.items.properties;
+export const DRAWING_FORMAT = FIELDS.format.const;
+export const MAX_DRAWING_STROKES = FIELDS.strokes.maxItems;
+export const MAX_DRAWING_FRAME_DEPTH = PATH.maxItems;
+export const MAX_DRAWING_POINTS = FIELDS.strokes.items.maxItems;
+export const DRAWING_COORDINATE_LIMIT =
+  FIELDS.strokes.items.items.prefixItems[0].maximum;
+export const MAX_DRAWING_SAYS_LENGTH = FIELDS.says.maxLength; // code points
+const TAG_PATTERN = new RegExp(STEP.tag.pattern);
 
 const bounded = (coordinate) =>
   Number.isFinite(coordinate) &&
@@ -34,7 +42,7 @@ const bounded = (coordinate) =>
 
 const validStroke = (stroke) =>
   Array.isArray(stroke) &&
-  stroke.length >= 2 &&
+  stroke.length >= FIELDS.strokes.items.minItems &&
   stroke.length <= MAX_DRAWING_POINTS &&
   stroke.every(
     (point) => Array.isArray(point) && point.length === 2 && point.every(bounded),
@@ -48,8 +56,8 @@ const validSize = (box) =>
 
 const validTag = (tag) =>
   typeof tag === "string" &&
-  tag.length <= 128 &&
-  /^[A-Za-z][A-Za-z0-9_.:-]*$/.test(tag);
+  tag.length <= STEP.tag.maxLength &&
+  TAG_PATTERN.test(tag);
 const validFrame = (frame) =>
   frame &&
   !Array.isArray(frame) &&
@@ -68,11 +76,11 @@ const validFrame = (frame) =>
       ) &&
       validTag(step.tag) &&
       Number.isInteger(step.index) &&
-      step.index >= 0 &&
-      step.index <= 65535 &&
+      step.index >= STEP.index.minimum &&
+      step.index <= STEP.index.maximum &&
       Number.isInteger(step.siblings) &&
-      step.siblings >= 1 &&
-      step.siblings <= 65536 &&
+      step.siblings >= STEP.siblings.minimum &&
+      step.siblings <= STEP.siblings.maximum &&
       (step.shadow === undefined || typeof step.shadow === "boolean"),
   );
 
@@ -108,7 +116,7 @@ function wellFormed(drawing) {
     ) &&
     drawing.format === DRAWING_FORMAT &&
     Array.isArray(drawing.strokes) &&
-    drawing.strokes.length >= 1 &&
+    drawing.strokes.length >= FIELDS.strokes.minItems &&
     drawing.strokes.length <= MAX_DRAWING_STROKES &&
     drawing.strokes.every(validStroke) &&
     (drawing.box === undefined || validSize(drawing.box)) &&
@@ -119,7 +127,7 @@ function wellFormed(drawing) {
         drawing.at.every(bounded))) &&
     (drawing.says === undefined || validWords(drawing.says)) &&
     validSize(drawing.viewport) &&
-    DRAWING_SCHEMES.includes(drawing.scheme),
+    FIELDS.scheme.enum.includes(drawing.scheme),
   );
 }
 

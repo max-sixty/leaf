@@ -4,6 +4,7 @@
    the original Thread. Optional consumers reconcile their outlets and async
    preparation independently of the core panel, margin, and read presentation. A later reading or
    unregister aborts its predecessor before any DOM from that predecessor commits. */
+import { randomId } from "../ids.js";
 import { reportPageError } from "../layer-client.js";
 import { under, renderedUnder, shadowHost } from "../shadow.js";
 import { clearThreadMirrors, renderThreadMirrors } from "./inline.js";
@@ -380,7 +381,7 @@ export function createPrimaryReader(owner, render, commands, update) {
         let slot = slots[depth];
         if (!slot) {
           slot = document.createElement("slot");
-          slot.name = "lf-thread-part-" + crypto.randomUUID();
+          slot.name = "lf-thread-part-" + randomId();
           slots.push(slot);
         }
         keeps(slot, "slot", previous?.name ?? null);

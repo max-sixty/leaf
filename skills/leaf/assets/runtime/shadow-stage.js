@@ -13,7 +13,11 @@
    left out: a module that wrote its own children would replace the one thing holding its
    look, and it would look right in exactly the session where someone remembered. Same
    reasoning as renderSaid — a rule each widget has to remember is a rule that gets
-   forgotten, and the forgetting is invisible until a page ships without it. */
+   forgotten, and the forgetting is invisible until a page ships without it.
+
+   The root is infrastructure owned here, not a template render container. Stage a
+   concrete container and render templates inside it; retaining that container across
+   stage updates keeps Lit's markers, native editors, and directive lifetimes intact. */
 import { SHADOW_STARTUP_CSS, shadowRules } from "./shadow.js";
 import {
   annotationMarkSheets,

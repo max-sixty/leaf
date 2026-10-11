@@ -38,11 +38,11 @@
    clipping `clear` does not.
 
    Beside, the surface's top stands level with `row`, and past its margin row where that
-   reaches past `clear` and the room beyond it holds the card's minimum measure
-   (`--thread-card-min`), so the row its thread has or will have stays usable. Where
-   it cannot hold the minimum, the surface stands over the row: the card carries its
-   own close and step controls, and the row shows again once it closes. Neither
-   choice reads the surface's own width or height, so the box
+   reaches past `clear` and the room beyond it holds the card's full preferred measure
+   (`--thread-card`). Message width takes priority over keeping the margin row clear:
+   where clearing it would narrow the message, the surface stands over the row. The
+   card carries its own close and step controls, and the row shows again once it closes.
+   Neither choice reads the surface's own width or height, so the box
    and the card make the same one. Under or over, its inline start follows `column`,
    independently of the block it keeps clear, and it keeps that start as it widens.
    That clearance chooses the initial seat. Once seated, quoted words carry both
@@ -291,9 +291,9 @@ export function commentSide({ clear, extent, boundary, width, scroller, coarse }
     : "top";
 }
 
-// The card's minimum width chooses the side and whether both surfaces stand past the
-// margin row. Its preferred measure caps the card's width. `commentPlacement` reads
-// the minimum itself, so the comment box and its card share one placement threshold.
+// The minimum width chooses the side; the preferred measure caps message width and
+// decides whether clearing the margin row would sacrifice it. `commentPlacement`
+// reads both, so the comment box and its sent card share the same placement rule.
 const rootLength = (name) =>
   parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
 export const cardMinimum = () => rootLength("--thread-card-min");
@@ -492,18 +492,20 @@ export function commentPlacement() {
       // sharing the same sizing, shift and coordinate conversion as an anchored box.
       clear ??= new DOMRect(boundary.left, boundary.top, minimumWidth, 0);
       // Beside on the right, keep the margin row usable when the room past it
-      // holds the card's minimum; otherwise the surface stands over it.
-      const past =
+      // holds the whole message measure; otherwise give that space to the message.
+      const past = (scale) =>
         side === "right" &&
         margin &&
         margin.right > clear.right + 0.5 &&
-        boundary.right - margin.right - COMMENT_GAP >= minimumWidth
+        boundary.right - margin.right - COMMENT_GAP >= cardMeasure() * scale.x
           ? margin.right
           : null;
-      const box =
-        past === null
-          ? clear
-          : new DOMRect(clear.left, clear.top, past - clear.left, clear.height);
+      const box = new DOMRect(
+        clear.left,
+        clear.top,
+        (past({ x: 1 }) ?? clear.right) - clear.left,
+        clear.height,
+      );
       // The compact editor and its sent card share one start. Reserve the declared
       // card footprint before a shorter editor's own width can put that start too far
       // toward the boundary, where later typing or reopening would have to move it.
@@ -527,6 +529,13 @@ export function commentPlacement() {
         async fn(state) {
           const { rects } = state;
           const scale = await positioningScale(state);
+          // The platform knows the surface's actual positioning scale. Renew the
+          // reference once in that space before offset and size read its rectangle.
+          const right = past(scale) ?? clear.right;
+          if (box.right !== right) {
+            box.width = right - box.left;
+            return { reset: { rects: true } };
+          }
           return {
             data: {
               scale,

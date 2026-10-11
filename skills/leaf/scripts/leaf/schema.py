@@ -296,6 +296,7 @@ EXTENSION_SCHEMA = {
         "x-inline": {"type": "boolean"},
         "x-language": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["pane"]},
+        "x-resident": {"enum": ["map"]},
         # Attributes holding line references into the nearest data body — the element's
         # own <pre>, or its enclosing data element's (lf-note's `at` names a line of its
         # lf-code) — by the numbers x-numbering gives that body, 1-based without it.
@@ -441,15 +442,17 @@ ATTRIBUTE_KEYS = (
 # The declarations a stylesheet reads, each painted on the element as `paint`: the room
 # it takes (x-space), whether it sets inline among words (x-inline), quotes what it holds
 # (x-exhibit), holds its own height (x-bound), draws into a box of a stated height
-# (x-height), the reading structure it supplies (x-reading-role), and whether it shows
+# (x-height), the reading structure it supplies (x-reading-role), the margin posture it
+# takes where it stands in a column's sidebar (x-resident), and whether it shows
 # one member at a time (x-views). Neither a stylesheet nor the prepaint, which runs
 # before the registry has loaded (`runtime/prepaint.js`), can read the registry, so
 # each is painted where a selector can ask. `authored` is
 # the attribute an occurrence writes to override its tag's or idiom's declaration.
 # `message` says
 # whether the mark holds in a thread's message too:
-# each is the element's own fact wherever it renders, except the room, which is the
-# document's to hand out; a message renders in the panel, whose width bounds it.
+# each is the element's own fact wherever it renders, except the room and the margin
+# posture, which are the document's to hand out; a message renders in the panel, whose
+# width bounds it and which has no margin.
 # `idiom` says a selector entry may declare the mark for the elements its selector
 # matches, as `.callout` declares the room: the mark's every reader reads its paint and
 # nothing paints it in a message, so delivery's paint is the whole of it. The others
@@ -474,6 +477,7 @@ DECLARED_MARKS = {
     "x-bound": {"paint": "data-lf-bound", "authored": "data-bound", "message": True},
     "x-height": {"paint": "data-lf-height", "authored": "data-height", "message": True},
     "x-reading-role": {"paint": "data-lf-reading-role", "message": True},
+    "x-resident": {"paint": "data-lf-resident", "message": False},
     "x-views": {"paint": "data-lf-views", "message": True},
 }
 

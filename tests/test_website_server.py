@@ -52,6 +52,7 @@ from leaf.http import page_delivery
 from leaf.leases import take_lease, waiter_lease_path
 from leaf.machine import pid_alive
 from leaf.packages import cmd_package_install
+from leaf.refusals import Refused
 from leaf.registry.storage import layer_packages
 from leaf.render_checks import rendered
 from leaf.revision_artifact import capture_artifact
@@ -504,7 +505,7 @@ def test_saved_website_record_restores_an_installed_layer(
         # package on another machine requires installing its original source there.
         # Refusal must leave the already-restored layer usable.
         registry = (recovered / "registry.json").read_bytes()
-        with pytest.raises(SystemExit, match="unknown package 'saved-widget'"):
+        with pytest.raises(Refused, match="unknown package 'saved-widget'"):
             cmd_init(recovered, tuple(layer_packages(recovered)))
         assert (recovered / "registry.json").read_bytes() == registry
         assert latest_revision(recovered) == revision
@@ -1231,6 +1232,46 @@ def test_a_follower_that_faults_still_hands_the_page_on(page_dir, monkeypatch):
 
     assert continued == [comment["id"]]
     assert "hosted-thread" not in harness.following_threads
+
+
+def test_a_refused_correction_receipt_still_hands_the_page_on(
+    page_dir, monkeypatch, capsys
+):
+    """A correction turn that cannot restart receipts what it owed, and the page can
+    refuse that receipt while a reply is still held. The refusal is recorded and
+    the page's next move is still started."""
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    harness = website_server.WebsiteCodexHarness("codex")
+    harness.following_threads.add("hosted-thread")
+    turn = unfollowed_turn(harness, page_dir)
+    turn.correction = {"source": "index.html"}
+
+    def no_server():
+        raise RuntimeError("no App Server")
+
+    def refused_receipt():
+        raise Refused("failure receipts wait for this turn to release the answer")
+
+    continued = []
+    monkeypatch.setattr(harness, "_ensure_server", no_server)
+    monkeypatch.setattr(turn, "_receipt_unanswered", refused_receipt)
+    monkeypatch.setattr(
+        harness, "attach", lambda target, event_id: continued.append(event_id)
+    )
+    harness._run_follow_turn(turn)
+
+    assert continued == [comment["id"]]
+    [record] = [
+        json.loads(line)
+        for line in capsys.readouterr().out.splitlines()
+        if json.loads(line)["event"] == "turn_receipt_refused"
+    ]
+    assert (
+        record["detail"] == "failure receipts wait for this turn to release the answer"
+    )
 
 
 def test_an_ending_on_an_unopenable_page_still_answers_every_move(
@@ -2185,7 +2226,7 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
     competing_writer_rejected = []
 
     def refuse(*args, **kwargs):
-        with pytest.raises(SystemExit, match="answered by this turn's messages"):
+        with pytest.raises(Refused, match="answered by this turn's messages"):
             post_reply(
                 page_dir,
                 comment["id"],

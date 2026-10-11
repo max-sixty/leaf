@@ -561,11 +561,13 @@ def test_the_feature_gallery_eyebrows_index_literal_code_names():
     """Every showcased element is indexed by a code name, never descriptive prose."""
     authored = FEATURE_GALLERY.read_text(encoding="utf-8")
     gallery_registry = json.loads(
-        (schema_model.BUNDLED_PACKAGES / "gallery" / "registry.json").read_text(
+        (FEATURE_GALLERY.with_suffix(".page") / "registry.json").read_text(
             encoding="utf-8"
         )
     )
-    apparatus = {tag for tag in gallery_registry if tag.startswith("lf-")}
+    apparatus = {
+        tag for tag, entry in gallery_registry.items() if entry.get("x-exhibit")
+    }
     assert apparatus
     eyebrows = re.findall(
         r'<p class="eyebrow bg-feature-elements">(.*?)</p>',

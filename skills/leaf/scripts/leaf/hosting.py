@@ -24,6 +24,7 @@ from .detached import Handshake, StartRefused, starting_detached
 from .files import read_json
 from .harness import Harness, claim_harness, harness_argument, session_harness
 from .leases import page_locked, release_lease, take_lease
+from .refusals import Refused
 from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
     host_key,
@@ -358,7 +359,7 @@ def _serve_claim(
     """Validate this launch, for `harness`, against desired state and page
     ownership."""
     if revive and (not service or not service["enabled"]):
-        sys.exit("service was stopped; not reviving")
+        raise Refused("service was stopped; not reviving")
 
     claimed = bool(
         not standing
@@ -366,11 +367,11 @@ def _serve_claim(
         and claimant_matches(page.active_claim, harness)
     )
     if not standing and harness is not None and not claimed:
-        sys.exit(
+        raise Refused(
             f"this harness session no longer owns {page_dir}; the server was not started"
         )
     if revive and service and service["lifetime"] == "session" and not claimed:
-        sys.exit("this session no longer owns the service; not reviving")
+        raise Refused("this session no longer owns the service; not reviving")
     return claimed
 
 
@@ -387,12 +388,12 @@ def _reuse_server(page_dir: Path, host: str | None, standing: bool) -> str | Non
     if not existing:
         return None
     if host and urlsplit(existing["url"]).hostname != host.lower():
-        sys.exit(
+        raise Refused(
             f"already serving at {existing['url']}; "
             "leaf server stop first, then re-run with --host"
         )
     if standing and existing["lifetime"] != "standing":
-        sys.exit(
+        raise Refused(
             f"already serving as a session server at {existing['url']}; "
             "leaf server stop first, then re-run with --standing"
         )
@@ -409,7 +410,7 @@ def _take_server_lease(page_dir: Path):
     lease = take_lease(page_dir / SERVER_LOCK, prepare=clear_identity)
     if lease is not None:
         return lease
-    sys.exit(f"another server run is serving {page_dir}; re-run")
+    raise Refused(f"another server run is serving {page_dir}; re-run")
 
 
 def _service_record(
@@ -491,7 +492,7 @@ def cmd_serve(
                         (access["bind"], access.get("port", 0)), endpoint
                     )
                 except OSError as error:
-                    sys.exit(f"can't serve {page_dir}: {error}")
+                    raise Refused(f"can't serve {page_dir}: {error}")
                 lease.write(httpd.server_id.encode())
                 lease.flush()
                 rows = RowPublisher(page_dir, httpd.server_id)
@@ -811,19 +812,19 @@ def restarting_server(page_dir: Path):
             page_dir, standing=standing, revive=True, harness=session_harness()
         )
     except StartRefused as error:
-        sys.exit(f"{page_dir}'s server did not start again: {error}")
+        raise Refused(f"{page_dir}'s server did not start again: {error}")
 
 
 def _restarts_for_this_session(page_dir: Path) -> bool:
     """Whether this command may restart a session service: its claim is this
-    session's. False when no live session holds it any more; an exit when
+    session's. False when no live session holds it any more; a refusal when
     another one does."""
     claim = page_claim(page_dir)
     if not claim_is_active(claim):
         return False
     harness = session_harness()
     if harness is None or not claimant_matches(claim, harness):
-        sys.exit(
+        raise Refused(
             f"{page_dir} is served for another session, and only that session can "
             "start its server again; re-vendor it from there, or take the page over "
             f"first with `leaf server start {page_dir}`"

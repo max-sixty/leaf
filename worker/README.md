@@ -224,7 +224,8 @@ from the user's. `turn_interrupted` and
 `turn_abandoned_interrupt_started` and `turn_abandoned_interrupt_completed` the same for
 a turn found running on a resumed thread. `turn_failure_reported` says how many of that
 delivery's moves the harness settled with a failure receipt and how many it could not; a
-turn that answered everything it was given writes no such record.
+turn that answered everything it was given writes no such record. `turn_receipt_refused`
+records a receipt the page turned down, after which the page is still handed on.
 `container_continuation_receipted` marks a start the Worker's dispatch is not holding
 — a move a follower found waiting when its turn ended — and says whether the
 `startup_failed` receipt it wrote settled that move, so a `container_start_failed` on

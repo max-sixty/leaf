@@ -28,6 +28,7 @@ from leaf.event_log import (
 )
 from leaf.files import read_json, unfinished_publications
 from leaf.machine import pid_alive, state_home
+from leaf.refusals import Refused
 from leaf.schema import (
     STATUS_FILE,
     UNNAMED_AGENT,
@@ -355,9 +356,7 @@ class PageTransaction:
         with flocked(session_lock_path(claim["id"])):
             projected = readable_claim(claim)
             if not claim_is_active(projected):
-                raise RuntimeError(
-                    "the prepared acquisition no longer has a live session"
-                )
+                raise Refused("the prepared acquisition no longer has a live session")
             previous = self.claim
             yield previous, projected
             publish_claim(self.page_dir, claim)

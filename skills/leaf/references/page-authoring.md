@@ -466,6 +466,9 @@ leading `<strong>`. A data-bodied widget such as `lf-code` holds escaped
 notation in `<pre>`, because its whitespace is part of the data. Escape `&`
 first, then `<` and `>`; any other order can silently decode entity text.
 
+Format filenames and paths as inline code, using backticks in Markdown and
+`<code>` in HTML; use an authored link when the file has a known destination.
+
 Display source snippets as `<pre><code class="language-javascript">…</code></pre>`,
 or `lf-code language="javascript"` for a line-numbered walkthrough, naming the actual
 language from `$languages.names`. Format illustrative code with the language's usual

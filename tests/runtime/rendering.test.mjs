@@ -67,6 +67,7 @@ test("finite preparation retires once and owes its final quiet update", async ()
   const second = holdRendering();
   for (let i = 0; i < 10; i++) await update();
   assert.equal(renderingSettled(), false);
+  assert.equal(renderingSettled({ includePreparations: false }), true);
   assert.equal(queued.size, 0, "a pending preparation does not poll frames");
   first();
   first();

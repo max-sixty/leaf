@@ -205,7 +205,10 @@ export function sizeObserver(callback, { counted = true } = {}) {
   });
 }
 
-export const renderingSettled = () => (quiet && preparations === 0) || !rendered();
+// A sensor that tracks each preparation's landing separately reads the rendering pass
+// without waiting for unrelated preparations. Other readers wait for the full result.
+export const renderingSettled = ({ includePreparations = true } = {}) =>
+  (quiet && (!includePreparations || preparations === 0)) || !rendered();
 
 function rendered() {
   if (document.hidden) return false;

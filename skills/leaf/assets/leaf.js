@@ -36,6 +36,7 @@ import { approvalBlockingQuestions } from "./runtime/questions/model.js";
 import { beginRead } from "./runtime/state-feed.js";
 import {
   applicationState,
+  observeWidgetPreparations,
   whenApplicationPresented,
 } from "./runtime/semantic-state.js";
 import { createEngagement } from "./runtime/composing/engagement.js";
@@ -201,12 +202,14 @@ holdArrivingBounds();
 // scene readings answer different questions: which readiness fact the page has yet to state
 // (`pageReadiness`), and whether its chrome and geometry have caught up with the input
 // handled since, and which native layers currently expose reading and controls.
-// Job lifecycle tracing binds at enqueue without replacing any rendering callback.
+// Job lifecycle tracing binds at enqueue without replacing any rendering callback, and
+// widget preparation tracing at each declaration and its settlement.
 const validationEntry = document.querySelector("script[data-lf-entry]");
 if (validationEntry) {
   validationEntry.lfReadiness = pageReadiness;
   validationEntry.lfRenderingSettled = renderingSettled;
   validationEntry.lfObserveQueuedWork = observeQueuedWork;
+  validationEntry.lfObserveWidgetPreparations = observeWidgetPreparations;
   validationEntry.lfNativeLayers = nativeLayers;
 }
 

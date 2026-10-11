@@ -25,13 +25,7 @@ import {
   targetParts,
   targetRange,
 } from "/runtime/resolved-target.js";
-import {
-  blockAt,
-  pageRange,
-  pageText,
-  quoteFrom,
-  segmentsIn,
-} from "/runtime/passages.js";
+import { blockAt, pageRange, quoteFrom, segmentsIn } from "/runtime/passages.js";
 import { pageSelection, selectionAnchor } from "/runtime/composing/capture.js";
 import { closeLayer, holdFocus, focusDestination } from "/runtime/focus.js";
 import { coarsePointer } from "/runtime/pointer.js";
@@ -267,7 +261,7 @@ export function createFloatingResponsePlacement({
       const retained = selectedRange(anchor);
       if (retained) return rangeGeometry(retained);
     }
-    const found = anchor ? resolveAnchor(anchor, pageText()) : null;
+    const found = anchor ? resolveAnchor(anchor) : null;
     if (!anchor || !standsIn(anchor, found)) return null;
     const words = anchor.quote ? passageGeometry(found) : null;
     if (words) return words;
@@ -461,7 +455,7 @@ export function createFloatingResponsePlacement({
       floats: () => Boolean(response.anchor && response.floating),
       away: () => fabWithheld,
       bringBack: (behavior) => {
-        const found = resolveAnchor(response.anchor, pageText());
+        const found = resolveAnchor(response.anchor);
         const range =
           response.anchor.quote &&
           (targetRange(found) ?? selectedRange(response.anchor));

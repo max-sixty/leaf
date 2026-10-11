@@ -824,6 +824,11 @@ def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(
     page = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     expect_comment_notes(page, "#draft-ops", 1)
+    # The thread's margin row stands at the same seat as its note: the widget, not the
+    # paragraph its Markdown body renders.
+    expect(page.locator("[data-lf-margin-for]")).to_have_attribute(
+        "data-lf-margin-for", "draft-ops"
+    )
     page.locator("#draft-ops .lf-draft-body").dblclick()
     assert (
         page.locator("#draft-ops leaf-text").evaluate("el => el.value") == DRAFT_TEXT

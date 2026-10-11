@@ -62,16 +62,7 @@
       let worn = { attributes: {}, properties: {} };
       const dress = (next = { attributes: {}, properties: {} }) => {
         const root = document.documentElement;
-        for (const name of Object.keys(worn.attributes))
-          if (!Object.hasOwn(next.attributes, name))
-            root.lfInitial.setRuntimeRootAttribute(root, name, null);
-        for (const name of Object.keys(worn.properties))
-          if (!Object.hasOwn(next.properties, name))
-            root.lfInitial.removeRuntimeRootStyle(root, name);
-        for (const [name, value] of Object.entries(next.attributes))
-          root.lfInitial.setRuntimeRootAttribute(root, name, value);
-        for (const [name, value] of Object.entries(next.properties))
-          root.lfInitial.setRuntimeRootStyle(root, name, value);
+        root.lfInitial.wear(root, next);
         worn = next;
       };
       // Aim cancels native mousedown focus and places its editor after layout. A

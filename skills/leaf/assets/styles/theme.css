@@ -63,7 +63,7 @@
    A floor asks about the room its rule governs. Whether a margin resident (the rail, a
    contents map, a sidebar, a sidenote) stands in the margin is measured, since what it
    asks is the room the page's Layout and CSS left beside `main`: the margin pass writes
-   the answer on `main` (`settleResidency`, margin-layout.js) and the rules below key on
+   the answer on `main` (prepaint.js, `residency`) and the rules below key on
    it. A narrow column's facts ask `lf-shell` (640), one answering to the device, such as
    a phone's vertical rhythm, asks the window, and a package's widget asks its own box
    (references/packages.md).
@@ -293,7 +293,7 @@
      while the document moves, so the whole left edge is spoken for wherever it is in
      margin form. Its 240px box plus the ordinary 24px gutter is enough for short link
      labels without making a second prose column. The rule beside aside.sidebar spends
-     it; the margin pass decides when the page can afford it (`settleResidency`). */
+     it; the margin pass decides when the page can afford it (prepaint.js, `residency`). */
   --sidebar: 264px;
   /* A contents map at rest in the margin: its spine and the gutter beside it. */
   --map: 48px;
@@ -908,7 +908,7 @@ main {
 @property --lf-free-l { syntax: "<length>"; inherits: true; initial-value: 99999px; }
 @property --lf-free-r { syntax: "<length>"; inherits: true; initial-value: 99999px; }
 /* Registered so the runtime reads each margin resident's width in pixels, whatever
- * unit a page restates it in (margin-layout.js, `settleResidency`). */
+ * unit a page restates it in (prepaint.js, `residency`). */
 @property --rail { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --map { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --sidebar { syntax: "<length>"; inherits: true; initial-value: 0px; }

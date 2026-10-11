@@ -15,8 +15,9 @@ import {
   inTopLayer,
   nameAnchor,
   scrollsWith,
-} from "./anchor-names.js";
+} from "./css-anchors.js";
 import { paintClips, shownBox } from "./geometry.js";
+import { hasArea, intersect } from "./rect.js";
 import { atLayoutPrecision, keeps, layoutPx } from "./keeps.js";
 import {
   followScroll,
@@ -190,7 +191,7 @@ export function paintStand(box = null) {
 }
 
 // The box an anchor carries `el` by for a stand at `root`: its anchor box
-// (anchor-names.js), where every scroll that moves `el` moves that box with it
+// (css-anchors.js), where every scroll that moves `el` moves that box with it
 // (`scrollsWith`), or that box's own parts where `el` draws none. An anchor positions a
 // box only where it is laid out before that box, earlier in the document and outside
 // the top layer; null otherwise, and where the browser has no anchors.
@@ -711,16 +712,10 @@ export function placement(
   for (const { box: holder, band, axes } of cuts.bands)
     levels.push({ band, axes, holder });
   let shown = rect;
-  for (const { band, axes } of levels)
-    shown = {
-      left: axes.x ? Math.max(shown.left, band.left) : shown.left,
-      top: axes.y ? Math.max(shown.top, band.top) : shown.top,
-      right: axes.x ? Math.min(shown.right, band.right) : shown.right,
-      bottom: axes.y ? Math.min(shown.bottom, band.bottom) : shown.bottom,
-    };
+  for (const { band, axes } of levels) shown = intersect(shown, band, axes);
   return {
     rect,
-    shown: shown.right > shown.left && shown.bottom > shown.top ? shown : null,
+    shown: hasArea(shown) ? shown : null,
     shapeKey: `${rect.right - rect.left}:${rect.bottom - rect.top}`,
     levels,
     surface,

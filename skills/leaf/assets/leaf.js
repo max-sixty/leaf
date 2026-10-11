@@ -1,5 +1,5 @@
-import { registerSampleCommand, onSampleNotice } from "./runtime/sample-child.js";
 /* Leaf runtime boot and application composition root. */
+import { registerSampleCommand, onSampleNotice } from "./runtime/sample-child.js";
 import "./vendor/browser-runtime.js";
 import "./runtime/interaction-log.js";
 // Restored panels and the first keyboard gesture share the ordinary synchronous
@@ -28,7 +28,7 @@ import {
   PAGE_INTERFACE,
   PRESENTATION,
 } from "./runtime/presentation.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./runtime/page-paint.js";
+import { PAGE_PAINT_ATTRIBUTE, pagePresented } from "./runtime/page-paint.js";
 import { nextFrame, renderingSettled } from "./runtime/rendering.js";
 import { observeQueuedWork } from "./runtime/queued-work.js";
 import { mountApplication } from "./runtime/application.js";
@@ -133,25 +133,6 @@ import {
 import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
 import { holdToRead } from "./runtime/held-word.js";
 
-await document.documentElement.lfSample?.ready;
-initializeServedDocument();
-keepPageRulesOffLayer();
-holdArrivingBounds();
-
-// A published shell may bundle the entry without publishing its source modules beside
-// it. Keep the synchronous validation seam on Leaf's own bootstrap element so render
-// checks can inspect either distribution without turning it into a package API. These
-// scene readings answer different questions: which readiness fact the page has yet to state
-// (`pageReadiness`), and whether its chrome and geometry have caught up with the input
-// handled since, and which native layers currently expose reading and controls.
-// Job lifecycle tracing binds at enqueue without replacing any rendering callback.
-const validationEntry = document.querySelector("script[data-lf-entry]");
-if (validationEntry) {
-  validationEntry.lfReadiness = pageReadiness;
-  validationEntry.lfRenderingSettled = renderingSettled;
-  validationEntry.lfObserveQueuedWork = observeQueuedWork;
-  validationEntry.lfNativeLayers = nativeLayers;
-}
 import { overflowMenu } from "./runtime/banner-toolbar.js";
 import {
   leavesOffered,
@@ -186,7 +167,6 @@ import {
   reflectKeys,
 } from "./runtime/keyboard/scopes.js";
 import { watchDisclosures } from "./runtime/keyboard/disclosure.js";
-import { createStanding } from "./runtime/standing.js";
 import { mountRepaint, repaint, repaintPage } from "./runtime/repaint.js";
 import { openResidency } from "./runtime/content-layout.js";
 import {
@@ -207,6 +187,26 @@ import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
 import { offer } from "./runtime/widget-elements.js";
 import { retainUserIntent, restrictUserIntent } from "./runtime/user-intent.js";
+
+await document.documentElement.lfSample?.ready;
+initializeServedDocument();
+keepPageRulesOffLayer();
+holdArrivingBounds();
+
+// A published shell may bundle the entry without publishing its source modules beside
+// it. Keep the synchronous validation seam on Leaf's own bootstrap element so render
+// checks can inspect either distribution without turning it into a package API. These
+// scene readings answer different questions: which readiness fact the page has yet to state
+// (`pageReadiness`), and whether its chrome and geometry have caught up with the input
+// handled since, and which native layers currently expose reading and controls.
+// Job lifecycle tracing binds at enqueue without replacing any rendering callback.
+const validationEntry = document.querySelector("script[data-lf-entry]");
+if (validationEntry) {
+  validationEntry.lfReadiness = pageReadiness;
+  validationEntry.lfRenderingSettled = renderingSettled;
+  validationEntry.lfObserveQueuedWork = observeQueuedWork;
+  validationEntry.lfNativeLayers = nativeLayers;
+}
 
 // Automatic recovery belongs to this arrival. A press made while its presentation
 // waits owns the page; recovery must not capture a fresh focus intent after that wait.
@@ -836,7 +836,7 @@ goToSequence = createGoToSequence({
   stopGlide,
   coveringAuxiliarySurface: auxiliarySurfaces.coveringSurface,
 });
-const standing = createStanding({
+const standingPainters = {
   markHere: questions.markHere,
   paintStanding: anchorPaint?.paintStanding,
   paintSelectedMarginEntries: () =>
@@ -855,7 +855,7 @@ const standing = createStanding({
   paintCoreControls,
   paintVersionShortcuts: version.paintShortcuts,
   paintInputs: inputs.paintInputs,
-});
+};
 
 const skipToChrome = offer("button", "lf-skip", "Skip to Leaf controls");
 skipToChrome.onclick = () => {
@@ -950,12 +950,11 @@ if (!offlineInteractive) {
   declareLeavesKeys();
   watchDisclosures(document);
   mountRepaint({
+    ...standingPainters,
     reflectFirstScopes,
     reflectKeys,
-    paintStandingContent: standing.paintStandingContent,
     syncLayout: layout.syncLayout,
     pageShifted: pageGeometry.pageShifted,
-    paintStandingGeometry: standing.paintStandingGeometry,
   });
 } else {
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, chromeSheet];
@@ -963,7 +962,7 @@ if (!offlineInteractive) {
   document.body.append(chromeRoot);
   // Exports retain image inspection, but no page controls. Their other standing is
   // what a widget's own box shows, such as an options group's addition field.
-  mountRepaint({ paintStandingGeometry: inputs.paintInputs, reflectKeys });
+  mountRepaint({ paintInputs: inputs.paintInputs, reflectKeys });
 }
 
 // Widget commands belong to interactive documents, including offline exports.
@@ -1044,9 +1043,9 @@ const { landArrival, savedView } = offlineInteractive
 const savedComposer = offlineInteractive ? null : selectionComposer.pendingComposer();
 
 async function presentPage() {
-  if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
+  if (pagePresented()) return;
   await whenApplicationPresented();
-  if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
+  if (pagePresented()) return;
   setAnchoringReady(true);
   try {
     const draftOpened =

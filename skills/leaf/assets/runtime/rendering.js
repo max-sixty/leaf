@@ -1,10 +1,12 @@
-/* Leaf's one rendering loop, and its staged completion reading for the page's chrome
-   and geometry. `renderingSettled()` waits for finite preparations and the counted
-   queue's quiet update. `renderingSettled({ includePreparations: false })` reads only
-   queue quietness: no rendering callback is waiting and the last update produced no
-   size change a Leaf observer heard. A preparation can wait while this queue rests.
-   Readiness needs complete settlement; a gesture's counted rendering ends at queue quietness,
-   so unrelated work while its preparation waits does not become that gesture's.
+/* Leaf's one rendering loop and structured renderingState for chrome and geometry.
+   updatesSettled says no queued update is waiting and the last update produced no
+   size change a Leaf observer heard. preparationsSettled says no registered finite
+   preparation is waiting. Full rendering readiness requires both; an observer of
+   intermediate paint can read updatesSettled while preparation remains pending.
+   Each field is true when that axis is settled. Hidden documents read true on
+   both axes because they owe no visible paint until they become visible again.
+   A reader outside the page waits on those facts after a gesture rather than
+   guessing a number of frames.
 
    Leaf's rendering callbacks and size observers go through this module: `nextRender`,
    `nextFrame` and `cancelRender` for settling work, `nextAnimation` and
@@ -226,10 +228,13 @@ export function sizeObserver(callback, { counted = true } = {}) {
   });
 }
 
-// A sensor that tracks each preparation's landing separately reads the rendering pass
-// without waiting for unrelated preparations. Other readers wait for the full result.
-export const renderingSettled = ({ includePreparations = true } = {}) =>
-  (quiet && (!includePreparations || preparations === 0)) || !rendered();
+export const renderingState = () => {
+  const visible = rendered();
+  return {
+    updatesSettled: quiet || !visible,
+    preparationsSettled: preparations === 0 || !visible,
+  };
+};
 
 function rendered() {
   if (document.hidden) return false;

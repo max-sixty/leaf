@@ -1478,7 +1478,7 @@ export default class extends HTMLElement {
     assert page.evaluate("reconnectedReady") is False
     assert (
         page.evaluate(
-            "document.querySelector('script[data-lf-entry]').lfRenderingSettled()"
+            "Object.values(document.querySelector('script[data-lf-entry]').lfRenderingState()).every(Boolean)"
         )
         is False
     )
@@ -1591,7 +1591,7 @@ def test_preparation_waits_for_all_capable_work(browser, serve, mode):
         )
     one_frame(page)
     assert not page.evaluate(
-        "document.querySelector('script[data-lf-entry]').lfRenderingSettled()"
+        "Object.values(document.querySelector('script[data-lf-entry]').lfRenderingState()).every(Boolean)"
     )
     if mode in {"reconnected", "registered-detached"}:
         page.evaluate("finishPreparation()")

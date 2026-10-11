@@ -491,8 +491,10 @@ transition to stateful interaction; its synchronous `PRESENTATION` signal lets
 box-derived apparatus replace provisional geometry before the presented state
 paints. A reader outside the page waits on `pageReadiness`, through
 `wait_until_ready` in Python, rather than combining these stamps.
-`renderingSettled` in `runtime/rendering.js` is its last stage and also a live
-reading of its own: whether chrome has caught up with input since.
+`renderingState` in `runtime/rendering.js` supplies its last stage and a live
+reading of its own: `updatesSettled` says chrome has caught up with queued work;
+`preparationsSettled` says registered finite preparation has landed. Full readiness
+requires both; readers inspecting intermediate paint can select the first.
 
 ## Authoritative projection
 

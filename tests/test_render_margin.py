@@ -797,7 +797,7 @@ def test_a_margin_entry_label_starts_at_its_settled_place(browser, serve):
             control = page.get_by_role("button", name=f"Read {behavior}", exact=True)
             expect(control).to_be_visible()
             page.wait_for_function(
-                "document.querySelector('script[data-lf-entry]').lfRenderingSettled()"
+                "Object.values(document.querySelector('script[data-lf-entry]').lfRenderingState()).every(Boolean)"
             )
             reading = control.evaluate(
                 """async control => {

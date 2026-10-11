@@ -21,8 +21,7 @@
 // preparation it began (`observePreparations`) works on in a promise the loop
 // cannot see; the gesture owns that preparation's landing, as a rendering from the
 // task that settles it until the loop settles again, and nothing while it waits. It
-// began one only where the widget declared it inside a callback that input's work
-// ran (`lfInputWork.current`), such as the toggle its summary activation opened.
+// began one only when its declaration carries that input's exact callback source.
 // Native effects it began retain only their sampled displacement within their
 // own subtree; their continued lifetime never owns unrelated page movement.
 // Native scroll effects belong to their retained scroll source, regardless of the
@@ -138,9 +137,8 @@
   // A preparation owns only its source-bound landing below. Waiting for its full
   // settlement here would give the input every unrelated move while it waits.
   const settled = () =>
-    document.querySelector("script[data-lf-entry]")?.lfRenderingSettled?.({
-      includePreparations: false,
-    }) ?? true;
+    document.querySelector("script[data-lf-entry]")?.lfRenderingState?.()
+      .updatesSettled ?? true;
   // An animation that can move a box: one of its keyframes sets a geometric property.
   const moves = (animation) =>
     animation.effect
@@ -1144,6 +1142,7 @@
   // and of each element holding it at the key; the animations already moving any of
   // them; and until when the typing rule reads it.
   const renderings = [];
+  const inputRenderings = new WeakMap();
   let open = null;
   // The typing rule stops reading the open rendering, which runs on.
   const unwatch = () => {
@@ -1159,7 +1158,7 @@
     }
     open = null;
   };
-  const begin = (start, typing = null, own = new Set()) => {
+  const begin = (start, typing = null, own = new Set(), event = null) => {
     end();
     open = {
       start,
@@ -1169,40 +1168,36 @@
       told: false,
       last: false,
       typing,
+      event,
     };
     renderings.push(open);
-    return open;
+    if (event) inputRenderings.set(event, open);
   };
   // The renderings preparations' landings opened, each running until the loop settles
-  // as an input's own does. A preparation is an input's only where its widget declared
-  // it inside a callback that input's work ran (`lfInputWork.current`), such as the
-  // toggle its summary activation opened; the identity the runtime hands to both phases
-  // carries that cause across the widget's native awaits to the settlement. One a
-  // timer, news or a script started stays passive, whatever input overlaps it. The
-  // landing inherits the input rendering's effects and typing where the watch began one
-  // for that input's own event.
-  const renderingOf = new WeakMap();
+  // as an input's own does. The canonical callback source identifies the input that
+  // began each preparation; sharing a widget or overlapping its rendering is no cause.
   const landing = new Set();
   const preparing = new WeakMap();
   const prepared = (phase, preparation) => {
     if (phase === "begin") {
       const source = window.lfInputWork.current();
-      if (source && source.event.type !== "storage")
-        preparing.set(preparation, renderingOf.get(source.event) ?? null);
+      const owner = source && inputRenderings.get(source.event);
+      if (owner) preparing.set(preparation, owner);
       return;
     }
-    if (!preparing.has(preparation)) return;
     const owner = preparing.get(preparation);
+    if (!owner) return;
     preparing.delete(preparation);
     if (phase === "cancel") return;
     const rendering = {
       start: nativePerformance.now(),
       first: true,
       through: Infinity,
-      own: owner?.own ?? new Set(),
+      own: owner.own,
       told: false,
       last: false,
-      typing: owner?.typing ?? null,
+      typing: owner.typing,
+      event: owner.event,
     };
     landing.add(rendering);
     renderings.push(rendering);
@@ -1262,32 +1257,36 @@
     nativeFrame(tick);
   };
   nativeFrame(tick);
-  window.lfInputWork.subscribeEdits(({ event, node: field }) => {
+  window.lfInputWork.subscribeEdits(({ node: field, event }) => {
     const holding = [];
     for (let at = field; at instanceof Element; at = up(at)) holding.push(at);
     const start = nativePerformance.now();
     const at = read(start, false);
-    const rendering = begin(start, {
-      field,
-      at,
-      found: boxes(
-        holding.filter((node) => {
-          const paint = paintAt(node, at);
-          return (
-            node === field ||
-            paint.reading ||
-            paint.control ||
-            paint.reflow ||
-            paintedHolder(node)
-          );
-        }),
-      ),
-      moving: holding
-        .flatMap((node) => node.getAnimations())
-        .filter((animation) => animation.playState === "running" && moves(animation)),
-      until: Infinity,
-    });
-    renderingOf.set(event, rendering);
+    begin(
+      start,
+      {
+        field,
+        at,
+        found: boxes(
+          holding.filter((node) => {
+            const paint = paintAt(node, at);
+            return (
+              node === field ||
+              paint.reading ||
+              paint.control ||
+              paint.reflow ||
+              paintedHolder(node)
+            );
+          }),
+        ),
+        moving: holding
+          .flatMap((node) => node.getAnimations())
+          .filter((animation) => animation.playState === "running" && moves(animation)),
+        until: Infinity,
+      },
+      new Set(),
+      event,
+    );
   });
   // A viewport resize is input, and its new size is the fact. Chrome lays out the
   // resized viewport before dispatching resize, which precedes the frame's callbacks,
@@ -1318,9 +1317,11 @@
   const heard = (event) => {
     if (!event.isTrusted || (event.type === "pointermove" && !event.buttons)) return;
     if (event.type === "pointerdown") presses.set(event.pointerId, new Set());
-    renderingOf.set(
+    begin(
+      nativePerformance.now(),
+      null,
+      presses.get(event.pointerId) ?? new Set(),
       event,
-      begin(nativePerformance.now(), null, presses.get(event.pointerId) ?? new Set()),
     );
     if (event.type === "click") presses.delete(event.pointerId);
   };

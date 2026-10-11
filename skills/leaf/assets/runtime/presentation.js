@@ -93,7 +93,7 @@ import { applicationPresented } from "./semantic-state.js";
 import { reportPageError } from "./layer-client.js";
 import { activityTransitionAt } from "./presence.js";
 import { watchArrivals } from "./arrivals.js";
-import { renderingSettled } from "./rendering.js";
+import { renderingState } from "./rendering.js";
 import { highlightBlocks } from "./syntax.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 import { keeps } from "./keeps.js";
@@ -171,7 +171,7 @@ const READINESS = [
   ],
   ["presented", () => pagePresented() && applicationPresented()],
   ["arrived", () => arriving.size === 0],
-  ["rendering", () => renderingSettled()],
+  ["rendering", () => Object.values(renderingState()).every(Boolean)],
 ];
 const READINESS_STAGES = new Set(READINESS.map(([stage]) => stage));
 

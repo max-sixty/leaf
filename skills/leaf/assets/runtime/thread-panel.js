@@ -15,6 +15,7 @@ import { retainUserIntent } from "./user-intent.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { closestAcross } from "./passages.js";
 import { declareSide } from "./standing-target.js";
+import { cancelReplyDictation } from "./thread/replies.js";
 
 export function createThreadPanelController({
   auxiliarySurfaces,
@@ -59,6 +60,7 @@ export function createThreadPanelController({
       if (phase === "gesture") slide(panel, "right", "in");
       refreshThread();
     } else {
+      cancelReplyDictation(panel);
       ++viewRequest;
       // The selected surface closes at once so it cannot answer the next page key.
     }

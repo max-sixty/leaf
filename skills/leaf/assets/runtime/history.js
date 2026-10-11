@@ -38,7 +38,7 @@
  * claimed. A browser without the Navigation API keeps its own traversals and fragment
  * landings. */
 
-import { deepFocus, focusDestination, readCaret } from "./focus.js";
+import { deepFocus, drawn, focusDestination, readCaret } from "./focus.js";
 import { pageRange, selectEnds, selectionBackward } from "./passages.js";
 import { retainUserIntent } from "./user-intent.js";
 import { placeOf } from "./standing-target.js";
@@ -70,9 +70,6 @@ function readPlace() {
     offset: [scrollX, scrollY],
   };
 }
-
-const drawn = (node) =>
-  node?.isConnected && node.checkVisibility({ visibilityProperty: true });
 
 function returnPlace({ focus, place, caret, ends }) {
   if (focus !== document.body && drawn(focus))

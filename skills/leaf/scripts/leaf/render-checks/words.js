@@ -402,7 +402,7 @@ export function shrunkLabelReading() {
 // <defs>; a run laid out under visibility or opacity has a box and paints nothing. The
 // `hidden` attribute is no separate case: on an HTML ancestor it is display: none, and on
 // an SVG element Chrome draws the words anyway.
-export function shrunkLabels(floor) {
+function shrunkLabels(floor) {
   const chrome = (el) => {
     for (let node = el; node; node = node.getRootNode().host)
       if (node.closest(".lf-chrome")) return true;

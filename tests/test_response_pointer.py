@@ -1,4 +1,4 @@
-"""Every response on a selection is reachable without a keyboard."""
+"""The comment field keeps one primary action; keys disclose its other responses."""
 
 import json
 
@@ -14,7 +14,7 @@ from test_render_reactions import select_paragraph
 @pytest.mark.parametrize(
     "seat,reactions", [("floating", True), ("inline", True), ("inline", False)]
 )
-def test_other_responses_preserve_the_comment_and_open_by_pointer(
+def test_comment_has_one_action_and_keys_preserve_its_other_responses(
     browser, serve, touch, width, seat, reactions
 ):
     context = browser.new_context(
@@ -62,20 +62,25 @@ def test_other_responses_preserve_the_comment_and_open_by_pointer(
     field = bar.locator(".lf-fab-input")
     write(field, "Keep this draft")
     before = field.bounding_box()
-    more = bar.get_by_role("button", name="Other responses", exact=True)
+    expect(bar.get_by_role("button", name="Other responses", exact=True)).to_have_count(
+        0
+    )
+    expect(bar.locator(".lf-compose-field button:visible")).to_have_count(1)
+    expect(bar.locator(".lf-compose-submit")).to_be_visible()
+    field.press("Tab")
     if not reactions:
-        expect(more).to_be_hidden()
+        expect(bar.locator(".lf-response-options")).to_be_hidden()
+        expect(field).to_have_js_property("value", "Keep this draft")
         return
-    expect(more).to_be_visible()
-    more.tap() if touch else more.click()
     rendered(page)
-    expect(more).to_have_attribute("aria-expanded", "true")
+    expect(bar.locator(".lf-response-options")).to_be_visible()
     expect(field).to_have_js_property("value", "Keep this draft")
     after = field.bounding_box()
     assert abs(after["width"] - before["width"]) <= 1, (before, after)
     if seat == "floating":
         expect(bar.get_by_role("button", name="Suggest", exact=True)).to_be_visible()
     expect(bar.get_by_role("button", name="keep", exact=True)).to_be_visible()
-    more.tap() if touch else more.click()
-    expect(more).to_have_attribute("aria-expanded", "false")
+    page.keyboard.press("Escape")
+    expect(bar.locator(".lf-response-options")).to_be_hidden()
+    expect(field).to_be_focused()
     expect(field).to_have_js_property("value", "Keep this draft")

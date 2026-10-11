@@ -322,8 +322,7 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
       scrollToEnd(box);
     } else {
       const boxTop = landingBand(box).top;
-      const text = pageText();
-      const segments = targetSegments(view.quote && resolveAnchor(view, text));
+      const segments = targetSegments(view.quote && resolveAnchor(view));
       if (segments.length) {
         reveal(segments[0].node.parentElement, currentIntent);
         moveScrollerBy(
@@ -333,7 +332,7 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
       } else if (!standing) {
         // An unresolved passage leaves live focus as the precise destination;
         // section and raw-offset fallbacks belong to readings without one.
-        const section = targetElement(resolveAnchor({ section: view.section }, text));
+        const section = targetElement(resolveAnchor({ section: view.section }));
         if (section) {
           reveal(section, currentIntent);
           // A section containing the scroller cannot align its contents by its

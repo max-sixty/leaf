@@ -29,7 +29,7 @@ const RawGrade = z.strictObject({
   reasoning: z.string().min(1),
   supporting_excerpt: z.string(),
 });
-export const GRADE_SCHEMA = z.toJSONSchema(RawGrade);
+const GRADE_SCHEMA = z.toJSONSchema(RawGrade);
 const json = (value) => JSON.stringify(value, null, 2) + "\n";
 const digest = (value) => createHash("sha256").update(value).digest("hex");
 

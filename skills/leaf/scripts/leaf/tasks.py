@@ -56,8 +56,8 @@ the page, or on the page, and a task on the user on any of those, a widget needi
 no seat; a start on an open task of the agent's or an update
 the agent owes; and an end of an open task, the user's only of one the agent opened
 on them (`task_error`). `TaskReading` holds the log's tasks, starts and endings
-for one event basis; `canonical_tasks` supplies the same fold to standalone callers.
-`WorkReading.page_tasks` attaches thread and activity readings to explicit tasks.
+for one event basis, and `WorkReading.page_tasks` attaches thread and activity
+readings to explicit tasks.
 
 Not yet: a task whose session has ended reads open until another session ends it.
 
@@ -73,8 +73,6 @@ from pathlib import Path
 from .events import note_settlements, taken_back
 from .refusals import Refused
 from .thread_context import thread_names
-
-OUTCOMES = ("done", "failed", "dropped")
 
 # What `task open` takes for the page as a whole; any other id names a widget or an
 # element of the page.
@@ -245,25 +243,9 @@ def _ends(events: list, withdrawn: set) -> dict:
     }
 
 
-def canonical_tasks(events: list) -> list[dict]:
-    """Every logged task, including ended ones and the standing start on open ones.
-    A task without an owner from an earlier runtime is absent."""
-    return TaskReading(events).tasks
-
-
 def owed_tasks(events: list) -> list[dict]:
     """The agent's tasks nothing has ended: the work it still owes."""
     return TaskReading(events).owed
-
-
-def log_tasks_open(events: list) -> list[dict]:
-    """The log's open tasks on either side, even when their targets are gone."""
-    return [task for task in canonical_tasks(events) if task["state"] == "open"]
-
-
-# Explicit committed work ends through its owner, independently of Questions.
-ENDS_BY_AGENT = "agent"
-ENDS_BY_DONE = "done"
 
 
 def task_error(
@@ -335,7 +317,7 @@ def task_error(
         return f"unknown task {identity!r}"
     if task["state"] != "open":
         return f"task {identity!r} has already ended ({task['state']})"
-    if event["author"] == "user" and task["ends"] != ENDS_BY_DONE:
+    if event["author"] == "user" and task["owner"] != "user":
         return f"task {identity!r} is the agent's; the user ends only a task on them"
     return None
 

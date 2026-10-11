@@ -12,7 +12,9 @@ the smallest set that exposes distinct plausible failures beyond existing covera
 Retain a broad sweep only when its extra samples catch a failure that representative
 states or transitions miss; an investigation's sampling grid is not itself a regression
 requirement. Every run pays for the test's compute, so weigh the additional cost against
-the additional coverage. When a high-level browser test is slow, or fails on timing or
+the additional coverage. Each CI `test` job's summary says where its run's time went, by
+file, phase, Playwright call and the suite's own functions; `leaf-dev suite-profile`
+prints the same from the job's `pytest-results-*` artifact. When a high-level browser test is slow, or fails on timing or
 geometry outside its contract, repair its arrangement or move its contract to the lower
 boundary.
 
@@ -126,7 +128,12 @@ in the suite. The render gate never opens the thread panel, so the suite opens i
 puts the gate's geometry readings to it, asserting each population and planting a
 fault there first.
 
-A render-gate test calls `render_version`, not one of its probes. Where the product already answers a reading's question, such as `shownBand` for the
+A test of what the gate reports for an authored page calls `render_version`. A test
+whose state no authored page reaches, such as DOM a script builds or changes after
+load, a patched widget hook, or the thread panel, puts the page in that state and
+calls the probe through `leaf.render_checks.evaluate_probe`.
+
+Where the product already answers a reading's question, such as `shownBand` for the
 band a box shows, consume that answer instead of copying it: `root_overflow` for
 whether the page scrolls sideways, `draft_key` for where a draft is stored, and
 `event_log.read_events` for what the log holds. Page-side code reaches a runtime
@@ -142,10 +149,10 @@ A test over prose compares it with something the machine states: a shown command
 against the click tree, an `x-` key against the guide, a table against its registry.
 Leave wording with no machine side to review.
 
-Focus evidence starts in keyboard modality: press `Tab` to the exact stop and require
-`:focus-visible`, or `:focus` on the runtime's text field (`leaf-text`), a host that
-delegates focus and so never matches `:focus-visible` in Chrome; `element.focus()` alone
-is not that evidence.
+Focus rings show actual focus regardless of input route. Exercise real clicks and
+keyboard arrivals when testing that shared treatment, require `:focus`, and compare
+the resulting paint. A keyboard navigation test still reaches its exact stop with
+`Tab` or its declared command; `element.focus()` alone does not prove that route.
 `RELEASE_FOCUS` (`render_harness.py`) resets the sequential starting point; `blur()` keeps
 it; `document.body.focus()` does nothing, since body holds no stop. Read
 a ring's actual paint through `RINGS_DRAWN` and `ring_faults`, because an ancestor or
@@ -269,7 +276,10 @@ do not expose their input context to JavaScript instrumentation. A native sensor
 fixture captures its DOM commit callback with `lfInputWork.capture` during the
 trusted handler and invokes that callback after `await`; the capture states the
 cause instead of guessing among concurrent operations. Leaf's draft sends put words
-away synchronously before awaiting delivery.
+away synchronously before awaiting delivery. The `toggle` a summary's activation
+announces belongs to the input whose click, trusted or dispatched by its work, opened
+it. A widget preparation (`lfObserveWidgetPreparations`) carries the input whose work
+declared it to its landing, which that input owns in the shift watch.
 
 Private document-channel endpoints publish `lfDocumentPort` on the bootstrap
 element before their first message. The harness enrolls those endpoints in input
@@ -450,9 +460,9 @@ every scroller to either end and back loses its words. The last four read a
 its timers and browser rendering still run.
 All of them run on every corpus page, so a new widget or page joins without a case of
 its own; a new surface joins the round trips by its keys, and a new box the typed
-boxes by its route. Run generated-markup probes (`undeclaredAttrs`,
-`relativeReplays`) through
-`leaf.render_checks.evaluate_probe` on fixtures that can trigger them.
+boxes by its route. Generated-markup probes (`undeclaredAttrs`, `relativeReplays`)
+run on fixtures that can trigger them, as "Put each assertion at the boundary that
+owns it" says.
 
 ### Absences
 

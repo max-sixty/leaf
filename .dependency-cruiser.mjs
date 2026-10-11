@@ -36,10 +36,16 @@ const isOneOf = (names) => `^(?:${names.map(modulePath).map(escaped).join("|")})
 const exactClosures = {
   "queued-work.js": [],
   "control-selectors.js": [],
+  "shadow-tree.js": [],
   "image-difference.js": [],
-  "contribution-model.js": [],
-  "margin-model.js": ["contribution-model.js"],
-  "margin-map-model.js": ["margin-model.js", "contribution-model.js"],
+  "contribution-model.js": ["words.js", "collapse.js"],
+  "margin-model.js": ["contribution-model.js", "words.js", "collapse.js"],
+  "margin-map-model.js": [
+    "margin-model.js",
+    "contribution-model.js",
+    "words.js",
+    "collapse.js",
+  ],
   "projection/model.js": ["collapse.js"],
   "projection/state.js": ["semantic-state.js", "queued-work.js"],
   "thread/model.js": [
@@ -57,6 +63,7 @@ const exactClosures = {
     "queued-work.js",
     "focus.js",
     "control-selectors.js",
+    "shadow-tree.js",
     "keeps.js",
     "keyboard/bindings.js",
     "keyboard/layer-stack.js",
@@ -83,7 +90,7 @@ const applicationOwners = [
   "keyboard/controller.js",
   "thread-panel.js",
   "pending/state.js",
-  "projection/commands.js",
+  "undo.js",
   "state-application.js",
   "state-feed.js",
 ];

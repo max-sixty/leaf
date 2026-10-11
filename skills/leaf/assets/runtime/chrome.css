@@ -40,7 +40,7 @@
   opacity: 0;
   pointer-events: none;
 }
-.lf-skip:is(:focus-visible, .lf-focus-visible) {
+.lf-skip[data-lf-focus] {
   opacity: 1;
   pointer-events: auto;
   position: fixed;
@@ -177,7 +177,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-visual-action {
     pointer-events: none;
   }
-  .lf-visual-action:focus-visible {
+  .lf-visual-action[data-lf-focus] {
     position: fixed;
     top: calc(var(--lf-banner-h) + 6px);
     left: 8px;
@@ -453,7 +453,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-banner > .lf-status-queues:hover {
     color: var(--ink);
   }
-  .lf-banner > .lf-status-queues:is(:focus-visible, .lf-focus-visible) {
+  .lf-banner > .lf-status-queues[data-lf-focus] {
     outline: var(--focus-ring);
     outline-offset: 2px;
     --lf-focus-ring: status;
@@ -461,7 +461,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-status-button:hover {
     color: var(--ink);
   }
-  .lf-status-button:is(:focus-visible, .lf-focus-visible) {
+  .lf-status-button[data-lf-focus] {
     outline: var(--focus-ring);
     outline-offset: 2px;
     --lf-focus-ring: status;
@@ -494,7 +494,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     white-space: normal;
     overflow-wrap: anywhere;
   }
-  .lf-status-detail:is(:focus-visible, .lf-focus-visible) {
+  .lf-status-detail[data-lf-focus] {
     outline: var(--focus-ring);
     outline-offset: 2px;
     --lf-focus-ring: status-detail;
@@ -614,7 +614,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-banner-menu .lf-btn:where(:not(.primary)):hover {
     background: var(--chip);
   }
-  .lf-banner-menu .lf-btn:is(:focus-visible, .lf-focus-visible) {
+  .lf-banner-menu .lf-btn[data-lf-focus] {
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
   .lf-banner-menu .lf-btn.on {
@@ -662,11 +662,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     max-height: calc(100dvh - var(--lf-banner-h));
     overflow-y: auto;
     padding: var(--focus-ring-w);
-    background: var(--card);
+    background: transparent;
     color: var(--ink);
     border: 0;
     border-radius: var(--r);
-    filter: drop-shadow(0 12px 18px var(--shade));
   }
   .lf-page-comment-card:popover-open {
     display: flex;
@@ -731,7 +730,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-version-row:hover {
     background: var(--chip);
   }
-  .lf-version-row:is(:focus-visible, .lf-focus-visible) {
+  .lf-version-row[data-lf-focus] {
     outline: var(--focus-ring);
     --lf-focus-ring: version-row;
     outline-offset: calc(-1 * var(--focus-ring-w));
@@ -767,7 +766,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     border-color: var(--border-2);
     background: var(--chip);
   }
-  .lf-version-diff:is(:focus-visible, .lf-focus-visible) {
+  .lf-version-diff[data-lf-focus] {
     outline: var(--focus-ring);
     --lf-focus-ring: version-diff;
     outline-offset: calc(-1 * var(--focus-ring-w));
@@ -874,7 +873,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   a.lf-others-row:hover {
     background: var(--chip);
   }
-  .lf-others-row:is(:focus-visible, .lf-focus-visible) {
+  .lf-others-row[data-lf-focus] {
     outline: var(--focus-ring);
     --lf-focus-ring: others-row;
     outline-offset: calc(-1 * var(--focus-ring-w));
@@ -960,8 +959,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     flex: none;
     margin: 4px 6px 0 0;
   }
-  .lf-queue-row:is(:focus-visible, .lf-focus-visible, [data-lf-question]),
-  .lf-queue-done > summary:is(:focus-visible, .lf-focus-visible) {
+  .lf-queue-row:is([data-lf-focus], [data-lf-question]),
+  .lf-queue-done > summary[data-lf-focus] {
     outline: var(--focus-ring);
     --lf-focus-ring: queue-row;
     outline-offset: calc(-1 * var(--focus-ring-w));
@@ -1075,10 +1074,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     right: 2px;
   }
   .lf-edge:hover::before,
-  .lf-edge:is(:focus-visible, .lf-focus-visible)::before {
+  .lf-edge[data-lf-focus]::before {
     opacity: 1;
   }
-  .lf-edge:is(:focus-visible, .lf-focus-visible) {
+  .lf-edge[data-lf-focus] {
     outline: var(--focus-ring);
     --lf-focus-ring: edge;
     outline-offset: 0;
@@ -1225,10 +1224,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     pointer-events: none;
     z-index: 1;
   }
-  .lf-threads:is(:focus-visible, .lf-focus-visible) {
+  .lf-threads[data-lf-focus] {
     outline: none;
   }
-  .lf-threads-frame:has(> .lf-threads:is(:focus-visible, .lf-focus-visible))::after {
+  .lf-threads-frame:has(> .lf-threads[data-lf-focus])::after {
     outline: var(--focus-ring);
     --lf-focus-ring: thread-list;
     outline-offset: calc(-1 * var(--focus-ring-w));
@@ -1267,6 +1266,27 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     anchor-scope: --lf-thread-settlement;
     --lf-thread-title-h: max(32px, var(--aim-floor));
     --lf-thread-title-z: 6;
+  }
+  .lf-thread-withdrawn {
+    border: 1px solid transparent;
+    border-block-end-color: var(--rule);
+  }
+  .lf-thread-withdrawn > .lf-thread-summary {
+    cursor: default;
+  }
+  .lf-thread-withdrawn button {
+    align-self: stretch;
+    margin-block: -4px;
+    padding: 0 4px;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .lf-thread-withdrawn button:hover {
+    text-decoration-thickness: 2px;
   }
   .lf-threads > .lf-thread-compact {
     --lf-top-outer: var(--lf-top);
@@ -1308,7 +1328,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-thread-summary::-webkit-details-marker {
     display: none;
   }
-  .lf-thread-summary:is(:focus-visible, .lf-focus-visible) {
+  .lf-thread-summary[data-lf-focus] {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
     --lf-focus-ring: thread-summary;
@@ -1526,7 +1546,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-thread.grow {
     animation: lf-runtime-4f3c2a8d-grow .32s cubic-bezier(.2, .7, .3, 1);
   }
-  .lf-thread:is(:focus-within, .lf-focus-within) {
+  .lf-thread[data-lf-focus-within] {
     outline: none;
     --lf-thread-surface: var(--focus-surface);
   }
@@ -1546,10 +1566,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-thread-head > .lf-quote {
     margin: 0;
   }
-  .lf-quote:is(:hover, :focus-visible, .lf-focus-visible) {
+  .lf-quote:is(:hover, [data-lf-focus]) {
     color: var(--ink-2);
   }
-  .lf-quote:is(:focus-visible, .lf-focus-visible) {
+  .lf-quote[data-lf-focus] {
     outline: var(--focus-ring);
     --lf-focus-ring: passage-focus;
     outline-offset: 2px;
@@ -1632,7 +1652,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-thread-action:hover {
     color: var(--ok);
   }
-  .lf-thread-action:is(:focus-visible, .lf-focus-visible) {
+  .lf-thread-action[data-lf-focus] {
     outline: var(--focus-ring);
     --lf-focus-ring: thread-action;
     outline-offset: 2px;
@@ -1977,11 +1997,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     text-align: left;
     cursor: pointer;
   }
-  .lf-command-reference-command:is(:hover, :focus-visible),
+  .lf-command-reference-command:is(:hover, [data-lf-focus]),
   .lf-command-reference-command[data-lf-selected=true] {
     background: var(--chip);
   }
-  .lf-command-reference-command:focus-visible {
+  .lf-command-reference-command[data-lf-focus] {
     outline: var(--focus-ring);
     --lf-focus-ring: help-command;
     outline-offset: 1px;
@@ -2016,7 +2036,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-page-map-action:is(button, [role=button]):not([aria-disabled=true]) {
     cursor: pointer;
   }
-  .lf-page-map-action:is(button, [role=button]):is(:hover, :focus-visible):not([aria-disabled=true]) {
+  .lf-page-map-action:is(button, [role=button]):is(:hover, [data-lf-focus]):not([aria-disabled=true]) {
     background: var(--lf-entry-tint, var(--chip));
   }
   .lf-page-map-action .lf-margin-kind {
@@ -2050,7 +2070,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     font-size: var(--t-6);
     line-height: 1.25;
   }
-  .lf-page-map-action:focus-visible {
+  .lf-page-map-action[data-lf-focus] {
     outline: var(--focus-ring);
     --lf-focus-ring: page-map-action;
     outline-offset: calc(-1 * var(--focus-ring-w));
@@ -2122,7 +2142,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
       border: 1px solid CanvasText;
       box-shadow: none;
     }
-    .lf-page-map-action:focus-visible {
+    .lf-page-map-action[data-lf-focus] {
       outline: 2px solid Highlight;
     }
   }
@@ -2298,7 +2318,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-shortcut-more:hover {
     color: var(--ink-2);
   }
-  .lf-shortcut-more:is(:focus-visible, .lf-focus-visible) {
+  .lf-shortcut-more[data-lf-focus] {
     outline: var(--focus-ring);
     --lf-focus-ring: key-more;
     outline-offset: calc(-1 * var(--focus-ring-w));
@@ -2517,18 +2537,18 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
       background: Highlight;
       color: HighlightText;
     }
-    .lf-thread:is(:focus-within, .lf-focus-within) {
+    .lf-thread[data-lf-focus-within] {
       border-color: Highlight !important;
     }
-    :scope :focus-visible {
+    :scope [data-lf-focus] {
       outline: var(--focus-ring-w) solid Highlight !important;
       outline-offset: 2px !important;
       box-shadow: none !important;
     }
-    :scope .lf-threads:is(:focus-visible, .lf-focus-visible) {
+    :scope .lf-threads[data-lf-focus] {
       outline: none !important;
     }
-    .lf-threads-frame:has(> .lf-threads:is(:focus-visible, .lf-focus-visible))::after {
+    .lf-threads-frame:has(> .lf-threads[data-lf-focus])::after {
       outline: 2px solid Highlight !important;
       outline-offset: -2px !important;
     }

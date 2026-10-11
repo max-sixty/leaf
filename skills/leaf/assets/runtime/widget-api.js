@@ -37,9 +37,12 @@ export async function mountSample(frame, options) {
 }
 export { dressSamples, wear } from "./dress.js";
 
+// `fragmentTarget(hash)` is the page element a URL fragment names, read as Leaf's own
+// arrivals and links read it.
 export {
   addressableLabel,
   addressableWord,
+  fragmentTarget,
   projectedDatum,
 } from "./anchor-resolution.js";
 // The name Threads, the margin, and reactions give a comment's anchor.
@@ -76,6 +79,7 @@ export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place.
 export { render, setChildren, setRenderedChildren } from "./dom-children.js";
 export { readQuestions, watchQuestions } from "./questions/model.js";
+export { comparisonChanges, watchComparison } from "./version.js";
 export { questionWords } from "./questions/answer.js";
 export {
   readWork,
@@ -110,7 +114,8 @@ export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
 export { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
 export { HOLDS_WORD } from "./held-word.js";
-export { PRESS, labelOf, submitBindings, submitLabel } from "./keyboard/bindings.js";
+// `rowArrows(node)` is the `[back, ahead]` arrow pair along a row, in its text direction.
+export { PRESS, labelOf, rowArrows } from "./keyboard/bindings.js";
 export {
   commandScope,
   commandsOn,
@@ -129,6 +134,7 @@ export {
   sizeObserver,
 } from "./rendering.js";
 export { beginWalk, listWalkPosition, rowWalk } from "./walk-position.js";
+export { excerptWords } from "./words.js";
 export {
   CONTRIBUTION_ENTRY_SCHEMA,
   contributionItemKey,
@@ -156,7 +162,7 @@ export {
   describeDifference,
   differenceKind,
 } from "./image-difference.js";
-export { pageScroller } from "./scrolling.js";
+export { pageScroller, scrollLimit } from "./scrolling.js";
 export { scrollIntoReadingBand, scrollIntoView } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";
@@ -209,6 +215,8 @@ export {
 export { projectData } from "./application.js";
 export { copyCodeBlock } from "./code-copy.js";
 export { retainUserIntent } from "./user-intent.js";
+// Whether a press is the plain one a control claims: the primary button, no modifier.
+export { plainPress } from "./pointer.js";
 export { onUserInput } from "./focus.js";
 export { keepView, openingView, tabStore } from "./storage.js";
 export {
@@ -220,8 +228,7 @@ export {
   tokenLines,
 } from "./syntax.js";
 export { bodyText, dataBody, failSoft, once } from "./widget-upgrade.js";
-export { watchReports } from "./application.js";
-export { saidAt, reportSequence, watchHistory } from "./reports.js";
+export { saidAt, reportSequence, watchHistory, watchReports } from "./reports.js";
 export {
   HIDDEN,
   LAYOUT,

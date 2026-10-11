@@ -42,6 +42,8 @@ import {
   addressableWord,
   ago,
   anchorLabel,
+  elementById,
+  fragmentTarget,
   layerFact,
   loadMarkdown,
   markdownReady,
@@ -56,6 +58,7 @@ import {
   keeps,
   keepsHidden,
   keepsText,
+  excerptWords,
 } from "/runtime/widget-api.js";
 
 import {
@@ -66,18 +69,13 @@ import {
 
 const NAME = 60;
 
-const clip = (text, length) => {
-  const flat = String(text ?? "")
-    .replace(/\s+/g, " ")
-    .trim();
-  return flat.length > length ? `${flat.slice(0, length - 1).trimEnd()}…` : flat;
-};
-
 // Where something happened, as the chrome names it, else its word.
 function nameOf(id) {
-  const element = id ? document.getElementById(id) : null;
+  const element = id ? elementById(id) : null;
   if (!element) return id || "the page";
-  return clip(addressableLabel(element), NAME) || `the ${addressableWord(element)}`;
+  return (
+    excerptWords(addressableLabel(element), NAME) || `the ${addressableWord(element)}`
+  );
 }
 
 // A comment's place: a passage, a drawing's part, a datum, or a design subject as
@@ -85,9 +83,9 @@ function nameOf(id) {
 function placeName(anchor, about) {
   // A bare quote is cut inside its marks, so a long one still reads as a quote.
   if (anchor?.quote && !anchor.datum && about !== "design")
-    return quoted(clip(anchor.quote, NAME));
+    return quoted(excerptWords(anchor.quote, NAME));
   if (anchor?.visual || anchor?.datum || about === "design")
-    return clip(anchorLabel(anchor, about), NAME);
+    return excerptWords(anchorLabel(anchor, about), NAME);
   return nameOf(anchor?.section ?? null);
 }
 
@@ -101,13 +99,14 @@ const actorOf = (row) =>
       : (row.agent ?? row.author);
 
 const quoted = (words) => `“${words}”`;
-const named = (words) => quoted(clip(words, NAME));
+const named = (words) => quoted(excerptWords(words, NAME));
 
 // The thread's name as Threads states it: its latest title, else its opening words.
 const topicOf = (thread) =>
   !thread
     ? "a thread"
-    : (thread.title ?? (clip(markdownWords(thread.opening), 48) || "a drawing"));
+    : (thread.title ??
+      (excerptWords(markdownWords(thread.opening), 48) || "a drawing"));
 
 function gesturePhrase(gesture) {
   switch (gesture.form) {
@@ -245,7 +244,9 @@ customElements.define(
       }
       const current = history.map((served) => ({
         ...describe(served),
-        excerpt: served.excerpt ? clip(markdownWords(served.excerpt), 140) : null,
+        excerpt: served.excerpt
+          ? excerptWords(markdownWords(served.excerpt), 140)
+          : null,
         id: served.id,
         ts: served.ts,
         author: served.author,
@@ -304,10 +305,10 @@ customElements.define(
           restoreFocus?.(item.querySelector(".lf-activity-target"));
           seat.key = key;
         }
-        // Holding a drawing never holds a navigation capability. The initial and
-        // live producers consult the same current-document destination rule.
+        // Holding a drawing never holds a navigation capability: the link stands only
+        // while the current document holds the destination its fragment names.
         const link = item.querySelector("a.lf-activity-target");
-        if (link) refreshActivityTarget(link, row, keeps);
+        if (link) refreshActivityTarget(link, row, keeps, fragmentTarget);
         // Read synchronously, so the shared clock repaints this reading when it turns.
         const time = item.querySelector(".lf-activity-time");
         keepsText(time, ago(row.ts));

@@ -233,6 +233,29 @@
     runtimeStyles.get(node)?.delete(property);
     if (node.style.getPropertyValue(property)) node.style.removeProperty(property);
   };
+  // What an element wears: attributes and custom properties written as one set, so a
+  // later set removes what the earlier one had and the next does not (dress.js). The
+  // root and body wear theirs as runtime root state, so a revision keeps it; any other
+  // element is no root state, and writes plainly.
+  const worn = new WeakMap();
+  const wear = (node, dress) => {
+    const { documentElement, body } = node.ownerDocument;
+    const owned = node === documentElement || node === body;
+    const previous = worn.get(node);
+    for (const name of Object.keys(previous?.attributes ?? {}))
+      if (!Object.hasOwn(dress.attributes, name))
+        (owned ? setRuntimeRootAttribute : keepsAttribute)(node, name, null);
+    for (const name of Object.keys(previous?.properties ?? {}))
+      if (!Object.hasOwn(dress.properties, name))
+        if (owned) removeRuntimeRootStyle(node, name);
+        else node.style.removeProperty(name);
+    for (const [name, value] of Object.entries(dress.attributes))
+      (owned ? setRuntimeRootAttribute : keepsAttribute)(node, name, value);
+    for (const [name, value] of Object.entries(dress.properties))
+      if (owned) setRuntimeRootStyle(node, name, value);
+      else node.style.setProperty(name, value);
+    worn.set(node, dress);
+  };
   const origins = new WeakMap();
   const parents = new WeakMap();
   // Null/undefined means absent; compare the string an attribute reads back. The
@@ -520,6 +543,7 @@
     runtimeRootAttributes: (node) => new Set(runtimeAttributes.get(node) ?? []),
     setRuntimeRootStyle,
     removeRuntimeRootStyle,
+    wear,
     runtimeRootStyles: (node) => new Set(runtimeStyles.get(node) ?? []),
     authoredShell: (node) => sourceShells.get(node) ?? sources.get(node) ?? node,
     residency,
@@ -540,7 +564,12 @@
         if (!parents.has(node)) parents.set(node, node.parentElement);
       rememberSource(authoredCopy(host));
       for (let node = host; node; node = node.parentNode) sourceScopes.add(node);
-      const drawing = render(host, { tabStore, offer, offerElement });
+      const drawing = render(host, {
+        tabStore,
+        offer,
+        offerElement,
+        keeps: keepsAttribute,
+      });
       if (drawing?.then)
         throw new TypeError(
           `initial renderer for <${host.localName}> must be synchronous`,

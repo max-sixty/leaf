@@ -219,7 +219,8 @@
 .lf-trace-input-badge { position: absolute; inset-block-start: var(--sp-2); inset-inline-end: var(--sp-2); max-inline-size: min(45ch, 85%); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; border: 1px solid var(--accent); border-radius: var(--r); padding: var(--sp-1) var(--sp-2); background: var(--paper); color: var(--accent); font: 600 var(--lf-trace-small-type) / 1.5 var(--sans); pointer-events: none; }
 .lf-trace-input-point { position: absolute; inline-size: 18px; block-size: 18px; border: 2px solid var(--accent); border-radius: 50%; background: var(--accent-tint); transform: translate(-50%, -50%); box-shadow: 0 0 0 2px var(--paper); pointer-events: none; }
 
-:scope:is(lf-trace-compare) { display: block; min-inline-size: 0; --lf-trace-control-size: 44px; --lf-trace-compare-top: var(--lf-top); --lf-trace-compare-head: 44px; font: var(--t-5) / 1.45 var(--sans); }
+/* A flow root holds its recordings' margins whichever one stands last. */
+:scope:is(lf-trace-compare) { display: flow-root; min-inline-size: 0; --lf-trace-control-size: 44px; --lf-trace-compare-top: var(--lf-top); --lf-trace-compare-head: 44px; font: var(--t-5) / 1.45 var(--sans); }
 .lf-trace-compare-controls { position: sticky; inset-block-start: var(--lf-trace-compare-top); z-index: 4; background: var(--paper); padding-block: var(--sp-1); }
 :scope:is(lf-trace-compare) > lf-trace { --lf-top: calc(var(--lf-trace-compare-top) + var(--lf-trace-compare-head)); }
 

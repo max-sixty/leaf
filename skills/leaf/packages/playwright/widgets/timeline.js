@@ -75,6 +75,9 @@ export class RecordingTimeline {
   #rulerFrame = 0;
   #observer;
   #width = 0;
+  // The time at the window's left edge. Width changes rescale the track; this
+  // time, not the pixel offset, is the reader's place.
+  #start = 0;
   #labels = { input: [], moments: [] };
   #momentRows = 1;
   #callRows = 1;
@@ -111,7 +114,7 @@ export class RecordingTimeline {
   get view() {
     const scroller = this.scroller;
     if (!scroller || !this.#model) return null;
-    return { zoom: this.#zoom, start: this.#pxToTime(scroller.scrollLeft) };
+    return { zoom: this.#zoom, start: this.#start };
   }
 
   set view(view) {
@@ -225,6 +228,7 @@ export class RecordingTimeline {
     const scroller = this.scroller;
     const max = scroller.scrollWidth - scroller.clientWidth;
     const target = Math.round(Math.max(0, Math.min(max, left)));
+    this.#start = this.#pxToTime(target);
     if (target === Math.round(scroller.scrollLeft)) return;
     this.#expectedScroll = target;
     scroller.scrollLeft = target;
@@ -240,11 +244,11 @@ export class RecordingTimeline {
     const width = this.scroller?.clientWidth ?? 0;
     if (!width || width === this.#width || !this.#model) return;
     // A width change rescales the track. Keep the window's left time in place.
-    const start = this.#width ? this.view?.start : null;
+    const resized = this.#width !== 0;
     this.#width = width;
     this.#layoutLabels(false);
+    if (resized) this.#scrollTo(this.#timeToPx(this.#start));
     this.#drawRuler();
-    if (start !== null && start !== undefined) this.#scrollTo(this.#timeToPx(start));
   }
 
   // Labels -----------------------------------------------------------------------
@@ -539,6 +543,8 @@ export class RecordingTimeline {
 
   #scrolled() {
     const scroller = this.scroller;
+    // A clamp from a width change waits for the resize to restore the place.
+    if (scroller.clientWidth !== this.#width) return;
     if (this.#expectedScroll !== null) {
       const expected = this.#expectedScroll;
       if (Math.abs(scroller.scrollLeft - expected) < 1.5) {
@@ -547,6 +553,7 @@ export class RecordingTimeline {
         return;
       }
     }
+    this.#start = this.#pxToTime(scroller.scrollLeft);
     this.#options.onUserPan?.();
     this.#queueRuler();
   }

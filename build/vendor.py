@@ -572,41 +572,35 @@ def build_sortable(work: Path) -> list[Path]:
     return outputs
 
 
-def build_trace_library(work: Path, library: str) -> list[Path]:
-    """Framework-free recording inspection, loaded only by the Playwright widget.
+def build_trace_images(work: Path) -> list[Path]:
+    """Framework-free image inspection, loaded only by the Playwright widget.
 
-    Named Timeline exports remove Graph2d. Separate image and timeline bundles
-    stay below the repository's payload limit. Scoped CSS travels with each module
-    so offline exports use the same library rendering as served pages.
+    Scoped CSS travels with the module so offline exports use the same library
+    rendering as served pages.
     """
-    out = package_vendor("playwright") / f"{library}.esm.js"
+    out = package_vendor("playwright") / "images.esm.js"
     out.parent.mkdir(exist_ok=True)
-    if library == "images":
-        # Viewer schedules a class write 300 ms after an inline image is viewed even
-        # with transitions disabled. It changes no paint, but wakes Leaf's margin
-        # layout after presentation. Patch the installed copy used by this bundle;
-        # the original package still supplies its version and license notice.
-        viewer = work / "node_modules/viewerjs"
-        shutil.copytree(NODE_MODULES / "viewerjs", viewer)
-        source = viewer / "dist/viewer.esm.js"
-        original = """        setTimeout(function () {
-          toggleClass(image, CLASS_TRANSITION, options.transition);
-        }, 300);"""
-        replacement = """        if (options.transition) {
-          setTimeout(function () {
-            toggleClass(image, CLASS_TRANSITION, options.transition);
-          }, 300);
-        }"""
-        text = source.read_text(encoding="utf-8")
-        if text.count(original) != 1:
-            raise ValueError("Viewer post-view transition seam changed")
-        source.write_text(text.replace(original, replacement), encoding="utf-8")
+    # Viewer schedules a class write 300 ms after an inline image is viewed even
+    # with transitions disabled. It changes no paint, but wakes Leaf's margin
+    # layout after presentation. Patch the installed copy used by this bundle;
+    # the original package still supplies its version and license notice.
+    viewer = work / "node_modules/viewerjs"
+    shutil.copytree(NODE_MODULES / "viewerjs", viewer)
+    source = viewer / "dist/viewer.esm.js"
+    original = """        setTimeout(function () {
+      toggleClass(image, CLASS_TRANSITION, options.transition);
+    }, 300);"""
+    replacement = """        if (options.transition) {
+      setTimeout(function () {
+        toggleClass(image, CLASS_TRANSITION, options.transition);
+      }, 300);
+    }"""
+    text = source.read_text(encoding="utf-8")
+    if text.count(original) != 1:
+        raise ValueError("Viewer post-view transition seam changed")
+    source.write_text(text.replace(original, replacement), encoding="utf-8")
     entry = (
-        'export { Timeline } from "vis-timeline/esnext/esm/vis-timeline-graph2d.js";\n'
-        'export { DataSet } from "vis-data/esnext/esm/vis-data.js";\n'
-        'export { default as css } from "vis-timeline/styles/vis-timeline-graph2d.css";\n'
-        if library == "timeline"
-        else 'export { default as Viewer } from "viewerjs/dist/viewer.esm.js";\n'
+        'export { default as Viewer } from "viewerjs/dist/viewer.esm.js";\n'
         'export { default as css } from "viewerjs/dist/viewer.css";\n'
     )
     (work / "entry.mjs").write_text(entry, encoding="utf-8")
@@ -623,17 +617,8 @@ def build_trace_library(work: Path, library: str) -> list[Path]:
     return [out]
 
 
-def build_trace_timeline(work: Path) -> list[Path]:
-    return build_trace_library(work, "timeline")
-
-
-def build_trace_images(work: Path) -> list[Path]:
-    return build_trace_library(work, "images")
-
-
 BUILDS: dict[str, Callable[[Path], list[Path]]] = {
     "snapdom": build_snapdom,
-    "trace-timeline": build_trace_timeline,
     "trace-images": build_trace_images,
     "markdown": build_markdown,
     "photoswipe": build_photoswipe,

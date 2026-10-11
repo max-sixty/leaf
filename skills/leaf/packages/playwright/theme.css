@@ -208,7 +208,7 @@
 /* Status changes share one slot; loading a frame cannot wrap the tools into a new row. */
 .lf-trace-image-zoom { margin-inline-start: auto; inline-size: 24ch; flex: 0 0 auto; text-align: end; white-space: nowrap; font-size: var(--lf-trace-small-type); color: var(--muted); font-variant-numeric: tabular-nums; }
 .lf-trace-canvas > img[hidden] { display: none; }
-.lf-trace-canvas:focus-visible { --lf-focus-ring: trace-canvas; outline: var(--focus-ring); outline-offset: 2px; }
+.lf-trace-canvas:focus-visible { --lf-focus-ring: trace-canvas; outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-ring-w)); }
 .lf-trace-no-moments { margin: 0; padding: var(--sp-2); color: var(--muted); font-size: var(--lf-trace-small-type); }
 
 @container (max-width: 480px) {

@@ -1428,7 +1428,7 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
         timeline.focus()
         timeline.press("End")
         rendered(user)
-        for _ in range(2):
+        for _ in range(3):
             widget.get_by_role("button", name="Zoom image in", exact=True).click()
         canvas = widget.locator(
             ".lf-trace-image:not(.lf-trace-image-pending) .lf-trace-canvas"
@@ -1449,8 +1449,8 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
           window.watchInspection = true;
           window.inspectionWindow = () => {
             const w = document.querySelector('lf-trace');
-            const rail = w.querySelector('.vis-panel.vis-center').getBoundingClientRect();
-            const ticks = [...w.querySelectorAll('.vis-text.vis-minor:not(.vis-measure)')]
+            const rail = w.querySelector('.lf-trace-scroller').getBoundingClientRect();
+            const ticks = [...w.querySelectorAll('.lf-trace-tick-major')]
               .map(e => ({time: parseFloat(e.textContent), x: e.getBoundingClientRect().x}))
               .sort((a, b) => a.x - b.x);
             const unit = (ticks[1].time - ticks[0].time) / (ticks[1].x - ticks[0].x);
@@ -1540,8 +1540,10 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
             sample == pytest.approx(before, abs=0.003) for sample in samples if sample
         )
         assert user.evaluate("inspectionView()") == pytest.approx(before, abs=0.003)
+        # Playback keeps the reader's zoom; the window pages forward with the
+        # playhead rather than letting it run off screen.
         assert all(
-            window == pytest.approx(before_window, abs=0.005)
+            window["span"] == pytest.approx(before_window["span"], abs=0.005)
             for window in user.evaluate("inspectionWindows")
         )
         disclosures = user.evaluate("inspectionDisclosures")
@@ -1695,30 +1697,28 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
         # A panned window also survives metadata redraws and scope replacement.
         rail = widget.locator(".lf-trace-scroller").bounding_box()
         user.mouse.move(rail["x"] + rail["width"] * 0.6, rail["y"] + 12)
-        user.mouse.down()
-        user.mouse.move(rail["x"] + rail["width"] * 0.35, rail["y"] + 12, steps=8)
-        user.mouse.up()
+        user.mouse.wheel(-150, 0)
         rendered(user)
         panned = user.evaluate("inspectionWindow()")
         widget.locator(".lf-trace-tree summary").click()
         rendered(user)
         assert user.evaluate("inspectionWindow()") == pytest.approx(panned, abs=0.005)
         ticks = widget.locator(
-            ".vis-text.vis-minor:not(.vis-measure)"
+            ".lf-trace-tick-major"
         ).all_text_contents()
         widget.get_by_role("radio", name="Page 1", exact=True).click()
         widget.get_by_role("radio", name="All pages", exact=True).click()
         rendered(user)
         assert user.evaluate("inspectionView()") == pytest.approx(before, abs=0.003)
         assert (
-            widget.locator(".vis-text.vis-minor:not(.vis-measure)").all_text_contents()
+            widget.locator(".lf-trace-tick-major").all_text_contents()
             == ticks
         )
         assert user.evaluate("inspectionWindow()") == pytest.approx(panned, abs=0.005)
         timeline.focus()
         timeline.press("Home")
         rendered(user)
-        handle = widget.locator(".vis-custom-time").bounding_box()
+        handle = widget.locator(".lf-trace-playhead").bounding_box()
         rail = widget.locator(".lf-trace-scroller").bounding_box()
         assert rail["x"] <= handle["x"] <= rail["x"] + rail["width"]
         timeline.press("End")
@@ -1776,7 +1776,7 @@ def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
     assert moment_positions() == pytest.approx(first_overview, abs=0.5)
 
     def visible_ticks():
-        return widget.locator(".vis-text.vis-minor:not(.vis-measure)").evaluate_all(
+        return widget.locator(".lf-trace-tick-major").evaluate_all(
             """nodes => nodes.filter(node => {
                 const box = node.getBoundingClientRect();
                 const rail = node.closest('.vis-timeline').getBoundingClientRect();
@@ -1790,7 +1790,7 @@ def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
         rendered(user)
         overview = visible_ticks()
         overview_labels = widget.locator(
-            ".vis-text.vis-minor:not(.vis-measure)"
+            ".lf-trace-tick-major"
         ).all_text_contents()
         assert len(overview) > 1
         assert min(overview) == 0, "The whole recording starts at zero"
@@ -1830,7 +1830,7 @@ def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
             widget.get_by_role("button", name="Zoom in", exact=True).click()
             rendered(user)
         close_labels = widget.locator(
-            ".vis-text.vis-minor:not(.vis-measure)"
+            ".lf-trace-tick-major"
         ).all_text_contents()
         assert len(close_labels) == len(set(close_labels)), (
             "Close zoom must distinguish millisecond ticks"
@@ -1840,7 +1840,7 @@ def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
 
         # Zoom can change tick spacing without changing which seconds are
         # labelled, particularly on a narrow ruler starting exactly at zero.
-        tick = widget.locator(".vis-text.vis-minor:not(.vis-measure)").nth(1)
+        tick = widget.locator(".lf-trace-tick-major").nth(1)
         overview_tick_style = tick.get_attribute("style")
         overview_tick_width = tick.bounding_box()["width"]
         box = rail.bounding_box()
@@ -1856,7 +1856,7 @@ def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
         user.mouse.move(x, y)
         user.keyboard.down("Control")
         user.mouse.wheel(0, 10000)
-        expect(widget.locator(".vis-text.vis-minor:not(.vis-measure)")).to_have_text(
+        expect(widget.locator(".lf-trace-tick-major")).to_have_text(
             overview_labels
         )
         user.keyboard.up("Control")
@@ -1952,7 +1952,7 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
         assert lane.locator(".lf-trace-marker,.lf-trace-input-tick").evaluate_all(
             """buttons => buttons.every(button => {
               const r = button.getBoundingClientRect();
-              const c = button.closest('.vis-timeline').querySelector('.vis-panel.vis-center')
+              const c = button.closest('.vis-timeline').querySelector('.lf-trace-scroller')
                 .getBoundingClientRect();
               return r.top >= c.top && r.bottom <= c.bottom;
             })"""
@@ -2132,7 +2132,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     timeline = widget.locator(".lf-trace-timeline")
     # Zero remains visible inside the fitted window. The time gutter reserves
     # space for one centered playhead; it is not another captured stop.
-    zero = widget.locator(".vis-text.vis-minor:not(.vis-measure)").filter(
+    zero = widget.locator(".lf-trace-tick-major").filter(
         has_text=re.compile(r"^0 s$")
     )
     expect(zero).to_have_count(1)
@@ -2350,7 +2350,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
             expect(widget.locator(f'[data-lf-datum="{target}"]')).to_be_visible()
             handle = widget.locator(".vis-custom-time > div").bounding_box()
             assert handle["width"] == pytest.approx(44)
-            line = widget.locator(".vis-custom-time").bounding_box()
+            line = widget.locator(".lf-trace-playhead").bounding_box()
             # Thumb and hand share the native time coordinate, including edges.
             assert handle["x"] + handle["width"] / 2 == pytest.approx(
                 line["x"] + line["width"] / 2, abs=0.5
@@ -2363,7 +2363,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
             assert handle["x"] >= rail_box["x"] - 0.01
             assert handle["x"] + handle["width"] <= rail_box["x"] + rail_box["width"]
             zero = (
-                widget.locator(".vis-text.vis-minor:not(.vis-measure)")
+                widget.locator(".lf-trace-tick-major")
                 .filter(has_text=re.compile(r"^0 s$"))
                 .bounding_box()
             )
@@ -2385,7 +2385,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
               const clear = (box, left, right, top, bottom) =>
                 box.right <= left || box.left >= right
                   || box.bottom <= top || box.top >= bottom;
-              return [...host.querySelectorAll('.vis-text.vis-minor:not(.vis-measure)')]
+              return [...host.querySelectorAll('.lf-trace-tick-major')]
                 .every(label => {
                   const text = document.createRange();
                   text.selectNodeContents(label);
@@ -2628,7 +2628,7 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
         if action["phases"].get("after", {}).get("tree", {}).get("nodes")
     )
     inputs = [action for action in record["actions"] if action["input"]]
-    expect(widget.locator(".lf-trace-input-tick")).to_have_count(len(inputs))
+    expect(widget.locator(".lf-trace-input-bar")).to_have_count(len(inputs))
     pointer = next(
         action
         for action in inputs
@@ -2637,17 +2637,17 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
     navigate_to_phase(
         timeline, f"trace-{record['archive']['sha256']}-phase-{pointer['id']}-after"
     )
-    origin = record["streams"][0]["monotonicTime"]
-    input_time = (pointer["phases"]["action"]["timestamp"] - origin) / 1000
-    # The selected after-frame is later than the input checkpoint. Its badge
-    # identifies that earlier input rather than suggesting a click is happening.
+    # The After checkpoint names the input it follows rather than suggesting a
+    # click is happening; the Input checkpoint precedes its dispatch.
     assert (
         pointer["phases"]["after"]["timestamp"]
         > pointer["phases"]["action"]["timestamp"]
     )
-    expect(widget.locator(".lf-trace-input-badge")).to_have_text(
-        f"Last input: Click · ~{input_time:.3f} s"
+    expect(widget.locator(".lf-trace-input-badge")).to_have_text("After: Click")
+    navigate_to_phase(
+        timeline, f"trace-{record['archive']['sha256']}-phase-{pointer['id']}-action"
     )
+    expect(widget.locator(".lf-trace-input-badge")).to_have_text("Next: Click")
     expect(widget.locator(".lf-trace-input-point")).to_be_visible()
     raster = widget.locator(
         ".lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img"
@@ -2787,7 +2787,7 @@ def test_trace_overview_shows_every_row_and_preserves_page_scrolling(browser, se
         # Every target must fit inside the timeline and be directly pointable.
         hidden_rows = buttons.evaluate_all("""buttons => buttons.flatMap(button => {
           const r = button.getBoundingClientRect();
-          const c = button.closest('.vis-timeline').querySelector('.vis-panel.vis-center')
+          const c = button.closest('.vis-timeline').querySelector('.lf-trace-scroller')
             .getBoundingClientRect();
           const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
           return r.top >= c.top && r.bottom <= c.bottom
@@ -2814,7 +2814,7 @@ def test_trace_overview_shows_every_row_and_preserves_page_scrolling(browser, se
         # Keyboard navigation preserves the ordinary overview and time window.
         timeline.focus()
         ruler_reading = "nodes => nodes.map(node => [node.textContent, node.getBoundingClientRect().x])"
-        ruler = widget.locator(".vis-text.vis-minor:not(.vis-measure)")
+        ruler = widget.locator(".lf-trace-tick-major")
         time_window = ruler.evaluate_all(ruler_reading)
         for _ in range(buttons.count()):
             user.keyboard.press("Tab")
@@ -2823,7 +2823,7 @@ def test_trace_overview_shows_every_row_and_preserves_page_scrolling(browser, se
               const button = document.activeElement;
               if (!button.matches('.lf-trace-marker,.lf-trace-input-tick')) return false;
               const r = button.getBoundingClientRect();
-              const c = button.closest('.vis-timeline').querySelector('.vis-panel.vis-center')
+              const c = button.closest('.vis-timeline').querySelector('.lf-trace-scroller')
                 .getBoundingClientRect();
               const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
               return button.matches(':focus-visible') && r.top >= c.top && r.bottom <= c.bottom
@@ -2851,7 +2851,7 @@ def test_trace_pointer_annotation_stays_inside_the_panned_image_viewport(
         browser, serve(ROOT / "examples/developer/playwright-trace-gallery.html")
     )
     widget = user.locator("lf-trace")
-    widget.locator(".lf-trace-input-tick").filter(has_text="Click").first.click()
+    widget.locator(".lf-trace-input-label").filter(has_text="Click").first.click()
     point = widget.locator(".lf-trace-input-point")
     expect(point).to_be_visible()
     # The intrinsic timeline can put this image below the fold. Bring the
@@ -2939,7 +2939,7 @@ def test_trace_render_gate_restores_the_zoomed_time_window(browser, serve):
     for _ in range(3):
         widget.get_by_role("button", name="Zoom in", exact=True).click()
     rendered(user)
-    ruler = widget.locator(".vis-text.vis-minor:not(.vis-measure)")
+    ruler = widget.locator(".lf-trace-tick-major")
 
     def time_window():
         return ruler.evaluate_all("""nodes => nodes.map(node => ({

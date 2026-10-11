@@ -1397,13 +1397,13 @@ customElements.define(
           ? `${this.#inputLabel(action)}${action.input.selector ? ` · ${action.input.selector}` : ""} · call ${span}. The Input checkpoint is captured just before dispatch; the exact input time is not recorded.`
           : null,
       );
-      // A pointer target belongs to the checkpoints taken before dispatch.
+      // The badge says whether the input is next, under way or done; the point
+      // marks where it lands in the shown capture's viewport.
       const coordinate = action?.input.point;
       const viewport = action?.input.viewport;
       const visible =
         coordinate &&
         viewport &&
-        (current.phase === "before" || current.phase === "action") &&
         imageReady &&
         image.pageId === action.pageId &&
         this.#picture?.viewed;

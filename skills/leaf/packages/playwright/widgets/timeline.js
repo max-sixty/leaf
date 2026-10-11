@@ -82,6 +82,7 @@ export class RecordingTimeline {
   #scrubbing = null;
   #expectedScroll = null;
   #rulerFrame = 0;
+  #overviewFrame = 0;
   #observer;
   #width = 0;
   // The time at the window's left edge. Width changes rescale the track; this
@@ -116,7 +117,8 @@ export class RecordingTimeline {
   disconnect() {
     this.#observer.disconnect();
     if (this.#rulerFrame) cancelRender(this.#rulerFrame);
-    this.#rulerFrame = 0;
+    if (this.#overviewFrame) cancelRender(this.#overviewFrame);
+    this.#rulerFrame = this.#overviewFrame = 0;
   }
 
   /** The visible window, in recording time, for restoring a scope's view. */
@@ -526,7 +528,11 @@ export class RecordingTimeline {
 
   // The ruler draws only ticks near the visible window, so deep zoom stays cheap.
   #drawRuler() {
-    this.#drawOverview();
+    // Several geometry steps can run in one task; the overview reads their end.
+    this.#overviewFrame ||= nextRender(() => {
+      this.#overviewFrame = 0;
+      this.#drawOverview();
+    });
     const ruler = this.#host.querySelector(".lf-trace-ruler");
     const scroller = this.scroller;
     if (!ruler || !scroller?.clientWidth || !this.#model) return;

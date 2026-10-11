@@ -12186,6 +12186,48 @@ def test_reading_landmarks_use_drawn_segments_in_mixed_blocks(
     assert returned["top"] == pytest.approx(chosen["top"], abs=2)
 
 
+@pytest.mark.parametrize("conceal", ["display", "visibility"])
+@pytest.mark.parametrize("quote", [False, True])
+def test_reading_restore_leaves_a_concealed_landmark_alone(
+    browser, serve, conceal, quote
+):
+    """Restoring a serialized landmark never travels to concealed zero geometry."""
+    words = "The review result whose position the reader saved earlier."
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Concealed reading landmark",
+                '<h1>Review</h1><div style="height:1600px"></div>'
+                f'<section id="landmark" style="display:contents"><p>{words}</p></section>'
+                '<div style="height:2000px"></div>',
+            )
+        ),
+    )
+    result = page.evaluate(
+        """async ({words, conceal, quote}) => {
+      const {restorePlace} = await window.__lfRuntimeImport('/runtime/reading-place.js');
+      const {landingBand, shownBox} = await window.__lfRuntimeImport('/runtime/geometry.js');
+      const section = document.querySelector('#landmark');
+      const place = {section: section.id, sectionTop: 0};
+      if (quote) Object.assign(place, {quote: words, quoteTop: 0});
+      restorePlace(place);
+      const range = document.createRange();
+      range.selectNodeContents(section.firstElementChild);
+      const visible = quote ? range.getBoundingClientRect().top : shownBox(section).top;
+      const band = landingBand(document.scrollingElement).top;
+      section.style[conceal] = conceal === 'display' ? 'none' : 'hidden';
+      scrollTo({top:800, behavior:'instant'});
+      const before = scrollY;
+      restorePlace(place);
+      return {visible, band, before, after:scrollY};
+    }""",
+        {"words": words, "conceal": conceal, "quote": quote},
+    )
+    assert result["visible"] == pytest.approx(result["band"], abs=2)
+    assert result["before"] == result["after"]
+
+
 def test_back_returns_from_an_ask_the_walk_travelled_to(browser, serve):
     """The Ask walk records the same history the thread walk does: one entry for a
     journey to Asks somewhere else however far it goes, so Back returns to where the

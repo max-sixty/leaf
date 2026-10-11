@@ -24,8 +24,8 @@
    (`anchorForRange`), the identity the page already resolves quotes by. Comments pointed at
    one row share that row's key, the first one's, so they stand as one margin row.
 
-   Anchor paint's pass is the one writer of the points (`placePoints`, beside its
-   resolution of every thread's anchor): it takes in what sends handed over, keeps a row
+   Anchor placement's read is the one writer of the points (anchor-placement.js,
+   `placePoints`, beside its resolution of every thread's anchor): it takes in what sends handed over, keeps a row
    still standing, finds one a re-render or a revision replaced again by its words, once
    per page reading, and forgets the points of threads the log does not hold. A settled
    thread keeps its point, so undoing the settle brings it back where it stood. Everything

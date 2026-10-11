@@ -77,7 +77,7 @@ a passage mark, and everything else in the annotation layer is an overlay: it co
 what lies under it and takes no room. No rule pads, indents,
 widens, or reflows a block, heading, or line to clear a pin, and nothing moves when a
 marker arrives, leaves, or changes place, including a marker that always accompanies
-its target, such as an Ask's. Reserved room would make the page's geometry depend on
+its target, such as a Question's. Reserved room would make the page's geometry depend on
 which markers stand and where, which is what the overlay exists to avoid. Where a pin
 covers something the user needs, the answers are `o` (or More's Hide annotations
 under a finger) and a better placement (`TODO.md`), never room made for it.
@@ -155,7 +155,7 @@ hold to changes in existing messages, reactions, folds, settlement and active
 compositions. A thread the agent starts in a seat also waits there; a thread that
 would open a seat of its own, as on a diff line with no thread, waits in the margin behind its marker
 (`thread/held-news.js`). It shows once a gesture of theirs takes them to it: opening
-the notice or the thread, walking to the thread or one of its Asks, or acting there. In
+the notice or the thread, walking to the thread or one of its Questions, or acting there. In
 the Threads panel, a card news takes out of the view, as another actor resolving its
 thread under Open does, stays where it stands, holding the news behind that notice
 and, once shown, in the shape it stood in, until its going would move nothing the

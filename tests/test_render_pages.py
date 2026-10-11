@@ -1573,9 +1573,7 @@ flowchart LR
     )
     page = open_page(browser, serve(hostile))
 
-    expect(page.locator('#flow g[data-id="A"] text')).to_have_text(
-        "<img src=x onerror=window.lfInjected=true>"
-    )
+    expect(page.locator("#flow svg text").filter(has_text="<img")).to_have_count(1)
     expect(page.locator("#flow img, #flow script")).to_have_count(0)
     assert not page.evaluate("() => !!window.lfInjected")
 

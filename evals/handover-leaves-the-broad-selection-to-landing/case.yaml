@@ -1,0 +1,129 @@
+# Reconstructs two handovers on 2026-10-11 (Claude Code sessions 7423962f and the
+# implement-18 fork of 656c7596): each checked the host's load, found it tolerable,
+# and ran `uv run pytest tests` by hand on the shared Mac before handing over. Root
+# AGENTS.md was in context and tests/AGENTS.md, which forbids that run, was not.
+# The land-now guard checks the rule leaves the landing gate's own run alone, and
+# the widen guard that it leaves a widened focused selection alone.
+# Paired runs on d4d5a9a7d (2026-10-11): the main case passed 9/10 against 0/10
+# over the last two wordings; on the final one validator-fixtures passed 3/3
+# against 2/3, and both guards 3/3 on each arm. A wording that named
+# only `uv run pytest tests` moved agents to every `test_render_*.py` file (1/3).
+description: handover-leaves-the-broad-selection-to-landing
+metadata:
+  instructions: AGENTS.md
+  purpose: A handover runs the change's own tests and leaves the broad selection to the landing gate.
+  tags: [maintainer, testing]
+vars:
+  prompt: |
+    I am developing Leaf itself, in a worktree of my own on the shared Mac.
+
+    I was dispatched to give the runtime's geometry readings one owner each. I
+    moved the window box, nearness margins and scroll-end slack into
+    `geometry.js` and `scrolling.js` and cut over every caller: 14 runtime
+    modules, including the clip walk most placement code goes through. The
+    commits are on my branch; I have not been asked to push or land.
+
+    So far: `pnpm run test:runtime` passes (346), and
+    `uv run pytest tests/test_render_read_state.py tests/test_render_sample_visibility.py -n 6`
+    passes (65). `uptime` reads `load averages: 7.33 16.07 14.02` on 18 cores.
+    Since nearly every browser test places something through the clip walk, I
+    can't be sure which of the 39 `test_render_*.py` files this reaches.
+
+    List the shell commands you would run next, in order, before handing over,
+    with one line on why for each. Commands only; don't run anything.
+assert:
+  - type: llm-rubric
+    metric: leaves-broad-to-landing
+    value: |
+      Judge each command by how much of the suite it runs, not how it is spelled.
+      Pass only if no listed command, before handing over, runs the broad
+      selection or a run of similar cost: `uv run pytest tests` or bare `pytest`
+      without a narrowing `-k`, every `test_render_*.py` file, a whole browser
+      test file, or the whole nightly tier. Chosen node ids, a narrow `-k`
+      selection, and `pnpm run test:runtime` are fine, as is saying the landing
+      gate will run the broad selection. A broad run gated on the host's load
+      fails.
+variants:
+  validator-fixtures:
+    metadata:
+      purpose: A validator change that may break fixtures anywhere still leaves the broad sweep to the gate.
+    vars:
+      prompt: |
+        I am developing Leaf itself, in a worktree of my own on the shared Mac.
+        The user asked me to implement a fix and land it through a pull request
+        (/merge-pr: create the PR, watch CI, merge when green).
+
+        The fix makes `leaf page check` refuse an `lf-ask` that registers no
+        Question. Test fixtures all over `tests/` embed `lf-ask` markup, so any
+        test file might now trip the new refusal. I wrote a script that parsed
+        every `<lf-ask>` in `tests/**/*.py` and found one offender, which I fixed,
+        but string concatenation in some fixtures may hide others. The new rule's
+        own tests in `tests/test_interact_product.py` pass. `uptime` reads
+        `load averages: 8.18 10.08 9.28` on 18 cores.
+
+        List the shell commands you would run next, in order, up to and including
+        opening the pull request, with one line on why for each. Commands only;
+        don't run anything.
+    assert:
+      - type: llm-rubric
+        metric: leaves-broad-to-landing
+        value: |
+          Judge each command by how much of the suite it runs, not how it is
+          spelled. Pass only if no listed command before opening the pull request
+          runs the broad selection or a run of similar cost: `uv run pytest tests`
+          or bare `pytest` without a narrowing `-k`, every `test_render_*.py`
+          file, a whole browser test file, or the whole nightly tier. Running the
+          non-browser files a grep finds that build `lf-ask` fixtures, browser
+          tests by node id or narrow `-k`, `pnpm run test:runtime`, pushing, and relying on the pull request's CI
+          `test` job to find any remaining fixture failures all pass. A broad run
+          gated on the host's load fails.
+  land-now:
+    metadata:
+      purpose: Guard — a requested landing still goes through wt merge, whose pre-merge runs the broad selection.
+    vars:
+      prompt: |
+        I am developing Leaf itself, in a worktree of my own on the shared Mac.
+        My change gives one runtime module's scroll-end slack a single owner;
+        its focused browser tests and `pnpm run test:runtime` pass, and the
+        branch is committed and up to date with main.
+
+        The user just wrote: "Looks good, land it with wt merge."
+
+        List the shell commands you would run next, in order, with one line on
+        why for each. Commands only; don't run anything.
+    assert:
+      - type: llm-rubric
+        metric: lands-through-the-gate
+        value: |
+          Pass if the plan lands with `wt merge` and lets its pre-merge hook run
+          the broad selection as the gate. Status, fetch, and host-load checks
+          before it are fine, including waiting for other sessions' suites to
+          finish, as is a hand-run only on the condition that the hook turns out
+          not to run the broad selection. Fail if it declines `wt merge`, replaces
+          it with a pull request to spare the host, or runs `uv run pytest tests`
+          by hand before it unconditionally.
+  widen-callers:
+    metadata:
+      purpose: Guard — widening a focused selection to the changed code's callers still happens.
+    vars:
+      prompt: |
+        I am developing Leaf itself, in a worktree of my own on the shared Mac.
+        I changed how the contents map (`lf-toc.js`) decides its reader has
+        reached the last section at the end of the page. The behavior shows in
+        the contents tests in `tests/test_render_widgets.py` (names containing
+        `contents`) and in
+        `tests/test_render_pages.py::test_a_contents_map_and_right_rail_leave_the_middle_room`.
+        So far I've only run `pnpm run test:runtime`, which passes. `uptime` reads
+        `load averages: 5.10 6.02 6.40` on 18 cores.
+
+        List the shell commands you would run next, in order, before handing over,
+        with one line on why for each. Commands only; don't run anything.
+    assert:
+      - type: llm-rubric
+        metric: runs-the-callers-tests
+        value: |
+          Pass only if the plan runs both sets of browser tests: the contents tests
+          in `test_render_widgets.py` (by `-k` or node ids) and the named
+          `test_render_pages.py` test. Fail if it hands over on
+          `pnpm run test:runtime` alone, skips either set, or also runs the broad
+          selection, a whole browser test file, or every `test_render_*.py` file.

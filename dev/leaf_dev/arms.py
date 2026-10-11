@@ -51,10 +51,12 @@ from leaf_dev.page_fixtures import prepare_page, read_fixture
 # The uv project names this package's `pyproject.toml` as a workspace member, so uv
 # needs that file to read the lock. The package itself stays out: the launcher never
 # installs the dev group. A ref from before the package has no such file. The root
-# `package.json` makes the payload a Pi package.
+# `package.json` makes the payload a Pi package. The maintainer skills and root
+# `AGENTS.md` are there for internal instruction cases, which inject one of them.
 PAYLOAD = (
     ".claude/skills/developing-leaf",
     ".claude/skills/ui-sweep",
+    "AGENTS.md",
     ".agents/plugins",
     ".claude-plugin",
     ".codex-plugin",

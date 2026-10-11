@@ -221,7 +221,7 @@ def test_internal_instruction_cases_receive_their_arms_source(
         tmp_path / "samples",
     )
     for provider in config["providers"]:
-        harness, arm, _ = provider["label"].split("/")
+        harness, arm, _ = provider["label"].split("/", 2)
         field = (
             "append_system_prompt"
             if harness == "claude-code"
@@ -232,6 +232,32 @@ def test_internal_instruction_cases_receive_their_arms_source(
         assert injected.endswith(f"{arm} maintainer instructions")
     assert [check["type"] for check in config["tests"][0]["assert"]] == ["llm-rubric"]
     assert config["tests"][0]["vars"]["prompt"] == catalog()[address]["vars"]["prompt"]
+
+
+def test_instruction_cases_selected_together_each_receive_their_own_source(tmp_path):
+    payloads = arms(tmp_path, "candidate")
+    addresses = {
+        "review-shows-the-change": ".claude/skills/developing-leaf/SKILL.md",
+        "handover-leaves-the-broad-selection-to-landing": "AGENTS.md",
+    }
+    for source in addresses.values():
+        path = payloads["candidate"] / source
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"{source} instructions")
+    config = prepare(
+        list(addresses),
+        payloads,
+        tmp_path / "scratch",
+        ("claude-code",),
+        ("leaf",),
+        tmp_path / "samples",
+    )
+    providers = {p["label"]: p for p in config["providers"]}
+    for test in config["tests"]:
+        source = addresses[test["metadata"]["case"]]
+        for label in test["providers"]:
+            injected = providers[label]["config"]["append_system_prompt"]
+            assert injected.endswith(f"{source} instructions")
 
 
 @pytest.mark.usefixtures("codex_cli")

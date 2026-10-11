@@ -1185,33 +1185,37 @@ def draft_key(page, ctx: str) -> str:
     )
 
 
-_STORED_DRAFT_TEXT = """key => {
-  try {
-    const record = JSON.parse(localStorage.getItem(key));
-    return record && !record.settled ? record.text : null;
-  } catch { return null; }
-}"""
-_STORED_DRAFT_SETTLED = """key => {
-  try {
-    return JSON.parse(localStorage.getItem(key))?.settled === true;
-  } catch { return false; }
-}"""
+def stored_draft(page):
+    """The page's own reader of stored drafts (`storedDraft`, runtime/drafts.js)."""
+    return page.evaluate_handle(
+        """async () => (await window.__lfRuntimeImport('/runtime/drafts.js'))
+          .storedDraft"""
+    )
 
 
 def stored_draft_text(page, ctx: str) -> str | None:
     """The words storage holds for the draft at `ctx`, or None once it is settled or
     absent: what another tab or a reload would find, whatever this tab shows."""
-    return page.evaluate(_STORED_DRAFT_TEXT, draft_key(page, ctx))
+    return page.evaluate(
+        """([read, ctx]) => {
+          const record = read(ctx);
+          return record && !record.settled ? record.text : null;
+        }""",
+        [stored_draft(page), ctx],
+    )
+
+
+_STORED_DRAFT_SETTLED = "([read, ctx]) => read(ctx)?.settled === true"
 
 
 def stored_draft_settled(page, ctx: str) -> bool:
     """Whether storage holds the draft at `ctx` as settled (its tombstone)."""
-    return page.evaluate(_STORED_DRAFT_SETTLED, draft_key(page, ctx))
+    return page.evaluate(_STORED_DRAFT_SETTLED, [stored_draft(page), ctx])
 
 
 def until_draft_settled(page, ctx: str) -> None:
     """Wait until storage holds the draft at `ctx` as settled."""
-    page.wait_for_function(_STORED_DRAFT_SETTLED, arg=draft_key(page, ctx))
+    page.wait_for_function(_STORED_DRAFT_SETTLED, arg=[stored_draft(page), ctx])
 
 
 _BROWSER_PROBLEM_LISTS = None

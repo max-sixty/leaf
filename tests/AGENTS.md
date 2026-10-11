@@ -147,8 +147,9 @@ calls the probe through `leaf.render_checks.evaluate_probe`.
 
 Where the product already answers a reading's question, such as `shownBand` for the
 band a box shows, consume that answer instead of copying it: `root_overflow` for
-whether the page scrolls sideways, `draft_key` for where a draft is stored, and
-`event_log.read_events` for what the log holds. Page-side code reaches a runtime
+whether the page scrolls sideways, `draft_key` for where a draft is stored,
+`stored_draft` for the record stored there, and `event_log.read_events` for what
+the log holds. Page-side code reaches a runtime
 module through `window.__lfRuntimeImport`; a bare `/runtime/…` import loads a second
 instance that shares none of the page's state.
 

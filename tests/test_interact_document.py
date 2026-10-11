@@ -2095,6 +2095,7 @@ def test_reply_refuses_a_suggestion(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--text",
             "Fixed:",
@@ -2127,7 +2128,14 @@ def test_response_addresses_one_obligation_and_activates_the_current_source(page
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", response_reference(page_dir, "c1"), "--text", "Updated."],
+        [
+            "response",
+            "reply",
+            "--done",
+            response_reference(page_dir, "c1"),
+            "--text",
+            "Updated.",
+        ],
     )
 
     assert result.exit_code == 0, result.output
@@ -2157,7 +2165,14 @@ def test_reply_refuses_an_invalid_current_source(page_dir):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", response_reference(page_dir, "c1"), "--text", "Updated."],
+        [
+            "response",
+            "reply",
+            "--done",
+            response_reference(page_dir, "c1"),
+            "--text",
+            "Updated.",
+        ],
     )
 
     assert result.exit_code != 0
@@ -2197,7 +2212,7 @@ def test_response_reference_selects_one_of_several_obligations(page_dir):
 
     ambiguous = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", "--text", "Updated."],
+        ["response", "reply", "--done", "--text", "Updated."],
     )
     assert ambiguous.exit_code != 0
     assert "Missing argument" in ambiguous.output
@@ -2205,7 +2220,14 @@ def test_response_reference_selects_one_of_several_obligations(page_dir):
 
     selected = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", response_reference(page_dir, "c2"), "--text", "Updated."],
+        [
+            "response",
+            "reply",
+            "--done",
+            response_reference(page_dir, "c2"),
+            "--text",
+            "Updated.",
+        ],
     )
 
     assert selected.exit_code == 0, selected.output
@@ -2243,7 +2265,7 @@ def test_response_never_settles_a_newer_undelivered_correction(page_dir):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", reference, "--text", "Made it blue."],
+        ["response", "reply", "--done", reference, "--text", "Made it blue."],
     )
 
     assert result.exit_code != 0
@@ -2276,7 +2298,7 @@ def test_response_belongs_to_the_session_with_the_opened_delivery(
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", reference, "--text", "Updated."],
+        ["response", "reply", "--done", reference, "--text", "Updated."],
     )
 
     assert result.exit_code != 0
@@ -2302,7 +2324,14 @@ def test_response_address_survives_its_delivery_turn_closing(page_dir):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", response_reference(page_dir, "c1"), "--text", "Updated."],
+        [
+            "response",
+            "reply",
+            "--done",
+            response_reference(page_dir, "c1"),
+            "--text",
+            "Updated.",
+        ],
     )
 
     assert result.exit_code == 0, result.output
@@ -2398,6 +2427,7 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
         [
             "response",
             "reply",
+            "--done",
             reference,
             "--attempt",
             "distinct-retry-attempt",
@@ -2694,15 +2724,15 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
         read = run("page", "state", name)
         assert read.exit_code == 0, read.output
         assert json.loads(read.output)["thread"]["id"] == opened["id"]
-    opened_task = runner.invoke(
-        cli_model.cli,
-        ["task", "open", str(page_dir), "t-ask", "Weigh it"],
+    promised = run(
+        "thread", "reply", "t-ask", "--text", "Weighing it.", "--task", "Weigh"
     )
-    assert opened_task.exit_code == 0, opened_task.output
-    assert json.loads(opened_task.output)["subject"] == {
-        "kind": "thread",
-        "id": opened["id"],
-    }
+    assert promised.exit_code == 0, promised.output
+    [task] = json.loads(run("page", "state").output)["tasks"]
+    assert (task["id"], task["subject"]) == (
+        json.loads(promised.output)["id"],
+        {"kind": "thread", "id": opened["id"]},
+    )
 
     not_a_thread = run("thread", "resolve", "g1")
     assert not_a_thread.exit_code != 0

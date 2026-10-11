@@ -44,7 +44,7 @@ test("a follow-up sent in a thread replaces its accepted response obligation", (
   ];
   assert.deepEqual(kinds(selectQueues({ ...served, workflows }).onAgent), [
     ["answer", "pending:a3"],
-    ["task", "e6"],
+    ["task", "e5"],
   ]);
 });
 

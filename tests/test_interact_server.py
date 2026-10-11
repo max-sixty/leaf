@@ -2163,6 +2163,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "approval-question"),
             "--text",
             "Choose the follow-up:",
@@ -3174,6 +3175,7 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--text",
             "Pick one:",

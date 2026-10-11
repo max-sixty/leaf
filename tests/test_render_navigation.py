@@ -3757,7 +3757,7 @@ def test_q_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
             "responds": asked["id"],
             "revision": 1,
             "text": "Weekly or daily?",
-            "awaits": True,
+            "question": True,
         },
     )
     owed = append_carried_log_record(
@@ -3861,27 +3861,26 @@ def test_the_questions_panel_lists_both_queues_and_what_is_done(browser, serve):
         )
 
     asked = said("agent", kind="comment", text="Weekly?", anchor={"section": "cadence"})
-    owed = said(
-        "user", kind="comment", text="Tighten this.", anchor={"section": "notes"}
+    said("user", kind="comment", text="Tighten this.", anchor={"section": "notes"})
+    rebuild = said(
+        "user", kind="comment", text="Rebuild them.", anchor={"section": "notes"}
     )
-    subject = {"kind": "thread", "id": owed["id"]}
     said(
-        "agent", kind="task", owner="agent", subject=subject, title="Rebuild the notes"
+        "agent",
+        kind="reply",
+        parent=rebuild["id"],
+        responds=rebuild["id"],
+        text="Rebuilding them.",
+        task="Rebuild the notes",
     )
     retitle = said("user", kind="comment", text="Retitle it.", anchor={"section": "h"})
-    said(
+    ended = said(
         "agent",
         kind="reply",
         parent=retitle["id"],
         responds=retitle["id"],
-        text="Retitled.",
-    )
-    ended = said(
-        "agent",
-        kind="task",
-        owner="agent",
-        subject={"kind": "thread", "id": retitle["id"]},
-        title="Retitle the release",
+        text="Retitling it.",
+        task="Retitle the release",
     )
     said(
         "agent",
@@ -4331,7 +4330,7 @@ def test_a_q_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, ser
             "responds": asked["id"],
             "revision": 1,
             "text": "Weekly or daily?",
-            "awaits": True,
+            "question": True,
         },
     )
     page = open_page(browser, url)

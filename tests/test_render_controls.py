@@ -5009,9 +5009,11 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
                 }"""
         )
         for item in ("toolbar", "ring"):
+            # Centered flex boxes round to device pixels independently of the
+            # banner's stated height; subpixel overhang is not a clipped aim.
             assert (
-                geometry[item]["top"] >= geometry["banner"]["top"] - 0.01
-                and geometry[item]["bottom"] <= geometry["banner"]["bottom"] + 0.01
+                geometry[item]["top"] >= geometry["banner"]["top"] - 1
+                and geometry[item]["bottom"] <= geometry["banner"]["bottom"] + 1
             ), f"the wide coarse {item} escaped its banner at {width}px: {geometry}"
 
     # The browser's root is Leaf's page scrollport, and native touch beginning in

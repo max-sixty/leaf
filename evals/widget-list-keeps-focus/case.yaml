@@ -4,9 +4,11 @@
 # to the body whenever Remove re-rendered its list; this asks for the same shape
 # from the shipped references alone. Added with module-authoring.md's paragraph on
 # those exports; whether it tells two wordings apart is recorded in that commit.
+# The Lit adoption survey added the immediate receipt to exercise same-turn paint
+# alongside focus continuity; before/after results belong in that change's commit.
 description: widget-list-keeps-focus
 metadata:
-  purpose: A widget keeps the user in a keyed list across a re-render and hands them back when its own popup closes, through the runtime's focus primitives.
+  purpose: A widget paints a removal synchronously, keeps the user in its keyed list, and hands them back when its own popup closes, through the runtime's public primitives.
   tags:
   - packages
   - keyboard
@@ -16,6 +18,8 @@ vars:
     keyed by the item's id, with a Remove button that deletes the item and
     re-renders the whole list with Lit. Its "Add item" button opens a small popup
     list of candidates inside the widget; Escape or a choice closes the popup.
+    After Remove's handler returns, its caller captures the displayed remaining
+    list for a receipt of the accepted change.
 
     Removing a row with the keyboard currently drops focus to the page body, and
     closing the popup leaves focus nowhere. The user should stay in the list after a
@@ -24,11 +28,6 @@ vars:
     opened it. Read the public references and show the JavaScript for the remove
     handler, the list render, and the popup's close.
 assert:
-- type: javascript
-  metric: reads-module-authoring
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/(?:packages|module-authoring)\.md
 - type: regex
   metric: keyed-hold
   value: 'holdFocus\([^)]*\{\s*key\s*:'
@@ -40,6 +39,9 @@ assert:
   value: |
     Pass only if the response imports its focus helpers from /runtime/widget-api.js
     and:
+    - renders the changed list through Leaf's public render() before the remove
+      handler returns, so the caller's receipt reads the changed view; it does
+      not wait for a LitElement reactive update or force one with performUpdate();
     - holds focus across the list render with holdFocus(list, { key: <the row's
       key attribute> }), sets that attribute on each row, and calls the returned
       restore after rendering with the Add item button as its last stand-in;

@@ -3866,9 +3866,9 @@ def test_an_eyebrow_and_heading_keep_one_title_rhythm_through_contents(browser, 
           const root = document.scrollingElement;
           const eyebrow = section.querySelector(':scope > .eyebrow');
           const heading = section.querySelector(':scope > h3');
-              return {
-                clear: parseFloat(getComputedStyle(root).scrollPaddingTop),
-                section: section.getBoundingClientRect().top,
+          return {
+            clear: parseFloat(getComputedStyle(root).scrollPaddingTop),
+            section: section.getBoundingClientRect().top,
             eyebrow: eyebrow.getBoundingClientRect().top,
             heading: heading.getBoundingClientRect().top,
           };

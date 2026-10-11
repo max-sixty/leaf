@@ -243,7 +243,10 @@ export function createPrimaryReader(owner, render, commands, update) {
             nativeMessages.add(message.id);
       return {
         paint: async () => {
-          await paint(current);
+          const widgets = paint(current);
+          if (!active || current !== generation || abort.signal.aborted) return;
+          candidate.painted();
+          await whenWidgetsPresented(widgets);
           if (active && current === generation && !abort.signal.aborted)
             candidate.commit();
         },
@@ -277,7 +280,7 @@ export function createPrimaryReader(owner, render, commands, update) {
       throw error;
     }
   }
-  async function paint(current) {
+  function paint(current) {
     if (!active || generation !== current) return;
     for (const item of selected)
       if (!owner.isConnected || !item.outlet.isConnected || !under(item.outlet, owner))
@@ -398,14 +401,13 @@ export function createPrimaryReader(owner, render, commands, update) {
       destinations.set(item.key, parts);
     }
     for (const [parent, nodes] of children) orderChildren(parent, nodes);
-    const widgets = [...readApplication().document.descriptors.values()]
+    return [...readApplication().document.descriptors.values()]
       .filter(
         (descriptor) =>
           descriptor.document.kind === "thread" &&
           renderedUnder(elementById(descriptor.id), owner),
       )
       .map((descriptor) => descriptor.id);
-    await whenWidgetsPresented(widgets);
   }
   const destination = (key, { message = null, part = null } = {}) => {
     const parts = destinations.get(key) ?? [];

@@ -1968,6 +1968,130 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         )
 
 
+def test_an_offscreen_arrival_stays_drawn_while_widget_proof_waits(browser, serve):
+    """A layout refresh cannot hide a new card the pending list already drew."""
+    passages = "".join(
+        ('<p id="arrival">The incoming passage.</p>' if index == 24 else "")
+        + f'<p id="passage-{index}">Passage {index}.</p>'
+        for index in range(28)
+    )
+    url = serve(
+        leaf_page("Pending offscreen arrival", "<h1>Review</h1>" + passages),
+        layer_registry=PAGE_DECLARATION,
+        layer_widgets={"lf-local.js": PAGE_WIDGET},
+    )
+    for index in range(28):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "id": f"thread-{index}",
+                "author": "user",
+                "revision": 1,
+                "anchor": {"section": f"passage-{index}"},
+                "text": f"Conversation {index}.",
+            },
+        )
+    page = open_page(browser, live_url(url))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    known = page.locator('.lf-threads > [data-id="thread-24"]')
+    known.locator(".lf-thread-summary").click()
+    panel = page.locator("leaf-thread-list")
+    box = panel.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.wheel(0, -5000)
+    page.wait_for_function("document.querySelector('leaf-thread-list').scrollTop === 0")
+    page.evaluate(
+        """async () => {
+          const {growthIsSeen} = await window.__lfRuntimeImport('/runtime/geometry.js');
+          const {readApplicationPresentation} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+          window.neighborIsSeen = () => growthIsSeen(document.querySelector('[data-id="thread-24"]'));
+          window.readPendingArrival = readApplicationPresentation;
+          const held = Promise.withResolvers();
+          window.releaseArrivalProof = held.resolve;
+          window.arrivalProofSettled = false;
+          held.promise.then(() => { window.arrivalProofSettled = true; });
+          window.__heldLocalPresentations = new Map([['arrival-widget', held.promise]]);
+          const list = document.querySelector('leaf-thread-list');
+          const present = list.present.bind(list);
+          window.arrivalPaints = 0;
+          list.present = async model => {
+            const result = await present(model);
+            if (model.rows.some(row => row.descriptor?.id === 'arriving-thread'))
+              window.arrivalPaints += 1;
+            return result;
+          };
+        }"""
+    )
+    assert not page.evaluate("neighborIsSeen()")
+    held_readings = []
+    page.route("**/api/state*", lambda route: held_readings.append(route))
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "arriving-thread",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "arrival"},
+            "text": "An arrival first drawn below the reading.",
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "id": "arriving-widget-reply",
+            "author": "agent",
+            "revision": 1,
+            "parent": "arriving-thread",
+            "text": "Prepare this control.",
+            "markup": '<lf-local id="arrival-widget" choice="idle"></lf-local>',
+        },
+    )
+    edited_words = "Edited while this conversation stood below the reading."
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "edit",
+            "author": "user",
+            "message": "thread-24",
+            "text": edited_words,
+        },
+    )
+    page.unroute("**/api/state*")
+    for route in held_readings:
+        route.continue_()
+    page.wait_for_function(
+        """() => window.arrivalPaints > 0 && document.querySelector('#arrival-widget') &&
+          readPendingArrival().pending.includes('widget:arrival-widget:preparation')"""
+    )
+    arrival = page.locator('.lf-threads > [data-id="arriving-thread"]')
+    assert arrival.evaluate("node => node.checkVisibility()")
+    expect(known.locator('[data-mid="thread-24"]')).to_contain_text(edited_words)
+    panel = page.locator("leaf-thread-list")
+    box = panel.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.wheel(0, 5000)
+    page.wait_for_function("neighborIsSeen()")
+    page.evaluate(
+        """() => {
+          window.arrivalPaintsBeforeLayout = window.arrivalPaints;
+          document.dispatchEvent(new Event('lf-layout'));
+        }"""
+    )
+    page.wait_for_function("arrivalPaints > arrivalPaintsBeforeLayout")
+    assert not page.evaluate("arrivalProofSettled")
+    still_drawn = {
+        "arrival": arrival.evaluate("node => node.checkVisibility()"),
+        "edit": edited_words in known.locator('[data-mid="thread-24"]').inner_text(),
+    }
+    page.evaluate("releaseArrivalProof('prepared')")
+    page.wait_for_function("() => !readPendingArrival().pending.includes('thread')")
+    assert still_drawn == {"arrival": True, "edit": True}
+
+
 @pytest.mark.parametrize("place", ["closed", "selected", "scrolled", "scaled"])
 def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, place):
     """Absent threads retain room, never live controls or semantic membership."""
@@ -3434,10 +3558,12 @@ def test_prepared_thread_reading_consumes_only_its_own_release(
       held.hold(reading('old'), options);
       if (earlier) held.release();
       const pending = held.prepare(reading('new'), options);
+      pending.painted();
       held.release();
       pending.commit();
       const replacement = held.prepare(reading('new'), options);
       const opened = replacement.reading.threads[0].source.msgs[0].text === 'new';
+      replacement.painted();
       replacement.commit();
       const next = held.prepare(reading('later'), options);
       const holdingAgain = next.reading.threads[0].source.msgs[0].text === 'new' &&
@@ -3468,31 +3594,48 @@ def test_a_prepared_new_thread_stays_released_until_its_reading_commits(browser,
       const options = {row:false};
       // Preparation models the interval before frozen widgets prove the list.
       // All release routes must survive both a synchronous reread and old completion.
+      const observed = {};
       for (const release of ['destination', 'notice', 'view']) {
         let replacement;
         const held = new HeldNews(owner, () => ({node:owner, newsMoves:()=>true}),
-          () => { replacement = held.prepare(reading, options); });
+          () => {
+            replacement = held.prepare(reading, options);
+            replacement.painted();
+          });
         held.hold({threads:[initial]}, options);
         const pending = held.prepare(reading, options);
-        if (pending.reading.threads.length !== 1) return false;
-        if (release === 'destination') {
-          if (!held.showThreads('arriving')) return false;
-        } else if (release === 'notice') pending.reading.threads[0].news.open();
+        pending.painted();
+        const counts = {held:pending.reading.threads.length};
+        if (release === 'destination') counts.released = held.showThreads('arriving');
+        else if (release === 'notice') pending.reading.threads[0].news.open();
         else held.release();
         replacement ??= held.prepare(reading, options);
-        if (replacement.reading.threads.length !== 2) return false;
+        replacement.painted();
+        counts.replacement = replacement.reading.threads.length;
         pending.commit();
         const next = held.prepare(reading, options);
-        if (next.reading.threads.length !== 2) return false;
+        counts.afterOldCommit = next.reading.threads.length;
+        next.painted();
         next.commit();
         const later = descriptor({...base, id:'later', key:'later'});
         const newest = held.prepare({threads:[later, ...reading.threads]}, options);
-        if (newest.reading.threads.length !== 2) return false;
+        counts.laterArrival = newest.reading.threads.length;
+        observed[release] = counts;
         held.dispose();
       }
-      return true;
+      return observed;
     }"""
-    )
+    ) == {
+        "destination": {
+            "held": 1,
+            "released": True,
+            "replacement": 2,
+            "afterOldCommit": 2,
+            "laterArrival": 2,
+        },
+        "notice": {"held": 1, "replacement": 2, "afterOldCommit": 2, "laterArrival": 2},
+        "view": {"held": 1, "replacement": 2, "afterOldCommit": 2, "laterArrival": 2},
+    }
 
 
 def test_primary_reader_revision_replaces_owner_without_losing_thread_draft(

@@ -402,6 +402,7 @@ class ThreadListView extends RetainedFace {
     if (this.model !== candidate) return false;
     const generation = ++this.#generation;
     this.#retaining = true;
+    this.#news.restore();
     try {
       await this.paint(this.committed, { now: true });
       if (generation !== this.#generation) return false;
@@ -421,9 +422,8 @@ class ThreadListView extends RetainedFace {
     // A change of view moves the cards, so they show what they hold.
     const viewChanged = this.#intent !== this.model.intent;
     if (viewChanged || this.#retaining) this.#news.release();
-    // The news baseline belongs to the complete list checkpoint. A failed paint
-    // can remove a root provisionally; rollback must not read its restored card as
-    // an arrival against that failed candidate's membership.
+    // News compares with the actual paint, while complete list commit owns the
+    // rollback checkpoint. Restoring that checkpoint must restore news with it.
     this.#newsCandidate = this.#news.prepare(
       {
         threads: this.model.rows
@@ -498,6 +498,9 @@ class ThreadListView extends RetainedFace {
   }
 
   updated() {
+    // Lit and the cards have drawn this candidate. Acknowledge it before focus or
+    // summary callbacks can synchronously prepare another reading.
+    this.#newsCandidate?.painted();
     this.#showExpanded();
     const restore = this.#restoreFocusAfterPaint;
     this.#restoreFocusAfterPaint = null;

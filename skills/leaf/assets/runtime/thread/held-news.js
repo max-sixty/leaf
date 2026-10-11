@@ -54,9 +54,10 @@
    `settle`) and shows what the thread holds.
 
    `HeldNews` is that one owner for a seat, and `HeldArrivals` for the seats a widget has
-   not opened. Each reads every reading against the one it drew last, the only baseline:
-   news is whatever the seat would draw differently, the notice says exactly that
-   difference, and a reading back to what is drawn holds nothing. The gestures that show
+   not opened. Each compares news with the reading it actually drew last. A required
+   presenter also checkpoints the complete reading; restoring that reading restores
+   its news comparison through the same owner. News is whatever the seat would draw
+   differently, the notice says exactly that difference, and a reading back to what is drawn holds nothing. The gestures that show
    what a thread holds are the ones that take the user to it:
 
    - pressing its notice, or its margin marker where a widget holds it out of the flow;
@@ -419,6 +420,7 @@ export class HeldNews {
   // threads not drawn; and each thread's key by its id.
   #shown = null;
   #known = new Set();
+  #committed = { shown: null, known: new Set() };
   #holds = new Set();
   #released = new Map();
   #threads = new Set();
@@ -440,12 +442,14 @@ export class HeldNews {
   // first-message row the user is not in, in whose place a notice can stand.
   hold(reading, { row }) {
     const candidate = this.prepare(reading, { row });
+    candidate.painted();
     candidate.commit();
     return candidate.reading;
   }
 
-  // Required presenters prepare before yielding to package layout. Only the
-  // candidate actually painted becomes the baseline for the next comparison.
+  // Required presenters acknowledge the candidate actually painted before yielding
+  // to package proof. Complete commit records the rollback checkpoint separately;
+  // an older completion never changes the comparison of a newer painted reading.
   prepare(reading, { row }) {
     const read = readApplication().phase === "ready" || reading.threads.length > 0;
     if (!read || !readingIsContinuous()) this.#forget();
@@ -463,15 +467,25 @@ export class HeldNews {
     else this.#stop();
     return {
       reading: shown,
+      painted: () => {
+        this.#known = keys;
+        this.#shown = read ? shown : null;
+      },
       commit: () => {
         // A release issued while this candidate awaited paint belongs to the next
         // reading. Consume only the intents this candidate actually drew.
         for (const [key, token] of released)
           if (this.#released.get(key) === token) this.#released.delete(key);
-        this.#known = keys;
-        this.#shown = read ? shown : null;
+        this.#committed = { known: keys, shown: read ? shown : null };
       },
     };
+  }
+
+  // The complete presenter restores this comparison before painting its committed
+  // model. User release intents remain live; restoring paint cannot withdraw them.
+  restore() {
+    this.#known = this.#committed.known;
+    this.#shown = this.#committed.shown;
   }
 
   // Which of the threads new to the seat it holds back.

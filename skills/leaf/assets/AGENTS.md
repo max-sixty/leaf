@@ -445,6 +445,8 @@ keeps its own test says why beside it. Rows marked *lint* are enforced in
 | Whether a control takes typed letters | `focus.js` `typesText`, `takesLetters` |
 | Which focused control counts as the user's place: shown, and not under a stuck box | `user-place.js` `focusedInView` |
 | Whether a click came from the keyboard | `pointer.js` `pressIsKeyboardActivation` |
+| Whether a press is the plain one a control claims: primary button, no modifier | `pointer.js` `plainPress` |
+| Which arrow means back along a row, in its text direction | `keyboard/bindings.js` `rowArrows` |
 | Whether any of a node is in front of the user | `geometry.js` `seenRect`; past top-layer surfaces, `clipsPastSurfaces` |
 | Whether a change of size there would move what is seen | `geometry.js` `motionBand`, `growthIsSeen`, `growthAfterIsSeen` |
 | When none of some nodes is seen any more | `geometry.js` `whenNone` |

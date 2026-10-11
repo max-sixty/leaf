@@ -571,6 +571,64 @@ def test_frozen_ask_attention_comes_from_its_widget_without_a_prose_task():
     )
 
 
+def test_hands_over_says_what_the_next_user_turn_leaves_the_thread():
+    """While a reply or a rewrite is sending, the browser draws the thread as the log
+    will read it once that turn lands, and only the log knows which Questions it
+    leaves open. A reply answers prose and leaves an Ask; a rewrite answers nothing;
+    either reopens a resolved thread. Each case's served `hands_over` is checked
+    against the attention the server reads after each kind of turn."""
+    asked = {"kind": "comment", "text": "Chart the year."}
+    prose = {
+        "kind": "reply",
+        "author": "agent",
+        "parent": "e1",
+        "text": "Which year?",
+        "awaits": True,
+    }
+    cases = {
+        "plain": (
+            (
+                asked,
+                {"kind": "reply", "author": "agent", "parent": "e1", "text": "Done."},
+            ),
+            {"reply": True, "edit": True},
+        ),
+        "prose question": ((asked, prose), {"reply": True, "edit": False}),
+        "Ask in the thread": (
+            (
+                asked,
+                {
+                    "kind": "reply",
+                    "author": "agent",
+                    "parent": "e1",
+                    "text": "Pick one.",
+                    "markup": '<lf-options id="years" choose><lf-option id="y24">2024</lf-option><lf-option id="y25">2025</lf-option></lf-options>',
+                },
+            ),
+            {"reply": False, "edit": False},
+        ),
+        "resolved over a prose question": (
+            (asked, prose, {"kind": "resolve", "parent": "e1"}),
+            {"reply": True, "edit": False},
+        ),
+    }
+    turns = {
+        "reply": {"kind": "reply", "parent": "e2", "text": "2025."},
+        "edit": {"kind": "edit", "message": "e1", "text": "Chart 2025."},
+    }
+    for name, (events, expected) in cases.items():
+        thread = model.threads(model.reading(HUB, events))["e1"]
+        assert thread["hands_over"] == expected, name
+        for kind, turn in turns.items():
+            after = model.threads(model.reading(HUB, (*events, turn)))["e1"]
+            assert after["resolved"] is None, (name, kind)
+            assert (after["attention"]["kind"] == "waiting") == expected[kind], (
+                name,
+                kind,
+                after["attention"],
+            )
+
+
 def test_summary_protects_the_unanswered_question_after_later_agent_updates():
     """A summary cannot hide the question the user owes merely because a newer
     agent update is the last turn. Protection selects the canonical prompt."""

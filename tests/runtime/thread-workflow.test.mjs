@@ -279,7 +279,7 @@ test("a local rewrite shows on its message and hands a closed thread to the agen
   assert.equal(thread.msgs[0].text, "Chart 2024.", "the served thread stays as served");
 });
 
-test("a local rewrite leaves a question asked since with the user", () => {
+test("a pending turn takes the attention the server says that kind of turn leaves", () => {
   const asked = { id: "root", kind: "comment", author: "user", text: "A", ts: "then" };
   const question = {
     id: "question",
@@ -299,18 +299,31 @@ test("a local rewrite leaves a question asked since with the user", () => {
     text: "B",
     ts: "now",
   };
-  const [folded] = foldThreads(
-    [servedThread([asked, question], { attention: owed })],
-    [rewrite],
-  );
-  assert.deepEqual(folded.attention, owed);
-  // A reply answers the question, so the thread goes to the agent.
   const reply = { ...rewrite, id: "pending:reply", kind: "reply", parent: "question" };
-  const [replied] = foldThreads(
-    [servedThread([asked, question], { attention: owed })],
-    [reply],
-  );
-  assert.equal(replied.attention.workflow, "pending:reply");
+  const fold = (changes, ...gestures) =>
+    foldThreads([servedThread([asked, question], changes)], gestures)[0].attention;
+
+  // A question left in prose: a reply answers it and hands the thread over; new words
+  // for an older message answer nothing, and a rewrite after a reply hands over as the
+  // reply did.
+  const prose = { attention: owed, hands_over: { reply: true, edit: false } };
+  assert.equal(fold(prose, reply).workflow, "pending:reply");
+  assert.deepEqual(fold(prose, rewrite), owed);
+  assert.equal(fold(prose, reply, rewrite).workflow, "pending:rewrite");
+  // An Ask in the thread, open or under a resolution the turn lifts, stays the user's
+  // whichever turn they send beside it.
+  const ask = { hands_over: { reply: false, edit: false } };
+  for (const standing of [
+    { ...ask, attention: owed },
+    {
+      ...ask,
+      attention: null,
+      resolved: { id: "closed", kind: "resolve", author: "user" },
+    },
+  ]) {
+    assert.deepEqual(fold(standing, reply), owed);
+    assert.deepEqual(fold(standing, rewrite), owed);
+  }
 });
 
 test("pending thread gestures fold in the order the user made them, as the log will", () => {

@@ -991,10 +991,10 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
     # Only which thread the board widget stands in matters here.
     frozen = projection_model.FrozenThreadReading(None, {}, {}, {"board": "root"}, None)
     for workflows, expected in cases:
-        threads = [{"id": "root", "resolved": None, "user_prompt": None}]
+        threads = [{"id": "root", "resolved": None}]
         browser_served_model._apply_thread_attention(
             threads,
-            {"user": []},
+            {"unanswered": []},
             work_served_model.served_workflows(workflows, frozen),
             [
                 {
@@ -1013,10 +1013,10 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
             "workflow": expected,
         }
     # With no workflow holding it, an open task keeps the thread on the agent.
-    threads = [{"id": "root", "resolved": None, "user_prompt": None}]
+    threads = [{"id": "root", "resolved": None}]
     browser_served_model._apply_thread_attention(
         threads,
-        {"user": []},
+        {"unanswered": []},
         [],
         [
             {

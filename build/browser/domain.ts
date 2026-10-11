@@ -105,6 +105,9 @@ export interface Thread {
   })[];
   unread: readonly ContentVersion[];
   attention: Attention;
+  /** Whether a new turn of each kind from the user would leave the thread waiting on
+   * the agent, as the server reads its open Questions (`_apply_thread_attention`). */
+  hands_over: { reply: boolean; edit: boolean };
   settling?: "resolve" | "unresolve";
 }
 export type Settlement = Extract<Command, { kind: "resolve" | "unresolve" }> & {

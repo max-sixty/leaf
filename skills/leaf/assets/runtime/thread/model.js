@@ -137,16 +137,25 @@ const pendingSeat = (message) =>
 // beside it.
 //
 // The derived facts a pending thread carries are the ones the user just made true: a
-// thread the user opened with words is a thread rather than a mark, and its attention
-// waits on the newest turn sent, words or a rewrite of them, whose local workflow
-// shares its pending id, so the agent owes the next word and the user none. Every other
-// thread keeps the attention the server derived.
+// thread the user opened with words is a thread rather than a mark, and asks nothing
+// yet. Whose turn a thread is after a reply or a rewrite depends on the Questions the
+// whole log leaves open, so the fold reads the server's `hands_over` for that kind of
+// turn rather than deciding it: a turn that hands the thread over waits on its own
+// local workflow, which shares its pending id; one that does not leaves the thread on
+// the user, as the log will say. Every other thread keeps the attention the server
+// derived.
 /** @param {{id: string}} turn @returns {import("../../../../../build/browser/domain.ts").Attention} */
 const sending = (turn) => ({
   kind: "waiting",
   reason: "workflow",
   workflow: turn.id,
 });
+/** @param {Thread} thread @param {{id: string, kind: "reply" | "edit"}} turn
+ * @returns {import("../../../../../build/browser/domain.ts").Attention} */
+const turnAttention = (thread, turn) =>
+  thread.hands_over[turn.kind]
+    ? sending(turn)
+    : { kind: "needs_user", reason: "question", workflow: null };
 
 // `gestures` are the ledger's thread gestures, oldest first: each comment, reply or
 // rewrite as the thread draws it, each settlement with the `localParent` its pending
@@ -193,6 +202,7 @@ export function foldThreads(threads, gestures) {
         summaries: [],
         unread: [],
         attention: reaction ? null : sending(gesture),
+        hands_over: { reply: true, edit: true },
       };
       opened.push(thread);
       byName.set(gesture.id, thread);
@@ -202,10 +212,14 @@ export function foldThreads(threads, gestures) {
       thread.msgs.push(gesture);
       if (isReaction(gesture)) continue;
       thread.resolved = null;
-      thread.attention = sending(gesture);
+      thread.attention = turnAttention(thread, gesture);
+      // The reply answers every prose Question before it, so a rewrite after it answers
+      // what the reply would: only the widget Questions are left.
+      const { reply } = thread.hands_over;
+      thread.hands_over = { reply, edit: reply };
     } else if (gesture.kind === "edit") {
-      // An edit shows as its message's new words, and hands the thread to the agent as
-      // a reply would, under the edit's own pending id (`events.exchange`).
+      // An edit shows as its message's new words, and is a turn as a reply is, under
+      // the edit's own pending id (`events.exchange`).
       const thread = byName.get(gesture.message);
       const at = thread?.msgs.findIndex(({ id }) => id === gesture.message) ?? -1;
       const message = thread?.msgs[at];
@@ -222,9 +236,7 @@ export function foldThreads(threads, gestures) {
       });
       if (thread.root.id === gesture.message) thread.root = thread.msgs[at] ?? message;
       thread.resolved = null;
-      // A question asked since still waits on the user: new words for an older message
-      // answer none (`events.exchange`), so the user stays first, as the log will say.
-      if (thread.attention?.reason !== "question") thread.attention = sending(gesture);
+      thread.attention = turnAttention(thread, gesture);
     } else if (gesture.kind === "resolve" || gesture.kind === "unresolve") {
       const thread =
         byName.get(gesture.parent) ??

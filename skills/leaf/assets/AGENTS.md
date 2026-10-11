@@ -477,7 +477,8 @@ selects each widget answer from the same local-inclusive state its controls draw
 without folding its `x-awaits.answered` completion rule again. A required-version
 approval is another Question source: its local approval or undo updates its contained
 answer and status immediately, with refusal restoring the admitted reading. Thread attention
-(`needs_user` or `waiting`) changes locally for unresolved sends; a refusal restores
+(`needs_user` or `waiting`) changes locally for unresolved sends, to what the
+thread's served `hands_over` says that kind of turn leaves; a refusal restores
 the admitted reading. Questions derive their queue rows directly, while Tasks hold
 explicit committed work. Every state read has
 one `through_seq`, and version comparison asks `/api/view` at the sequence

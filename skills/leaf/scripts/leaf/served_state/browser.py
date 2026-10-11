@@ -31,26 +31,40 @@ class BrowserReading(NamedTuple):
 def _apply_thread_attention(
     threads: list[dict], questions: dict, workflows: list[dict], tasks: list[dict]
 ) -> None:
-    """Attach the shared attention aggregate, with user Questions taking precedence.
+    """Attach each thread's attention, and whether a new user turn hands it over.
 
-    This is the browser's one reading of whose turn a thread is: `needs_user` for
-    an open Question or a question the agent's latest turn leaves (`user_prompt`), or a
-    response the user must recover; `waiting` while a workflow holds the thread with
-    the agent, which covers every input `events.unanswered_turns` holds, or while a
-    task the agent opened on it stands; else None. `workflows` are
+    `attention` is the browser's one reading of whose turn a thread is: `needs_user`
+    while a Question in it stands open, or for a response the user must recover;
+    `waiting` while a workflow holds the thread with the agent, which covers every
+    input `events.unanswered_turns` holds, or while a task the agent opened on it
+    stands; else None, as for every resolved thread. `workflows` are
     `served_workflows`, so the first that qualifies is the one the thread waits on,
     and a workflow speaks before a task. `tasks` are the agent's open tasks, each
-    stamped with its `thread`."""
-    user_threads = {question["thread"] for question in questions["user"]}
+    stamped with its `thread`.
+
+    `hands_over` says, for each kind of turn the user can add, whether it would leave
+    the thread waiting on the agent: `reply` answers every prose Question before it and
+    no widget Question (`questions.thread_questions`), and `edit` answers none
+    (`events.exchange`). Either turn opens a resolved thread and supersedes a failed
+    response, so the open Questions alone decide, resolved or not. The browser reads
+    this while a turn it sent is unanswered, so its Threads counts agree with the
+    reading the log gives back; the same open Questions decide `attention`, so the
+    two cannot disagree about one thread."""
+    asking: dict[str, set[str]] = {}
+    for question in questions["unanswered"]:
+        if question["thread"] is not None:
+            asking.setdefault(question["thread"], set()).add(question["source"]["kind"])
     by_thread: dict[str, list[dict]] = {}
     for workflow in workflows:
         if workflow["thread"] is not None:
             by_thread.setdefault(workflow["thread"], []).append(workflow)
     for thread in threads:
+        asked = asking.get(thread["id"], set())
+        thread["hands_over"] = {"reply": asked <= {"reply"}, "edit": not asked}
         if thread["resolved"]:
             thread["attention"] = None
             continue
-        if thread["id"] in user_threads or thread["user_prompt"]:
+        if asked:
             thread["attention"] = {
                 "kind": "needs_user",
                 "reason": "question",

@@ -740,15 +740,10 @@ export function createSemanticApplication({
       ? normalizedQuestions(view, state?.browser.thread, widgets, document, projection, local)
       : NO_QUESTIONS;
     const tasks = ready ? localTasks(state, local) : { open: [], ended: [] };
-    // Thread attention is the server's reading, and three local facts adjust it. A
-    // pending send hands the thread to the agent, which `foldThreads` states. A
-    // structural Question survives prose sent beside it, so the admitted Question inventory puts
-    // back the independent obligation that still stands in that thread. A refused send
-    // hands a thread the server left with the agent back to the user, whose
-    // Retry it is.
-    const owed = new Set(admittedQuestions.user
-      .filter((question) => question.source.kind === "widget")
-      .map((question) => question.thread));
+    // Thread attention is the server's reading, and two local facts adjust it. A
+    // pending turn takes the attention the server says that kind of turn leaves,
+    // which `foldThreads` reads from `hands_over`. A refused send hands a thread the
+    // server left with the agent back to the user, whose Retry it is.
     // The thread a gesture stands in, of every kind the ledger holds. A message stands
     // in the thread that draws it, under its pending id or, once the log has it, its
     // attempt. Until one does, a comment opens the thread its own id names, and a reply
@@ -804,13 +799,6 @@ export function createSemanticApplication({
       if (thread) recovery.set(thread, `rejected:${entry.event.attempt}`);
     }
     const obligated = folded.map((thread): Thread => {
-      if (owed.has(thread.id))
-        return thread.attention?.reason === "question"
-          ? thread
-          : {
-              ...thread,
-              attention: { kind: "needs_user", reason: "question", workflow: null },
-            };
       const retry = recovery.get(thread.id);
       return retry && thread.attention?.kind !== "needs_user"
         ? {

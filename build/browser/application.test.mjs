@@ -1203,6 +1203,7 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
   accepted.browser.thread.threads = [
     servedThread([root], {
       attention: { kind: "needs_user", reason: "question", workflow: null },
+      hands_over: { reply: false, edit: false },
     }),
   ];
   app.adopt(accepted);
@@ -1217,8 +1218,8 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
     },
     "now",
   );
-  // The Ask the thread carries is still the user's, so the obligation does not turn
-  // over and back when the reply lands.
+  // The Ask the thread carries is still the user's, so the server says a reply leaves
+  // the thread with them, and the obligation does not turn over and back when it lands.
   const thread = app.read().effective.thread.all[0];
   assert.deepEqual(thread.attention, {
     kind: "needs_user",

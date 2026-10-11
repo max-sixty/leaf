@@ -1795,7 +1795,7 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
           });
         }"""
     )
-    part = page.locator('#flow [data-rebuilt]')
+    part = page.locator("#flow [data-rebuilt]")
     expect(part).not_to_be_in_viewport()
     page.locator("#folded").evaluate("fold => { fold.open = false; }")
 

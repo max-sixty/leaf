@@ -4009,7 +4009,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     working(d, "drafting v2")
     told(page)
     expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(r"^Claude is working — drafting v2")
+        re.compile(r"^\s*Claude is working — drafting v2")
     )
     expect(held_workflow).to_have_count(1)
     expect(held_workflow).to_have_attribute(
@@ -4038,8 +4038,22 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     )
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
-    # Once the answer has settled the input, renewed work is a task on the thread,
-    # shown in the compact card. It does not invent an unasked message workflow.
+    # Once the answer has settled the input, renewed work is promised in a new
+    # thread reply rather than opened without a message.
+    promised = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            str(d),
+            held,
+            "--text",
+            "I'll re-run it against the rolling deploy.",
+            "--task",
+            "Re-run against the rolling deploy",
+        ],
+    )
+    assert promised.exit_code == 0, promised.output
     working(d, "re-running it against the rolling deploy", subject=held)
     told(page)
     expect(held_workflow).to_have_count(0)
@@ -4071,7 +4085,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     record_claim(d, id="s", pid=dead_pid)
     told(page)
     expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(r"^No session holds this page\.")
+        re.compile(r"^\s*No session holds this page\.")
     )
     expect(held_thread.locator(".lf-thread-status")).to_have_text("Task open")
     expect(workflows).to_have_count(1)

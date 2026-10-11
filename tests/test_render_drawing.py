@@ -1386,8 +1386,18 @@ def test_draw_mode_leaves_inline_thread_controls_usable(browser, serve):
 
 def test_draw_mode_captures_widget_controls(browser, serve):
     """A page widget remains drawable; a Draw press never answers its Question."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
-    option = page.locator("#bg-choice-trail")
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Drawing over a choice",
+                '<h1>Choose a route</h1><lf-options id="route" choose>'
+                '<lf-option id="trail">Trail</lf-option>'
+                '<lf-option id="street">Street</lf-option></lf-options>',
+            )
+        ),
+    )
+    option = page.locator("#trail")
     control = option.locator(".lf-pick")
     control.scroll_into_view_if_needed()
     box = control.bounding_box()

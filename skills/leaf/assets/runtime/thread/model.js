@@ -138,12 +138,13 @@ const pendingSeat = (message) =>
 //
 // The derived facts a pending thread carries are the ones the user just made true: a
 // thread the user opened with words is a thread rather than a mark, and asks nothing
-// yet. Whose turn a thread is after a reply or a rewrite depends on the Questions the
-// whole log leaves open, so the fold reads the server's `hands_over` for that kind of
-// turn rather than deciding it: a turn that hands the thread over waits on its own
-// local workflow, which shares its pending id; one that does not leaves the thread on
-// the user, as the log will say. Every other thread keeps the attention the server
-// derived.
+// yet. Whose turn a thread is after a reply or a rewrite depends on the Questions and
+// failed moves the whole log leaves standing, so the fold reads the server's
+// `hands_over` for that kind of turn rather than deciding it: a turn that hands the
+// thread over waits on its own local workflow, which shares its pending id; one that
+// does not leaves the thread on the user, for the reason the server already gives or,
+// where the turn reopens a resolved thread, for the Question it uncovers. Every other
+// thread keeps the attention the server derived.
 /** @param {{id: string}} turn @returns {import("../../../../../build/browser/domain.ts").Attention} */
 const sending = (turn) => ({
   kind: "waiting",
@@ -155,7 +156,9 @@ const sending = (turn) => ({
 const turnAttention = (thread, turn) =>
   thread.hands_over[turn.kind]
     ? sending(turn)
-    : { kind: "needs_user", reason: "question", workflow: null };
+    : thread.attention?.kind === "needs_user"
+      ? thread.attention
+      : { kind: "needs_user", reason: "question", workflow: null };
 
 // `gestures` are the ledger's thread gestures, oldest first: each comment, reply or
 // rewrite as the thread draws it, each settlement with the `localParent` its pending

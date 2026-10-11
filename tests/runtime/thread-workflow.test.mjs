@@ -324,6 +324,11 @@ test("a pending turn takes the attention the server says that kind of turn leave
     assert.deepEqual(fold(standing, reply), owed);
     assert.deepEqual(fold(standing, rewrite), owed);
   }
+  // A pick whose answer failed stays the user's to send again, for that reason.
+  const resend = { kind: "needs_user", reason: "recovery", workflow: "pick" };
+  const failed = { attention: resend, hands_over: { reply: false, edit: false } };
+  assert.deepEqual(fold(failed, reply), resend);
+  assert.deepEqual(fold(failed, rewrite), resend);
 });
 
 test("pending thread gestures fold in the order the user made them, as the log will", () => {

@@ -573,10 +573,11 @@ def test_frozen_ask_attention_comes_from_its_widget_without_a_prose_task():
 
 def test_hands_over_says_what_the_next_user_turn_leaves_the_thread():
     """While a reply or a rewrite is sending, the browser draws the thread as the log
-    will read it once that turn lands, and only the log knows which Questions it
-    leaves open. A reply answers prose and leaves an Ask; a rewrite answers nothing;
-    either reopens a resolved thread. Each case's served `hands_over` is checked
-    against the attention the server reads after each kind of turn."""
+    will read it once that turn lands, and only the log knows what it leaves
+    standing. A reply answers prose and leaves an Ask; a rewrite answers nothing;
+    either reopens a resolved thread, and neither recovers a pick whose answer
+    failed. Each case's served `hands_over` is checked against the attention the
+    server reads after each kind of turn."""
     asked = {"kind": "comment", "text": "Chart the year."}
     prose = {
         "kind": "reply",
@@ -584,6 +585,13 @@ def test_hands_over_says_what_the_next_user_turn_leaves_the_thread():
         "parent": "e1",
         "text": "Which year?",
         "awaits": True,
+    }
+    ask = {
+        "kind": "reply",
+        "author": "agent",
+        "parent": "e1",
+        "text": "Pick one.",
+        "markup": '<lf-options id="years" choose><lf-option id="y24">2024</lf-option><lf-option id="y25">2025</lf-option></lf-options>',
     }
     cases = {
         "plain": (
@@ -594,22 +602,37 @@ def test_hands_over_says_what_the_next_user_turn_leaves_the_thread():
             {"reply": True, "edit": True},
         ),
         "prose question": ((asked, prose), {"reply": True, "edit": False}),
-        "Ask in the thread": (
-            (
-                asked,
-                {
-                    "kind": "reply",
-                    "author": "agent",
-                    "parent": "e1",
-                    "text": "Pick one.",
-                    "markup": '<lf-options id="years" choose><lf-option id="y24">2024</lf-option><lf-option id="y25">2025</lf-option></lf-options>',
-                },
-            ),
-            {"reply": False, "edit": False},
-        ),
+        "Ask in the thread": ((asked, ask), {"reply": False, "edit": False}),
         "resolved over a prose question": (
             (asked, prose, {"kind": "resolve", "parent": "e1"}),
             {"reply": True, "edit": False},
+        ),
+        "resolved over an Ask": (
+            (asked, ask, {"kind": "resolve", "parent": "e1"}),
+            {"reply": False, "edit": False},
+        ),
+        # The harness gave up answering the user's pick, which is theirs to send again
+        # whatever they say beside it.
+        "failed answer to a pick": (
+            (
+                asked,
+                ask,
+                {
+                    "kind": "action",
+                    "widget": "years",
+                    "action": "choose",
+                    "detail": {"value": ["y25"]},
+                },
+                {
+                    "kind": "reply",
+                    "author": "agent",
+                    "parent": "e2",
+                    "responds": "e3",
+                    "failure": "turn_failed",
+                    "text": "No answer is coming.",
+                },
+            ),
+            {"reply": False, "edit": False},
         ),
     }
     turns = {

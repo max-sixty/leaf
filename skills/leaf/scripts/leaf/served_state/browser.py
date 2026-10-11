@@ -46,10 +46,14 @@ def _apply_thread_attention(
     the thread waiting on the agent: `reply` answers every prose Question before it and
     no widget Question (`questions.thread_questions`), and `edit` answers none
     (`events.exchange`). Either turn opens a resolved thread and supersedes a failed
-    response, so the open Questions alone decide, resolved or not. The browser reads
-    this while a turn it sent is unanswered, so its Threads counts agree with the
-    reading the log gives back; the same open Questions decide `attention`, so the
-    two cannot disagree about one thread."""
+    response to a thread input, but not one to a widget move frozen in the thread,
+    which stands until the move settles or a newer move replaces it
+    (`workflows.canonical_workflows`). So a turn hands over when it leaves no open
+    Question and no such recovery; both are read from the same Questions and
+    workflows as `attention`. A resolved thread serves no workflows, so a failed move
+    the resolve settled, which a reopening turn hands back to the user, is not counted
+    there. The browser reads this while a turn it sent is unanswered, so its Threads
+    counts agree with the reading the log gives back."""
     asking: dict[str, set[str]] = {}
     for question in questions["unanswered"]:
         if question["thread"] is not None:
@@ -60,7 +64,15 @@ def _apply_thread_attention(
             by_thread.setdefault(workflow["thread"], []).append(workflow)
     for thread in threads:
         asked = asking.get(thread["id"], set())
-        thread["hands_over"] = {"reply": asked <= {"reply"}, "edit": not asked}
+        candidates = by_thread.get(thread["id"], [])
+        recovering = any(
+            workflow["next_actor"] == "user" and workflow["subject"]["kind"] != "thread"
+            for workflow in candidates
+        )
+        thread["hands_over"] = {
+            "reply": asked <= {"reply"} and not recovering,
+            "edit": not asked and not recovering,
+        }
         if thread["resolved"]:
             thread["attention"] = None
             continue
@@ -71,7 +83,6 @@ def _apply_thread_attention(
                 "workflow": None,
             }
             continue
-        candidates = by_thread.get(thread["id"], [])
         if recovery := next(
             (workflow for workflow in candidates if workflow["next_actor"] == "user"),
             None,

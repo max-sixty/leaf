@@ -476,8 +476,7 @@ export function createAnnotationInventory({
     }
 
     for (const offered of contributionEntries()) {
-      const target =
-        typeof offered.target === "function" ? offered.target() : offered.target;
+      const target = offered.target();
       if (!target?.isConnected || inChrome(target)) continue;
       const group = groupFor(groups, target);
       if (group.offers.some((candidate) => candidate.key === offered.key))

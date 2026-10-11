@@ -143,7 +143,7 @@ export function contributionControlKey(control) {
 export function contributionEntrySource(control) {
   const offered = controlContributions.get(control);
   if (!offered) return null;
-  return typeof offered.source === "function" ? offered.source() : offered.source;
+  return offered.source();
 }
 
 // Agent workflow is projection state. One claim gets one shared arrival window so the

@@ -510,33 +510,6 @@ nesting, passages, event shapes, and file readings; the browser owns computed la
 composed trees, module writes, focus, and replay idempotence. A test reads widget state
 through the publisher's own reading, never a test-only interpretation of it.
 
-| Reading | Contract |
-| --- | --- |
-| window-error channel | no runtime, module, resource, or ResizeObserver error reached the page |
-| `issueNode` | a DevTools issue outside a form control's shadow tree is the page's, placed at its frame if it has one |
-| `upgraded`, `moving` | upgrade completed and geometry settled |
-| `invalidPaints` | every var()-backed SVG paint resolves in each scheme |
-| `tinyBoxes` | every declared widget has a usable box |
-| `unmarkableElements` | every addressable element has a visible part to outline |
-| `misplacedBoxes` | boxes stay in the column or in reachable overflow at every width |
-| `squeezedTables` | a table scrolls sideways only with every column at its longest unbreakable run |
-| `clippedControls` | controls are visible and reachable |
-| `unreachableWords`, `coveredWords` | visible words stay in reachable flow and are not silently clipped or claimed by chrome |
-| `unreadSyntax` | highlighting does not alter source words |
-| `shownVerbatim` | preserving owners agree with their projected passage |
-| `silentWords` | `x-says` and `x-paints` promises reach the rendered page |
-| `undeclaredAttrs` | modules write no undeclared author-namespace state |
-| `retiredSlots` | settlement marks agree with the projection |
-| `trappedMargins`, `splitEdges` | authored-page spacing advice; the suite enforces frame trim on Leaf's own boxes |
-| `relativeReplays` | rendering a complete widget state twice changes nothing |
-| `shrunkLabels` | advice only |
-
-Put a check on the side that can observe the fact: static validation owns schema,
-ids, nesting, passages, event shapes, and file readings; the browser owns computed
-layout, composed trees, module writes, focus, and replay idempotence.
-Readings of widget state use the publisher's own reading; never write a test-only
-interpretation of it.
-
 The gates judge contracts, not how the page looks. A change to what the page
 draws, including one made for geometry, is proved with before/after screenshots
 of each state it touches. `uv run leaf-dev stills` takes them for a catalogue of

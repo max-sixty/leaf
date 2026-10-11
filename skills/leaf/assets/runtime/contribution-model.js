@@ -109,7 +109,7 @@ export const KINDS = Object.freeze(
         indication: true,
       },
       reported: {
-        label: "Reported update",
+        label: "Reported state",
         icon: "activity",
         priority: 4,
         indication: true,

@@ -97,24 +97,24 @@
 #        text: When the event asks for work, say in its thread what you will do before
 #              any other command, including reading the source it concerns: `leaf
 #              response reply <answer.ref> --ephemeral --text "<what you will do, in a
-#              line>"`. The user reads it in the thread at once, and it takes the move
-#              in hand: the move reads Working, and the line stands in the banner
-#              until you answer. Do the work and put its result on the page, with
-#              whatever shows it (captures, a figure, the numbers), then answer with
-#              `leaf response reply <answer.ref> --done < reply.md`: what changed, in
-#              a sentence or two, linking the section that shows it. When the event
-#              asks for no work, as a question may not, answer it with that reply at
-#              once. The page carries the work, and the thread only the conversation
-#              about it. `leaf response reply` checks any saved page edit and makes it
-#              live before posting. If a revision removes what the thread is anchored
-#              on, move the thread in the reply that reports it with `--section <id>`
-#              (narrowed by `--quote` or `--part` if needed), or `--detach` it if its
-#              subject has left the page. Every answer says what it leaves: `--done`
-#              when it delivers what was asked, `--question` when its prose asks the
-#              user something back, or `--task "<what you owe>"` when it promises work
-#              that outlasts this turn, which then stays on you, under the reply's id,
-#              until `leaf task end` (`references/conversation-loop.md`, "Long-running
-#              work").
+#              line>"`. The user reads it in the thread at once, and it takes the
+#              update in hand: the update reads Working, and the line stands in the
+#              banner until you answer. Do the work and put its result on the page,
+#              with whatever shows it (captures, a figure, the numbers), then answer
+#              with `leaf response reply <answer.ref> --done < reply.md`: what
+#              changed, in a sentence or two, linking the section that shows it. When
+#              the event asks for no work, as a question may not, answer it with that
+#              reply at once. The page carries the work, and the thread only the
+#              conversation about it. `leaf response reply` checks any saved page edit
+#              and makes it live before posting. If a revision removes what the thread
+#              is anchored on, move the thread in the reply that reports it with
+#              `--section <id>` (narrowed by `--quote` or `--part` if needed), or
+#              `--detach` it if its subject has left the page. Every answer says what
+#              it leaves: `--done` when it delivers what was asked, `--question` when
+#              its prose asks the user something back, or `--task "<what you owe>"`
+#              when it promises work that outlasts this turn, which then stays on you,
+#              under the reply's id, until `leaf task end`
+#              (`references/conversation-loop.md`, "Long-running work").
 #      clause 8, does not apply:
 #        when: {"properties": {"answer": {"properties": {"writer": {"const": "turn"}}}}}
 #        text: Leaf streams your opening into the thread and commits your completed
@@ -151,7 +151,7 @@
 #        "format": "leaf-delivery-v5",
 #        "id": "e8417b8a",
 #        "created_at": 1790046750.29,
-#        "acknowledge": "Whoever ran the `leaf wait` that printed this delivery acknowledges it; until then the user's moves read Sent rather than Picked up. If the output was cut off, reread it with `leaf delivery read e8417b8a`. Follow any `next` commands before confirming. If you handle it, acknowledge before any other work; if you forward it, acknowledge once it durably arrives there. To acknowledge, start `leaf wait --ack e8417b8a` as the next background task: it confirms this delivery and waits for the next.",
+#        "acknowledge": "Whoever ran the `leaf wait` that printed this delivery acknowledges it; until then the user's updates read Sent rather than Picked up. If the output was cut off, reread it with `leaf delivery read e8417b8a`. Follow any `next` commands before confirming. If you handle it, acknowledge before any other work; if you forward it, acknowledge once it durably arrives there. To acknowledge, start `leaf wait --ack e8417b8a` as the next background task: it confirms this delivery and waits for the next.",
 #        "batches": [
 #          {
 #            "page": "/path/to/page",
@@ -178,7 +178,7 @@
 #            ],
 #            "handling": {
 #              "h1": "This event's thread has no title yet: name it by adding `--title \"<a few words>\"` to the reply that answers it, so the thread panel lists its subject rather than its opening words. If Leaf has named it from its opening message by then, that name stands.",
-#              "h2": "When the event asks for work, say in its thread what you will do before any other command, including reading the source it concerns: `leaf response reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. The user reads it in the thread at once, and it takes the move in hand: the move reads Working, and the line stands in the banner until you answer. Do the work and put its result on the page, with whatever shows it (captures, a figure, the numbers), then answer with `leaf response reply <answer.ref> --done < reply.md`: what changed, in a sentence or two, linking the section that shows it. When the event asks for no work, as a question may not, answer it with that reply at once. The page carries the work, and the thread only the conversation about it. `leaf response reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Every answer says what it leaves: `--done` when it delivers what was asked, `--question` when its prose asks the user something back, or `--task \"<what you owe>\"` when it promises work that outlasts this turn, which then stays on you, under the reply's id, until `leaf task end` (`references/conversation-loop.md`, \"Long-running work\").",
+#              "h2": "When the event asks for work, say in its thread what you will do before any other command, including reading the source it concerns: `leaf response reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. The user reads it in the thread at once, and it takes the update in hand: the update reads Working, and the line stands in the banner until you answer. Do the work and put its result on the page, with whatever shows it (captures, a figure, the numbers), then answer with `leaf response reply <answer.ref> --done < reply.md`: what changed, in a sentence or two, linking the section that shows it. When the event asks for no work, as a question may not, answer it with that reply at once. The page carries the work, and the thread only the conversation about it. `leaf response reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Every answer says what it leaves: `--done` when it delivers what was asked, `--question` when its prose asks the user something back, or `--task \"<what you owe>\"` when it promises work that outlasts this turn, which then stays on you, under the reply's id, until `leaf task end` (`references/conversation-loop.md`, \"Long-running work\").",
 #              "h3": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."
 #            },
 #            "events": [
@@ -269,8 +269,8 @@
 #              When the event asks for work, say in its thread what you will do before
 #              any other command, including reading the source it concerns: `leaf response
 #              reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
-#              The user reads it in the thread at once, and it takes the move in hand:
-#              the move reads Working, and the line stands in the banner until you answer.
+#              The user reads it in the thread at once, and it takes the update in hand:
+#              the update reads Working, and the line stands in the banner until you answer.
 #              Do the work and put its result on the page, with whatever shows it (captures,
 #              a figure, the numbers), then answer with `leaf response reply <answer.ref>
 #              --done < reply.md`: what changed, in a sentence or two, linking the section
@@ -314,8 +314,8 @@ comment:
         When the event asks for work, say in its thread what you will do before
         any other command, including reading the source it concerns: `leaf response
         reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
-        The user reads it in the thread at once, and it takes the move in hand:
-        the move reads Working, and the line stands in the banner until you answer.
+        The user reads it in the thread at once, and it takes the update in hand:
+        the update reads Working, and the line stands in the banner until you answer.
         Do the work and put its result on the page, with whatever shows it (captures,
         a figure, the numbers), then answer with `leaf response reply <answer.ref>
         --done < reply.md`: what changed, in a sentence or two, linking the section
@@ -394,8 +394,8 @@ comment with a drawing:
         When the event asks for work, say in its thread what you will do before
         any other command, including reading the source it concerns: `leaf response
         reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
-        The user reads it in the thread at once, and it takes the move in hand:
-        the move reads Working, and the line stands in the banner until you answer.
+        The user reads it in the thread at once, and it takes the update in hand:
+        the update reads Working, and the line stands in the banner until you answer.
         Do the work and put its result on the page, with whatever shows it (captures,
         a figure, the numbers), then answer with `leaf response reply <answer.ref>
         --done < reply.md`: what changed, in a sentence or two, linking the section
@@ -433,8 +433,8 @@ comment with a pasted image:
         When the event asks for work, say in its thread what you will do before
         any other command, including reading the source it concerns: `leaf response
         reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
-        The user reads it in the thread at once, and it takes the move in hand:
-        the move reads Working, and the line stands in the banner until you answer.
+        The user reads it in the thread at once, and it takes the update in hand:
+        the update reads Working, and the line stands in the banner until you answer.
         Do the work and put its result on the page, with whatever shows it (captures,
         a figure, the numbers), then answer with `leaf response reply <answer.ref>
         --done < reply.md`: what changed, in a sentence or two, linking the section
@@ -476,8 +476,8 @@ suggestion:
         When the event asks for work, say in its thread what you will do before
         any other command, including reading the source it concerns: `leaf response
         reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
-        The user reads it in the thread at once, and it takes the move in hand:
-        the move reads Working, and the line stands in the banner until you answer.
+        The user reads it in the thread at once, and it takes the update in hand:
+        the update reads Working, and the line stands in the banner until you answer.
         Do the work and put its result on the page, with whatever shows it (captures,
         a figure, the numbers), then answer with `leaf response reply <answer.ref>
         --done < reply.md`: what changed, in a sentence or two, linking the section
@@ -524,8 +524,8 @@ design comment:
         When the event asks for work, say in its thread what you will do before
         any other command, including reading the source it concerns: `leaf response
         reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
-        The user reads it in the thread at once, and it takes the move in hand:
-        the move reads Working, and the line stands in the banner until you answer.
+        The user reads it in the thread at once, and it takes the update in hand:
+        the update reads Working, and the line stands in the banner until you answer.
         Do the work and put its result on the page, with whatever shows it (captures,
         a figure, the numbers), then answer with `leaf response reply <answer.ref>
         --done < reply.md`: what changed, in a sentence or two, linking the section
@@ -575,8 +575,8 @@ reply:
         When the event asks for work, say in its thread what you will do before
         any other command, including reading the source it concerns: `leaf response
         reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
-        The user reads it in the thread at once, and it takes the move in hand:
-        the move reads Working, and the line stands in the banner until you answer.
+        The user reads it in the thread at once, and it takes the update in hand:
+        the update reads Working, and the line stands in the banner until you answer.
         Do the work and put its result on the page, with whatever shows it (captures,
         a figure, the numbers), then answer with `leaf response reply <answer.ref>
         --done < reply.md`: what changed, in a sentence or two, linking the section
@@ -620,8 +620,8 @@ reply in an untitled thread:
         When the event asks for work, say in its thread what you will do before
         any other command, including reading the source it concerns: `leaf response
         reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
-        The user reads it in the thread at once, and it takes the move in hand:
-        the move reads Working, and the line stands in the banner until you answer.
+        The user reads it in the thread at once, and it takes the update in hand:
+        the update reads Working, and the line stands in the banner until you answer.
         Do the work and put its result on the page, with whatever shows it (captures,
         a figure, the numbers), then answer with `leaf response reply <answer.ref>
         --done < reply.md`: what changed, in a sentence or two, linking the section
@@ -663,8 +663,8 @@ reply with a pasted image:
         When the event asks for work, say in its thread what you will do before
         any other command, including reading the source it concerns: `leaf response
         reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
-        The user reads it in the thread at once, and it takes the move in hand:
-        the move reads Working, and the line stands in the banner until you answer.
+        The user reads it in the thread at once, and it takes the update in hand:
+        the update reads Working, and the line stands in the banner until you answer.
         Do the work and put its result on the page, with whatever shows it (captures,
         a figure, the numbers), then answer with `leaf response reply <answer.ref>
         --done < reply.md`: what changed, in a sentence or two, linking the section
@@ -711,8 +711,8 @@ reply in a long thread:
         When the event asks for work, say in its thread what you will do before
         any other command, including reading the source it concerns: `leaf response
         reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
-        The user reads it in the thread at once, and it takes the move in hand:
-        the move reads Working, and the line stands in the banner until you answer.
+        The user reads it in the thread at once, and it takes the update in hand:
+        the update reads Working, and the line stands in the banner until you answer.
         Do the work and put its result on the page, with whatever shows it (captures,
         a figure, the numbers), then answer with `leaf response reply <answer.ref>
         --done < reply.md`: what changed, in a sentence or two, linking the section
@@ -765,8 +765,8 @@ rewritten message:
         When the event asks for work, say in its thread what you will do before
         any other command, including reading the source it concerns: `leaf response
         reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
-        The user reads it in the thread at once, and it takes the move in hand:
-        the move reads Working, and the line stands in the banner until you answer.
+        The user reads it in the thread at once, and it takes the update in hand:
+        the update reads Working, and the line stands in the banner until you answer.
         Do the work and put its result on the page, with whatever shows it (captures,
         a figure, the numbers), then answer with `leaf response reply <answer.ref>
         --done < reply.md`: what changed, in a sentence or two, linking the section
@@ -814,8 +814,8 @@ rewritten suggestion:
         When the event asks for work, say in its thread what you will do before
         any other command, including reading the source it concerns: `leaf response
         reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
-        The user reads it in the thread at once, and it takes the move in hand:
-        the move reads Working, and the line stands in the banner until you answer.
+        The user reads it in the thread at once, and it takes the update in hand:
+        the update reads Working, and the line stands in the banner until you answer.
         Do the work and put its result on the page, with whatever shows it (captures,
         a figure, the numbers), then answer with `leaf response reply <answer.ref>
         --done < reply.md`: what changed, in a sentence or two, linking the section
@@ -880,7 +880,7 @@ option the user added:
         the version note.
     - when: {"not": {"required": ["answer"]}}
       text: >-
-        This move owes no answer of its own: it answers no Question, a later move
+        This action owes no answer of its own: it answers no Question, a later action
         on the same widget carries the answer, or it does not finish the answer
         yet, such as a pick before the Done its group waits for.
 
@@ -903,7 +903,7 @@ pick before Done:
         the version note.
     - when: {"not": {"required": ["answer"]}}
       text: >-
-        This move owes no answer of its own: it answers no Question, a later move
+        This action owes no answer of its own: it answers no Question, a later action
         on the same widget carries the answer, or it does not finish the answer
         yet, such as a pick before the Done its group waits for.
 
@@ -950,8 +950,8 @@ pick inside a thread:
         When the event asks for work, say in its thread what you will do before
         any other command, including reading the source it concerns: `leaf response
         reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
-        The user reads it in the thread at once, and it takes the move in hand:
-        the move reads Working, and the line stands in the banner until you answer.
+        The user reads it in the thread at once, and it takes the update in hand:
+        the update reads Working, and the line stands in the banner until you answer.
         Do the work and put its result on the page, with whatever shows it (captures,
         a figure, the numbers), then answer with `leaf response reply <answer.ref>
         --done < reply.md`: what changed, in a sentence or two, linking the section

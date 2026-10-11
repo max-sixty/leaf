@@ -577,9 +577,8 @@ def interactions(
 @page.command(short_help="Take a page this session did not serve.")
 @click.argument("dir", metavar="PAGE")
 def claim(dir: str) -> None:
-    """Make PAGE this session's, as a named `leaf wait PAGE` does before it
-    watches, for a harness whose own hook watches between turns. A watch another
-    session runs stops watching it."""
+    """Make PAGE this session's, for a harness whose own hook watches between
+    turns. A watch another session runs stops watching it."""
     from leaf.service import claim_page
 
     if not claim_page(resolve_dir(dir)):

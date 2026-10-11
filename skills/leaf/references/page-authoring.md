@@ -390,20 +390,11 @@ styles and geometry. Exact comments, Questions, decisions, Undo, live revisions 
 drawing capture still use the shared Leaf mechanisms. Changing the selection
 replaces the document through the ordinary revision lifetime.
 
-When the task needs conversations and actions kept in an independent region
-("Bounds and widths"), place one empty
-`<lf-annotation-rail id="annotations"></lf-annotation-rail>` there. It grows with
-its rows; where the page's CSS bounds its height, as a workspace region does, it
-scrolls inside that box. At narrow widths, give it a place the user can reach by
-touch and keyboard. Leaf supplies native disclosures,
-reply editors, action controls and retained reading; the page supplies their layout.
-Widget-local conversations keep their exact seats before the page rail takes
-remaining targets. The Threads panel remains the complete conversation index.
-
-Omitting the rail is valid. Comments open in Threads, and selection offers the
-banner's Comment on selection control. A custom package can supply the same
-page presentation through "Page annotation presentation" in `module-authoring.md`;
-do not reconstruct the event log or annotation inventory in page code.
+With nothing more, comments open in Threads, which remains the complete
+conversation index, and selection offers the banner's Comment on selection control.
+A page or package that shows conversations and actions in its own layout registers
+a presentation through "Page annotation presentation" in `module-authoring.md`; do
+not reconstruct the event log or annotation inventory in page code.
 
 ## Draw the subject
 
@@ -782,7 +773,7 @@ as `q` reaches it from the top, which is how a user working the page meets each
 question. At each arrival, confirm that the question, shared premise, alternatives,
 and evidence that distinguishes them are visible together, the displayed numbers
 match the available actions, and the next press of `q` reaches the next thing waiting
-on the user (an open Question, a thread whose question is theirs, or a move to send again)
+on the user (an open Question, a thread whose question is theirs, or an update to send again)
 while the complete page remains visible.
 
 Without a way to inspect the rendered page, read `leaf page state <page>`'s

@@ -1,5 +1,3 @@
-# Edit a real file
-
 Select `--package file-editor` when the reader should edit a UTF-8 file on the
 machine serving the page. Bind each file explicitly; the browser receives a label
 and contents, never its absolute path.

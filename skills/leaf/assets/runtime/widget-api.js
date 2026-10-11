@@ -200,7 +200,7 @@ export { ago, clocked, clockValue, quietSince, shortAgo } from "./presence.js";
 export { shallowSigs } from "./application.js";
 export { shadowStage } from "./shadow-stage.js";
 export { inBaseLayer } from "./stylesheets.js";
-export { revisionLabel, annotationMode } from "./context.js";
+export { revisionLabel } from "./context.js";
 export { loadDeferred, watchData } from "./data.js";
 export { boundFile } from "./file-api.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
@@ -241,8 +241,8 @@ export {
   tokenLines,
 } from "./syntax.js";
 export { bodyText, dataBody, failSoft, once } from "./widget-upgrade.js";
-export { watchUpdates } from "./application.js";
-export { saidAt, updateSequence, watchHistory } from "./updates.js";
+export { watchReports } from "./application.js";
+export { saidAt, reportSequence, watchHistory } from "./reports.js";
 export {
   HIDDEN,
   LAYOUT,

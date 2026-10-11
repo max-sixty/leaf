@@ -112,7 +112,7 @@ def _base_state(
         "server": running_server(page_dir),
         "elements": [],
         "state": [],
-        "updates": [],
+        "reports": [],
         "data": {
             "file": DATA_FILE,
             "dir": DATA_DIR,
@@ -230,8 +230,8 @@ def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
 
 def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> dict:
     """The page reading narrowed to one widget on the page and what it holds: its
-    element, the moves and reports standing on it or on anything inside it, the
-    workflows there, the updates aimed at them, the explicit tasks open on them,
+    element, the actions and reports standing on it or on anything inside it, the
+    workflows there, the reports aimed at them, the explicit tasks open on them,
     and the canonical Questions sourced by them."""
 
     def inside(element: str | None) -> bool:
@@ -256,10 +256,10 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
             if reading["thread"] is None
             and (inside(reading["widget"]) or inside(reading["unit"]))
         ],
-        "updates": [
-            update
-            for update in state["updates"]
-            if update["target"]["kind"] == "widget" and inside(update["target"]["id"])
+        "reports": [
+            report
+            for report in state["reports"]
+            if report["target"]["kind"] == "widget" and inside(report["target"]["id"])
         ],
         "activity": {
             "obligations": [
@@ -355,7 +355,7 @@ def queues(
             "subject": workflow["subject"],
             "thread": workflow["thread"],
         }
-        # A move handed back in a thread is that thread's item above.
+        # An update handed back in a thread is that thread's item above.
         if workflow["next_actor"] == "user":
             if workflow["thread"] is None:
                 on_you.append({"kind": "recovery", **item})
@@ -459,12 +459,12 @@ def _write_page_state(
         _apply_document_state(
             state, reading.documents[active["revision"]], stored_data, registry
         )
-        state["updates"] = browser["views"][str(active["revision"])]["updates"]
+        state["reports"] = browser["views"][str(active["revision"])]["reports"]
         _apply_thread_state(state, reading.thread)
         served_threads = {
             thread["id"]: thread for thread in browser["thread"]["threads"]
         }
-        # The user's side between their moves: which of your messages they have not
+        # The user's side between their updates: which of your messages they have not
         # taken in yet, at their current content version.
         for thread in state["threads"]:
             thread["unread"] = [
@@ -515,10 +515,10 @@ def _write_page_state(
         standing = [
             reading for reading in state["state"] if reading["thread"] == thread_id
         ]
-        updates = [
-            update
-            for update in state["updates"]
-            if thread_reading.subject_thread(update["target"]) == thread_id
+        reports = [
+            report
+            for report in state["reports"]
+            if thread_reading.subject_thread(report["target"]) == thread_id
         ]
         reactions = [
             reaction
@@ -609,7 +609,7 @@ def _write_page_state(
             "elements": elements,
             "state": standing,
             "reactions": reactions,
-            "updates": updates,
+            "reports": reports,
             "activity": {
                 "obligations": [
                     item["id"] for item in workflows if item["id"] in obligations

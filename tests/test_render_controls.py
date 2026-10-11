@@ -1698,7 +1698,7 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
         ("you", "2be2443f0bb6cc49fc86b52f340e6073", 2, "Workshop room photo"),
         ("resolved", "bab3cdfcfb8c02aacbb27da731de947a", 1, "Projector map"),
         ("summary", "9ee465bb3f9c1fa309ea9cb1767fa365", 4, "Afternoon workshop"),
-        ("updates", "bg-progress-question", 4, "Schedule checks"),
+        ("progress", "bg-progress-question", 4, "Schedule checks"),
         (
             "overview",
             "72e031c5bf0d485ba9054628e09869d4",
@@ -1716,7 +1716,7 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
         expect(topic).to_be_visible()
         expect(topic).to_have_text(title)
         assert topic.evaluate("element => element.getBoundingClientRect().width") > 40
-        if view == "updates":
+        if view == "progress":
             card = frame.locator(f'.lf-thread[data-id="{thread}"]')
             checkpoint = card.locator(".lf-thread-checkpoint")
             expect(checkpoint.locator(".lf-summary-label")).to_have_count(0)
@@ -1799,48 +1799,6 @@ def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve)
     expect(
         frame.locator(".lf-thread[open]:not([hidden]) .lf-thread-topic")
     ).to_have_text("Projector map")
-
-
-def test_gallery_page_annotation_sample_owns_its_child_mode(browser, serve):
-    """Native practice comments and decisions use a rail without changing the parent."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
-    parent_before = events_model.read_events(serve.page_dir)
-    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
-    child = page.frame_locator("#bg-page-annotations-sample iframe")
-    expect(child.locator("body")).to_have_attribute("data-annotations", "page")
-    rail = child.locator("lf-annotation-rail")
-    expect(rail).to_be_visible()
-    assert (
-        child.locator(
-            ".lf-margin-projection,.lf-margin-preview,.lf-visual-marks"
-        ).count()
-        == 0
-    )
-    assert page.locator("body").get_attribute("data-annotations") != "page"
-    resources = child.locator("body").evaluate(
-        "() => performance.getEntriesByType('resource').map(e => new URL(e.name).pathname)"
-    )
-    assert not [path for path in resources if "/runtime/annotation-overlay/" in path]
-    child.locator("#bg-page-annotations-finding").click(modifiers=["Alt"])
-    editor = rail.locator(".lf-fab-input")
-    expect(editor).to_be_focused()
-    editor.press_sequentially("A comment in this practice window")
-    editor.press("Control+Enter")
-    expect(
-        rail.locator(".lf-msg").filter(has_text="A comment in this practice window")
-    ).to_be_visible()
-    option = child.locator("#bg-page-annotations-short")
-    option.click()
-    expect(option.get_by_role("checkbox")).to_be_checked()
-    expect(child.locator(".lf-shortcut-bar")).to_contain_text("undo")
-    option.press("z")
-    expect(option.get_by_role("checkbox")).not_to_be_checked()
-    assert events_model.read_events(serve.page_dir) == parent_before
-    page.locator("#bg-page-annotations-sample").get_by_role(
-        "button", name="Reset", exact=True
-    ).click()
-    expect(child.locator("body")).to_have_attribute("data-annotations", "page")
-    expect(child.locator(".lf-page-thread")).to_have_count(0)
 
 
 def test_sample_fixture_history_presents_before_ready_and_returns_on_reset(
@@ -3668,7 +3626,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
             detail,
             dot: document.querySelector('.lf-banner .lf-dot'),
             text: [...detail.childNodes].find(
-              (node) => node.nodeType === Node.TEXT_NODE,
+              (node) => node.nodeType === Node.TEXT_NODE && node.data.trim(),
             ),
           };
           return window.__lfStatusNodes.text.data;
@@ -3865,48 +3823,13 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     )
 
 
-def test_banner_status_lit_owner_moves_one_native_surface_between_layouts(
-    browser, serve
-):
-    """Publication and ordinary status are two layouts of one retained surface."""
+def test_banner_status_keeps_publication_links_outside_its_disclosure(browser, serve):
+    """Publication links remain ordinary links; status keeps its native disclosure."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
-    owner = page.locator("leaf-banner-status.lf-banner-status")
-    expect(owner).to_have_count(1)
     page.evaluate(
         """() => {
-          const owner = document.querySelector('leaf-banner-status');
-          window.__lfStatusSurface = {
-            owner,
-            button: owner.querySelector('.lf-status-button'),
-            detail: owner.querySelector('.lf-status-detail'),
-            dot: owner.querySelector('.lf-dot'),
-            text: owner.querySelector('.lf-status-text'),
-          };
-          window.__lfStatusSurfaceSnapshot = () => {
-            const nodes = window.__lfStatusSurface;
-            const link = nodes.owner.querySelector('.lf-publication-install');
-            return {
-              ownerCount: document.querySelectorAll('leaf-banner-status').length,
-              button: nodes.button === document.querySelector('.lf-status-button'),
-              detail: nodes.detail === document.querySelector('.lf-status-detail'),
-              dot: nodes.dot === document.querySelector('.lf-banner .lf-dot'),
-              text: nodes.text === document.querySelector('.lf-status-text'),
-              buttonConnected: nodes.button.isConnected,
-              buttonParent: nodes.button.parentElement === nodes.owner,
-              buttonChildren: nodes.button.querySelectorAll(
-                '.lf-dot, .lf-status-text'
-              ).length,
-              dotParent: nodes.dot.parentElement.className,
-              // The words stand in one box with a passing notice, which moves whole.
-              textParent: nodes.text.parentElement.parentElement.className,
-              detailParent: nodes.detail.parentElement === nodes.owner,
-              detailOpen: nodes.detail.matches(':popover-open'),
-              detailText: nodes.detail.textContent,
-              statusText: nodes.text.textContent,
-              linkCount: nodes.owner.querySelectorAll('.lf-publication-install').length,
-              linkInButton: !!link?.closest('.lf-status-button'),
-            };
-          };
+          window.__lfStatusOwner = document.querySelector('leaf-banner-status');
+          window.__lfStatusDetail = document.querySelector('.lf-status-detail');
         }"""
     )
     door = page.locator(".lf-status-button")
@@ -3916,88 +3839,47 @@ def test_banner_status_lit_owner_moves_one_native_surface_between_layouts(
     expect(detail).to_be_visible()
     expect(detail).to_be_focused()
 
-    published = page.evaluate(
-        """() => {
-          window.__lfStatusSurface.owner.present(Object.freeze({
-            tone: '',
-            summary: '',
-            explanation: 'Published copy Install Leaf',
-            publication: Object.freeze({
-              copy: 'Published copy ',
-              install: 'Install Leaf',
-              installUrl: '/#install',
-            }),
-          }));
-          return window.__lfStatusSurfaceSnapshot();
-        }"""
-    )
-    assert published == {
-        "ownerCount": 1,
-        "button": False,
-        "detail": True,
-        "dot": True,
-        "text": True,
-        "buttonConnected": False,
-        "buttonParent": False,
-        "buttonChildren": 0,
-        "dotParent": "lf-banner-status",
-        "textParent": "lf-banner-status",
-        "detailParent": True,
-        "detailOpen": False,
-        "detailText": "Published copy Install Leaf",
-        "statusText": "Published copy Install Leaf",
-        "linkCount": 1,
-        "linkInButton": False,
-    }, f"the publication layout duplicated or orphaned its native surface: {published}"
+    for _ in range(2):
+        page.evaluate(
+            """() => window.__lfStatusOwner.present(Object.freeze({
+              tone: '', summary: '', queues: '', queuesWidest: '',
+              explanation: 'Published copy Install Leaf',
+              publication: Object.freeze({
+                copy: 'Published copy ', install: 'Install Leaf',
+                installUrl: '/#install',
+              }),
+            }))"""
+        )
+        expect(door).to_have_count(0)
+        expect(detail).to_be_hidden()
+        expect(page.locator(".lf-status-text")).to_have_text(
+            "Published copy Install Leaf"
+        )
+        link = page.get_by_role("link", name="Install Leaf", exact=True)
+        expect(link).to_have_attribute("href", "/#install")
+        assert not link.evaluate("node => !!node.closest('button')")
+        assert page.evaluate(
+            "window.__lfStatusDetail === document.querySelector('.lf-status-detail')"
+        ), "changing the layout replaced the native disclosure"
 
-    ordinary = page.evaluate(
-        """() => {
-          window.__lfStatusSurface.owner.present(Object.freeze({
-            tone: 'offline',
-            summary: 'Server offline',
-            explanation: 'Server offline detail',
-            publication: null,
-          }));
-          return window.__lfStatusSurfaceSnapshot();
-        }"""
-    )
-    assert ordinary == {
-        "ownerCount": 1,
-        "button": True,
-        "detail": True,
-        "dot": True,
-        "text": True,
-        "buttonConnected": True,
-        "buttonParent": True,
-        "buttonChildren": 2,
-        "dotParent": "lf-status-button",
-        "textParent": "lf-status-button",
-        "detailParent": True,
-        "detailOpen": False,
-        "detailText": "Server offline detail",
-        "statusText": "Server offline",
-        "linkCount": 0,
-        "linkInButton": False,
-    }, f"the ordinary layout failed to reclaim its retained controls: {ordinary}"
-
-    published_again = page.evaluate(
-        """() => {
-          window.__lfStatusSurface.owner.present(Object.freeze({
-            tone: '',
-            summary: '',
-            explanation: 'Published copy Install Leaf',
-            publication: Object.freeze({
-              copy: 'Published copy ',
-              install: 'Install Leaf',
-              installUrl: '/#install',
-            }),
-          }));
-          return window.__lfStatusSurfaceSnapshot();
-        }"""
-    )
-    assert published_again == published, (
-        f"returning to publication created a parallel status surface: {published_again}"
-    )
+        page.evaluate(
+            """() => window.__lfStatusOwner.present(Object.freeze({
+              tone: 'offline', summary: 'Server offline', queues: '', queuesWidest: '',
+              explanation: 'Server offline detail', publication: null,
+            }))"""
+        )
+        expect(page.locator(".lf-publication-install")).to_have_count(0)
+        expect(door).to_have_text("Server offline")
+        expect(door).to_have_attribute("popovertarget", "lf-status-detail")
+        expect(door).to_have_attribute("aria-expanded", "false")
+        door.focus()
+        page.keyboard.press("Enter")
+        expect(detail).to_be_visible()
+        expect(detail).to_be_focused()
+        expect(detail).to_have_text("Server offline detail")
+        page.keyboard.press("Escape")
+        expect(detail).to_be_hidden()
+        expect(door).to_be_focused()
 
 
 WEBSITE_LINE = (
@@ -5968,6 +5850,42 @@ def test_a_phone_shows_a_notice_in_the_banner_s_status_words(browser, serve):
 
     expect(notice).to_be_hidden()
     expect(words).to_have_css("opacity", "1")
+
+    # Once the gesture's acknowledgement has faded, background news owns its own
+    # rendering. A shorter successor keeps the same first-line seat and press.
+    page.evaluate("""async () => {
+      window.noticeOwner = await window.__lfRuntimeImport('/runtime/notifications.js');
+      noticeOwner.notice('A shared draft sent to the agent', {background: true});
+    }""")
+    expect(notice).to_have_text("A shared draft sent to the agent")
+    expect(notice).to_be_visible()
+    rendered(page)
+    fragments = """node => {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      return [...range.getClientRects()].map(rect => ({x: rect.x, y: rect.y}));
+    }"""
+    long_lines = notice.evaluate(fragments)
+    assert len(long_lines) == 2, long_lines
+    press_before = press.bounding_box()
+    page.evaluate("""() => {
+      noticeOwner.notice('New conversation sent', {background: true});
+    }""")
+    expect(notice).to_have_text("New conversation sent")
+    rendered(page)
+    short_lines = notice.evaluate(fragments)
+    assert len(short_lines) == 1, short_lines
+    assert short_lines[0] == pytest.approx(long_lines[0], abs=0.5), (
+        long_lines,
+        short_lines,
+    )
+    press_after = press.bounding_box()
+    # The sentence may grow rightward; its leading edge and vertical aim stay put.
+    for edge in ("x", "y", "height"):
+        assert press_after[edge] == pytest.approx(press_before[edge], abs=0.5), (
+            press_before,
+            press_after,
+        )
 
 
 def test_a_recorded_move_is_acknowledged_in_the_status_and_nowhere_else(browser, serve):

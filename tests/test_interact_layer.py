@@ -1355,6 +1355,99 @@ def test_no_has_rule_restyles_the_whole_document():
     )
 
 
+def test_browser_code_mints_ids_that_work_outside_secure_contexts():
+    """`leaf --host` serves a page over plain HTTP to a LAN address, where
+    `crypto.randomUUID` does not exist, so a call to it throws in the user's browser.
+    The runtime and bundled packages mint ids through runtime/ids.js, and the classic
+    bootstrap.js through its one copy of it."""
+    roots = (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
+    callers = [
+        str(source.relative_to(schema_model.ASSETS.parent))
+        for root in roots
+        for source in sorted(root.rglob("*.js"))
+        if "vendor" not in source.parts
+        and "randomUUID"
+        in re.sub(r"(?<!:)//[^\n]*|/\*.*?\*/", "", source.read_text(), flags=re.DOTALL)
+    ]
+    assert callers == [], callers
+
+
+def test_kernel_selectors_name_no_package_tag():
+    """The kernel styles and finds a package widget by what its registry declares, a
+    mark delivery paints such as `data-lf-resident`, never by its tag: a rule naming
+    lf-toc serves lf-toc and no other contents map, and binds the kernel to one
+    package's vocabulary. A kernel sheet's selectors and `@scope` preludes, and the
+    selectors the runtime hands a DOM query, use no tag a bundled package declares as
+    a type selector.
+
+    The interaction gallery still finds its tabs by tag (F86, which moves it into a
+    package); the reading names that one leak so it can only shrink."""
+    tags = {
+        tag
+        for registry in schema_model.BUNDLED_PACKAGES.glob("*/registry.json")
+        for tag in json.loads(registry.read_text())
+        if not tag.startswith("$")
+    }
+
+    def types(tokens):
+        """The type selectors among `tokens`, in and out of `:is()`-like arguments."""
+        previous = None
+        for token in tokens:
+            if token.type == "ident" and not (
+                previous is not None
+                and previous.type in ("literal", "delim")
+                and previous.value in (".", ":", "::")
+            ):
+                yield token.value
+            if token.type in ("function", "() block"):
+                yield from types(
+                    token.arguments if token.type == "function" else token.content
+                )
+            previous = token
+
+    def leaks_in(selector):
+        return tags & set(types(tinycss2.parse_component_value_list(selector)))
+
+    def preludes(rules):
+        for rule in rules:
+            if rule.type == "qualified-rule" or (
+                rule.type == "at-rule" and rule.lower_at_keyword == "scope"
+            ):
+                yield tinycss2.serialize(rule.prelude).strip()
+            if getattr(rule, "content", None) is not None:
+                yield from preludes(tinycss2.parse_blocks_contents(rule.content))
+
+    leaks = []
+    for sheet in sorted(schema_model.ASSETS.rglob("*.css")):
+        if "vendor" in sheet.parts or sheet.read_text().startswith(
+            "/* Generated from "
+        ):
+            continue
+        where = sheet.relative_to(schema_model.ASSETS)
+        rules = tinycss2.parse_stylesheet(sheet.read_text(), skip_comments=True)
+        leaks += [f"{where}: {p}" for p in preludes(rules) if leaks_in(p)]
+    query = re.compile(
+        r"\.(?:querySelector|querySelectorAll|closest|matches)\(\s*([\"'`])(.*?)\1",
+        re.DOTALL,
+    )
+    for module in sorted(schema_model.ASSETS.rglob("*.js")):
+        if "vendor" in module.parts:
+            continue
+        code = re.sub(
+            r"(?<!:)//[^\n]*|/\*.*?\*/", "", module.read_text(), flags=re.DOTALL
+        )
+        where = module.relative_to(schema_model.ASSETS)
+        leaks += [
+            f"{where}: {found[1]}"
+            for found in query.findall(code)
+            if leaks_in(found[1])
+        ]
+    assert leaks == [
+        "runtime/interaction-gallery.js: lf-tabs",
+        "runtime/interaction-gallery.js: :scope > lf-tab",
+    ], leaks
+
+
 def test_layout_style_and_widgets_never_read_each_other():
     """A Layout places boxes, a style sets type and spacing, and a widget reads its own
     box and the theme's tokens (assets/AGENTS.md, "Space and scrolling"). So a Layout

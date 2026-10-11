@@ -33,10 +33,9 @@
 import { describeFailure } from "../vendor/browser-runtime.js";
 import { countTraffic } from "./traffic.js";
 import { recordInteraction } from "./interaction-log.js";
-import { offlineInteractive, pageUrl, runtime } from "./context.js";
+import { DELIVERY, offlineInteractive, pageUrl, runtime } from "./context.js";
 import { notice } from "./notifications.js";
 import { layerGeneration } from "./layer-generation.js";
-import { DELIVERY } from "./storage.js";
 
 const { layer: documentLayer, release, probe } = DELIVERY;
 

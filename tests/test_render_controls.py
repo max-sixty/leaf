@@ -1640,7 +1640,7 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
         "button", name="Reset", exact=True
     )
     reset.click()
-    expect(reset).to_be_enabled(timeout=30000)
+    expect(reset).to_be_enabled()
     expect(views["overview"].locator(".lf-thread-panel")).to_be_visible()
     expect(views["overview"].locator(".lf-thread:not([hidden])")).to_have_count(3)
     reset.focus()
@@ -6007,7 +6007,7 @@ def test_a_recorded_move_is_acknowledged_in_the_status_and_nowhere_else(browser,
     round_trip(page)
 
     # The line's own words come back once the notice has had its moment.
-    expect(status).to_be_visible(timeout=6_000)
+    expect(status).to_be_visible()
     expect(notice).to_be_hidden()
 
 
@@ -9599,7 +9599,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                     rendered(page)
                     open_containing_thread(target)
                     page.keyboard.press("Tab")
-                    target.focus(timeout=5_000)
+                    target.focus()
                     # A note on the details shelf is reached from the element that
                     # names it (details-shelf.js), never by Tab, and is focused here as
                     # a screen reader moving to it would focus it.

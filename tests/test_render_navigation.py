@@ -3670,10 +3670,10 @@ def test_a_failed_ask_reveal_does_not_register_an_arrival(browser, serve):
     )
     try:
         page.keyboard.press("q")
-        page.wait_for_function("window.askRevealStarted === true", timeout=3000)
+        page.wait_for_function("window.askRevealStarted === true")
         expect(page.locator("#live-question-decision")).to_be_focused()
         page.evaluate("() => { rejectAskReveal(new Error('ask reveal probe')); }")
-        page.wait_for_function("window.askRevealRejected === true", timeout=3000)
+        page.wait_for_function("window.askRevealRejected === true")
         shortcut_bar_text(page)
         assert position.text_content() == "1 of 4 waiting on you · Question"
         assert position.get_attribute("data-lf-boundary") is None
@@ -3705,13 +3705,13 @@ def test_a_delayed_ask_reveal_yields_to_programmatic_user_focus(browser, serve):
     )
 
     page.keyboard.press("q")
-    page.wait_for_function("window.askRevealStarted === true", timeout=3000)
+    page.wait_for_function("window.askRevealStarted === true")
     # Assistive technology and focus-management code can move the user without a
     # pointer, key, or input event. The retained navigation must read focus itself.
     page.locator(".lf-threads-toggle").focus()
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
     page.evaluate("releaseAskReveal()")
-    page.wait_for_function("window.askRevealSettled === true", timeout=3000)
+    page.wait_for_function("window.askRevealSettled === true")
     rendered(page)
 
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
@@ -4348,11 +4348,11 @@ def test_a_q_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, ser
     )
 
     page.keyboard.press("q")
-    page.wait_for_function("window.threadRevealStarted === true", timeout=3000)
+    page.wait_for_function("window.threadRevealStarted === true")
     page.locator(".lf-threads-toggle").focus()
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
     page.evaluate("releaseThreadReveal()")
-    page.wait_for_function("window.threadRevealSettled === true", timeout=3000)
+    page.wait_for_function("window.threadRevealSettled === true")
     rendered(page)
 
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
@@ -4406,11 +4406,11 @@ def test_a_delayed_thread_reveal_reports_that_new_user_focus_cancelled_it(
     )
 
     page.locator("#held-thread-arrival").click()
-    page.wait_for_function("window.threadRevealStarted === true", timeout=3000)
+    page.wait_for_function("window.threadRevealStarted === true")
     page.locator(".lf-threads-toggle").focus()
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
     page.evaluate("releaseThreadReveal()")
-    page.wait_for_function("window.threadArrivalSettled === true", timeout=3000)
+    page.wait_for_function("window.threadArrivalSettled === true")
 
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
     assert page.evaluate("window.threadArrived") is None
@@ -7230,7 +7230,7 @@ def test_user_news_interrupts_and_then_restores_background_news(browser, serve):
     )
     expect(live).to_have_text("Saved — sent")
     expect(notice).to_have_text("Saved — sent")
-    expect(notice).to_have_text("Agent replied — open Threads", timeout=5_000)
+    expect(notice).to_have_text("Agent replied — open Threads")
     assert (
         page.evaluate(
             "() => window.__lfLiveChanges.filter("

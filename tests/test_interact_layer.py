@@ -2294,17 +2294,6 @@ def test_a_wait_takes_the_suites_deadline():
         "settimeout",
         "wait",
     }
-    # Literal deadlines in files another change is rewriting, at most this many in
-    # each, to move onto the suite's deadlines once that change lands. Each is a hang
-    # bound like the rest.
-    held_elsewhere = {
-        "test_render_anchors.py": 1,
-        "test_render_controls.py": 3,
-        "test_render_gate.py": 6,
-        "test_render_navigation.py": 9,
-        "test_render_startup.py": 8,
-        "test_render_threads.py": 8,
-    }
 
     def literal(node) -> bool:
         if isinstance(node, ast.BinOp):
@@ -2327,7 +2316,7 @@ def test_a_wait_takes_the_suites_deadline():
         )
         yield from zip(arguments.kwonlyargs, arguments.kw_defaults)
 
-    literals = {}
+    fixed = []
     for path in sorted((ROOT / "tests").rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
@@ -2357,16 +2346,10 @@ def test_a_wait_takes_the_suites_deadline():
             else:
                 continue
             if computed:
-                literals.setdefault(path.name, []).append(
+                fixed.append(
                     f"{path.relative_to(ROOT)}:{node.lineno} "
                     + ast.unparse(node).split("\n", 1)[0]
                 )
-    fixed = [
-        site
-        for name, sites in literals.items()
-        if len(sites) > held_elsewhere.get(name, 0)
-        for site in sites
-    ]
     assert not fixed, (
         "these waits fix their own deadline; bound them with STATED_TIMEOUT "
         "(interact_support.py), or in a browser with SERVED_TIMEOUT_MS or "

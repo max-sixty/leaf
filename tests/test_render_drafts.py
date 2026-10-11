@@ -4542,6 +4542,7 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
         "Changes · 3 edits"
     )
     expect(draft.locator(".lf-draft-history > summary")).to_be_focused()
+    expect(draft.locator(".lf-draft-history")).to_have_attribute("open", "")
     expect(draft).to_have_attribute("data-lf-user-override", "1")
 
     events = [

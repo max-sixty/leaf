@@ -18,14 +18,12 @@
    and the panel's visible control share the same exact-message arrival. Ordinary
    `u` remains paired with `d` in whichever reading region the user stands in. */
 import { nextRender, sizeObserver } from "../rendering.js";
-import { seenRect, shownBand } from "../geometry.js";
+import { containingView, presented, seenRect } from "../geometry.js";
 import { intersect } from "../rect.js";
 import { SLIDE_END } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
 import { readThreads } from "./state.js";
-import { excludedByInert, renderedParent } from "../shadow.js";
-import { nativeModalAdmits } from "../keyboard/layer-stack.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import {
   onSampleVisibility,
@@ -47,66 +45,8 @@ function mergeIntervals(intervals) {
   return merged;
 }
 
-// An isolated sample requests a fresh visible band from its containing geometry
-// owner for every exposure scan, in this window's coordinates. Ordinary
-// same-origin embeddings read their containing frames directly, cutting this viewport
-// through every clipping ancestor up to each owner's viewport (`shownBand`).
-function frameBand() {
-  let band = { left: 0, top: 0, right: innerWidth, bottom: innerHeight };
-  let x = 0;
-  let y = 0;
-  for (let current = window; current !== current.top;) {
-    let frame;
-    try {
-      frame = current.frameElement;
-    } catch {
-      return null;
-    }
-    if (
-      !frame ||
-      !frame.checkVisibility() ||
-      excludedByInert(frame) ||
-      !nativeModalAdmits(frame)
-    )
-      return null;
-    const owner = frame.ownerDocument.defaultView;
-    const box = frame.getBoundingClientRect();
-    x += box.left + frame.clientLeft;
-    y += box.top + frame.clientTop;
-    const cut = (rect) => {
-      band = {
-        left: Math.max(band.left, rect.left - x),
-        top: Math.max(band.top, rect.top - y),
-        right: Math.min(band.right, rect.right - x),
-        bottom: Math.min(band.bottom, rect.bottom - y),
-      };
-    };
-    for (
-      let ancestor = renderedParent(frame);
-      ancestor;
-      ancestor = renderedParent(ancestor)
-    ) {
-      const style = owner.getComputedStyle(ancestor);
-      if (
-        ancestor.getAttribute?.("aria-hidden") === "true" ||
-        style.visibility === "hidden" ||
-        style.display === "none"
-      )
-        return null;
-      const shown = shownBand(ancestor);
-      if (shown) cut(shown);
-    }
-    if (band.right <= band.left || band.bottom <= band.top) return null;
-    current = owner;
-  }
-  return band;
-}
-
 function visibleInterval(body, clips, band) {
-  if (!body.checkVisibility() || excludedByInert(body) || !nativeModalAdmits(body))
-    return null;
-  for (let owner = body; owner; owner = renderedParent(owner))
-    if (owner.getAttribute?.("aria-hidden") === "true") return null;
+  if (!presented(body)) return null;
   const box = body.getBoundingClientRect();
   // Sticky headers, the open thread panel standing over the right of the page, and the
   // banner and shortcut bar are left out of what is seen (geometry.js), so a message any
@@ -187,7 +127,7 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
   function scan(sampleBand) {
     if (!presented || document.visibilityState !== "visible" || !document.hasFocus())
       return;
-    const band = sampleBand ?? frameBand();
+    const band = sampleBand ?? containingView();
     if (!band || sampleBand?.visible === false) return;
     const candidates = new Map(
       actionableUnread().map(({ item }) => [item.message, item]),
@@ -293,7 +233,7 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
     );
     // What a containing page shows of this one changes without a scroll or resize
     // inside it: the owner scrolls a frame taller than its viewport through the band
-    // (frameBand), and moving the frame changes it without any scroll at all. Watch
+    // (`containingView`), and moving the frame changes it without any scroll at all. Watch
     // each containing page's scrolling and each frame in its owner's viewport.
     for (let current = window; !sampleVisibility() && current !== current.top;) {
       let frame;

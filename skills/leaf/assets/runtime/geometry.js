@@ -1,7 +1,8 @@
 /* This module owns the shared readings of visible boxes and clipping, how much of the
  * window the page shows, and the one conversion from viewport boxes to
  * document-positioned chrome. */
-import { renderedParent, uiInside, under, upFrom } from "./shadow.js";
+import { excludedByInert, renderedParent, uiInside, under, upFrom } from "./shadow.js";
+import { nativeModalAdmits } from "./keyboard/layer-stack.js";
 import {
   clippingAxes,
   hasArea,
@@ -671,6 +672,63 @@ export function seenRect(item, clips) {
   return room.width > 0 && room.height > 0
     ? { left: shown.left, top: room.top, right: shown.right, bottom: room.bottom }
     : null;
+}
+// Whether the page puts `node` before the user at all, before any question of where:
+// drawn and visible, not inert, inside the topmost modal, and not hidden with
+// `aria-hidden`. Exposure asks it of a message body and of each frame holding the page.
+export function presented(node) {
+  if (
+    !node.checkVisibility({ visibilityProperty: true }) ||
+    excludedByInert(node) ||
+    !nativeModalAdmits(node)
+  )
+    return false;
+  for (let at = node; at; at = renderedParent(at))
+    if (at.getAttribute?.("aria-hidden") === "true") return false;
+  return true;
+}
+// What this page shows of a frame it holds, in the frame's own viewport coordinates:
+// the frame's `seenRect`, within `within`, what the pages holding this one show of its
+// window (`containingView`), or null where the user sees none of it. The frame's page
+// cannot read this itself: only this page's module knows the banner, bottom bar and
+// occluders standing over the frame, which cut it as they cut any of this page's boxes.
+export function frameView(frame, within) {
+  const seen = seenRect(frame, new Map());
+  const shown = seen && intersect(seen, within);
+  if (!shown || !hasArea(shown)) return null;
+  const rect = frame.getBoundingClientRect();
+  const scaleX = rect.width / frame.offsetWidth || 1;
+  const scaleY = rect.height / frame.offsetHeight || 1;
+  const x = (at) => (at - rect.left) / scaleX - frame.clientLeft;
+  const y = (at) => (at - rect.top) / scaleY - frame.clientTop;
+  return {
+    left: x(shown.left),
+    top: y(shown.top),
+    right: x(shown.right),
+    bottom: y(shown.bottom),
+  };
+}
+// What the pages holding this one show of its window, in its own coordinates: the whole
+// window at the top, and in a same-origin frame what the holding page reads of that
+// frame (`frameView`), asked through the holder's document, where its own geometry
+// answers and asks its own holder in turn. Null where no holder answers: a cross-origin
+// holder hides the frame element, and one without Leaf declares none of its chrome, so
+// nothing it shows is evidence. An isolated sample's holder answers over the sample's
+// port instead (sample-visibility.js), from the same `frameView`.
+const FRAME_VIEW = Symbol.for("leaf.frameView");
+Object.defineProperty(document, FRAME_VIEW, {
+  value: (frame) => {
+    const within = presented(frame) && containingView();
+    return within ? frameView(frame, within) : null;
+  },
+});
+export function containingView() {
+  const frame = window.frameElement;
+  if (!frame)
+    return window === window.top
+      ? { left: 0, top: 0, right: innerWidth, bottom: innerHeight }
+      : null;
+  return frame.ownerDocument[FRAME_VIEW]?.(frame) ?? null;
 }
 // Where, in the window's coordinates, a change of size at `item` would move what the
 // user sees, as `{top, bottom}`, or null where it would move nothing seen. A change

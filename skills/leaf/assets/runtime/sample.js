@@ -22,15 +22,12 @@ import { requestJson } from "./layer-client.js";
 import { pageUrl, runtime } from "./context.js";
 import { dressFor, registerSampleDress } from "./dress.js";
 import { widgetDescriptor } from "./widget-descriptors.js";
-import { excludedByInert, upFrom } from "./shadow.js";
-import { seenRect } from "./geometry.js";
-import { intersect } from "./rect.js";
+import { containingView, frameView, presented } from "./geometry.js";
 import {
   sampleVisibility,
   onSampleVisibility,
   readSampleVisibility,
 } from "./sample-visibility.js";
-import { nativeModalAdmits } from "./keyboard/layer-stack.js";
 import { keeps } from "./keeps.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { recordInteraction } from "./interaction-log.js";
@@ -156,14 +153,10 @@ export function mountSample(
   frame.toggleAttribute("data-lf-contained", true);
 
   function admitted() {
-    for (let owner = frame; owner; owner = upFrom(owner))
-      if (owner.getAttribute?.("aria-hidden") === "true") return false;
     return (
       !passive &&
       document.visibilityState === "visible" &&
-      frame.checkVisibility({ visibilityProperty: true }) &&
-      !excludedByInert(frame) &&
-      nativeModalAdmits(frame) &&
+      presented(frame) &&
       sampleVisibility()?.visible !== false
     );
   }
@@ -174,26 +167,11 @@ export function mountSample(
     try {
       const outer = await readSampleVisibility();
       if (channel !== port) return;
-      const rect = frame.getBoundingClientRect();
-      const shown = seenRect(frame, new Map());
-      const band = shown ?? { left: 0, top: 0, right: 0, bottom: 0 };
-      const { left, top, right, bottom } = intersect(
-        intersect(rect, band),
-        outer ?? { left: 0, top: 0, right: innerWidth, bottom: innerHeight },
-      );
-      const scaleX = rect.width / frame.offsetWidth || 1;
-      const scaleY = rect.height / frame.offsetHeight || 1;
+      const within = outer ? outer.visible && outer : containingView();
+      const view = admitted() && within && frameView(frame, within);
       port.postMessage({
         type: "visibility-reading",
-        detail: {
-          id,
-          visible:
-            admitted() && outer?.visible !== false && right > left && bottom > top,
-          left: (left - rect.left) / scaleX - frame.clientLeft,
-          top: (top - rect.top) / scaleY - frame.clientTop,
-          right: (right - rect.left) / scaleX - frame.clientLeft,
-          bottom: (bottom - rect.top) / scaleY - frame.clientTop,
-        },
+        detail: { id, visible: Boolean(view), ...view },
       });
     } catch (error) {
       if (channel !== port) return;

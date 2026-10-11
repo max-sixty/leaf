@@ -129,7 +129,7 @@ export const currentDrawer = () =>
 export const drawerIsOpen = (key) => currentDrawer() === key;
 // The stops a walk down the Questions panel lands on: its items, and Done's door between
 // them.
-export const queueRows = () => walkStops(queueList);
+const queueRows = () => walkStops(queueList);
 
 export function createDrawers({
   doors = {},

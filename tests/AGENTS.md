@@ -12,7 +12,9 @@ the smallest set that exposes distinct plausible failures beyond existing covera
 Retain a broad sweep only when its extra samples catch a failure that representative
 states or transitions miss; an investigation's sampling grid is not itself a regression
 requirement. Every run pays for the test's compute, so weigh the additional cost against
-the additional coverage. When a high-level browser test is slow, or fails on timing or
+the additional coverage. Each CI `test` job's summary says where its run's time went, by
+file, phase, Playwright call and the suite's own functions; `leaf-dev suite-profile`
+prints the same from the job's `pytest-results-*` artifact. When a high-level browser test is slow, or fails on timing or
 geometry outside its contract, repair its arrangement or move its contract to the lower
 boundary.
 
@@ -126,7 +128,12 @@ in the suite. The render gate never opens the thread panel, so the suite opens i
 puts the gate's geometry readings to it, asserting each population and planting a
 fault there first.
 
-A render-gate test calls `render_version`, not one of its probes. Where the product already answers a reading's question, such as `shownBand` for the
+A test of what the gate reports for an authored page calls `render_version`. A test
+whose state no authored page reaches, such as DOM a script builds or changes after
+load, a patched widget hook, or the thread panel, puts the page in that state and
+calls the probe through `leaf.render_checks.evaluate_probe`.
+
+Where the product already answers a reading's question, such as `shownBand` for the
 band a box shows, consume that answer instead of copying it: `root_overflow` for
 whether the page scrolls sideways, `draft_key` for where a draft is stored, and
 `event_log.read_events` for what the log holds. Page-side code reaches a runtime
@@ -450,9 +457,9 @@ every scroller to either end and back loses its words. The last four read a
 its timers and browser rendering still run.
 All of them run on every corpus page, so a new widget or page joins without a case of
 its own; a new surface joins the round trips by its keys, and a new box the typed
-boxes by its route. Run generated-markup probes (`undeclaredAttrs`,
-`relativeReplays`) through
-`leaf.render_checks.evaluate_probe` on fixtures that can trigger them.
+boxes by its route. Generated-markup probes (`undeclaredAttrs`, `relativeReplays`)
+run on fixtures that can trigger them, as "Put each assertion at the boundary that
+owns it" says.
 
 ### Absences
 

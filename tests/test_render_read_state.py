@@ -841,7 +841,7 @@ def _still_unread(page, child):
     """
     rendered(page)
     child.wait_for_function(
-        "() => document.querySelector('script[data-lf-entry]').lfRenderingSettled()",
+        "() => Object.values(document.querySelector('script[data-lf-entry]').lfRenderingState()).every(Boolean)",
         polling=PROBE_POLL_MS,
         timeout=SERVED_TIMEOUT_MS,
     )
@@ -957,7 +957,7 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
         if (!event.composedPath().some(node => node.matches?.('lf-diff'))) return;
         queueMicrotask(() => selectionRelease.push({
           words: getSelection().toString(),
-          settled: document.querySelector('script[data-lf-entry]').lfRenderingSettled(),
+          settled: Object.values(document.querySelector('script[data-lf-entry]').lfRenderingState()).every(Boolean),
         }));
       }, {once: true});
     }""")

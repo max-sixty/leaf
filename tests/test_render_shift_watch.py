@@ -1192,7 +1192,7 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(
         first.locator(".lf-diff-head").focus()
         page.keyboard.press("Enter")
     holding(page, held, 1, "the markdown grammar")
-    rendered(page)
+    rendered(page, facts=("updatesSettled",))
     assert (
         page.evaluate(
             "document.querySelector('script[data-lf-entry]').lfReadiness(null, 'presented')"
@@ -1201,7 +1201,7 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(
     )
     # While the preparation waits, the press owns no other movement on the page.
     control.evaluate("node => node.style.marginTop = '40px'")
-    rendered(page)
+    rendered(page, facts=("updatesSettled",))
     judge_watches()
     consume_browser_errors(page, "button#control moved without input")
 
@@ -1287,7 +1287,7 @@ def test_a_preparation_no_input_began_lands_passive(browser, serve, input_at):
         assert not page.locator("#patch details").first.evaluate("node => node.open")
     answer[0].fulfill(status=204)
     holding(page, grammar, 1, "the markdown grammar")
-    rendered(page)
+    rendered(page, facts=("updatesSettled",))
     judge_watches()
     assert page.lf_errors == []
 
@@ -1617,7 +1617,7 @@ def test_a_resize_owns_its_layout_before_its_event_dispatches(browser):
 # boundary: native height-induced sibling flow has no exact translation proof.
 # The matched marginTop arm proves press/news ownership with supported displacement.
 NEWS = """<!doctype html><body style="margin:0">
-<script data-lf-entry>document.currentScript.lfRenderingSettled = () => false;</script>
+<script data-lf-entry>document.currentScript.lfRenderingState = () => ({updatesSettled: false, preparationsSettled: true});</script>
 <button id="press">Press</button>
 <div id="bar"></div><div id="above"></div><div id="below">Below.</div>
 <script>
@@ -1633,7 +1633,7 @@ NEWS = """<!doctype html><body style="margin:0">
     const until = performance.now() + Number(document.body.dataset.work);
     while (performance.now() < until) {}
     frames(3, () => {
-      document.body.dataset.inputHeld = String(!document.querySelector('script[data-lf-entry]').lfRenderingSettled());
+      document.body.dataset.inputHeld = String(!document.querySelector('script[data-lf-entry]').lfRenderingState().updatesSettled);
       document.body.setAttribute("data-lf-reading", "news");
       if (motion() === "news") slide();
       if (!motion()) document.getElementById("above").style.height = "40px";
@@ -3232,7 +3232,7 @@ def test_a_delayed_native_frame_keeps_the_typing_origins_camera(browser, fault, 
     page.goto(
         "data:text/html,"
         + quote("""<!doctype html><body style="margin:0">
-<script data-lf-entry>document.currentScript.lfRenderingSettled = () => false;</script>
+<script data-lf-entry>document.currentScript.lfRenderingState = () => ({updatesSettled: false, preparationsSettled: true});</script>
 <div id="bar"><div id="above"></div><textarea id="field"></textarea></div>
 <p id="evidence" style="position:absolute;top:200px">Paint evidence</p>
 <script>field.addEventListener('beforeinput', () => {

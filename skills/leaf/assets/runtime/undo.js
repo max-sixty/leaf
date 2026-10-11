@@ -13,16 +13,16 @@
    presents it, under the intent of the press that asked for it. A reversal lives with
    the page that made the gesture, so after a reload or from another tab the undo
    changes the thread and moves nobody. */
-import { notice } from "../notifications.js";
+import { notice } from "./notifications.js";
 import {
   applicationState,
   readApplication,
   whenDocumentPresented,
-} from "../semantic-state.js";
-import { pageCommand } from "../keyboard/register.js";
-import { undoSentence } from "../reactions.js";
-import { PENDING } from "../thread/identity.js";
-import { retainUserIntent } from "../user-intent.js";
+} from "./semantic-state.js";
+import { pageCommand } from "./keyboard/register.js";
+import { undoSentence } from "./reactions.js";
+import { PENDING } from "./thread/identity.js";
+import { retainUserIntent } from "./user-intent.js";
 
 const WAIT = "Wait for the current change to finish before undoing";
 
@@ -37,7 +37,7 @@ const words = {
   task_end: "Put the task back on you",
 };
 
-export function createProjectionCommands({ post, stateApplying, unaccountedGesture }) {
+export function createUndo({ post, stateApplying, unaccountedGesture }) {
   // Kept while its gesture can still be taken back: in flight, or on the undo list.
   const reversals = new Map();
   function retainReversal(attempt, reverse) {

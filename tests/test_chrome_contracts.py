@@ -3289,7 +3289,8 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     # answered it, and once its click has passed every listener.
     page.evaluate(
         """() => {
-          const settled = document.querySelector('script[data-lf-entry]').lfRenderingSettled;
+          const state = document.querySelector('script[data-lf-entry]').lfRenderingState;
+          const settled = () => Object.values(state()).every(Boolean);
           window.__lfPress = [];
           const read = () => window.__lfPress.push(settled());
           addEventListener('pointerdown', read, {capture: true, once: true});

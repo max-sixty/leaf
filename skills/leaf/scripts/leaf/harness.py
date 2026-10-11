@@ -608,10 +608,9 @@ class EmbeddedHarness(Harness):
     itself, supplying its own display name and the App Server process its
     session lives and dies with.
 
-    The Stop hook never reaches a page this holds: the container's Codex runs
-    with no Leaf plugin and so no Leaf hooks (`worker/codex-config.toml`), even
-    though its agent does run `leaf` commands. The two remedies say what is true
-    rather than what to type."""
+    The host owns turn pickup and observes completion directly. It installs the
+    ordinary Leaf plugin for the agent's skills and tools; its remedies describe
+    host-owned delivery rather than asking the agent to start another watcher."""
 
     pid: int
 

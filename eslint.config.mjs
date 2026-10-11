@@ -147,11 +147,6 @@ const publicRuntimeBoundary = {
           name: "/leaf.js",
           message: "Import Leaf capabilities from /runtime/widget-api.js.",
         },
-        {
-          name: "/vendor/browser-runtime.js",
-          message:
-            "Content modules import Lit and Leaf capabilities from /runtime/widget-api.js.",
-        },
       ],
       patterns: [
         {
@@ -167,7 +162,7 @@ const publicRuntimeBoundary = {
           message: "Do not create a relative edge to the entry or public facade.",
         },
         {
-          regex: "^\\.{1,2}/(?:.*/)?vendor/browser-runtime\\.js$",
+          regex: "^(?:/|\\.{1,2}/(?:.*/)?)vendor/browser-runtime(?:\\.js$|/)",
           message:
             "Content modules import Lit and Leaf capabilities from /runtime/widget-api.js.",
         },
@@ -179,11 +174,6 @@ const publicRuntimeBoundary = {
     {
       selector: 'ImportExpression[source.value="/leaf.js"]',
       message: "Import Leaf capabilities statically from /runtime/widget-api.js.",
-    },
-    {
-      selector: 'ImportExpression[source.value="/vendor/browser-runtime.js"]',
-      message:
-        "Content modules import Lit and Leaf capabilities from /runtime/widget-api.js.",
     },
     {
       selector:
@@ -201,7 +191,7 @@ const publicRuntimeBoundary = {
     },
     {
       selector:
-        "ImportExpression[source.value=/^\\.{1,2}\\/(?:.*\\/)?vendor\\/browser-runtime\\.js$/]",
+        "ImportExpression[source.value=/^(?:\\/|\\.{1,2}\\/(?:.*\\/)?)vendor\\/browser-runtime(?:\\.js$|\\/)/]",
       message:
         "Content modules import Lit and Leaf capabilities from /runtime/widget-api.js.",
     },
@@ -322,20 +312,24 @@ export const semanticStoreOwnershipRule = {
   meta: { type: "problem", schema: [] },
   create(context) {
     const file = runtimeName(context.filename ?? context.getFilename());
-    const publisherExports = new Set([
-      "createApplicationPublisher",
-      "createSemanticApplication",
-    ]);
-    const browserFrameworkSource = (source) =>
-      typeof source?.value === "string" &&
-      /(?:^|\/)vendor\/browser-runtime\.js$/u.test(source.value);
-    const report = (node, name) =>
+    // A module behind the facade is reached only through it, so the facade's
+    // exports are every framework capability a runtime module can name.
+    const browserFrameworkSource = (source) => {
+      if (typeof source?.value !== "string") return false;
+      if (/(?:^|\/)vendor\/browser-runtime\//u.test(source.value)) {
+        context.report({
+          node: source,
+          message:
+            "Import browser framework capabilities from its facade, vendor/browser-runtime.js.",
+        });
+        return false;
+      }
+      return /(?:^|\/)vendor\/browser-runtime\.js$/u.test(source.value);
+    };
+    const report = (node) =>
       context.report({
         node,
-        message:
-          name === "createApplicationPublisher"
-            ? "The raw publisher is private to the semantic application."
-            : "Only semantic-state.js may construct the application publisher.",
+        message: "Only semantic-state.js may construct the application publisher.",
       });
     return {
       ImportDeclaration(node) {
@@ -349,12 +343,11 @@ export const semanticStoreOwnershipRule = {
             });
             continue;
           }
-          const name = specifier.imported?.name;
           if (
-            publisherExports.has(name) &&
-            (name === "createApplicationPublisher" || file !== "semantic-state.js")
+            specifier.imported?.name === "createSemanticApplication" &&
+            file !== "semantic-state.js"
           )
-            report(specifier, name);
+            report(specifier);
         }
       },
       ExportNamedDeclaration(node) {
@@ -362,8 +355,7 @@ export const semanticStoreOwnershipRule = {
         // Only named specifiers reach here: `export * as ns from` is an
         // ExportAllDeclaration below, which answers the whole-namespace reexport.
         for (const specifier of node.specifiers) {
-          const name = specifier.local?.name;
-          if (publisherExports.has(name)) report(specifier, name);
+          if (specifier.local?.name === "createSemanticApplication") report(specifier);
         }
       },
       ImportExpression(node) {
@@ -399,7 +391,7 @@ export const semanticStoreOwnershipRule = {
 const standingRepoRoot = path.dirname(fileURLToPath(import.meta.url));
 const STANDING_MESSAGE =
   "Read where the user stands from onStanding (runtime/focus.js): a focusin or focusout listener misses moves inside a shadow tree beneath it and guesses its own cause.";
-export const standingListenersRule = {
+const standingListenersRule = {
   meta: {
     type: "problem",
     schema: [{ type: "object", additionalProperties: { type: "array" } }],
@@ -468,7 +460,7 @@ export const standingListenersRule = {
 // hands on to the editor inside it.
 const PLACEMENT_MESSAGE =
   "Put the user on an element with focusDestination(node, cause) (runtime/focus.js): a plain focus() publishes as the user's own move, so a return reads as one.";
-export const placementsRule = {
+const placementsRule = {
   meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
   create(context) {
     const file = path

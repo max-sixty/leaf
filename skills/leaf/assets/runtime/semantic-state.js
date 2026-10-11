@@ -37,7 +37,7 @@ export const selectWidgets = applicationState.selectWidgets;
 export const attachApplicationPresentation = (region, renderer) =>
   presentation.attach(region, renderer);
 const widgetRegion = (widget, kind) => `widget:${widget}:${kind}`;
-export const widgetRegions = (widget) =>
+const widgetRegions = (widget) =>
   ["render", "preparation"].map((kind) => widgetRegion(widget, kind));
 // A widget preparation is work a widget declared it is still doing in a promise, such
 // as lf-diff loading a file the reader opened, which the rendering loop cannot see.
@@ -166,7 +166,7 @@ export const whenApplicationRegionsPresented = (regions, current) =>
         : null,
     regions,
   );
-export const applicationRegionsPresented = (regions) =>
+const applicationRegionsPresented = (regions) =>
   presentation.currentRegionsPresented(currentApplicationPresentation, regions);
 export const projectionRegionsPresented = (widgets) =>
   applicationRegionsPresented(["projection:chrome", ...widgets.flatMap(widgetRegions)]);

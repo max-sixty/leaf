@@ -45,7 +45,10 @@ _LOAD_PROBES = "route => globalThis.__leafRenderDriver?.load(route) ?? null"
 _PROBE = "call => globalThis.__leafRenderDriver.call(call)"
 _REQUEST_FRAME = "() => globalThis.__leafRenderDriver?.requestFrame() ?? null"
 _FRAME_PRESENTED = "asked => globalThis.__leafRenderDriver.framePresented(asked)"
-_RENDERING_SETTLED = "() => globalThis.__leafRenderDriver.renderingSettled()"
+_RENDERING_SETTLED = """facts => {
+  const state = globalThis.__leafRenderDriver.renderingState();
+  return (facts ?? Object.keys(state)).every(fact => state[fact]);
+}"""
 _THEME_READY = "() => globalThis.__leafRenderDriver.themeReady()"
 _PRE_UPGRADE_FINDINGS = "() => globalThis.__leafRenderDriver.preUpgradeFindings()"
 
@@ -154,11 +157,13 @@ def one_frame(page) -> None:
     _wait_for_driver(page, _FRAME_PRESENTED, requested, "no rendering update arrived")
 
 
-def rendered(page) -> None:
+def rendered(page, *, facts: tuple[str, ...] | None = None) -> None:
     """Wait until the runtime has rendered what the input so far asked for.
 
-    Its settled reading (runtime/rendering.js) says nothing it queued is waiting and its
-    last rendering update was quiet. A read after a coalesced repaint, however many
+    Its renderingState (runtime/rendering.js) says no registered preparation or queued
+    rendering is waiting and its last update was quiet. By default every fact must be
+    settled; an intermediate reader can select facts, such as updatesSettled while
+    deliberately holding a preparation. A read after a coalesced repaint, however many
     updates that repaint chains through, waits here instead of guessing a count. One
     whole update passes first, so a change no Leaf callback took part in — a wheel, a
     resize — has had its turn to unsettle the reading.
@@ -171,7 +176,7 @@ def rendered(page) -> None:
     they need no probe module, so they hold on a page served without one."""
     one_frame(page)
     _wait_for_driver(
-        page, _RENDERING_SETTLED, None, "the page's rendering never settled"
+        page, _RENDERING_SETTLED, facts, "the page's rendering never settled"
     )
 
 

@@ -11,9 +11,8 @@ from leaf_dev.eval import catalog, native_provider, prepare, select_cases
 from leaf_dev.review_detection_eval import grading, summarize
 
 
-def test_ui_review_judge_has_no_run_wide_evidence_grant(
-    tmp_path, monkeypatch, codex_cli
-):
+@pytest.mark.usefixtures("codex_cli")
+def test_ui_review_judge_has_no_run_wide_evidence_grant(tmp_path, monkeypatch):
     """Only the assertion's per-sample profile grants evidence access."""
     login = tmp_path / "login"
     login.mkdir()
@@ -131,7 +130,8 @@ def test_library_cases_supply_a_task_and_native_promptfoo_assertions(address):
     assert all(assertion["type"] and assertion["value"] for assertion in case["assert"])
 
 
-def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch, codex_cli):
+@pytest.mark.usefixtures("codex_cli")
+def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch):
     login = tmp_path / "harness-login"
     login.mkdir()
     (login / "auth.json").write_text('{"fixture": "local-login"}')
@@ -198,8 +198,9 @@ def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch, code
         "visible-outcome-before-handoff/shared-identity",
     ],
 )
+@pytest.mark.usefixtures("codex_cli")
 def test_internal_instruction_cases_receive_their_arms_source(
-    tmp_path, monkeypatch, codex_cli, address
+    tmp_path, monkeypatch, address
 ):
     login = tmp_path / "login"
     login.mkdir()
@@ -233,8 +234,9 @@ def test_internal_instruction_cases_receive_their_arms_source(
     assert config["tests"][0]["vars"]["prompt"] == catalog()[address]["vars"]["prompt"]
 
 
+@pytest.mark.usefixtures("codex_cli")
 def test_native_codex_discovers_the_complete_arm_with_root_relative_access(
-    tmp_path, monkeypatch, codex_cli
+    tmp_path, monkeypatch
 ):
     """Use Codex's real installer without running a model. A skill-only symlink
     hides the registry from ordinary discovery and loses its plugin-root launcher."""

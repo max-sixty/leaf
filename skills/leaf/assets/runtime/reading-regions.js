@@ -38,7 +38,7 @@
    arrival. Mechanical returns, programmatic arrivals and scrolling are not choices
    of another passage. Each consumer interprets that target in its own domain. */
 import { nextRender, sizeObserver } from "./rendering.js";
-import { landingBand, shownRect, skipped } from "./geometry.js";
+import { landingBand, shownRect, skipped, userScrollport } from "./geometry.js";
 import { pageScroller } from "./scrolling.js";
 import { reachReadingScroller } from "./reach.js";
 import { under, renderedUnder, renderedParent } from "./shadow.js";
@@ -235,7 +235,7 @@ const asRegion = (regionOrNode) =>
     : (regions.get(regionOrNode?.id) ??
       regions.get(readingRegionFor(regionOrNode)?.id));
 
-const scrolls = (box) => /auto|scroll/.test(getComputedStyle(box).overflowY);
+const scrolls = (box) => userScrollport(getComputedStyle(box).overflowY);
 
 // "bounded" when the region's own body scrolls, "flow" when something outside it does.
 export const readingPosture = (regionOrNode) => {

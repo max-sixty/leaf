@@ -271,6 +271,11 @@ as part of answering new input, without waiting for the user to ask. Keep messag
 whose individual wording or reasoning still matters to the current exchange directly
 readable.
 
+A delivery's `elided.messages` counts originals omitted from the agent's context;
+it does not fold anything in the browser. The thread's `summaries` lists its
+presentation summaries. Changing that presentation requires the summarize command
+below; an ordinary reply containing a recap leaves the originals displayed.
+
 New input in a long thread may carry `summary_hint`, a suggested range. Use it to
 review the earlier discussion, choosing endpoints that fit the topic. Read the
 original messages with

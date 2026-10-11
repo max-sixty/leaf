@@ -32,7 +32,8 @@ const {
   cancelRender,
   afterScript,
   sizeObserver,
-  renderingSettled,
+  renderingState,
+  holdRendering,
 } = await import("/runtime/rendering.js");
 
 const { observeQueuedWork } = await import("/runtime/queued-work.js");
@@ -47,18 +48,48 @@ async function update({ delivering = [] } = {}) {
 }
 
 test("a page starts unsettled and settles on its first quiet update", async () => {
-  assert.equal(renderingSettled(), false);
+  assert.equal(Object.values(renderingState()).every(Boolean), false);
   await update();
-  assert.equal(renderingSettled(), true);
+  assert.equal(Object.values(renderingState()).every(Boolean), true);
 });
 
 test("queued work unsettles at once and settles with the update that runs it", async () => {
   let ran = false;
   nextRender(() => (ran = true));
-  assert.equal(renderingSettled(), false);
+  assert.equal(Object.values(renderingState()).every(Boolean), false);
   await update();
   assert.equal(ran, true);
-  assert.equal(renderingSettled(), true);
+  assert.equal(Object.values(renderingState()).every(Boolean), true);
+});
+
+test("finite preparation retires once and owes its final quiet update", async () => {
+  const first = holdRendering();
+  const second = holdRendering();
+  for (let i = 0; i < 10; i++) await update();
+  assert.deepEqual(renderingState(), {
+    updatesSettled: true,
+    preparationsSettled: false,
+  });
+  assert.equal(queued.size, 0, "a pending preparation does not poll frames");
+  first();
+  first();
+  await update();
+  assert.equal(
+    Object.values(renderingState()).every(Boolean),
+    false,
+    "another preparation still stands",
+  );
+  second();
+  assert.deepEqual(
+    renderingState(),
+    {
+      updatesSettled: false,
+      preparationsSettled: true,
+    },
+    "the commit has not painted yet",
+  );
+  await update();
+  assert.equal(Object.values(renderingState()).every(Boolean), true);
 });
 
 test("work a callback queues runs before the same update paints", async () => {
@@ -70,7 +101,7 @@ test("work a callback queues runs before the same update paints", async () => {
   nextRender(() => ran.push("other owner"));
   await update();
   assert.deepEqual(ran, ["repaint", "other owner", "follower"]);
-  assert.equal(renderingSettled(), true);
+  assert.equal(Object.values(renderingState()).every(Boolean), true);
 });
 
 test("a step that asks for the next frame waits for it and holds the reading open", async () => {
@@ -78,10 +109,10 @@ test("a step that asks for the next frame waits for it and holds the reading ope
   nextRender(() => nextFrame(() => ran.push("tick")));
   await update();
   assert.deepEqual(ran, []);
-  assert.equal(renderingSettled(), false);
+  assert.equal(Object.values(renderingState()).every(Boolean), false);
   await update();
   assert.deepEqual(ran, ["tick"]);
-  assert.equal(renderingSettled(), true);
+  assert.equal(Object.values(renderingState()).every(Boolean), true);
 });
 
 test("the next frame asked for outside a pass is the one about to paint", async () => {
@@ -218,9 +249,9 @@ test("an observer delivery after the callbacks holds the reading for one more up
   const observer = sizeObserver(() => {});
   nextRender(() => {});
   await update({ delivering: [observer] });
-  assert.equal(renderingSettled(), false);
+  assert.equal(Object.values(renderingState()).every(Boolean), false);
   await update();
-  assert.equal(renderingSettled(), true);
+  assert.equal(Object.values(renderingState()).every(Boolean), true);
 });
 
 test("cancelled work stops holding the reading", async () => {
@@ -229,15 +260,15 @@ test("cancelled work stops holding the reading", async () => {
   cancelRender(id);
   await update();
   assert.equal(ran, false);
-  assert.equal(renderingSettled(), true);
+  assert.equal(Object.values(renderingState()).every(Boolean), true);
 });
 
 test("a hidden page reads settled while work waits for an update it will not get", () => {
   nextRender(() => {});
-  assert.equal(renderingSettled(), false);
+  assert.equal(Object.values(renderingState()).every(Boolean), false);
   Object.defineProperty(document, "hidden", { value: true, configurable: true });
   try {
-    assert.equal(renderingSettled(), true);
+    assert.equal(Object.values(renderingState()).every(Boolean), true);
   } finally {
     delete document.hidden;
   }

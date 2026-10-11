@@ -1,37 +1,10 @@
 /* Browser working state has one backing policy, selected by prepaint before widgets
  * draw. Isolated samples keep all stores inside their disposable realm; ordinary
- * documents use native scoped storage, whose refusal never prevents reading. */
+ * documents use native scoped storage, whose refusal never prevents reading.
+ *
+ * The stores are the tab's, the draft store and the user store, each scoped to the
+ * page, and the per-tab memory of which member an `x-views` holder shows. */
 
-// ---------- which address this document is ----------
-// Which version a document is comes from its served `lf-version` marker
-// (`document-identity.js`), and where another version is from that version's `url` in
-// the state reading, which the server addresses at the page root. Neither is read off
-// this path.
-const PAGE_PATH = location.pathname;
-// The live root follows the active revision in place; a virtual version address
-// (`versions/vN.html`) stays pinned to its mapped revision.
-export const LIVE_ROOT = PAGE_PATH.endsWith("/");
-// Which page this document belongs to. The server declares the page's root in the
-// canonical link it adds to every document it serves, the live root and each version
-// address alike, and every page operation resolves against it. An interactive export
-// has no server and no link, so no root: the file is the page.
-export const PAGE_ROOT =
-  document.querySelector('link[rel="canonical"][data-lf-runtime]')?.href ?? null;
-// A keyed transport declares its share address even on a cookie-authorized reload.
-// Samples and the public website have no share address. Preserve the current
-// version path, query and passage while taking access from the transport's URL.
-export const SHARE_ROOT = document.querySelector(
-  "script[data-lf-runtime][data-lf-server]",
-)?.dataset.lfShareUrl;
-export function shareUrl() {
-  const url = new URL(SHARE_ROOT);
-  url.pathname = location.pathname;
-  const access = [...url.searchParams];
-  url.search = location.search;
-  for (const [key, value] of access) url.searchParams.set(key, value);
-  url.hash = location.hash;
-  return url.href;
-}
 // The same page as a prefix for what the tab keeps, which the prepaint declares on the
 // root before the first paint, since it reads the tab's memory then too (prepaint.js).
 export const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
@@ -72,12 +45,6 @@ export const tabStore = initialTabStore;
 const views = (holder) => holder.ownerDocument.documentElement.lfViews;
 export const openingView = (holder, members) => views(holder).opening(holder, members);
 export const keepView = (holder, member) => views(holder).keep(holder, member);
-// What the author wrote: the early coordinator restores original widget sources
-// before copying and takes off its marks and delivery's placeholders (version.js).
-export const unmarkedCopy = (node) =>
-  (
-    node.ownerDocument?.documentElement?.lfInitial ?? document.documentElement.lfInitial
-  ).authoredCopy(node);
 export const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
 // The delivery declares a child page's private user scope. Bootstrap reads the
 // same fact before this module loads; neither derives it from the viewed revision.

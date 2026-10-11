@@ -34,7 +34,7 @@ import { declareBanner } from "./geometry.js";
 import { agentName, watchSemantic } from "./semantic-state.js";
 import { taskNoun } from "./queues.js";
 import { readQueues } from "./queue-api.js";
-import { SHARE_ROOT, shareUrl } from "./storage.js";
+import { SHARE_ROOT, shareUrl } from "./document-address.js";
 
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";

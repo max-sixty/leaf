@@ -1,7 +1,7 @@
 /* Shared mechanical runtime context and read-only views of the semantic root.
    Accepted facts are never installed here independently of application publication. */
 import { readApplication } from "./semantic-state.js";
-import { PAGE_ROOT } from "./storage.js";
+import { PAGE_ROOT } from "./document-address.js";
 
 // Code may be shared by several documents, including a sample and its parent.
 // Page operations belong to the document's declared root, never to the module's asset

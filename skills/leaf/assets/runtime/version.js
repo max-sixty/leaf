@@ -119,7 +119,9 @@ import {
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
-import { LIVE_ROOT, PAGE_SCOPE, tabStore, unmarkedCopy } from "./storage.js";
+import { LIVE_ROOT } from "./document-address.js";
+import { unmarkedCopy } from "./initial-render.js";
+import { PAGE_SCOPE, tabStore } from "./storage.js";
 import { initialOrigin, restoreInitialSource } from "./initial-render.js";
 import { alignInlineText } from "./text-alignment.js";
 import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";

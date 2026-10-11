@@ -7,7 +7,7 @@
    which the undo door holds by the gesture's attempt, under the undo's intent. The
    user's other turns in a panel thread land the same way (`landGesture`), going with
    the thread out of a view it leaves (thread-card.js, `#goWithThread`). */
-import { newAttempt } from "../drafts.js";
+import { randomId } from "../ids.js";
 import { paintKeys } from "../keyboard/scopes.js";
 import { foldDuration, motion } from "../motion.js";
 import { pendingForParent } from "../pending/model.js";
@@ -28,7 +28,7 @@ export async function settleThread({
 }) {
   if (pendingSettlement(pendingEntries(), parent())) return;
   const landing = prepareLanding?.();
-  const attempt = newAttempt();
+  const attempt = randomId();
   const answer = resolved
     ? actions.reopen(key, { attempt })
     : actions.resolve(key, { attempt });

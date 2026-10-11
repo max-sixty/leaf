@@ -140,12 +140,20 @@ def serving(arm: Path, state: Path, page: Path):
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
         text=True,
+        start_new_session=True,
     )
     try:
         yield re.search(r"https?://[^\s\"]+", server.stdout.readline())[0]
     finally:
+        # A loaded host can take longer than this to wind a server down; its page is
+        # scratch, so a server still running then is killed rather than failing the run.
+        # The launcher is uv, which cannot pass a kill on, so the kill takes the group.
         server.terminate()
-        server.wait(10)
+        try:
+            server.wait(10)
+        except subprocess.TimeoutExpired:
+            os.killpg(server.pid, signal.SIGKILL)
+            server.wait()
 
 
 def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:

@@ -2086,10 +2086,6 @@ def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
             "leaf: Presentation failed: Thread list presentation retry failed: "
             "injected refusal; injected refusal"
         ),
-        "leaf: State presentation failed: Thread list presentation retry failed: "
-        "injected refusal; injected refusal",
-        "leaf: read failed: Thread list presentation retry failed: "
-        "injected refusal; injected refusal",
     )
     expect(page.locator('[data-id="arriving"]')).to_have_count(0)
 
@@ -2561,7 +2557,11 @@ def package_workspace(serve, *, before_reader="", primary=True):
                 else ""
             ),
         ),
-        layer_registry=json.loads((companion / "registry.json").read_text()),
+        layer_registry={
+            "lf-conversation-workspace": json.loads(
+                (companion / "registry.json").read_text()
+            )["lf-conversation-workspace"]
+        },
         layer_widgets={
             "lf-conversation-workspace.js": (
                 companion / "widgets/lf-conversation-workspace.js"
@@ -2855,7 +2855,11 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
     from render_harness import ROOT
 
     companion = ROOT / "examples/developer/feature-gallery.page"
-    registry = json.loads((companion / "registry.json").read_text())
+    registry = {
+        "lf-conversation-workspace": json.loads(
+            (companion / "registry.json").read_text()
+        )["lf-conversation-workspace"]
+    }
     registry["lf-nested-reader"] = {
         "description": "A declared nested physical reader stage.",
         "type": "object",

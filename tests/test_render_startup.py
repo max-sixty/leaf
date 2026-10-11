@@ -2100,6 +2100,19 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
         expect(page.locator("body")).not_to_have_attribute("data-lf-applied", "1")
         expect(page.locator("#sug lf-old")).to_be_visible()
         expect(page.locator(".lf-signoff")).to_be_disabled()
+        # No producer below the feed saw the body, so the feed's report is the one
+        # that reaches the agent.
+        wait_for(
+            lambda: [
+                event["text"].splitlines()[0]
+                for event in events_model.read_events(serve.page_dir)
+                if event["kind"] == "error"
+            ],
+            lambda errors: any(
+                error.startswith("read failed: Unexpected token") for error in errors
+            ),
+            failure="the malformed state body never reached the log",
+        )
     finally:
         page.close()
     # As above: the malformed answer is given to every read, and the page keeps
@@ -6202,12 +6215,15 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
 
 
 def test_widget_errors_keep_exception_evidence(browser, serve):
-    """The user sees a short error while the agent retains the actual throw site."""
+    """A failed Lit paint can recover; the agent retains the actual throw site."""
     page = open_page(browser, data_projection_page(serve))
     page.evaluate(
         """async () => {
           const {failSoft} = await window.__lfRuntimeImport('/runtime/widget-upgrade.js');
+          const {html, render} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           const widget = document.querySelector('lf-feed');
+          window.paintRecoveredWidget = text => render(html`<p>${text}</p>`, widget);
+          window.paintRecoveredWidget('Before failure');
           function widgetProjection() { throw new TypeError('projection rejected'); }
           let error;
           try { widgetProjection(); } catch (caught) { error = caught; }
@@ -6231,6 +6247,9 @@ def test_widget_errors_keep_exception_evidence(browser, serve):
         if event["kind"] == "error"
     ]
     assert any("widgetProjection" in error for error in agent_errors), agent_errors
+    page.evaluate("window.paintRecoveredWidget('Recovered reading')")
+    expect(page.locator("lf-feed")).to_have_text("Recovered reading")
+    expect(page.locator("lf-feed .lf-error")).to_have_count(0)
 
 
 def test_unchanged_source_waits_for_its_inflight_render(browser, serve):
@@ -6412,6 +6431,80 @@ def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser,
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
 
 
+def test_page_annotation_view_seats_questions_and_contributed_controls(browser, serve):
+    """A page that owns its annotations shows Questions and contributed actions in its
+    own box: Leaf hands the consumer each entry's items and native controls, and the
+    page only arranges them. Activating an item reaches its Question, and a seated
+    control still runs its contribution's action. The view follows the log: an answered
+    Question leaves once the server holds the answer, and Undo brings it back."""
+    url = serve(
+        leaf_page(
+            "Page annotation view",
+            """
+      <h1 id="title">Review</h1>
+      <lf-ask id="choice-question"><h2>Which route?</h2>
+        <lf-options id="routes" choose><lf-option id="route-a">Route A</lf-option>
+        <lf-option id="route-b">Route B</lf-option></lf-options>
+      </lf-ask>
+      <p id="subject">The export keeps one file per tenant.</p>
+      <aside id="review" aria-label="Review"></aside>
+    """,
+        ).replace("<body>", '<body data-annotations="page">')
+    )
+    page = open_page(browser, url)
+    page.evaluate("""async () => {
+      const {contributionEntry, registerContribution} =
+        await __lfRuntimeImport('/runtime/widget-api.js');
+      registerContribution({key: 'review', target: document.getElementById('subject'),
+        read: () => ({entries: [contributionEntry({key: 'reviewed', behavior: 'action',
+          icon: 'dot', label: 'Mark reviewed'})]}),
+        activate: (key) => { window.activated = key; }});
+      const {consumeAnnotations} = await __lfRuntimeImport('/runtime/widget-api.js');
+      const box = document.querySelector('#review');
+      consumeAnnotations(box, (entries, view) => {
+        box.replaceChildren();
+        for (const entry of entries) {
+          const row = document.createElement('div');
+          row.dataset.lfGen = '1';
+          box.append(row);
+          for (const item of view.items(entry)) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = [item.label, item.text].filter(Boolean).join(' · ');
+            button.addEventListener('click', () => view.activate(item));
+            row.append(button);
+          }
+          row.append(...view.controls(entry));
+          view.place(entry, row);
+        }
+      });
+    }""")
+    review = page.locator("#review")
+    question = review.get_by_role(
+        "button", name="Which route? · Waiting on you", exact=True
+    )
+    expect(question).to_be_visible()
+    question.click()
+    page.wait_for_function("!!document.activeElement?.closest('#choice-question')")
+    contributed = review.get_by_role("button", name="Mark reviewed", exact=True)
+    expect(contributed).to_be_visible()
+    contributed.click()
+    page.wait_for_function("window.activated === 'reviewed'")
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.locator("#route-a .lf-pick").click()
+    expect(page.locator("#route-a")).to_have_attribute("chosen", "")
+    expect(question).to_be_visible()
+    holding(page, held, 1, "the optimistic choice")
+    held[0].continue_()
+    page.unroute("**/api/event")
+    expect(question).to_have_count(0)
+    undo(page)
+    expect(page.locator("#route-a")).not_to_have_attribute("chosen", "")
+    expect(question).to_be_visible()
+
+
 def test_page_thread_surface_owns_exact_source_elsewhere_in_main(browser, serve):
     url = serve(
         leaf_page(
@@ -6420,12 +6513,12 @@ def test_page_thread_surface_owns_exact_source_elsewhere_in_main(browser, serve)
       <h1 id="title">Review</h1><p id="subject">The nightly export keeps one file per tenant.</p>
       <aside id="review" aria-label="Review" style="height: 500px; overflow:auto"></aside>
     """,
-        ),
+        ).replace("<body>", '<body data-annotations="page">'),
         anchored=[("subject", "one file per tenant")],
     )
     page = open_page(browser, url)
     page.evaluate("""async () => {
-      const {placePageThreads} = await __lfRuntimeImport('/runtime/application.js');
+      const {placePageThreads} = await __lfRuntimeImport('/runtime/widget-api.js');
       const rail = document.querySelector('#review');
       const outlets = new Map();
       window.pageSurface = placePageThreads(rail, (targets) => {
@@ -6546,7 +6639,7 @@ customElements.define('lf-test-seat', class extends HTMLElement {
       <p id="subject">The nightly export keeps one file per tenant.</p>
       <aside id="review" aria-label="Review" style="height:500px; overflow:auto"></aside>
     """,
-            ),
+            ).replace("<body>", '<body data-annotations="page">'),
             layer_registry={"lf-test-seat": entry},
             layer_widgets={"lf-test-seat.js": module},
             events=events,
@@ -6683,7 +6776,7 @@ customElements.define('lf-test-seat',class extends HTMLElement{
       <p id="subject">An ordinary source.</p><aside id="rail" style="height:300px;overflow:auto"></aside>
       <div id="foreign"></div>
     """,
-            ),
+            ).replace("<body>", '<body data-annotations="page">'),
             layer_registry={"lf-test-seat": entry},
             layer_widgets={"lf-test-seat.js": module},
             events=events,
@@ -6848,7 +6941,7 @@ def test_source_retired_during_required_panel_prepare_is_not_claimed(browser, se
       <button id="retire">Retire the target</button>
       <aside id="rail" style="height:220px;overflow:auto"></aside>
     """,
-            ),
+            ).replace("<body>", '<body data-annotations="page">'),
             anchored=[("subject", None)],
         ),
     )

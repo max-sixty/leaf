@@ -55,9 +55,7 @@ const validSize = (box) =>
   box.every((side) => bounded(side) && side > 0);
 
 const validTag = (tag) =>
-  typeof tag === "string" &&
-  tag.length <= STEP.tag.maxLength &&
-  TAG_PATTERN.test(tag);
+  typeof tag === "string" && tag.length <= STEP.tag.maxLength && TAG_PATTERN.test(tag);
 const validFrame = (frame) =>
   frame &&
   !Array.isArray(frame) &&

@@ -303,6 +303,15 @@ CONFIRM_WITHIN = 10.0
 INLINE_DELIVERY = (
     "Leaf has new input for your turn. Read this complete delivery before answering."
 )
+# The words a delivery handed over by pointer opens with, before its read command.
+POINTED_DELIVERY = "Leaf has new input for this turn. Read it with"
+
+
+def hands_delivery(output: str) -> bool:
+    """Whether a hook's output hands the turn a delivery `render` wrote, inline or by
+    pointer: the reading a transcript of hook runs is scored by. The context may sit
+    inside the harness's JSON envelope, so it is found anywhere in the output."""
+    return INLINE_DELIVERY in output or POINTED_DELIVERY in output
 
 
 def render(
@@ -326,8 +335,8 @@ def render(
     return "\n".join(
         [
             (
-                "Leaf has new input for this turn. Read it with "
-                f"`leaf delivery read {delivery['id']}` and follow its receipt instruction."
+                f"{POINTED_DELIVERY} `leaf delivery read {delivery['id']}` "
+                "and follow its receipt instruction."
             ),
             *attention,
         ]

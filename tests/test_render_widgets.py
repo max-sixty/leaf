@@ -6706,6 +6706,9 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     reserved_width = copy_width("Copy instruction")
     copy.click()
     assert copy_width("Copied") == reserved_width
+    # A changed accessible name is not news to a screen reader; the live region is.
+    live = page.locator(".lf-live")
+    expect(live).to_have_text("Instruction copied")
     expect(copy).to_have_css(
         "color",
         page.evaluate(
@@ -6774,6 +6777,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     )
     copy.click()
     assert copy_width("Copy failed") == reserved_width
+    expect(live).to_have_text("Could not copy the instruction")
     resized(page, 420, 760)
     assert page.evaluate("document.documentElement.scrollWidth") == 420
     assert " " not in playground.evaluate(

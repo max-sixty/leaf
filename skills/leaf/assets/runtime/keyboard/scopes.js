@@ -698,10 +698,7 @@ function reflectElementShortcuts(element) {
       ),
     ),
   ].join(" ");
-  if (shortcuts) {
-    if (element.getAttribute("aria-keyshortcuts") !== shortcuts)
-      element.setAttribute("aria-keyshortcuts", shortcuts);
-  } else element.removeAttribute("aria-keyshortcuts");
+  keeps(element, "aria-keyshortcuts", shortcuts || null);
 }
 // Ahead of standing content, so an ambiguous declaration is refused under its own title
 // rather than under whichever surface reads its rows first.

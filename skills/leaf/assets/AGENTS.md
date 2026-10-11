@@ -57,17 +57,11 @@ preserves content position, wrapping, and block size, including when its CSS loa
 before first paint. Keep covered content reachable through placement or disclosure
 rather than padding or a reserved row.
 
-A margin row sits in the
-rail beside its target (`rowPosture`), or as a pin by its target: in room found where
-it covers no words and no other box that paints its own extent, clear of neighbouring
-blocks where its target has room of its own, and reaching one line of words further
-out only where it has none within reach (`pinSpot`, `coverIn`), and otherwise inside
-its target's corner. A pin whose face is a primary and one more control that finds no
-room for both stands folded to its options' toggle, wearing the face of the kind its
-contribution declares, seated at that size where the actions it opens to fit inside its
-bounds (`seatRows`); a press on the toggle, or the keyboard arriving on it or standing
-at its target, opens it, spreading the actions over what stands beside it with the
-toggle left under the press, and moves nothing else.
+A margin row sits in the rail beside its target or as a pin by it, in room that
+covers no words where it finds some. A pin that can fold (`canFold`,
+`runtime/margin-model.js`) and finds no room for its face stands folded to its
+options' toggle, and opening it moves nothing else. The default package's
+`margin-placement.js` owns where rows stand (`rowPosture`, `pinSpot`, `seatRows`).
 
 The rail and a pin are different kinds. The rail is room: a strip right of `main`
 that sits wherever the window has room for it. It never moves, narrows, or indents
@@ -89,8 +83,8 @@ at a time, leave the page live beside them, and cover it where they would leave 
 a usable page
 (`--lf-auxiliary-beside`, read by `standsBeside`). Which box scrolls is the
 stylesheet's, a Layout's or the page's, which the runtime reads rather than decides.
-The Questions panel is experimental and expected to change a lot: it replaced the Asks
-drawer to try one place for both queues (`runtime/queue-panel.js`).
+The Questions panel is experimental and expected to change a lot: it tries one place
+for both queues (`runtime/queue-panel.js`).
 
 The current Threads panel is unsatisfactory and being reconsidered. Defer
 refinements to its existing layout and interaction design; carry those findings
@@ -143,14 +137,10 @@ away, by focus or by a selection reaching into it: what stood from that run down
 move, and nothing above it. The declaration permits no other changes to existing
 messages or independent movement of following content.
 News grows where the reader isn't looking: above the screen, where scroll anchoring
-takes the growth into what they scrolled past, or below it. A short thread's reply
-box follows its last message; a long panel thread pins the
-box at its scroller's foot. An idle open panel thread shows appended replies
-immediately, allowing its reply row and later cards to move. An active composition
-keeps its editor still: news that would move it waits behind the thread's existing
-notice; a pinned reply lets the transcript grow above it. Only an already pinned
-reply follows incoming messages to the end; a short thread keeps the previous reading
-in place even when a new answer is taller than the panel.
+takes the growth into what they scrolled past, or below it. An active composition
+keeps its editor still. `thread/held-news.js` states which appended replies may move
+a thread surface, `thread/thread-card.js` (`newsMoves`) decides it, and `chrome.css`
+pins a long thread's reply row at the list's foot.
 The open conversation remains the panel's reading anchor even when its title is
 scrolled above the visible band. An explicitly named later card takes precedence.
 These holds protect continuous reading. A hidden tab ends it; returning reveals
@@ -162,13 +152,12 @@ editor the user was composing in, including its focus and caret.
 Where news would move what the reader is reading, it waits behind a control of fixed size:
 in a seat in the page's flow, whatever the thread would draw differently (an agent's
 reply, a reaction from another tab, the thread resolved or reopened elsewhere) waits
-behind a notice in a row the thread already draws. Open panel cards apply the same
-hold to changes in existing messages, reactions, folds, settlement and active
-compositions. A thread the agent starts in a seat also waits there; a thread that
-would open a seat of its own, as on a diff line with no thread, waits in the margin behind its marker
-(`thread/held-news.js`). It shows once a gesture of theirs takes them to it: opening
-the notice or the thread, walking to the thread or one of its Questions, or acting there. In
-the Threads panel, a card news takes out of the view, as another actor resolving its
+behind a notice in a row the thread already draws. A thread the agent starts in a seat
+also waits there; a thread that would open a seat of its own, as on a diff line with
+no thread, waits in the margin behind its marker (`thread/held-news.js`). It shows
+once a gesture of theirs takes them to it: opening the notice or the thread, walking
+to the thread or one of its Questions, or acting there. In the Threads panel, a card
+news takes out of the view, as another actor resolving its
 thread under Open does, stays where it stands, holding the news behind that notice
 and, once shown, in the shape it stood in, until its going would move nothing the
 user sees or they change the view
@@ -381,20 +370,16 @@ and "none" has one spelling, the attribute's absence, which `keeps` writes for a
 value. The corpus holds each rule, in
 `test_a_still_page_comes_back_from_every_journey_as_it_was`.
 
-Stylesheets apply in layers. `theme.css` holds page tokens, element styles,
-idioms, and CSS-only widgets, and each package theme follows it; shared shadow
-rules compose into `/shadow.css`, whose shared native `.lf-ui-face` defaults come
-before component rules. Custom-element hosts own their appearance; `.lf-ui`
-marks apparatus without imposing a face. In the document all of these, and each widget module's adopted
-sheet, share the `lf-base` cascade layer; `layouts.css` is `lf-layouts` above it,
-and `state.css` is `lf-state` above both so semantic retirement wins over package
-defaults and Layouts. The page's own CSS stays unlayered above those tiers,
-and inline widget motion outranks them (`layer.py`, `CASCADE_LAYERS`). Shared
-shadow rules use `lf-shadow` above adopted widget defaults in `lf-base`, and
-`state.css` reaches every declared shadow stage above both. Each
-package's rules reach only its own widgets (`layer.py`, `widget_confinement`), so a rule
-several packages' widgets need is the kernel's. The page's rules skip the chrome and
-every `.lf-ui` control unless they name a widget or the layer's vocabulary
+Stylesheets apply in cascade layers, in the order `layer.py`'s `CASCADE_LAYERS`
+declares and `../references/packages.md`, "Styles and composition", describes;
+`state.css` takes the top tier so semantic retirement wins over package defaults and
+Layouts. `theme.css` holds page tokens, element styles, idioms, and CSS-only widgets,
+and each package theme follows it; shared shadow rules compose into `/shadow.css`,
+whose shared native `.lf-ui-face` defaults come before component rules. Custom-element
+hosts own their appearance; `.lf-ui` marks apparatus without imposing a face. Each
+package's rules reach only its own widgets (`layer.py`, `widget_confinement`), so a
+rule several packages' widgets need is the kernel's. The page's rules skip the chrome
+and every `.lf-ui` control unless they name a widget or the layer's vocabulary
 (`runtime/page-sheets.js`). The chrome's root and native `.lf-ui-face` defaults
 state the face they would otherwise inherit from the page; imported components
 receive theme variables, preserving their own state presentation.
@@ -426,9 +411,9 @@ unresolved local work into the one reading every component selects from:
 | what the DOM represents | the presentation coordinator's renderer tickets and preparation regions |
 | when a document-wide renderer paints | the publication that opened the epoch, in the order `runtime/semantic-state.js` declares |
 | where each thread's passage lands | `anchor-placement.js`'s resolution of its anchor in this version |
-| the row inside a target a comment stands by | `pointed-place.js`: the line a pointing gesture landed on, held by the composer until sent, then under the thread's key with the words that find it again; where it stands now is `anchor-placement.js`'s placement record (`point`, `pointRow`), written in its read, the only writer, which takes in what a send hands over; presentation only, and only the pointed threads' row, card and travel follow it |
-| the side and line a comment's box and its thread card stand by, whether they stand past its margin row, and which edge a growing one holds | the default package's `comment-placement.js` (`commentSide`, `options`, `holding`), from the card's declared widths, for both surfaces; each surface's own module measures its content and reports its gestures, and decides neither |
-| whether a margin row stands in the rail or as a pin, its seat, and the order rows are seated in | `margin-layout.js`, through `margin-placement.js`'s folds (`rowPosture`, `seatRows`, `packRows`, `arrivals`) |
+| the row inside a target a comment stands by | `pointed-place.js`'s points, written only by anchor placement's pass (`placePoints`) into its placement record; presentation only |
+| the side and line a comment's box and its thread card stand by | `../packages/default/runtime/annotation-overlay/comment-placement.js` (`commentSide`), for both surfaces |
+| whether a margin row stands in the rail or as a pin, and its seat | `../packages/default/runtime/annotation-overlay/margin-layout.js`, through `margin-placement.js`'s folds |
 | geometry readings: what a scroller shows, what a surface hides, what sticky headers stand over, how much of the window the page shows, where a change of size moves what is seen | `geometry.js` (`visibleBand`, `declareOccluder`, `headerInset`, `shownWindow`, `seenRect`, `motionBand`), so being on screen, and moving what is, each have one answer |
 
 Do not add a second cache, pending map, widget-specific replay list, or DOM
@@ -570,27 +555,6 @@ check on the side that can observe the fact: static validation owns schema, ids,
 nesting, passages, event shapes, and file readings; the browser owns computed layout,
 composed trees, module writes, focus, and replay idempotence. A test reads widget state
 through the publisher's own reading, never a test-only interpretation of it.
-
-| Reading | Contract |
-| --- | --- |
-| window-error channel | no runtime, module, resource, or ResizeObserver error reached the page |
-| `issueNode` | a DevTools issue outside a form control's shadow tree is the page's, placed at its frame if it has one |
-| `upgraded`, `moving` | upgrade completed and geometry settled |
-| `invalidPaints` | every var()-backed SVG paint resolves in each scheme |
-| `tinyBoxes` | every declared widget has a usable box |
-| `unmarkableElements` | every addressable element has a visible part to outline |
-| `misplacedBoxes` | boxes stay in the column or in reachable overflow at every width |
-| `squeezedTables` | a table scrolls sideways only with every column at its longest unbreakable run |
-| `clippedControls` | controls are visible and reachable |
-| `unreachableWords`, `coveredWords` | visible words stay in reachable flow and are not silently clipped or claimed by chrome |
-| `unreadSyntax` | highlighting does not alter source words |
-| `shownVerbatim` | preserving owners agree with their projected passage |
-| `silentWords` | `x-says` and `x-paints` promises reach the rendered page |
-| `undeclaredAttrs` | modules write no undeclared author-namespace state |
-| `retiredSlots` | settlement marks agree with the projection |
-| `trappedMargins`, `splitEdges` | authored-page spacing advice; the suite enforces frame trim on Leaf's own boxes |
-| `relativeReplays` | rendering a complete widget state twice changes nothing |
-| `shrunkLabels` | advice only |
 
 The gates judge contracts, not how the page looks. A change to what the page
 draws, including one made for geometry, is proved with before/after screenshots

@@ -1056,6 +1056,8 @@ class BrowserEnd:
         startup = startup_reading(page)
         # The runtime presents without waiting for its first read, which is what
         # brings the revision back, so that follow gets its own wait and timing.
+        # The revision marker advances as the patch begins; its presentation proof
+        # must finish before the text below is a reading of that revision.
         followed_at = time.monotonic()
         try:
             page.wait_for_function(
@@ -1077,6 +1079,13 @@ class BrowserEnd:
             (shown or "").isdigit() and int(shown) >= published["revision"],
             f"{url} stands on revision {shown} rather than following the published "
             f"{published['revision']}, with the banner reading ‘{banner}’",
+        )
+        check(
+            page.evaluate(
+                "window.__leafVerifier.revisionAtLeast", published["revision"]
+            ),
+            f"{url} reached revision {shown} but did not finish presenting it, "
+            f"with the banner reading ‘{banner}’",
         )
         rendered = page.locator("main").inner_text()
         check(

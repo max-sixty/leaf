@@ -12313,14 +12313,53 @@ def test_webawesome_menu_text_stays_readable_as_the_current_option_moves(
         )
 
 
-def test_webawesome_theme_reaches_a_declared_shadow_stage(browser, serve):
+def test_webawesome_typography_is_independent_of_surrounding_prose(browser, serve):
+    """Shared controls keep UI text in both document and declared shadow stages.
+
+    Reset inherited typography without taking over component sizing or state ink.
+    The same inheritance also reaches an input inside the monospace diff reader.
+    """
     page = _bound_diff(browser, serve)
-    diff = page.locator("lf-diff")
-    assert diff.evaluate("el => el.shadowRoot !== null")
-    assert (
-        diff.evaluate(f"el => ({WEB_AWESOME_SHEET})(el.shadowRoot.adoptedStyleSheets)")
-        is True
-    )
+    readings = page.evaluate("""async () => {
+      const {offer} = await import('/runtime/widget-api.js');
+      const properties = ['fontFamily', 'fontStyle', 'fontVariant', 'fontStretch',
+        'fontFeatureSettings', 'fontVariationSettings', 'letterSpacing',
+        'wordSpacing', 'textTransform'];
+      const read = node => Object.fromEntries(
+        properties.map(key => [key, getComputedStyle(node)[key]]));
+      const reference = document.createElement('span');
+      reference.style.fontFamily = 'var(--sans)';
+      document.body.append(reference);
+      const expected = read(reference);
+      reference.remove();
+      const readings = [];
+      for (const root of [document.querySelector('main'),
+        document.querySelector('lf-diff').shadowRoot]) {
+        const holder = document.createElement('div');
+        const input = offer('wa-input', ''); input.label = 'Find files';
+        const select = offer('wa-select', ''); select.label = 'Choose file';
+        const option = offer('wa-option', '', 'First file');
+        option.value = 'first'; select.append(option); select.value = 'first';
+        const radio = offer('wa-radio', '', 'First file'); radio.value = 'first';
+        const prose = document.createElement('span'); prose.textContent = 'Source text';
+        holder.append(input, select, radio, prose); root.append(holder);
+        await Promise.all([input.updateComplete, select.updateComplete, radio.updateComplete]);
+        holder.style.cssText = `font-family:monospace; font-style:italic;
+          font-variant:small-caps; font-stretch:condensed;
+          font-feature-settings:"liga" 0; font-variation-settings:"wght" 650;
+          letter-spacing:3px; word-spacing:5px; text-transform:uppercase`;
+        readings.push({expected, actual: [read(input.shadowRoot.querySelector('input')),
+          read(select.shadowRoot.querySelector('[part~="combobox"]')), read(radio)],
+          prose: read(prose)});
+      }
+      return readings;
+    }""")
+    for reading in readings:
+        for actual in reading["actual"]:
+            assert actual == reading["expected"]
+        assert reading["prose"]["fontFamily"] == "monospace"
+        assert reading["prose"]["fontStyle"] == "italic"
+        assert reading["prose"]["textTransform"] == "uppercase"
 
 
 @pytest.mark.parametrize("motion", ["no-preference", "reduce"])

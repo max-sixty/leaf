@@ -15567,19 +15567,23 @@ def test_every_carrying_hook_has_time_to_confirm_what_it_hands_over():
     and Stop hooks at least twice that: the rest covers uv's start, the imports,
     and the receipt after the clock stops."""
     floor = 2 * hook_transport_model.CONFIRM_WITHIN
-    for event in ("UserPromptSubmit", "Stop"):
-        [hook] = [
-            hook
-            for registration in _registrations("claude-code")[event]
-            for hook in registration["hooks"]
-            if not hook.get("asyncRewake")
-        ]
-        assert hook["timeout"] >= floor
-    [pi_timeout] = re.findall(
-        r"const HOOK_TIMEOUT_MS = ([\d_]+);",
-        (PLUGIN_ROOT / "hooks" / "pi.ts").read_text(),
-    )
-    assert int(pi_timeout.replace("_", "")) >= floor * 1000
+    for harness in REGISTRATIONS:
+        for event in ("UserPromptSubmit", "Stop"):
+            [hook] = [
+                hook
+                for registration in _registrations(harness)[event]
+                for hook in registration["hooks"]
+                if not hook.get("asyncRewake")
+            ]
+            assert hook["timeout"] >= floor, (harness, event)
+    # The modules that run the hook themselves bound it with their own copy.
+    for module in ("pi.ts", "claude-code.ts"):
+        [timeout] = re.findall(
+            r"const HOOK_TIMEOUT_MS = ([\d_]+);?$",
+            (PLUGIN_ROOT / "hooks" / module).read_text(),
+            re.MULTILINE,
+        )
+        assert int(timeout.replace("_", "")) >= floor * 1000, module
 
 
 def test_the_registered_watch_hook_wakes_the_session(claimed, tmp_path):

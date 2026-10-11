@@ -412,7 +412,7 @@ if Worktrunk asks to approve the project commands, ask the user to run
 Before handing over a change that adds to an area `AGENTS.md`, ask of each addition
 whether one module owns it. If one does, the rule goes in that module's header and
 the area file keeps at most a pointer (root `AGENTS.md`, "Where instructions live"),
-so the area file holds only what spans its modules and a cut to it does not regrow.
+so the area file holds only what spans its modules and trimmed text does not come back.
 
 Thread appearance changes run `tests/test_render_thread_snapshots.py` on macOS
 before landing. Linux CI runs the same delivery journey without comparing images.

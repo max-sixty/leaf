@@ -741,9 +741,9 @@ Longer asides belong in prose, a disclosure, or a sidenote.
 
 ## Pre-handover review
 
-The main skill's "Quick pages and records" step decides when a page takes this review. Every
-source activation already runs the deterministic markup check; this review adds the
-browser gate and a reading:
+The main skill's "Quick pages and records" step decides when a page takes this review.
+Every source activation already runs the deterministic markup check; this review adds
+the browser gate and a reading:
 
 ```bash
 leaf page check <page> --render

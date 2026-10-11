@@ -1,12 +1,12 @@
 # Events and threads
 
 Every event carries `id`, `ts`, `author`, `kind`, `seq` (its line number in
-`events.jsonl`), and the `attention` admission stamps ("Admission"). Document-bound
-events also carry `revision`; page-owned `read` does not. An agent-authored event
-carries the posting session's `agent` and `session` ("Authorship and voice"). An
-`id` is an opaque string matched whole. The append door mints eight hex
-characters, re-rolling any candidate this log already holds, so an id is unique
-within its page and is not a global identifier. The kinds:
+`events.jsonl`), and the `attention` admission stamps. Document-bound events also
+carry `revision`; page-owned `read` does not. An agent-authored event posted from a
+harness session carries that session's `agent` and `session`. "Authorship and voice"
+describes all three stamps. An `id` is an opaque string matched whole. The append
+door mints eight hex characters, re-rolling any candidate this log already holds, so
+an id is unique within its page and is not a global identifier. The kinds:
 
 | Kind | Author | Door | Fields | Meaning |
 | --- | --- | --- | --- | --- |
@@ -119,7 +119,8 @@ the same way, from the moment it is sent, and its refusal brings the reaction ba
 
 ## Authorship and voice
 
-The server stamps every browser-posted event `author=user`. `leaf thread open`,
+The server stamps every browser-posted event `author=user`, except `error`, which it
+stamps `author=page`. `leaf thread open`,
 `leaf response reply`, proactive `leaf thread reply`, `leaf thread edit`, `leaf page report`, and
 `page stamp` stamp `author=agent` plus the posting session's own voice: `agent`, its display
 name, and `session`, its harness session id. Several agent sessions can write to one

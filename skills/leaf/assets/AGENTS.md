@@ -58,9 +58,10 @@ before first paint. Keep covered content reachable through placement or disclosu
 rather than padding or a reserved row.
 
 A margin row sits in the rail beside its target or as a pin by it, in room that
-covers no words where it finds some; a pin with no room for its face stands folded to
-its options' toggle and opens without moving anything else. The default package's
-`margin-placement.js` owns the rules (`rowPosture`, `pinSpot`, `seatRows`).
+covers no words where it finds some. A pin that can fold (`canFold`,
+`runtime/margin-model.js`) and finds no room for its face stands folded to its
+options' toggle, and opening it moves nothing else. The default package's
+`margin-placement.js` owns where rows stand (`rowPosture`, `pinSpot`, `seatRows`).
 
 The rail and a pin are different kinds. The rail is room: a strip right of `main`
 that sits wherever the window has room for it. It never moves, narrows, or indents
@@ -125,8 +126,9 @@ cards may move by that growth. The declaration permits no changes to existing
 messages or independent movement of following content.
 News grows where the reader isn't looking: above the screen, where scroll anchoring
 takes the growth into what they scrolled past, or below it. An active composition
-keeps its editor still. How each thread surface's reply box and later cards take
-appended replies is `thread/held-news.js`'s and `thread/thread-list.js`'s.
+keeps its editor still. `thread/held-news.js` states which appended replies may move
+a thread surface, `thread/thread-card.js` (`newsMoves`) decides it, and `chrome.css`
+pins a long thread's reply row at the list's foot.
 The open conversation remains the panel's reading anchor even when its title is
 scrolled above the visible band. An explicitly named later card takes precedence.
 These holds protect continuous reading. A hidden tab ends it; returning reveals
@@ -138,10 +140,10 @@ editor the user was composing in, including its focus and caret.
 Where news would move what the reader is reading, it waits behind a control of fixed size:
 in a seat in the page's flow, whatever the thread would draw differently (an agent's
 reply, a reaction from another tab, the thread resolved or reopened elsewhere) waits
-behind a notice in a row the thread already draws. A thread the agent starts in a seat also waits there; a thread that
-would open a seat of its own, as on a diff line with no thread, waits in the margin behind its marker
-(`thread/held-news.js`). It shows once a gesture of theirs takes them to it: opening
-the notice or the thread, walking to the thread or one of its Asks, or acting there. In
+behind a notice in a row the thread already draws. A thread the agent starts in a seat
+also waits there; a thread that would open a seat of its own, as on a diff line with
+no thread, waits in the margin behind its marker (`thread/held-news.js`). It shows
+once a gesture of theirs takes them to it: opening the notice or the thread, walking to the thread or one of its Asks, or acting there. In
 the Threads panel, a card news takes out of the view, as another actor resolving its
 thread under Open does, stays where it stands, holding the news behind that notice
 and, once shown, in the shape it stood in, until its going would move nothing the
@@ -357,13 +359,13 @@ value. The corpus holds each rule, in
 Stylesheets apply in cascade layers, in the order `layer.py`'s `CASCADE_LAYERS`
 declares and `../references/packages.md`, "Styles and composition", describes;
 `state.css` takes the top tier so semantic retirement wins over package defaults and
-Layouts. `theme.css` holds page tokens, element styles, idioms, and CSS-only
-widgets, and each package theme follows it; shared shadow rules compose into
-`/shadow.css`, whose shared native `.lf-ui-face` defaults come before component
-rules. Custom-element hosts own their appearance; `.lf-ui` marks apparatus without
-imposing a face. Each package's rules reach only its own widgets (`layer.py`, `widget_confinement`), so a rule
-several packages' widgets need is the kernel's. The page's rules skip the chrome and
-every `.lf-ui` control unless they name a widget or the layer's vocabulary
+Layouts. `theme.css` holds page tokens, element styles, idioms, and CSS-only widgets,
+and each package theme follows it; shared shadow rules compose into `/shadow.css`,
+whose shared native `.lf-ui-face` defaults come before component rules. Custom-element
+hosts own their appearance; `.lf-ui` marks apparatus without imposing a face. Each
+package's rules reach only its own widgets (`layer.py`, `widget_confinement`), so a
+rule several packages' widgets need is the kernel's. The page's rules skip the chrome
+and every `.lf-ui` control unless they name a widget or the layer's vocabulary
 (`runtime/page-sheets.js`). The chrome's root and native `.lf-ui-face` defaults
 state the face they would otherwise inherit from the page; imported components
 receive theme variables, preserving their own state presentation.

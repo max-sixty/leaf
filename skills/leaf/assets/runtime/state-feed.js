@@ -98,27 +98,17 @@ export function beginRead() {
 // Failed state reads and crossed freshness observations retry on the clock. Freshness names a changed reading, but
 // cannot guarantee its state read succeeded. Healthy pages read state only on change.
 export function createStateFeed({
-  projectionDeferred,
-  retryProjection,
   stateApplying,
-  releasePending,
   invalidateDom,
   receiveState,
   prepareActivation,
-  notifyDataSubscribers,
   renderStatus,
 }) {
   let readAnswered = false;
 
-  // The clock has no state to replay. Only an explicitly deferred projection needs
-  // another attempt; time-dependent paints remember their own displayed readings.
+  // The clock has no state to replay, and a projection a drag deferred is retried by
+  // the drag's release; time-dependent paints remember their own displayed readings.
   async function tick() {
-    const retried = projectionDeferred() && retryProjection();
-    if (stateApplying()) return;
-    if (retried) {
-      await releasePending();
-      await notifyDataSubscribers();
-    }
     if (stateApplying()) return;
     await tickClock(reportPageError);
     if (stateApplying()) return;

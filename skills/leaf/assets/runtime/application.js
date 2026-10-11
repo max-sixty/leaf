@@ -24,7 +24,6 @@ import {
   createProjectionPresentation,
   shallowSigs as projectionShallowSigs,
 } from "./projection/presentation.js";
-import { projectionDeferred } from "./projection/state.js";
 import { createProjectionCommands } from "./projection/commands.js";
 import { createDataProjection } from "./projection/data.js";
 import { createThreadPresentation } from "./thread/presentation.js";
@@ -134,19 +133,10 @@ export function mountApplication(dependencies) {
     return presentDocument();
   };
 
-  const retryProjection = () => {
-    if (!projectionDeferred()) return false;
-    if (stateApplying()) {
-      queuedInvalidation = true;
-      return false;
-    }
-    invalidateDom();
-    return true;
-  };
-
+  // The drag that deferred the projection has ended: present the reading it held.
   const projection = createProjectionPresentation({
     onDeferredReady: () => {
-      if (!retryProjection()) return;
+      invalidateDom();
       releasePendingSafely("deferred pending release");
     },
   });
@@ -447,12 +437,8 @@ export function mountApplication(dependencies) {
 
   const feed = createStateFeed({
     prepareActivation: dependencies.feed.prepareActivation,
-    notifyDataSubscribers: dependencies.feed.notifyDataSubscribers,
     renderStatus: dependencies.feed.renderStatus,
-    projectionDeferred,
-    retryProjection,
     stateApplying,
-    releasePending,
     invalidateDom,
     receiveState,
   });

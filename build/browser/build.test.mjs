@@ -22,17 +22,33 @@ test("locked source reproduces the complete committed output", async () => {
   assert.deepEqual(rebuilt, outputs);
   await checkOutputs(outputs);
   assert.deepEqual(exportsOf(read("browser-runtime.js")), [
+    "AsyncDirective",
+    "Directive",
     "LitElement",
     "PRESENTATION_HELD",
+    "PartType",
+    "classMap",
     "createPresentationCoordinator",
     "createPresentationSchedule",
+    "createRef",
     "createSemanticApplication",
     "describeFailure",
+    "directive",
+    "guard",
     "html",
+    "ifDefined",
+    "keyed",
+    "live",
+    "mathml",
     "noChange",
     "nothing",
+    "ref",
     "render",
     "repeat",
+    "styleMap",
+    "svg",
+    "unsafeHTML",
+    "when",
   ]);
   const lit = exportsOf(read("lit.js"));
   for (const name of ["LitElement", "html", "classMap", "property", "staticHtml"])

@@ -21,6 +21,7 @@ from pathlib import Path
 from leaf.delivery import opened_input_ids, pickup_receipts
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
+from leaf.schema import MESSAGE_KINDS
 from leaf.service import requires_agent_attention
 from leaf.thread import successful_replies
 from playwright.sync_api import Browser
@@ -775,7 +776,7 @@ def post_round(
             event["undoes"] = posted_event(page, attempt_key(n, i - 1))["id"]
         if move.get("parent") == "latest":
             event["parent"] = [
-                e for e in page_events(page) if e["kind"] in ("comment", "reply")
+                e for e in page_events(page) if e["kind"] in MESSAGE_KINDS
             ][-1]["id"]
         if "text" in move:
             event["text"] = move["text"].format(

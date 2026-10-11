@@ -470,10 +470,9 @@ KEYBOARD_HINT_REGISTRY = {
     }
 }
 
-KEYBOARD_HINT_MODULE = """\
-import {commandScope, commands, keeps, keepsText, offer, paintKeys} from '/runtime/widget-api.js';
+KEYBOARD_HINT_MODULE = """import {commandScope, commands, keeps, keepsText, offer, paintKeys} from '/runtime/widget-api.js';
 
-customElements.define('lf-keyboard-probe', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     this.count = 0;
     this.allowed = true;
@@ -536,7 +535,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     this.badge.style.cssText = 'right: calc(100% + 4px); top: 0';
     this.seat.append(this.badge, this.control);
   }
-});
+};
 """
 
 
@@ -842,10 +841,9 @@ def test_widget_context_keys_work_without_an_ask(browser, serve, annotation_mode
     expect(badge).to_be_hidden()
 
 
-KEYBOARD_ROUTE_MODULE = """\
-import {commands, keepsText, offer} from '/runtime/widget-api.js';
+KEYBOARD_ROUTE_MODULE = """import {commands, keepsText, offer} from '/runtime/widget-api.js';
 
-customElements.define('lf-keyboard-probe', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     const first = offer('button', '', 'First action');
     const second = offer('button', '', 'Second action');
@@ -879,7 +877,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
       run: () => keepsText(result, 'Outer applied'),
     }]);
   }
-});
+};
 """
 
 
@@ -954,10 +952,9 @@ def test_disabled_command_route_keeps_its_key_and_enabled_sibling(
     ).to_have_count(0)
 
 
-CONTEXT_COMMAND_MODULE = """\
-import {commands, keepsText, offer, paintKeys} from '/runtime/widget-api.js';
+CONTEXT_COMMAND_MODULE = """import {commands, keepsText, offer, paintKeys} from '/runtime/widget-api.js';
 
-customElements.define('lf-keyboard-probe', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     const result = offer('output', '', 'No action');
     const rows = [];
@@ -979,7 +976,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     };
     this.append(replace);
   }
-});
+};
 """
 
 
@@ -1088,10 +1085,9 @@ def test_restoring_question_focus_can_execute_its_command_in_the_same_turn(
 
 def test_contextual_escape_agrees_across_dispatch_hints_and_reference(browser, serve):
     """Escape forwarding stays live when its context scope is read more than once."""
-    module = """\
-import {commands, keepsText, offer} from '/runtime/widget-api.js';
+    module = """import {commands, keepsText, offer} from '/runtime/widget-api.js';
 
-customElements.define('lf-keyboard-probe', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     const control = offer('button', '', 'Apply operation');
     const result = offer('output', '', 'No action');
@@ -1101,7 +1097,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
       keys: ['x'], contextKeys: ['Escape'], control, bindingBadge: null,
       run: () => keepsText(result, `Applied ${++count}`)}]);
   }
-});
+};
 """
     page = open_page(
         browser,
@@ -1159,10 +1155,9 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
 
 def test_context_aliases_do_not_collide_with_authored_command_ids(browser, serve):
     """A contextual projection keeps both commands when an authored id ends in .context."""
-    module = """\
-import {commands, keepsText, offer} from '/runtime/widget-api.js';
+    module = """import {commands, keepsText, offer} from '/runtime/widget-api.js';
 
-customElements.define('lf-keyboard-probe', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     const control = offer('button', '', 'Apply operation');
     const neighbour = offer('button', '', 'Neighbour operation');
@@ -1176,7 +1171,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
         control: neighbour, run: () => keepsText(result, 'Neighbour applied')},
     ]);
   }
-});
+};
 """
     page = open_page(
         browser,
@@ -1230,10 +1225,9 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
 
 def test_context_forwarding_preserves_reference_activation_opt_out(browser, serve):
     """A contextual alias cannot turn a reading-only reference row into an action."""
-    module = """\
-import {commands, keepsText, offer} from '/runtime/widget-api.js';
+    module = """import {commands, keepsText, offer} from '/runtime/widget-api.js';
 
-customElements.define('lf-keyboard-probe', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     const result = offer('output', '', 'No action');
     let count = 0;
@@ -1242,7 +1236,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
       contextKeys: ['F8'], runFromCommandReference: false,
       run: () => keepsText(result, `Applied ${++count}`)}]);
   }
-});
+};
 """
     page = open_page(
         browser,
@@ -1345,10 +1339,9 @@ def test_context_keys_follow_an_ask_into_its_associated_thread(
         expect(result).to_have_text("Action 10 applied")
 
 
-ROUTE_HINT_OVERRIDE_MODULE = """\
-import {commands, keepsText, offer} from '/runtime/widget-api.js';
+ROUTE_HINT_OVERRIDE_MODULE = """import {commands, keepsText, offer} from '/runtime/widget-api.js';
 
-customElements.define('lf-verdict', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     const control = offer('button', '', 'Inspect');
     const inheritedHint = offer('kbd', 'lf-key-badge');
@@ -1366,7 +1359,7 @@ customElements.define('lf-verdict', class extends HTMLElement {
       run: binding => keepsText(result, `${binding}:${++count}`),
     }]);
   }
-});
+};
 """
 
 

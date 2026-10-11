@@ -231,6 +231,9 @@ test("preloading an arriving Markdown widget preserves its exact authored body",
       )
       .querySelector("main");
     const authored = source.innerHTML;
+    const { publicationVocabulary } = await import("/runtime/widget-vocabularies.js");
+    const { bindVocabulary } = await import("/runtime/widget-contexts.js");
+    bindVocabulary(source, publicationVocabulary(1, registry, "", true));
     await preloadWidgets(source);
     assert.equal(source.innerHTML, authored);
     assert.equal(dataBody(source.firstElementChild), "    code\n\n**Words**  \n");

@@ -7,6 +7,7 @@ from leaf.activity import answer_command
 from leaf.data_contracts import data_binding_errors
 from leaf.events import build_threads
 from leaf.files import list_revisions
+from leaf.passages import SourceReading
 from leaf.registry.schema import json_value
 from leaf.registry.storage import require_registry
 from leaf.revision_artifact import read_revision
@@ -134,78 +135,36 @@ def version_ids(page_dir: Path) -> set:
     return ids
 
 
-def pinned_thread_markup_errors(page_dir: Path, fragment: SourceDocument) -> list[str]:
-    """Refuse thread markup an immutable page cannot render.
-
-    Thread markup has no revision boundary: every open historical document
-    receives it.  Admission against only the active registry can therefore freeze a
-    newly introduced widget into the log even though an older pinned document has no
-    declaration or implementation for it.  Ask every captured registry at the append
-    door, while the message can still be refused, and group equal failures so a long
-    page history does not produce one copy per revision.
-    """
-    failures: dict[str, list[int]] = {}
-    revisions = list_revisions(page_dir)
-    for revision in revisions[:-1]:
-        registry = read_revision(page_dir, revision).registry
-        for error in thread_markup_contract_errors(fragment, registry):
-            failures.setdefault(error, []).append(revision)
-    return [
-        "pinned revision"
-        + ("s " if len(revisions) > 1 else " ")
-        + ", ".join(f"r{revision}" for revision in revisions)
-        + f" cannot render this thread markup: {error}"
-        for error, revisions in failures.items()
-    ]
-
-
 def check_markup(
     page_dir: Path,
     kind: str,
     markup: str,
     events: list,
     *,
-    page: SourceDocument | None = None,
+    reading: SourceReading | None = None,
 ) -> SourceDocument:
-    """A message's HTML fragment, validated against the vendored registry at post
-    time — the discussion-side `page check`, and the field's one gate: the browser
+    """A message's HTML fragment, validated against its captured publication
+    reading — the discussion-side `page check`, and the field's one gate: the browser
     door refuses `markup` outright, so nothing reaches the log under that name
     unvalidated. Text needs no vocabulary gate — the runtime renders it with every tag
     escaped, so it cannot claim a widget — but its Markdown can still point at a file,
     which `read_text_arg` asks about wherever a body arrives. Exits with what's
     wrong."""
-    registry = require_registry(page_dir)
     frag = SourceDocument(markup)
-    # Frozen markup also renders in historical documents. Validate their captured
-    # vocabularies before admission; message_markup_error owns the fragment checks
-    # shared with sample histories, alongside each caller's data bindings and ids.
-    pinned_errors = pinned_thread_markup_errors(page_dir, frag)
     revisions = list_revisions(page_dir)
-    if page is None:
-        page = (
-            read_revision(page_dir, revisions[-1]).document
+    if reading is None:
+        reading = (
+            read_revision(page_dir, revisions[-1])
             if revisions
-            else SourceDocument("")
+            else SourceReading(SourceDocument(""), require_registry(page_dir))
         )
-    extra_errors = (
-        pinned_errors
-        + (
-            [
-                (
-                    "thread markup must use vocabulary shared by the active registry "
-                    "and every pinned revision; otherwise ask with --text (and "
-                    "--question for a reply)"
-                )
-            ]
-            if pinned_errors
-            else []
-        )
-        + data_binding_errors(
-            page_dir,
-            registry,
-            events,
-            incoming=[(frag, f"incoming {kind} markup")],
-        )
+    registry = reading.registry
+    page = reading.document
+    extra_errors = data_binding_errors(
+        page_dir,
+        registry,
+        events,
+        incoming=[(frag, f"incoming {kind} markup")],
     )
     if error := message_markup_error(
         page_dir,
@@ -233,7 +192,7 @@ def message_markup_error(
 ) -> str | None:
     """The shared message-fragment gate for a stored or newly constructed page.
 
-    Callers supply their lifetime's binding and pinned-vocabulary checks. The
+    Callers supply their lifetime's binding checks. The
     fragment's structure, vocabulary, presentation, media, ids and references
     have one gate regardless of whether its page has been allocated yet.
     """

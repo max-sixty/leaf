@@ -55,12 +55,9 @@ declare document settings or add a stylesheet for the whole page.
 leaf response reply <answer.ref> --done --text "The deploy passed." --markup '<details><summary>Deploy log</summary><pre>Ready&#10;Done</pre></details>'
 ```
 
-Thread markup is frozen in the log and has no revision
-boundary: every immutable historical document shows the same markup. It must therefore
-validate against every pinned revision's captured registry, not only the active
-registry. Use only widget vocabulary shared by those registries. If no shared widget
-fits, ask in prose with `--text` and `--question`, or use a page widget
-when the question and its answer belong in the final record. Markup is checked as it
+Thread markup is frozen with the revision in which it was posted. Its widgets keep
+that revision's declarations, behavior and package styles wherever the discussion
+appears, including on a historical page. Markup is checked as it
 is posted but not drawn, so a data widget, such as a chart, whose body does not draw
 reaches you as an `error` event when the user opens its thread; answer with a corrected
 reply.
@@ -173,7 +170,8 @@ version** and a later reply may still move it to a replacement.
 
 An answer says what it leaves the thread with, one of three:
 
-- `--done`: it delivers what the message asked for, and nothing stays on either queue.
+- `--done`: it delivers what the message asked for. Its prose adds no question or
+  promise; widgets in its markup still declare their own Questions.
 - `--question`: its prose asks the user something back. The reply is then a Question
   under `reply:<message-id>` in `page state`'s `questions` collection, until they
   answer in the thread.

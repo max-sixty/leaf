@@ -163,177 +163,174 @@ function describe(row) {
   }
 }
 
-customElements.define(
-  "lf-activity",
-  class extends HTMLElement {
-    #list = null;
-    #empty = null;
-    // Event id to its row and the description it was last filled from.
-    #rows = new Map();
-    #notice = null;
-    #opened = false;
-    #reading = null;
-    #printing = false;
-    #closedReading = null;
-    #restored = null;
-    #ready = false;
-    #watching = null;
+export default class extends HTMLElement {
+  #list = null;
+  #empty = null;
+  // Event id to its row and the description it was last filled from.
+  #rows = new Map();
+  #notice = null;
+  #opened = false;
+  #reading = null;
+  #printing = false;
+  #closedReading = null;
+  #restored = null;
+  #ready = false;
+  #watching = null;
 
-    connectedCallback() {
-      if (!once(this)) return;
-      const drawing = initialRender(this);
-      this.#list = drawing.list;
-      this.#empty = drawing.empty;
-      this.#notice = drawing.notice;
-      this.#rows = drawing.rows;
-      this.#opened = drawing.reading.open;
-      this.#closedReading = drawing.restored ? drawing.reading.shown : null;
-      this.#restored = drawing.restored ? drawing.reading.shown : null;
-      for (const row of JSON.parse(drawing.reading.shown))
-        this.#bind(this.#rows.get(row.id).item, row);
-      this.#reading = new HeldReading(
-        () => [this.#notice, this.#list, this.#empty],
-        () => this.#watching.refresh(),
-      );
-      this.#notice.addEventListener("click", () => {
-        if (this.#notice.hasAttribute("data-lf-news")) this.#opened = true;
-        else this.#opened = !this.#opened;
-        this.#reading.release();
-        this.#watching.refresh();
-      });
-      const paper = matchMedia("print");
-      const printing = () => {
-        this.#printing = paper.matches;
-        this.#watching.refresh();
-      };
-      watchOwner(this, {
-        connect: () => paper.addEventListener("change", printing),
-        disconnect: () => paper.removeEventListener("change", printing),
-      });
-      this.#watching = watchHistory(this, (history, { ready }) => {
-        this.#ready = ready;
-        this.#render(history);
-        // Excerpts painted from the source take the parser's words once it lands.
-        if (!markdownReady())
-          loadMarkdown().then((loaded) => {
-            if (loaded) this.#watching.refresh();
-          });
-      });
-    }
+  connectedCallback() {
+    if (!once(this)) return;
+    const drawing = initialRender(this);
+    this.#list = drawing.list;
+    this.#empty = drawing.empty;
+    this.#notice = drawing.notice;
+    this.#rows = drawing.rows;
+    this.#opened = drawing.reading.open;
+    this.#closedReading = drawing.restored ? drawing.reading.shown : null;
+    this.#restored = drawing.restored ? drawing.reading.shown : null;
+    for (const row of JSON.parse(drawing.reading.shown))
+      this.#bind(this.#rows.get(row.id).item, row);
+    this.#reading = new HeldReading(
+      () => [this.#notice, this.#list, this.#empty],
+      () => this.#watching.refresh(),
+    );
+    this.#notice.addEventListener("click", () => {
+      if (this.#notice.hasAttribute("data-lf-news")) this.#opened = true;
+      else this.#opened = !this.#opened;
+      this.#reading.release();
+      this.#watching.refresh();
+    });
+    const paper = matchMedia("print");
+    const printing = () => {
+      this.#printing = paper.matches;
+      this.#watching.refresh();
+    };
+    watchOwner(this, {
+      connect: () => paper.addEventListener("change", printing),
+      disconnect: () => paper.removeEventListener("change", printing),
+    });
+    this.#watching = watchHistory(this, (history, { ready }) => {
+      this.#ready = ready;
+      this.#render(history);
+      // Excerpts painted from the source take the parser's words once it lands.
+      if (!markdownReady())
+        loadMarkdown().then((loaded) => {
+          if (loaded) this.#watching.refresh();
+        });
+    });
+  }
 
-    disconnectedCallback() {
-      this.#reading?.dispose();
-    }
+  disconnectedCallback() {
+    this.#reading?.dispose();
+  }
 
-    #bind(item, row) {
-      const button = item.querySelector("button.lf-activity-target");
-      if (!button) return;
-      relabel(button, row.label, { says: "echo" });
-      button.addEventListener(
-        "click",
-        () =>
-          void threadActions.open(
-            readThreads().threads.find((thread) => thread.id === row.thread)?.key,
-            { part: "thread" },
-          ),
-      );
-    }
+  #bind(item, row) {
+    const button = item.querySelector("button.lf-activity-target");
+    if (!button) return;
+    relabel(button, row.label, { says: "echo" });
+    button.addEventListener(
+      "click",
+      () =>
+        void threadActions.open(
+          readThreads().threads.find((thread) => thread.id === row.thread)?.key,
+          { part: "thread" },
+        ),
+    );
+  }
 
-    #render(history) {
-      if (!this.#ready && !this.#printing) return;
-      if (this.#restored !== null) {
-        if (this.#ready) {
-          this.#reading.hold(this.#restored);
-          this.#restored = null;
-        }
+  #render(history) {
+    if (!this.#ready && !this.#printing) return;
+    if (this.#restored !== null) {
+      if (this.#ready) {
+        this.#reading.hold(this.#restored);
+        this.#restored = null;
       }
-      const current = history.map((served) => ({
-        ...describe(served),
-        excerpt: served.excerpt ? clip(markdownWords(served.excerpt), 140) : null,
-        id: served.id,
-        ts: served.ts,
-        author: served.author,
-        actor: actorOf(served),
-        undone: served.undone,
-      }));
-      // Hold the complete drawn reading, including an undo or a changed title:
-      // those may wrap too. The watcher supplies the authoritative history.
-      for (const row of current) {
-        if (row.widget || row.label) row.label ??= nameOf(row.widget);
-      }
-      const wanted = JSON.stringify(current);
-      if (this.#closedReading === null) this.#closedReading = wanted;
-      const shown = this.#printing
-        ? wanted
-        : this.#opened
-          ? this.#reading.hold(wanted)
-          : this.#closedReading;
-      const rows = JSON.parse(shown);
-      const news = shown !== wanted;
-      const known = new Set(rows.map(({ id }) => id));
-      const arrived = current.filter(({ id }) => !known.has(id)).length;
-      keeps(this.#notice, "data-lf-news", news ? "" : null);
-      keeps(this.#notice, "aria-expanded", String(this.#opened));
-      keepsText(
-        this.#notice,
-        !this.#opened
-          ? `Show activity${arrived ? ` · ${arrived} new` : ""}`
-          : news
-            ? arrived
-              ? `${arrived} new ${arrived === 1 ? "update" : "updates"}`
-              : "Activity changed"
-            : "Hide activity",
-      );
-      if (this.#opened && !this.#printing) this.#closedReading = shown;
-      keepsHidden(this.#list, !this.#opened && !this.#printing);
-
-      const kept = new Set();
-      let next = this.#list.firstElementChild;
-      for (const row of rows) {
-        kept.add(row.id);
-        const key = JSON.stringify(row);
-        let seat = this.#rows.get(row.id);
-        if (!seat) {
-          const item = document.createElement("li");
-          item.className = "lf-activity-row";
-          seat = { item, key: null };
-          this.#rows.set(row.id, seat);
-        }
-        const { item } = seat;
-        keeps(item, "data-lf-activity-author", row.author);
-        if (seat.key !== key) {
-          const restoreFocus = holdFocus(item);
-          fillActivityRow(item, row, offer);
-          this.#bind(item, row);
-          restoreFocus?.(item.querySelector(".lf-activity-target"));
-          seat.key = key;
-        }
-        // Holding a drawing never holds a navigation capability. The initial and
-        // live producers consult the same current-document destination rule.
-        const link = item.querySelector("a.lf-activity-target");
-        if (link) refreshActivityTarget(link, row, keeps);
-        // Read synchronously, so the shared clock repaints this reading when it turns.
-        const time = item.querySelector(".lf-activity-time");
-        keepsText(time, ago(row.ts));
-        if (item !== next) this.#list.insertBefore(item, next);
-        else next = next.nextElementSibling;
-      }
-      for (const [id, { item }] of this.#rows)
-        if (!kept.has(id)) {
-          item.remove();
-          this.#rows.delete(id);
-        }
-      keepsHidden(this.#empty, (!this.#opened && !this.#printing) || rows.length > 0);
-      if (!this.#printing)
-        tabStore.set(
-          ACTIVITY_VIEW + this.id,
-          JSON.stringify({
-            open: this.#opened,
-            shown,
-            label: this.#notice.textContent,
-            news,
-          }),
-        );
     }
-  },
-);
+    const current = history.map((served) => ({
+      ...describe(served),
+      excerpt: served.excerpt ? clip(markdownWords(served.excerpt), 140) : null,
+      id: served.id,
+      ts: served.ts,
+      author: served.author,
+      actor: actorOf(served),
+      undone: served.undone,
+    }));
+    // Hold the complete drawn reading, including an undo or a changed title:
+    // those may wrap too. The watcher supplies the authoritative history.
+    for (const row of current) {
+      if (row.widget || row.label) row.label ??= nameOf(row.widget);
+    }
+    const wanted = JSON.stringify(current);
+    if (this.#closedReading === null) this.#closedReading = wanted;
+    const shown = this.#printing
+      ? wanted
+      : this.#opened
+        ? this.#reading.hold(wanted)
+        : this.#closedReading;
+    const rows = JSON.parse(shown);
+    const news = shown !== wanted;
+    const known = new Set(rows.map(({ id }) => id));
+    const arrived = current.filter(({ id }) => !known.has(id)).length;
+    keeps(this.#notice, "data-lf-news", news ? "" : null);
+    keeps(this.#notice, "aria-expanded", String(this.#opened));
+    keepsText(
+      this.#notice,
+      !this.#opened
+        ? `Show activity${arrived ? ` · ${arrived} new` : ""}`
+        : news
+          ? arrived
+            ? `${arrived} new ${arrived === 1 ? "update" : "updates"}`
+            : "Activity changed"
+          : "Hide activity",
+    );
+    if (this.#opened && !this.#printing) this.#closedReading = shown;
+    keepsHidden(this.#list, !this.#opened && !this.#printing);
+
+    const kept = new Set();
+    let next = this.#list.firstElementChild;
+    for (const row of rows) {
+      kept.add(row.id);
+      const key = JSON.stringify(row);
+      let seat = this.#rows.get(row.id);
+      if (!seat) {
+        const item = document.createElement("li");
+        item.className = "lf-activity-row";
+        seat = { item, key: null };
+        this.#rows.set(row.id, seat);
+      }
+      const { item } = seat;
+      keeps(item, "data-lf-activity-author", row.author);
+      if (seat.key !== key) {
+        const restoreFocus = holdFocus(item);
+        fillActivityRow(item, row, offer);
+        this.#bind(item, row);
+        restoreFocus?.(item.querySelector(".lf-activity-target"));
+        seat.key = key;
+      }
+      // Holding a drawing never holds a navigation capability. The initial and
+      // live producers consult the same current-document destination rule.
+      const link = item.querySelector("a.lf-activity-target");
+      if (link) refreshActivityTarget(link, row, keeps);
+      // Read synchronously, so the shared clock repaints this reading when it turns.
+      const time = item.querySelector(".lf-activity-time");
+      keepsText(time, ago(row.ts));
+      if (item !== next) this.#list.insertBefore(item, next);
+      else next = next.nextElementSibling;
+    }
+    for (const [id, { item }] of this.#rows)
+      if (!kept.has(id)) {
+        item.remove();
+        this.#rows.delete(id);
+      }
+    keepsHidden(this.#empty, (!this.#opened && !this.#printing) || rows.length > 0);
+    if (!this.#printing)
+      tabStore.set(
+        ACTIVITY_VIEW + this.id,
+        JSON.stringify({
+          open: this.#opened,
+          shown,
+          label: this.#notice.textContent,
+          news,
+        }),
+      );
+  }
+}

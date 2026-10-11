@@ -99,6 +99,7 @@
    examines open roots and catches promised words that are absent, clipped, or hidden.
    It also catches a module that replaces declared words after the shared render
    passes. */
+import { registryFor, decisionFor, registry } from "./registry.js";
 // The page's own text blocks: what a user takes in as one unit of prose, and the
 // grain every question about "where in the document is this" is answered at — which
 // passage they are reading, where a walk over Questions starts, what a version diff
@@ -122,7 +123,7 @@ import {
   under,
   upFrom,
 } from "./shadow.js";
-import { decisionFor, registry } from "./registry.js";
+
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { COLLAPSE } from "./collapse.js";
 import { textUnits } from "./text-alignment.js";
@@ -162,25 +163,17 @@ export const verbatimBoundaryIdentity = new WeakMap();
 // same page follow one declaration: x-retired-when names the decision that removes the
 // element, x-owners the wrapper the decision is recorded on. Composition stamps that
 // relation, owner by owner, into `$decisions` (Python's `registry.contract.stamp_decisions`),
-// and this reads it: one selector per owner and member.
-// Computed once — but only once the registry has loaded: the aim listeners are
-// live from module evaluation, and a pointer move in the upgrade window would
-// otherwise seed the cache from the empty pre-fetch registry and disable the
-// retired-slot skip for the life of the page. It used to be rebuilt per
-// candidate ancestor per pointer move (addressableAt's aim walk).
-let retiredSlotsMemo;
-function retiredSlots() {
-  if (retiredSlotsMemo != null) return retiredSlotsMemo;
-  const decisions = registry.$decisions;
-  if (!decisions) return "";
-  retiredSlotsMemo = Object.entries(decisions)
-    .flatMap(([owner, { retires }]) =>
-      Object.values(retires)
-        .flat()
-        .map((tag) => `${owner} > ${tag}[${PAGE_PAINT_ATTRIBUTE.retired}]`),
-    )
-    .join(", ");
-  return retiredSlotsMemo;
+// and this reads the containing owner's publication. An older document's slots
+// need not exist in the current runtime's vocabulary.
+function retiredSlot(element) {
+  if (!element.hasAttribute(PAGE_PAINT_ATTRIBUTE.retired)) return false;
+  const owner = upFrom(element);
+  return Boolean(
+    owner &&
+    Object.values(decisionFor(owner)?.retires ?? {}).some((tags) =>
+      tags.includes(element.localName),
+    ),
+  );
 }
 
 // The rendering of a settlement, in one place for the two occasions that paint it —
@@ -189,7 +182,7 @@ function retiredSlots() {
 // corresponding paint and is never read back. The shared state.css tier hides marked
 // slots in the document and declared shadow stages, above package display defaults.
 export function renderRetired(el, outcome) {
-  const outcomes = decisionFor(el.localName)?.retires;
+  const outcomes = decisionFor(el)?.retires;
   if (!outcomes) return;
   for (const [candidate, tags] of Object.entries(outcomes))
     for (const tag of tags)
@@ -214,15 +207,14 @@ export function renderRetired(el, outcome) {
 // user had put on it detached, and the mark went out from under a thread that was
 // still open. The same suggestion on the page kept both.
 export function settledAway(el) {
-  const retired = retiredSlots();
-  if (!retired) return false;
-  if (el.closest(retired)) return true;
+  for (let owner = el; owner; owner = upFrom(owner))
+    if (retiredSlot(owner)) return true;
   const nodes = [...el.childNodes];
   return (
-    nodes.some((n) => n.nodeType === 1 && n.matches(retired)) &&
+    nodes.some((n) => n.nodeType === 1 && retiredSlot(n)) &&
     nodes.every((n) =>
       n.nodeType === 1
-        ? n.matches(retired) || uiInside(n, el)
+        ? retiredSlot(n) || uiInside(n, el)
         : n.nodeType !== 3 || !n.data.trim(),
     )
   );
@@ -368,19 +360,18 @@ const chromeMark = (el) => (el.matches(UI_MARKS) ? !el.matches(SAID) : null);
 // stylesheet a rendered diagram carries inside its <svg>, and a slot the user's
 // decision took off the page, or a native field's default-value markup. Chrome is the rest of what the anchor pass skips and
 // the one part a label yields — it is a look, and a look cannot make a word the
-// runtime's. `retired` is `retiredSlots()`, read once per walk.
+// runtime's. Retirement is read from each slot's owning publication.
 const SILENT_TAGS = new Set(["script", "style", "textarea"]);
-const silences = (el, retired) =>
-  SILENT_TAGS.has(el.localName) ||
-  (retired !== "" &&
-    el.hasAttribute(PAGE_PAINT_ATTRIBUTE.retired) &&
-    el.matches(retired));
+const silences = (el) => SILENT_TAGS.has(el.localName) || retiredSlot(el);
 // A generated element whose words the file cannot model: one the registry does not
 // declare as an `x-says` edge of the element holding it. Controls and the hidden comment
 // count hold no accepted text, and x-says spans are already in the file-side reading.
 const unmodelled = (el) => {
   const attr = el.getAttribute("data-lf-said");
-  return !(attr && registry[el.parentElement?.localName]?.["x-says"]?.[attr]);
+  return !(
+    attr &&
+    registryFor(el.parentElement)[el.parentElement?.localName]?.["x-says"]?.[attr]
+  );
 };
 // Automatic control capture uses authored or registry-declared words, never the
 // mutable value of a native editing host. A user's actual Range remains readable.
@@ -401,12 +392,12 @@ const editingBoundary = (el) =>
 // point query's ancestors above the reading's frame, where chrome and the generated
 // marks are somebody else's (`frameOf`). An element that starts nothing — most spans,
 // links and wrappers — hands its parent's context down unchanged.
-function enter(ctx, el, retired, inFrame = true) {
+function enter(ctx, el, inFrame = true) {
   const marked = el.hasAttributes() && el.matches(MARKS);
   const block = BLOCK_TAGS.has(el.localName);
   const editing = editingBoundary(el);
   const cell = opaque(el) || editing || (marked && el.matches(GEN) && unmodelled(el));
-  const silent = !ctx.silenced && silences(el, retired);
+  const silent = !ctx.silenced && silences(el);
   if (!marked && !block && !cell && !silent) return ctx;
   const chrome = (marked && inFrame ? chromeMark(el) : null) ?? ctx.chrome;
   const generated = ctx.generated || (marked && inFrame && el.matches(GENERATED));
@@ -431,7 +422,7 @@ const crossed = (ctx) => ({
 // Every fact at one element, climbing rather than carrying: its ancestors, host by host,
 // folded through `enter` from the top, the tree-local facts starting over at each shadow
 // root. Chrome and the generated marks count from `frame` down.
-function contextAt(el, frame, retired) {
+function contextAt(el, frame) {
   const over = [];
   for (let a = el; a; a = upFrom(a)) over.push(a);
   let ctx = NO_CONTEXT;
@@ -440,7 +431,7 @@ function contextAt(el, frame, retired) {
     const a = over[i];
     if (a === frame) inFrame = true;
     if (a.parentNode?.nodeType === Node.DOCUMENT_FRAGMENT_NODE) ctx = crossed(ctx);
-    ctx = enter(ctx, a, retired, inFrame);
+    ctx = enter(ctx, a, inFrame);
   }
   return ctx;
 }
@@ -491,11 +482,10 @@ export const authored = (root) => {
 // A visible <br> contributes a separator even though it has no text node of its own.
 function walk(root, onText, skip = null, onBreak = null) {
   const frame = frameOf(root);
-  const retired = retiredSlots();
   const passed = new Map();
   const contextOver = (node) => {
     const over = elementOver(node);
-    return passed.get(over) ?? contextAt(over, frame, retired);
+    return passed.get(over) ?? contextAt(over, frame);
   };
   const visit = (node, ctx) => {
     if (node.nodeType === Node.ELEMENT_NODE && node.localName === "br") {
@@ -510,13 +500,13 @@ function walk(root, onText, skip = null, onBreak = null) {
         continue;
       }
       if (child.nodeType !== Node.ELEMENT_NODE || skip?.(child)) continue;
-      const inner = enter(ctx, child, retired);
+      const inner = enter(ctx, child);
       if (child.localName === "slot") {
         passed.set(child, inner);
         for (const assigned of child.assignedNodes({ flatten: true }))
           assigned.nodeType === Node.TEXT_NODE
             ? onText(assigned, contextOver(assigned))
-            : visit(assigned, enter(contextOver(assigned), assigned, retired));
+            : visit(assigned, enter(contextOver(assigned), assigned));
       } else {
         // Only a root the registry declares (x-shadow): the capture asks
         // getComposedRanges for exactly the declared ones, and every climb
@@ -524,7 +514,8 @@ function walk(root, onText, skip = null, onBreak = null) {
         // words the anchor side could never place, and a widget's undeclared
         // root anchored quotes astray instead of staying opaque. The render gate
         // names an undeclared root; this leaves its words alone.
-        const declared = child.shadowRoot && registry[child.localName]?.["x-shadow"];
+        const declared =
+          child.shadowRoot && registryFor(child)[child.localName]?.["x-shadow"];
         if (declared) {
           passed.set(child, inner);
           visit(child.shadowRoot, crossed(inner));
@@ -538,9 +529,9 @@ function walk(root, onText, skip = null, onBreak = null) {
   const host = shadowHost(root);
   const start =
     root.nodeType === Node.ELEMENT_NODE
-      ? contextAt(root, frame, retired)
+      ? contextAt(root, frame)
       : host
-        ? crossed(contextAt(host, frame, retired))
+        ? crossed(contextAt(host, frame))
         : NO_CONTEXT;
   visit(root, start);
 }
@@ -1034,7 +1025,7 @@ let watcher = null;
 // over-forgetting costs a walk and under-forgetting costs a mark on words the page no
 // longer says.
 const pageReads = (over) =>
-  over?.nodeType !== 1 || READINGS.says(contextAt(over, null, retiredSlots()));
+  over?.nodeType !== 1 || READINGS.says(contextAt(over, null));
 // A declared label is the page's words wherever it stands, chrome included, so a subtree
 // holding one is read whatever its place says.
 const holdsSaid = (node) =>

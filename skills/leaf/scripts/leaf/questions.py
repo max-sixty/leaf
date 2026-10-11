@@ -22,7 +22,6 @@ from leaf.projection import (
     StateProjection,
     enclosing_widgets,
     folded_value,
-    frozen_thread_reading,
     markup_value,
     page_reading,
     question_value,
@@ -122,7 +121,7 @@ def thread_questions(
     thread_id: str,
     thread: dict,
     registry: dict,
-    structure,
+    reading: FrozenThreadReading,
     open_widget_threads: set[str],
     ends: dict[str, dict],
 ) -> ThreadQuestions:
@@ -140,11 +139,14 @@ def thread_questions(
     for message in turns:
         if message["author"] != "agent":
             continue
-        fragment = structure.fragments.get(message["id"])
+        fragment = reading.structure.fragments.get(message["id"])
+        vocabulary = (
+            reading.registry_for_message(message["id"]) if fragment else registry
+        )
         if any(
-            local_question_entry(registry.get(rec["tag"]) or {})
-            and asking(rec["attrs"], registry[rec["tag"]]["x-awaits"].get("when"))
-            and not quoted_in(rec, registry)
+            local_question_entry(vocabulary.get(rec["tag"]) or {})
+            and asking(rec["attrs"], vocabulary[rec["tag"]]["x-awaits"].get("when"))
+            and not quoted_in(rec, vocabulary)
             for rec in (fragment.lf_elements if fragment else [])
         ):
             continue
@@ -758,23 +760,27 @@ def page_question_readings(
 
 def thread_question_readings(
     events: list,
-    registry: dict,
     settled: set,
     *,
-    reading: FrozenThreadReading | None = None,
+    reading: FrozenThreadReading,
 ) -> dict:
     """Frozen widget Questions retain inventory when their containing thread closes."""
-    reading = reading or frozen_thread_reading(events, registry)
-    reducer = _QuestionReducer(
-        reading.structure,
-        reading.projection,
-        reading.by_id,
-        reading.spoken,
-        registry,
-        set(),
-        events=events,
-    )
-    records = reducer.inventory(set(), set())
+    records = []
+    for publication in reading.publications.values():
+        reducer = _QuestionReducer(
+            publication.structure,
+            publication.projection,
+            publication.structure.by_id,
+            publication.spoken,
+            publication.registry,
+            set(),
+            events=events,
+        )
+        records.extend(reducer.inventory(set(), set()))
+    # Publication groups share a vocabulary, not a position in the conversation.
+    # Preserve message and authored widget order when composing their inventories.
+    order = {widget: index for index, widget in enumerate(reading.by_id)}
+    records.sort(key=lambda record: order[record["source"]["id"]])
     message_by_widget = widget_messages(reading.structure)
     for record in records:
         source = record["source"]["id"]

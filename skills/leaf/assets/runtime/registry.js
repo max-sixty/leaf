@@ -7,6 +7,12 @@
 
 import { runtime } from "./context.js";
 import { isElementName } from "./registry-contract.js";
+import {
+  vocabularyFor,
+  vocabularies,
+  normalizeDeclarations,
+} from "./widget-contexts.js";
+import { readApplication } from "./semantic-state.js";
 
 // The vocabulary, vendored per page: which tags a module upgrades, and which of their
 // attributes are words the page says. Empty only during the real fetch interval, when
@@ -19,8 +25,9 @@ export const tokenEntry = (name) => registry.$reactions.tokens[name];
 // selectors. Only exact names are widget declarations; `lf-options.selected` is
 // an idiom selector. This is Python's schema.WIDGET_NAME grammar. Every widget
 // traversal goes through this owner rather than treating all vocabulary as widgets.
-export const elementDeclarations = () =>
-  Object.entries(registry).filter(([tag]) => isElementName(tag));
+export const registryFor = (node) => vocabularyFor(node)?.declarations ?? registry;
+export const elementDeclarations = (declarations = registry) =>
+  Object.entries(declarations).filter(([tag]) => isElementName(tag));
 
 // Take in the fetched vocabulary. A verb's writer is resolved here, once: `agent` where
 // its declaration says so, else `user`, the rule Python's `registry.contract.verb_writer`
@@ -28,34 +35,37 @@ export const elementDeclarations = () =>
 // widget descriptor's captured declaration included, then reads `spec.writer` as one of
 // the two sides rather than restating the default.
 export function adoptRegistry(declarations) {
-  Object.assign(registry, declarations);
-  for (const [, entry] of elementDeclarations())
-    for (const spec of Object.values(entry["x-state"] ?? {})) spec.writer ??= "user";
+  Object.assign(registry, normalizeDeclarations(declarations));
 }
 
-let stateIndex;
-function indexedState() {
-  const generation = registry.$layer?.generation;
+const stateIndexes = new WeakMap();
+function indexedState(declarations) {
+  const stateIndex = stateIndexes.get(declarations);
+  const generation = declarations.$layer?.generation;
   if (typeof generation !== "string" || !generation)
     throw new Error("leaf: state vocabulary requested before registry loaded");
   if (stateIndex?.generation === generation) return stateIndex;
 
   const specs = [];
-  for (const [tag, entry] of elementDeclarations())
+  for (const [tag, entry] of elementDeclarations(declarations))
     for (const [verb, spec] of Object.entries(entry["x-state"] ?? {}))
       specs.push({ tag, verb, spec });
-  stateIndex = {
+  const indexed = {
     generation,
     recordedWidgetSelector: [
       ...new Set(specs.filter(({ spec }) => spec.record).map(({ tag }) => tag)),
     ].join(","),
     specs,
   };
-  return stateIndex;
+  stateIndexes.set(declarations, indexed);
+  return indexed;
 }
 
-export const stateSpecs = () => indexedState().specs;
-export const recordedWidgetSelector = () => indexedState().recordedWidgetSelector;
+/** @param {Document | DocumentFragment | Element} scope */
+export const stateSpecs = (scope = document) => indexedState(registryFor(scope)).specs;
+/** @param {Document | DocumentFragment | Element} scope */
+export const recordedWidgetSelector = (scope = document) =>
+  indexedState(registryFor(scope)).recordedWidgetSelector;
 
 // Shared `$` declarations belong to the layer rather than to one widget. Return a copy so
 // a package module can read its cross-widget vocabulary without a registry write path.
@@ -66,13 +76,16 @@ export function layerFact(name) {
   return value === undefined ? undefined : structuredClone(value);
 }
 
-export const declarationFor = (el, key) => registry[el?.localName]?.[key];
+export const declarationFor = (el, key) => registryFor(el)[el?.localName]?.[key];
+export const widgetDeclaration = (id, key) =>
+  readApplication().document.descriptors.get(id)?.declaration[key];
 
 // How a tag is decided, or null where no verb decides it: `verb`, the x-state verb whose
 // detail `outcome` is the decision, and `retires`, each outcome's member tags that leave
 // the page under it (x-retired-when). Composition stamps it into the vocabulary as
 // `$decisions` (Python's `registry.contract.stamp_decisions`), so nothing here re-derives it.
-export const decisionFor = (tag) => registry.$decisions[tag] ?? null;
+export const decisionFor = (element) =>
+  registryFor(element).$decisions[element.localName] ?? null;
 
 export const elementsDeclaring = (root, key, { direct = false } = {}) => {
   const candidates = direct ? [...root.children] : [...root.querySelectorAll("*")];
@@ -84,10 +97,18 @@ export const elementsDeclaring = (root, key, { direct = false } = {}) => {
 // they carry, so the twelfth widget is covered by its declaration alone — the alternative
 // keeps working perfectly on the widget it was taught and silently does nothing for the
 // next one.
-export const tagsDeclaring = (holds) =>
-  elementDeclarations()
-    .filter(([, entry]) => holds(entry))
-    .map(([tag]) => tag);
+export const tagsDeclaring = (holds, scope = null) => [
+  ...new Set(
+    (scope
+      ? [registryFor(scope)]
+      : [registry, ...vocabularies().map((context) => context.declarations)]
+    ).flatMap((declarations) =>
+      elementDeclarations(declarations)
+        .filter(([, entry]) => holds(entry))
+        .map(([tag]) => tag),
+    ),
+  ),
+];
 
 // Every declared attribute holds one of the admitted values. A boolean asks whether a
 // flag is present; other values compare with the attribute's text. The lint holds each

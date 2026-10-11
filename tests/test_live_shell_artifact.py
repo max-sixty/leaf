@@ -12,7 +12,12 @@ from leaf.files import replace_files, revision_path
 from leaf.hosting import TemporaryPageServer
 from leaf.live_shell import write_live_shell
 from leaf.revision_artifact import RESOURCE_TYPES, read_artifact
-from leaf.revision_delivery import json_script, layer_import_map
+from leaf.revision_delivery import (
+    PublicationAddress,
+    delivered_resource,
+    json_script,
+    layer_import_map,
+)
 from leaf.revisioning import activate_source
 from playwright.sync_api import expect
 from render_harness import leaf_page, open_page
@@ -70,7 +75,7 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
     first = publish(1)
     first_artifact = read_artifact(page_dir, first)
     (authored / "nested" / "value.js").write_text("export const value = 2;")
-    page_widget = 'import { value } from "../nested/value.js"; window.widget = value;'
+    page_widget = 'import { value } from "../nested/value.js"; window.widget = value; export default class extends HTMLElement {};'
     (authored / "widgets" / "lf-options.js").write_text(page_widget)
     entry["description"] = "Second page declaration"
     (authored / "registry.json").write_text(json.dumps({"lf-options": entry}))
@@ -118,10 +123,16 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
         assert (destination / "revisions" / marker).read_text() == document
         assert f'name="lf-revision" data-lf-runtime content="{revision}"' in document
         assert f'name="lf-version" data-lf-runtime content="{version}"' in document
-        assert f'src="{root}/leaf.js"' in document
+        kernel_root = (
+            (asset_root if asset_root is not None else page_root)
+            + "/revisions/"
+            + revision_path(page_dir, second).stem
+        )
+        assert f'src="{kernel_root}/leaf.js"' in document
         assert f'src="{root}/page/app.js"' in document
         assert f'href="{root}/page/style.css"' in document
-        assert f'data-lf-probe="{root}/registry.json"' in document
+        assert f'data-lf-probe="{kernel_root}/registry.json"' in document
+        assert f'data-lf-vocabulary-root="{root}/registry.json"' in document
         assert f'href="{page_root}/" data-lf-runtime' in document
         assert additions in document
         assert (
@@ -141,20 +152,32 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
         )
         # The layer is published as captured; the document's import map sends its
         # rooted imports to this revision.
-        assert (resources / "leaf.js").read_bytes() == artifact.resources[
-            "/leaf.js"
-        ].data
-        assert artifact.resources["/runtime/bootstrap.js"].data.decode() in document
-        assert json_script(layer_import_map(root)) in document
+        if revision == second:
+            assert (resources / "leaf.js").read_bytes() == second_artifact.resources[
+                "/leaf.js"
+            ].data
+        else:
+            assert not (resources / "leaf.js").exists()
+            assert not (resources / "runtime").exists()
+        assert (
+            second_artifact.resources["/runtime/bootstrap.js"].data.decode() in document
+        )
+        assert (
+            json_script(layer_import_map(kernel_root, page_root=page_root)) in document
+        )
         expected_widget = (
-            f'export * from "{root}/page/widgets/lf-options.js";\n'.encode()
+            f'export {{default}} from "{root}/page/widgets/lf-options.js";\n'.encode()
             if version == 2
-            else artifact.resources["/widgets/lf-options.js"].data
+            else delivered_resource(
+                artifact,
+                "/widgets/lf-options.js",
+                PublicationAddress(page_root, root, artifact.shared_modules),
+            ).data
         )
         assert (resources / "widgets" / "lf-options.js").read_bytes() == expected_widget
         if version == 2:
             assert (resources / "page" / "widgets" / "lf-options.js").read_text() == (
-                f'import {{ value }} from "{root}/page/nested/value.js"; window.widget = value;'
+                f'import {{ value }} from "{root}/page/nested/value.js"; window.widget = value; export default class extends HTMLElement {{}};'
             )
 
     assert (destination / "index.html").read_bytes() == (
@@ -183,7 +206,7 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
         "window.widgetLoads = (window.widgetLoads || 0) + 1; "
         "export const moduleUrl = import.meta.url; "
         'export const prose = "import.meta.url"; '
-        'customElements.define("lf-options", class extends HTMLElement {});'
+        "export default class extends HTMLElement {};"
     )
     (authored / "app.js").write_text(
         'import { value } from "./nested/value.js"; '
@@ -219,6 +242,30 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
             "text": "Published",
         },
     )
+    # The document and its modules remain r1 while every document uses r2's kernel.
+    (authored / "nested" / "value.js").write_text('export const value = "Current";')
+    replace_files(
+        [
+            (
+                page_dir / "leaf.js",
+                (page_dir / "leaf.js").read_bytes()
+                + b"\ndocument.documentElement.dataset.kernelPublication = 'latest';\n",
+                False,
+            )
+        ]
+    )
+    current = activate_source(page_dir)
+    assert current.error is None and current.revision == 2
+    append_event(
+        page_dir,
+        {
+            "kind": "note",
+            "author": "agent",
+            "version": 2,
+            "revision": current.revision,
+            "text": "Current publication",
+        },
+    )
     destination = tmp_path / "public"
     with TemporaryPageServer(page_dir) as server, browser.new_context() as context:
         write_live_shell(
@@ -227,7 +274,12 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
             server_id=server.httpd.server_id,
         )
         root = "/revisions/" + revision_path(page_dir, activation.revision).stem
+        kernel = "/revisions/" + revision_path(page_dir, current.revision).stem
         if bundled:
+            (destination / "_leaf").mkdir()
+            (destination / "_leaf/site.json").write_text(
+                json.dumps({"pages": {"/": {"assets": ""}}})
+            )
             bundler = Path(__file__).parents[1] / "worker" / "bundle-runtime.mjs"
             subprocess.run(
                 [
@@ -235,11 +287,10 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
                     "--input-type=module",
                     "-e",
                     (
-                        f"import {{ bundleLayer }} from {json.dumps(bundler.as_uri())}; "
-                        "await bundleLayer(process.argv[1], process.argv[2]);"
+                        f"import {{ bundleSite }} from {json.dumps(bundler.as_uri())}; "
+                        "await bundleSite(process.argv[1]);"
                     ),
-                    str(destination / root.lstrip("/")),
-                    root,
+                    str(destination),
                 ],
                 check=True,
             )
@@ -268,6 +319,11 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
             context=context,
             pin=True,
         )
+        expect(page.locator("html")).to_have_attribute(
+            "data-kernel-publication", "latest"
+        )
+        assert kernel + "/leaf.js" in loaded
+        assert root + "/leaf.js" not in loaded
         button = page.get_by_role("button", name="Read captured value")
         button.click()
         expect(page.locator("#result")).to_have_text("Captured")
@@ -290,5 +346,5 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
             """async root =>
               (await import('/runtime/widget-api.js')) ===
               (await import(`${root}/runtime/widget-api.js`))""",
-            root,
+            kernel,
         )

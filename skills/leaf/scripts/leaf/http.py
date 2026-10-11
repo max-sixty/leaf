@@ -65,10 +65,13 @@ from .revision_artifact import (
 from .revision_delivery import (
     Delivery,
     DeliveryAddress,
+    PublicationAddress,
+    RuntimeDelivery,
     compose_document,
     deliver_resource,
     delivered_resource,
     layer_import_map,
+    publication_css,
     rebase_document,
 )
 from .revisioning import activate_source
@@ -175,6 +178,7 @@ def page_delivery(
     page_root: str = "",
     asset_root: str | None = None,
     share_url: str | None = None,
+    vocabulary_root: str | None = None,
 ) -> Delivery:
     """How an HTTP host delivers a page's document: supervised before anything loads.
 
@@ -188,6 +192,7 @@ def page_delivery(
     """
     assets = asset_root if asset_root is not None else page_root
     address = DeliveryAddress(page_root, assets)
+    content_address = PublicationAddress(page_root, vocabulary_root or assets)
     bootstrap = resources["/runtime/bootstrap.js"].data.decode()
     release = (
         f' data-lf-release="{html.escape(release_id, quote=True)}"'
@@ -205,13 +210,15 @@ def page_delivery(
         f'data-lf-layer="{layer_id}"{release}{share} '
         f'data-lf-page-root="{html.escape(page_root, quote=True)}" '
         f'data-lf-entry="{html.escape(address("/leaf.js"), quote=True)}" '
-        f'data-lf-probe="{html.escape(address("/registry.json"), quote=True)}">'
+        f'data-lf-probe="{html.escape(address("/registry.json"), quote=True)}" '
+        f'data-lf-vocabulary-root="{html.escape(content_address("/registry.json"), quote=True)}">'
         f"{bootstrap}</script>"
     )
 
     return Delivery(
-        address=address,
-        import_map=layer_import_map(assets),
+        address=content_address,
+        kernel=RuntimeDelivery(resources, address),
+        import_map=layer_import_map(assets, page_root=page_root),
         runtime=runtime,
         page_root=page_root,
     )
@@ -392,7 +399,16 @@ class PageEndpoint:
         what it was just handed. Between the two, the worst case is a token already
         stale on arrival, which costs one more request and no news.
         """
-        return self._state_service().page_state(view_revision)
+        state = self._state_service().page_state(view_revision)
+        names = (
+            self.page_snapshot.revision_names
+            if self.page_snapshot is not None
+            else revision_names(self.page_dir)
+        )
+        state["vocabularies"] = {
+            str(revision): self._artifact_root(revision) for revision in names
+        }
+        return state
 
     def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
         """One revision projected at an exact already-observed log boundary."""
@@ -441,7 +457,7 @@ class PageEndpoint:
             registry = self.page_snapshot.context.registry
         else:
             registry = require_registry(self.page_dir)
-        self.response_layer = registry["$layer"]["generation"]
+        self.response_layer = self._delivery_layer()
         if self.page_snapshot is not None:
             reading = self.page_snapshot.context.data["sources"].get(source)
         elif contract := read_contracts(self.page_dir).get(source):
@@ -848,6 +864,10 @@ class PageEndpoint:
     def _registry(self, revision: int) -> dict:
         return self._reading(revision).registry
 
+    def _delivery_layer(self) -> str:
+        """The current kernel's epoch, independently of a selected content vocabulary."""
+        return self._registry(self._active_revision())["$layer"]["generation"]
+
     def _artifact_root(self, revision: int) -> str:
         name = self._revision_name(revision).removesuffix(".html")
         return self.page_root.rstrip("/") + f"/revisions/{name}"
@@ -864,7 +884,7 @@ class PageEndpoint:
         self, artifact: RevisionArtifact, revision: int, version: int | None
     ) -> Response:
         """Serve one immutable document under the current delivery boundary."""
-        self.response_layer = artifact.registry["$layer"]["generation"]
+        self.response_layer = self._delivery_layer()
         projected = compose_document(
             artifact.html.decode("utf-8"),
             revision,
@@ -879,15 +899,24 @@ class PageEndpoint:
         response.headers["Leaf-Document"] = str(revision)
         return response
 
+    def _active_revision(self) -> int:
+        return (
+            self.page_snapshot.context.active["revision"]
+            if self.page_snapshot is not None
+            else latest_revision(self.page_dir)
+        )
+
     def _delivery(self, artifact: RevisionArtifact, revision: int) -> Delivery:
         """How this transport delivers a document; a transport adds its own marks."""
+        current = self._artifact(self._active_revision())
         return page_delivery(
-            artifact.resources,
+            current.resources,
             server_id=self.server.server_id,
-            layer_id=artifact.registry["$layer"]["generation"],
+            layer_id=current.registry["$layer"]["generation"],
             release_id=self.release,
             page_root=self.page_root,
-            asset_root=self._document_asset_root(revision),
+            asset_root=self._document_asset_root(self._active_revision()),
+            vocabulary_root=self._artifact_root(revision),
             share_url=(
                 str(
                     self.request.url.replace(
@@ -920,10 +949,17 @@ class PageEndpoint:
         resource = delivered_resource(
             artifact,
             logical,
-            DeliveryAddress(self.page_root, self._artifact_root(revision)),
+            PublicationAddress(
+                self.page_root, self._artifact_root(revision), artifact.shared_modules
+            ),
         )
         if resource is None:
             return None
+        if logical == "/widget-theme.css":
+            resource = Resource(
+                publication_css(resource.data.decode(), revision).encode(),
+                resource.mime,
+            )
         response = self._resource_content(resource)
         # The revision name carries its manifest digest and the address is in the URL,
         # so these bytes never change. Every document of one page shares this namespace:
@@ -1060,7 +1096,7 @@ class PageEndpoint:
                     raise ValueError("view revision is required")
                 sequence = self.requested_view_sequence()
                 browser = self.page_browser_view(revision, sequence)
-                self.response_layer = self._registry(revision)["$layer"]["generation"]
+                self.response_layer = self._delivery_layer()
             except ValueError as error:
                 return self._json({"error": str(error)}, 400)
             return self._json({"browser": browser})
@@ -1173,19 +1209,12 @@ class PageEndpoint:
         )
         if view_revision is not None and view_revision not in revisions:
             return self._refuse(f"unknown view revision r{view_revision}")
-        if view_revision is not None:
-            current_layer = self._registry(view_revision)["$layer"]["generation"]
-        else:
-            active_revision = (
-                self.page_snapshot.context.active["revision"]
-                if self.page_snapshot is not None
-                else latest_revision(self.page_dir)
-            )
-            current_layer = (
-                self._registry(active_revision)["$layer"]["generation"]
-                if active_revision is not None
-                else self.layer
-            )
+        active_revision = self._active_revision()
+        current_layer = (
+            self._registry(active_revision)["$layer"]["generation"]
+            if active_revision is not None
+            else self.layer
+        )
         self.response_layer = current_layer
         if self.headers.get("Leaf-Layer") != current_layer:
             # Preparation already consumed the body. A stale runtime needs the

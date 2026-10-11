@@ -248,3 +248,4 @@ export {
 export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
 
 export { LeafEditorView } from "./editor-view.js";
+export { createWidgetElement } from "./widget-vocabularies.js";

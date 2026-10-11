@@ -49,7 +49,6 @@ def sample_events(
                 for key, value in event.items()
                 if key not in {"seq", "publication"}
             },
-            **({"revision": 1} if "revision" in event else {}),
         }
         for event in events
         if selected.intersection(memberships[event["id"]])

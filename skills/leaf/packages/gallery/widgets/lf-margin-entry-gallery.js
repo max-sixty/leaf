@@ -54,52 +54,49 @@ function wireSample({ sample, key, control, disclosure }) {
   }
 }
 
-customElements.define(
-  "lf-margin-entry-gallery",
-  class extends HTMLElement {
-    #projection = null;
+export default class extends HTMLElement {
+  #projection = null;
 
-    connectedCallback() {
-      if (once(this)) {
-        const initial = initialRender(this);
-        for (const { node, words } of initial.labels)
-          relabel(node, words, { says: false });
-        initial.samples.forEach(wireSample);
-      }
-      this.#registerProjection();
+  connectedCallback() {
+    if (once(this)) {
+      const initial = initialRender(this);
+      for (const { node, words } of initial.labels)
+        relabel(node, words, { says: false });
+      initial.samples.forEach(wireSample);
     }
+    this.#registerProjection();
+  }
 
-    disconnectedCallback() {
-      this.#projection?.unregister();
-      this.#projection = null;
-    }
+  disconnectedCallback() {
+    this.#projection?.unregister();
+    this.#projection = null;
+  }
 
-    #registerProjection() {
-      if (this.#projection) return;
-      const result = initialRender(this).result;
-      this.#projection = registerContribution({
-        key: `gallery-projection:${this.id}`,
-        target: () => this,
-        read: () => ({
-          subject: "Margin entry projection",
-          entries: [
-            {
-              key: "inspect-projection",
-              icon: "question",
-              label: "Inspect projection",
-              context: "Compact face · full row",
-              behavior: "disclosure",
-              rank: "reading",
-              relation: { kind: "element", id: result.id, expanded: !result.hidden },
-            },
-          ],
-          readings: [],
-        }),
-        activate: () => {
-          result.hidden = !result.hidden;
-          this.#projection.update({ immediate: true });
-        },
-      });
-    }
-  },
-);
+  #registerProjection() {
+    if (this.#projection) return;
+    const result = initialRender(this).result;
+    this.#projection = registerContribution({
+      key: `gallery-projection:${this.id}`,
+      target: () => this,
+      read: () => ({
+        subject: "Margin entry projection",
+        entries: [
+          {
+            key: "inspect-projection",
+            icon: "question",
+            label: "Inspect projection",
+            context: "Compact face · full row",
+            behavior: "disclosure",
+            rank: "reading",
+            relation: { kind: "element", id: result.id, expanded: !result.hidden },
+          },
+        ],
+        readings: [],
+      }),
+      activate: () => {
+        result.hidden = !result.hidden;
+        this.#projection.update({ immediate: true });
+      },
+    });
+  }
+}

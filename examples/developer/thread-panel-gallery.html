@@ -35,24 +35,27 @@
       }
     </style>
     <script type="module">
-      await customElements.whenDefined("lf-sample");
-      const views = {
-        "overview-sample": { surface: "panel" },
-        "on-you-sample": { thread: "98850286", surface: "page" },
-        "resolved-sample": { surface: "panel", status: "resolved" },
-        "summary-sample": { thread: "c1a39980", surface: "panel" },
-      };
-      function showView(sample) {
-        const { thread, ...view } = views[sample.id];
-        return sample.showThread(thread, view);
-      }
-      document.addEventListener("lf-sample-ready", (event) => {
-        if (views[event.target.id]) void showView(event.target);
+      import { afterPresentation } from "/runtime/widget-api.js";
+
+      void afterPresentation(() => {
+        const views = {
+          "overview-sample": { surface: "panel" },
+          "on-you-sample": { thread: "98850286", surface: "page" },
+          "resolved-sample": { surface: "panel", status: "resolved" },
+          "summary-sample": { thread: "c1a39980", surface: "panel" },
+        };
+        function showView(sample) {
+          const { thread, ...view } = views[sample.id];
+          return sample.showThread(thread, view);
+        }
+        document.addEventListener("lf-sample-ready", (event) => {
+          if (views[event.target.id]) void showView(event.target);
+        });
+        for (const id of Object.keys(views)) {
+          const sample = document.getElementById(id);
+          if (sample.ready) void showView(sample);
+        }
       });
-      for (const id of Object.keys(views)) {
-        const sample = document.getElementById(id);
-        if (sample.ready) void showView(sample);
-      }
     </script>
   </head>
   <body>

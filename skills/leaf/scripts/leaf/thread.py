@@ -18,7 +18,6 @@ from leaf.events import build_threads
 from leaf.files import (
     latest_revision,
     require_revision,
-    revision_path,
 )
 from leaf.harness import message_identity
 from leaf.leases import contract_writer
@@ -163,9 +162,7 @@ def _current_anchor(
         revision = require_revision(page_dir)
     if not (quote or section or part):
         return revision, None
-    from leaf.registry.storage import require_registry
-
-    reading = read_revision(page_dir, revision).under(require_registry(page_dir))
+    reading = read_revision(page_dir, revision)
     return revision, _capture_anchor(
         page_dir, events, reading, quote, section, part, revision
     )
@@ -503,18 +500,14 @@ def post_reply(
         if detach and (current_thread is None or current_thread["anchor"] is None):
             sys.exit(f"thread {thread_id!r} has no current anchor to detach")
         reply_revision = None
-        prospective_page = None
+        prospective_reading = None
         prospective_anchor = None
         source_events = events
-        source_matches_active = True
-        if validate_source or detach:
+        checked = None
+        if validate_source or detach or markup:
             active = latest_revision(page_dir)
-            source_matches_active = bool(
-                active is not None
-                and (page_dir / "index.html").is_file()
-                and (page_dir / "index.html").read_bytes()
-                == revision_path(page_dir, active).read_bytes()
-            )
+            # A reply freezes the complete publication, including widget modules.
+            # HTML equality cannot decide whether that vocabulary changed.
             if relocating:
                 source_events = [
                     *events,
@@ -530,40 +523,33 @@ def post_reply(
                         **({"responds": for_event} if for_event is not None else {}),
                     },
                 ]
-            if source_matches_active:
-                reply_revision = active
-            else:
-                from leaf.validation.source import check_source
+            from leaf.validation.source import check_source
 
-                checked = check_source(page_dir, source_events)
-                if checked.errors:
-                    operation = "reply" if validate_source else "detach"
-                    sys.exit(
-                        f"cannot {operation} while index.html is invalid: "
-                        f"{'; '.join(checked.errors)}"
-                    )
-                prospective_page = checked.document
-                if moving:
-                    from leaf.registry.storage import require_registry
-
-                    prospective_anchor = _capture_anchor(
-                        page_dir,
-                        events,
-                        SourceReading(checked.document, require_registry(page_dir)),
-                        quote,
-                        section,
-                        part,
-                        (active or 0) + 1,
-                    )
+            checked = check_source(page_dir, source_events)
+            if checked.errors:
+                operation = "reply" if validate_source or markup else "detach"
+                sys.exit(
+                    f"cannot {operation} while index.html is invalid: "
+                    f"{'; '.join(checked.errors)}"
+                )
+            prospective_reading = checked.reading
+            if moving:
+                prospective_anchor = _capture_anchor(
+                    page_dir,
+                    events,
+                    prospective_reading,
+                    quote,
+                    section,
+                    part,
+                    (active or 0) + 1,
+                )
         fragment = (
-            check_markup(page_dir, "reply", markup, events, page=prospective_page)
+            check_markup(page_dir, "reply", markup, events, reading=prospective_reading)
             if markup
             else None
         )
         if question and fragment:
-            from leaf.registry.storage import require_registry
-
-            registry = require_registry(page_dir)
+            registry = prospective_reading.registry
             structural = sorted(
                 {
                     rec["tag"]
@@ -581,7 +567,7 @@ def post_reply(
                     "a local Question "
                     f"({', '.join(f'<{tag}>' for tag in structural)})"
                 )
-        if not source_matches_active:
+        if checked is not None:
             from leaf.revisioning import planned_activation
 
             reply_revision = planned_activation(page_dir, checked).revision
@@ -637,12 +623,12 @@ def post_reply(
         if failure is not None:
             event["failure"] = failure
         if relocating or markup:
-            event["revision"] = revision or latest_revision(page_dir)
+            event["revision"] = revision or reply_revision or latest_revision(page_dir)
         if relocating:
             event["anchor"] = anchor
         if title is not None:
             event["title"] = title
-        if not source_matches_active:
+        if checked is not None:
             from leaf.revisioning import publish_checked_event
 
             record = publish_checked_event(page, checked, event)

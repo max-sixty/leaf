@@ -316,6 +316,7 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
     assert fetch(child + "/api/news", token=None)[0] == 200
     assert fetch(child + "/theme.css", token=None) == (200, captured_theme)
     assert trace.read_bytes() == before_housekeeping
+
     status, raw = fetch(child + "/api/state")
     assert status == 200, raw
     assert json.loads(raw)["events"] == []
@@ -1268,7 +1269,7 @@ def test_deferred_data_sends_a_manifest_then_serves_one_exact_payload(server, pa
     assert f"no longer holds revision {held!r}" in json.loads(body)["error"]
 
 
-def test_historical_deferred_reads_keep_the_document_revision_and_layer(
+def test_historical_deferred_reads_keep_the_document_contract_with_current_kernel(
     server, page_dir
 ):
     """A pinned document reads current data through its captured data contract."""
@@ -1316,7 +1317,11 @@ def test_historical_deferred_reads_keep_the_document_revision_and_layer(
     )
     historical = json.loads(body)
     assert status == 200
-    assert historical["layer"]["generation"] == first_layer
+    assert historical["layer"]["generation"] == second_layer
+    assert (
+        historical["browser"]["views"][str(first.revision)]["basis"]["revision"]
+        == first.revision
+    )
     assert (
         "patch"
         not in historical["data"]["sources"]["review-patch"]["value"]["files"][0]
@@ -1333,11 +1338,23 @@ def test_historical_deferred_reads_keep_the_document_revision_and_layer(
     )
     response = connection.getresponse()
     deferred = json.loads(response.read())
+    deferred_status = response.status
+    deferred_layer = response.getheader("Leaf-Layer")
+    connection.request(
+        "GET",
+        f"/api/view?revision={first.revision}&through_seq={historical['events'][-1]['seq']}&t="
+        + TOKEN,
+    )
+    response = connection.getresponse()
+    comparison = json.loads(response.read())
     connection.close()
 
-    assert response.status == 200
-    assert response.getheader("Leaf-Layer") == first_layer
+    assert deferred_status == 200
+    assert deferred_layer == second_layer
     assert deferred["value"] == patch
+    assert response.status == 200
+    assert response.getheader("Leaf-Layer") == second_layer
+    assert set(comparison["browser"]["views"]) == {str(first.revision)}
 
 
 def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
@@ -3251,7 +3268,7 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
         json.dumps({"lf-local-draft": shipped["lf-draft"]})
     )
     (overlay / "widgets" / "lf-local-draft.js").write_text(
-        "customElements.define('lf-local-draft', class extends HTMLElement {});"
+        """export default class extends HTMLElement {};"""
     )
     assert (
         CliRunner()
@@ -4784,7 +4801,7 @@ def test_a_preview_uses_the_validated_module_graph_after_a_later_edit(page_dir):
     checked = check_source(page_dir, event_model.read_events(page_dir))
     assert checked.errors == []
     module.write_text('document.title = "Changed after checking";')
-    revision = (files_model.latest_revision(page_dir) or 0) + 1
+    revision = checked.revision.candidate
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
         checked.document,

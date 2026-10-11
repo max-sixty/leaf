@@ -316,6 +316,45 @@ def test_abandoned_desktop_preview_publishes_no_claim(
     assert not leases.lock_is_held(preview.preview_lease(page))
 
 
+@pytest.mark.parametrize("beside_runtime", [False, True])
+def test_fixture_captures_use_the_selected_runtime_producer(tmp_path, beside_runtime):
+    """A producer belongs to the consuming arm, wherever the authored source lives."""
+    runtime = tmp_path / "runtime"
+    producer = runtime / "skills/leaf/packages/diff/scripts/patch_manifest.py"
+    producer.parent.mkdir(parents=True)
+    producer.write_text(
+        "import json, sys\n"
+        "json.dump({'producer': 'selected arm', 'patch': sys.stdin.read()}, sys.stdout)\n"
+    )
+    sources = runtime / "examples" if beside_runtime else tmp_path / "shared-inputs"
+    sources.mkdir(parents=True)
+    source = sources / "comparison.html"
+    source.write_text("<!doctype html><title>Comparison</title>")
+    (sources / "layer.json").write_text('["diff"]')
+    patch = (
+        "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-old\n+new\n"
+    )
+    (sources / "change.patch").write_text(patch)
+    (sources / "notes.txt").write_text("first\nsecond\n")
+    source.with_suffix(".data.json").write_text(
+        json.dumps(
+            {
+                "$captures": {
+                    "patch": {"file": "change.patch", "format": "unified-diff"},
+                    "notes": {"file": "notes.txt", "lines": "2:2"},
+                },
+                "written": "Authored value",
+            }
+        )
+    )
+    fixture = read_fixture(source, runtime=runtime)
+    assert fixture.data == (
+        {"source": "patch", "value": {"producer": "selected arm", "patch": patch}},
+        {"source": "notes", "value": "second\n"},
+        {"source": "written", "value": "Authored value"},
+    )
+
+
 def test_a_preview_source_uses_its_checkout_layer_and_media(tmp_path):
     """A comparison fixture carries the package and asset context of its checkout."""
 

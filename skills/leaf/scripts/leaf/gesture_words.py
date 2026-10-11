@@ -26,7 +26,7 @@ from .events import event_document
 from .passages import SourceReading, collapse, shown_words
 from .projection import frozen_thread_reading
 from .revision_artifact import read_revision
-from .thread_context import thread_structure
+from .thread_context import widget_messages
 
 TITLES = frozenset({"summary", "h1", "h2", "h3", "h4", "h5", "h6", "strong"})
 
@@ -94,27 +94,41 @@ class GestureWords:
         self.registry = registry
         self.revisions = revisions
         self.by_id = {event["id"]: event for event in events}
-        self._documents: dict[int | None, _Document] = {}
+        self._documents: dict[tuple[str, int], _Document] = {}
 
     def _document(self, event: dict) -> _Document | None:
         if event.get("meaning") is None:
             return None
         document = event_document(event)
-        revision = document.get("revision")
-        if revision not in self._documents:
-            if document["kind"] == "thread":
-                structure = thread_structure(self.events)
-                self._documents[revision] = _Document(
-                    [fragment.content for fragment in structure.fragments.values()],
-                    frozen_thread_reading(self.events, self.registry).spoken,
-                    self.registry,
+        if document["kind"] == "thread":
+            message = widget_messages(self.thread.structure)[event["widget"]]
+            revision = self.thread.message_revisions[message]
+            key = ("thread", revision)
+            if key not in self._documents:
+                publication = self.thread.publications[revision]
+                self._documents[key] = _Document(
+                    [
+                        fragment.content
+                        for fragment in publication.structure.fragments.values()
+                    ],
+                    publication.spoken,
+                    publication.registry,
                 )
-            else:
+        else:
+            revision = document["revision"]
+            key = ("page", revision)
+            if key not in self._documents:
                 reading = self.revisions(revision)
-                self._documents[revision] = _Document(
+                self._documents[key] = _Document(
                     [reading.document.content], reading.spoken, reading.registry
                 )
-        return self._documents[revision]
+        return self._documents[key]
+
+    @cached_property
+    def thread(self):
+        return frozen_thread_reading(
+            self.events, lambda revision: self.revisions(revision).registry
+        )
 
     @cached_property
     def _creations(self) -> dict[str, list[tuple[int, dict]]]:

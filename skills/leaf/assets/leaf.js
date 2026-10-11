@@ -1,5 +1,6 @@
 import { registerSampleCommand, onSampleNotice } from "./runtime/sample-child.js";
 /* Leaf runtime boot and application composition root. */
+import "./vendor/scoped-registry.js";
 import "./vendor/browser-runtime.js";
 import "./runtime/interaction-log.js";
 // Restored panels and the first keyboard gesture share the ordinary synchronous
@@ -437,7 +438,6 @@ app = mountApplication({
   firstUnreadBtn: panelElements.firstUnreadBtn,
   accompaniedThread: (...args) => landing.accompaniedThread(...args),
   accompanyThread: (...args) => landing.accompanyThread(...args),
-  threadAvailable: !offlineInteractive,
   reportPageError,
   createEngagement,
   targetPickerOpen: () => targets.targetPickerOpen(),

@@ -126,11 +126,11 @@ def test_a_page_owned_goal_joins_the_public_projection(browser, serve):
         },
     }
     module = """import {keeps, once, widgetController} from "/runtime/widget-api.js";
-customElements.define("lf-project-milestone", class extends HTMLElement {
+export default class extends HTMLElement {
   #controller = widgetController(this);
   connectedCallback() { if (once(this)) this.#controller.subscribe(() => {}); }
   renderState(state) { keeps(this, "phase", state.phase.value); }
-});"""
+};"""
     source = leaf_page(
         "local work role",
         '<lf-test-plan id="plan"><lf-project-milestone id="local" phase="blocked"><strong>Local milestone</strong></lf-project-milestone></lf-test-plan>',

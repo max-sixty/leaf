@@ -6,6 +6,7 @@
  * `resolveAnchor` is the only search implementation, so repeated text detaches unless
  * its context identifies one occurrence.
  */
+import { registryFor, tagsDeclaring } from "./registry.js";
 
 import { sameAnchor } from "./anchor-coordinate.js";
 import { isElementName } from "./registry-contract.js";
@@ -53,7 +54,7 @@ import {
   settledAway,
   TEXT_BLOCK,
 } from "./passages.js";
-import { registry, tagsDeclaring } from "./registry.js";
+
 import { PRESSABLE } from "./widget-elements.js";
 import { PRESSES, WORKS } from "./control-selectors.js";
 import { excerptWords } from "./contribution-model.js";
@@ -106,7 +107,7 @@ export function requireReference(verb, owner, attribute) {
     throw new TypeError(`${verb} owner must be an element`);
   if (
     typeof attribute !== "string" ||
-    !Object.hasOwn(registry[owner.localName]?.["x-refers"] ?? {}, attribute)
+    !Object.hasOwn(registryFor(owner)[owner.localName]?.["x-refers"] ?? {}, attribute)
   )
     throw new TypeError(
       `${verb} ${owner.localName} attribute ${String(attribute)} is not declared by x-refers`,
@@ -158,11 +159,12 @@ export function revealAddressed(source, key) {
 // no parts at all.
 const visualPartRank = (visual) =>
   visual
-    ? visualPartAdmission(visual, registry[visual.localName]?.["x-visual"])?.rank
+    ? visualPartAdmission(visual, registryFor(visual)[visual.localName]?.["x-visual"])
+        ?.rank
     : null;
 
 const wholeVisualSurface = (element) =>
-  registry[element?.localName]?.["x-visual"] ? element : null;
+  registryFor(element)[element?.localName]?.["x-visual"] ? element : null;
 
 /** The registered parts a visual's declaration admits, in declaration order. */
 export function visualParts(visual) {
@@ -321,11 +323,11 @@ const HTML_WORDS = {
 export function addressableWord(addressable) {
   if (!addressable) return "";
   const tag = addressable.tagName.toLowerCase();
-  if (registry[tag]?.["x-word"] === "module") {
+  if (registryFor(addressable)[tag]?.["x-word"] === "module") {
     const own = addressable.lfWord?.();
     if (own) return own;
   }
-  if (registry[tag]?.["x-question-context"]) return "question";
+  if (registryFor(addressable)[tag]?.["x-question-context"]) return "question";
   if (tag.startsWith("lf-")) return tag.slice(3);
   if (tag === "pre")
     return addressable.querySelector(":scope > code") ? "code" : "block";
@@ -338,7 +340,7 @@ export function addressableWord(addressable) {
 export function addressableSays(addressable) {
   if (!addressable) return "";
   const own =
-    registry[addressable.localName]?.["x-word"] === "module"
+    registryFor(addressable)[addressable.localName]?.["x-word"] === "module"
       ? addressable.lfSays?.()
       : "";
   return own || elementReading(addressable);
@@ -366,7 +368,7 @@ function leadingTitle(container) {
 }
 export function addressableName(element) {
   if (!element) return "";
-  const attribute = registry[element.localName]?.["x-name"];
+  const attribute = registryFor(element)[element.localName]?.["x-name"];
   const declared = attribute && element.getAttribute(attribute)?.trim();
   return declared || leadingTitle(element);
 }
@@ -400,7 +402,8 @@ const ownName = (element) =>
   addressableName(element) || captionOf(element) || accessibleName(element);
 const saysItself = (element) =>
   element.matches(TEXT_BLOCK) ||
-  (registry[element.localName]?.["x-word"] === "module" && element.lfSays?.()) ||
+  (registryFor(element)[element.localName]?.["x-word"] === "module" &&
+    element.lfSays?.()) ||
   [...element.childNodes].some(
     (node) => node.nodeType === Node.TEXT_NODE && node.data.trim(),
   );
@@ -417,7 +420,8 @@ export function addressableLabel(element) {
   // A registered widget has a word of its own, which says more than its members' words
   // run together. Plain markup has none worth saying (a `div`), so its words, or the
   // name of the picture it holds, are the last resort.
-  if (isElementName(element.localName) && registry[element.localName]) return "";
+  if (isElementName(element.localName) && registryFor(element)[element.localName])
+    return "";
   return excerptWords(
     addressableSays(element) ||
       element.querySelector("[aria-label]")?.getAttribute("aria-label"),

@@ -21,6 +21,7 @@ from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
+from leaf_dev.example_data import patch_manifest
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -2747,10 +2748,7 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
         {
             "rendered": False,
             "error": (
-                "<lf-diff> failed: unsupported hunkless diff for example.js "
-                "(only path-only renames may omit @@ hunks; binary, mode-only, "
-                "and empty added/deleted entries belong in prose; changed files "
-                "need textual @@ hunks)"
+                "<lf-diff> failed: unexpected diff metadata for example.js: --- a/example.js"
             ),
             "source": (
                 "diff --git a/example.js b/example.js\n"
@@ -2763,9 +2761,7 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
         {
             "rendered": False,
             "error": (
-                "<lf-diff> failed: unsupported hunkless rename (only an exact "
-                "path-only block with diff --git, similarity index 100%, rename "
-                "from, and rename to lines may omit textual @@ hunks)"
+                "<lf-diff> failed: unexpected diff metadata for new.js: --- a/old.js"
             ),
             "source": (
                 "diff --git a/old.js b/new.js\n"
@@ -2781,18 +2777,14 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
         {
             "rendered": False,
             "error": (
-                "<lf-diff> failed: unsupported hunkless rename (only an exact "
-                "path-only block with diff --git, similarity index 100%, rename "
-                "from, and rename to lines may omit textual @@ hunks)"
+                "<lf-diff> failed: diff has changed paths without rename or copy metadata"
             ),
             "source": ("diff --git a/old.js b/new.js\nsimilarity index 100%"),
         },
         {
             "rendered": False,
             "error": (
-                "<lf-diff> failed: unsupported hunkless rename (only an exact "
-                "path-only block with diff --git, similarity index 100%, rename "
-                "from, and rename to lines may omit textual @@ hunks)"
+                "<lf-diff> failed: rename paths disagree with its diff --git header"
             ),
             "source": (
                 "diff --git a/old.js b/new.js\n"
@@ -2804,9 +2796,7 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
         {
             "rendered": False,
             "error": (
-                "<lf-diff> failed: unsupported hunkless rename (only an exact "
-                "path-only block with diff --git, similarity index 100%, rename "
-                "from, and rename to lines may omit textual @@ hunks)"
+                "<lf-diff> failed: rename paths disagree with its diff --git header"
             ),
             "source": (
                 "diff --git a/header-old.js b/header-new.js\n"
@@ -2869,9 +2859,15 @@ def test_a_diff_rejects_incomplete_hunks(browser, serve):
     assert len(reported) == len(identifiers), reported
 
 
-def test_a_diff_shows_a_path_only_rename_without_an_empty_disclosure(browser, serve):
-    """A path-only rename remains evidence without an invented textual hunk."""
-    source = '''diff --git a/app.js b/app.js
+@pytest.mark.parametrize("manifest", [False, True])
+@pytest.mark.parametrize("mobile", [False, True])
+def test_a_diff_shows_native_file_metadata_without_empty_disclosures(
+    browser, serve, manifest, mobile
+):
+    """Inline and deferred evidence preserve native operations at reading widths."""
+    source = """diff --git a/app.js b/app.js
+old mode 100644
+new mode 100755
 --- a/app.js
 +++ b/app.js
 @@ -1 +1 @@
@@ -2888,12 +2884,112 @@ rename to "new\\tname.js"
 diff --git "a/\\357\\273\\277old.js" "b/\\357\\273\\277new.js"
 similarity index 100%
 rename from "\\357\\273\\277old.js"
-rename to "\\357\\273\\277new.js"'''
-    page = open_page(browser, serve(_diff_page(("mixed-rename-diff", escape(source)))))
+rename to "\\357\\273\\277new.js"
+diff --git a/mode.sh b/mode.sh
+old mode 100644
+new mode 100755
+diff --git a/binary.dat b/binary.dat
+index 1111111..2222222 100644
+Binary files a/binary.dat and b/binary.dat differ
+diff --git a/original.js b/copy.js
+similarity index 100%
+copy from original.js
+copy to copy.js
+diff --git a/original.js b/edited-copy.js
+similarity index 75%
+copy from original.js
+copy to edited-copy.js
+--- a/original.js
++++ b/edited-copy.js
+@@ -1 +1 @@
+-const original = 1;
++const copied = 2;
+diff --git a/added-empty b/added-empty
+new file mode 100644
+index 0000000..e69de29
+diff --git a/deleted-empty b/deleted-empty
+deleted file mode 100644
+index e69de29..0000000
+diff --git a/type-change b/type-change
+deleted file mode 100644
+--- a/type-change
++++ /dev/null
+@@ -1 +0,0 @@
+-before
+diff --git a/type-change b/type-change
+new file mode 120000
+--- /dev/null
++++ b/type-change
+@@ -0,0 +1 @@
++target
+\\ No newline at end of file
+diff --git a/reverse-type b/reverse-type
+deleted file mode 120000
+--- a/reverse-type
++++ /dev/null
+@@ -1 +0,0 @@
+-target
+\\ No newline at end of file
+diff --git a/reverse-type b/reverse-type
+new file mode 100644
+--- /dev/null
++++ b/reverse-type
+@@ -0,0 +1 @@
++after
+diff --git a/same-type-text b/same-type-text
+deleted file mode 100644
+--- a/same-type-text
++++ /dev/null
+@@ -1 +0,0 @@
+-target
+\\ No newline at end of file
+diff --git a/same-type-text b/same-type-text
+new file mode 120000
+--- /dev/null
++++ b/same-type-text
+@@ -0,0 +1 @@
++target
+\\ No newline at end of file
+diff --git a/binary-type b/binary-type
+deleted file mode 100644
+index ac46f4c6762c926aeadd5b94702c2041e45f63c9..0000000000000000000000000000000000000000
+GIT binary patch
+literal 0
+HcmV?d00001
+
+literal 9
+Qcmd1LNnuFJ$xq?}01v?e=>Px#
+
+diff --git a/binary-type b/binary-type
+new file mode 120000
+--- /dev/null
++++ b/binary-type
+@@ -0,0 +1 @@
++binary-target
+\\ No newline at end of file"""
+    authored = _diff_page(("mixed-rename-diff", "" if manifest else escape(source)))
+    if manifest:
+        authored = authored.replace(
+            'id="mixed-rename-diff"', 'id="mixed-rename-diff" source="native-patch"'
+        )
+    url = serve(authored)
+    if manifest:
+        data_model.cmd_data_set(serve.page_dir, "native-patch", patch_manifest(source))
+    context = browser.new_context(
+        viewport={"width": 390 if mobile else 1280, "height": 900}, has_touch=mobile
+    )
+    deferred = []
+    context.on(
+        "request",
+        lambda request: (
+            deferred.append(request.url) if "/api/deferred?" in request.url else None
+        ),
+    )
+    page = open_page(browser, url, context=context)
     result = page.evaluate("""async () => {
       const host = document.querySelector('#mixed-rename-diff');
       const shadow = host.shadowRoot;
-      const renames = [...(shadow?.querySelectorAll('.lf-diff-rename') ?? [])];
+      const renames = [...(shadow?.querySelectorAll('.lf-diff-metadata') ?? [])];
       const rename = renames[0];
       const quotedRename = renames[1];
       const bomRename = renames[2];
@@ -2904,6 +3000,12 @@ rename to "\\357\\273\\277new.js"'''
         details: shadow?.querySelectorAll('details').length ?? 0,
         diffs: shadow?.querySelectorAll('pre[data-diff]').length ?? 0,
         renameCount: renames.length,
+        evidence: [...shadow.querySelectorAll(".lf-diff-evidence")].map(node => node.textContent),
+        metadata: renames.slice(3).map(node => node.querySelector('.lf-diff-stat').textContent),
+        copied: [...shadow.querySelectorAll('summary')].find(node => node.textContent.includes('edited-copy.js'))?.textContent.includes('copied'),
+        overflow: shadow.host.scrollWidth > shadow.host.clientWidth,
+        pathsVisible: [...shadow.querySelectorAll('summary .lf-diff-base')].every(node => node.getBoundingClientRect().width > 1),
+        metadataLines: renames.reduce((total, node) => total + node.querySelectorAll('[data-line]').length, 0),
         from: rename?.querySelector('.lf-diff-source-path')?.textContent ?? null,
         to: rename?.querySelector('.lf-diff-destination-path')?.textContent ?? null,
         stat: rename?.querySelector('.lf-diff-stat')?.textContent ?? null,
@@ -2923,9 +3025,27 @@ rename to "\\357\\273\\277new.js"'''
     assert result == {
         "rendered": True,
         "error": None,
-        "details": 1,
-        "diffs": 1,
-        "renameCount": 3,
+        "details": 6,
+        "diffs": 6,
+        "renameCount": 8,
+        "evidence": [
+            "mode 100644 → 100755",
+            "mode 100644 → 120000",
+            "mode 120000 → 100644",
+            "mode 100644 → 120000",
+            "binary content · mode 100644 → 120000",
+        ],
+        "metadata": [
+            "mode 100644 → 100755",
+            "binary content",
+            "copied",
+            "added · mode 100644",
+            "deleted · mode 100644",
+        ],
+        "copied": True,
+        "overflow": False,
+        "pathsVisible": True,
+        "metadataLines": 0,
         "from": "old-name.js",
         "to": "new-name.js",
         "stat": "renamed",
@@ -2935,10 +3055,59 @@ rename to "\\357\\273\\277new.js"'''
         "quotedTo": "new\tname.js",
         "bomFrom": "\ufeffold.js",
         "bomTo": "\ufeffnew.js",
-        "lines": ["const value = 1;", "const value = 2;"],
+        "lines": [
+            "const value = 1;",
+            "const value = 2;",
+            "const original = 1;",
+            "const copied = 2;",
+            "before",
+            "target",
+            "target",
+            "after",
+            "target",
+            "target",
+            "binary-target",
+        ],
         "saysRename": True,
         "wroteRename": False,
     }
+
+    assert len(deferred) == (6 if manifest else 0), deferred
+    for path, side, text in [
+        ("type-change", "old", "before"),
+        ("type-change", "new", "target"),
+        ("reverse-type", "old", "target"),
+        ("reverse-type", "new", "after"),
+        ("same-type-text", "old", "target"),
+        ("same-type-text", "new", "target"),
+    ]:
+        key = json.dumps([path, side, 1], separators=(",", ":"))
+        line = page.locator(f"lf-diff [data-lf-datum='{key}']")
+        expect(line).to_have_text(text)
+        expect(line).to_have_attribute("data-lf-datum-label", f"{path} · {side} line 1")
+        comment = page.get_by_role(
+            "button", name=f"Comment on {path} · {side} line 1", exact=True
+        )
+        if mobile:
+            comment.tap()
+        else:
+            line.hover()
+            comment.click()
+        outlet = page.locator(
+            f"lf-diff .lf-diff-thread-outlet[data-lf-thread-datum='{key}']"
+        )
+        expect(outlet.locator(".lf-fab-input")).to_be_focused()
+        page.keyboard.press("Escape")
+        assert (
+            page.locator("lf-diff").evaluate(
+                "(diff, key) => diff.lfDataDatum(JSON.stringify(key)).textContent.trim()",
+                [path, "source", side, 1],
+            )
+            == text
+        )
+        expect(
+            page.locator(f'lf-diff [data-lf-datum=\'["{path}","file"]\']')
+        ).to_have_count(1)
 
 
 def test_a_diff_preserves_a_final_empty_context_line(browser, serve):
@@ -4363,7 +4532,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
         layer_widgets={
             "lf-decoration.js": """
                 import {once} from '/runtime/widget-api.js';
-                customElements.define('lf-decoration', class extends HTMLElement {
+                export default class extends HTMLElement {
                   connectedCallback() {
                     if (!once(this)) return;
                     this.innerHTML = `
@@ -4371,7 +4540,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
                       <svg id="decoration-icon" data-lf-gen viewBox="0 0 20 20"
                            width="40" height="40"><path d="M2 18L18 2" /></svg>`;
                   }
-                });
+                };
             """
         },
     )
@@ -5199,14 +5368,14 @@ def test_dismissing_versions_during_thread_upgrade_preserves_the_new_version(
         layer_widgets={
             "lf-menu-preparation.js": """
 import {once, widgetController} from '/runtime/widget-api.js';
-customElements.define('lf-menu-preparation', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     widgetController(this).present(
       new Promise(resolve => { window.finishMenuPreparation = resolve; }),
     );
   }
-});
+};
 """
         },
     )
@@ -5599,7 +5768,9 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
             "files": [
                 {
                     "path": "app.py",
-                    "kind": "patch",
+                    "operation": "modify",
+                    "hunkCount": 1,
+                    "binary": False,
                     "additions": 1,
                     "deletions": 1,
                     "patch": """diff --git a/app.py b/app.py
@@ -6336,7 +6507,9 @@ TWO_FILE_MANIFEST = {
     "files": [
         {
             "path": "first.py",
-            "kind": "patch",
+            "operation": "modify",
+            "hunkCount": 1,
+            "binary": False,
             "additions": 1,
             "deletions": 1,
             "patch": """diff --git a/first.py b/first.py
@@ -6349,7 +6522,9 @@ TWO_FILE_MANIFEST = {
         },
         {
             "path": "second.py",
-            "kind": "patch",
+            "operation": "modify",
+            "hunkCount": 1,
+            "binary": False,
             "additions": 1,
             "deletions": 1,
             "patch": """diff --git a/second.py b/second.py
@@ -6539,7 +6714,9 @@ def test_a_deferred_diff_tracks_each_write_and_retries_a_failed_file(browser, se
             "files": [
                 {
                     "path": path,
-                    "kind": "patch",
+                    "operation": "modify",
+                    "hunkCount": 1,
+                    "binary": False,
                     "additions": 1,
                     "deletions": 1,
                     "patch": f"""diff --git a/{path} b/{path}
@@ -6609,7 +6786,9 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
         "files": [
             {
                 "path": "app.py",
-                "kind": "patch",
+                "operation": "modify",
+                "hunkCount": 1,
+                "binary": False,
                 "additions": 1,
                 "deletions": 1,
                 "patch": original,
@@ -6708,7 +6887,9 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
             "files": [
                 {
                     "path": "second.py",
-                    "kind": "patch",
+                    "operation": "modify",
+                    "hunkCount": 1,
+                    "binary": False,
                     "additions": 1,
                     "deletions": 1,
                     "patch": """diff --git a/second.py b/second.py

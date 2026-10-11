@@ -1,9 +1,12 @@
 /* This module owns registry loading, pre-upgrade passage fences, dynamic widget
  * imports, and initial presentation. */
+import { registryFor, adoptRegistry, registry, tagsDeclaring } from "./registry.js";
+import { publicationVocabulary } from "./widget-vocabularies.js";
+import { vocabularyFor, bindVocabulary } from "./widget-contexts.js";
 import { dress, watchExternalLinks } from "./presentation.js";
 import { watchCodeBlocks } from "./code-copy.js";
 import { reachScrollers } from "./reach.js";
-import { adoptRegistry, registry, tagsDeclaring } from "./registry.js";
+
 import { loadShadowRules } from "./shadow.js";
 import { revealLayer, admitResponse, sameLayer } from "./layer-client.js";
 import {
@@ -23,7 +26,7 @@ import {
   verbatimBoundaryIdentity,
   verbatimOwnerIdentity,
 } from "./passages.js";
-import { offlineInteractive, runtimeModule, runtimeResource } from "./context.js";
+import { offlineInteractive, runtimeResource } from "./context.js";
 import { loadDeclaredMarkdown, formatDeclaredMarkdown } from "./markdown.js";
 import { initialOrigin, initialSource } from "./initial-render.js";
 import { registeredTags, widgetImports } from "./widget-imports.js";
@@ -32,7 +35,7 @@ import { registeredTags, widgetImports } from "./widget-imports.js";
 
    A page loads what it uses. `importWidgetModules` is the one import-on-demand door: it takes
    the markup about to be upgraded, imports each declared tag standing in it once per
-   tab. Shared dependency preparation loads shadow rules only where an `x-shadow`
+   publication. Shared dependency preparation loads shadow rules only where an `x-shadow`
    widget is among them, alongside any declared Markdown parser. Three
    boundaries introduce markup and all three use it — startup with the document, a
    version activation with the incoming `main`, and the state application with the frozen
@@ -83,14 +86,16 @@ export function rememberPassageParts(scope = document, source = ["page", null]) 
 }
 
 const preservingOwners = (scope) =>
-  within(scope, "*").filter((root) => registry[root.localName]?.["x-verbatim"]);
+  within(scope, "*").filter(
+    (root) => registryFor(root)[root.localName]?.["x-verbatim"],
+  );
 
 function identifyPreserving(root, owner) {
   verbatimOwnerIdentity.set(initialOrigin(root), owner);
   let boundaryIndex = 0;
   const visit = (parent) => {
     for (const child of parent.children) {
-      if (registry[child.localName]?.["x-upgrade"])
+      if (registryFor(child)[child.localName]?.["x-upgrade"])
         verbatimBoundaryIdentity.set(initialOrigin(child), {
           owner,
           index: boundaryIndex++,
@@ -124,17 +129,11 @@ export function reindexPassageOwners(scope = document, source = ["page", null]) 
 // name what it needs; a MutationObserver could only import after the element was
 // already connected, which is the one order the startup contract forbids.
 //
-// A tag is asked for once per tab and the same promise answers every later caller, so
-// a version that keeps a tag, a second diff in a second reply, and a poll that sees
-// the same thread again all cost nothing. A failed import stays rejected:
+// A tag is asked for once per publication and the same promise answers later callers,
+// so a second diff in the same publication's replies and a poll that sees the same
+// thread again cost nothing. A failed import stays rejected:
 // startup and activation must not present markup whose required module is absent.
-const modules = new Map();
-const initializers = new Map();
 const registryUrl = () => runtimeResource("/registry.json");
-const widgetUrl = (tag) =>
-  offlineInteractive
-    ? runtimeModule(`/widgets/${tag}.js`)
-    : runtimeResource(`/widgets/${tag}.js`);
 
 async function loadWidgetDependencies(scope) {
   // Before the modules import, because a widget's first render asks for these rules and
@@ -142,38 +141,33 @@ async function loadWidgetDependencies(scope) {
   // Asked of the same scope for the same reason, and that is what makes the narrowing
   // safe: `shadowStage` is reachable only from a module, a module loads only where its
   // tag stands in some scope, and a tag declaring x-shadow brings the rules in on that
-  // same call. The theme is read once for the tab however many scopes ask.
+  // same call. The shadow rules are read once per publication however many scopes ask.
+  const declarations = registryFor(scope);
   await Promise.all([
     loadDeclaredMarkdown(scope),
-    ...(registeredTags(scope, registry).some((tag) => registry[tag]["x-shadow"])
-      ? [loadShadowRules()]
+    ...(registeredTags(scope, declarations).some((tag) => declarations[tag]["x-shadow"])
+      ? [loadShadowRules(scope)]
       : []),
   ]);
 }
 
 async function importWidgetModules(scope) {
-  const required = widgetImports(scope, registry);
+  const context = vocabularyFor(scope);
+  const required = widgetImports(scope, registryFor(scope));
   await Promise.all(
-    required.initializers.map(({ tag, path }) => {
-      if (document.documentElement.lfInitial.has(tag)) return;
-      if (!initializers.has(path))
-        initializers.set(
-          path,
-          import(offlineInteractive ? runtimeModule(path) : runtimeResource(path)),
-        );
-      return initializers.get(path);
-    }),
+    required.initializers.map(({ tag, path }) =>
+      document.documentElement.lfInitial.has(tag, context.revision)
+        ? undefined
+        : context.loadInitializer(path),
+    ),
   );
-  await Promise.all(
-    required.modules.map((tag) => {
-      if (!modules.has(tag)) modules.set(tag, import(widgetUrl(tag)));
-      return modules.get(tag);
-    }),
-  );
+  await context.load(scope);
 }
 
-// Source-only preparation must not consume authored body records. Live revisions
-// import ahead of activation, then format their copied arrivals after typed capture.
+// Source-only preparation loads constructors without upgrading the inert authored
+// document: its connected nodes belong to another Document, and a callback there
+// would mutate the source before typed capture or adopt live-document resources.
+// Live revisions instantiate only their copied arrivals inside the live vocabulary.
 export async function preloadWidgets(scope) {
   await loadWidgetDependencies(scope);
   await importWidgetModules(scope);
@@ -185,6 +179,8 @@ export async function importWidgets(scope) {
   await loadWidgetDependencies(scope);
   formatDeclaredMarkdown(scope);
   await importWidgetModules(scope);
+  const context = vocabularyFor(scope);
+  if (context.registry !== customElements) context.upgrade(scope);
 }
 
 // The upgrade lifecycle for the whole authored body, at startup: read it while it is
@@ -199,7 +195,7 @@ async function installDocument(scope) {
     const prior = readApplication().document;
     applicationState.captureDocument({
       ...prior,
-      registry,
+      registry: registryFor(scope),
       authored: new Map([...prior.authored, ...authored]),
       descriptors: new Map([...prior.descriptors, ...descriptors.descriptors]),
     });
@@ -255,7 +251,8 @@ export async function upgradeWidgets({ buildReactionBar }) {
   if (!admitResponse(response)) return false;
   if (!response.ok)
     throw new Error(`leaf: registry failed to load (${response.status})`);
-  adoptRegistry(await response.json());
+  const declarations = await response.json();
+  adoptRegistry(declarations);
   const registryGeneration = registry.$layer?.generation;
   if (typeof registryGeneration !== "string" || !registryGeneration)
     throw new Error("leaf: registry lacks $layer.generation");
@@ -272,6 +269,22 @@ export async function upgradeWidgets({ buildReactionBar }) {
     throw new Error(
       "leaf: registry lacks $events, $languages, $tones, $reactions, $decisions or $marks",
     );
+  const probe = document.querySelector("script[data-lf-vocabulary-root]").dataset
+    .lfVocabularyRoot;
+  const pageUrl = offlineInteractive
+    ? runtimeResource(probe)
+    : new URL(probe, document.baseURI).href;
+  let pageDeclarations = declarations;
+  if (pageUrl !== registryUrl()) {
+    const responsePage = await fetch(pageUrl);
+    if (!responsePage.ok)
+      throw new Error(`Leaf page vocabulary failed (${responsePage.status})`);
+    pageDeclarations = await responsePage.json();
+  }
+  const revision = Number(document.body.dataset.lfVocabulary);
+  const root = probe.slice(0, probe.lastIndexOf("/"));
+  const context = publicationVocabulary(revision, pageDeclarations, root, true);
+  bindVocabulary(document, context);
   revealLayer();
   buildReactionBar();
   await installDocument(document.body);

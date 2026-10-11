@@ -171,6 +171,8 @@
       }
     </style>
     <script type="module">
+      import { afterPresentation } from "/runtime/widget-api.js";
+
       import { keeps, keepsText, layoutChanged, once } from "/runtime/widget-api.js";
 
       const EVENTS = [
@@ -305,20 +307,24 @@
             this.append(candidates);
           }
 
-          async #connect() {
-            await customElements.whenDefined("lf-playground");
-            if (!this.isConnected) return;
-            this.#playground?.removeEventListener("lf-playground-change", this.#change);
-            this.#playground = this.closest("lf-playground");
-            if (!this.#playground) return;
-            this.#change = (event) => {
-              if (event.target !== this.#playground) return;
-              this.#values = event.detail.values;
+          #connect() {
+            return afterPresentation(() => {
+              if (!this.isConnected) return;
+              this.#playground?.removeEventListener(
+                "lf-playground-change",
+                this.#change,
+              );
+              this.#playground = this.closest("lf-playground");
+              if (!this.#playground) return;
+              this.#change = (event) => {
+                if (event.target !== this.#playground) return;
+                this.#values = event.detail.values;
+                this.#render();
+              };
+              this.#playground.addEventListener("lf-playground-change", this.#change);
+              this.#values = this.#playground.values;
               this.#render();
-            };
-            this.#playground.addEventListener("lf-playground-change", this.#change);
-            this.#values = this.#playground.values;
-            this.#render();
+            });
           }
 
           #render() {

@@ -49,7 +49,6 @@ function renderHolds(threads) {
 }
 
 export function createThreadPresentation({
-  available = true,
   inlineView,
   surfaceView,
   anchorPlacement,
@@ -72,10 +71,10 @@ export function createThreadPresentation({
   const presenter = applicationPresenter({
     region: "thread",
     order: PRESENTATION_ORDER.thread,
-    // Every phase owes a reading, the ones before the log has been read included: what
-    // the panel says while it waits is this region's to draw, and a user who opens it
-    // then is asking for exactly that.
-    current: () => (available ? readApplication().effective.thread : null),
+    // The log supplies this region's reading. Before its first answer there is
+    // no thread cohort to prove; connected views provide their own loading state.
+    current: () =>
+      readApplication().phase === "waiting" ? null : readApplication().effective.thread,
     failSoft: retainedThreadListProof,
     paint: async (value, current) => {
       const phase = readApplication().phase;
@@ -132,7 +131,9 @@ export function createThreadPresentation({
     // (thread/focus.js, `holdReply`).
     const restoreReply = holdReply(openThread);
     let prepared = null;
-    const livePanels = [...panels].filter((panel) => panel.required);
+    const livePanels = [...panels].filter(
+      (panel) => panel.required && panel.threadsBox.isConnected,
+    );
     let surfaces = null;
     try {
       const { all } = threadState();

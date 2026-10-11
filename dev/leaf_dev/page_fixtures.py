@@ -117,7 +117,12 @@ def publish_media(files: tuple[str, ...]) -> None:
     click.echo(f"  max-sixty/leaf-assets@{revision}")
 
 
-def read_fixture(source: Path) -> PageFixture:
+def read_fixture(source: Path, *, runtime: Path = ROOT) -> PageFixture:
+    """Read authored companions using the runtime that will consume produced data.
+
+    Source and runtime are independent: a paired preview can share one authored input
+    while each arm supplies its own package producer and matching data contract.
+    """
     seed = source.with_suffix(".jsonl")
     page_files = source.with_suffix(".page")
     return PageFixture(
@@ -125,7 +130,7 @@ def read_fixture(source: Path) -> PageFixture:
         page_files=page_files if page_files.is_dir() else None,
         packages=tuple(source_packages(source)),
         media=media_source(source),
-        data=tuple(data_operations(source)),
+        data=tuple(data_operations(source, runtime=runtime)),
         versions=tuple(example_versions(source)),
         seed=seed if seed.is_file() else None,
     )

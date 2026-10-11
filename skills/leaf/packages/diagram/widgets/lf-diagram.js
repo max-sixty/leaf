@@ -124,46 +124,43 @@ const draw = (source, id) => {
 };
 
 let seq = 0;
-customElements.define(
-  "lf-diagram",
-  class extends HTMLElement {
-    connectedCallback() {
-      if (!once(this)) return;
-      this.visualParts = new Map();
-      this.visualPartRegistration = registerVisualParts(this, () =>
-        [...this.visualParts].map(([id, part]) => ({ id, ...part })),
-      );
-      widgetController(this).present(this.render());
-    }
+export default class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    this.visualParts = new Map();
+    this.visualPartRegistration = registerVisualParts(this, () =>
+      [...this.visualParts].map(([id, part]) => ({ id, ...part })),
+    );
+    widgetController(this).present(this.render());
+  }
 
-    async render() {
-      const source = bodyText(this);
-      const renderId = `lf-diagram-${++seq}`;
-      try {
-        const { svg, parts } = await draw(source, renderId);
-        this.innerHTML = svg;
-        const drawn = this.querySelector("svg");
-        const natural = drawn.viewBox.baseVal.width;
-        if (natural) {
-          keeps(drawn, "width", natural);
-          drawn.style.maxWidth = "";
-        }
-        this.visualParts.clear();
-        for (const part of parts) {
-          if (!NAMEABLE.test(part.id)) continue;
-          const element = part.dataId
-            ? drawn.querySelector(`g[data-id="${CSS.escape(part.dataId)}"]`)
-            : drawn.querySelector(`[id="${CSS.escape(part.domId)}"]`);
-          if (!element)
-            throw new Error(`Mermaid did not draw the declared node ${part.id}`);
-          const label = element.textContent.replace(/\s+/g, " ").trim() || part.id;
-          this.visualParts.set(`node:${part.id}`, { element, label });
-        }
-        this.classList.add("lf-rendered");
-        this.visualPartRegistration.update();
-      } catch (err) {
-        failSoft(this, err, source);
+  async render() {
+    const source = bodyText(this);
+    const renderId = `lf-diagram-${++seq}`;
+    try {
+      const { svg, parts } = await draw(source, renderId);
+      this.innerHTML = svg;
+      const drawn = this.querySelector("svg");
+      const natural = drawn.viewBox.baseVal.width;
+      if (natural) {
+        keeps(drawn, "width", natural);
+        drawn.style.maxWidth = "";
       }
+      this.visualParts.clear();
+      for (const part of parts) {
+        if (!NAMEABLE.test(part.id)) continue;
+        const element = part.dataId
+          ? drawn.querySelector(`g[data-id="${CSS.escape(part.dataId)}"]`)
+          : drawn.querySelector(`[id="${CSS.escape(part.domId)}"]`);
+        if (!element)
+          throw new Error(`Mermaid did not draw the declared node ${part.id}`);
+        const label = element.textContent.replace(/\s+/g, " ").trim() || part.id;
+        this.visualParts.set(`node:${part.id}`, { element, label });
+      }
+      this.classList.add("lf-rendered");
+      this.visualPartRegistration.update();
+    } catch (err) {
+      failSoft(this, err, source);
     }
-  },
-);
+  }
+}

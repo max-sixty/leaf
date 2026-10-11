@@ -35,6 +35,7 @@ from leaf.thread_context import (
     thread_names,
     thread_structure,
     thread_widgets,
+    widget_messages,
 )
 
 
@@ -207,6 +208,16 @@ class PageReading(NamedTuple):
         return self.reading.within
 
 
+class FrozenPublication(NamedTuple):
+    """Frozen fragments sharing one immutable authored vocabulary."""
+
+    revision: int
+    registry: dict
+    structure: ThreadStructure
+    spoken: dict
+    projection: StateProjection
+
+
 class FrozenThreadReading(NamedTuple):
     """The panel's frozen markup and durable state as one document.
 
@@ -219,6 +230,14 @@ class FrozenThreadReading(NamedTuple):
     thread_by_name: dict
     thread_by_widget: dict
     projection: StateProjection
+    publications: dict[int, FrozenPublication]
+    message_revisions: dict[str, int]
+
+    def registry_for_message(self, message: str) -> dict:
+        return self.publications[self.message_revisions[message]].registry
+
+    def registry_for_widget(self, widget: str) -> dict:
+        return self.registry_for_message(widget_messages(self.structure)[widget])
 
     @property
     def by_id(self) -> dict:
@@ -357,23 +376,74 @@ def with_action(
 
 
 def frozen_thread_reading(
-    events: list, registry: dict, *, withdrawn: set | None = None
+    events: list,
+    registry_for_revision: Callable[[int], dict],
+    *,
+    withdrawn: set | None = None,
 ) -> FrozenThreadReading:
-    """Project every frozen message fragment through one shared reading."""
+    """Read each immutable fragment under the vocabulary that admitted it.
+
+    Page documents and messages share a publication identity: the existing revision.
+    A message does not follow later vocabulary changes, even while its surrounding
+    conversation is live. Each publication uses the canonical state fold over the
+    whole thread window; only its authored widget universe differs.
+    """
     structure = thread_structure(events)
     by_name = thread_names(events)
-    spk = {}
-    for fragment in structure.fragments.values():
-        spk.update(SourceReading(fragment, registry).spoken)
-    by_widget = thread_widgets(structure, by_name)
+    message_revisions = {
+        event["id"]: event["revision"] for event in events if event.get("markup")
+    }
+    publications = {}
+    for revision in dict.fromkeys(message_revisions.values()):
+        fragments = {
+            message: fragment
+            for message, fragment in structure.fragments.items()
+            if message_revisions[message] == revision
+        }
+        registry = registry_for_revision(revision)
+        by_id = {
+            key: record
+            for fragment in fragments.values()
+            for key, record in fragment.by_id.items()
+        }
+        owned = ThreadStructure(set(by_id), by_id, fragments)
+        spoken = {
+            key: words
+            for fragment in fragments.values()
+            for key, words in SourceReading(fragment, registry).spoken.items()
+        }
+        publications[revision] = FrozenPublication(
+            revision,
+            registry,
+            owned,
+            spoken,
+            state_projection(
+                events, by_id, spoken, registry, None, floors={}, withdrawn=withdrawn
+            ),
+        )
+    fields = {}
+    for field in StateProjection._fields:
+        values = [
+            getattr(publication.projection, field)
+            for publication in publications.values()
+        ]
+        fields[field] = (
+            frozenset(item for value in values for item in value)
+            if field in {"absorbed", "standing"}
+            else {key: item for value in values for key, item in value.items()}
+        )
     return FrozenThreadReading(
         structure,
-        spk,
+        {
+            key: words
+            for publication in publications.values()
+            for key, words in publication.spoken.items()
+        },
         by_name,
-        by_widget,
-        state_projection(
-            events, structure.by_id, spk, registry, None, floors={}, withdrawn=withdrawn
-        ),
+        thread_widgets(structure, by_name),
+        StateProjection(**fields),
+        publications,
+        message_revisions,
     )
 
 

@@ -7,12 +7,13 @@
    focus, or geometry; it cannot change which Questions exist or whether they await the
    user. */
 import { readApplication } from "../semantic-state.js";
-import { registry } from "../registry.js";
+import { widgetDeclaration } from "../registry.js";
 import { watchProjection } from "../projection-watch.js";
 
 export const readQuestions = () => readApplication().effective.questions;
 
-export const questionEntry = (question) => registry[question?.source.tag]?.["x-awaits"];
+export const questionEntry = (question) =>
+  widgetDeclaration(question?.source.id, "x-awaits");
 // Approval needs an admitted inventory, so its gate never reads unknown as empty: with
 // no admitted reading nothing says which Questions still stand, and this answers null.
 export function approvalBlockingQuestions() {

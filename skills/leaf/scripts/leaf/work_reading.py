@@ -18,8 +18,16 @@ from .tasks import TaskReading
 
 class WorkReading:
     def __init__(
-        self, events: list, registry: dict, page=None, *, thread=None, log=None
+        self,
+        events: list,
+        registry: dict,
+        page=None,
+        *,
+        registry_for_revision,
+        thread=None,
+        log=None,
     ):
+        self.registry_for_revision = registry_for_revision
         self.events = events
         self.registry = registry
         self.page = page
@@ -40,7 +48,7 @@ class WorkReading:
             self._thread
             if self._thread is not None
             else frozen_thread_reading(
-                self.events, self.registry, withdrawn=self.log.withdrawn
+                self.events, self.registry_for_revision, withdrawn=self.log.withdrawn
             )
         )
 
@@ -48,7 +56,6 @@ class WorkReading:
     def widget_questions(self) -> dict:
         return thread_question_readings(
             self.events,
-            self.registry,
             {identity for identity, held in self.threads.items() if held["resolved"]},
             reading=self.thread,
         )
@@ -63,7 +70,7 @@ class WorkReading:
                 identity,
                 held,
                 self.registry,
-                self.thread.structure,
+                self.thread,
                 open_widget_threads,
                 self.log.ends,
             )

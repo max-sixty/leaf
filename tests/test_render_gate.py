@@ -783,7 +783,7 @@ RESERVING_WIDGETS = {
     "lf-test-drawn.js": """
 import { once } from '/runtime/widget-api.js';
 
-customElements.define('lf-test-drawn', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const drawing = document.createElement('div');
@@ -791,7 +791,7 @@ customElements.define('lf-test-drawn', class extends HTMLElement {
     this.append(drawing);
     this.classList.add('lf-rendered');
   }
-});
+};
 """
 }
 
@@ -2435,7 +2435,7 @@ def test_the_render_gate_rejects_an_unresolved_svg_paint_token(
     add_test_widget(package, "lf-paint", upgrade=True)
     (package / "widgets" / "lf-paint.js").write_text("""
 import { once } from "/runtime/widget-api.js";
-customElements.define("lf-paint", class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     this.innerHTML = `<svg width="160" height="80" viewBox="0 0 160 80">
@@ -2443,7 +2443,7 @@ customElements.define("lf-paint", class extends HTMLElement {
       <rect x="80" width="70" height="70" fill="var(--diagram-safe)" />
     </svg>`;
   }
-});
+};
 """)
     page = leaf_page(
         "diagram paint",
@@ -2505,19 +2505,17 @@ def _author_lying_callout(tmp_path):
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
-        'import { once } from "/runtime/widget-api.js";\n'
-        "customElements.define(\n"
-        '  "lf-callout",\n'
-        "  class extends HTMLElement {\n"
-        "    connectedCallback() {\n"
-        "      if (!once(this)) return;\n"
-        '      this.textContent = "Entirely different words.";\n'
-        '      const stage = document.createElement("div");\n'
-        "      this.append(stage);\n"
-        '      stage.attachShadow({ mode: "open" }).textContent = "shadow words";\n'
-        "    }\n"
-        "  },\n"
-        ");\n"
+        """import { once } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
+    connectedCallback() {
+      if (!once(this)) return;
+      this.textContent = "Entirely different words.";
+      const stage = document.createElement("div");
+      this.append(stage);
+      stage.attachShadow({ mode: "open" }).textContent = "shadow words";
+    }
+  };
+"""
     )
 
 
@@ -2750,14 +2748,15 @@ def test_the_render_gate_checks_verbatim_words_in_each_color_scheme(
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
-        'import { once } from "/runtime/widget-api.js";\n'
-        'customElements.define("lf-callout", class extends HTMLElement {\n'
-        "  connectedCallback() {\n"
-        "    if (!once(this)) return;\n"
-        '    if (matchMedia("(prefers-color-scheme: dark)").matches)\n'
-        '      this.textContent = "Dark replacement.";\n'
-        "  }\n"
-        "});\n"
+        """import { once } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    if (matchMedia("(prefers-color-scheme: dark)").matches)
+      this.textContent = "Dark replacement.";
+  }
+};
+"""
     )
 
     failures = render_gate_model.render_version(
@@ -2783,14 +2782,15 @@ def test_anonymous_verbatim_owners_keep_distinct_page_and_reply_provenance(
     declarations["lf-shell"]["required"] = []
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
-        'import { once } from "/runtime/widget-api.js";\n'
-        'customElements.define("lf-shell", class extends HTMLElement {\n'
-        "  connectedCallback() {\n"
-        "    if (!once(this)) return;\n"
-        '    if (this.getAttribute("mode") === "replace")\n'
-        '      this.textContent = "Replacement words.";\n'
-        "  }\n"
-        "});\n"
+        """import { once } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    if (this.getAttribute("mode") === "replace")
+      this.textContent = "Replacement words.";
+  }
+};
+"""
     )
     page = leaf_page(
         "anonymous verbatim provenance",
@@ -2865,17 +2865,18 @@ def _author_stateful_verbatim_widget(tmp_path):
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
-        'import { keepsText, once, widgetController } from "/runtime/widget-api.js";\n'
-        'customElements.define("lf-stateful", class extends HTMLElement {\n'
-        "  controller = widgetController(this);\n"
-        "  stop;\n"
-        "  connectedCallback() { once(this); this.stop ??= this.controller.subscribe(() => {}); }\n"
-        "  disconnectedCallback() { this.stop?.(); this.stop = null; }\n"
-        "  renderState(state) {\n"
-        '    if (state.change.value === "corrupt" || state.status.value === "corrupt")\n'
-        '      keepsText(this.querySelector("p"), "State replaced unrelated prose.");\n'
-        "  }\n"
-        "});\n"
+        """import { keepsText, once, widgetController } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
+  controller = widgetController(this);
+  stop;
+  connectedCallback() { once(this); this.stop ??= this.controller.subscribe(() => {}); }
+  disconnectedCallback() { this.stop?.(); this.stop = null; }
+  renderState(state) {
+    if (state.change.value === "corrupt" || state.status.value === "corrupt")
+      keepsText(this.querySelector("p"), "State replaced unrelated prose.");
+  }
+};
+"""
     )
 
 
@@ -2994,24 +2995,25 @@ def test_a_child_action_does_not_excuse_its_verbatim_wrappers_prose(
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
-        'import { once } from "/runtime/widget-api.js";\n'
-        'customElements.define("lf-shell", class extends HTMLElement {\n'
-        "  connectedCallback() { once(this); }\n"
-        "});\n"
+        """import { once } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
+  connectedCallback() { once(this); }
+};
+"""
     )
     (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
-        'import { keepsText, once, widgetController } from "/runtime/widget-api.js";\n'
-        'customElements.define("lf-stateful", class extends HTMLElement {\n'
-        "  controller = widgetController(this);\n"
-        "  stop;\n"
-        "  connectedCallback() { once(this); this.stop ??= this.controller.subscribe(() => {}); }\n"
-        "  disconnectedCallback() { this.stop?.(); this.stop = null; }\n"
-        "  renderState(state) {\n"
-        '    if (state.change.value === "corrupt")\n'
-        '      keepsText(this.closest("lf-shell").querySelector(":scope > p"), '
-        '"Child state replaced wrapper prose.");\n'
-        "  }\n"
-        "});\n"
+        """import { keepsText, once, widgetController } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
+  controller = widgetController(this);
+  stop;
+  connectedCallback() { once(this); this.stop ??= this.controller.subscribe(() => {}); }
+  disconnectedCallback() { this.stop?.(); this.stop = null; }
+  renderState(state) {
+    if (state.change.value === "corrupt")
+      keepsText(this.closest("lf-shell").querySelector(":scope > p"), "Child state replaced wrapper prose.");
+  }
+};
+"""
     )
     url = serve(
         leaf_page(
@@ -3064,16 +3066,17 @@ def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(
-        'import { once } from "/runtime/widget-api.js";\n'
-        'customElements.define("lf-piece", class extends HTMLElement {\n'
-        "  connectedCallback() {\n"
-        "    if (!once(this)) return;\n"
-        '    const generated = document.createElement("span");\n'
-        '    generated.dataset.lfGen = "1";\n'
-        '    generated.textContent = " generated descendant";\n'
-        "    this.append(generated);\n"
-        "  }\n"
-        "});\n"
+        """import { once } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const generated = document.createElement("span");
+    generated.dataset.lfGen = "1";
+    generated.textContent = " generated descendant";
+    this.append(generated);
+  }
+};
+"""
     )
     page = leaf_page(
         "compositional verbatim",
@@ -3095,18 +3098,19 @@ def test_verbatim_wrapper_owns_prose_and_order_but_not_nested_widget_rendering(
 """,
     )
     (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
-        'import { once } from "/runtime/widget-api.js";\n'
-        'customElements.define("lf-shell", class extends HTMLElement {\n'
-        "  connectedCallback() {\n"
-        "    if (!once(this)) return;\n"
-        '    if (this.getAttribute("mode") === "prose")\n'
-        '      this.querySelector("span").textContent = "changed passive prose";\n'
-        '    if (this.getAttribute("mode") === "order") {\n'
-        '      const pieces = this.querySelectorAll("lf-piece");\n'
-        "      pieces[0].before(pieces[1]);\n"
-        "    }\n"
-        "  }\n"
-        "});\n"
+        """import { once } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    if (this.getAttribute("mode") === "prose")
+      this.querySelector("span").textContent = "changed passive prose";
+    if (this.getAttribute("mode") === "order") {
+      const pieces = this.querySelectorAll("lf-piece");
+      pieces[0].before(pieces[1]);
+    }
+  }
+};
+"""
     )
     url = serve(page, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     append_carried_log_record(
@@ -3168,21 +3172,19 @@ def test_the_render_gate_catches_a_declared_word_that_never_reached_the_page(
     registry_path.write_text(json.dumps(declarations, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
-        'import { once, shadowStage } from "/runtime/widget-api.js";\n'
-        "customElements.define(\n"
-        '  "lf-callout",\n'
-        "  class extends HTMLElement {\n"
-        "    connectedCallback() {\n"
-        "      if (!once(this)) return;\n"
-        '      const staged = document.createElement("lf-reading");\n'
-        '      staged.id = "staged-reading";\n'
-        '      staged.setAttribute("label", "09:00");\n'
-        '      staged.setAttribute("state", "failure");\n'
-        '      staged.textContent = "The feeder stopped.";\n'
-        "      shadowStage(this, [staged]);\n"
-        "    }\n"
-        "  },\n"
-        ");\n"
+        """import { once, shadowStage } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
+    connectedCallback() {
+      if (!once(this)) return;
+      const staged = document.createElement("lf-reading");
+      staged.id = "staged-reading";
+      staged.setAttribute("label", "09:00");
+      staged.setAttribute("state", "failure");
+      staged.textContent = "The feeder stopped.";
+      shadowStage(this, [staged]);
+    }
+  };
+"""
     )
 
     failures = render_gate_model.render_version(
@@ -3218,18 +3220,16 @@ def test_the_render_gate_catches_a_shadow_host_whose_own_words_never_render(
     registry_path.write_text(json.dumps(declarations, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
-        'import { once, shadowStage } from "/runtime/widget-api.js";\n'
-        "customElements.define(\n"
-        '  "lf-callout",\n'
-        "  class extends HTMLElement {\n"
-        "    connectedCallback() {\n"
-        "      if (!once(this)) return;\n"
-        '      const stage = document.createElement("p");\n'
-        '      stage.textContent = "The feeder stopped overnight.";\n'
-        "      shadowStage(this, [stage]);\n"
-        "    }\n"
-        "  },\n"
-        ");\n"
+        """import { once, shadowStage } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
+    connectedCallback() {
+      if (!once(this)) return;
+      const stage = document.createElement("p");
+      stage.textContent = "The feeder stopped overnight.";
+      shadowStage(this, [stage]);
+    }
+  };
+"""
     )
 
     failures = render_gate_model.render_version(
@@ -4613,16 +4613,17 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
     entries["lf-callout"]["x-shadow"] = True
     registry_path.write_text(json.dumps(entries, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-callout.js").write_text(
-        'import { once, shadowStage } from "/runtime/widget-api.js";\n'
-        'customElements.define("lf-callout", class extends HTMLElement {\n'
-        "  connectedCallback() {\n"
-        "    if (!once(this)) return;\n"
-        "    const content = document.createElement('span');\n"
-        "    content.textContent = this.textContent;\n"
-        "    this.textContent = '';\n"
-        "    shadowStage(this, [content]);\n"
-        "  }\n"
-        "});\n"
+        """import { once, shadowStage } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const content = document.createElement('span');
+    content.textContent = this.textContent;
+    this.textContent = '';
+    shadowStage(this, [content]);
+  }
+};
+"""
     )
     wide = "sideways words " * 30
     source = leaf_page(
@@ -4995,17 +4996,18 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
     registry_path.write_text(json.dumps(entries, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
-        'import { once, shadowStage } from "/runtime/widget-api.js";\n'
-        'customElements.define("lf-callout", class extends HTMLElement {\n'
-        "  connectedCallback() {\n"
-        "    if (!once(this)) return;\n"
-        "    const text = this.textContent;\n"
-        '    this.textContent = "";\n'
-        '    const span = document.createElement("span");\n'
-        "    span.textContent = text;\n"
-        "    shadowStage(this, [span]);\n"
-        "  }\n"
-        "});\n"
+        """import { once, shadowStage } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const text = this.textContent;
+    this.textContent = "";
+    const span = document.createElement("span");
+    span.textContent = text;
+    shadowStage(this, [span]);
+  }
+};
+"""
     )
     serial = itertools.count(1)
     source = re.sub(

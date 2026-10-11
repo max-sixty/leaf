@@ -200,7 +200,7 @@ def stamp_page(
     page_dir: Path, html: str, text: str, *, completes: tuple[str, ...] = ()
 ) -> dict:
     """Save HTML as the next revision and stamp that exact source."""
-    order = max(files_model.list_revisions(page_dir), default=0) + 1
+    order = max(files_model.revision_orders(page_dir), default=0) + 1
     source = html.replace("</body>", f"<!-- test revision {order} -->\n</body>")
     (page_dir / "index.html").write_text(source, encoding="utf-8")
     complete_args = [arg for widget in completes for arg in ("--completes", widget)]

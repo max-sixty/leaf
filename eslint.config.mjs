@@ -1353,7 +1353,7 @@ export default [
     // are data rather than runtime dependencies. Literal imports still enter the graph.
     files: [
       "skills/leaf/assets/runtime/interaction-gallery-playback.js",
-      "skills/leaf/assets/runtime/widget-loader.js",
+      "skills/leaf/assets/runtime/widget-vocabularies.js",
     ],
     rules: {
       "no-restricted-syntax": [

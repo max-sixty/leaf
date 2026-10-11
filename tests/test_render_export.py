@@ -1209,10 +1209,9 @@ def test_a_preview_relinquishes_a_service_another_session_claims(
 
 # ---------- export: the page as one file ----------
 
-OFFLINE_WIDGET = """\
-import { LitElement, html, widgetController } from "/runtime/widget-api.js";
+OFFLINE_WIDGET = """import { LitElement, html, widgetController } from "/runtime/widget-api.js";
 
-customElements.define("lf-offline-test", class extends LitElement {
+export default class extends LitElement {
   controller = widgetController(this);
   reading = this.controller.read();
   local = 0;
@@ -1259,7 +1258,7 @@ customElements.define("lf-offline-test", class extends LitElement {
       ${unavailable ? html`<p id="unavailable">${unavailable}</p>` : null}
     `;
   }
-});
+};
 """
 
 OFFLINE_REGISTRY = {
@@ -2257,3 +2256,137 @@ def test_an_interactive_export_reseats_authored_margin_notes(browser, serve, tmp
     expect(page.locator("#note")).to_have_css("float", "none")
     page.set_viewport_size({"width": 1440, "height": 900})
     expect(page.locator("#note")).to_have_css("float", "right")
+
+
+def test_an_offline_historical_page_keeps_each_replies_captured_renderer(
+    browser, serve, tmp_path
+):
+    """The current kernel renders old choose and new pick replies from one tag."""
+    from copy import deepcopy
+
+    from interact_support import append_command, element_declaration
+    from leaf.revision_artifact import read_artifact
+    from leaf.revisioning import activate_source
+
+    source = leaf_page(
+        "Two renderer publications",
+        '<h1 id="topic">Review both answers</h1><lf-conversations id="conversations"></lf-conversations>',
+    )
+    conversations = element_declaration("lf-conversations", upgrade=True)
+    serve(
+        source,
+        layer_registry={"lf-conversations": conversations},
+        layer_widgets={
+            "lf-conversations.js": """
+      import {registerThreadPresentation} from '/runtime/widget-api.js';
+      export default class extends HTMLElement {
+        connectedCallback() {
+          this.outlet ??= this.appendChild(document.createElement('div'));
+          this.consumer ??= registerThreadPresentation(this, {
+            render: (collection, surfaces) => {
+              for (const thread of collection.threads) surfaces.thread(thread.key, this.outlet);
+            },
+            reveal: () => true,
+          });
+        }
+        disconnectedCallback() {this.consumer?.unregister(); this.consumer = null;}
+      }
+    """
+        },
+    )
+    page_dir = serve.page_dir
+    old = read_artifact(page_dir, 1)
+    opening = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Choose both."},
+    )
+
+    def reply(revision, name):
+        return append_carried_log_record(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "revision": revision,
+                "parent": opening["id"],
+                "text": "Pick one.",
+                "markup": f'<lf-options id="{name}" choose><lf-option id="{name}-a">Alpha</lf-option>'
+                f'<lf-option id="{name}-b">Beta</lf-option></lf-options>',
+            },
+        )
+
+    reply(1, "old-choice")
+    entry = deepcopy(old.registry["lf-options"])
+    entry["x-state"]["pick"] = entry["x-state"].pop("choose")
+    entry["x-awaits"]["value"] = "pick"
+    entry["x-awaits"]["answered"]["pick"] = entry["x-awaits"]["answered"].pop("choose")
+    (page_dir / "page/registry.json").write_text(json.dumps({"lf-options": entry}))
+    widgets = page_dir / "page/widgets"
+    widgets.mkdir(exist_ok=True)
+    renderer = old.resources["/widgets/lf-options.js"].data.decode()
+    renderer = (
+        renderer.replace("state.choose", "state.pick")
+        .replace('#available("choose")', '#available("pick")')
+        .replace('#dispatch("choose",', '#dispatch("pick",')
+    )
+    (widgets / "lf-options.js").write_text(renderer)
+    for helper in ("lf-options-addition.js", "lf-options-settled.js"):
+        (widgets / helper).write_bytes(old.resources["/widgets/" + helper].data)
+    files_model.replace_files(
+        [
+            (
+                page_dir / "leaf.js",
+                old.resources["/leaf.js"].data
+                + b"\ndocument.documentElement.dataset.kernelPublication = 'latest';\n",
+                False,
+            )
+        ]
+    )
+    activation = activate_source(page_dir)
+    assert activation.error is None and activation.revision == 2
+    reply(2, "new-choice")
+    for revision, name, verb, value in [
+        (1, "old-choice", "choose", "old-choice-b"),
+        (2, "new-choice", "pick", "new-choice-a"),
+    ]:
+        append_command(
+            page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": revision,
+                "widget": name,
+                "action": verb,
+                "detail": {"value": [value]},
+            },
+        )
+
+    out = tmp_path / "two-vocabularies.html"
+    exporting_model.cmd_export(page_dir, out, 1)
+    page = browser.new_page()
+    external = []
+    page.on(
+        "request",
+        lambda request: (
+            external.append(request.url)
+            if not request.url.startswith(("data:", "blob:"))
+            else None
+        ),
+    )
+    page.goto(out.as_uri(), wait_until="load")
+    page.wait_for_function("document.body.dataset.lfApplied")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(page.locator("html")).to_have_attribute("data-kernel-publication", "latest")
+    expect(page.locator("#old-choice-b .lf-pick")).to_have_attribute(
+        "aria-checked", "true"
+    )
+    expect(page.locator("#new-choice-a .lf-pick")).to_have_attribute(
+        "aria-checked", "true"
+    )
+    assert (
+        page.locator("#old-choice").evaluate(
+            "element => element.constructor === document.querySelector('#new-choice').constructor"
+        )
+        is False
+    )
+    assert external == [out.as_uri()]

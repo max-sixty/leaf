@@ -631,7 +631,20 @@ def build_trace_images(work: Path) -> list[Path]:
     return build_trace_library(work, "images")
 
 
+def build_scoped_registry(work: Path) -> list[Path]:
+    """Ship the maintained registration primitive before any HTMLElement subclass."""
+    return copy_published(
+        Copy(
+            "@webcomponents/scoped-custom-element-registry",
+            "scoped-custom-element-registry.min.js",
+            ASSETS / "vendor/scoped-registry.js",
+        ),
+        work,
+    )
+
+
 BUILDS: dict[str, Callable[[Path], list[Path]]] = {
+    "scoped-registry": build_scoped_registry,
     "snapdom": build_snapdom,
     "trace-timeline": build_trace_timeline,
     "trace-images": build_trace_images,

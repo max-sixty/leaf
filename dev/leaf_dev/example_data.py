@@ -10,9 +10,7 @@ from pathlib import Path
 from leaf_dev import ROOT
 
 TEST_PAGES = ROOT / "tests" / "fixtures" / "pages"
-PATCH_MANIFEST = (
-    ROOT / "skills" / "leaf" / "packages" / "diff" / "scripts" / "patch_manifest.py"
-)
+PATCH_MANIFEST = Path("skills/leaf/packages/diff/scripts/patch_manifest.py")
 
 
 # Where a page named on a command line is looked up.
@@ -104,16 +102,17 @@ def example_versions(source: Path) -> list[Path]:
     return [*priors, source]
 
 
-def patch_manifest(patch: str) -> dict:
+def patch_manifest(patch: str, *, runtime: Path = ROOT) -> dict:
     """The `diff` package's producer script's manifest for one patch.
 
     It runs as a process, reading stdin and writing stdout as an agent's pipeline
     does, but under this project's interpreter rather than `leaf package run`: the
     tooling package carries the script's `unidiff` (locked in the checkout), so the
-    fixtures and the suite read the same manifest on every machine and fetch nothing.
-    A refused patch raises with the script's stderr."""
+    fixtures and the suite fetch nothing. The selected runtime owns the producer's
+    bytes and the consumer's contract; a comparison must never seed an older arm with
+    the working tree's producer. A refused patch raises with the script's stderr."""
     produced = subprocess.run(
-        [sys.executable, str(PATCH_MANIFEST)],
+        [sys.executable, str(runtime / PATCH_MANIFEST)],
         input=patch.encode("utf-8"),
         capture_output=True,
         check=False,
@@ -123,7 +122,7 @@ def patch_manifest(patch: str) -> dict:
     return json.loads(produced.stdout)
 
 
-def captured_value(file: Path, spec: dict):
+def captured_value(file: Path, spec: dict, *, runtime: Path = ROOT):
     """One `$captures` entry's value: the file's text, an inclusive `lines` range of
     it, or, for `"format": "unified-diff"`, the whole patch's file manifest. A
     patch is captured whole, so a `lines` range beside that format is refused."""
@@ -134,7 +133,7 @@ def captured_value(file: Path, spec: dict):
                 f"{file}: a unified-diff capture takes the whole patch, not lines "
                 f"{spec['lines']}"
             )
-        return patch_manifest(text)
+        return patch_manifest(text, runtime=runtime)
     if (lines := spec.get("lines")) is None:
         return text
     start, end = (int(bound) for bound in lines.split(":"))
@@ -158,11 +157,16 @@ def capture_files(source: Path) -> list[Path]:
     return [source.parent / spec["file"] for spec in captures.values()]
 
 
-def data_operations(source: Path) -> list[dict]:
+def data_operations(source: Path, *, runtime: Path = ROOT) -> list[dict]:
     """Every source value one example sets: captures first, then written values."""
     document = data_companion(source)
     captures = [
-        {"source": name, "value": captured_value(source.parent / spec["file"], spec)}
+        {
+            "source": name,
+            "value": captured_value(
+                source.parent / spec["file"], spec, runtime=runtime
+            ),
+        }
         for name, spec in document.pop("$captures", {}).items()
     ]
     return [

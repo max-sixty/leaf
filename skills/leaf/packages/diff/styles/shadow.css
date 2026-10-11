@@ -13,13 +13,13 @@
    which would be this box, which never scrolls, so the header stuck to nothing and
    scrolled away with its rows. The host condition is a default at zero specificity:
    native :scope must not make this margin reset outrank the action row's placement,
-   for either a source file or a rename. */
+   for either textual evidence or file metadata. */
 :where(:scope:host(.lf-rendered)) :where(.lf-diff-file) > details,
-:where(:scope:host(.lf-rendered)) .lf-diff-rename { margin: 0; padding: 0; overflow: clip;
+:where(:scope:host(.lf-rendered)) .lf-diff-metadata { margin: 0; padding: 0; overflow: clip;
                               background: var(--pre-bg); border: 1px solid var(--code-border);
                               border-radius: var(--r); }
 :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary,
-:scope:host(.lf-rendered) .lf-diff-rename { padding: 7px 10px; font-size: var(--t-5);
+:scope:host(.lf-rendered) .lf-diff-metadata { padding: 7px 10px; font-size: var(--t-5);
                                      font-family: var(--sans); color: var(--code-ink);
                                      background: var(--code-chrome); }
 /* The file's row pins over the rows it names (below), so it is one line of a stated
@@ -107,10 +107,10 @@
 .lf-diff-file:has(> .lf-diff-file-actions > *) > .lf-diff-fold > .lf-diff-head {
                                      padding-right: calc(10px + var(--lf-diff-actions)
                                                          + 14px); }
-/* A rename's row is not pinned, so it wraps. The press is out of its flow, so the row
+/* A metadata row is not pinned, so it wraps. The press is out of its flow, so the row
    reaches at least as far down as the bar's foot: under a finger the bar is the taller
    and the row follows it rather than letting it hang over the patch. */
-.lf-diff-file:has(> .lf-diff-file-actions > *) .lf-diff-rename {
+.lf-diff-file:has(> .lf-diff-file-actions > *) .lf-diff-metadata {
                                      box-sizing: border-box;
                                      min-height: calc(var(--lf-diff-action-top)
                                                       + var(--lf-diff-action-h)); }
@@ -121,7 +121,7 @@
    the row's content edge (the border and 7px padding) to the bar's foot, less the 4px
    of leading above a line's ink, so the line whose ink starts under the bar takes the
    full width. */
-.lf-diff-file:has(> .lf-diff-file-actions > *) .lf-diff-rename::before {
+.lf-diff-file:has(> .lf-diff-file-actions > *) .lf-diff-metadata::before {
                                      content: ""; float: right;
                                      width: calc(var(--lf-diff-actions) + 14px);
                                      height: calc(var(--lf-diff-action-top)
@@ -156,7 +156,7 @@
 .lf-diff-file:has(> .lf-diff-file-actions > *) {
                 --lf-diff-head-h: max(35px, calc(var(--lf-diff-action-top)
                                                  + var(--lf-diff-action-h))); }
-.lf-diff-file:has(> .lf-diff-file-actions > *) > :is(.lf-diff-fold, .lf-diff-rename) {
+.lf-diff-file:has(> .lf-diff-file-actions > *) > :is(.lf-diff-fold, .lf-diff-metadata) {
                 margin-top: calc(-1 * (var(--lf-diff-action-h)
                                        + var(--lf-diff-action-top))); }
 .lf-diff-file-actions { position: relative; z-index: 3; display: flex;
@@ -255,6 +255,9 @@
                 overflow-wrap: anywhere; }
 .lf-diff-additions { color: var(--ok-ink); }
 .lf-diff-deletions { color: var(--danger-ink); }
+.lf-diff-metadata > .lf-diff-stat { white-space: normal; }
+.lf-diff-evidence { padding: 7px 10px; color: var(--code-muted);
+                    font: var(--t-6)/1.5 var(--sans); background: var(--code-chrome); }
 .lf-diff-stat { color: var(--code-muted); font-weight: 400; margin-left: 8px;
                 font-size: var(--t-6); font-variant-numeric: tabular-nums;
                 white-space: nowrap; }
@@ -339,11 +342,11 @@
 /* Paper has no sideways scroll; wrap evidence within the printed sheet. */
 @media print {
   .lf-diff-tools, .lf-diff-file-actions, .lf-diff-comment { display: none !important; }
-  .lf-diff-file > :is(.lf-diff-fold, .lf-diff-rename) { margin-top: 0 !important; }
+  .lf-diff-file > :is(.lf-diff-fold, .lf-diff-metadata) { margin-top: 0 !important; }
   :scope:host(.lf-rendered) .lf-diff-file > details > summary { padding-right: 10px; }
-  :scope:host(.lf-rendered) .lf-diff-rename { padding-right: 0; }
+  :scope:host(.lf-rendered) .lf-diff-metadata { padding-right: 0; }
   .lf-diff-file > .lf-diff-fold > .lf-diff-head::before,
-  .lf-diff-file .lf-diff-rename::before { display: none; }
+  .lf-diff-file .lf-diff-metadata::before { display: none; }
   .lf-diff-filtered { display: block !important; }
   [data-line] { white-space: pre-wrap !important; overflow-wrap: anywhere !important; }
   code[data-code] { overflow-x: visible !important; --lf-diff-row-fill: 0; }

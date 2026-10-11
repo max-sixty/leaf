@@ -87,8 +87,8 @@
    The runtime may inject its own words inside a widget: a quiet word, or an attribute
    the registry says aloud. A module reading its slot or body must call `says` so
    runtime words do not become authored or user content. */
+import { registryFor, registry, tagsDeclaring } from "./registry.js";
 
-import { elementDeclarations, registry, tagsDeclaring } from "./registry.js";
 import { applicationPresented } from "./semantic-state.js";
 import { reportPageError } from "./layer-client.js";
 import { activityTransitionAt } from "./presence.js";
@@ -490,9 +490,10 @@ export function markDeclared(root) {
   for (const [key, { paint, authored, message }] of Object.entries(registry.$marks)) {
     if (!message) continue;
     for (const tag of tagsDeclaring((entry) => entry[key])) {
-      const declared = registry[tag][key];
-      for (const el of elementsIn(root, tag))
-        keeps(el, paint, declared === true ? "" : declared);
+      for (const el of elementsIn(root, tag)) {
+        const declared = registryFor(el)[tag]?.[key];
+        if (declared) keeps(el, paint, declared === true ? "" : declared);
+      }
     }
     if (authored)
       for (const el of elementsIn(root, `[${authored}]`))
@@ -506,14 +507,19 @@ export function markDeclared(root) {
 // drawing's structure before its module draws there too. Its module takes it out.
 export function writePrepaint(root) {
   for (const tag of tagsDeclaring((entry) => entry["x-prepaint"])) {
-    // Its own, or that of the widget it first paints as (`as`).
-    const declared = registry[tag]["x-prepaint"];
-    const markup = document.createElement("template");
-    markup.innerHTML = declared.as ? registry[declared.as]["x-prepaint"] : declared;
-    const written = markup.content.firstElementChild;
-    written.toggleAttribute("data-lf-prepaint", true);
-    written.dataset.lfGen = "1";
-    for (const el of elementsIn(root, tag)) el.prepend(written.cloneNode(true));
+    for (const el of elementsIn(root, tag)) {
+      const declarations = registryFor(el);
+      const declared = declarations[tag]?.["x-prepaint"];
+      if (!declared) continue;
+      const markup = document.createElement("template");
+      markup.innerHTML = declared.as
+        ? declarations[declared.as]["x-prepaint"]
+        : declared;
+      const written = markup.content.firstElementChild;
+      written.toggleAttribute("data-lf-prepaint", true);
+      written.dataset.lfGen = "1";
+      el.prepend(written);
+    }
   }
 }
 
@@ -546,56 +552,56 @@ export function writePrepaint(root) {
 // theme, whose every rule names the attribute it styles rather than matching the bare
 // marker.
 export function renderSaid(root) {
-  for (const [tag, entry] of elementDeclarations()) {
-    if (!entry["x-says"]) continue;
-    for (const el of elementsIn(root, tag))
-      for (const [attr, edge] of Object.entries(entry["x-says"])) {
-        const text = el.getAttribute(attr);
-        const standing = el.querySelector(`:scope > [data-lf-said="${attr}"]`);
-        // A live revision may change or drop the attribute under a span already
-        // standing for it; the span follows the attribute rather than the first word
-        // it ever said.
-        if (standing) {
-          if (text === null) standing.remove();
-          else if (standing.textContent !== text) standing.textContent = text;
-          continue;
-        }
-        if (text === null) continue;
-        const span = document.createElement("span");
-        span.dataset.lfSaid = attr;
-        span.dataset.lfGen = "1";
-        span.textContent = text;
-        // The two edges are not mirror images, because the chrome at them is not the same
-        // kind of thing.
-        //
-        // After: inside the element's own words rather than past them. Trailing chrome
-        // stands *beside* the last of them and runs to the line's end, so a span placed
-        // at the element's true end lands on the far side of it — an option's risk chip
-        // came out past the pick mark that ends a compact row, and on the far side of it
-        // from where the file's reading of that same version has it.
-        //
-        // Before: the element's own start. Leading chrome is not something the words
-        // stand beside; a module puts it there to speak *for* the whole element, so an
-        // authored attribute declared at this edge must precede it.
-        //
-        // Each edge skips what the other keeps, which is the whole of the difference:
-        // trailing chrome is passed over by looking for the last authored node, leading
-        // chrome by looking for the first node this pass has not already written. The
-        // second reading also settles the order of two attributes declared at this edge,
-        // though no shipped declaration names two.
-        const pastTrailingChrome = [...el.childNodes].filter(
-          (n) => !(n.nodeType === 1 && n.dataset.lfGen),
-        );
-        const beforeLeadingChrome = [...el.childNodes].find(
-          (n) => !(n.nodeType === 1 && n.dataset.lfSaid),
-        );
-        el.insertBefore(
-          span,
-          (edge === "before"
-            ? beforeLeadingChrome
-            : pastTrailingChrome.at(-1)?.nextSibling) ?? null,
-        );
+  for (const el of elementsIn(root, "*")) {
+    const said = registryFor(el)[el.localName]?.["x-says"];
+    if (!said) continue;
+    for (const [attr, edge] of Object.entries(said)) {
+      const text = el.getAttribute(attr);
+      const standing = el.querySelector(`:scope > [data-lf-said="${attr}"]`);
+      // A live revision may change or drop the attribute under a span already
+      // standing for it; the span follows the attribute rather than the first word
+      // it ever said.
+      if (standing) {
+        if (text === null) standing.remove();
+        else if (standing.textContent !== text) standing.textContent = text;
+        continue;
       }
+      if (text === null) continue;
+      const span = document.createElement("span");
+      span.dataset.lfSaid = attr;
+      span.dataset.lfGen = "1";
+      span.textContent = text;
+      // The two edges are not mirror images, because the chrome at them is not the same
+      // kind of thing.
+      //
+      // After: inside the element's own words rather than past them. Trailing chrome
+      // stands *beside* the last of them and runs to the line's end, so a span placed
+      // at the element's true end lands on the far side of it — an option's risk chip
+      // came out past the pick mark that ends a compact row, and on the far side of it
+      // from where the file's reading of that same version has it.
+      //
+      // Before: the element's own start. Leading chrome is not something the words
+      // stand beside; a module puts it there to speak *for* the whole element, so an
+      // authored attribute declared at this edge must precede it.
+      //
+      // Each edge skips what the other keeps, which is the whole of the difference:
+      // trailing chrome is passed over by looking for the last authored node, leading
+      // chrome by looking for the first node this pass has not already written. The
+      // second reading also settles the order of two attributes declared at this edge,
+      // though no shipped declaration names two.
+      const pastTrailingChrome = [...el.childNodes].filter(
+        (n) => !(n.nodeType === 1 && n.dataset.lfGen),
+      );
+      const beforeLeadingChrome = [...el.childNodes].find(
+        (n) => !(n.nodeType === 1 && n.dataset.lfSaid),
+      );
+      el.insertBefore(
+        span,
+        (edge === "before"
+          ? beforeLeadingChrome
+          : pastTrailingChrome.at(-1)?.nextSibling) ?? null,
+      );
+    }
   }
 }
 
@@ -620,7 +626,7 @@ function quietFacts(el) {
     : [];
   if (el.hasAttribute(PAGE_PAINT_ATTRIBUTE.userOverride)) words.push("your change");
   if (el.hasAttribute(PAGE_PAINT_ATTRIBUTE.reported)) words.push("reported update");
-  for (const attr of registry[el.localName]?.["x-paints"] ?? [])
+  for (const attr of registryFor(el)[el.localName]?.["x-paints"] ?? [])
     if (el.hasAttribute(attr)) words.push(el.getAttribute(attr) || attr);
   return words.join(", ");
 }

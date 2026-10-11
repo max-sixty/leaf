@@ -1,2 +1,2 @@
-export { parsePatchFiles } from "@pierre/diffs";
+export { parsePatchFiles, parseDiffFromFile } from "@pierre/diffs";
 export { preloadDiffHTML } from "@pierre/diffs/ssr";

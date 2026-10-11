@@ -53,8 +53,8 @@
    The application constructs this owner with its semantic invalidation command.
    Each instance batches changed roots until the next microtask; the renderer never
    imports application coordination to discover how a changed datum is presented. */
+import { registryFor } from "../registry.js";
 
-import { registry } from "../registry.js";
 import { reachScrollers } from "../reach.js";
 import { under } from "../shadow.js";
 import { keeps } from "../keeps.js";
@@ -98,7 +98,7 @@ export function createDataProjection({ invalidateDom }) {
       throw new TypeError("projectData root needs an id to name its projection");
     if (!datums?.[Symbol.iterator])
       throw new TypeError("projectData datums must be iterable");
-    const declaredInputs = registry[root.localName]?.["x-data"] ?? {};
+    const declaredInputs = registryFor(root)[root.localName]?.["x-data"] ?? {};
     if (
       snapshot === undefined &&
       Object.values(declaredInputs).some(({ source }) => root.hasAttribute(source))

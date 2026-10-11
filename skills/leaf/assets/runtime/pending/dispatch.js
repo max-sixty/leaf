@@ -4,7 +4,7 @@
    the ledger publishes the command synchronously. */
 import { actionForWidget, isThreadEvent } from "./model.js";
 import { createPendingLedger } from "./state.js";
-import { applicationState, readApplication } from "../semantic-state.js";
+import { applicationState } from "../semantic-state.js";
 import { newAttempt } from "../drafts.js";
 import { saidNow } from "../presence.js";
 import { messageText } from "../thread/messages.js";
@@ -100,7 +100,7 @@ export function createCommandDispatch() {
         );
       return candidate ? withdraw(candidate) : null;
     }
-    const revision = readApplication().document.revision;
+    const revision = descriptor.document.revision;
     if (revision === null || !reading.actions[command.verb]?.available) return null;
     return startPost(actionForWidget(descriptor, command, revision))?.answer ?? null;
   };

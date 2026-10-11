@@ -39,6 +39,7 @@ from leaf.registry.schema import json_value, schema_error
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
 from leaf.structure import review_mode
 from leaf.tasks import task_error
+from leaf.thread_context import thread_structure, widget_messages
 from leaf.work import widget_seat_error
 from leaf.work_reading import WorkReading
 from leaf.workflows import admission_tasks, admission_workflows, obligation_reading
@@ -350,6 +351,14 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
     thread_by_id = thread.by_id
     if error := declared_action_error(event, document.by_id, thread_by_id, registry):
         return error
+    if event["widget"] in thread_by_id:
+        message = widget_messages(thread.structure)[event["widget"]]
+        publication = thread.message_revisions[message]
+        if revision != publication:
+            return (
+                f"thread widget {event['widget']!r} belongs to publication "
+                f"r{publication}, not r{revision}"
+            )
     page_rec = document.by_id.get(event["widget"])
     rec = page_rec or thread_by_id[event["widget"]]
     tag = rec["tag"]
@@ -465,6 +474,9 @@ def admitting_registry(view, event: dict, events: list) -> dict:
     neither takes the newest, which is the document any writer of one is looking
     at, and a page with no revision yet has the candidate's vocabulary.
 
+    Frozen widgets use their containing message's publication, independently of
+    the page beside the conversation. A command must name that same revision.
+
     Read through `PageView.registry`, which opens the one captured file rather
     than materializing the whole bundle: this runs on every append."""
     revisions = view.revisions
@@ -474,6 +486,12 @@ def admitting_registry(view, event: dict, events: list) -> dict:
         if event.get("kind") == "done"
         else event.get("revision")
     )
+    if event.get("kind") == "action" and isinstance(event.get("widget"), str):
+        owner = widget_messages(thread_structure(events)).get(event["widget"])
+        if owner is not None:
+            revision = next(
+                logged["revision"] for logged in events if logged["id"] == owner
+            )
     if type(revision) is not int or revision not in set(revisions):
         revision = revisions[-1] if revisions else None
     registry = view.registry(revision)
@@ -507,7 +525,7 @@ def _approval_error(view, event: dict, events: list, registry: dict):
             "approval to record"
         )
     page = AdmissionReadings(view, events, registry).page(revision)
-    work = WorkReading(events, registry, page)
+    work = WorkReading(events, registry, page, registry_for_revision=view.registry)
     unanswered = [
         *(
             question

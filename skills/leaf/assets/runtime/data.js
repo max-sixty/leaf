@@ -12,6 +12,7 @@
    tracking, without admitting or delivering a newer source. Modules project the
    result into the authored seat; they do not fetch it, mutate the accepted copy, or keep a
    hidden current-value map of their own.*/
+import { registryFor, registry } from "./registry.js";
 
 import { offlineData, offlineInteractive, pageUrl, runtime } from "./context.js";
 import {
@@ -21,7 +22,7 @@ import {
 } from "./semantic-state.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
-import { registry } from "./registry.js";
+
 import { clocked } from "./presence.js";
 import { layerHeaders, reportPageError, admitResponse } from "./layer-client.js";
 import { watchOwner } from "./arrivals.js";
@@ -93,7 +94,7 @@ export function watchData(element, input, callback) {
     throw new TypeError(
       `watchData(${element.localName}, ${input}) callback must be a function`,
     );
-  const declaration = registry[element.localName]?.["x-data"]?.[input];
+  const declaration = registryFor(element)[element.localName]?.["x-data"]?.[input];
   if (!declaration)
     throw new Error(
       `watchData(${element.localName}, ${input}) input is not declared by this widget`,

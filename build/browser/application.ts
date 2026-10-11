@@ -292,7 +292,7 @@ export interface WidgetDescriptor {
   tag: string;
   document:
     | { kind: "page"; revision: number }
-    | { kind: "thread"; thread?: string; message?: string };
+    | { kind: "thread"; revision: number; thread?: string; message?: string };
   declaration: SemanticDocument["registry"][string];
   parent: { id: string; tag: string } | null;
   ancestors: readonly { id: string; tag: string }[];

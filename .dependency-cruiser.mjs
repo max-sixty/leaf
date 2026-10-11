@@ -68,6 +68,7 @@ const exactClosures = {
     "user-intent.js",
     "registry.js",
     "registry-contract.js",
+    "widget-contexts.js",
     "rendering.js",
     "sample-visibility.js",
     "repaint.js",

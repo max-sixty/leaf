@@ -55,7 +55,7 @@ import { elementById, inChrome } from "./passages.js";
 import { PRESENTATION } from "./presentation.js";
 import { standsAt } from "./queue-list.js";
 import { taskNoun } from "./queues.js";
-import { registry } from "./registry.js";
+import { widgetDeclaration } from "./registry.js";
 import { repaint } from "./repaint.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
 import {
@@ -100,7 +100,7 @@ function questionWord(item) {
   if (question.source.kind === "reply") return "Thread";
   if (question.source.kind === "approval") return "Approval";
   const word =
-    registry[question.source.tag]?.["x-word"] &&
+    widgetDeclaration(question.source.id, "x-word") &&
     addressableWord(questionPlace(question).source);
   return word ? word.charAt(0).toUpperCase() + word.slice(1) : "Question";
 }

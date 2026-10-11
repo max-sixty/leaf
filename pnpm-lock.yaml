@@ -89,6 +89,9 @@ importers:
       '@types/node':
         specifier: 26.4.1
         version: 26.4.1
+      '@webcomponents/scoped-custom-element-registry':
+        specifier: 0.0.10
+        version: 0.0.10
       '@zumer/snapdom':
         specifier: 3.3.0
         version: 3.3.0
@@ -2074,6 +2077,9 @@ packages:
 
   '@vitest/spy@5.0.0':
     resolution: {integrity: sha512-uy+luWBAPw9XfthoHi5AkfHUnuPYEESjl0p/r+meoBnU8bxg5GDQ3Ey8MjcJ6sqahkL4PFyrvfMJJBw7LbU06g==}
+
+  '@webcomponents/scoped-custom-element-registry@0.0.10':
+    resolution: {integrity: sha512-wP4LF28aysE2Pq3NQRNQxko7Q0vOOwcoOSMg8FFI4S6z76UuXkYIc5ndC31dJMwso1/vSteL75LW2CEKedAJbA==}
 
   '@zumer/snapdom@3.3.0':
     resolution: {integrity: sha512-DR4HnXp5vlLDymmAE5z/QWzxtsc+wrpjo/QXvj5R377wKarwpCQO2LzUuQjWhJaMDNAyCjvxJB4EN8Zgs8Ri9w==}
@@ -6679,6 +6685,8 @@ snapshots:
       vite: 8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1)
 
   '@vitest/spy@5.0.0': {}
+
+  '@webcomponents/scoped-custom-element-registry@0.0.10': {}
 
   '@zumer/snapdom@3.3.0': {}
 

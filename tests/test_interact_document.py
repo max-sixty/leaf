@@ -529,6 +529,80 @@ def test_artifact_cache_refuses_a_replaced_immutable_manifest(page_dir):
         artifact_model.read_artifact(page_dir, revision)
 
 
+@pytest.mark.parametrize("manifest", [None, "{", "shared_modules", "widgets"])
+def test_revision_inventory_ignores_incomplete_capture_records(page_dir, manifest):
+    """Stale captures are absent; current publication and numeric order still work."""
+    first = revisioning_model.activate_source(page_dir)
+    assert first.error is None and first.revision == 1
+    marker = files_model.revision_path(page_dir, 1)
+    old = marker.parent / "r9-0123456789abcdef"
+    shutil.copytree(marker.with_suffix(""), old)
+    metadata = old / "manifest.json"
+    if manifest is None:
+        metadata.unlink()
+    elif manifest == "{":
+        metadata.write_text(manifest)
+    else:
+        record = json.loads(metadata.read_bytes())
+        if manifest == "shared_modules":
+            # The previous graph omitted lazy layer libraries. It is an obsolete
+            # contract even though its manifest contains the earlier graph field.
+            record["runtime_modules"] = record.pop(manifest)
+        else:
+            del record[manifest]
+        metadata.write_text(json.dumps(record))
+    old.with_suffix(".html").write_bytes(marker.read_bytes())
+
+    assert files_model.list_revisions(page_dir) == [1]
+    with pytest.raises(SystemExit, match="no revision r9"):
+        files_model.revision_path(page_dir, 9)
+    (page_dir / "index.html").write_text(PAGE.replace("Plan", "Next plan"))
+    current = revisioning_model.activate_source(page_dir)
+    assert current.error is None and current.revision == 10
+    assert artifact_model.read_artifact(page_dir, 10).shared_modules
+    assert files_model.list_revisions(page_dir) == [1, 10]
+
+
+def test_obsolete_capture_identities_are_never_rebound_to_new_publications(page_dir):
+    """A fresh stamp cannot inherit the decisions or version of an obsolete capture."""
+    first = stamp(page_dir, "Original publication")
+    assert first.exit_code == 0, first.output
+    marker = files_model.revision_path(page_dir, 1)
+    artifact = artifact_model.read_artifact(page_dir, 1)
+    metadata = marker.with_suffix("") / "manifest.json"
+    manifest = json.loads(metadata.read_bytes())
+    del manifest["shared_modules"]
+    metadata.write_text(json.dumps(manifest))
+    original = events_model.read_events(page_dir)
+    assert original[-1]["revision"] == 1 and original[-1]["publication"]
+
+    with fresh_process():
+        assert files_model.list_revisions(page_dir) == []
+        assert files_model.revision_orders(page_dir) == (1,)
+        assert files_model.unfinished_publications(page_dir, original) == []
+        with pytest.raises(artifact_model.ArtifactError, match="r1 already exists"):
+            artifact_model.stage_artifact(page_dir, 1, artifact)
+        (page_dir / "index.html").write_text(PAGE.replace("Plan", "New publication"))
+        current = stamp(page_dir, "Current publication")
+        assert current.exit_code == 0, current.output
+        assert files_model.list_revisions(page_dir) == [2]
+        assert artifact_model.read_artifact(page_dir, 2).shared_modules
+        events = events_model.read_events(page_dir)
+        assert events[: len(original)] == original
+        assert events[-1]["revision"] == 2 and events[-1]["version"] == 2
+
+
+def test_revision_inventory_retains_duplicate_current_capture_refusal(page_dir):
+    """Ignoring old formats does not choose between two complete current markers."""
+    revisioning_model.activate_source(page_dir)
+    marker = files_model.revision_path(page_dir, 1)
+    duplicate = marker.parent / "r1-0123456789abcdef"
+    shutil.copytree(marker.with_suffix(""), duplicate)
+    duplicate.with_suffix(".html").write_bytes(marker.read_bytes())
+    with pytest.raises(SystemExit, match="same order"):
+        files_model.list_revisions(page_dir)
+
+
 def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
     authored = page_dir / "page"
     (authored / "data.json").write_text('{"value": 1}')
@@ -3463,40 +3537,163 @@ diff --git a/src/second file.py b/src/second file.py
     ] == [
         {
             "path": "app.py",
-            "kind": "patch",
+            "operation": "modify",
+            "hunkCount": 1,
+            "binary": False,
             "additions": 1,
             "deletions": 1,
         },
         {
             "path": "new.py",
             "previousPath": "old.py",
-            "kind": "patch",
+            "operation": "rename",
+            "hunkCount": 1,
+            "binary": False,
             "additions": 1,
             "deletions": 1,
         },
         {
             "path": "docs/new.md",
             "previousPath": "docs/old.md",
-            "kind": "rename",
+            "operation": "rename",
+            "hunkCount": 0,
+            "binary": False,
             "additions": 0,
             "deletions": 0,
         },
         {
             "path": "café2026 notes.py",
-            "kind": "patch",
+            "operation": "modify",
+            "hunkCount": 1,
+            "binary": False,
             "additions": 1,
             "deletions": 1,
         },
         {
             "path": "src/second file.py",
-            "kind": "patch",
+            "operation": "modify",
+            "hunkCount": 1,
+            "binary": False,
             "additions": 1,
             "deletions": 1,
         },
     ]
     assert all(
-        file["patch"].startswith("diff --git ") for file in source["value"]["files"]
+        file["patch"].startswith("diff --git ")
+        for file in source["value"]["files"]
+        if file["hunkCount"]
     )
+
+
+def test_native_git_file_operations_survive_capture_without_invented_hunks(
+    page_dir, tmp_path
+):
+    """Git owns operation evidence, including copies it can detect from unchanged files."""
+    repository = tmp_path / "native"
+    repository.mkdir()
+
+    def git(*arguments):
+        return subprocess.run(
+            ["git", "-C", str(repository), *arguments],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+
+    git("init", "-q")
+    original = {
+        "mode.sh": b"echo ready\n",
+        "binary.dat": b"old\0blob\n",
+        "deleted-empty": b"",
+        "copy-source.txt": "".join(f"line {index}\n" for index in range(30)).encode(),
+        "old name.txt": b"same text\n",
+        "old-mode.txt": b"same mode\n",
+        "changed-type": b"before\n",
+        "same-type-content": b"target",
+        "binary-type": b"old\0binary\n",
+    }
+    for name, content in original.items():
+        (repository / name).write_bytes(content)
+    (repository / "removed-link").symlink_to("old-target")
+    git("add", ".")
+    git(
+        "-c",
+        "user.name=Leaf test",
+        "-c",
+        "user.email=leaf@example.invalid",
+        "commit",
+        "-qm",
+        "Original",
+    )
+    for name, target in [
+        ("changed-type", "new-target"),
+        ("same-type-content", "target"),
+        ("binary-type", "binary-target"),
+    ]:
+        (repository / name).unlink()
+        (repository / name).symlink_to(target)
+    (repository / "removed-link").unlink()
+    (repository / "removed-link").write_text("after\n")
+    (repository / "mode.sh").chmod(0o755)
+    (repository / "binary.dat").write_bytes(b"new\0blob\n")
+    (repository / "deleted-empty").unlink()
+    (repository / "added-empty").write_text("")
+    (repository / "copy-pure.txt").write_bytes(original["copy-source.txt"])
+    (repository / "copy-edited.txt").write_bytes(
+        original["copy-source.txt"] + b"extra line\n"
+    )
+    (repository / "old name.txt").rename(repository / "new name.txt")
+    (repository / "old-mode.txt").rename(repository / "new-mode.txt")
+    (repository / "new-mode.txt").chmod(0o755)
+    git("add", ".")
+    patch = git("diff", "--cached", "-M", "-C", "--find-copies-harder")
+    manifest = patch_manifest(patch)
+    files = {file["path"]: file for file in manifest["files"]}
+    assert files["copy-pure.txt"]["operation"] == "copy"
+    assert files["copy-edited.txt"]["operation"] == "copy"
+    assert files["copy-edited.txt"]["previousPath"] == "copy-source.txt"
+    assert files["copy-edited.txt"]["hunkCount"] == 1
+    assert files["copy-edited.txt"]["additions"] == 1
+    assert files["new name.txt"]["operation"] == "rename"
+    for path in ("mode.sh", "new-mode.txt"):
+        assert files[path]["oldMode"] == "100644"
+        assert files[path]["newMode"] == "100755"
+    assert files["binary.dat"]["binary"] is True
+    for path in ("changed-type", "same-type-content", "binary-type", "removed-link"):
+        assert files[path]["operation"] == "modify"
+        assert files[path]["hunkCount"] == 1
+        assert files[path]["oldMode"] != files[path]["newMode"]
+        assert files[path]["patch"].count("diff --git ") == 2
+    assert (
+        files["same-type-content"]["additions"]
+        == files["same-type-content"]["deletions"]
+        == 1
+    )
+    assert files["binary-type"]["binary"] is True
+    opaque = patch_manifest(git("diff", "--cached", "--binary", "--", "binary-type"))[
+        "files"
+    ][0]
+    assert opaque["binary"] and "literal " not in opaque["patch"]
+    assert opaque["patch"].startswith("diff --git ")
+    assert all(("patch" in file) == (file["hunkCount"] > 0) for file in files.values())
+    binary = patch_manifest(git("diff", "--cached", "--binary", "--", "binary.dat"))
+    assert binary["files"] == [files["binary.dat"]]
+    empty = patch_manifest(
+        git("diff", "--cached", "--no-renames", "--", "added-empty", "deleted-empty")
+    )
+    assert [
+        (file["operation"], file["hunkCount"], file["binary"])
+        for file in empty["files"]
+    ] == [
+        ("add", 0, False),
+        ("delete", 0, False),
+    ]
+    declare_data_input(
+        page_dir, "native-patch", {"type": "object"}, contract="unified-diff"
+    )
+    for value in (manifest, empty, binary):
+        data_model.cmd_data_set(page_dir, "native-patch", value)
+        assert read_page_data(page_dir)["sources"]["native-patch"]["value"] == value
 
 
 @pytest.mark.parametrize("escaped", [r"bad\x41.py", r"bad\400.py", r"bad\q.py"])
@@ -3526,7 +3723,7 @@ rename to new.py
 -before
 +after
 """,
-            "unsupported hunkless diff",
+            "unexpected metadata",
         ),
         (
             """diff --git a/app.py b/app.py
@@ -3555,7 +3752,33 @@ rename to new.py
 -before
 +after
 """,
-            "---/+++ paths disagree",
+            "invalid unified diff",
+        ),
+        (
+            """diff --git a/new.py b/new.py
+new file mode 100644
+--- /dev/null
++++ b/new.py
+@@ -0,0 +3 @@
++partial
+""",
+            "must capture its complete file",
+        ),
+        (
+            """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-before
++after
+diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-before
++after
+""",
+            "repeats file path",
         ),
     ],
 )
@@ -4838,7 +5061,9 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
     patch = "--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-before\n+after\n"
     file = {
         "path": "a.py",
-        "kind": "patch",
+        "operation": "modify",
+        "hunkCount": 1,
+        "binary": False,
         "additions": 1,
         "deletions": 1,
         "patch": patch,
@@ -4868,11 +5093,12 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
     [
         ([], "does not satisfy minItems: 1"),
         (
-            [{"path": "b.py", "kind": "rename", "additions": 0, "deletions": 0}],
+            [{"path": "b.py", "operation": "rename", "additions": 0, "deletions": 0}],
             "'previousPath' is a required property",
         ),
         (
-            [{"path": "a.py", "kind": "patch", "additions": 1, "deletions": 1}] * 2,
+            [{"path": "a.py", "operation": "modify", "additions": 1, "deletions": 1}]
+            * 2,
             "record keys must be unique",
         ),
     ],
@@ -4892,7 +5118,14 @@ def test_data_set_refuses_a_diff_manifest_the_widget_cannot_list(
     written = CliRunner().invoke(
         cli_model.cli,
         ["data", "set", str(page_dir), "reading-patch"],
-        input=json.dumps({"files": [{**file, "patch": patch} for file in files]}),
+        input=json.dumps(
+            {
+                "files": [
+                    {**file, "hunkCount": 1, "binary": False, "patch": patch}
+                    for file in files
+                ]
+            }
+        ),
     )
     assert written.exit_code == 1
     assert refusal in written.output
@@ -4910,9 +5143,10 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
 
     The active revision is no exception: whether the source is that revision is a
     question for its manifest's digest, not its bundle. So each revision opens the
-    files its reading asks for and no more — the document and the registry, and the
-    active revision its manifest besides. Exact counts are the control: a counter
-    that never saw a revision file would read zero for each.
+    files its reading asks for and no more: the document, registry and manifest.
+    Inventory reads the manifest to exclude stale captures; active identity also
+    reads it. The bounded metadata budget and filenames rule out materializing
+    resource bodies, including after the bundle descriptor cache has evicted them.
     """
     for edit in range(12):
         (page_dir / "index.html").write_text(
@@ -4928,7 +5162,7 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
 
     def counted_open(self, *args, **kwargs):
         if found := re.search(r"/revisions/r([1-9][0-9]*)-", str(self)):
-            opens[int(found.group(1))] += 1
+            opens[int(found.group(1)), self.name] += 1
         return native_open(self, *args, **kwargs)
 
     monkeypatch.setattr(Path, "open", counted_open)
@@ -4939,12 +5173,14 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
     assert activated.error is None, activated.error
     assert not activated.created
 
-    *history, active = revisions
-    assert opens[active] == 3
-    # One document and one registry apiece: the only two resources this reading reads.
-    assert {revision: opens[revision] for revision in history} == {
-        revision: 2 for revision in history
-    }
+    for revision in revisions:
+        metadata = {
+            name: count for (order, name), count in opens.items() if order == revision
+        }
+        marker = files_model.revision_path(page_dir, revision).name
+        assert set(metadata) == {marker, "registry.json", "manifest.json"}
+        assert metadata[marker] == metadata["registry.json"] == 1
+        assert 1 <= metadata["manifest.json"] <= 2
 
 
 def test_a_state_read_walks_an_unchanged_revision_once(page_dir, monkeypatch):
@@ -5167,7 +5403,9 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
         action("frozen-draft", "Frozen standing.", 4),
     ]
 
-    expected = render_gate_readings._expected_verbatim(page, events, registry, here=1)
+    expected = render_gate_readings._expected_verbatim(
+        page, events, registry, here=1, registry_for_revision=lambda revision: registry
+    )
 
     assert expected == {
         ("page", None, 0): [{"text": "Page authored."}],
@@ -5214,7 +5452,11 @@ def test_projected_verbatim_includes_generated_children():
         "lf-list", registry["lf-list"], registry["lf-list"]["x-state"]["add"]
     )
     expected = render_gate_readings._expected_verbatim(
-        markup, [event], registry, here=1
+        markup,
+        [event],
+        registry,
+        here=1,
+        registry_for_revision=lambda revision: registry,
     )
 
     assert expected == {("page", None, 0): [{"text": "Authored item. Generated item."}]}

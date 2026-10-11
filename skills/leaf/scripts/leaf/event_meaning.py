@@ -46,6 +46,7 @@ class AdmissionReadings:
             self.events,
             self.registry,
             self.page(revisions[-1]) if revisions else None,
+            registry_for_revision=self.view.registry,
             thread=self.thread,
             log=self.log,
         )
@@ -53,20 +54,18 @@ class AdmissionReadings:
     @cached_property
     def thread(self):
         return frozen_thread_reading(
-            self.events, self.registry, withdrawn=self.log.withdrawn
+            self.events, self.view.registry, withdrawn=self.log.withdrawn
         )
 
     def page(self, revision: int):
         if revision not in self._pages:
             self._pages[revision] = page_reading(
-                self.view.reading(revision, self.registry),
+                self.view.reading(revision),
                 self.events,
                 revision,
                 withdrawn=self.log.withdrawn,
                 revisions=self.view.revisions,
-                revision_reader=lambda previous: self.view.reading(
-                    previous, self.view.registry(previous)
-                ),
+                revision_reader=self.view.reading,
             )
         return self._pages[revision]
 

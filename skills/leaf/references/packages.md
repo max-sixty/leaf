@@ -27,8 +27,8 @@ leaf package run NAME SCRIPT [ARGS]...
 `package init` creates `registry.json`, `theme.css`, `instructions/`, `runtime/`,
 `widgets/`, and `vendor/` without replacing existing contents. Add `--widget TAG` to
 create one upgraded prose widget at the same time. Leaf adds a valid registry example
-and the matching `widgets/TAG.js` module, which registers the element and upgrades it
-`once`; it then checks the resulting composition, and leaves a new package's empty
+and the matching `widgets/TAG.js` module, which default-exports its element constructor
+and upgrades it `once`; it then checks the resulting composition, and leaves a new package's empty
 theme ready for the widget's presentation.
 An existing theme and other package files remain in place. Leaf refuses a tag or module
 that already exists rather than replacing it. The package author edits that directory,
@@ -635,7 +635,8 @@ paint. Do not put credentials or private host state in it.
 A contract whose value holds keyed rows declares `records`: the top-level array field
 and each row's key field. A source replacement is accepted only when every row has a
 non-empty, unique string key. Rows that each carry a large, independently useful
-payload may name that field `deferred`. The source file still holds the complete value,
+payload may name that field `deferred`; the item schema decides which rows carry it.
+The source file still holds the complete value,
 and readings validate all of it, but `/api/state` sends each row with that field
 omitted; a widget uses `loadDeferred(snapshot, key)` to fetch one row's payload
 using the delivery `watchData` handed it. A request naming a source revision the file
@@ -708,8 +709,8 @@ and a blank image stands in for any media an example names. The checks:
   no asynchronous or network work and consumes no log-derived state. The module
   calls `initialRender(host)` from the helper surface:
   that call adopts the existing drawing, or produces it for a later revision or
-  thread arrival. Leaf loads its declared initial bundle before the behavior module
-  only if it has not already registered. Add behavior to those nodes without rebuilding
+  thread arrival. Leaf loads its captured initial bundle once per publication before
+  the behavior module, so each widget adopts its own publication’s drawing. Add behavior to those nodes without rebuilding
   their structure.
   The theme styles their actual initial layout; neither the producer nor the module
   reserves an estimated height. `x-initial` requires `x-upgrade: true` and cannot

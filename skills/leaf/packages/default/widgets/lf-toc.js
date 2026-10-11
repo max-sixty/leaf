@@ -67,577 +67,567 @@ const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 // The lens is never shorter than this, or than 1.2% of the map, so it stays in sight.
 const LENS_FLOOR = 14;
 
-customElements.define(
-  "lf-toc",
-  class extends HTMLElement {
-    #main;
-    #nav;
-    #rows;
-    #list;
-    #start;
-    #lens = null;
-    #lensMotion = null;
-    #lensInputs = "";
-    #sections = [];
-    #positions = [];
-    #mapPositions = [];
-    #mapHeight = 1;
-    #shown = [];
-    #contentStart = 0;
-    #contentEnd = 1;
-    #currentLink = null;
-    #scroller;
-    #scrollSource;
-    #watching;
-    #renamed;
-    #measureFrame = 0;
-    #paintFrame = 0;
-    #navHeight = 0;
-    #focusedLink = null;
-    #focusedVisible = false;
+export default class extends HTMLElement {
+  #main;
+  #nav;
+  #rows;
+  #list;
+  #start;
+  #lens = null;
+  #lensMotion = null;
+  #lensInputs = "";
+  #sections = [];
+  #positions = [];
+  #mapPositions = [];
+  #mapHeight = 1;
+  #shown = [];
+  #contentStart = 0;
+  #contentEnd = 1;
+  #currentLink = null;
+  #scroller;
+  #scrollSource;
+  #watching;
+  #renamed;
+  #measureFrame = 0;
+  #paintFrame = 0;
+  #navHeight = 0;
+  #focusedLink = null;
+  #focusedVisible = false;
 
-    #onScroll = () => this.#schedulePaint();
-    #onResize = () => this.#scheduleMeasure();
-    #onToggle = () => this.#scheduleMeasure();
-    #onLoad = () => this.#scheduleMeasure();
-    #onLayout = () => this.#scheduleMeasure();
-    #onInterface = () => {
-      this.#reconcile();
-      this.#measure();
-    };
-    #onPresentation = () => this.#measure();
-    #onNavScroll = () => {
-      // A resize may clamp scrollTop before the measurement that restores focus.
-      if (this.#nav.getBoundingClientRect().height === this.#navHeight)
-        this.#rememberFocus();
-    };
-    #onFocus = () => this.#rememberFocus();
-
-    connectedCallback() {
-      if (once(this)) this.#build();
-      if (!this.#nav) return;
-      this.#watch();
-    }
-
-    disconnectedCallback() {
-      this.#watching?.disconnect();
-      this.#watching = null;
-      this.#renamed?.disconnect();
-      this.#renamed = null;
-      this.#scrollSource?.removeEventListener("scroll", this.#onScroll);
-      this.#nav?.removeEventListener("scroll", this.#onNavScroll);
-      this.#nav?.removeEventListener("focusin", this.#onFocus);
-      this.#main?.removeEventListener("toggle", this.#onToggle, true);
-      this.#main?.removeEventListener("load", this.#onLoad, true);
-      this.#main?.removeEventListener(LAYOUT, this.#onLayout);
-      document.removeEventListener(PRESENTATION, this.#onPresentation);
-      document.removeEventListener(PAGE_INTERFACE, this.#onInterface);
-      window.removeEventListener("resize", this.#onResize);
-      cancelRender(this.#measureFrame);
-      cancelRender(this.#paintFrame);
-      this.#lensMotion?.cancel();
-      this.#lensMotion = null;
-      this.#lensInputs = "";
-      this.#measureFrame = 0;
-      this.#paintFrame = 0;
-    }
-
-    #build() {
-      this.#main = this.closest("main");
-      if (!this.#main) return;
-
-      this.#nav = document.createElement("nav");
-      this.#nav.className = "lf-toc-nav lf-ui";
-      this.#nav.dataset.lfGen = "1";
-      this.#nav.setAttribute("aria-label", "On this page");
-
-      const heading = document.createElement("p");
-      heading.className = "lf-toc-heading";
-      relabel(heading, "On this page", { says: true });
-
-      this.#rows = document.createElement("div");
-      this.#rows.className = "lf-toc-rows";
-      const lens = document.createElement("span");
-      lens.className = "lf-toc-window";
-      lens.setAttribute("aria-hidden", "true");
-
-      const row = document.createElement("div");
-      row.className = "lf-toc-start";
-      row.dataset.lfDepth = "0";
-      const link = document.createElement("a");
-      row.append(link);
-      this.#start = { row, link };
-      this.#list = document.createElement("ol");
-      if ("ScrollTimeline" in globalThis) {
-        this.#lens = lens;
-        this.#rows.append(lens);
-      }
-      this.#rows.append(this.#start.row, this.#list);
-      this.#nav.append(heading, this.#rows);
-      this.append(this.#nav);
-      this.#reconcile();
-    }
-
-    // Authored revisions retain this widget when its own markup did not change.
-    // Re-read the outline at activation, retaining each surviving link by its title
-    // or address. The shared child reconciler preserves focus and native node state.
-    #reconcile() {
-      const maxLevel = Number(this.getAttribute("max-level") ?? 6);
-      const headings = [...this.#main.querySelectorAll(HEADING_SELECTOR)]
-        .filter((heading) => heading.localName !== "h1")
-        .filter((heading) => !inChrome(heading) && !heading.closest("lf-toc"))
-        .filter((heading) => Number(heading.localName.slice(1)) <= maxLevel)
-        .map((heading) => ({ heading, label: wrote(heading).trim() }))
-        .filter(({ label }) => label);
-
-      const pageTitle = [...this.#main.querySelectorAll("h1")].find(
-        (candidate) => !inChrome(candidate),
-      );
-      const startDestination = pageTitle
-        ? this.#destinationFor(pageTitle, 0)
-        : this.#main.id
-          ? this.#main
-          : this.#targetFor(this.#main, 0);
-      const previous = this.#sections.map(({ destination }) => destination);
-      const available = new Set(this.#sections.slice(1));
-      const floor = Math.min(
-        ...headings.map(({ heading }) => Number(heading.localName.slice(1))),
-      );
-      const items = headings.map(({ heading, label }, index) => {
-        const destination = this.#destinationFor(heading, index + 1);
-        let item = [...available].find(
-          (held) =>
-            held.heading === heading ||
-            (heading.id && held.heading.id === heading.id) ||
-            held.destination.id === destination.id,
-        );
-        if (item) available.delete(item);
-        else {
-          const row = document.createElement("li");
-          const link = document.createElement("a");
-          row.append(link);
-          item = { row, link };
-        }
-        item.heading = heading;
-        item.destination = destination;
-        keeps(
-          item.row,
-          "data-lf-depth",
-          String(Math.min(Number(heading.localName.slice(1)) - floor, 4)),
-        );
-        keeps(item.link, "href", `#${destination.id}`);
-        if (item.link.textContent !== label) item.link.textContent = label;
-        return item;
-      });
-      this.#start.destination = startDestination;
-      keeps(this.#start.link, "href", `#${startDestination.id}`);
-      const title = (pageTitle ? wrote(pageTitle).trim() : "") || "Top";
-      if (this.#start.link.textContent !== title) this.#start.link.textContent = title;
-      this.#sections = headings.length ? [this.#start, ...items] : [];
-      this.toggleAttribute("data-lf-toc-empty", !headings.length);
-      setChildren(
-        this.#list,
-        items.map(({ row }) => row),
-      );
-      this.#observeDestinations(previous);
-    }
-
-    #observeDestinations(previous = []) {
-      if (!this.#watching) return;
-      for (const destination of previous)
-        if (destination !== this.#main) this.#watching.unobserve(destination);
-      this.#renamed.disconnect();
-      // The complete destination reports section growth and title-group layout,
-      // including an eyebrow changing size while its heading stays the same.
-      for (const { destination } of this.#sections) {
-        if (destination !== this.#main) this.#watching.observe(destination);
-        this.#renamed.observe(destination, { attributeFilter: ["id"] });
-      }
-    }
-
-    #watch() {
-      if (this.#watching) return;
-      this.#main = this.closest("main");
-      if (!this.#main) return;
-      this.#scroller = scrollerFor(this);
-      // Root scrolling is reported on Document; nested scrollports report on the
-      // element itself. Keep one paint path while using the platform's event target for
-      // each kind of scroller.
-      this.#scrollSource =
-        this.#scroller === document.scrollingElement ? document : this.#scroller;
-      this.#watching = sizeObserver(() => this.#scheduleMeasure());
-      this.#watching.observe(this.#main);
-      this.#renamed = new MutationObserver(() => {
-        this.#reconcile();
-        this.#scheduleMeasure();
-      });
-      this.#observeDestinations();
-      this.#scrollSource.addEventListener("scroll", this.#onScroll, { passive: true });
-      this.#nav.addEventListener("scroll", this.#onNavScroll, { passive: true });
-      this.#nav.addEventListener("focusin", this.#onFocus);
-      this.#main.addEventListener("toggle", this.#onToggle, true);
-      this.#main.addEventListener("load", this.#onLoad, true);
-      this.#main.addEventListener(LAYOUT, this.#onLayout);
-      document.addEventListener(PRESENTATION, this.#onPresentation);
-      document.addEventListener(PAGE_INTERFACE, this.#onInterface);
-      window.addEventListener("resize", this.#onResize);
-      this.#scheduleMeasure();
-    }
-
-    #scheduleMeasure() {
-      if (this.#measureFrame || !this.isConnected) return;
-      this.#measureFrame = nextRender(() => {
-        this.#measureFrame = 0;
-        this.#measure();
-      });
-    }
-
-    #measure() {
-      if (!this.#main || !this.#scroller || !this.#rows) return;
-      if (!this.#sections.length) {
-        this.#positions = [];
-        this.#shown = [];
-        this.#paint();
-        return;
-      }
-      const mainTop = this.#documentTop(this.#main);
-      let previous = this.#documentTop(this.#sections[0].destination);
-      this.#shown = this.#sections.map(
-        ({ destination }) =>
-          destination === this.#main || destination.checkVisibility(),
-      );
-      this.#positions = this.#sections.map(({ destination }, index) => {
-        const position = this.#shown[index]
-          ? Math.max(previous, this.#documentTop(destination))
-          : previous;
-        previous = position;
-        return position;
-      });
-      this.#contentStart = this.#positions[0];
-      this.#contentEnd = Math.max(
-        mainTop +
-          this.#main.clientTop +
-          this.#main.scrollHeight -
-          parseFloat(getComputedStyle(this.#main).paddingBottom),
-        this.#positions.at(-1) + 1,
-      );
-      this.#sections.forEach(({ row }, index) => {
-        row.toggleAttribute("data-lf-toc-hidden", !this.#shown[index]);
-        const nextVisible = this.#shown.findIndex((shown, at) => at > index && shown);
-        const next = nextVisible < 0 ? this.#contentEnd : this.#positions[nextVisible];
-        row.style.setProperty(
-          "--lf-toc-span",
-          this.#shown[index] ? String(Math.max(1, next - this.#positions[index])) : "0",
-        );
-      });
-      this.#fitRows();
+  #onScroll = () => this.#schedulePaint();
+  #onResize = () => this.#scheduleMeasure();
+  #onToggle = () => this.#scheduleMeasure();
+  #onLoad = () => this.#scheduleMeasure();
+  #onLayout = () => this.#scheduleMeasure();
+  #onInterface = () => {
+    this.#reconcile();
+    this.#measure();
+  };
+  #onPresentation = () => this.#measure();
+  #onNavScroll = () => {
+    // A resize may clamp scrollTop before the measurement that restores focus.
+    if (this.#nav.getBoundingClientRect().height === this.#navHeight)
       this.#rememberFocus();
-      this.#lensInputs = "";
+  };
+  #onFocus = () => this.#rememberFocus();
+
+  connectedCallback() {
+    if (once(this)) this.#build();
+    if (!this.#nav) return;
+    this.#watch();
+  }
+
+  disconnectedCallback() {
+    this.#watching?.disconnect();
+    this.#watching = null;
+    this.#renamed?.disconnect();
+    this.#renamed = null;
+    this.#scrollSource?.removeEventListener("scroll", this.#onScroll);
+    this.#nav?.removeEventListener("scroll", this.#onNavScroll);
+    this.#nav?.removeEventListener("focusin", this.#onFocus);
+    this.#main?.removeEventListener("toggle", this.#onToggle, true);
+    this.#main?.removeEventListener("load", this.#onLoad, true);
+    this.#main?.removeEventListener(LAYOUT, this.#onLayout);
+    document.removeEventListener(PRESENTATION, this.#onPresentation);
+    document.removeEventListener(PAGE_INTERFACE, this.#onInterface);
+    window.removeEventListener("resize", this.#onResize);
+    cancelRender(this.#measureFrame);
+    cancelRender(this.#paintFrame);
+    this.#lensMotion?.cancel();
+    this.#lensMotion = null;
+    this.#lensInputs = "";
+    this.#measureFrame = 0;
+    this.#paintFrame = 0;
+  }
+
+  #build() {
+    this.#main = this.closest("main");
+    if (!this.#main) return;
+
+    this.#nav = document.createElement("nav");
+    this.#nav.className = "lf-toc-nav lf-ui";
+    this.#nav.dataset.lfGen = "1";
+    this.#nav.setAttribute("aria-label", "On this page");
+
+    const heading = document.createElement("p");
+    heading.className = "lf-toc-heading";
+    relabel(heading, "On this page", { says: true });
+
+    this.#rows = document.createElement("div");
+    this.#rows.className = "lf-toc-rows";
+    const lens = document.createElement("span");
+    lens.className = "lf-toc-window";
+    lens.setAttribute("aria-hidden", "true");
+
+    const row = document.createElement("div");
+    row.className = "lf-toc-start";
+    row.dataset.lfDepth = "0";
+    const link = document.createElement("a");
+    row.append(link);
+    this.#start = { row, link };
+    this.#list = document.createElement("ol");
+    if ("ScrollTimeline" in globalThis) {
+      this.#lens = lens;
+      this.#rows.append(lens);
+    }
+    this.#rows.append(this.#start.row, this.#list);
+    this.#nav.append(heading, this.#rows);
+    this.append(this.#nav);
+    this.#reconcile();
+  }
+
+  // Authored revisions retain this widget when its own markup did not change.
+  // Re-read the outline at activation, retaining each surviving link by its title
+  // or address. The shared child reconciler preserves focus and native node state.
+  #reconcile() {
+    const maxLevel = Number(this.getAttribute("max-level") ?? 6);
+    const headings = [...this.#main.querySelectorAll(HEADING_SELECTOR)]
+      .filter((heading) => heading.localName !== "h1")
+      .filter((heading) => !inChrome(heading) && !heading.closest("lf-toc"))
+      .filter((heading) => Number(heading.localName.slice(1)) <= maxLevel)
+      .map((heading) => ({ heading, label: wrote(heading).trim() }))
+      .filter(({ label }) => label);
+
+    const pageTitle = [...this.#main.querySelectorAll("h1")].find(
+      (candidate) => !inChrome(candidate),
+    );
+    const startDestination = pageTitle
+      ? this.#destinationFor(pageTitle, 0)
+      : this.#main.id
+        ? this.#main
+        : this.#targetFor(this.#main, 0);
+    const previous = this.#sections.map(({ destination }) => destination);
+    const available = new Set(this.#sections.slice(1));
+    const floor = Math.min(
+      ...headings.map(({ heading }) => Number(heading.localName.slice(1))),
+    );
+    const items = headings.map(({ heading, label }, index) => {
+      const destination = this.#destinationFor(heading, index + 1);
+      let item = [...available].find(
+        (held) =>
+          held.heading === heading ||
+          (heading.id && held.heading.id === heading.id) ||
+          held.destination.id === destination.id,
+      );
+      if (item) available.delete(item);
+      else {
+        const row = document.createElement("li");
+        const link = document.createElement("a");
+        row.append(link);
+        item = { row, link };
+      }
+      item.heading = heading;
+      item.destination = destination;
+      keeps(
+        item.row,
+        "data-lf-depth",
+        String(Math.min(Number(heading.localName.slice(1)) - floor, 4)),
+      );
+      keeps(item.link, "href", `#${destination.id}`);
+      if (item.link.textContent !== label) item.link.textContent = label;
+      return item;
+    });
+    this.#start.destination = startDestination;
+    keeps(this.#start.link, "href", `#${startDestination.id}`);
+    const title = (pageTitle ? wrote(pageTitle).trim() : "") || "Top";
+    if (this.#start.link.textContent !== title) this.#start.link.textContent = title;
+    this.#sections = headings.length ? [this.#start, ...items] : [];
+    this.toggleAttribute("data-lf-toc-empty", !headings.length);
+    setChildren(
+      this.#list,
+      items.map(({ row }) => row),
+    );
+    this.#observeDestinations(previous);
+  }
+
+  #observeDestinations(previous = []) {
+    if (!this.#watching) return;
+    for (const destination of previous)
+      if (destination !== this.#main) this.#watching.unobserve(destination);
+    this.#renamed.disconnect();
+    // The complete destination reports section growth and title-group layout,
+    // including an eyebrow changing size while its heading stays the same.
+    for (const { destination } of this.#sections) {
+      if (destination !== this.#main) this.#watching.observe(destination);
+      this.#renamed.observe(destination, { attributeFilter: ["id"] });
+    }
+  }
+
+  #watch() {
+    if (this.#watching) return;
+    this.#main = this.closest("main");
+    if (!this.#main) return;
+    this.#scroller = scrollerFor(this);
+    // Root scrolling is reported on Document; nested scrollports report on the
+    // element itself. Keep one paint path while using the platform's event target for
+    // each kind of scroller.
+    this.#scrollSource =
+      this.#scroller === document.scrollingElement ? document : this.#scroller;
+    this.#watching = sizeObserver(() => this.#scheduleMeasure());
+    this.#watching.observe(this.#main);
+    this.#renamed = new MutationObserver(() => {
+      this.#reconcile();
+      this.#scheduleMeasure();
+    });
+    this.#observeDestinations();
+    this.#scrollSource.addEventListener("scroll", this.#onScroll, { passive: true });
+    this.#nav.addEventListener("scroll", this.#onNavScroll, { passive: true });
+    this.#nav.addEventListener("focusin", this.#onFocus);
+    this.#main.addEventListener("toggle", this.#onToggle, true);
+    this.#main.addEventListener("load", this.#onLoad, true);
+    this.#main.addEventListener(LAYOUT, this.#onLayout);
+    document.addEventListener(PRESENTATION, this.#onPresentation);
+    document.addEventListener(PAGE_INTERFACE, this.#onInterface);
+    window.addEventListener("resize", this.#onResize);
+    this.#scheduleMeasure();
+  }
+
+  #scheduleMeasure() {
+    if (this.#measureFrame || !this.isConnected) return;
+    this.#measureFrame = nextRender(() => {
+      this.#measureFrame = 0;
+      this.#measure();
+    });
+  }
+
+  #measure() {
+    if (!this.#main || !this.#scroller || !this.#rows) return;
+    if (!this.#sections.length) {
+      this.#positions = [];
+      this.#shown = [];
       this.#paint();
+      return;
     }
+    const mainTop = this.#documentTop(this.#main);
+    let previous = this.#documentTop(this.#sections[0].destination);
+    this.#shown = this.#sections.map(
+      ({ destination }) => destination === this.#main || destination.checkVisibility(),
+    );
+    this.#positions = this.#sections.map(({ destination }, index) => {
+      const position = this.#shown[index]
+        ? Math.max(previous, this.#documentTop(destination))
+        : previous;
+      previous = position;
+      return position;
+    });
+    this.#contentStart = this.#positions[0];
+    this.#contentEnd = Math.max(
+      mainTop +
+        this.#main.clientTop +
+        this.#main.scrollHeight -
+        parseFloat(getComputedStyle(this.#main).paddingBottom),
+      this.#positions.at(-1) + 1,
+    );
+    this.#sections.forEach(({ row }, index) => {
+      row.toggleAttribute("data-lf-toc-hidden", !this.#shown[index]);
+      const nextVisible = this.#shown.findIndex((shown, at) => at > index && shown);
+      const next = nextVisible < 0 ? this.#contentEnd : this.#positions[nextVisible];
+      row.style.setProperty(
+        "--lf-toc-span",
+        this.#shown[index] ? String(Math.max(1, next - this.#positions[index])) : "0",
+      );
+    });
+    this.#fitRows();
+    this.#rememberFocus();
+    this.#lensInputs = "";
+    this.#paint();
+  }
 
-    // A row's shift moves its label and dot (a transform and an inset), never the row, so
-    // the rows are measured where they stand and each shift is written once, as fitted.
-    #fitRows() {
-      this.#mapPositions = [];
-      const shifts = this.#fitLabels();
-      this.#sections.forEach(({ row }, index) => {
-        if (shifts.has(index))
-          row.style.setProperty("--lf-toc-row-shift", `${shifts.get(index)}px`);
-        else row.style.removeProperty("--lf-toc-row-shift");
-      });
-    }
+  // A row's shift moves its label and dot (a transform and an inset), never the row, so
+  // the rows are measured where they stand and each shift is written once, as fitted.
+  #fitRows() {
+    this.#mapPositions = [];
+    const shifts = this.#fitLabels();
+    this.#sections.forEach(({ row }, index) => {
+      if (shifts.has(index))
+        row.style.setProperty("--lf-toc-row-shift", `${shifts.get(index)}px`);
+      else row.style.removeProperty("--lf-toc-row-shift");
+    });
+  }
 
-    #rememberFocus() {
-      const viewport = this.#nav.getBoundingClientRect();
-      const active = document.activeElement;
-      const focused = this.#nav.contains(active)
-        ? active.getBoundingClientRect()
-        : null;
-      this.#navHeight = viewport.height;
-      this.#focusedLink = active;
-      this.#focusedVisible =
-        !!focused &&
-        focused.top >= viewport.top - 1 &&
-        focused.bottom <= viewport.bottom + 1;
-    }
+  #rememberFocus() {
+    const viewport = this.#nav.getBoundingClientRect();
+    const active = document.activeElement;
+    const focused = this.#nav.contains(active) ? active.getBoundingClientRect() : null;
+    this.#navHeight = viewport.height;
+    this.#focusedLink = active;
+    this.#focusedVisible =
+      !!focused &&
+      focused.top >= viewport.top - 1 &&
+      focused.bottom <= viewport.bottom + 1;
+  }
 
-    // Each fitted row's shift, by section index.
-    #fitLabels() {
-      const shifts = new Map();
-      this.removeAttribute("data-lf-compact");
-      this.removeAttribute("data-lf-outline");
-      if (getComputedStyle(this.#rows).display !== "flex") return shifts;
-      const track = this.#rows.getBoundingClientRect();
-      this.#mapHeight = track.height;
+  // Each fitted row's shift, by section index.
+  #fitLabels() {
+    const shifts = new Map();
+    this.removeAttribute("data-lf-compact");
+    this.removeAttribute("data-lf-outline");
+    if (getComputedStyle(this.#rows).display !== "flex") return shifts;
+    const track = this.#rows.getBoundingClientRect();
+    this.#mapHeight = track.height;
 
-      const readLabels = () => {
-        const labels = this.#sections.flatMap(({ row, link }, index) =>
-          this.#shown[index]
-            ? [
-                {
-                  index,
-                  ideal: row.getBoundingClientRect().top - track.top,
-                  height: link.getBoundingClientRect().height,
-                  center: parseFloat(getComputedStyle(link).lineHeight) / 2,
-                },
-              ]
-            : [],
-        );
-        const lineHeight = parseFloat(getComputedStyle(this.#nav).lineHeight);
-        const preferredGap = Number.isFinite(lineHeight) ? lineHeight * 0.5 : 0;
-        const labelHeight = labels.reduce((sum, label) => sum + label.height, 0);
-        const firstCenter = labels[0]?.center ?? 0;
-        const availableHeight = track.height + firstCenter;
-        const availableGap =
-          labels.length > 1 ? (availableHeight - labelHeight) / (labels.length - 1) : 0;
-        return {
-          labels,
-          labelHeight,
-          firstCenter,
-          availableHeight,
-          preferredGap,
-          gap: Math.max(0, Math.min(preferredGap, availableGap)),
-        };
+    const readLabels = () => {
+      const labels = this.#sections.flatMap(({ row, link }, index) =>
+        this.#shown[index]
+          ? [
+              {
+                index,
+                ideal: row.getBoundingClientRect().top - track.top,
+                height: link.getBoundingClientRect().height,
+                center: parseFloat(getComputedStyle(link).lineHeight) / 2,
+              },
+            ]
+          : [],
+      );
+      const lineHeight = parseFloat(getComputedStyle(this.#nav).lineHeight);
+      const preferredGap = Number.isFinite(lineHeight) ? lineHeight * 0.5 : 0;
+      const labelHeight = labels.reduce((sum, label) => sum + label.height, 0);
+      const firstCenter = labels[0]?.center ?? 0;
+      const availableHeight = track.height + firstCenter;
+      const availableGap =
+        labels.length > 1 ? (availableHeight - labelHeight) / (labels.length - 1) : 0;
+      return {
+        labels,
+        labelHeight,
+        firstCenter,
+        availableHeight,
+        preferredGap,
+        gap: Math.max(0, Math.min(preferredGap, availableGap)),
       };
+    };
 
-      let layout = readLabels();
-      if (!layout.labels.length) return shifts;
+    let layout = readLabels();
+    if (!layout.labels.length) return shifts;
+    if (
+      layout.labelHeight + layout.preferredGap * Math.max(0, layout.labels.length - 1) >
+      layout.availableHeight + 1
+    ) {
+      this.setAttribute("data-lf-compact", "");
+      layout = readLabels();
+    }
+    if (layout.labelHeight > layout.availableHeight + 1) {
+      this.removeAttribute("data-lf-compact");
+      this.setAttribute("data-lf-outline", "");
       if (
-        layout.labelHeight +
-          layout.preferredGap * Math.max(0, layout.labels.length - 1) >
-        layout.availableHeight + 1
+        this.#nav.contains(document.activeElement) &&
+        this.#focusedLink === document.activeElement &&
+        this.#focusedVisible &&
+        this.#nav.getBoundingClientRect().height < this.#navHeight - 1
       ) {
-        this.setAttribute("data-lf-compact", "");
-        layout = readLabels();
-      }
-      if (layout.labelHeight > layout.availableHeight + 1) {
-        this.removeAttribute("data-lf-compact");
-        this.setAttribute("data-lf-outline", "");
-        if (
-          this.#nav.contains(document.activeElement) &&
-          this.#focusedLink === document.activeElement &&
-          this.#focusedVisible &&
-          this.#nav.getBoundingClientRect().height < this.#navHeight - 1
-        ) {
-          const focused = document.activeElement.getBoundingClientRect();
-          const viewport = this.#nav.getBoundingClientRect();
-          if (focused.bottom > viewport.bottom)
-            this.#nav.scrollTop += focused.bottom - viewport.bottom;
-          else if (focused.top < viewport.top)
-            this.#nav.scrollTop += focused.top - viewport.top;
-        }
-        return shifts;
-      }
-
-      let prefix = 0;
-      for (const label of layout.labels) {
-        label.prefix = prefix;
-        prefix += label.height + layout.gap;
-      }
-      const occupiedHeight = Math.max(0, prefix - layout.gap);
-
-      // Fit label boxes around their marker centers. A collision-free label top is its
-      // document coordinate minus its first-line center and every preceding label's
-      // height. Pool adjacent violations and share their correction, so a
-      // crowded group bends one monotone scale around its destinations instead of
-      // accumulating displacement below them.
-      const blocks = [];
-      layout.labels.forEach((label, at) => {
-        blocks.push({
-          start: at,
-          end: at,
-          top: label.ideal - label.center - label.prefix,
-          count: 1,
-        });
-        while (blocks.length > 1 && blocks.at(-2).top > blocks.at(-1).top) {
-          const next = blocks.pop();
-          const previous = blocks.pop();
-          const count = previous.count + next.count;
-          blocks.push({
-            start: previous.start,
-            end: next.end,
-            top: (previous.top * previous.count + next.top * next.count) / count,
-            count,
-          });
-        }
-      });
-
-      const floor = -layout.firstCenter;
-      const ceiling = track.height - occupiedHeight;
-      for (const block of blocks) {
-        const top = Math.max(floor, Math.min(ceiling, block.top));
-        for (let at = block.start; at <= block.end; at += 1) {
-          const label = layout.labels[at];
-          const fitted = top + label.prefix + label.center;
-          this.#mapPositions[label.index] = fitted;
-          shifts.set(label.index, fitted - label.ideal);
-        }
+        const focused = document.activeElement.getBoundingClientRect();
+        const viewport = this.#nav.getBoundingClientRect();
+        if (focused.bottom > viewport.bottom)
+          this.#nav.scrollTop += focused.bottom - viewport.bottom;
+        else if (focused.top < viewport.top)
+          this.#nav.scrollTop += focused.top - viewport.top;
       }
       return shifts;
     }
 
-    #mapPosition(position) {
-      const anchors = [];
-      this.#positions.forEach((documentPosition, index) => {
-        if (!this.#shown[index] || !Number.isFinite(this.#mapPositions[index])) return;
-        const anchor = { documentPosition, mapPosition: this.#mapPositions[index] };
-        // Several outline entries can name the same rendered position. Current-section
-        // selection walks forward through that run, so the lens must use its last entry
-        // too; retaining the first put the lens beside a different title.
-        if (anchors.at(-1)?.documentPosition === documentPosition) anchors.pop();
-        anchors.push(anchor);
-      });
-      if (!anchors.length) {
-        const total = Math.max(1, this.#contentEnd - this.#contentStart);
-        return (
-          Math.max(0, Math.min(1, (position - this.#contentStart) / total)) *
-          this.#mapHeight
-        );
-      }
-      if (position <= anchors[0].documentPosition) return anchors[0].mapPosition;
-      for (let index = 1; index < anchors.length; index += 1) {
-        const previous = anchors[index - 1];
-        const next = anchors[index];
-        if (position > next.documentPosition) continue;
-        const distance = Math.max(1, next.documentPosition - previous.documentPosition);
-        const progress = (position - previous.documentPosition) / distance;
-        return (
-          previous.mapPosition + progress * (next.mapPosition - previous.mapPosition)
-        );
-      }
-      const last = anchors.at(-1);
-      const distance = Math.max(1, this.#contentEnd - last.documentPosition);
-      const progress = Math.max(
-        0,
-        Math.min(1, (position - last.documentPosition) / distance),
-      );
-      return last.mapPosition + progress * (this.#mapHeight - last.mapPosition);
+    let prefix = 0;
+    for (const label of layout.labels) {
+      label.prefix = prefix;
+      prefix += label.height + layout.gap;
     }
+    const occupiedHeight = Math.max(0, prefix - layout.gap);
 
-    #documentTop(element) {
-      for (let candidate = element; candidate; candidate = candidate.parentElement) {
-        const box = candidate.getBoundingClientRect();
-        if (box.width || box.height) return box.top + this.#scroller.scrollTop;
-        if (candidate === this.#main) break;
-      }
-      const mainBox = this.#main.getBoundingClientRect();
-      return mainBox.top + this.#scroller.scrollTop;
-    }
-
-    #schedulePaint() {
-      if (this.#paintFrame || !this.isConnected) return;
-      this.#paintFrame = nextRender(() => {
-        this.#paintFrame = 0;
-        this.#paint();
+    // Fit label boxes around their marker centers. A collision-free label top is its
+    // document coordinate minus its first-line center and every preceding label's
+    // height. Pool adjacent violations and share their correction, so a
+    // crowded group bends one monotone scale around its destinations instead of
+    // accumulating displacement below them.
+    const blocks = [];
+    layout.labels.forEach((label, at) => {
+      blocks.push({
+        start: at,
+        end: at,
+        top: label.ideal - label.center - label.prefix,
+        count: 1,
       });
-    }
-
-    #paint() {
-      if (!this.#rows || !this.#scroller) return;
-      let current = this.#shown.findIndex(Boolean);
-      if (current < 0) {
-        this.#currentLink?.removeAttribute("aria-current");
-        this.#currentLink = null;
-        this.#lensMotion?.cancel();
-        this.#lensMotion = null;
-        this.#lensInputs = "";
-        if (this.#lens) keeps(this.#lens, "style", "display: none;");
-        return;
-      }
-      // What the user can read is the scroller's landing band, clear of the banner over
-      // its top and the bottom bar over its bottom.
-      const clear = landingInsets(this.#scroller);
-      const visibleStart = this.#scroller.scrollTop + clear.top;
-      const visibleEnd =
-        this.#scroller.scrollTop + this.#scroller.clientHeight - clear.bottom;
-      this.#standLens(clear);
-
-      const threshold = visibleStart + Math.min(32, (visibleEnd - visibleStart) * 0.08);
-      this.#positions.forEach((position, index) => {
-        if (this.#shown[index] && position <= threshold) current = index;
-      });
-      if (
-        this.#scroller.scrollTop >=
-        this.#scroller.scrollHeight - this.#scroller.clientHeight - 1
-      )
-        current = this.#shown.findLastIndex(Boolean);
-      const link = this.#sections[current].link;
-      if (link === this.#currentLink) return;
-      this.#currentLink?.removeAttribute("aria-current");
-      link.setAttribute("aria-current", "location");
-      this.#currentLink = link;
-    }
-
-    // Keyframes are set again only when a measure has moved the map, or the scroller's
-    // length or landing band has changed; a scroll alone reaches the early return.
-    #standLens(clear) {
-      if (!this.#lens) return;
-      const scroller = this.#scroller;
-      const reach = scroller.scrollHeight - scroller.clientHeight;
-      const band = scroller.clientHeight - clear.top - clear.bottom;
-      const inputs = `${reach} ${band} ${clear.top}`;
-      if (inputs === this.#lensInputs) return;
-      this.#lensInputs = inputs;
-      const floor = Math.max(LENS_FLOOR, this.#mapHeight * 0.012);
-      const span = (scrolled) => {
-        const start = this.#mapPosition(scrolled + clear.top);
-        return {
-          start,
-          size: Math.max(start, this.#mapPosition(scrolled + clear.top + band)) - start,
-        };
-      };
-      const transform = ({ start, size }) =>
-        `translateY(${layoutPx(start)}) scaleY(${atLayoutPrecision(Math.max(floor, size))})`;
-      if (reach <= 0) {
-        this.#lensMotion?.cancel();
-        this.#lensMotion = null;
-        keeps(this.#lens, "style", `transform: ${transform(span(0))};`);
-        return;
-      }
-      // The map is linear between the scroll positions where the band's top or foot
-      // meets a destination or the document's ends, and where the lens meets its floor.
-      const bends = [this.#contentStart, this.#contentEnd, ...this.#positions]
-        .flatMap((position) => [position - clear.top, position - clear.top - band])
-        .filter((scrolled) => scrolled > 0 && scrolled < reach);
-      const stops = [...new Set([0, reach, ...bends])].sort((a, b) => a - b);
-      const floored = stops.flatMap((scrolled, index) => {
-        const next = stops[index + 1];
-        if (next === undefined) return [scrolled];
-        const [from, to] = [span(scrolled).size, span(next).size];
-        if ((from - floor) * (to - floor) >= 0) return [scrolled];
-        return [
-          scrolled,
-          scrolled + ((floor - from) / (to - from)) * (next - scrolled),
-        ];
-      });
-      const frames = floored.map((scrolled) => ({
-        offset: scrolled / reach,
-        transform: transform(span(scrolled)),
-      }));
-      this.#lens.removeAttribute("style");
-      if (this.#lensMotion) this.#lensMotion.effect.setKeyframes(frames);
-      else
-        this.#lensMotion = this.#lens.animate(frames, {
-          timeline: new globalThis.ScrollTimeline({ source: scroller, axis: "block" }),
-          fill: "both",
+      while (blocks.length > 1 && blocks.at(-2).top > blocks.at(-1).top) {
+        const next = blocks.pop();
+        const previous = blocks.pop();
+        const count = previous.count + next.count;
+        blocks.push({
+          start: previous.start,
+          end: next.end,
+          top: (previous.top * previous.count + next.top * next.count) / count,
+          count,
         });
-    }
+      }
+    });
 
-    #destinationFor(heading, position) {
-      const section = heading.closest("section[id]");
-      if (section?.querySelector(HEADING_SELECTOR) === heading) return section;
-      const destination = heading.closest("hgroup") ?? heading;
-      return destination.id ? destination : this.#targetFor(destination, position);
+    const floor = -layout.firstCenter;
+    const ceiling = track.height - occupiedHeight;
+    for (const block of blocks) {
+      const top = Math.max(floor, Math.min(ceiling, block.top));
+      for (let at = block.start; at <= block.end; at += 1) {
+        const label = layout.labels[at];
+        const fitted = top + label.prefix + label.center;
+        this.#mapPositions[label.index] = fitted;
+        shifts.set(label.index, fitted - label.ideal);
+      }
     }
+    return shifts;
+  }
 
-    #targetFor(heading, position) {
-      const stem = `lf-${this.id}-section-${position}`;
-      let id = stem;
-      let suffix = 2;
-      while (document.getElementById(id)) id = `${stem}-${suffix++}`;
-      heading.id = id;
-      return heading;
+  #mapPosition(position) {
+    const anchors = [];
+    this.#positions.forEach((documentPosition, index) => {
+      if (!this.#shown[index] || !Number.isFinite(this.#mapPositions[index])) return;
+      const anchor = { documentPosition, mapPosition: this.#mapPositions[index] };
+      // Several outline entries can name the same rendered position. Current-section
+      // selection walks forward through that run, so the lens must use its last entry
+      // too; retaining the first put the lens beside a different title.
+      if (anchors.at(-1)?.documentPosition === documentPosition) anchors.pop();
+      anchors.push(anchor);
+    });
+    if (!anchors.length) {
+      const total = Math.max(1, this.#contentEnd - this.#contentStart);
+      return (
+        Math.max(0, Math.min(1, (position - this.#contentStart) / total)) *
+        this.#mapHeight
+      );
     }
-  },
-);
+    if (position <= anchors[0].documentPosition) return anchors[0].mapPosition;
+    for (let index = 1; index < anchors.length; index += 1) {
+      const previous = anchors[index - 1];
+      const next = anchors[index];
+      if (position > next.documentPosition) continue;
+      const distance = Math.max(1, next.documentPosition - previous.documentPosition);
+      const progress = (position - previous.documentPosition) / distance;
+      return (
+        previous.mapPosition + progress * (next.mapPosition - previous.mapPosition)
+      );
+    }
+    const last = anchors.at(-1);
+    const distance = Math.max(1, this.#contentEnd - last.documentPosition);
+    const progress = Math.max(
+      0,
+      Math.min(1, (position - last.documentPosition) / distance),
+    );
+    return last.mapPosition + progress * (this.#mapHeight - last.mapPosition);
+  }
+
+  #documentTop(element) {
+    for (let candidate = element; candidate; candidate = candidate.parentElement) {
+      const box = candidate.getBoundingClientRect();
+      if (box.width || box.height) return box.top + this.#scroller.scrollTop;
+      if (candidate === this.#main) break;
+    }
+    const mainBox = this.#main.getBoundingClientRect();
+    return mainBox.top + this.#scroller.scrollTop;
+  }
+
+  #schedulePaint() {
+    if (this.#paintFrame || !this.isConnected) return;
+    this.#paintFrame = nextRender(() => {
+      this.#paintFrame = 0;
+      this.#paint();
+    });
+  }
+
+  #paint() {
+    if (!this.#rows || !this.#scroller) return;
+    let current = this.#shown.findIndex(Boolean);
+    if (current < 0) {
+      this.#currentLink?.removeAttribute("aria-current");
+      this.#currentLink = null;
+      this.#lensMotion?.cancel();
+      this.#lensMotion = null;
+      this.#lensInputs = "";
+      if (this.#lens) keeps(this.#lens, "style", "display: none;");
+      return;
+    }
+    // What the user can read is the scroller's landing band, clear of the banner over
+    // its top and the bottom bar over its bottom.
+    const clear = landingInsets(this.#scroller);
+    const visibleStart = this.#scroller.scrollTop + clear.top;
+    const visibleEnd =
+      this.#scroller.scrollTop + this.#scroller.clientHeight - clear.bottom;
+    this.#standLens(clear);
+
+    const threshold = visibleStart + Math.min(32, (visibleEnd - visibleStart) * 0.08);
+    this.#positions.forEach((position, index) => {
+      if (this.#shown[index] && position <= threshold) current = index;
+    });
+    if (
+      this.#scroller.scrollTop >=
+      this.#scroller.scrollHeight - this.#scroller.clientHeight - 1
+    )
+      current = this.#shown.findLastIndex(Boolean);
+    const link = this.#sections[current].link;
+    if (link === this.#currentLink) return;
+    this.#currentLink?.removeAttribute("aria-current");
+    link.setAttribute("aria-current", "location");
+    this.#currentLink = link;
+  }
+
+  // Keyframes are set again only when a measure has moved the map, or the scroller's
+  // length or landing band has changed; a scroll alone reaches the early return.
+  #standLens(clear) {
+    if (!this.#lens) return;
+    const scroller = this.#scroller;
+    const reach = scroller.scrollHeight - scroller.clientHeight;
+    const band = scroller.clientHeight - clear.top - clear.bottom;
+    const inputs = `${reach} ${band} ${clear.top}`;
+    if (inputs === this.#lensInputs) return;
+    this.#lensInputs = inputs;
+    const floor = Math.max(LENS_FLOOR, this.#mapHeight * 0.012);
+    const span = (scrolled) => {
+      const start = this.#mapPosition(scrolled + clear.top);
+      return {
+        start,
+        size: Math.max(start, this.#mapPosition(scrolled + clear.top + band)) - start,
+      };
+    };
+    const transform = ({ start, size }) =>
+      `translateY(${layoutPx(start)}) scaleY(${atLayoutPrecision(Math.max(floor, size))})`;
+    if (reach <= 0) {
+      this.#lensMotion?.cancel();
+      this.#lensMotion = null;
+      keeps(this.#lens, "style", `transform: ${transform(span(0))};`);
+      return;
+    }
+    // The map is linear between the scroll positions where the band's top or foot
+    // meets a destination or the document's ends, and where the lens meets its floor.
+    const bends = [this.#contentStart, this.#contentEnd, ...this.#positions]
+      .flatMap((position) => [position - clear.top, position - clear.top - band])
+      .filter((scrolled) => scrolled > 0 && scrolled < reach);
+    const stops = [...new Set([0, reach, ...bends])].sort((a, b) => a - b);
+    const floored = stops.flatMap((scrolled, index) => {
+      const next = stops[index + 1];
+      if (next === undefined) return [scrolled];
+      const [from, to] = [span(scrolled).size, span(next).size];
+      if ((from - floor) * (to - floor) >= 0) return [scrolled];
+      return [scrolled, scrolled + ((floor - from) / (to - from)) * (next - scrolled)];
+    });
+    const frames = floored.map((scrolled) => ({
+      offset: scrolled / reach,
+      transform: transform(span(scrolled)),
+    }));
+    this.#lens.removeAttribute("style");
+    if (this.#lensMotion) this.#lensMotion.effect.setKeyframes(frames);
+    else
+      this.#lensMotion = this.#lens.animate(frames, {
+        timeline: new globalThis.ScrollTimeline({ source: scroller, axis: "block" }),
+        fill: "both",
+      });
+  }
+
+  #destinationFor(heading, position) {
+    const section = heading.closest("section[id]");
+    if (section?.querySelector(HEADING_SELECTOR) === heading) return section;
+    const destination = heading.closest("hgroup") ?? heading;
+    return destination.id ? destination : this.#targetFor(destination, position);
+  }
+
+  #targetFor(heading, position) {
+    const stem = `lf-${this.id}-section-${position}`;
+    let id = stem;
+    let suffix = 2;
+    while (document.getElementById(id)) id = `${stem}-${suffix++}`;
+    heading.id = id;
+    return heading;
+  }
+}

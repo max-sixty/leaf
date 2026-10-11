@@ -1396,7 +1396,7 @@ def seated_ask_module(*, seat_attribute=None):
     configuration = {"seatAttribute": seat_attribute}
     return (
         browser_source("widgets/seated-ask.js")
-        + f"\ndefineSeatedAsk({json.dumps(configuration)});\n"
+        + f"\nexport default createSeatedAsk({json.dumps(configuration)});\n"
     )
 
 

@@ -18,12 +18,18 @@ from threading import Lock
 
 from .data import source_file
 from .page_memory import PageMemory, memory_of
-from .revision_artifact import RevisionArtifact
+from .revision_artifact import (
+    RevisionArtifact,
+    read_artifact,
+    read_revision,
+    write_artifact,
+)
 from .revisioning import activate_source
 from .sample_content import initial_sample_events
 from .schema import DATA_DIR, DATA_FILE
 from .state import now_iso, write_json
 from .structure import SourceDocument
+from .thread_context import thread_structure, widget_messages
 
 
 @dataclass
@@ -115,6 +121,34 @@ class Samples:
                         source_file(child, name),
                         {key: reading[key] for key in ("run", "updated", "value")},
                     )
+            frozen = widget_messages(thread_structure(seeded))
+            revisions = (
+                []
+                if "data-sample-events" in template["attrs"]
+                else sorted(
+                    {event["revision"] for event in seeded if event.get("markup")}
+                )
+            )
+            revision_map = {
+                revision: index for index, revision in enumerate(revisions, 1)
+            }
+            for revision, copied in revision_map.items():
+                write_artifact(
+                    child,
+                    copied,
+                    read_artifact(parent, revision),
+                    read_revision(parent, revision),
+                )
+            current_revision = len(revisions) + 1
+            for event in seeded:
+                if "revision" not in event:
+                    continue
+                event["revision"] = (
+                    revision_map[event["revision"]]
+                    if revisions
+                    and (event.get("markup") or event.get("widget") in frozen)
+                    else current_revision
+                )
             (child / "index.html").write_bytes(source)
             (child / "events.jsonl").write_text(
                 "".join(json.dumps(event) + "\n" for event in seeded),

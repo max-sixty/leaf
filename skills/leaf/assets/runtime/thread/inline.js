@@ -1,11 +1,12 @@
 /* Keyed synchronous Lit thread seats outside the panel. Descriptors contain
    values; native first-message and response editors remain explicit capabilities. */
+import { registryFor } from "../registry.js";
 import { render, repeat } from "../../vendor/browser-runtime.js";
 import { seatRoot } from "./model.js";
 import { ThreadView, threadReading } from "./thread-card.js";
 import { elementById } from "../passages.js";
 import { holdFocus, focused } from "../focus.js";
-import { registry } from "../registry.js";
+
 import { loadDraft } from "../drafts.js";
 import { holdBox } from "./reply-landing.js";
 import { HeldNews, seatNotice } from "./held-news.js";
@@ -182,7 +183,7 @@ export function renderSeats(threads, commands) {
   )) {
     const owner = elementById(host.dataset.lfThreadSeat);
     const owned = threads.filter((thread) => seatRoot(thread) === owner.id);
-    const hold = registry[owner.localName]?.["x-thread-seat"]?.hold;
+    const hold = registryFor(owner)[owner.localName]?.["x-thread-seat"]?.hold;
     const response = !owned.length || hold || loadDraft("say:" + owner.id) !== null;
     seatFor(host, commands, () => host.lfFirstMessage).present(
       seatReading(owned, "page", commands, response),

@@ -5,9 +5,7 @@ from contextlib import nullcontext
 from pathlib import Path
 
 from leaf.event_log import read_events
-from leaf.files import list_revisions
 from leaf.leases import page_locked
-from leaf.revision_artifact import read_revision
 
 from .source import check_source
 
@@ -51,12 +49,7 @@ def _check(page_dir: Path, render: bool, events_override: list | None) -> int:
         return 0
     from leaf.render_gate.command import page_code_check, render_check
 
-    revisions = list_revisions(page_dir)
-    active = revisions[-1] if revisions else 0
-    revision = active
-    if not active or read_revision(page_dir, active).digest != result.artifact.digest:
-        revision = active + 1
-    candidate = (page_dir, result.document, revision, result.artifact)
+    candidate = (page_dir, result.document, result.revision.candidate, result.artifact)
     if runs_code and page_code_check(*candidate):
         return 1
     return render_check(*candidate) if render else 0

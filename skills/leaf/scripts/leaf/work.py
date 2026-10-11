@@ -6,14 +6,13 @@ from .files import latest_revision
 from .passages import page_passages
 from .projection import (
     PageReading,
-    frozen_thread_reading,
     retirement_outcomes,
     rewritten_bodies,
 )
 from .questions import quoted_in
 from .registry.storage import require_registry
 from .revision_artifact import read_revision
-from .thread_context import id_subject
+from .thread_context import id_subject, thread_names, thread_structure, thread_widgets
 
 
 def widget_seat_error(page: PageReading, widget: str, moves: list[dict]) -> str | None:
@@ -70,7 +69,7 @@ def page_subject(page_dir: Path, events: list, name: str) -> dict | None:
             for element, rec in read_revision(page_dir, revision).document.by_id.items()
             if rec["tag"] in registry
         },
-        frozen_thread_reading(events, registry).thread_by_widget,
+        thread_widgets(thread_structure(events), thread_names(events)),
         read_revision(page_dir, revision).enclosing,
         name,
     )

@@ -2365,6 +2365,50 @@ def _page_owned_deferred_source(page_dir):
     return authored
 
 
+def test_a_contracts_item_schema_decides_whether_a_record_has_deferred_content(
+    page_dir,
+):
+    """A metadata-only record has no absent body invented by the delivery mechanism."""
+    authored = _page_owned_deferred_source(page_dir)
+    declarations = json.loads(authored.read_text())
+    contract = declarations["$data"]["contracts"]["local-files"]
+    contract["schema"]["properties"]["files"]["items"]["required"] = ["key", "body"]
+    authored.write_text(json.dumps(declarations))
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None
+    value = {
+        "files": [
+            {"key": "metadata", "body": "mode 100644 → 100755"},
+            {"key": "text", "body": "changed", "patch": "source evidence"},
+        ]
+    }
+    data_model.cmd_data_set(page_dir, "files", value)
+    registry = registry_storage.require_registry(page_dir)
+    stored = data_model.read_data(page_dir, registry)
+    reading = stored["sources"]["files"]
+    browser = data_model.browser_data_from(stored, registry)
+    assert browser["sources"]["files"]["value"] == {
+        "files": [
+            value["files"][0],
+            {"key": "text", "body": "changed"},
+        ]
+    }
+    assert (
+        data_model.deferred_value(
+            reading, registry, source="files", revision=reading["revision"], key="text"
+        )["value"]
+        == "source evidence"
+    )
+    with pytest.raises(data_model.DataError, match="deferred"):
+        data_model.deferred_value(
+            reading,
+            registry,
+            source="files",
+            revision=reading["revision"],
+            key="metadata",
+        )
+
+
 @pytest.mark.parametrize("change", ["schema", "records", "resources"])
 def test_page_owned_data_contracts_can_change_after_publication(page_dir, change):
     """Current declarations can change; old documents retain their captured registry."""
@@ -5882,3 +5926,121 @@ def test_state_definition_identity_matches_the_browser_cases(case):
         for key in ("before", "after")
     ]
     assert same_state_definition(*definitions) is case["same"]
+
+
+def test_frozen_replies_keep_their_publications_command_and_question_meanings():
+    """Old and new renderers can share a tag without changing either reply's answer."""
+    from leaf.projection import frozen_thread_reading
+    from leaf.questions import thread_question_readings
+
+    old = model_layer()
+    new = deepcopy(old)
+    options = new["lf-options"]
+    options["x-state"]["pick"] = options["x-state"].pop("choose")
+    options["x-awaits"]["value"] = "pick"
+    options["x-awaits"]["answered"]["pick"] = options["x-awaits"]["answered"].pop(
+        "choose"
+    )
+    page = ModelPage(
+        "<p>First publication</p>",
+        "<p>Second publication</p>",
+        registries={1: old, 2: new},
+    )
+    log = []
+
+    def append(kind, **command):
+        event = event_contracts_model.admitted_event(
+            page,
+            log,
+            {
+                "id": f"e{len(log) + 1}",
+                "seq": len(log) + 1,
+                "ts": model.NOW,
+                "author": "user",
+                "kind": kind,
+                **command,
+            },
+        )
+        log.append(event)
+        return event
+
+    opening = append("comment", revision=1, text="Choose both.")
+    for revision, name in [(1, "old"), (2, "new"), (1, "old-later")]:
+        append(
+            "reply",
+            revision=revision,
+            author="agent",
+            parent=opening["id"],
+            text="Choose.",
+            markup=f'<lf-options id="{name}" choose><lf-option id="{name}-a">A</lf-option>'
+            f'<lf-option id="{name}-b">B</lf-option></lf-options>',
+        )
+
+    def questions():
+        return thread_question_readings(
+            log, set(), reading=frozen_thread_reading(log, page.registry)
+        )
+
+    assert [question["source"]["id"] for question in questions()["user"]] == [
+        "old",
+        "new",
+        "old-later",
+    ]
+    chosen = append(
+        "action", revision=1, widget="old", action="choose", detail={"value": ["old-b"]}
+    )
+    picked = append(
+        "action", revision=2, widget="new", action="pick", detail={"value": ["new-a"]}
+    )
+    later = append(
+        "action",
+        revision=1,
+        widget="old-later",
+        action="choose",
+        detail={"value": ["old-later-a"]},
+    )
+    answered = questions()
+    assert answered["user"] == []
+    assert [question["answer"]["event"]["id"] for question in answered["all"]] == [
+        chosen["id"],
+        picked["id"],
+        later["id"],
+    ]
+
+    with pytest.raises(
+        events_model.EventRefused, match="does not declare action verb 'pick'"
+    ):
+        append(
+            "action",
+            revision=1,
+            widget="old",
+            action="pick",
+            detail={"value": ["old-a"]},
+        )
+    with pytest.raises(
+        events_model.EventRefused, match="belongs to publication r1, not r2"
+    ):
+        append(
+            "action",
+            revision=2,
+            widget="old",
+            action="choose",
+            detail={"value": ["old-a"]},
+        )
+    with pytest.raises(events_model.EventRefused, match="name no member"):
+        append(
+            "action",
+            revision=1,
+            widget="old",
+            action="choose",
+            detail={"value": ["new-a"]},
+        )
+    assert questions() == answered
+
+    append("undo", undoes=chosen["id"])
+    assert [question["source"]["id"] for question in questions()["user"]] == ["old"]
+    reading = frozen_thread_reading(log, page.registry)
+    assert [
+        (event["widget"], event["action"])
+        for event, _ in reading.projection.actions.values()
+    ] == [("old-later", "choose"), ("new", "pick")]

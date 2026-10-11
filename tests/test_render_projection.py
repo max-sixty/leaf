@@ -711,6 +711,55 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
         == "removed_b()"
     )
 
+    # Copies share a preimage without owning its identity. A modified original and
+    # two destinations cannot silently redirect an old-source link to the first copy.
+    def copied(destination):
+        return (
+            f"diff --git a/a.py b/{destination}\n"
+            f"similarity index 50%\ncopy from a.py\ncopy to {destination}\n"
+            f"--- a/a.py\n+++ b/{destination}\n"
+            f"@@ -1,2 +1,2 @@\n context()\n-removed_a()\n+copied_{destination[0]}()\n"
+        )
+
+    original = (
+        "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n"
+        "@@ -1,2 +1,2 @@\n context()\n-removed_a()\n+changed_a()\n"
+    )
+    for copy_patch in (original + copied("b.py"), copied("b.py") + copied("c.py")):
+        data_model.cmd_data_set(
+            serve.page_dir,
+            "patch-data",
+            patch_manifest(copy_patch) if manifest else copy_patch,
+        )
+        told(page)
+        links.nth(1).click()
+        expect(page.locator(".lf-live")).to_have_text(
+            "a.py:2 is not present in the exact patch"
+        )
+        assert page.locator("#patch").evaluate(
+            "(diff, key) => diff.lfDataDatum(JSON.stringify(key)) === null",
+            ["a.py", "source", "old", 2],
+        )
+        assert (
+            page.locator("#patch").evaluate(
+                "(diff, key) => diff.lfDataDatum(JSON.stringify(key)).textContent.trim()",
+                ["b.py", "old", 2],
+            )
+            == "removed_a()"
+        )
+        page.get_by_role("button", name="Comment on b.py", exact=True).click()
+        expect(page.locator("#lf-composer-quote")).to_contain_text("§ b.py · file")
+        page.keyboard.press("Escape")
+
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        patch_manifest(copied("b.py")) if manifest else copied("b.py"),
+    )
+    told(page)
+    links.nth(1).click()
+    expect(page.locator('#patch [data-lf-datum=\'["b.py","old",2]\']')).to_be_focused()
+
 
 def test_call_diff_projects_stable_commentable_rows(browser, serve):
     authored = leaf_page(
@@ -748,7 +797,9 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
             "files": [
                 {
                     "path": "gateway/limits.py",
-                    "kind": "patch",
+                    "operation": "modify",
+                    "hunkCount": 1,
+                    "binary": False,
                     "additions": 4,
                     "deletions": 2,
                     "patch": patch,
@@ -1705,9 +1756,10 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
 
         host = page.locator("#visual-run .lf-vr-shot-host")
         host.evaluate(
-            """node => {
+            """async node => {
+              const {createWidgetElement} = await window.__lfRuntimeImport('/runtime/widget-api.js');
               const current = node.querySelector('lf-shot');
-              const replacement = document.createElement('lf-shot');
+              const replacement = createWidgetElement(node, 'lf-shot', current.constructor);
               replacement.id = current.id;
               replacement._lfPresentGenerated = current._lfPresentGenerated;
               replacement.setAttribute('before', '/media/3cf0e3efe80c6b01.png');
@@ -2134,7 +2186,9 @@ def test_a_large_diff_filters_and_navigates_lazy_files(browser, serve):
         "files": [
             {
                 "path": path,
-                "kind": "patch",
+                "operation": "modify",
+                "hunkCount": 1,
+                "binary": False,
                 "additions": 1,
                 "deletions": 1,
                 "patch": f"""diff --git a/{path} b/{path}
@@ -3933,15 +3987,14 @@ def test_a_projected_attribute_opens_an_ask_captured_from_authored_markup(
         },
         "x-example": '<lf-conditional id="example" phase="closed">Choose.</lf-conditional>',
     }
-    module = """\
-import { keeps, once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-conditional", class extends HTMLElement {
+    module = """import { keeps, once, widgetController } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) { keeps(this, "phase", state.phase.value); }
-});
+};
 """
     page = open_page(
         browser,
@@ -4162,14 +4215,14 @@ def test_revision_changes_follow_authored_text_into_declared_shadow_trees(
     registry_path.write_text(json.dumps(declarations))
     (package / "widgets" / "lf-shadow-reading.js").write_text(
         """import { once } from "/runtime/widget-api.js";
-customElements.define("lf-shadow-reading", class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const paragraph = document.createElement("p");
     paragraph.textContent = this.textContent.trim();
     this.attachShadow({mode: "open"}).append(paragraph);
   }
-});
+};
 """
     )
     reading = "The shadow-rendered passage is the user's stable semantic landmark."
@@ -4576,7 +4629,7 @@ def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser,
     }
     module = """
 import {registerReadingRegion} from '/runtime/widget-api.js';
-customElements.define('lf-owned-scroll', class extends HTMLElement {
+export default class extends HTMLElement {
   #stop = null;
   connectedCallback() {
     const body = this.querySelector(':scope > [data-scroll-body]');
@@ -4586,7 +4639,7 @@ customElements.define('lf-owned-scroll', class extends HTMLElement {
     this.#stop?.();
     this.#stop = null;
   }
-});
+};
 """
     active = """
 <div style="height: 250px"></div>
@@ -6704,7 +6757,9 @@ def test_render_allows_authored_state_the_log_replays_over(browser, serve):
 
     def preview(html):
         document = structure_model.SourceDocument(html)
-        with preview_server(d, document, files_model.latest_revision(d) + 1) as at:
+        with preview_server(
+            d, document, max(files_model.revision_orders(d), default=0) + 1
+        ) as at:
             return render_gate_model.render_version(browser, at).failures
 
     moved = REPLAYED_PAGE.replace(IMPORTER_CARD, "").replace(
@@ -6790,7 +6845,7 @@ def test_render_separates_old_and_new_verbs_on_one_element(
     registry_path.write_text(json.dumps(declarations))
     (package / "widgets" / "lf-pair.js").write_text(
         """import { keeps, once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-pair", class extends HTMLElement {
+export default class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
@@ -6801,7 +6856,7 @@ customElements.define("lf-pair", class extends HTMLElement {
       else keeps(this, verb, reading.value);
     }
   }
-});
+};
 """
     )
     previous = leaf_page(
@@ -6962,9 +7017,8 @@ def test_a_user_verb_and_an_agent_verb_stand_side_by_side(
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(
-        """\
-import { keeps, once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-tally", class extends HTMLElement {
+        """import { keeps, once, widgetController } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
@@ -6975,7 +7029,7 @@ customElements.define("lf-tally", class extends HTMLElement {
     if (state.observe.value === null) this.removeAttribute("seen");
     else keeps(this, "seen", state.observe.value);
   }
-});
+};
 """
     )
     html = RELATIVE_WIDGET_PAGE
@@ -7072,9 +7126,8 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
     piece.pop("x-example", None)
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-owner.js").write_text(
-        """\
-import { once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-owner", class extends HTMLElement {
+        """import { once, widgetController } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
@@ -7085,19 +7138,18 @@ customElements.define("lf-owner", class extends HTMLElement {
       for (const child of order) zone.append(document.getElementById(child));
     }
   }
-});
+};
 """
     )
     (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(
-        """\
-import { keeps, once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-piece", class extends HTMLElement {
+        """import { keeps, once, widgetController } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) { keeps(this, "pinned", state.move.value); }
-});
+};
 """
     )
     html = leaf_page(
@@ -7144,8 +7196,9 @@ customElements.define("lf-piece", class extends HTMLElement {
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
     # A data renderer can remount a part while retaining its owner. Both owning
     # coordinates must render onto the new node even when no winning event changed.
-    page.evaluate("""() => {
-      const piece = document.createElement('lf-piece');
+    page.evaluate("""async () => {
+      const {createWidgetElement} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const piece = createWidgetElement(document.getElementById('piece'), 'lf-piece', document.getElementById('piece').constructor);
       piece.id = 'piece';
       piece.setAttribute('pinned', 'no');
       document.getElementById('piece').replaceWith(piece);
@@ -7876,13 +7929,13 @@ def test_withdrawing_a_custom_settlement_clears_the_layers_mark(
         )
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
         """import { keeps, once, shadowStage, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-trial", class extends HTMLElement {
+export default class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
   connectedCallback() { STAGE this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) { keeps(this, "decision", state.decide.detail.decision ?? "open"); }
-});
+};
 """.replace("STAGE", stage)
     )
     page_html = TWO_HOLDER_PAGE.replace(
@@ -7933,15 +7986,14 @@ def test_a_throwing_settlement_still_reaches_the_layers_terminal_state(
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
-        """\
-import {widgetController} from "/runtime/widget-api.js";
-customElements.define("lf-trial", class extends HTMLElement {
+        """import {widgetController} from "/runtime/widget-api.js";
+export default class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
   connectedCallback() { this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState() { throw new Error("trial replay broke"); }
-});
+};
 """
     )
     url = serve(TWO_HOLDER_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
@@ -8015,9 +8067,8 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     vendored.write_text(css)
     module = serve.page_dir / "widgets" / "lf-trial.js"
     module.write_text(
-        """\
-import {keeps, once, widgetController} from "/runtime/widget-api.js";
-customElements.define("lf-trial", class extends HTMLElement {
+        """import {keeps, once, widgetController} from "/runtime/widget-api.js";
+export default class extends HTMLElement {
   #controller;
   #presented;
   #stop;
@@ -8055,7 +8106,7 @@ customElements.define("lf-trial", class extends HTMLElement {
       attributes: true, attributeFilter: ["data-lf-presented"],
     });
   }
-});
+};
 """
     )
     stamp_page(
@@ -8474,7 +8525,7 @@ def test_thread_body_initial_state_comes_from_source_before_upgrade(
             "layer_widgets": {
                 f"{tag}.js": """
 import {once, widgetController, keepsText} from '/runtime/widget-api.js';
-customElements.define('lf-delayed-body', class extends HTMLElement {
+export default class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
   connectedCallback() {
@@ -8488,7 +8539,7 @@ customElements.define('lf-delayed-body', class extends HTMLElement {
   }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) { keepsText(this.querySelector('pre'), state.edit.value); }
-});
+};
 """
             },
         }

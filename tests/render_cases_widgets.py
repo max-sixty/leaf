@@ -134,8 +134,8 @@ def visual_widgets(
     return {
         "visual-fixture.js": browser_source("widgets/visual-fixture.js"),
         "lf-test-visual.js": (
-            "import { defineVisualFixture } from './visual-fixture.js';\n"
-            f"defineVisualFixture({json.dumps(configuration)});\n"
+            "import { createVisualFixture } from './visual-fixture.js';\n"
+            f"export default createVisualFixture({json.dumps(configuration)});\n"
         ),
     }
 
@@ -785,7 +785,7 @@ DIFF_ROW_PLACEMENT = """() => {
     const root = document.querySelector('lf-diff').shadowRoot;
     const files = [...root.querySelectorAll('.lf-diff-file')];
     const lifts = files.map((file) => {
-        const row = file.querySelector(':scope > details, :scope > .lf-diff-rename');
+        const row = file.querySelector(':scope > details, :scope > .lf-diff-metadata');
         return Math.round(row.getBoundingClientRect().top
                           - file.getBoundingClientRect().top);
     });

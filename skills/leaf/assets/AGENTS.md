@@ -61,8 +61,7 @@ A margin row sits in the
 rail beside its target (`rowPosture`), or as a pin by its target: in room found where
 it covers no words and no other box that paints its own extent, clear of neighbouring
 blocks where its target has room of its own, and reaching one line of words further
-out only where it has none within reach (`pinSpot`, `coverIn`), and otherwise inside
-its target's corner. A pin whose face is a primary and one more control that finds no
+out only where it has none within reach (`pinSpot`, `coverIn`). A pin whose face is a primary and one more control that finds no
 room for both stands folded to its options' toggle, wearing the face of the kind its
 contribution declares, seated at that size where the actions it opens to fit inside its
 bounds (`seatRows`); a press on the toggle, or the keyboard arriving on it or standing
@@ -78,9 +77,12 @@ what lies under it and takes no room. No rule pads, indents,
 widens, or reflows a block, heading, or line to clear a pin, and nothing moves when a
 marker arrives, leaves, or changes place, including a marker that always accompanies
 its target, such as an Ask's. Reserved room would make the page's geometry depend on
-which markers stand and where, which is what the overlay exists to avoid. Where a pin
-covers something the user needs, the answers are `o` (or More's Hide annotations
-under a finger) and a better placement (`TODO.md`), never room made for it.
+which markers stand and where, which is what the overlay exists to avoid. Resting pins
+never cover words or native controls. Placement may use clear space outside a crowded
+region or withhold the pin; Page Map keeps its thread and actions available. Its
+semantic target still determines visibility and identity. The selected attachment owns
+motion, clipping, composer and thread placement. User-held and opened controls retain
+their seat while in use.
 
 The auxiliary surfaces (Questions panel, thread panel, Leaves drawer) stand over the page and
 never change its geometry; the Questions panel and thread panel share the right edge, one

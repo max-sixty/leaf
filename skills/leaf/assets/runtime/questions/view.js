@@ -28,6 +28,7 @@
    Blanket actions come from x-awaits.all and invoke each source's declared decision
    method. They preserve one admitted action per widget rather than recording a second
    page-wide answer. */
+import { registryFor, decisionFor } from "../registry.js";
 
 import { landingRoom, scrollIntoView } from "../landing-scroll.js";
 import { landingBand, shownBox, shownParts } from "../geometry.js";
@@ -38,7 +39,7 @@ import { scrollerFor } from "../reading-regions.js";
 import { reserve } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
 import { queueList } from "../drawers.js";
-import { decisionFor, registry, tagsDeclaring } from "../registry.js";
+
 import { questionEntry, readQuestions } from "./model.js";
 import { walkPositionLabel } from "../walk-position.js";
 import { focused } from "../focus.js";
@@ -133,7 +134,7 @@ export function createQuestionView({
         const { source } = unbuilt(question, nodes)
           ? await materializeQuestion(question)
           : nodes;
-        await source?.[decisionFor(question.source.tag)?.verb]?.(outcome);
+        await source?.[decisionFor(source)?.verb]?.(outcome);
       }
     } finally {
       answeringAll.delete(outcome);
@@ -162,8 +163,9 @@ export function createQuestionView({
   // past, and one that only ever appears at upgrade spends the spacer's slack, not the
   // room of anything to its right.
   function buildBulkAnswers() {
-    for (const tag of tagsDeclaring((entry) => entry["x-awaits"]?.all)) {
-      const outcome = registry[tag]["x-awaits"].all;
+    for (const question of readQuestions().all) {
+      const outcome = questionEntry(question)?.all;
+      if (!outcome) continue;
       if (bulkAnswers.has(outcome)) continue;
       const label = outcome[0].toUpperCase() + outcome.slice(1);
       const btn = bannerControls.registerBulk(outcome, label);
@@ -195,6 +197,7 @@ export function createQuestionView({
   // and a publication is where the server's Question reading changes, so a send moves
   // these counts once the state its POST returns has been adopted.
   async function paintQuestions(current) {
+    buildBulkAnswers();
     const bannerModel = Object.freeze({
       bulk: Object.freeze(blanketAnswers(readQuestions().user)),
     });
@@ -452,7 +455,8 @@ export function createQuestionView({
     // the reader arrives at its opening and reads down to the answering controls.
     // Shared context must fit above this source; otherwise use its nearby words.
     // With only the default source target, infer the words preceding it instead.
-    const declared = context && registry[context.localName]?.["x-question-context"];
+    const declared =
+      context && registryFor(context)[context.localName]?.["x-question-context"];
     if (declared && context === standing) return context;
     // A region has to be somewhere the user can be taken. An element generating no box
     // measures (0,0) at the document's origin, which is not a degenerate answer but a

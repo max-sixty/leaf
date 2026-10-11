@@ -133,7 +133,8 @@ def run_leaf(
 @contextmanager
 def serving(arm: Path, state: Path, page: Path):
     """Serve `page` with the arm's `leaf server run --temporary` under the state home
-    `state`, and yield the tokened URL it prints."""
+    `state`, and yield the tokened URL it prints. Retirement joins the owned process
+    through its active requests and sample cleanup before the caller reuses its page."""
     server = subprocess.Popen(
         [str(arm / "bin" / "leaf"), "server", "run", "--temporary", str(page)],
         env=environment(XDG_STATE_HOME=str(state)),
@@ -145,14 +146,18 @@ def serving(arm: Path, state: Path, page: Path):
         yield re.search(r"https?://[^\s\"]+", server.stdout.readline())[0]
     finally:
         server.terminate()
-        server.wait(10)
+        server.wait()
 
 
 def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
     """Build the authored `source` into the page directory `page` with the arm's own
     launcher under the state home `state`. The checkout is an arm too: `ROOT` runs
     its working tree."""
-    prepare_page(page, read_fixture(source), partial(run_leaf, arm, state, check=True))
+    prepare_page(
+        page,
+        read_fixture(source, runtime=arm),
+        partial(run_leaf, arm, state, check=True),
+    )
 
 
 @contextmanager

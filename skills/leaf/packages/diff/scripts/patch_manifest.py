@@ -10,12 +10,14 @@ Reads a UTF-8 patch on stdin and writes the manifest JSON on stdout, ready for
 
     git diff main... | leaf package run diff patch_manifest.py | leaf data set PAGE SOURCE
 
-The manifest is the form of the contract whose `patch` fields `/api/state` defers
-(`records.deferred`), so a large review sends each file's patch only when its
-disclosure opens. A patch `lf-diff` cannot present as review evidence is refused
-here, with the reason on stderr and exit status 1, rather than stored.
+Each record describes the native operation, paths, modes and binary status. Its
+hunkCount tells a reader whether textual evidence exists; only those records carry
+a patch, deferred by /api/state until their disclosure opens. Binary payloads are
+not stored. Invalid or incomplete text hunks fail before a value reaches data set.
 
-unidiff reads the hunks; everything else here owns the manifest built around them.
+unidiff owns the Git reading. Leaf preserves its exact textual sections and adds
+copy meaning, which unidiff otherwise classifies as a rename. Native delete/add
+sections replacing a file type become one file owner with complete old/new evidence.
 """
 
 import codecs
@@ -109,119 +111,110 @@ def _diff_marked_paths(section: str) -> tuple[str | None, str | None]:
     return old[0][1].split("\t", 1)[0], new[0][1].split("\t", 1)[0]
 
 
-def _diff_rename_paths(section: str) -> tuple[str | None, str | None]:
-    previous = re.search(r"^rename from (.+)$", section, re.MULTILINE)
-    renamed = re.search(r"^rename to (.+)$", section, re.MULTILINE)
-    if bool(previous) != bool(renamed):
-        raise PatchError("unified diff has an incomplete rename block")
-    return (
-        _decode_git_path(previous.group(1)) if previous is not None else None,
-        _decode_git_path(renamed.group(1)) if renamed is not None else None,
-    )
+def _moved_paths(section: str) -> tuple[str | None, str | None, str | None]:
+    paths = {}
+    for operation in ("rename", "copy"):
+        previous = re.search(rf"^{operation} from (.*)$", section, re.MULTILINE)
+        current = re.search(rf"^{operation} to (.*)$", section, re.MULTILINE)
+        if bool(previous) != bool(current):
+            raise PatchError(f"unified diff has an incomplete {operation} block")
+        if previous is not None:
+            paths[operation] = (
+                _decode_git_path(previous.group(1)),
+                _decode_git_path(current.group(1)),
+            )
+    if len(paths) > 1:
+        raise PatchError("unified diff mixes rename and copy metadata")
+    if not paths:
+        return None, None, None
+    operation, (previous, current) = next(iter(paths.items()))
+    if not previous or not current:
+        raise PatchError(f"unified diff has an empty {operation} path")
+    return operation, previous, current
 
 
-def _path_only_rename(section: str) -> tuple[str, str] | None:
-    lines = section.rstrip("\n").split("\n")
-    if len(lines) != 4 or lines[1] != "similarity index 100%":
-        return None
-    previous = re.fullmatch(r"rename from (.+)", lines[2])
-    renamed = re.fullmatch(r"rename to (.+)", lines[3])
-    if previous is None or renamed is None:
-        return None
-    old_path = previous.group(1)
-    new_path = renamed.group(1)
-    if old_path == '""' or new_path == '""':
-        return None
-    if lines[0] != (
-        f"diff --git {_diff_header_path('a', old_path)} "
-        f"{_diff_header_path('b', new_path)}"
+def _metadata(section: str, file: PatchedFile) -> None:
+    """Validate metadata the dependency can otherwise absorb without interpreting.
+
+    Binary payloads are opaque: the record says that Git changed binary content,
+    without storing or interpreting its compressed bytes.
+    """
+    if bool(re.search(r"^old mode ", section, re.MULTILINE)) != bool(
+        re.search(r"^new mode ", section, re.MULTILINE)
     ):
-        return None
-    return _decode_git_path(old_path), _decode_git_path(new_path)
+        raise PatchError("unified diff has an incomplete mode change")
+    for line in section.splitlines()[1:]:
+        if line.startswith("@@"):
+            return
+        if file and line.startswith(("--- ", "+++ ")):
+            continue
+        if line == "GIT binary patch":
+            return
+        if not line:
+            continue
+        if (
+            re.fullmatch(
+                r"(?:old mode|new mode|new file mode|deleted file mode) [0-7]{6}"
+                r"|(?:dis)?similarity index [0-9]+%"
+                r"|(?:rename|copy) (?:from|to) .+"
+                r"|index [0-9a-f]+\.\.[0-9a-f]+(?: [0-7]{6})?"
+                r"|Binary files .+ differ",
+                line,
+            )
+            is None
+        ):
+            raise PatchError(
+                f"unified diff has unexpected metadata for {file.path}: {line}"
+            )
 
 
-def _parsed_hunks(section: str, path: str) -> PatchedFile:
-    """unidiff's reading of one section's textual hunks.
+def _check_hunks(section: str, file: PatchedFile) -> None:
+    """Require the parsed hunks to account for every source line.
 
-    unidiff ends a hunk as soon as its @@ header's declared counts are met, and
-    hands any line after that back to the file parser, which absorbs it as patch
-    metadata. So the reading counts as evidence only once the hunks account for
-    every line from the first @@ header on."""
-    # One view of where the section ends, for the parse and the count below: the
-    # blank lines a patch may carry between files are neither hunk nor metadata.
-    body_text = section.rstrip("\n") + "\n"
-    try:
-        parsed = PatchSet.from_string(body_text)
-    except UnidiffParseError as error:
-        # unidiff ends a refusal that quotes a line with that line's own newline.
-        detail = str(error).strip()
-        raise PatchError(f"unsupported hunks for {path}: {detail}") from error
-    if len(parsed) != 1:
-        raise PatchError(f"unified diff repeats a file header inside {path}")
-    patched = parsed[0]
-    if not patched:
-        raise PatchError(
-            f"unsupported hunkless diff for {path}; only exact path-only renames "
-            "may omit textual @@ hunks"
-        )
-    lines = body_text.rstrip("\n").split("\n")
+    unidiff ends a hunk when its declared counts are met and absorbs remaining lines
+    as metadata. An extra source line must instead refuse incomplete evidence.
+    """
+    body_text = section.rstrip("\n")
+    lines = body_text.split("\n")
     first_hunk = next(
         index for index, line in enumerate(lines) if line.startswith("@@")
     )
     body = lines[first_hunk:]
-    if len(body) != len(patched) + sum(len(hunk) for hunk in patched):
+    if len(body) != len(file) + sum(len(hunk) for hunk in file):
         raise PatchError(
-            f"hunk line counts for {path} do not match the lines under them"
+            f"hunk line counts for {file.path} do not match the lines under them"
         )
-    # unidiff reads a bare empty line as an empty context line, for a patch that
-    # crossed a transport which strips trailing whitespace. `lf-diff` refuses one,
-    # so capture refuses it too rather than storing evidence the page cannot draw.
+    # A transport may strip a blank context line's marker. The browser refuses it,
+    # so capture must not store evidence the page cannot draw.
     if not all(body):
-        raise PatchError(f"unsupported hunks for {path}: an empty line has no marker")
-    return patched
+        raise PatchError(
+            f"unsupported hunks for {file.path}: an empty line has no marker"
+        )
 
 
 def _manifest_file(section: str) -> dict:
-    """One manifest entry for one `diff --git` section of the captured patch."""
-    if re.search(r"^copy (?:from|to) ", section, re.MULTILINE):
-        raise PatchError(
-            "unsupported copy diff; omit copy metadata and provide textual @@ "
-            "hunks for an edited destination"
-        )
-    pure_rename = _path_only_rename(section)
-    if pure_rename is not None:
-        previous, path = pure_rename
-        return {
-            "path": path,
-            "previousPath": previous,
-            "kind": "rename",
-            "additions": 0,
-            "deletions": 0,
-            "patch": section,
-        }
-
+    """Native file operations and textual hunks are independent evidence."""
+    try:
+        parsed = PatchSet.from_string(section)
+    except UnidiffParseError as error:
+        raise PatchError(f"invalid unified diff: {str(error).strip()}") from error
+    if len(parsed) != 1:
+        raise PatchError("unified diff needs one file per diff --git section")
+    file = parsed[0]
+    operation, previous, moved = _moved_paths(section)
     header = section.split("\n", 1)[0]
-    previous, renamed = _diff_rename_paths(section)
     marked_old, marked_new = _diff_marked_paths(section)
-    if marked_old is None or marked_new is None:
-        if re.search(r"^@@", section, re.MULTILINE):
+    if file:
+        if marked_old is None or marked_new is None:
             raise PatchError(
                 "unified diff has no ---/+++ file-header pair before its first hunk"
             )
-        if previous is not None or renamed is not None:
-            raise PatchError(
-                "unsupported hunkless rename; only the exact four-line "
-                "path-only form may omit textual @@ hunks"
-            )
-        raise PatchError(f"unsupported hunkless diff: {header}")
-
-    # Git leaves ordinary spaces unquoted in `diff --git` and terminates the
-    # unambiguous ---/+++ paths with a tab instead, so the header is compared with
-    # the pair rebuilt from those paths rather than split at a guessed space. An
-    # added or deleted file names /dev/null on one side and the surviving path on
-    # both sides of the header.
-    old_path = None if marked_old == "/dev/null" else _marked_bare_path(marked_old, "a")
-    new_path = None if marked_new == "/dev/null" else _marked_bare_path(marked_new, "b")
+        _check_hunks(section, file)
+    _metadata(section, file)
+    old_token = marked_old if marked_old is not None else file.source_file
+    new_token = marked_new if marked_new is not None else file.target_file
+    old_path = None if old_token == "/dev/null" else _marked_bare_path(old_token, "a")
+    new_path = None if new_token == "/dev/null" else _marked_bare_path(new_token, "b")
     if old_path is None and new_path is None:
         raise PatchError("diff file has no old or new path")
     old_path = old_path or new_path
@@ -233,37 +226,101 @@ def _manifest_file(section: str) -> dict:
         raise PatchError(
             "unified diff ---/+++ paths disagree with its diff --git header"
         )
-    if (previous is not None and previous != _decode_git_path(old_path)) or (
-        renamed is not None and renamed != _decode_git_path(new_path)
+    old_path, new_path = _decode_git_path(old_path), _decode_git_path(new_path)
+    if operation is not None and (previous != old_path or moved != new_path):
+        raise PatchError(
+            f"unified diff {operation} paths disagree with its diff --git header"
+        )
+    if operation is None and old_path != new_path:
+        raise PatchError(
+            "unified diff has changed paths without rename or copy metadata"
+        )
+    operation = operation or (
+        "add" if file.is_added_file else "delete" if file.is_removed_file else "modify"
+    )
+    if file and operation in ("add", "delete"):
+        hunk = file[0]
+        consuming = operation == "delete"
+        start = hunk.source_start if consuming else hunk.target_start
+        absent_start = hunk.target_start if consuming else hunk.source_start
+        absent_length = hunk.target_length if consuming else hunk.source_length
+        if len(file) != 1 or start != 1 or absent_start != 0 or absent_length != 0:
+            raise PatchError(f"unified diff {operation} must capture its complete file")
+    if not file and not file.is_binary_file:
+        if operation == "modify" and file.source_mode == file.target_mode:
+            raise PatchError(
+                f"unified diff has no content or metadata change for {file.path}"
+            )
+        if operation in ("rename", "copy") and not re.search(
+            r"^similarity index 100%$", section, re.MULTILINE
+        ):
+            raise PatchError(
+                f"unified diff {operation} with changed content needs textual hunks"
+            )
+    return {
+        "path": new_path,
+        **({"previousPath": previous} if previous is not None else {}),
+        "operation": operation,
+        "hunkCount": len(file),
+        "binary": file.is_binary_file,
+        **({"oldMode": file.source_mode} if file.source_mode is not None else {}),
+        **({"newMode": file.target_mode} if file.target_mode is not None else {}),
+        "additions": file.added,
+        "deletions": file.removed,
+        **({"patch": section} if file else {}),
+    }
+
+
+def _replacement(records: list[tuple[dict, str]]) -> dict:
+    """Git deletes and adds the same path when its file type changes.
+
+    That is one logical file owner. Its native sections remain exact textual
+    evidence; compressed binary bytes are not a textual payload.
+    """
+    if len(records) != 2 or {record["operation"] for record, _ in records} != {
+        "delete",
+        "add",
+    }:
+        raise PatchError(f"unified diff repeats file path {records[0][0]['path']!r}")
+    deleted = next(record for record, _ in records if record["operation"] == "delete")
+    added = next(record for record, _ in records if record["operation"] == "add")
+    old_mode, new_mode = deleted.get("oldMode"), added.get("newMode")
+    if (
+        old_mode is None
+        or new_mode is None
+        or (int(old_mode, 8) & 0o170000) == (int(new_mode, 8) & 0o170000)
     ):
         raise PatchError(
-            "unified diff rename paths disagree with its diff --git header"
+            f"unified diff repeats file path {deleted['path']!r} without a file type replacement"
         )
-
-    path = renamed or _decode_git_path(new_path)
-    patched = _parsed_hunks(section, path)
+    textual = any(record["hunkCount"] for record, _ in records)
+    sections = []
+    if textual:
+        for record, section in records:
+            if record["binary"]:
+                marker = "GIT binary patch\n"
+                if marker in section:
+                    section = section[: section.index(marker) + len(marker)]
+            sections.append(section)
     return {
-        "path": path,
-        **({"previousPath": previous} if previous is not None else {}),
-        "kind": "patch",
-        "additions": patched.added,
-        "deletions": patched.removed,
-        "patch": section,
+        "path": added["path"],
+        "operation": "modify",
+        "hunkCount": int(textual),
+        "binary": deleted["binary"] or added["binary"],
+        "oldMode": old_mode,
+        "newMode": new_mode,
+        "additions": added["additions"],
+        "deletions": deleted["deletions"],
+        **({"patch": "".join(sections)} if textual else {}),
     }
 
 
 def patch_manifest(source: str) -> dict:
-    """One captured Git patch as the `unified-diff` contract's file manifest.
+    """Capture native Git operations; defer only the textual hunks a reader opens.
 
-    Leaf owns the manifest and unidiff owns the hunks inside it. Each entry
-    carries the file's paths, its change counts, and the verbatim section
-    of the captured text that `lf-diff` renders once its disclosure opens — which
-    is why the source is split here rather than rebuilt from unidiff's reading.
-
-    It refuses what the widget cannot present as review evidence. Two of
-    those refusals are Leaf's alone: copy metadata, which unidiff reads as a
-    rename, and a hunkless entry that is not the exact four-line path-only
-    rename, which it reports as a file with no hunks."""
+    unidiff owns paths, modes, binary status and hunks. Leaf keeps the exact textual
+    section and records copy meaning, which unidiff otherwise classifies as a rename.
+    """
     sections = [
         section
         for section in re.split(r"(?=^diff --git )", source, flags=re.MULTILINE)
@@ -272,15 +329,16 @@ def patch_manifest(source: str) -> dict:
     if not sections:
         raise PatchError("unified diff contains no files")
 
-    files = []
-    paths = set()
+    files = {}
     for section in sections:
         entry = _manifest_file(section)
-        if entry["path"] in paths:
-            raise PatchError(f"unified diff repeats file path {entry['path']!r}")
-        paths.add(entry["path"])
-        files.append(entry)
-    return {"files": files}
+        files.setdefault(entry["path"], []).append((entry, section))
+    return {
+        "files": [
+            records[0][0] if len(records) == 1 else _replacement(records)
+            for records in files.values()
+        ]
+    }
 
 
 def main() -> int:

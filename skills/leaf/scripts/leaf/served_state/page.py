@@ -66,7 +66,11 @@ def read_served_page(
         if active is not None
         else context.registry
     )
-    identity = selected_registry["$layer"] if active is not None else context.layer
+    identity = (
+        context.revision(active["revision"]).registry["$layer"]
+        if active is not None
+        else context.layer
+    )
     workflows = (
         browser.pop("workflows") if browser is not None else activity.pop("workflows")
     )

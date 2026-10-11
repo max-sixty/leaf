@@ -12,11 +12,12 @@
    what the reader reads, is held out of what the widget is handed (`HeldArrivals`,
    held-news.js): its target stays out of the batch, so the selected annotation
    presentation notices it, and `revealHeld` is how the margin's marker shows it. */
+import { registryFor } from "../registry.js";
 import { reportPageError } from "../layer-client.js";
 import { aimTargetAt, datumAimTarget } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
 import { closestAcross } from "../passages.js";
-import { registry } from "../registry.js";
+
 import { renderThreadSurface, clearThreadSurface } from "./inline.js";
 import { allThreads, readThreads } from "./state.js";
 import { threadNames } from "./model.js";
@@ -139,7 +140,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
 }
 
 function requireSurface(owner) {
-  if (registry[owner.localName]?.["x-thread-surface"] !== true)
+  if (registryFor(owner)[owner.localName]?.["x-thread-surface"] !== true)
     throw new Error(
       `placeThreads(${owner.localName}) requires x-thread-surface: true to place Threads`,
     );

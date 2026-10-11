@@ -42,6 +42,7 @@ it("preloads each document's static graph without fetching optional modules or c
       JSON.stringify({ pages: { "/examples/study": { assets: assetRoot } } }),
     );
     const documents = [];
+    const kernel = `${assetRoot}/revisions/r2-${"2".repeat(16)}`;
     const modules = new Map();
     for (const revision of [1, 2]) {
       const name = `r${revision}-${String(revision).repeat(16)}`;
@@ -51,10 +52,11 @@ it("preloads each document's static graph without fetching optional modules or c
       await mkdir(join(layer, "vendor"));
       await mkdir(join(layer, "widgets"));
       await writeFile(join(layer, "registry.json"), JSON.stringify({
-        "lf-used": { "x-upgrade": true, "x-initial": "/vendor/initial.js" },
+        "lf-used": { "x-upgrade": revision === 1, "x-initial": "/vendor/initial.js" },
         "lf-unused": { "x-upgrade": true },
       }));
       const sources = {
+        ...(revision === 2 ? {
         "leaf.js": `import "./runtime/bundle-common.js"; export * from "${root}/vendor/framework.js"; export const optional = () => import("./runtime/optional.js");`,
         "runtime/bundle-common.js": 'import "./bundle-cycle.js"; export const state = 1;',
         "runtime/bundle-cycle.js": 'export * from "./bundle-common.js";',
@@ -62,7 +64,9 @@ it("preloads each document's static graph without fetching optional modules or c
         "vendor/lit.js": "export const html = 1;",
         "runtime/optional.js": "window.optionalLoaded = true;",
         "runtime/media.js": "export const media = 1;",
-        "widgets/lf-used.js": 'import "../runtime/bundle-common.js"; import "/vendor/widget.js"; export const optional = () => import("../runtime/optional.js");',
+        } : {}),
+        "widgets/lf-used.js": `import "/runtime/bundle-common.js"; import "${root}/vendor/widget.js"; export const optional = () => import("${kernel}/runtime/optional.js");`,
+        "vendor/initial.js": "export const initialize = () => {};",
         "vendor/widget.js": "export const widget = 1;",
       };
       for (const [name, source] of Object.entries(sources)) {
@@ -70,9 +74,9 @@ it("preloads each document's static graph without fetching optional modules or c
         await writeFile(path, source);
         modules.set(path, source);
       }
-      const imports = { "/vendor/": `${root}/vendor/`, "/widgets/": `${root}/widgets/` };
-      const body = revision === 2 ? "<lf-used>Study</lf-used>" : "Study";
-      const source = `<html><head><script type="importmap" data-lf-runtime>${JSON.stringify({ imports })}</script><script data-lf-runtime data-lf-probe="${root}/registry.json">throw new Error("never execute authored scripts during the build");</script><script type="module" src="${root}/leaf.js" data-lf-runtime></script></head><body>${body}<template><lf-unused></lf-unused></template></body></html>`;
+      const imports = { "/runtime/": `${kernel}/runtime/`, "/vendor/": `${kernel}/vendor/` };
+      const body = "<lf-used>Study</lf-used>";
+      const source = `<html><head><script type="importmap" data-lf-runtime>${JSON.stringify({ imports })}</script><script data-lf-runtime data-lf-probe="${kernel}/registry.json" data-lf-vocabulary-root="${root}/registry.json">throw new Error("never execute authored scripts during the build");</script><script type="module" src="${kernel}/leaf.js" data-lf-runtime></script></head><body>${body}<template><lf-unused></lf-unused></template></body></html>`;
       const shared = join(directory, `shared-${revision}.html`);
       await writeFile(shared, source);
       const paths = [
@@ -96,18 +100,20 @@ it("preloads each document's static graph without fetching optional modules or c
         const preloads = [...document.matchAll(/<link rel="modulepreload" href="([^"]+)"/g)]
           .map((match) => match[1]);
         expect(preloads.sort()).toEqual([
-          `${root}/leaf.js`,
-          `${root}/runtime/bundle-common.js`,
-          `${root}/runtime/bundle-cycle.js`,
-          `${root}/vendor/framework.js`,
-          `${root}/vendor/lit.js`,
-          ...(revision === 2 ? [
+          `${kernel}/leaf.js`,
+          `${kernel}/runtime/bundle-common.js`,
+          `${kernel}/runtime/bundle-cycle.js`,
+          `${kernel}/vendor/framework.js`,
+          `${kernel}/vendor/lit.js`,
+          `${root}/vendor/initial.js`,
+          ...(revision === 1 ? [
             `${root}/widgets/lf-used.js`,
             `${root}/vendor/widget.js`,
           ] : []),
         ].sort());
         expect(document.match(/<link rel="preload" as="fetch"[^>]+>/g)).toEqual([
-          `<link rel="preload" as="fetch" href="${root}/registry.json" crossorigin data-lf-runtime>`,
+          `<link rel="preload" as="fetch" href="${kernel}/registry.json" crossorigin data-lf-runtime>`,
+          ...(revision === 1 ? [`<link rel="preload" as="fetch" href="${root}/registry.json" crossorigin data-lf-runtime>`] : []),
         ]);
         expect(document.indexOf('rel="modulepreload"')).toBeGreaterThan(
           document.indexOf("</script>"),

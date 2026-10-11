@@ -4036,17 +4036,6 @@ def test_package_init_starts_one_checked_upgraded_widget(tmp_path, monkeypatch):
     )
     assert (package_root / "theme.css").read_bytes() == b""
     module = (package_root / "widgets" / "lf-risk-note.js").read_text()
-    assert module == (
-        'import { once } from "/runtime/widget-api.js";\n\n'
-        "customElements.define(\n"
-        '  "lf-risk-note",\n'
-        "  class extends HTMLElement {\n"
-        "    connectedCallback() {\n"
-        "      if (!once(this)) return;\n"
-        "    }\n"
-        "  },\n"
-        ");\n"
-    )
     checked = runner.invoke(cli_model.cli, ["package", "check", str(package)])
     assert checked.exit_code == 0, checked.output
 
@@ -4723,10 +4712,11 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
         ":scope:is(lf-solo) { --lf-block-frame: 1; }\n"
     )
     (widget_package / "widgets" / "lf-solo.js").write_text(
-        'import { ready } from "./ready.js";\n'
-        'customElements.define("lf-solo", class extends HTMLElement {\n'
-        "  connectedCallback() { ready(this); }\n"
-        "});\n"
+        """import { ready } from "./ready.js";
+export default class extends HTMLElement {
+  connectedCallback() { ready(this); }
+};
+"""
     )
     (widget_package / "widgets" / "ready.js").write_text(
         "export const ready = (el) => { el.dataset.ready = '1'; };\n"

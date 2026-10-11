@@ -14,7 +14,7 @@
    look, and it would look right in exactly the session where someone remembered. Same
    reasoning as renderSaid — a rule each widget has to remember is a rule that gets
    forgotten, and the forgetting is invisible until a page ships without it. */
-import { SHADOW_STARTUP_CSS, shadowRules } from "./shadow.js";
+import { SHADOW_STARTUP_CSS, shadowRulesFor } from "./shadow.js";
 import {
   annotationMarkSheets,
   constructSheet,
@@ -62,7 +62,7 @@ export function shadowStage(host, nodes) {
   watchLayers(root);
   watchStandingIn(root);
   const style = document.createElement("style");
-  style.textContent = SHADOW_STARTUP_CSS + shadowRules;
+  style.textContent = SHADOW_STARTUP_CSS + shadowRulesFor(host);
   // Fragment hydration can add a sheet while the user uses an existing control.
   // Keep retained nodes connected, preserving their focus and widget lifecycle.
   setChildren(root, [style, ...nodes]);

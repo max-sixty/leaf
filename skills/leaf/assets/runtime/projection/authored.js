@@ -46,7 +46,7 @@ export const authoredStates = () => readApplication().document.authored;
 export const authoredParents = new WeakMap();
 /** @param {Element} member */
 const recordedOwner = (member) => {
-  const selector = recordedWidgetSelector();
+  const selector = recordedWidgetSelector(member);
   return selector ? member.closest(selector) : null;
 };
 /** @param {Element} widget @param {string} selector */
@@ -116,7 +116,7 @@ export function stageAuthoredStates(root = document, existing = authoredStates()
   const captured = new Map();
   /** @type {Map<string, Map<string, ActionSpec>>} */
   const byTag = new Map();
-  for (const { tag, verb, spec } of stateSpecs()) {
+  for (const { tag, verb, spec } of stateSpecs(root)) {
     const specs = byTag.get(tag) ?? new Map();
     specs.set(verb, spec);
     byTag.set(tag, specs);

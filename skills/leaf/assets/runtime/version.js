@@ -59,6 +59,9 @@
  * open, including when the platform dismisses it. Scopes sharing a title merge their
  * rows; an unavailable contributor supplies none.
  */
+import { bindVocabulary, vocabularyFor } from "./widget-contexts.js";
+import { requireVocabulary } from "./widget-vocabularies.js";
+import { registryFor, registry, stateSpecs, tagsDeclaring } from "./registry.js";
 import { nextRender } from "./rendering.js";
 import { pageUrl, revisionLabel, runtime } from "./context.js";
 import {
@@ -100,7 +103,7 @@ import {
   textNodesUnder,
   wrote,
 } from "./passages.js";
-import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
+
 import {
   paintMarkdown,
   prepareDeclaredMarkdown,
@@ -751,7 +754,7 @@ export function createVersionController({
       // changed. Symmetric for free — the base parses unupgraded, where the same
       // attribute would have painted the same words through the pseudo-element.
       for (const [attr, edge] of Object.entries(
-        registry[b.localName]?.["x-says"] ?? {},
+        registryFor(b)[b.localName]?.["x-says"] ?? {},
       )) {
         const said = b.getAttribute(attr);
         if (said) key = edge === "before" ? `${said} ${key}` : `${key} ${said}`;
@@ -763,7 +766,7 @@ export function createVersionController({
     for (const w of root.querySelectorAll(opaque)) {
       // parentElement, not w itself: an svg a widget rendered stays its widget's.
       if (!authoredHere(w) || inChrome(w) || w.parentElement?.closest(opaque)) continue;
-      const entry = registry[w.localName] ?? {};
+      const entry = registryFor(w)[w.localName] ?? {};
       // A data binding is authored semantics even though the generated children
       // of an upgraded widget are opaque to comparison.
       const bindingAttrs = new Set();
@@ -1129,6 +1132,11 @@ export function createVersionController({
     const doc = new DOMParser().parseFromString(await response.text(), "text/html");
     if (doc.querySelectorAll("body > main").length !== 1)
       throw new Error(`${url} has no single authored main`);
+    const revision = Number(doc.body.dataset.lfVocabulary);
+    const probe = doc.querySelector("script[data-lf-vocabulary-root]").dataset
+      .lfVocabularyRoot;
+    const root = new URL(".", new URL(probe, document.baseURI)).href.replace(/\/$/, "");
+    bindVocabulary(doc, await requireVocabulary(revision, root));
     // First-paint delivery wrappers have no place in the authored revision.
     return restoreInitialSource(doc);
   }
@@ -1218,7 +1226,8 @@ export function createVersionController({
     marker.content = String(revision.revision);
   }
 
-  const upgraded = (element) => Boolean(registry[element.localName]?.["x-upgrade"]);
+  const upgraded = (element) =>
+    Boolean(registryFor(element)[element.localName]?.["x-upgrade"]);
 
   // Every declared widget in one revision's authored page, named the way its capture
   // named it: by id where the author gave one, and otherwise by tag and place among the
@@ -1289,7 +1298,7 @@ export function createVersionController({
     return copy;
   };
   const reachesMembers = (before, after, arrivingRoot) =>
-    registry[before.localName]?.["x-patch"] === "members" &&
+    registryFor(before)[before.localName]?.["x-patch"] === "members" &&
     sameAuthoredMarkup(shell(before), shell(after), arrivingRoot);
 
   // Preparation and installation use the same matching, widget ownership, and resource
@@ -1413,7 +1422,7 @@ export function createVersionController({
     // owed again, and these are the roots the install dresses beside the arrivals.
     const touched = [];
     const arrive = (node, parent) => {
-      const arriving = document.importNode(node, true);
+      const arriving = vocabularyFor(source).importNode(node);
       pairSources(node, arriving, sourcePairs);
       if (arriving.nodeType === Node.ELEMENT_NODE) {
         rememberPassageParts(arriving);

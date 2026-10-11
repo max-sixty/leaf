@@ -99,14 +99,13 @@ def _print_edits(page_dir: Path, events: list, registry: dict) -> None:
 
 def _published_within(
     page_dir: Path,
-    registry: dict,
     revision: int | None,
 ) -> dict:
     # Against the active revision — the page as it now stands, which is what a
     # transcript is an account of. A page with no valid revision has no reading.
     if revision is None:
         return {}
-    return read_revision(page_dir, revision).under(registry).within
+    return read_revision(page_dir, revision).within
 
 
 def _thread_heading(thread: dict) -> str:
@@ -182,6 +181,6 @@ def cmd_transcript(page_dir: Path) -> None:
     print(f"## Leaf: {title or page_dir.name}")
     _print_versions(events)
     _print_edits(page_dir, events, registry)
-    within = _published_within(page_dir, registry, revision)
+    within = _published_within(page_dir, revision)
     _print_threads(events, within, registry)
     _print_approvals(events)

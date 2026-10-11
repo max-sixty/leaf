@@ -4,10 +4,17 @@
    nothing Leaf draws is inserted into the page's content and nothing it
    draws moves that content. A row stands in one of two postures (`margin-placement.js`):
    in the rail, the strip beside `main` where the room there holds one, or as a pin over the
-   page by its target, seated where it covers no words when there is room for it
-   (`seatPins`). The stylesheet places each row from what this pass writes on it
+   page by its target, seated where it covers no words (`pinSeating`). Local exhaustion
+   tries the nearest clear seat outside the containing scroll boundary, then its outer
+   boundaries, using the same placement fold. No clear seat withholds the resting row;
+   its contribution remains in Page Map. User-held controls retain their seat.
+   The stylesheet places each row from what this pass writes on it
    (annotation-theme.css, at .lf-margin-cluster): its posture as `data-lf-place`, its
-   seat as `--lf-margin-x` and `--lf-margin-y`, including the push packing gives it.
+   seat as `--lf-margin-x` and `--lf-margin-y`, including the push rail packing gives it.
+   Rows take their final places once, in one shared held-and-arrival order. Each posture's
+   solver avoids the final rectangles and held labels already placed. A pin's chosen
+   clear seat is its final place: no second packing pass can translate it into words
+   or controls.
    These measured coordinates keep their full layout precision in custom properties;
    ordinary length serialization would round distant document positions before comparing
    them. Scrolling moves a row with its target on the compositor, whether the
@@ -23,6 +30,10 @@
    only where no anchor reaches, as inside a shadow tree. A lane's clip follows its
    region's outer scrollers.
    Rows and clips use coordinates at their native sources' zero scroll offsets.
+   An external seat belongs to its selected boundary's outer scroller, so scrolling the
+   interior moves neither that seat nor the thread attached to it. The original target
+   still determines visibility: its departure withholds the row. The selected attachment
+   and scroller are part of `marginSpot`, shared by composer and thread placement.
    Remeasuring after a scroll therefore preserves placement while native effects
    continue carrying it, without rebasing layout against an opposite translation.
    Layout owners announce same-size view rearrangements with `lf-layout`; resize
@@ -74,7 +85,13 @@ import {
 import { scrollerFor } from "/runtime/reading-regions.js";
 import { boundedBlockOf } from "/runtime/bounds.js";
 import { pageScroller } from "/runtime/scrolling.js";
-import { arrivals, packRows, rowPosture, seatRows } from "./margin-placement.js";
+import {
+  arrivals,
+  inSeatingOrder,
+  packRows,
+  rowPosture,
+  seatRows,
+} from "./margin-placement.js";
 import { overlaps } from "/runtime/rect.js";
 import { pointBand } from "/runtime/pointed-place.js";
 import {
@@ -338,7 +355,9 @@ function restingRail() {
 // now where one is shown, else where a rail row would stand at rest, `--rail-hang` off
 // `main`'s edge and one entry wide, and nothing where the rail does not stand beside
 // `target`, whose rows are pins placed as they come. A comment's surfaces keep it clear
-// (comment-placement.js), so the row a sent comment brings stays in view.
+// (comment-placement.js), so the row a sent comment brings stays in view. A pin also
+// supplies its selected attachment and scroller, so both comment surfaces share the
+// boundary whose clip and native motion carry that seat.
 export function marginSpot(target, point = null) {
   for (const [row, options] of rows)
     if (
@@ -347,7 +366,17 @@ export function marginSpot(target, point = null) {
       row.checkVisibility()
     ) {
       const { left, right } = row.getBoundingClientRect();
-      return { left, right };
+      const placed = seats.get(row);
+      return {
+        left,
+        right,
+        ...(placed
+          ? {
+              attachment: placed.attachment,
+              scroller: placed.scroller,
+            }
+          : {}),
+      };
     }
   const main = marginColumn();
   if (!layer || !railStands(main) || !railBeside(scrollerFor(target))) return null;
@@ -446,6 +475,16 @@ function placeMarginEntryLabel(control) {
 
 const REVEALS_LABEL =
   ':is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"]), [data-lf-held-word]';
+// Only a label this owner has placed and its control currently reveals paints a
+// footprint. Placement consumers read that same native geometry when the user holds
+// the control, so an arriving row does not make its existing label change sides.
+function heldLabelBoxes(row) {
+  return [...row.querySelectorAll(".lf-margin-entry[data-lf-label-side]")]
+    .filter((control) => control.matches(REVEALS_LABEL))
+    .map((control) =>
+      control.querySelector(":scope > .lf-margin-entry-label").getBoundingClientRect(),
+    );
+}
 let labelPlacementFrame = 0;
 export function scheduleMarginEntryLabels() {
   if (labelPlacementFrame) return;
@@ -634,11 +673,10 @@ function blockOf(target) {
 // not ones to avoid, since the pin stands on them. The walk leaves any subtree whose box misses the band, so a long page
 // costs what lies near the target.
 //
-// The controls come back apart as well, since packing keeps the pin off them, a pin left
-// at its corner too (`packRows`, `fixed`): a pin at a card's top-right would otherwise
-// take the presses meant for the card's grip. Anything the keyboard can reach is a control, so a package need declare
-// nothing. Each counts as the part of it its own scrollers show, short of the one that
-// scrolls the pin (`stop`): a pin can take no press from a control nobody can see, as a
+// Anything the keyboard can reach is a control, so a package need declare nothing.
+// Controls enter the same clearance reading as words: seating avoids both at once.
+// Every covered box, painted boxes included, counts as the part its own scrollers show,
+// short of the one that scrolls the pin (`stop`): a pin can take no press from a control nobody can see, as a
 // pane body's options scrolled behind the pane's footer, but a control scrolled with the
 // pin counts whole, so the pane's scroll never moves the pin's seat.
 const OPAQUE = "img, svg, canvas, video, iframe, object, embed";
@@ -667,7 +705,6 @@ function coverIn(root, band, target, block, bands, stop) {
   const cover = [];
   const walls = [];
   const neighbours = [];
-  const controls = [];
   // The painted boxes that draw the target's own face, as its declaration names them.
   const declared = declarationFor(target, "x-face");
   const face = new Set(declared ? target.querySelectorAll(declared.join(", ")) : []);
@@ -701,15 +738,18 @@ function coverIn(root, band, target, block, bands, stop) {
       ) {
         const shown = clippedBand(node, box, bands, stop);
         if (shown) cover.push(shown);
-        if (shown) (control ? controls : walls).push(shown);
+        if (shown && !control) walls.push(shown);
         continue;
       }
       if (node instanceof SVGElement) continue;
       if (!boxless && !holds && node !== target) {
         const style = getComputedStyle(node);
         if (paintsItsBox(style) && !face.has(node)) {
-          cover.push(edges(box));
-          walls.push(edges(box));
+          const shown = clippedBand(node, box, bands, stop);
+          if (shown) {
+            cover.push(shown);
+            walls.push(shown);
+          }
           continue;
         }
         if (
@@ -730,7 +770,7 @@ function coverIn(root, band, target, block, bands, stop) {
     }
   };
   visit(root);
-  return { cover, walls, neighbours, controls };
+  return { cover, walls, neighbours };
 }
 
 // The whole content a scroller scrolls, wherever it is scrolled to: a pin in a pane is
@@ -776,16 +816,19 @@ function standFolded(row, fold, on) {
   fold?.changed();
 }
 
-// Seats every pin (`seatRows`): reads what each may not stand on around its target and
-// the room it may take, then writes each seat into its entry's rect for packing, with the
-// controls packing keeps it off. The walk crosses the shadow hosts holding the target,
+// Prepares every pin's target and clearance reading, then supplies its posture solver
+// to the shared seating order. Each pin avoids the final rows and held labels already
+// placed, and writes its final seat into the entry's rect. A pin with no local clear
+// seat tries containing
+// boundaries from nearest to furthest; this changes only its mechanical attachment,
+// never its semantic target. The walk crosses the shadow hosts holding the target,
 // so their words and controls bound its seat just as the document's do.
 //
 // A row that can fold (its `fold.able()`, margin-projection.js) is seated at both sizes,
 // which are worked out rather than read, since only the one it stands at is drawn:
 // unfolded its face is two controls, folded one, and opened `fold.controls()`, each a
 // square the row's height, beside the gaps and the focus ring's room the row keeps.
-function seatPins(standing, { bands, shell, pinInset, retainSeats }) {
+function pinSeating(standing, { bands, shell, pinInset }) {
   const main = marginColumn();
   // A scrollable document can reveal seats beyond the viewport. A root whose
   // overflow prevents user scrolling cannot, so its window bounds the search.
@@ -793,13 +836,16 @@ function seatPins(standing, { bands, shell, pinInset, retainSeats }) {
     ? shownWindow({ viewport: "layout" })
     : null;
   const pins = [];
+  const outsideSites = new Map();
   for (const entry of standing) {
     const { read } = entry;
     if (read.place !== "pin") {
+      seats.delete(read.row);
       standFolded(read.row, read.options.fold, false);
       continue;
     }
-    const { target, point, row, box } = read;
+    const { target, point, row } = read;
+    const retained = seats.get(row);
     const home = entry.rect;
     const height = home.bottom - home.top;
     const width = home.right - home.left;
@@ -812,16 +858,7 @@ function seatPins(standing, { bands, shell, pinInset, retainSeats }) {
       (count - 1) * parseFloat(style.columnGap) +
       parseFloat(style.paddingRight);
     const wide = fold ? across(2) : width;
-    const seat = seats.get(row);
-    const holding =
-      seat && (entry.held || retainSeats)
-        ? {
-            left: box.right - seat.right - width,
-            right: box.right - seat.right,
-            top: box.top + seat.top,
-            bottom: box.top + seat.top + height,
-          }
-        : null;
+    const holding = entry.holding;
     // A pin level with a pointed row keeps to that row, as a pin keeps to its target;
     // the row's boxes are read wherever it is drawn, a widget's shadow tree included,
     // since the walk below reads the room around the target, which is the document's.
@@ -837,7 +874,7 @@ function seatPins(standing, { bands, shell, pinInset, retainSeats }) {
     // header, standing still above it, would enter the band as the pane scrolled the
     // target up to it, and seat the pin differently at that scroll.
     const stop = read.scroller;
-    const { cover, walls, neighbours, controls } = coverIn(
+    const { cover, walls, neighbours } = coverIn(
       stop === pageScroller ? main : stop,
       band,
       target,
@@ -845,7 +882,6 @@ function seatPins(standing, { bands, shell, pinInset, retainSeats }) {
       bands,
       stop,
     );
-    entry.fixed = controls;
     // A run of text is finished at the end of its last line, and the pin sits there,
     // level with that line; a block's pin keeps its corner, and so does a shape in a
     // drawing, whose `display` says nothing about lines.
@@ -871,10 +907,11 @@ function seatPins(standing, { bands, shell, pinInset, retainSeats }) {
     const clipped = clippedBand(target, EVERYWHERE, bands, stop);
     pins.push({
       key: entry,
+      attachment: target,
       rect: homeAt(wide),
-      held: holding,
+      held: retained?.attachment === target ? holding : null,
       came: entry.came,
-      parts,
+      parts: holding && retained?.attachment !== target ? [] : parts,
       cover,
       walls,
       neighbours,
@@ -889,15 +926,117 @@ function seatPins(standing, { bands, shell, pinInset, retainSeats }) {
       bounds: {
         left: Math.max(within?.left ?? 0, clipped?.left ?? 0) + pinInset,
         right: Math.min(within?.right ?? shell, clipped?.right ?? shell) - pinInset,
-        top: within?.top ?? -Infinity,
-        bottom: within?.bottom ?? Infinity,
+        top: Math.max(within?.top ?? -Infinity, clipped?.top ?? -Infinity),
+        bottom: Math.min(within?.bottom ?? Infinity, clipped?.bottom ?? Infinity),
       },
     });
+    const pin = pins.at(-1);
+    outsideSites.set(entry, function* () {
+      // A full local region offers its visible boundary as the next attachment. Its
+      // parent owns that seat's clip and motion; the original target still owns whether
+      // the contribution exists and is visible. Repeat through enclosing regions.
+      let boundary =
+        read.sources?.[0] ?? (stop === pageScroller ? blockOf(target) : stop);
+      const visited = new Set();
+      while (boundary && !visited.has(boundary)) {
+        visited.add(boundary);
+        const outer = scrollerFor(upFrom(boundary));
+        const edge = clippedBand(
+          boundary,
+          boundary.getBoundingClientRect(),
+          bands,
+          outer,
+        );
+        if (edge) {
+          const padding = height + REACH + line + GAP;
+          const around = { top: edge.top - padding, bottom: edge.bottom + padding };
+          const outside = coverIn(
+            outer === pageScroller ? document.body : outer,
+            around,
+            boundary,
+            blockOf(boundary),
+            bands,
+            outer,
+          );
+          const bounds =
+            outer === pageScroller
+              ? shownWindow({ viewport: "layout" })
+              : contentBox(outer);
+          const at = (size) => ({
+            left: Math.min(edge.right, bounds.right) - pinInset - size,
+            right: Math.min(edge.right, bounds.right) - pinInset,
+            top: Math.max(edge.top, Math.min(home.top, edge.bottom - height)),
+            bottom:
+              Math.max(edge.top, Math.min(home.top, edge.bottom - height)) + height,
+          });
+          yield {
+            ...pin,
+            held: retained?.attachment === boundary ? holding : null,
+            attachment: boundary,
+            rect: at(wide),
+            seat: at(wide),
+            parts: [edge],
+            cover: [...outside.cover, edge],
+            walls: [...outside.walls, edge],
+            neighbours: outside.neighbours,
+            line,
+            bounds: {
+              left: bounds.left + pinInset,
+              right: bounds.right - pinInset,
+              top: bounds.top,
+              bottom: bounds.bottom,
+            },
+            folds: fold && {
+              rect: at(across(1)),
+              seat: at(across(1)),
+              open: across(fold.controls()),
+            },
+          };
+        }
+        if (boundary === main || boundary === document.body) break;
+        boundary =
+          scrollSources(boundary)[0] ?? (outer === pageScroller ? main : outer);
+      }
+    });
   }
-  for (const [entry, { rect, folded: on }] of seatRows(pins, {
-    reach: REACH,
-    gap: GAP,
-  })) {
+  const byEntry = new Map(pins.map((pin) => [pin.key, pin]));
+  return (entry, occupied) => {
+    const pin = byEntry.get(entry);
+    const atSite = (site) =>
+      seatRows(
+        [
+          {
+            ...site,
+            cover: [...site.cover, ...occupied],
+            walls: [...site.walls, ...occupied],
+          },
+        ],
+        { reach: REACH, gap: GAP, targets: pins },
+      ).get(entry);
+    let answer = atSite(pin);
+    let attachment = entry.read.target;
+    if (!answer.rect) {
+      // Read outside a boundary only when local seating is exhausted. Ordinary clear
+      // pins never traverse their page's outer cover or its enclosing regions.
+      for (const site of outsideSites.get(entry)()) {
+        const next = atSite(site);
+        if (!next.rect) continue;
+        answer = next;
+        attachment = site.attachment;
+        break;
+      }
+    }
+    const { rect, folded: on } = answer;
+    if (!rect) {
+      entry.unseated = true;
+      entry.read.row.classList.add("lf-withheld");
+      return;
+    }
+    entry.read.attachment = attachment;
+    entry.read.scroller =
+      attachment === entry.read.target
+        ? entry.read.scroller
+        : scrollerFor(upFrom(attachment));
     // An open folded row is wider than its one-control seat. Keep the toggle at
     // that seat's right edge while the options spread to its left.
     entry.visualLeft =
@@ -906,11 +1045,14 @@ function seatPins(standing, { bands, shell, pinInset, retainSeats }) {
         : rect.left;
     entry.rect = rect;
     if (entry.fold) standFolded(entry.read.row, entry.fold, on);
+    const attached = targetBox(attachment).getBoundingClientRect();
     seats.set(entry.read.row, {
-      top: rect.top - entry.read.box.top,
-      right: entry.read.box.right - rect.right,
+      attachment,
+      scroller: entry.read.scroller,
+      top: rect.top - attached.top,
+      right: attached.right - rect.right,
     });
-  }
+  };
 }
 
 function scheduleMarginLayout() {
@@ -976,13 +1118,13 @@ function setStyle(row, property, value) {
 // still take the keyboard, and for a pin its right edge too: a card half past a board's
 // edge would stand its pin outside the board, beside nothing and past the page. A pin not
 // yet seated passes `stands` null, and is asked again once it is.
-function targetShown(target, extent, stands, bands) {
+function targetShown(target, extent, stands, bands, attachment = target) {
   const shown = (part) =>
     part.checkVisibility() && clippedBand(part, part.getBoundingClientRect(), bands);
   if (!shownParts(target).some(shown)) return false;
   if (!clippedBand(target, extent, bands)) return false;
   if (!stands) return true;
-  const view = clippedBand(target, EVERYWHERE, bands);
+  const view = clippedBand(attachment, EVERYWHERE, bands);
   return (
     stands.top >= view.top - 1 &&
     (stands.right === undefined || stands.right <= view.right + 1)
@@ -990,10 +1132,9 @@ function targetShown(target, extent, stands, bands) {
 }
 
 const pushes = new Map();
-// The layout pass each row came at (`arrivals`). Packing seats the rows that came earlier
-// first (`packRows`), so a row arriving takes the room left to it and moves none already
-// there: a pick's receipt, an agent's change, a thread just sent, each lands below the
-// markers standing by its target, and an open card with them, rather than pushing them.
+// The layout pass each row came at (`arrivals`). One shared order seats held rows
+// first, then earlier arrivals, across both postures. Each row takes the room left
+// by final rectangles already seated: news moves nothing already standing.
 let pass = 0;
 let came = new Map();
 const clips = new WeakMap();
@@ -1033,7 +1174,12 @@ function scheduleScrollReading() {
       const follows = scrollFollows(targetBox(target));
       // The document carries ordinary rows and clips together; only attachments
       // outside that linear plane need a document-scroll placement reading.
-      if (follows && boxes.every((box) => box === pageScroller)) continue;
+      if (
+        follows &&
+        !row.classList.contains("lf-withheld") &&
+        boxes.every((box) => box === pageScroller)
+      )
+        continue;
       if (!follows) {
         layoutMarginRows({ retainSeats: true });
         return;
@@ -1042,14 +1188,16 @@ function scheduleScrollReading() {
       // The row's own box is not read: a carried row's box is read a frame late
       // after a scroll, which is not where it is painted.
       const by = standsBy.get(row);
+      const attachment = seats.get(row)?.attachment ?? target;
+      const placement = shownExtent(attachment);
       const stands =
         row.classList.contains("lf-withheld") || !extent || !by
           ? null
           : row.dataset.lfPlace === "pin"
-            ? { top: extent.top + by.top, right: extent.right + by.right }
-            : { top: extent.top + by.top };
+            ? { top: placement.top + by.top, right: placement.right + by.right }
+            : { top: placement.top + by.top };
       if (
-        targetShown(target, extent, stands, bands) ===
+        targetShown(target, extent, stands, bands, attachment) ===
         row.classList.contains("lf-withheld")
       ) {
         scheduleMarginLayout();
@@ -1169,23 +1317,13 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
     });
     const shown = targetShown(target, extent, place === "pin" ? null : { top }, bands);
     const sources = scrollSources(point ?? target);
-    const carrier =
-      sources.length && scrollsWith(point ?? target, sources[0])
-        ? carriedAnchor(sources[0])
-        : null;
-    // An anchor's name is read every pass, since a revision that rewrites its style
-    // takes the name away.
-    if (carrier && !carrierNames.has(carrier))
-      carrierNames.set(carrier, anchorReading(carrier));
     reads.push({
       row,
       options,
       target,
       point,
       anchor,
-      motions: motionsFor(sources, targetBox(point ?? target)),
-      carrier,
-      carrierBox: carrier?.getBoundingClientRect(),
+      sources,
       whole,
       scroller,
       lane: rootLane ? layer.root : null,
@@ -1197,6 +1335,98 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
     });
   }
   came = arrivals(came, present, pass);
+  // Posture determines row size. Write every posture before measuring those sizes;
+  // every coordinate is then written together after packing.
+  for (const { row, target, shown, place } of reads) {
+    row.classList.toggle("lf-withheld", !shown);
+    if (!target) continue;
+    if (row.dataset.lfPlace !== place) {
+      // A push in one posture says nothing of where the row stands in the other.
+      pushes.delete(row);
+      row.dataset.lfPlace = place;
+    }
+  }
+
+  // Packing reads every row's size, then writes all coordinates together. Position
+  // comes directly from the target reading, independently of the row's previous spot.
+  const placed = reads
+    .filter((read) => read.shown)
+    .map((read) => {
+      const box = read.row.getBoundingClientRect();
+      return {
+        key: read.row,
+        rect: {
+          left:
+            read.place === "pin" ? read.extent.right - pinInset - box.width : railInner,
+          right:
+            read.place === "pin" ? read.extent.right - pinInset : railInner + box.width,
+          top: read.top,
+          bottom: read.top + box.height,
+        },
+        // Held where it stands, which a row has only once it has stood in its posture:
+        // one that has just come, or just changed posture, takes its place as any other.
+        held: pushes.has(read.row) && read.row.matches(HELD),
+        came: came.get(read.row),
+        pushed: pushes.get(read.row),
+        read,
+      };
+    });
+  // Read retained pin footprints once for their posture solver. The shared seating
+  // order retains held rows before either posture takes any remaining room.
+  for (const entry of placed) {
+    const seat = seats.get(entry.read.row);
+    if (entry.read.place !== "pin" || !seat || !(entry.held || retainSeats)) continue;
+    const heldBox = targetBox(seat.attachment).getBoundingClientRect();
+    const width = entry.rect.right - entry.rect.left;
+    const height = entry.rect.bottom - entry.rect.top;
+    entry.holding = {
+      left: heldBox.right - seat.right - width,
+      right: heldBox.right - seat.right,
+      top: heldBox.top + seat.top,
+      bottom: heldBox.top + seat.top + height,
+    };
+  }
+  const seatPin = pinSeating(placed, { bands, shell, pinInset });
+  const occupied = [];
+  const packed = new Map();
+  // One held-and-arrival order owns both postures. A posture solver produces its final
+  // rectangle once; later rows avoid it rather than translating an earlier clear seat.
+  for (const entry of inSeatingOrder(placed)) {
+    if (entry.read.place === "rail") {
+      // A widened rail steps back from the shell before collision solving, so the
+      // occupied rectangle is exactly the one the stylesheet will paint.
+      entry.step = Math.min(0, shell - entry.rect.right);
+      const rect = {
+        ...entry.rect,
+        left: entry.rect.left + entry.step,
+        right: entry.rect.right + entry.step,
+      };
+      const push = packRows([{ ...entry, rect }], GAP, occupied).get(entry.key);
+      packed.set(entry.key, push);
+      occupied.push({ ...rect, top: rect.top + push, bottom: rect.bottom + push });
+    } else {
+      seatPin(entry, occupied);
+      if (entry.unseated) continue;
+      packed.set(entry.key, 0);
+      occupied.push(entry.rect);
+    }
+    if (entry.held) occupied.push(...heldLabelBoxes(entry.read.row));
+  }
+  const standing = placed.filter((entry) => !entry.unseated);
+  for (const read of reads) {
+    if (!read.target) continue;
+    const subject = read.attachment ?? read.point ?? read.target;
+    const sources = scrollSources(subject);
+    read.motions = motionsFor(sources, targetBox(subject));
+    read.carrier =
+      sources.length && scrollsWith(subject, sources[0])
+        ? carriedAnchor(sources[0])
+        : null;
+    read.carrierBox = read.carrier?.getBoundingClientRect();
+    read.lane = read.scroller === pageScroller ? layer.root : null;
+    if (read.carrier && !carrierNames.has(read.carrier))
+      carrierNames.set(read.carrier, anchorReading(read.carrier));
+  }
   // What each lane's region shows, cut by the scrollers around it but not by the window,
   // so a pane below the fold is clipped where its own edges will be when it arrives.
   const regions = new Map();
@@ -1303,50 +1533,11 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
       layer.sizes.unobserve(scroller);
     }
 
-  // Posture determines row size. Write every posture before measuring those sizes;
-  // every coordinate is then written together after packing.
-  for (const { row, target, shown, place } of reads) {
-    row.classList.toggle("lf-withheld", !shown);
-    if (!target) continue;
-    if (row.dataset.lfPlace !== place) {
-      // A push in one posture says nothing of where the row stands in the other.
-      pushes.delete(row);
-      row.dataset.lfPlace = place;
-    }
-  }
-
-  // Packing reads every row's size, then writes all coordinates together. Position
-  // comes directly from the target reading, independently of the row's previous spot.
-  const placed = reads
-    .filter((read) => read.shown)
-    .map((read) => {
-      const box = read.row.getBoundingClientRect();
-      return {
-        key: read.row,
-        rect: {
-          left:
-            read.place === "pin" ? read.extent.right - pinInset - box.width : railInner,
-          right:
-            read.place === "pin" ? read.extent.right - pinInset : railInner + box.width,
-          top: read.top,
-          bottom: read.top + box.height,
-        },
-        // Held where it stands, which a row has only once it has stood in its posture:
-        // one that has just come, or just changed posture, takes its place as any other.
-        held: pushes.has(read.row) && read.row.matches(HELD),
-        came: came.get(read.row),
-        pushed: pushes.get(read.row),
-        read,
-      };
-    });
-  const standing = placed;
-  seatPins(standing, { bands, shell, pinInset, retainSeats });
-  const packed = packRows(standing, GAP);
   // A push says where a standing row stands, so a row that no longer stands has none.
   for (const row of pushes.keys()) if (!packed.has(row)) pushes.delete(row);
   for (const [scroller, lane] of layer.lanes)
     carryScroll(lane, laneMotions.get(scroller) ?? []);
-  for (const { key: row, rect, read, visualLeft } of standing) {
+  for (const { key: row, rect, read, visualLeft, step = 0 } of standing) {
     const push = packed.get(row) ?? 0;
     pushes.set(row, push);
     // A pin seated beside its target can stand outside what its pane shows though the
@@ -1359,16 +1550,15 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
           read.extent,
           { top: rect.top + push, right: rect.right },
           bands,
+          read.attachment,
         ),
       );
-    // A rail row wider than the rail, unfolded or holding more than its resting budget,
-    // steps back from the shell's edge rather than widening the page.
-    const step = read.place === "rail" ? Math.min(0, shell - rect.right) : 0;
     const left = (visualLeft ?? rect.left) + step;
     const top = rect.top + push;
+    const placement = read.attachment ? shownExtent(read.attachment) : read.whole;
     standsBy.set(row, {
-      top: top - read.whole.top,
-      right: rect.right - read.whole.right,
+      top: top - placement.top,
+      right: rect.right - placement.right,
     });
     if (isCarrier(read.home)) {
       // The carrier stands at the window's origin as this pass measured its anchor,

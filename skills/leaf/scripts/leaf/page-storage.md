@@ -47,7 +47,7 @@ other page files and the external state listed below.
 - `widgets/` — one ES module per upgraded widget (lf-tabs.js, lf-board.js)
 
 - `vendor/` — vendored third-party assets (sortable.esm.js, plot.esm.js), and whatever a
-  selected package brings (agentic-mermaid.esm.js)
+  selected package brings (mermaid.esm.js)
 
 - `page/` — mutable page-specific browser-ready modules, styles, assets,
   page/registry.json declarations, and page/widgets/ modules. These are candidate inputs
@@ -76,9 +76,10 @@ other page files and the external state listed below.
   complete reconstructed values. The server appends request method, path without query, status, and
   duration for every request except a successful `/api/news` look or delivery of a
   resource's bytes (a module, stylesheet, or media file); `/api/interaction` appends browser batches with a session id, scoped
-  page address, and server receipt time. Sample activity remains in its parent
-  page's trace. The diagnostic file changes neither page/source reading nor
-  presence cache keys. It is private page data and is never served as an asset.
+  page address, and server receipt time. All descendant sample activity remains
+  in the containing authored page's trace, with complete root-relative sample
+  addresses; releasing any sample leaves its recorded activity intact. The diagnostic
+  file changes neither page/source reading nor presence cache keys. It is private page data and is never served as an asset.
   Command records capture the selected command's title and description before
   it runs, together with current focus and document scroll. Following focus and
   scroll observations show its effect, including commands that change no page event.
@@ -125,9 +126,12 @@ other page files and the external state listed below.
   writer which does not use those locks can still race the last comparison and atomic
   replacement; this is not an operating-system compare-and-swap guarantee.
 
-- `data/` — one JSON file per source, `<source>.json`, holding its current value.
-  Any process may rewrite one; readings validate it against the recorded contract.
-  Deferred record fields served by `/api/deferred` come from these same files.
+- `data/` — one JSON publication per source, `<source>.json`, holding `run`,
+  `updated`, and `value` together. `leaf data set` validates and atomically writes
+  it; a new write gets a new opaque run receipt, including an identical value.
+  Copying the page preserves that receipt. Readings validate the publication and
+  its value against the recorded contract. Deferred record fields served by
+  `/api/deferred` come from the value in these same publications.
 
 - `status.json` — the agent's `waiting` or `idle` declaration, observed activity,
   and reply bindings. The work in hand is no status: it is the log's `start` events.
@@ -139,7 +143,8 @@ other page files and the external state listed below.
   use `<state-home>/sessions/<session>.wait`. See [session-lifetime.md](session-lifetime.md).
 
 - `viewed.json` — last visible browser attention, written by the server and absent until
-  first viewed. `http.py` owns throttled renewal; hidden tabs do not renew it.
+  first viewed. `presence.py` owns throttled renewal, which the server runs as a
+  visible tab asks for news; hidden tabs do not renew it.
 
 - `cursor.json` — acknowledged position in this page's event log. Acknowledgement and
   log replacement rules are defined in [session-lifetime.md](session-lifetime.md).
@@ -211,7 +216,7 @@ The page's document is not repeated in the reading: an agent reads the HTML at
 `active.file` beside `state`, which lists each standing user move by widget, unit and
 verb with the detail it carries, so where the two differ the page shows the move.
 `data_bindings` names each bound source and the widgets that read it, and
-`data/<source>.json` holds its value.
+`data/<source>.json` holds its publication.
 
 `leaf page state <page> <id>` narrows the reading to what `<id>` names. A message,
 or a widget frozen into one, names its thread: the reading is that thread's current

@@ -43,7 +43,7 @@ from xml.etree import ElementTree
 from .files import read_json
 from .harness import claim_harness, session_harness
 from .machine import state_home
-from .schema import CURSOR_FILE
+from .schema import CURSOR_FILE, WIDGET_KINDS
 from .service import (
     PageTransaction,
     owned_pages,
@@ -161,7 +161,7 @@ def _registry(page_dir: Path):
 
 def _subject(event: dict, threads: list[str], by_id: dict[str, dict]) -> dict:
     """Name what one event changes without using prose as an identifier."""
-    if event["kind"] in {"action", "report"}:
+    if event["kind"] in WIDGET_KINDS:
         return {"kind": "widget", "id": event["widget"]}
     if event["kind"] == "undo":
         original = by_id.get(event["undoes"])
@@ -193,8 +193,8 @@ def batch_data(
     """Capture one complete ordered page batch, less what `freeze_delivery` writes
     for its transport: the address of a thread reply, and the `handling` that follows
     from it."""
+    from .events import build_threads
     from .gesture_words import GestureWords, revisions_on_disk
-    from .registry.reactions import described
     from .revision_artifact import active_enclosing
     from .thread_context import (
         batch_threads,
@@ -216,6 +216,11 @@ def batch_data(
     )
     if responses is None:
         responses = current_responses(page_dir, events)
+    revisions = {
+        revision["id"]: revision
+        for thread in build_threads(events, within).values()
+        for revision in thread["revisions"]
+    }
     by_id = {event["id"]: event for event in events}
     words = GestureWords(events, registry, revisions_on_disk(page_dir))
 
@@ -223,7 +228,7 @@ def batch_data(
     for event in batch:
         threads = memberships.get(event["id"], [])
         entry = {
-            **described(event, registry),
+            **event,
             "subject": _subject(event, threads, by_id),
             "threads": threads,
         }
@@ -234,6 +239,13 @@ def batch_data(
         # does not read is not read for its words at all.
         if registry is not None and (says := words.says(event)):
             entry["says"] = says
+        if revision := revisions.get(event["id"]):
+            # The thread's digest already reads the new wording; the agent answering
+            # a revision needs to see what it replaced, and whether those words are a
+            # suggestion's exact replacement text.
+            entry["was"] = revision["was"]
+            if by_id[revision["message"]].get("suggestion"):
+                entry["suggestion"] = True
         if (answer := responses.get(event["id"])) is not None:
             entry["answer"] = answer
         captured.append(entry)

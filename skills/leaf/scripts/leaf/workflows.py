@@ -54,6 +54,8 @@ moves again or the markup records the move anyway.
 
 from .events import (
     conversation_turns,
+    exchange,
+    turn_message,
     unanswered_turns,
 )
 from .projection import (
@@ -64,20 +66,6 @@ from .projection import (
 from .tasks import (
     TaskReading,
 )
-
-
-def admission_workflows(readings) -> tuple[list[dict], dict]:
-    """The workflows one admission reads, beside the threads they were folded from:
-    the page's newest revision and the frozen thread document, over the log as it
-    stands."""
-    work = readings.work
-    return work.workflows, work.threads
-
-
-def admission_tasks(readings) -> list[dict]:
-    """Explicit tasks under the transaction's admission vocabulary."""
-    standing, ended = readings.work.page_tasks()
-    return standing + ended
 
 
 def obligation_reading(readings) -> dict:
@@ -310,6 +298,9 @@ def canonical_workflows(
         return {
             "id": source["id"],
             "input": source["id"],
+            # The message a thread input is said in, which shows its delivery: its
+            # own, or for a revision the message it rewrote (`events.turn_message`).
+            "message": turn_message(source) if target["kind"] == "thread" else None,
             "seq": source["seq"],
             "revision": source.get("revision"),
             "subject": target,
@@ -389,7 +380,7 @@ def canonical_workflows(
 
     workflows = []
     for thread_id, thread in threads.items():
-        turns = conversation_turns(thread)
+        turns = exchange(thread)
         if thread["resolved"]:
             continue
         target = {"kind": "thread", "id": thread_id}
@@ -417,7 +408,7 @@ def canonical_workflows(
         ]
         answer = {
             "kind": "reply",
-            "to": response_address["id"],
+            "to": turn_message(response_address),
             "for": response_address["id"],
         }
         for source in unanswered_inputs:

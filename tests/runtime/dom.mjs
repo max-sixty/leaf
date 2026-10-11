@@ -1,4 +1,4 @@
-/* The world a runtime module is imported into by `npm run test:runtime`.
+/* The world a runtime module is imported into by `pnpm run test:runtime`.
 
    A fold needs no browser, but the modules holding folds are written for one: they sit
    in files that also reach for `document`, `customElements`, or a DOM type at module
@@ -27,7 +27,8 @@ import { GlobalRegistrator } from "@happy-dom/global-registrator";
 GlobalRegistrator.register({ url: "https://leaf.test/" });
 // Nothing is laid out here, so every box is whatever a test states. The window is the
 // one box this world states itself, as a browser does: the root reports its size, and
-// the visual viewport, which happy-dom lacks, covers it unzoomed.
+// the visual viewport, which happy-dom lacks and geometry.js reads (`shownWindow`) and
+// listens to (`whenNone`), covers it unzoomed.
 for (const [name, size] of [
   ["clientWidth", () => innerWidth],
   ["clientHeight", () => innerHeight],

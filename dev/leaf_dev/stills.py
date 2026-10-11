@@ -336,6 +336,14 @@ def composer(page: Page) -> None:
     page.keyboard.insert_text("A comment being drafted on the selected words")
 
 
+def composer_space(page: Page) -> None:
+    """A narrow comment whose trailing space still fits beside Send."""
+    composer(page)
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.insert_text("this is a nice feature; is it in leaf, or you")
+    page.keyboard.press("Space")
+
+
 # A draft of two paragraphs whose lines run past the composer's width, so every field
 # shows how its words wrap beside the action in its corner, on the lines above the last
 # as well as the last.
@@ -466,6 +474,17 @@ def gallery_plans(page: Page) -> None:
     """Planned work beside observed history, using authored stable section identity."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
     page.locator("#bg-plans-and-history").scroll_into_view_if_needed()
+
+
+def gallery_page_annotations(page: Page) -> None:
+    """The practice window's page-owned annotation rail, at the height its rows take."""
+    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
+    page.locator("#bg-page-annotations-sample").evaluate(
+        "el => el.scrollIntoView({block: 'start'})"
+    )
+    page.frame_locator("#bg-page-annotations-sample iframe").locator(
+        "lf-annotation-rail"
+    ).evaluate("el => el.scrollIntoView({block: 'end'})")
 
 
 def theme_hierarchy(page: Page) -> None:
@@ -1037,6 +1056,11 @@ STATES = (
     State("frame-edges", "developer/feature-gallery", frame_edges),
     State("gallery-metrics", "developer/feature-gallery", gallery_metrics),
     State("gallery-plans", "developer/feature-gallery", gallery_plans),
+    State(
+        "gallery-page-annotations",
+        "developer/feature-gallery",
+        gallery_page_annotations,
+    ),
     State("gallery-theme", "developer/feature-gallery", theme_hierarchy),
     State(
         "gallery-theme-dark",
@@ -1144,6 +1168,7 @@ STATES = (
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
     State("triage", "triage-board", at_rest),
     State("triage-composer", "triage-board", composer),
+    State("triage-composer-space", "triage-board", composer_space, viewport=(362, 900)),
     State("triage-composer-long", "triage-board", composer_long),
     State("triage-composer-long-dark", "triage-board", composer_long, scheme="dark"),
     State(

@@ -22,8 +22,9 @@ from leaf import passages as passages_model
 from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_gate.scheme import collect_page_exceptions
 from leaf.served_state import context as served_context
-from leaf.validation import compatibility as validation_model
+from leaf.validation import composition as validation_model
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -5010,7 +5011,7 @@ def test_a_detached_selection_still_has_a_live_writable_composer(
         ),
     )
     errors = []
-    page.on("pageerror", lambda error: errors.append(str(error)))
+    collect_page_exceptions(page, errors)
     anchor = page.evaluate("""async () => {
       const P = await import('/runtime/passages.js');
       const A = await import('/runtime/anchor-resolution.js');

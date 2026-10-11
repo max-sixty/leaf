@@ -11,7 +11,7 @@ import { applicationState, readApplication } from "../semantic-state.js";
 /** @typedef {import("../../../../../build/browser/domain.ts").Command} Command */
 /** @typedef {NonNullable<ReturnType<typeof applicationState.entry>>} Entry */
 /** @typedef {{
- * event: Command, message: Entry["message"], admitted: Event | null,
+ * event: Command, admitted: Event | null,
  * answer: Promise<Event | null>, read: Promise<Event>,
  * resolve: (value: Event | null) => void, resolveRead: (value: Event) => void,
  * }} DeliveryHandle */
@@ -37,9 +37,6 @@ export function createPendingLedger({ newAttempt, enqueue }) {
       const handle = {
         get event() {
           return current()?.event ?? attempted;
-        },
-        get message() {
-          return current()?.message ?? null;
         },
         get admitted() {
           return current()?.admitted ?? null;

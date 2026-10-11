@@ -14,7 +14,7 @@ from leaf.event_meaning import (
     admit_widget_event,
     direct_dependencies,
 )
-from leaf.events import build_threads, spoken_turns, taken_back, undo_error
+from leaf.events import build_threads, spoken_turns, undo_error
 from leaf.files import version_revisions
 from leaf.page_view import CandidatePageView, PageView
 from leaf.projection import (
@@ -41,7 +41,7 @@ from leaf.structure import review_mode
 from leaf.tasks import task_error
 from leaf.work import widget_seat_error
 from leaf.work_reading import WorkReading
-from leaf.workflows import admission_tasks, admission_workflows, obligation_reading
+from leaf.workflows import obligation_reading
 
 # The envelope the append lease itself assigns. Admission validates the complete
 # record, so pre-admission shape checks supply representative envelope fields.
@@ -593,10 +593,54 @@ def _parent_error(event: dict, events: list) -> str | None:
     return None
 
 
+def _edit_error(event: dict, events: list) -> str | None:
+    """An edit revises the words of a message its own author wrote: the user's own,
+    or an agent's, whichever session posted it, so a successor can correct what a
+    predecessor said. A reaction or a bare drawing has none to revise.
+
+    An edit that names its `base`, the revision its words were written over (the
+    message's own id, or the latest edit of it; a browser names an edit of its own
+    still sending once the log has answered it), lands only on that revision: one
+    written over words another tab has since replaced would silently take their place.
+    Words the message already says are no revision, and no turn."""
+    if event["kind"] != "edit":
+        return None
+    name = event["message"]
+    target = next(
+        (
+            logged
+            for logged in events
+            if logged["kind"] in MESSAGE_KINDS and logged["id"] == name
+        ),
+        None,
+    )
+    if target is None:
+        return f"unknown message {name!r}"
+    if target["author"] != event["author"]:
+        return f"message {name!r} is not {event['author']}-authored"
+    if "text" not in target:
+        return f"message {name!r} has no words to revise"
+    revisions = [
+        logged
+        for logged in events
+        if logged["kind"] == "edit" and logged["message"] == name
+    ]
+    latest = revisions[-1] if revisions else target
+    if "base" in event and event["base"] != latest["id"]:
+        return Refusal(
+            f"edit of {name!r} was written over {event['base']!r}, and "
+            f"{latest['id']!r} has since revised it",
+            "The message changed while you edited it; edit it again.",
+        )
+    if event["text"] == latest["text"]:
+        return f"edit of {name!r} says what the message already says"
+    return None
+
+
 def _thread_presentation_error(view, event: dict, events: list) -> str | None:
     if event["kind"] not in {"summary", "thread_title"}:
         return None
-    threads = build_threads(events, view.within, withdrawn=taken_back(events))
+    threads = build_threads(events, view.within)
     thread = threads.get(event["thread"])
     if thread is None:
         return f"unknown thread {event['thread']!r}"
@@ -647,15 +691,16 @@ def admission_error(
         or _reaction_error(event, registry)
         or _anchored_comment_error(view, event, registry)
         or _parent_error(event, events)
+        or _edit_error(event, events)
         or _thread_presentation_error(view, event, events)
         or _reanchor_error(view, event, events)
         or read_contract_error(event, events)
         or _withdrawal_error(view, event, events, readings)
-        or _task_error(view, event, events, readings)
+        or _task_error(view, event, readings)
     )
 
 
-def _task_error(view, event: dict, events: list, readings) -> str | None:
+def _task_error(view, event: dict, readings) -> str | None:
     """A task stands on an open thread, a widget that seats work or an element, or the
     page. Task endings also admit an agent withdrawal of a prose Question; a
     start names explicit agent work or an owed move (`tasks.task_error`)."""
@@ -668,7 +713,7 @@ def _task_error(view, event: dict, events: list, readings) -> str | None:
         event = start
     elif event["kind"] not in {"task", "task_end"}:
         return None
-    workflows = admission_workflows(readings)[0] if event["kind"] != "task_end" else []
+    workflows = readings.work.workflows if event["kind"] != "task_end" else []
     if progress_parent is not None and not any(
         item["input"] == event["item"]
         and item["next_actor"] == "agent"
@@ -677,7 +722,6 @@ def _task_error(view, event: dict, events: list, readings) -> str | None:
         for item in workflows
     ):
         return "progress must take in hand the reply input addressed by its parent"
-    threads = readings.work.threads if event["kind"] == "task" else {}
 
     def seat_error(widget: str) -> str | None:
         if not view.revisions:
@@ -713,12 +757,11 @@ def _task_error(view, event: dict, events: list, readings) -> str | None:
     return task_error(
         event,
         readings.log,
-        threads,
         seat_error=seat_error,
         element_error=element_error,
         user_widget_error=user_widget_error,
         owed=owed,
-        tasks=lambda: admission_tasks(readings),
+        tasks=lambda: [task for half in readings.work.page_tasks() for task in half],
         questions=lambda: readings.work.all_questions["all"],
     )
 

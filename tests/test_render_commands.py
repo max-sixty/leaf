@@ -392,10 +392,10 @@ def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
 def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_path):
     """Under the browser the render gate launches sits Playwright's driver, a Node process
     leaf never names. Where it ends at startup, no launch is reached, so the guard
-    that answers for a browser cannot: `sync_playwright()`'s context entry dies on an
-    AttributeError naming a Playwright private, and the connection's own reason
-    arrives afterwards, out of order, as asyncio's unretrieved task. A page author
-    reading that has been handed a leaf bug where the host has an old Node.
+    that answers for a browser cannot: `sync_playwright()`'s start raises the
+    connection's failed initialization, with a traceback through Playwright's
+    internals. A page author reading that has been handed a leaf bug where the host
+    has an old Node.
 
     Two hosts reach it — a glibc older than the bundled Node needs, and a
     PLAYWRIGHT_NODEJS_PATH naming a Node older than the driver bundle needs — and
@@ -410,9 +410,9 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
     asserts a transport handle that spawn never assigned, so a manager exited after
     a failed entry answers with a private of its own instead of the missing file.
 
-    No traceback is half the subject. The four shapes asserted away are the ones the
-    reader sees where the gate raises instead of answering: either private, the
-    out-of-order asyncio block, and any traceback at all."""
+    No traceback is half the subject. The shapes asserted away are the ones the
+    reader sees where the gate raises instead of answering: a Playwright private,
+    an unretrieved asyncio exception, and any traceback at all."""
     serve(LONG_PAGE)
     d = serve.page_dir
     silent = tmp_path / "not-a-node"
@@ -555,7 +555,7 @@ def test_shot_inspects_either_original_without_flipping_or_moving(
 
     Endpoint choice, inspection, and native modified navigation are separate routes;
     closing the viewer returns to the same route without shifting the comparison.
-    A parent inspector can still withdraw the complete rail with controls off.
+    A containing inspector's compare view still withdraws the complete rail.
     """
     shots = {
         "before": solid_png(1200, 600, (210, 220, 235)),
@@ -1682,7 +1682,8 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
     assert broken.returncode == 1, broken.stdout + broken.stderr
     assert "Error: page code reported 2 errors" in broken.stderr
     assert "map is not a function" in broken.stderr
-    assert "/page/film.js:2)" in broken.stderr
+    assert "at paint (" in broken.stderr
+    assert "/page/film.js:2:" in broken.stderr
     assert "Error: the trace never loaded" in broken.stderr
     assert "/page/widgets/lf-loader.js:3" in broken.stderr
 

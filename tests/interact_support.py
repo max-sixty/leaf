@@ -60,7 +60,7 @@ from leaf import vendoring as vendoring_model
 from leaf.registry.storage import load_registry
 from leaf.revision_artifact import active_enclosing
 from leaf.served_state import page as served_page
-from leaf.validation import compatibility as compatibility_model
+from leaf.validation import composition as composition_model
 from leaf.validation import instances as validation_model
 from pytest_regtest.snapshot_handler import (
     BaseSnapshotHandler,
@@ -182,7 +182,7 @@ def model_layer(*packages: str) -> dict:
     cached per selection, because every stated page asking for the same packages
     is asking for the same registry. Nothing may mutate what this returns.
     """
-    return compatibility_model.incoming_registry(layer_model.layer_inputs(packages))
+    return composition_model.incoming_registry(layer_model.layer_inputs(packages))
 
 
 def queue_board_registry(registry: dict) -> dict:
@@ -404,9 +404,9 @@ def running_http_server(httpd):
         yield httpd
     finally:
         httpd.shutdown()
-        httpd.server_close()
         thread.join(timeout=STATED_TIMEOUT)
         assert not thread.is_alive(), "the fixture HTTP server did not stop"
+        httpd.server_close()
 
 
 def pytest_configure(config):
@@ -1375,6 +1375,7 @@ def retire_test_services(tmp_path, isolated_session):
     Detached adapters hold session leases outside any subprocess group. Their
     lifecycle must end while its state directory still exists, so they can
     retire normally rather than retry a deleted startup lock forever.
+    In-process title workers also finish before page loans or state disappear.
     """
     while HELD_LEASES:
         leases_model.release_lease(HELD_LEASES.pop())
@@ -1397,6 +1398,12 @@ def retire_test_services(tmp_path, isolated_session):
         lambda held: not held,
         failure="a detached adapter outlived its test's ended sessions",
     )
+    # Servers have stopped accepting input, so no new title request can start.
+    # The worker reports under the page lock even when its generator fails.
+    for worker in threading.enumerate():
+        if worker.name == "leaf-thread-title":
+            worker.join(timeout=STATED_TIMEOUT)
+            assert not worker.is_alive(), "a title worker outlived its test's page"
 
 
 @contextmanager

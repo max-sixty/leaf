@@ -4346,7 +4346,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
             "agent": "Claude",
             "parent": agent_comment["id"],
             "text": "Which visit should we choose?",
-            "awaits": True,
+            "question": True,
         },
     )
     told(page)
@@ -8096,14 +8096,30 @@ def test_a_growing_draft_holds_its_card_s_side_and_the_editor_s_top(
         editor.press("Shift+Enter")
         rendered(page)
         readings.append(page.evaluate(CARD_AND_REPLY))
-    for now in readings:
+    cap = next(
+        (
+            i
+            for i, now in enumerate(readings)
+            if now["cardBottom"] >= now["foot"] - 0.01
+        ),
+        None,
+    )
+    assert cap is not None and cap > 0, readings
+    for i, now in enumerate(readings):
         assert now["placement"] == held["placement"], (held, now)
         assert now["cardBottom"] <= now["foot"] + 0.5, now
-        for edge in ("cardTop", "turn", "editorTop"):
-            assert now[edge] == pytest.approx(held[edge], abs=0.5), (held, now)
+        assert now["cardTop"] == pytest.approx(held["cardTop"], abs=0.5), (held, now)
+        # At the first cap, the inner grid's fractional track can round by 1px.
+        # Before and after that transition, the turn and editor stay still.
+        reference = readings[cap] if i > cap else held
+        tolerance = 1.5 if i == cap else 0.5
+        for edge in ("turn", "editorTop"):
+            assert now[edge] == pytest.approx(reference[edge], abs=tolerance), (
+                reference,
+                now,
+            )
     last = readings[-1]
     assert last["cardBottom"] == pytest.approx(last["foot"], abs=0.5), last
-    assert last["editorTop"] == pytest.approx(held["editorTop"], abs=0.5), (held, last)
     assert editor.evaluate("box => box.scrollHeight > box.clientHeight"), (
         "thirty lines never outgrew the editor's room"
     )
@@ -11149,6 +11165,48 @@ def test_the_margin_layer_follows_the_page_in_the_tab_order(browser, serve):
     for _ in range(reached):
         page.keyboard.press("Shift+Tab")
     expect(page.locator("#after-margin-entries")).to_be_focused()
+
+
+def test_the_rail_s_way_in_is_a_marker_in_front_of_the_user(browser, serve):
+    """Tab into the rail lands on a marker the user can see. One scrolled under the
+    banner is still in the window but out of sight, so the rail's one stop passes from
+    it to the marker below."""
+    filler = "".join(f"<p>Filler paragraph {i}.</p>" for i in range(40))
+    source = leaf_page(
+        "the rail's way in",
+        '<h1 id="t">Rail</h1><p id="first">The first commented paragraph.</p>'
+        "<p>One between.</p><p>Another between.</p>"
+        f'<p id="second">The second commented paragraph.</p>{filler}'
+        '<p><a id="last" href="#t">The last link</a></p>',
+    )
+    page = open_page(
+        browser, serve(source, events=[_comment_on("first"), _comment_on("second")])
+    )
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    first = page.locator('[data-lf-margin-for="first"] .lf-margin-marker')
+    second = page.locator('[data-lf-margin-for="second"] .lf-margin-marker')
+    expect(first).to_have_attribute("tabindex", "0")
+    banner = first.evaluate(
+        """async row => {
+          const {bannerFoot} = await window.__lfRuntimeImport('/runtime/geometry.js');
+          scrollBy({top: row.getBoundingClientRect().bottom - bannerFoot() + 4,
+            behavior: 'instant'});
+          return bannerFoot();
+        }"""
+    )
+    rendered(page)
+    margins_laid_out(page)
+    row = first.bounding_box()
+    assert 0 < row["y"] + row["height"] < banner, (row, banner)
+    page.locator("#last").evaluate("link => link.focus({preventScroll: true})")
+    for _ in range(20):
+        page.keyboard.press("Tab")
+        if page.evaluate(
+            "() => document.activeElement?.matches('.lf-margin-marker') ?? false"
+        ):
+            break
+    expect(second).to_be_focused()
 
 
 def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serve):

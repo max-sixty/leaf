@@ -98,37 +98,42 @@ const NOTICE = /^(?:notice|third[-_]party[-_]notices)(?:\.|$)/i;
  * The license text of each package, and every other notice it ships to be passed on.
  *
  * A package's license file comes first under its name, version, and declared license.
+ * Package sections sort by name and version, independent of installation paths.
  * Further documents follow under their path: a second license file, an Apache NOTICE,
  * and a renderer's own `THIRD_PARTY_NOTICES` with the texts it keeps in `LICENSES/`.
  */
 export function licenseNotices(title, packageRoots) {
-  const sections = packageRoots.map((root) => {
-    const manifest = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
-    const files = readdirSync(root)
-      .filter((file) => statSync(path.join(root, file)).isFile())
-      .sort();
-    const [license, ...licenses] = files.filter((file) => LICENSE.test(file));
-    if (license === undefined)
-      throw new Error(`no license file shipped by ${manifest.name}`);
-    const bundled = path.join(root, "LICENSES");
-    const documents = [
-      ...licenses,
-      ...files.filter((file) => NOTICE.test(file)),
-      ...(statSync(bundled, { throwIfNoEntry: false })?.isDirectory()
-        ? readdirSync(bundled)
-            .sort()
-            .map((file) => `LICENSES/${file}`)
-        : []),
-    ];
-    const text = (file) =>
-      readFileSync(path.join(root, file), "utf8").replaceAll("\r\n", "\n").trim();
-    return [
-      `===== ${manifest.name} ${manifest.version} (${manifest.license}) =====\n${text(license)}`,
-      ...documents.map(
-        (file) => `===== ${manifest.name}: ${file} =====\n${text(file)}`,
-      ),
-    ].join("\n\n");
-  });
+  const sections = packageRoots
+    .map((root) => {
+      const manifest = JSON.parse(
+        readFileSync(path.join(root, "package.json"), "utf8"),
+      );
+      const files = readdirSync(root)
+        .filter((file) => statSync(path.join(root, file)).isFile())
+        .sort();
+      const [license, ...licenses] = files.filter((file) => LICENSE.test(file));
+      if (license === undefined)
+        throw new Error(`no license file shipped by ${manifest.name}`);
+      const bundled = path.join(root, "LICENSES");
+      const documents = [
+        ...licenses,
+        ...files.filter((file) => NOTICE.test(file)),
+        ...(statSync(bundled, { throwIfNoEntry: false })?.isDirectory()
+          ? readdirSync(bundled)
+              .sort()
+              .map((file) => `LICENSES/${file}`)
+          : []),
+      ];
+      const text = (file) =>
+        readFileSync(path.join(root, file), "utf8").replaceAll("\r\n", "\n").trim();
+      return [
+        `===== ${manifest.name} ${manifest.version} (${manifest.license}) =====\n${text(license)}`,
+        ...documents.map(
+          (file) => `===== ${manifest.name}: ${file} =====\n${text(file)}`,
+        ),
+      ].join("\n\n");
+    })
+    .sort();
   return `Third-party licenses for ${title}\n\n${sections.join("\n\n")}\n`;
 }
 

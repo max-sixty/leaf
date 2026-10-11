@@ -101,6 +101,7 @@ const startupReportSchema = z.strictObject({
   firstStateResponseMs: startupTime,
   presentedMs: startupTime,
 });
+const MAX_STARTUP_BYTES = 2048;
 const interactionEntrySchema = z.record(z.string(), z.unknown()).check(
   z.refine(
     (entry) =>
@@ -151,6 +152,57 @@ function coordinatePair(value: unknown): number[] | null {
   return pair.every((number) => number !== null) ? pair as number[] : null;
 }
 
+function httpStatus(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value >= 100 && value <= 599
+    ? value : null;
+}
+
+function sampleInteractionReference(page: unknown): string | null {
+  if (typeof page !== "string" || page.length > 4096 ||
+      !/^(?:\/api\/samples\/[a-f0-9]{32}(?:~[a-f0-9]{64})?)+$/.test(page)) return null;
+  return sessionReference(page.split("/").at(-1)!.split("~")[0]);
+}
+
+function projectSampleEntry(entry: Record<string, unknown>): Record<string, unknown> {
+  const projected: Record<string, unknown> = {};
+  for (const field of ["phase", "reason", "operation"] as const)
+    if (typeof entry[field] === "string" && /^[a-z][a-z0-9_-]{0,63}$/.test(entry[field]))
+      projected[field] = entry[field];
+  for (const field of ["host", "revision"] as const) {
+    const value = safeNodeId(entry[field]);
+    if (value !== null) projected[field] = value;
+  }
+  if (typeof entry.allocation === "number" && Number.isSafeInteger(entry.allocation) && entry.allocation >= 0)
+    projected.allocation = entry.allocation;
+  const elapsed = finiteNumber(entry.elapsed);
+  if (elapsed !== null && elapsed >= 0) projected.elapsed = elapsed;
+  // A sample's canonical page identity contains its native-request credential.
+  // Use the same support-handle projection as cookies; never log the credential,
+  // its routing suffix, or arbitrary authored template ids.
+  const sample = sampleInteractionReference(entry.sample);
+  if (sample !== null) projected.sampleReference = sample;
+  else if (entry.sample === null) projected.sampleReference = null;
+  if (typeof entry.document === "string" &&
+      /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(entry.document))
+    projected.documentReference = sessionReference(entry.document.replaceAll("-", ""));
+  else if (entry.document === null) projected.documentReference = null;
+  if (typeof entry.leafDocument === "string" && /^[1-9][0-9]{0,15}$/.test(entry.leafDocument)) {
+    const revision = safeNodeId(Number(entry.leafDocument));
+    if (revision !== null) projected.leafDocument = revision;
+  } else if (entry.leafDocument === null) projected.leafDocument = null;
+  if (typeof entry.reloading === "boolean") projected.reloading = entry.reloading;
+  if (entry.error && typeof entry.error === "object" && !Array.isArray(entry.error)) {
+    const value = entry.error as Record<string, unknown>;
+    const error: Record<string, unknown> = {};
+    if (typeof value.name === "string" && /^[A-Z][A-Za-z0-9]{0,63}$/.test(value.name))
+      error.name = value.name;
+    const status = httpStatus(value.status);
+    if (status !== null) error.status = status;
+    if (Object.keys(error).length) projected.error = error;
+  }
+  return projected;
+}
+
 function projectInteractionEntry(entry: Record<string, unknown>): Record<string, unknown> {
   const projected: Record<string, unknown> = {
     ts: entry.ts,
@@ -176,9 +228,8 @@ function projectInteractionEntry(entry: Record<string, unknown>): Record<string,
     projected.originalType = entry.originalType;
   if (typeof entry.kind === "string" && /^[a-z][a-z0-9_-]{0,63}$/.test(entry.kind))
     projected.kind = entry.kind;
-  if (typeof entry.status === "number" && Number.isInteger(entry.status) &&
-      entry.status >= 100 && entry.status <= 599)
-    projected.status = entry.status;
+  const status = httpStatus(entry.status);
+  if (status !== null) projected.status = status;
   if (SAFE_KEYS.has(entry.key as string)) projected.key = entry.key;
   if (typeof entry.repeat === "boolean") projected.repeat = entry.repeat;
   if (Array.isArray(entry.modifiers)) {
@@ -217,6 +268,7 @@ function projectInteractionEntry(entry: Record<string, unknown>): Record<string,
     const value = finiteNumber(entry[field]);
     if (value !== null) projected[field] = value;
   }
+  if (entry.type === "sample") Object.assign(projected, projectSampleEntry(entry));
   return projected;
 }
 const agentResultSchemas = {
@@ -323,17 +375,22 @@ function modelRequestFields(
   };
 }
 
+// Every leaf-agent record. Callers project the fields they log, and never spread an
+// AgentTaskParams, whose sourceId is the client's IP.
+function leafAgentLog(event: string, fields: Record<string, unknown>): void {
+  console.log({ component: "leaf-agent", event, ...fields });
+}
+
+function errorName(error: unknown): string {
+  return error instanceof Error ? error.name : "unknown";
+}
+
 function modelLog(
   event: string,
   request: ModelRequestFields,
   fields: Record<string, unknown> = {},
 ): void {
-  console.log({
-    component: "leaf-agent",
-    event,
-    ...request,
-    ...fields,
-  });
+  leafAgentLog(event, { ...request, ...fields });
 }
 
 function observeModelBody(
@@ -468,7 +525,7 @@ LeafWebsiteSession.outboundByHost = {
     } catch (error) {
       modelLog("model_request_failed", modelRequest, {
         durationMs: Date.now() - started,
-        error: error instanceof Error ? error.name : "unknown",
+        error: errorName(error),
       });
       throw error;
     }
@@ -504,8 +561,8 @@ function randomSessionId(): string {
   return newSessionId(crypto.getRandomValues(new Uint8Array(16)));
 }
 
-// A support handle, not a credential: it projects the whole random cookie into a short
-// numeric space while leaving 88 bits unknown, and no server door accepts it as identity.
+// A support handle, not a credential: project a random identity into a short numeric
+// space without disclosing it. No server door accepts this handle as identity.
 function sessionReference(sessionId: string): string {
   return (BigInt(`0x${sessionId}`) % 1_000_000_000_000n).toString().padStart(12, "0");
 }
@@ -522,27 +579,10 @@ function agentLog(
   params: Pick<AgentTaskParams, "reference" | "route" | "eventId">,
   fields: Record<string, unknown> = {},
 ): void {
-  console.log({
-    component: "leaf-agent",
-    event,
+  leafAgentLog(event, {
     reference: params.reference,
     route: params.route,
     eventId: params.eventId,
-    ...fields,
-  });
-}
-
-function prewarmLog(
-  event: string,
-  reference: string,
-  route: string,
-  fields: Record<string, unknown> = {},
-): void {
-  console.log({
-    component: "leaf-agent",
-    event,
-    reference,
-    route,
     ...fields,
   });
 }
@@ -589,16 +629,36 @@ function browserIdentity(request: Request): {
   };
 }
 
+// The body as text, or null once it passes maxBytes, whether the client declared that
+// length or streamed it without one. A request with no body reads as "".
+async function readBoundedText(request: Request, maxBytes: number): Promise<string | null> {
+  if (Number(request.headers.get("Content-Length")) > maxBytes) return null;
+  const reader = request.body?.getReader();
+  if (!reader) return "";
+  const decoder = new TextDecoder();
+  let raw = "";
+  let bytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    bytes += value.byteLength;
+    if (bytes > maxBytes) {
+      await reader.cancel();
+      return null;
+    }
+    raw += decoder.decode(value, { stream: true });
+  }
+  return raw + decoder.decode();
+}
+
 async function recordStartup(
   request: Request,
   manifest: SiteManifest,
   route: PageRoute,
   reference: string,
 ): Promise<Response> {
-  if (Number(request.headers.get("Content-Length")) > 2048)
-    return new Response("startup report is too large", { status: 413 });
-  const raw = await request.text();
-  if (raw.length > 2048) {
+  const raw = await readBoundedText(request, MAX_STARTUP_BYTES);
+  if (raw === null) {
     return new Response("startup report is too large", { status: 413 });
   }
   let value: unknown;
@@ -626,31 +686,19 @@ async function recordStartup(
   });
 }
 
+type InteractionIdentity =
+  | { reference: string; sampleReference?: never }
+  | { sampleReference: string; reference?: never };
+
 async function recordInteractions(
   request: Request,
   route: PageRoute,
-  reference: string,
+  identity: InteractionIdentity,
   release: string,
 ): Promise<Response> {
-  const declaredLength = Number(request.headers.get("Content-Length"));
-  if (declaredLength > MAX_INTERACTION_BYTES)
+  const raw = await readBoundedText(request, MAX_INTERACTION_BYTES);
+  if (raw === null)
     return new Response("interaction batch is too large", { status: 413 });
-  const reader = request.body?.getReader();
-  if (!reader) return new Response("interaction batch is empty", { status: 400 });
-  const decoder = new TextDecoder();
-  let raw = "";
-  let bytes = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    bytes += value.byteLength;
-    if (bytes > MAX_INTERACTION_BYTES) {
-      await reader.cancel();
-      return new Response("interaction batch is too large", { status: 413 });
-    }
-    raw += decoder.decode(value, { stream: true });
-  }
-  raw += decoder.decode();
   let value: unknown;
   try {
     value = JSON.parse(raw);
@@ -663,7 +711,7 @@ async function recordInteractions(
   console.log({
     component: "leaf-interaction",
     event: "client_batch",
-    reference,
+    ...identity,
     route: route.root,
     release,
     session: parsed.data.session,
@@ -686,7 +734,7 @@ async function measuredAgentOperation<T>(
   } catch (error) {
     agentLog(`${event}_failed`, params, {
       durationMs: Date.now() - started,
-      error: error instanceof Error ? error.name : "unknown",
+      error: errorName(error),
     });
     throw error;
   }
@@ -775,7 +823,7 @@ async function dispatchAgentTask(
   } catch (error) {
     agentLog("dispatch_failed", params, {
       durationMs: Date.now() - started,
-      error: error instanceof Error ? error.name : "unknown",
+      error: errorName(error),
     });
     try {
       await measuredAgentOperation("failure_receipt", params, () =>
@@ -786,7 +834,7 @@ async function dispatchAgentTask(
       );
     } catch (receiptError) {
       agentLog("dispatch_abandoned", params, {
-        error: receiptError instanceof Error ? receiptError.name : "unknown",
+        error: errorName(receiptError),
       });
     }
   }
@@ -800,25 +848,31 @@ async function prewarmContainer(
   sourceId: string,
 ): Promise<void> {
   const started = Date.now();
-  prewarmLog("container_prewarm_started", reference, route);
+  leafAgentLog("container_prewarm_started", { reference, route });
   try {
     const allowed = await env.SOURCE_AGENT_RATE_LIMITER.limit({
       key: `prewarm:${sourceId}`,
     });
     if (!allowed.success) {
-      prewarmLog("container_prewarm_denied", reference, route, {
+      leafAgentLog("container_prewarm_denied", {
+        reference,
+        route,
         durationMs: Date.now() - started,
       });
       return;
     }
     await getContainer(env.PAGES, id).start();
-    prewarmLog("container_prewarm_completed", reference, route, {
+    leafAgentLog("container_prewarm_completed", {
+      reference,
+      route,
       durationMs: Date.now() - started,
     });
   } catch (error) {
-    prewarmLog("container_prewarm_failed", reference, route, {
+    leafAgentLog("container_prewarm_failed", {
+      reference,
+      route,
       durationMs: Date.now() - started,
-      error: error instanceof Error ? error.name : "unknown",
+      error: errorName(error),
     });
   }
 }
@@ -869,17 +923,28 @@ function recordAcceptedEvent(
   });
 }
 
+// A fetched asset's headers are immutable, so this takes the one copy each edge answer
+// to a static file makes; the stamps after it edit that copy in place.
 function staticAssetResponse(response: Response, manifest: SiteManifest): Response {
+  const answer = new Response(response.body, response);
   const contentType = response.headers.get("Content-Type")?.split(";", 1)[0].trim();
-  if (contentType?.toLowerCase() !== "text/html") return response;
+  if (contentType?.toLowerCase() === "text/html") {
+    answer.headers.append("Content-Security-Policy", manifest.frame_ancestors);
+  }
+  return answer;
+}
 
-  const headers = new Headers(response.headers);
-  headers.append("Content-Security-Policy", manifest.frame_ancestors);
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
+// The headers naming the release and layer an edge answer belongs to, and the session
+// it answers when it answers one. Leaf-Session stays with each caller.
+function stampDelivery(
+  headers: Headers,
+  route: PageRoute,
+  manifest: SiteManifest,
+  reference?: string,
+): void {
+  headers.set("Leaf-Layer", route.layer);
+  headers.set("Leaf-Release", manifest.release);
+  if (reference !== undefined) headers.set("Leaf-Session-Reference", reference);
 }
 
 const manifests = new WeakMap<object, Promise<SiteManifest>>();
@@ -903,15 +968,9 @@ function stampedStaticResponse(
   route: PageRoute,
   manifest: SiteManifest,
 ): Response {
-  const staticResponse = staticAssetResponse(response, manifest);
-  const headers = new Headers(staticResponse.headers);
-  headers.set("Leaf-Layer", route.layer);
-  headers.set("Leaf-Release", manifest.release);
-  return new Response(staticResponse.body, {
-    status: staticResponse.status,
-    statusText: staticResponse.statusText,
-    headers,
-  });
+  const answer = staticAssetResponse(response, manifest);
+  stampDelivery(answer.headers, route, manifest);
+  return answer;
 }
 
 async function staticState(
@@ -933,15 +992,11 @@ async function staticState(
   const now = new Date();
   state.now = now.toISOString();
   state.taken = now.getTime() / 1000;
-  return Response.json(state, {
-    headers: {
-      "Cache-Control": "no-store",
-      "Leaf-Layer": route.layer,
-      "Leaf-Release": manifest.release,
-      "Leaf-Session": "passive",
-      "Leaf-Session-Reference": reference,
-    },
+  const answer = Response.json(state, {
+    headers: { "Cache-Control": "no-store", "Leaf-Session": "passive" },
   });
+  stampDelivery(answer.headers, route, manifest, reference);
+  return answer;
 }
 
 // Cloudflare activates a Worker and its assets in one operation and rolls the container
@@ -961,26 +1016,18 @@ async function rollingOut(
   reference: string,
   cookies: string[],
 ): Promise<Response> {
-  const answer =
-    request.method === "GET" && route.inside === "api/state"
-      ? await staticState(request, env, manifest, route, reference)
-      : new Response("this release is still starting", {
-          status: 503,
-          headers: {
-            "Retry-After": "5",
-            "Cache-Control": "no-store",
-            "Leaf-Layer": route.layer,
-            "Leaf-Release": manifest.release,
-            "Leaf-Session-Reference": reference,
-          },
-        });
-  const headers = new Headers(answer.headers);
-  for (const cookie of cookies) headers.append("Set-Cookie", cookie);
-  return new Response(answer.body, {
-    status: answer.status,
-    statusText: answer.statusText,
-    headers,
-  });
+  let answer: Response;
+  if (request.method === "GET" && route.inside === "api/state") {
+    answer = await staticState(request, env, manifest, route, reference);
+  } else {
+    answer = new Response("this release is still starting", {
+      status: 503,
+      headers: { "Retry-After": "5", "Cache-Control": "no-store" },
+    });
+    stampDelivery(answer.headers, route, manifest, reference);
+  }
+  for (const cookie of cookies) answer.headers.append("Set-Cookie", cookie);
+  return answer;
 }
 
 export default {
@@ -1010,15 +1057,10 @@ export default {
         releasedAsset.route,
         manifest,
       );
-      const headers = new Headers(response.headers);
-      headers.set("Cache-Control", "public, max-age=31536000, immutable");
-      headers.set("Access-Control-Allow-Origin", "*");
-      headers.set("Access-Control-Expose-Headers", "*");
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers,
-      });
+      response.headers.set("Cache-Control", "public, max-age=31536000, immutable");
+      response.headers.set("Access-Control-Allow-Origin", "*");
+      response.headers.set("Access-Control-Expose-Headers", "*");
+      return response;
     }
     const route = pageRoute(pathname, manifest);
     if (route === null) {
@@ -1041,14 +1083,19 @@ export default {
       } catch {
         return new Response("not found", { status: 404 });
       }
-      const response = await env.PAGES.get(id).fetch(request);
-      const headers = new Headers(response.headers);
-      headers.delete("Set-Cookie");
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers,
-      });
+      const sampleReference = request.method === "POST" && route.inside.endsWith("/api/interaction")
+        ? sampleInteractionReference(`/${route.inside.slice(0, -"/api/interaction".length)}`)
+        : null;
+      const interaction = sampleReference === null ? null : { request: request.clone(), sampleReference };
+      const fetched = await env.PAGES.get(id).fetch(request);
+      const response = new Response(fetched.body, fetched);
+      response.headers.delete("Set-Cookie");
+      // Only the container can admit this capability. After admission, retain the
+      // same bounded, redacted cloud evidence as a parent batch; the clone lets
+      // the native request also keep its full local trace.
+      if (interaction !== null && response.status === 204)
+        await recordInteractions(interaction.request, route, { sampleReference: interaction.sampleReference }, manifest.release);
+      return response;
     }
 
     const secure = url.protocol === "https:";
@@ -1068,7 +1115,7 @@ export default {
       if (existing === null) {
         return new Response("interaction batch has no page session", { status: 400 });
       }
-      return recordInteractions(request, route, reference, manifest.release);
+      return recordInteractions(request, route, { reference }, manifest.release);
     }
     if (
       !active &&
@@ -1106,11 +1153,10 @@ export default {
         if (!response.headers.get("Content-Type")?.startsWith("text/html")) {
           return response;
         }
-        const headers = new Headers(response.headers);
-        headers.set("Leaf-Session-Reference", reference);
-        headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
+        response.headers.set("Leaf-Session-Reference", reference);
+        response.headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
         if (existing === null) {
-          headers.append("Set-Cookie", sessionCookie(sessionId, secure));
+          response.headers.append("Set-Cookie", sessionCookie(sessionId, secure));
         }
         if (
           env.AGENT_PREWARM === "true" &&
@@ -1128,11 +1174,7 @@ export default {
             ),
           );
         }
-        return new Response(response.body, {
-          status: response.status,
-          statusText: response.statusText,
-          headers,
-        });
+        return response;
       }
     }
     const postedRequest =
@@ -1172,7 +1214,7 @@ export default {
     }
     let body: BodyInit | null = response.body;
     if (request.method === "POST" && route.inside === "api/samples" && response.ok) {
-      const answer = await response.json() as { url: string };
+      const answer = await response.json() as { url: string; page: string };
       const allocated = new URL(answer.url, request.url);
       const tail = allocated.pathname.slice(pathname.length);
       if (allocated.origin !== url.origin || !allocated.pathname.startsWith(`${pathname}/`) ||
@@ -1182,26 +1224,23 @@ export default {
       const objectId = env.PAGES.idFromName(privateContainer).toString();
       allocated.pathname = `${allocated.pathname.slice(0, -1)}~${objectId}/`;
       answer.url = allocated.pathname;
+      answer.page = `${answer.page}~${objectId}`;
       body = JSON.stringify(answer);
     }
-    const headers = new Headers(response.headers);
+    const answer = new Response(body, response);
     if (body !== response.body) {
-      headers.delete("Content-Length");
-      headers.delete("Content-Encoding");
+      answer.headers.delete("Content-Length");
+      answer.headers.delete("Content-Encoding");
     }
-    headers.set("Leaf-Session", "active");
-    headers.set("Leaf-Session-Reference", reference);
+    answer.headers.set("Leaf-Session", "active");
+    answer.headers.set("Leaf-Session-Reference", reference);
     if (existing === null) {
-      headers.append("Set-Cookie", sessionCookie(sessionId, secure));
+      answer.headers.append("Set-Cookie", sessionCookie(sessionId, secure));
     }
-    if (!active) headers.append("Set-Cookie", activeCookie(secure, route.root));
+    if (!active) answer.headers.append("Set-Cookie", activeCookie(secure, route.root));
     if (response.headers.get("Content-Type")?.startsWith("text/html")) {
-      headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
+      answer.headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
     }
-    return new Response(body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers,
-    });
+    return answer;
   },
 };

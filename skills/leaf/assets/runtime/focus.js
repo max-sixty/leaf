@@ -282,6 +282,37 @@ function landLabelPress() {
 // element a press on a label holds them on.
 export const focused = () => heldByLabel() ?? deepFocus();
 
+// The selection the user drew in the tree `node` stands in, where the browser keeps it.
+const selectionOf = (node) => {
+  const root = node.getRootNode();
+  return (root instanceof ShadowRoot && root.getSelection?.()) || getSelection();
+};
+
+// Where the user stands, nearest first: the focused node, unless focus rests on the
+// body, then the ends of a selection they drew, its focus before its anchor, a caret a
+// click left included, since a selection names where a reader is as surely as focus
+// does. Each reader takes these by its own rule: the first that is a place on the page
+// (`standingPlace`, standing-target.js), or any that lies in a node (`standsOn`).
+export function standingNodes() {
+  const at = focused();
+  const selection = getSelection();
+  return [
+    at && at !== document.body ? at : null,
+    selection?.focusNode ?? null,
+    selection?.anchorNode ?? null,
+  ].filter(Boolean);
+}
+
+// Whether the user stands on `node` or on something in it: where they stand
+// (`standingNodes`) is inside it, or a selection they drew reaches into it. A change
+// that puts `node` away would take that place from them.
+export function standsOn(node) {
+  if (!node) return false;
+  if (standingNodes().some((at) => at === node || node.contains(at))) return true;
+  const selection = selectionOf(node);
+  return Boolean(selection?.rangeCount && selection.getRangeAt(0).intersectsNode(node));
+}
+
 // Holding the user's place across a change to the tree they stand in. Moving a node
 // blurs whatever it holds to the body in the same call, and hiding one does the same a
 // frame later, on no frame an owner can count; the node keeps its value and selection,
@@ -539,6 +570,26 @@ export const inputCount = () => inputs.count;
 // Mechanical owners may stop motion at the input edge, before a command or drawing
 // handler consumes it. Observation adds no binding and never claims the event.
 export const onUserInput = (read) => inputs.observe(read);
+
+// Where the caret stood, as a key went down, in each box the key went down in, before
+// the box's own handling moved it. A command whose meaning hangs on the caret's place,
+// as ↑ from the start of a box walks out of it, reads this rather than the caret the
+// field has already moved by the time the command's row is asked. It holds until the
+// task after the key's, so a row read outside a key falls back to the live caret.
+let keyCarets = null;
+onUserInput((event) => {
+  if (event.type !== "keydown") return;
+  const carets = new Map();
+  for (const node of event.composedPath()) {
+    const caret = node instanceof Element && readCaret(node);
+    if (caret) carets.set(node, caret);
+  }
+  keyCarets = carets;
+  setTimeout(() => {
+    if (keyCarets === carets) keyCarets = null;
+  });
+});
+export const caretAtKey = (node) => keyCarets?.get(node) ?? null;
 onUserInput((event) => {
   if (event.type !== "blur") return;
   landLabelPress();

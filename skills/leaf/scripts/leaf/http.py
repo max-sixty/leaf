@@ -41,7 +41,6 @@ from .files import (
     list_revisions,
     missing_revision,
     published_versions,
-    read_json,
     revision_names,
     revision_num,
     revision_path,
@@ -80,13 +79,12 @@ from .schema import (
     NO_KEY,
     REVISION_NAME,
     SERVED_PATH,
-    VIEWED_FILE,
 )
 from .served_state import reading as served_reading
 from .served_state.service import PageStateService
 from .server import preview_metadata
 from .service import PageTransaction
-from .state import now_iso, write_json
+from .state import now_iso
 from .structure import FRAME_ANCESTORS_CSP
 from .user_views import FRESH_FOR_S, observe_user_view, read_user_views
 
@@ -159,6 +157,11 @@ def scope_page_urls(value, page_root: str):
         else:
             scoped[key] = scope_page_urls(item, page_root)
     return scoped
+
+
+def child_interaction_page(page_root: str, owner_root: str) -> str:
+    """The child identity relative to the durable diagnostic owner."""
+    return page_root[len(owner_root) :]
 
 
 def page_delivery(
@@ -290,6 +293,13 @@ class PageEndpoint:
         a second copy of it behind. Empty until a multiplexed transport has bound one.
         """
         return self.layer_identity["generation"] if self.layer_identity else ""
+
+    def interaction_owner(self) -> "PageEndpoint":
+        """The durable authored page retaining every descendant sample's trace."""
+        owner = self
+        while (parent := getattr(owner, "parent", None)) is not None:
+            owner = parent
+        return owner
 
     def respond(self) -> Response:
         """Answer this request, on a worker thread of the serving loop's own pool."""
@@ -460,10 +470,7 @@ class PageEndpoint:
                 served_reading.page_reading(self.page_dir),
                 presence_model.presence_reading(self.page_dir),
             )
-            viewed = (read_json(self.page_dir / VIEWED_FILE) or {"t": 0})["t"]
-            now = time.time()
-            if now - viewed > 30:
-                write_json(self.page_dir / VIEWED_FILE, {"t": now})
+            presence_model.renew_viewed(self.page_dir)
         return self._content(200, "text/plain; charset=utf-8", reading.encode())
 
     @property
@@ -1129,16 +1136,20 @@ class PageEndpoint:
                 or any(not isinstance(entry, dict) for entry in entries)
             ):
                 return self._refuse("interaction requires a nonempty array of entries")
-            # A sample's directory is temporary. Keep its trace in the owning
-            # page, with the scoped address identifying which child produced it.
-            owner = getattr(self, "parent", None)
-            directory = owner.page_dir if owner is not None else self.page_dir
-            page = self.page_root[len(owner.page_root) :] if owner is not None else "/"
+            # Every sample directory is temporary, including a nested sample's
+            # parent. Retain all descendants in the authored page's trace, with
+            # their complete root-relative addresses surviving ancestor release.
+            owner = self.interaction_owner()
+            page = (
+                child_interaction_page(self.page_root, owner.page_root)
+                if owner is not self
+                else "/"
+            )
             try:
                 records = client_records(session, page, entries)
             except (TypeError, ValueError) as error:
                 return self._refuse(str(error))
-            append_interactions(directory, records)
+            append_interactions(owner.page_dir, records)
             return self._content(204, "text/plain", b"")
         # Preview requests have passed authentication and body preparation. An event
         # refusal can therefore name its attempt; media uses the route's generic shape.
@@ -1217,7 +1228,15 @@ class PageEndpoint:
                 )
             except ValueError as error:
                 return self._refuse(str(error))
-            return self._json({"url": f"{self.page_root}/api/samples/{identity}/"})
+            root = f"{self.page_root}/api/samples/{identity}"
+            return self._json(
+                {
+                    "url": root + "/",
+                    "page": child_interaction_page(
+                        root, self.interaction_owner().page_root
+                    ),
+                }
+            )
         if path == "/api/media":
             try:
                 media_path = store_uploaded_media(

@@ -32,13 +32,13 @@ HELD_REQUEST = (
 
 
 def test_summaries_replace_overlaps_and_edits_do_not_resurrect_them():
+    identity = {"author": "agent", "agent": "Agent", "session": "session-1"}
     messages = (
         {"kind": "comment", "text": "one"},
         {"kind": "reply", "parent": "e1", "text": "two"},
-        {"kind": "reply", "parent": "e2", "text": "three"},
+        {"kind": "reply", **identity, "parent": "e2", "text": "three"},
         {"kind": "reply", "parent": "e3", "text": "four"},
     )
-    identity = {"author": "agent", "agent": "Agent", "session": "session-1"}
     state = model.reading(
         HUB,
         (
@@ -109,9 +109,9 @@ def test_folds_without_summary_prose_keep_corrected_originals():
         HUB,
         (
             {"kind": "comment", "text": "one"},
-            {"kind": "reply", "parent": "e1", "text": "two"},
+            {"kind": "reply", **identity, "parent": "e1", "text": "two"},
             {"kind": "reply", "parent": "e1", "text": "three"},
-            {"kind": "reply", "parent": "e1", "text": "four"},
+            {"kind": "reply", **identity, "parent": "e1", "text": "four"},
             {
                 "kind": "summary",
                 **identity,
@@ -392,7 +392,7 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
                 "parent": "e1",
                 "responds": "e1",
                 "text": "Here is the board. Which card goes first?",
-                "awaits": True,
+                "question": True,
                 "markup": board,
             },
             {
@@ -476,7 +476,7 @@ def test_question_lifecycle_selects_current_prompt_and_preserves_first_settlemen
     add("comment", "first", text="Which route?")
     add("reply", "update", parent="first", text="Checking.")
     add("reply", "progress", parent="first", text="Still checking.", ephemeral=True)
-    state = add("reply", "second", parent="first", text="Which colour?", awaits=True)
+    state = add("reply", "second", parent="first", text="Which colour?", question=True)
     assert model.threads(state)["first"]["user_prompt"] == {
         "message": "second",
         "version": "second",
@@ -513,7 +513,7 @@ def test_question_lifecycle_selects_current_prompt_and_preserves_first_settlemen
         "answered",
         "reaction",
     )
-    state = add("reply", "third", parent="first", text="Which size?", awaits=True)
+    state = add("reply", "third", parent="first", text="Which size?", question=True)
     state = add("resolve", "close", "user", parent="first")
     assert state["tasks"] == []
     assert model.threads(state)["first"]["user_prompt"] is None

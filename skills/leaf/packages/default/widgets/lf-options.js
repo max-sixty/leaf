@@ -586,11 +586,6 @@ customElements.define(
       if (created.length) this.#keys();
     }
 
-    disconnectedCallback() {
-      this.#addition?.disconnect();
-      this.#settled?.disconnect();
-    }
-
     lfWord() {
       return "options";
     }

@@ -272,6 +272,10 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
   function mount() {
     addEventListener("scroll", scheduleScan, true);
     addEventListener("resize", scheduleScan);
+    // Exposure reads the visual viewport (geometry.js, `shownWindow`), which a soft
+    // keyboard or a pinch-pan moves without a window scroll or resize.
+    window.visualViewport?.addEventListener("resize", scheduleScan);
+    window.visualViewport?.addEventListener("scroll", scheduleScan);
     addEventListener("focus", scheduleScan);
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState !== "visible") resetExposure();

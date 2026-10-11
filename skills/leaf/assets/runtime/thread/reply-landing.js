@@ -9,9 +9,9 @@
    landing reveals that transcript's end directly. The row is not declared a cover of
    the transcript: the caret lives in it, and the browser's own
    caret reveal would scroll the transcript on every keystroke to clear it. A thread too
-   tall to show, landed as a whole, lands its reply row where one fits, and
-   otherwise stays where it is while any of it is on screen: the nearest edge of a box
-   taller than the window is a jump to its top.
+   tall to show, landed as a whole, lands its reply row where one fits, and otherwise
+   stays where it is while it is already shown (`landing-scroll.js`, `alreadyShown`):
+   the nearest edge of a box taller than its room is a jump to its top.
 
    A send lands the turn it adds, around the box it was sent from even once the user
    stands outside it, and a box growing under the user's keystrokes keeps its controls in
@@ -26,22 +26,21 @@
    instead (`landing.js`): a visible pinned row or a separate transcript keeps
    the turn the user was reading, even when it is not the latest one. A separate
    transcript opened for reading shows its latest turn (`showLatestTurn`). */
-import {
-  landingBand,
-  seenRect,
-  shownBox,
-  stuckBox,
-  userScrollport,
-} from "../geometry.js";
+import { seenRect, stuckBox, userScrollport } from "../geometry.js";
 import { focused } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { scrollerFor, scrollersOf } from "../reading-regions.js";
-import { renderedParent, under } from "../shadow.js";
+import { under } from "../shadow.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { retainUserIntent } from "../user-intent.js";
 import { focusedInView } from "../user-place.js";
-import { scrollIntoReadingBand, scrollIntoView } from "../landing-scroll.js";
+import {
+  alreadyShown,
+  fitsWhole,
+  scrollIntoReadingBand,
+  scrollIntoView,
+} from "../landing-scroll.js";
 import { atScrollEnd, moveScrollerBy, scrollToEnd } from "../scrolling.js";
 import { SAYS_IN, SAY_ROW } from "./selectors.js";
 
@@ -65,42 +64,27 @@ const separateTranscript = (held) => {
     : null;
 };
 
-const ancestors = function* (node) {
-  for (let parent = renderedParent(node); parent; parent = renderedParent(parent))
-    yield parent;
-};
-const landingRoom = (held) => {
-  let room = Infinity;
-  for (const parent of ancestors(held)) {
-    const band = landingBand(parent);
-    if (band) room = Math.min(room, band.bottom - band.top);
-  }
-  return room;
-};
-// Whether any of the node is in front of the user (geometry.js, `seenRect`): a node in
-// view inside a bounded block the page has scrolled away is not, and neither is one
-// standing under the banner.
-const onScreen = (node) => seenRect(node, new Map()) !== null;
-
-export const fitsWhole = (held) => shownBox(held).height <= landingRoom(held);
 // Keep a whole thread in view when it fits. A long thread reveals its reply
 // area, including Send and Resolve; an oversized editor reveals only its control.
 // scrollIntoView(nearest) on a card spanning both edges otherwise moves nothing, and
 // so does one aimed at a pinned reply row, so a long thread with one lands its end.
 export const landingTarget = (held, control) => {
-  const room = landingRoom(held);
-  if (shownBox(held).height <= room) return { node: held };
+  if (fitsWhole(held)) return { node: held };
   const reply = replyRowOf(held, control);
   // The thread itself, landed as a whole, is not a way into its pinned reply.
   if (replyPinned(reply))
     return control === held ? { node: null } : { node: held, block: "end" };
-  if (reply && shownBox(reply).height <= room) return { node: reply };
-  if (control === held && onScreen(held)) return { node: null };
+  if (reply && fitsWhole(reply)) return { node: reply };
+  if (control === held && alreadyShown(held)) return { node: null };
   return { node: control };
 };
 
 // The turn a user comes back to a thread for: its latest message, or the summary
 // standing for earlier ones.
+// Whether the user has scrolled a reply row away: none of it in front of them
+// (geometry.js, `seenRect`).
+const onScreen = (node) => seenRect(node, new Map()) !== null;
+
 export const latestTurn = (transcript) =>
   [...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)")].at(
     -1,
@@ -204,10 +188,14 @@ const covered = (reply) =>
   (reply.previousElementSibling?.getBoundingClientRect().bottom ?? -Infinity) -
   reply.getBoundingClientRect().top;
 // Editing reveals only the writing area. Revealing the whole thread here would pull
-// earlier turns back into view on the first keystroke in an already-visible reply.
+// earlier turns back into view on the first keystroke in an already-visible reply. It
+// follows the area's foot into the band rather than asking whether the area is already
+// shown (landing-scroll.js, `alreadyShown`): a row seen whole but growing into the
+// band's clearance moves with each keystroke, where waiting until it passed under the
+// chrome would jump it by a line and the clearance at once.
 const revealWritingArea = (held, input, reply) => {
   bringBackSurfaceOf(held, "instant");
-  const target = reply && shownBox(reply).height <= landingRoom(held) ? reply : input;
+  const target = reply && fitsWhole(reply) ? reply : input;
   scrollIntoReadingBand(target, target, "nearest", "instant");
 };
 // A rewrite opening in its message shows the message whole, its head with Cancel and
@@ -218,7 +206,7 @@ export function revealEditor(message, caretLine) {
   const held = message.closest(SAYS_IN);
   if (!held) return;
   bringBackSurfaceOf(held, "instant");
-  const target = shownBox(message).height <= landingRoom(held) ? message : caretLine;
+  const target = fitsWhole(message) ? message : caretLine;
   scrollIntoReadingBand(target, target, "nearest", "instant");
   const reply = replyRowOf(held, held);
   if (!replyPinned(reply)) return;

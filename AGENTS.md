@@ -334,7 +334,7 @@ against the cost to all sessions; on a busy host, favor focused checks and avoid
 redundant overlapping runs. The required landing gates still have to pass.
 
 Before handing over, run the tests that hold what the change touches; the broad
-selection, `uv run pytest tests`, and `npm run test:runtime` run at landing
+selection, `uv run pytest tests`, and `pnpm run test:runtime` run at landing
 (`tests/AGENTS.md`, "Run what the change needs"). Two TypeScript trees,
 `worker/src/` and `build/browser/`, and the JavaScript lock every committed bundle is built from have gates the suite and
 pre-commit do not reach. Both landing paths run all of them: a pull request in its

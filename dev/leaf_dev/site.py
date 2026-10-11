@@ -33,7 +33,7 @@ the demo's `session-card.png` for a product page and the catalog preview for an 
 
     uv run leaf-dev site
 
-`npm run site:dev` builds and then serves the result through `wrangler dev`.
+`pnpm run site:dev` builds and then serves the result through `wrangler dev`.
 """
 
 import hashlib

@@ -1489,7 +1489,7 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
                 "agent": "Codex",
                 "parent": first,
                 "text": "Which of the two should stay?",
-                "awaits": True,
+                "question": True,
             },
         )
     page = open_page(browser, url)

@@ -2095,6 +2095,7 @@ def test_reply_refuses_a_suggestion(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--text",
             "Fixed:",
@@ -2127,7 +2128,14 @@ def test_response_addresses_one_obligation_and_activates_the_current_source(page
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", response_reference(page_dir, "c1"), "--text", "Updated."],
+        [
+            "response",
+            "reply",
+            "--done",
+            response_reference(page_dir, "c1"),
+            "--text",
+            "Updated.",
+        ],
     )
 
     assert result.exit_code == 0, result.output
@@ -2157,7 +2165,14 @@ def test_reply_refuses_an_invalid_current_source(page_dir):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", response_reference(page_dir, "c1"), "--text", "Updated."],
+        [
+            "response",
+            "reply",
+            "--done",
+            response_reference(page_dir, "c1"),
+            "--text",
+            "Updated.",
+        ],
     )
 
     assert result.exit_code != 0
@@ -2197,7 +2212,7 @@ def test_response_reference_selects_one_of_several_obligations(page_dir):
 
     ambiguous = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", "--text", "Updated."],
+        ["response", "reply", "--done", "--text", "Updated."],
     )
     assert ambiguous.exit_code != 0
     assert "Missing argument" in ambiguous.output
@@ -2205,7 +2220,14 @@ def test_response_reference_selects_one_of_several_obligations(page_dir):
 
     selected = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", response_reference(page_dir, "c2"), "--text", "Updated."],
+        [
+            "response",
+            "reply",
+            "--done",
+            response_reference(page_dir, "c2"),
+            "--text",
+            "Updated.",
+        ],
     )
 
     assert selected.exit_code == 0, selected.output
@@ -2243,7 +2265,7 @@ def test_response_never_settles_a_newer_undelivered_correction(page_dir):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", reference, "--text", "Made it blue."],
+        ["response", "reply", "--done", reference, "--text", "Made it blue."],
     )
 
     assert result.exit_code != 0
@@ -2276,7 +2298,7 @@ def test_response_belongs_to_the_session_with_the_opened_delivery(
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", reference, "--text", "Updated."],
+        ["response", "reply", "--done", reference, "--text", "Updated."],
     )
 
     assert result.exit_code != 0
@@ -2302,7 +2324,14 @@ def test_response_address_survives_its_delivery_turn_closing(page_dir):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", response_reference(page_dir, "c1"), "--text", "Updated."],
+        [
+            "response",
+            "reply",
+            "--done",
+            response_reference(page_dir, "c1"),
+            "--text",
+            "Updated.",
+        ],
     )
 
     assert result.exit_code == 0, result.output
@@ -2398,6 +2427,7 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
         [
             "response",
             "reply",
+            "--done",
             reference,
             "--attempt",
             "distinct-retry-attempt",
@@ -2694,15 +2724,15 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
         read = run("page", "state", name)
         assert read.exit_code == 0, read.output
         assert json.loads(read.output)["thread"]["id"] == opened["id"]
-    opened_task = runner.invoke(
-        cli_model.cli,
-        ["task", "open", str(page_dir), "t-ask", "Weigh it"],
+    promised = run(
+        "thread", "reply", "t-ask", "--text", "Weighing it.", "--task", "Weigh"
     )
-    assert opened_task.exit_code == 0, opened_task.output
-    assert json.loads(opened_task.output)["subject"] == {
-        "kind": "thread",
-        "id": opened["id"],
-    }
+    assert promised.exit_code == 0, promised.output
+    [task] = json.loads(run("page", "state").output)["tasks"]
+    assert (task["id"], task["subject"]) == (
+        json.loads(promised.output)["id"],
+        {"kind": "thread", "id": opened["id"]},
+    )
 
     not_a_thread = run("thread", "resolve", "g1")
     assert not_a_thread.exit_code != 0
@@ -3415,14 +3445,12 @@ diff --git a/src/second file.py b/src/second file.py
         for file in source["value"]["files"]
     ] == [
         {
-            "key": "app.py",
             "path": "app.py",
             "kind": "patch",
             "additions": 1,
             "deletions": 1,
         },
         {
-            "key": "new.py",
             "path": "new.py",
             "previousPath": "old.py",
             "kind": "patch",
@@ -3430,7 +3458,6 @@ diff --git a/src/second file.py b/src/second file.py
             "deletions": 1,
         },
         {
-            "key": "docs/new.md",
             "path": "docs/new.md",
             "previousPath": "docs/old.md",
             "kind": "rename",
@@ -3438,14 +3465,12 @@ diff --git a/src/second file.py b/src/second file.py
             "deletions": 0,
         },
         {
-            "key": "café2026 notes.py",
             "path": "café2026 notes.py",
             "kind": "patch",
             "additions": 1,
             "deletions": 1,
         },
         {
-            "key": "src/second file.py",
             "path": "src/second file.py",
             "kind": "patch",
             "additions": 1,
@@ -4775,7 +4800,6 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
     assert initial["source"]["live"], initial["source"]["error"]
     patch = "--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-before\n+after\n"
     file = {
-        "key": "a.py",
         "path": "a.py",
         "kind": "patch",
         "additions": 1,
@@ -4800,6 +4824,41 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
                 "files": [{key: field for key, field in file.items() if key != "patch"}]
             }
         assert stored["sources"]["reading-patch"]["value"] == value
+
+
+@pytest.mark.parametrize(
+    ("files", "refusal"),
+    [
+        ([], "does not satisfy minItems: 1"),
+        (
+            [{"path": "b.py", "kind": "rename", "additions": 0, "deletions": 0}],
+            "'previousPath' is a required property",
+        ),
+        (
+            [{"path": "a.py", "kind": "patch", "additions": 1, "deletions": 1}] * 2,
+            "record keys must be unique",
+        ),
+    ],
+)
+def test_data_set_refuses_a_diff_manifest_the_widget_cannot_list(
+    page_dir, files, refusal
+):
+    """A diff manifest lists each file once, by its path, and a rename names the path
+    it came from, so the widget renders what `data set` accepted."""
+    (page_dir / "index.html").write_text(
+        before_choice(
+            PAGE,
+            '<lf-diff id="reading-diff" source="reading-patch"><pre></pre></lf-diff>',
+        )
+    )
+    patch = "--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-before\n+after\n"
+    written = CliRunner().invoke(
+        cli_model.cli,
+        ["data", "set", str(page_dir), "reading-patch"],
+        input=json.dumps({"files": [{**file, "patch": patch} for file in files]}),
+    )
+    assert written.exit_code == 1
+    assert refusal in written.output
 
 
 def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch):

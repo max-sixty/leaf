@@ -30,7 +30,7 @@ def test_new_reply_and_user_question_share_one_notice_without_moving_focus(
         root,
         "I changed the route. Does this answer your question?",
         None,
-        awaits=True,
+        question=True,
         for_event=root,
     )
     told(page)

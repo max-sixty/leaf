@@ -120,15 +120,19 @@ leaf wait:
             the move reads Working, and the line stands in the banner until you
             answer. Do the work and put its result on the page, with whatever shows
             it (captures, a figure, the numbers), then answer with `leaf response
-            reply <answer.ref> < reply.md`: what changed, in a sentence or two,
-            linking the section that shows it. When the event asks for no work,
+            reply <answer.ref> --done < reply.md`: what changed, in a sentence or
+            two, linking the section that shows it. When the event asks for no work,
             as a question may not, answer it with that reply at once. The page carries
             the work, and the thread only the conversation about it. `leaf response
             reply` checks any saved page edit and makes it live before posting.
             If a revision removes what the thread is anchored on, move the thread
             in the reply that reports it with `--section <id>` (narrowed by `--quote`
             or `--part` if needed), or `--detach` it if its subject has left the
-            page. Add `--awaits` only if your reply's prose asks the user something.
+            page. Every answer says what it leaves: `--done` when it delivers what
+            was asked, `--question` when its prose asks the user something back,
+            or `--task "<what you owe>"` when it promises work that outlasts this
+            turn, which then stays on you, under the reply's id, until `leaf task
+            end` (`references/conversation-loop.md`, "Long-running work").
           h3: >-
             Your reply renders as Markdown in a narrow column: give each point its
             own short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -200,7 +204,7 @@ Claude Code hook:
               the move in hand: the move reads Working, and the line stands in the
               banner until you answer. Do the work and put its result on the page,
               with whatever shows it (captures, a figure, the numbers), then answer
-              with `leaf response reply <answer.ref> < reply.md`: what changed,
+              with `leaf response reply <answer.ref> --done < reply.md`: what changed,
               in a sentence or two, linking the section that shows it. When the
               event asks for no work, as a question may not, answer it with that
               reply at once. The page carries the work, and the thread only the
@@ -208,8 +212,12 @@ Claude Code hook:
               edit and makes it live before posting. If a revision removes what
               the thread is anchored on, move the thread in the reply that reports
               it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
-              or `--detach` it if its subject has left the page. Add `--awaits`
-              only if your reply's prose asks the user something.
+              or `--detach` it if its subject has left the page. Every answer says
+              what it leaves: `--done` when it delivers what was asked, `--question`
+              when its prose asks the user something back, or `--task "<what you
+              owe>"` when it promises work that outlasts this turn, which then stays
+              on you, under the reply's id, until `leaf task end` (`references/conversation-loop.md`,
+              "Long-running work").
             h3: >-
               Your reply renders as Markdown in a narrow column: give each point
               its own short paragraph or list item, link a page section as `[its
@@ -284,15 +292,19 @@ Codex queue:
             the move reads Working, and the line stands in the banner until you
             answer. Do the work and put its result on the page, with whatever shows
             it (captures, a figure, the numbers), then answer with `leaf response
-            reply <answer.ref> < reply.md`: what changed, in a sentence or two,
-            linking the section that shows it. When the event asks for no work,
+            reply <answer.ref> --done < reply.md`: what changed, in a sentence or
+            two, linking the section that shows it. When the event asks for no work,
             as a question may not, answer it with that reply at once. The page carries
             the work, and the thread only the conversation about it. `leaf response
             reply` checks any saved page edit and makes it live before posting.
             If a revision removes what the thread is anchored on, move the thread
             in the reply that reports it with `--section <id>` (narrowed by `--quote`
             or `--part` if needed), or `--detach` it if its subject has left the
-            page. Add `--awaits` only if your reply's prose asks the user something.
+            page. Every answer says what it leaves: `--done` when it delivers what
+            was asked, `--question` when its prose asks the user something back,
+            or `--task "<what you owe>"` when it promises work that outlasts this
+            turn, which then stays on you, under the reply's id, until `leaf task
+            end` (`references/conversation-loop.md`, "Long-running work").
           h3: >-
             Your reply renders as Markdown in a narrow column: give each point its
             own short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -359,10 +371,11 @@ Codex App Server:
                 the user: the answer, or what you are about to do. Later working
                 messages stay in Codex. Finish with the answer or what changed and
                 where it appears. For an explicit answer, including widgets, a question
-                awaiting the user, a title or relocation, use `leaf response reply
-                <answer.ref>` and the rich options in `references/threads.md`; it
-                validates saved edits and commits immediately. Your later final
-                yields to that recorded answer.
+                awaiting the user (`--question`), work promised beyond this turn
+                (`--task`), a title or relocation, use `leaf response reply <answer.ref>`
+                and the rich options in `references/threads.md`; it validates saved
+                edits and commits immediately. Your later final yields to that recorded
+                answer.
               h2: >-
                 Your reply renders as Markdown in a narrow column: give each point
                 its own short paragraph or list item, link a page section as `[its

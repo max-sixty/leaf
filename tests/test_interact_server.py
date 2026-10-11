@@ -92,6 +92,7 @@ from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import thread_titles as thread_titles_model
 from leaf import vendoring as vendoring_model
+from leaf.refusals import Refused
 from leaf.registry import storage as registry_storage
 from leaf.served_state import browser as served_browser
 from leaf.served_state import context as served_context
@@ -3024,6 +3025,39 @@ def test_a_state_fault_after_append_leaves_the_attempt_retryable(
     )
 
 
+def test_a_fault_before_the_event_body_is_read_answers_in_the_doors_shape(
+    server, page_dir, monkeypatch
+):
+    """A host's page selection runs before the body is read, and a fault there is
+    still the door's 500, which names no attempt because none was read."""
+    publish(page_dir)
+
+    def fail_selection(_endpoint):
+        raise RuntimeError("selection failed")
+
+    monkeypatch.setattr(http_model.PageEndpoint, "_select_page", fail_selection)
+    sent = {"kind": "comment", "revision": 1, "text": "Hi", "attempt": "attempt-1"}
+    status, body = fetch(
+        f"{server}/api/event", data=json.dumps(sent).encode(), layer="any"
+    )
+    assert status == 500
+    assert json.loads(body) == {"ok": False, "error": "RuntimeError: selection failed"}
+
+
+def test_a_refusal_from_corrupt_page_state_is_an_answered_fault(server, page_dir):
+    """A helper the server shares with the command line refuses corrupt state
+    rather than exiting, so the request boundary answers it like any fault."""
+    publish(page_dir)
+    revisions = page_dir / "revisions"
+    [marker] = revisions.glob("r1-*.html")
+    shutil.copyfile(marker, revisions / "r1-0000000000000000.html")
+    status, body = fetch(f"{server}/api/state")
+    assert status == 500
+    assert json.loads(body) == {
+        "error": "Refused: more than one immutable revision has the same order"
+    }
+
+
 def test_flocked_refuses_a_platform_without_cross_process_locking(
     page_dir, monkeypatch
 ):
@@ -5343,7 +5377,7 @@ def test_a_stated_host_is_a_hostname_or_ip_and_nothing_else(page_dir):
     literal is a name a user can route to, and it must not be mistaken for a
     host:port."""
     for junk in ("devbox:8443", "http://devbox", "devbox/page", "devbox one"):
-        with pytest.raises(SystemExit):
+        with pytest.raises(Refused):
             server_model.page_access(page_dir, host=junk)
     assert not (page_dir / "service.json").exists()
 
@@ -6006,7 +6040,7 @@ def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_d
     def run_stamp():
         try:
             publishing_model.cmd_stamp(page_dir, "next")
-        except (AssertionError, SystemExit) as error:  # surface thread failures here
+        except (AssertionError, Refused) as error:  # surface thread failures here
             failures.append(error)
 
     action = {

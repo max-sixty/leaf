@@ -15,7 +15,7 @@ vars:
     You are still testing the fix. Send an interim message in that thread saying
     "Checking the keyboard route." Keep the user's actual answer due. When your
     final answer later arrives in the same thread, this interim message should
-    automatically collapse into retrievable earlier updates, without summary prose.
+    automatically fold away as a progress message, without summary prose.
 
     Nothing here can execute writes. Read the relevant Leaf instructions, then
     reply with the exact one-line CLI command you would run now.

@@ -8,7 +8,7 @@ This module selects each kind's gates. Their implementations stay with their
 domains: undo in `events` and widget meaning in `event_meaning`.
 """
 
-from leaf.event_log import EventRefused, Refusal, new_event_id
+from leaf.event_log import EventRefused, new_event_id
 from leaf.event_meaning import (
     AdmissionReadings,
     admit_widget_event,
@@ -24,6 +24,7 @@ from leaf.projection import (
 )
 from leaf.questions import asking, projected_action_holders, quoted_in
 from leaf.read_state import read_contract_error
+from leaf.refusals import Refusal
 from leaf.registry.contract import (
     WRITERS,
     created_child,
@@ -703,7 +704,7 @@ def admission_error(
 def _task_error(view, event: dict, readings) -> str | None:
     """A task stands on an open thread, a widget that seats work or an element, or the
     page. Task endings also admit an agent withdrawal of a prose Question; a
-    start names explicit agent work or an owed move (`tasks.task_error`)."""
+    start names explicit agent work or an owed update (`tasks.task_error`)."""
     from leaf.tasks import start_reading
 
     progress_parent = (

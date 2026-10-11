@@ -485,6 +485,10 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
     -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
     white-space: normal; overflow-wrap: anywhere; line-height: 1.25; color: var(--ink); }
   @container style(--lf-notice-seat: banner) {
+    /* Reserve both notice lines even for ordinary status. News starts at the same
+       edge whether it takes one line or two; the ordinary sentence stays centred. */
+    .lf-status-words { min-block-size: 2.5em; }
+    .lf-status-notice { align-self: start; }
     .lf-banner-status[data-lf-notice] .lf-status-notice { display: -webkit-box; }
     .lf-banner-status[data-lf-notice] .lf-status-text { opacity: 0; }
   }
@@ -829,7 +833,7 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-queue-done > summary:is(:focus-visible, .lf-focus-visible) {
     outline: var(--focus-ring); --lf-focus-ring: queue-row;
     outline-offset: calc(-1 * var(--focus-ring-w)); }
-  /* Green marks a move the user owes, as it does on a thread; the agent's live work wears
+  /* Green marks the user's turn, as it does on a thread; the agent's live work wears
      the accent; what is done goes quiet. */
   .lf-queue-kind { grid-row: span 2; align-self: start; justify-self: start;
     padding: 0 5px; border-radius: 4px; background: var(--chip); color: var(--ink-2);

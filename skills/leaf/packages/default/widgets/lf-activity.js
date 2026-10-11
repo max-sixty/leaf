@@ -1,11 +1,11 @@
 /* lf-activity: the page's history as a feed, newest first.
  *
  * The server's history reading is the only semantic input: every
- * reading of `watchHistory` restates the whole feed. A row says who moved (You for the
+ * reading of `watchHistory` restates the whole feed. A row says who acted (You for the
  * user, Page for what the page did by itself, and otherwise the name the server serves
  * the row under), what they did, the thing they did it to, and how long ago.
  *
- * What a move was is the server's: the thread it belongs to and that thread's title,
+ * What a row's event was is the server's: the thread it belongs to and that thread's title,
  * whether a later undo took it back, and for a widget gesture the words its ids had in
  * the document it was made in, under that document's declaration of the widget. A
  * version that rewords or removes an option therefore leaves the row as the user made
@@ -276,7 +276,7 @@ customElements.define(
           ? `Show activity${arrived ? ` · ${arrived} new` : ""}`
           : news
             ? arrived
-              ? `${arrived} new ${arrived === 1 ? "update" : "updates"}`
+              ? `Show ${arrived} new`
               : "Activity changed"
             : "Hide activity",
       );

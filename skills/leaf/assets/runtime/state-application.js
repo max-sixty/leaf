@@ -18,7 +18,7 @@ import {
   whenDocumentPresented,
   readApplication,
 } from "./semantic-state.js";
-import { reportPageError, sameLayer } from "./layer-client.js";
+import { reportCarried, sameLayer } from "./layer-client.js";
 import { importWidgets } from "./widget-loader.js";
 import { observeServerNow, observeWorkingGrace } from "./presence.js";
 import { settleAcceptedDrafts } from "./drafts.js";
@@ -214,7 +214,7 @@ export function createStateApplication({
           });
         }
       } catch (error) {
-        reportPageError(error, `State presentation failed`);
+        reportCarried(error, `State presentation failed`);
         throw error;
       } finally {
         stateApplying = false;

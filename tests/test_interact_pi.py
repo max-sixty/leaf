@@ -28,6 +28,7 @@ from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
+from leaf.refusals import Refused
 
 DRIVER = Path(__file__).with_name("pi_driver.mjs")
 
@@ -421,6 +422,6 @@ def test_a_pi_session_without_the_leaf_extension_is_refused(
     Leaf's extension states that, so without it there is no lifetime to claim
     a page for."""
     monkeypatch.setenv("PI_SESSION_ID", "pi-bare")
-    with pytest.raises(SystemExit, match="extension"):
+    with pytest.raises(Refused, match="extension"):
         service_model.claim_page(page_dir)
     assert service_model.page_claim(page_dir) is None

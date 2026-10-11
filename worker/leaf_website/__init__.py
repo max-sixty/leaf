@@ -34,7 +34,7 @@ from leaf.codex import (
     app_server_connect,
     app_server_handshake,
     app_server_request,
-    delivery_owed_moves,
+    delivery_owed_updates,
     open_app_server_delivery,
     prepare_codex_delivery,
     start_app_server_delivery,
@@ -47,6 +47,7 @@ from leaf.http import PageEndpoint, scope_page_urls
 from leaf.layer import foreign_runtime
 from leaf.leases import release_lease, take_lease, waiter_lease_path
 from leaf.page_memory import Slot, memo
+from leaf.refusals import Refused
 from leaf.registry.storage import layer_metadata
 from leaf.revision_delivery import Delivery
 from leaf.revisioning import activate_source
@@ -603,7 +604,7 @@ class HostedTurn(CarriedTurn):
         claims no more than the absence of an answer, because that is all this
         observed.
         """
-        targets = delivery_owed_moves(read_delivery(self.delivery_id))
+        targets = delivery_owed_updates(read_delivery(self.delivery_id))
         settled = 0
         swept = False
         try:
@@ -832,7 +833,9 @@ class WebsiteCodexHarness:
 
         Handing it on is part of the ending rather than a reward for a clean one: a
         follower that faulted leaves the same page with the same moves outstanding as
-        one that did not, and this is the only place either is looked at.
+        one that did not, and this is the only place either is looked at. A receipt
+        the page refuses here, such as one waiting on a reply the turn still holds, is
+        recorded rather than ending the thread before the page is handed on.
         """
         page_dir = turn.page_dir
         try:
@@ -859,7 +862,14 @@ class WebsiteCodexHarness:
                 if turn.correction is not None:
                     for event_id in turn.event_ids:
                         abandon_codex_delivery(turn.session_id, event_id)
-                    turn._receipt_unanswered()
+                    try:
+                        turn._receipt_unanswered()
+                    except Refused as error:
+                        log_agent(
+                            "turn_receipt_refused",
+                            **agent_event_fields(turn.event_ids),
+                            **fault_fields(error),
+                        )
                 self._continue_page(page_dir, turn.event_ids)
 
     def _continue_page(self, page_dir: Path, excluding: tuple[str, ...]) -> None:
@@ -1035,7 +1045,7 @@ class WebsiteCodexHarness:
                 thread_id,
                 prepared.payload,
             )
-        except RuntimeError as error:
+        except (RuntimeError, Refused) as error:
             # No turn to follow, and after an uncertain start possibly one this
             # request made and never named. This harness owns the thread, so it tells
             # the provider to drop whatever it began rather than waiting to adopt it,
@@ -1463,7 +1473,7 @@ class WebsitePageEndpoint(PageEndpoint):
             accepted = self.agent_harness.failure_receipt(
                 self.page_dir, event_id, failure
             )
-        except SystemExit as error:
+        except Refused as error:
             return self._json({"error": str(error)}, 400)
         if accepted is None:
             return self._json({"status": "settled"})

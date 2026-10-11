@@ -10,7 +10,7 @@ where the page's own arrangement is at its tightest before it changes, or where 
 margin content changes, with that box in view; and, on a page with Questions, the desktop
 window at each of its first eight open ones as `q` arrives there from the top, which is
 how a user working the page reads each question, with the view that holds it opened;
-`q` walks everything waiting on the user, so a thread or a handed-back widget move it
+`q` walks everything waiting on the user, so a thread or a handed-back widget action it
 stops at on the way gets no screen. The screens go to one directory per page
 under the state home's screens/, which the check names; a check writes a fresh
 directory beside it and then puts it in its place, so a reader never meets half of one
@@ -69,7 +69,7 @@ def _down_the_page(page, into: Path, stem: str) -> tuple[list[Path], int]:
 # Where a press of `q` left the user: the Question they stand in, as the runtime marks it
 # (the outermost element wearing its ring, outside the Questions panel, which mirrors the
 # same reading); else the thread holding focus; else the page widget holding it, where
-# the walk puts the user on a move handed back to them. Those are the walk's other
+# the walk puts the user on an update handed back to them. Those are the walk's other
 # kinds of stop (queue-walk.js), which the screens pass, so each is read only to step
 # past it.
 STANDING_ITEM = """() => {

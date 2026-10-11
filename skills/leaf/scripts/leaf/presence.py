@@ -285,7 +285,7 @@ def presence_with_activity(
         "claim_session": claim.get("id") if claim else None,
         # Opaque identity of the claiming session's current turn on this page.
         # An opened delivery names this value; equality, rather than timestamps,
-        # is what says that exact user move is in the turn running now.
+        # is what says that exact update is in the turn running now.
         "claim_turn": claim.get("turn") if claim else None,
         # When the claiming session's last turn ended, or None while none has.
         # A `working` claim older than this is one that no later turn renewed

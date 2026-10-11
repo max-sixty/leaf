@@ -7,7 +7,7 @@
    they did, so it is sent on its own, once, and a failure costs only a fact the page
    will observe again; it neither waits behind a gesture nor holds one up. */
 import { runtime } from "./context.js";
-import { postEvent } from "./layer-client.js";
+import { postEvent, reportCarried } from "./layer-client.js";
 import { notice } from "./notifications.js";
 import { afterScript } from "./rendering.js";
 
@@ -24,7 +24,7 @@ const readEventAnswer = (response, answer) =>
       ? "refused"
       : "incomplete";
 const applyAnswerState = (apply, state) =>
-  apply(state).catch((error) => console.error("leaf: state in event response", error));
+  apply(state).catch((error) => reportCarried(error, "state in event response"));
 
 export function createDelivery({
   ledger,

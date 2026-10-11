@@ -58,6 +58,7 @@ from typing import NamedTuple
 import click
 from leaf.file_changes import FileChanges
 from leaf.publishing import authored_digest, authored_files, write_authored_files
+from leaf.refusals import Refused
 from leaf.schema import BROWSER_DIRS, VENDORED_FILES
 
 from leaf_dev import ROOT
@@ -499,7 +500,7 @@ def refresh_preview(
             refresh_media(source, page, partial(leaf, launcher, runtime))
         state["authored"] = incoming_digest
         mark_preview(source, page, runtime, service.user, state["authored"])
-    except (LeafFailed, ValueError, OSError) as error:
+    except (LeafFailed, Refused, ValueError, OSError) as error:
         return refused(error)
     return True
 
@@ -998,7 +999,7 @@ def preview(
         raise SystemExit(130) from None
     except LeafFailed as error:
         raise SystemExit(error.returncode) from None
-    except (ValueError, OSError, RuntimeError) as error:
+    except (Refused, ValueError, OSError, RuntimeError) as error:
         raise click.ClickException(str(error)) from None
 
 

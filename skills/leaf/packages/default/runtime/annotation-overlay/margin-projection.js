@@ -218,7 +218,6 @@ export function createMarginProjection({
       });
     });
   }
-  // Down the margin's column.
   function readSpokenPositions(
     inventory,
     mainRect = marginColumn().getBoundingClientRect(),

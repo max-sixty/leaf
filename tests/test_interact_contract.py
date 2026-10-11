@@ -2815,6 +2815,18 @@ def test_check_refuses_an_invalid_action_detail_schema(page_dir):
     )
 
 
+def test_check_refuses_a_format_no_boundary_checks(page_dir):
+    """jsonschema skips a format it has no checker for, so a declared one Leaf does
+    not check would state a rule nothing enforces."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["properties"]["id"]["format"] = "hostname"
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "<lf-options> is not a valid JSON Schema: format 'hostname'" in result.output
+
+
 @pytest.mark.parametrize(
     ("mutation", "message"),
     [

@@ -524,6 +524,14 @@ package and be shared by more than one widget:
 }
 ```
 
+State in the contract every rule the widget relies on, such as `records` for unique
+keys or `if`/`then` for a field one kind of record requires, so `data set` refuses a
+value the widget could not present instead of storing it for the page to fail on. A
+widget then reads its value without checking it again. A schema may name a `format`
+only where Leaf checks one: `date-time` is an absolute, timezone-aware instant, `uri`
+is an absolute URL the browser's URL parser accepts, and `package check` lists the
+others and refuses any it does not check.
+
 A widget declares the inputs it knows how to present. Each input names its contract and
 the attribute that will carry the page's source id. Make that attribute required when
 the widget cannot work without the input; an optional unbound input delivers `null`.

@@ -21,6 +21,7 @@ from leaf.schema import (
 from .contract import RegistryError, is_element_name, stamp_decisions
 from .kernel import kernel_event_kinds, kernel_event_ownership
 from .schema import (
+    check_schema,
     json_validator,
     json_value,
     schema_error_message,
@@ -127,7 +128,7 @@ def _valid_clauses(clauses) -> bool:
             return False
         if "when" in clause:
             try:
-                Draft202012Validator.check_schema(clause["when"])
+                check_schema(clause["when"])
             except SchemaError:
                 return False
     return True
@@ -298,7 +299,7 @@ def validate_layer_declarations(
                 f"{schema_error_message(instructions_errors[0])}"
             )
         try:
-            Draft202012Validator.check_schema(declaration["schema"])
+            check_schema(declaration["schema"])
         except SchemaError as error:
             raise RegistryError(
                 f"{path}: $data contract {contract!r} has an invalid JSON Schema: "

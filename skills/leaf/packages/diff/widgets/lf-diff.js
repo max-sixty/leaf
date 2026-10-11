@@ -613,8 +613,7 @@ function gitPath(path) {
   if (!path.startsWith('"')) return path;
   if (!path.endsWith('"')) return null;
   const inner = path.slice(1, -1);
-  if (!/^(?:[^\\]|\\(?:[abtnvfr"\\]|[0-3][0-7]{2}|[0-7]{1,2}(?![0-7])))*$/.test(inner))
-    return null;
+  if (!/^(?:[^\\]|\\(?:[abtnvfr"\\]|[0-3][0-7]{2}))*$/.test(inner)) return null;
   const escapes = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13 };
   const bytes = [];
   const encoder = new globalThis.TextEncoder();
@@ -625,7 +624,7 @@ function gitPath(path) {
       if (point > 0xffff) i++;
       continue;
     }
-    const match = /^(?:[0-3][0-7]{2}|[0-7]{1,2})/.exec(inner.slice(i + 1));
+    const match = /^[0-3][0-7]{2}/.exec(inner.slice(i + 1));
     if (match) {
       bytes.push(parseInt(match[0], 8));
       i += match[0].length;
@@ -718,6 +717,9 @@ async function renderFile(file, sharedStyles) {
   return { nodes: [...rendered.children], pre, lines };
 }
 
+// What the widget can present. The diff package's `patch_manifest.py` reads Git patches
+// by the same rules in Python, and `tests/diff_patch_cases.json` holds both readers to
+// one table of cases.
 async function parsedFiles(source) {
   if (/^copy (?:from|to) /m.test(source))
     throw new Error(

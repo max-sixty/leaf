@@ -3499,69 +3499,33 @@ diff --git a/src/second file.py b/src/second file.py
     )
 
 
-@pytest.mark.parametrize("escaped", [r"bad\x41.py", r"bad\400.py", r"bad\q.py"])
-def test_unified_diff_rejects_c_escapes_git_does_not_use(escaped):
-    patch = f"""diff --git "a/{escaped}" "b/{escaped}"
---- "a/{escaped}"
-+++ "b/{escaped}"
-@@ -1 +1 @@
--old
-+new
-"""
-
-    with pytest.raises(ValueError, match="invalid quoted Git path"):
-        patch_manifest(patch)
+DIFF_PATCH_CASES = json.loads(
+    (Path(__file__).parent / "diff_patch_cases.json").read_text()
+)["cases"]
 
 
-@pytest.mark.parametrize(
-    ("patch_text", "message"),
-    [
-        (
-            """diff --git a/old.py b/new.py
-similarity index 100%
-rename from old.py
-rename to new.py
---- a/old.py
-+++ b/new.py
--before
-+after
-""",
-            "unsupported hunkless diff",
-        ),
-        (
-            """diff --git a/app.py b/app.py
---- a/app.py
-+++ b/app.py
-@@ -1 +1 @@
--before
-+after
-+lost
-""",
-            "hunk line counts",
-        ),
-        (
-            """diff --git a/app.py b/app.py
-@@ -1 +1 @@
---- bogus-old
-+++ bogus-new
-""",
-            "no ---/+++ file-header pair before its first hunk",
-        ),
-        (
-            """diff --git a/app.py b/app.py
---- a/other.py
-+++ b/other.py
-@@ -1 +1 @@
--before
-+after
-""",
-            "---/+++ paths disagree",
-        ),
-    ],
-)
-def test_the_diff_script_refuses_evidence_the_widget_cannot_render(patch_text, message):
-    with pytest.raises(ValueError, match=re.escape(message)):
-        patch_manifest(patch_text)
+@pytest.mark.parametrize("case", DIFF_PATCH_CASES, ids=lambda case: case["id"])
+def test_the_manifest_reads_the_diff_patch_table(case):
+    """What lf-diff can present has two readers in two languages: the widget parses a
+    patch text in the browser, and `patch_manifest.py` builds the file manifest from a
+    Git patch. `diff_patch_cases.json` is the one statement of that rule both are held
+    to; `test_render_anchors.py` reads it for the widget.
+
+    A row with `files` is a patch both readers accept, naming those paths. Any other
+    row is one the manifest refuses, with its `manifest` message, and the widget
+    refuses it too where the row gives a `widget` message. The manifest is the
+    stricter reader, so a row the widget refuses always has a manifest refusal, and
+    `data set` never receives a manifest the widget would refuse; the rows only the
+    manifest refuses are malformed Git patches whose inline reading the table leaves
+    unpinned."""
+    assert ("files" in case) != ("manifest" in case), case["id"]
+    assert "widget" not in case or "manifest" in case, case["id"]
+    if "files" in case:
+        files = patch_manifest(case["patch"])["files"]
+        assert [file["path"] for file in files] == case["files"]
+    else:
+        with pytest.raises(ValueError, match=re.escape(case["manifest"])):
+            patch_manifest(case["patch"])
 
 
 def test_data_set_names_the_producer_when_nothing_arrives(page_dir, tmp_path):

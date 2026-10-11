@@ -16,6 +16,8 @@ disclosure opens. A patch `lf-diff` cannot present as review evidence is refused
 here, with the reason on stderr and exit status 1, rather than stored.
 
 unidiff reads the hunks; everything else here owns the manifest built around them.
+`lf-diff` reads a patch text with its own parser, in the browser, and refuses no patch
+this accepts; `tests/diff_patch_cases.json` holds both readers to one table of cases.
 """
 
 import codecs
@@ -30,9 +32,9 @@ class PatchError(ValueError):
     """A patch the diff widget cannot present."""
 
 
-_GIT_QUOTED_PATH = re.compile(
-    r'(?:[^\\]|\\(?:[abtnvfr"\\]|[0-3][0-7]{2}|[0-7]{1,2}(?![0-7])))*'
-)
+# Git quotes a path byte as one of these letter escapes or three octal digits
+# (`quote_c_style`), and writes nothing shorter.
+_GIT_QUOTED_PATH = re.compile(r'(?:[^\\]|\\(?:[abtnvfr"\\]|[0-3][0-7]{2}))*')
 
 
 def _decode_git_path(path: str) -> str:

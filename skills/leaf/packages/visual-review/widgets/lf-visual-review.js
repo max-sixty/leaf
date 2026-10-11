@@ -512,8 +512,6 @@ customElements.define(
           }
           keepsHidden(this.#inspector, false);
           const ids = this.#run.cases.map(({ id }) => id);
-          if (new Set(ids).size !== ids.length)
-            throw new Error("visual run repeats a case id");
           setText(this.#title, this.#run.title);
           this.#reconcileCases(this.#run.cases);
           this.#paintNavigation();

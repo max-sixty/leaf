@@ -59,10 +59,10 @@
  * carry a pick and `page check` can hold the markup against the log's fold — and
  * the entry's `additionalProperties: false` is the whole of what else may stand
  * there. Neither the answered paint nor the disclosure's state is such a record: the
- * thread-only `answer` verb lives in markup the log freezes, so no version can carry
- * it, and which way this tab left the disclosure is no version's to carry at all.
- * Each is stated once, on the control that carries it — the mark's `aria-checked`,
- * the row's `aria-expanded` — and the theme keys on those, as lf-tabs' strip does,
+ * `answer` verb declares no record form, so no version carries it, and which way this
+ * tab left the disclosure is view state no version carries at all. Each is stated
+ * once, on the control that carries it — Done's `aria-pressed`, the settled row's
+ * `aria-expanded` — and the theme keys on those, as lf-tabs' strip does,
  * leaving the group's own attributes to the author. A copy on the group would also
  * mislead `shallowSigs`, which excludes exactly what no version can assert and so
  * reads any other attribute as state a version wrote.

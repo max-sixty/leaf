@@ -3881,8 +3881,8 @@ def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, s
 
     assert identities("main > lf-ask", "id") == ["first-ask", "second-ask"]
     assert identities(".lf-queue-row", "data-lf-at") == [
-        "first-ask",
-        "second-ask",
+        "widget:first-options",
+        "widget:second-options",
     ]
 
     stamp_page(serve.page_dir, second, "reverse the questions")
@@ -3890,8 +3890,8 @@ def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, s
 
     assert identities("main > lf-ask", "id") == ["second-ask", "first-ask"]
     assert identities(".lf-queue-row", "data-lf-at") == [
-        "second-ask",
-        "first-ask",
+        "widget:second-options",
+        "widget:first-options",
     ]
 
 

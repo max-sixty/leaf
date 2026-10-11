@@ -54,13 +54,14 @@ const tickLabel = (time, step) => {
 // Greedy rows: an interval takes the first row whose last interval ends before it.
 function assignRows(items, start, end) {
   const rows = [];
+  const rowOf = new Map();
   for (const item of items.toSorted((a, b) => start(a) - start(b))) {
     let row = rows.findIndex((last) => last <= start(item));
     if (row < 0) row = rows.push(-Infinity) - 1;
     rows[row] = end(item);
-    item.row = row;
+    rowOf.set(item.id, row);
   }
-  return Math.max(1, rows.length);
+  return rowOf;
 }
 
 // Style writes the page did not change are still mutations; skip them.
@@ -83,6 +84,7 @@ export class RecordingTimeline {
   #zoom = 1;
   #time = 0;
   #scrubbing = null;
+  #touched = null;
   #expectedScroll = null;
   #rulerFrame = 0;
   #overviewFrame = 0;
@@ -93,6 +95,7 @@ export class RecordingTimeline {
   #start = 0;
   #labels = { input: [], moments: [] };
   #callRows = 1;
+  #callRowOf = new Map();
 
   /**
    * `host` receives the timeline. `options`: `onSeek(time, final)`, `onPick(lane,
@@ -140,11 +143,14 @@ export class RecordingTimeline {
     const changed = model.signature !== this.#model?.signature;
     this.#model = model;
     if (changed) {
-      this.#callRows = assignRows(
+      // Rows depend only on the recording, so models rebuilt on every draw
+      // share them by call id.
+      this.#callRowOf = assignRows(
         model.calls,
         (call) => call.start,
         (call) => call.end,
       );
+      this.#callRows = 1 + Math.max(0, ...this.#callRowOf.values());
       this.#zoom = Math.min(this.#zoom, this.#maxZoom());
     }
     // Labels carry each mark's selection state, so they follow every update.
@@ -222,8 +228,10 @@ export class RecordingTimeline {
   // Geometry -------------------------------------------------------------------
 
   #maxZoom() {
-    // The narrowest window still spans 10 ms of recording.
-    return Math.max(1, (this.#model?.duration ?? 0) / 10);
+    // The narrowest window spans 10 ms of recording, within the widest box
+    // Chrome lays out (33.5M px).
+    const width = Math.max(1, this.scroller?.clientWidth ?? 1);
+    return Math.max(1, Math.min((this.#model?.duration ?? 0) / 10, 16e6 / width));
   }
   #trackWidth() {
     return (this.scroller?.clientWidth ?? 0) * this.#zoom;
@@ -307,6 +315,7 @@ export class RecordingTimeline {
         : full;
       current.width = measure(current.text, font) + LABEL_CHROME;
       current.flip = current.x + current.width > end;
+      current.spread = current.items.at(-1).at > current.items[0].at;
     };
     const cluster = (items) => {
       const clusters = [];
@@ -355,9 +364,9 @@ export class RecordingTimeline {
     const cluster = clusters[index];
     if (cluster.flip) {
       const previous = clusters[index - 1];
-      return previous
-        ? layoutPx(Math.max(12, cluster.x - previous.x - previous.width - LABEL_GAP))
-        : "none";
+      if (!previous) return "none";
+      const previousEnd = previous.flip ? previous.x : previous.x + previous.width;
+      return layoutPx(Math.max(12, cluster.x - previousEnd - LABEL_GAP));
     }
     const next = clusters[index + 1];
     if (!next) return "none";
@@ -367,15 +376,25 @@ export class RecordingTimeline {
   // Each name in a label is its own mark's target; a count zooms to its marks.
   #labelWords(cluster, lane) {
     const word = (item) =>
-      html`<span class="lf-trace-word" data-word=${item.id} data-tip=${item.title}
+      html`<span
+        class="lf-trace-word"
+        data-word=${item.id}
+        data-tip=${item.title}
+        ?data-current=${item.current}
         >${item.label}</span
       >`;
+    const kind = lane === "moments" ? "moments" : "inputs";
     if (cluster.compact)
       return html`${word(cluster.items[0])}
         <span
           class="lf-trace-more"
           data-more
-          data-tip=${`${cluster.items.length - 1} more ${lane === "moments" ? "moments" : "inputs"}: zoom to separate them`}
+          ?data-current=${cluster.items.slice(1).some((item) => item.current)}
+          data-tip=${
+            cluster.spread
+              ? `${cluster.items.length - 1} more ${kind}: zoom to separate them`
+              : `${cluster.items.length - 1} more ${kind} at this time; the Moments list reaches each`
+          }
           >+${cluster.items.length - 1}</span
         >`;
     return cluster.items.map((item, index) => html`${index ? " " : ""}${word(item)}`);
@@ -479,7 +498,6 @@ export class RecordingTimeline {
                             data-id=${cluster.items[0].id}
                             data-cluster=${index}
                             data-tip=${cluster.items.map((item) => item.title).join("\n")}
-                            ?data-current=${cluster.items.some((item) => item.current)}
                             style="--t: ${fraction(cluster.items[0].at)}; max-inline-size: ${this.#labelRoom(
                               this.#labels.input,
                               index,
@@ -541,7 +559,7 @@ export class RecordingTimeline {
                             style="--t: ${fraction(call.start)}; --d: ${length(
                               call.start,
                               call.end,
-                            )}; --row: ${call.row ?? 0}"
+                            )}; --row: ${this.#callRowOf.get(call.id) ?? 0}"
                             ><span class="lf-trace-call-name">${call.label}</span></span
                           >`,
                       )}
@@ -578,6 +596,14 @@ export class RecordingTimeline {
           <span class="lf-trace-overview-window"></span>
           <span class="lf-trace-overview-time"></span>
         </div>
+        ${
+          model.inputs.length
+            ? html`<p class="lf-trace-legend">
+                Input bars span each recorded call; the notch is its Action checkpoint,
+                just before the input is sent. Key-down and hold times are not recorded.
+              </p>`
+            : nothing
+        }
         <div class="lf-trace-tip" role="tooltip" hidden></div>`,
       this.#host,
     );
@@ -706,6 +732,18 @@ export class RecordingTimeline {
     this.#options.onUserPan?.();
   }
 
+  // Zoom until neighbouring marks stand at least a label apart, then center them.
+  #separate(items) {
+    const scroller = this.scroller;
+    const gaps = items.slice(1).map((item, index) => item.at - items[index].at);
+    const gap = Math.max(1, Math.min(...gaps.filter((value) => value > 0)));
+    const perMs = this.#span() / this.#zoom / Math.max(1, this.#model.duration);
+    this.#zoom = Math.max(this.#zoom, Math.min(this.#maxZoom(), 48 / (gap * perMs)));
+    this.#applyZoom();
+    const middle = (items[0].at + items.at(-1).at) / 2;
+    this.#scrollTo(this.#timeToPx(middle) - scroller.clientWidth / 2);
+  }
+
   #eventTime(event) {
     const scroller = this.scroller;
     return this.#pxToTime(
@@ -717,8 +755,14 @@ export class RecordingTimeline {
     if (this.#options.quoted || event.button !== 0) return;
     const handle = event.target.closest(".lf-trace-playhead-handle");
     // A finger pans the track natively; only the handle scrubs under touch.
-    if (event.pointerType === "touch" && !handle) return;
-    if (!handle && event.target.closest("[data-pick]")) return;
+    // Chrome adjusts a tap's click toward a nearby larger target, so the tap
+    // keeps the element its finger landed on.
+    if (event.pointerType === "touch") {
+      this.#touched = handle ? null : { target: event.target, x: event.clientX };
+      if (!handle) return;
+    }
+    if (!handle && (event.target.closest("[data-pick]") || this.#nearMark(event)))
+      return;
     event.preventDefault();
     const track = event.currentTarget;
     track.setPointerCapture(event.pointerId);
@@ -744,20 +788,26 @@ export class RecordingTimeline {
 
   #tap(event) {
     if (this.#options.quoted) return;
-    const time = this.#eventTime(event);
-    const pick = event.target.closest("[data-pick]") ?? this.#nearMark(event);
+    const touched = event.pointerType === "touch" ? this.#touched : null;
+    this.#touched = null;
+    const target = touched?.target ?? event.target;
+    const at = touched
+      ? { target, clientX: touched.x }
+      : { target, clientX: event.clientX };
+    const time = this.#eventTime(at);
+    const pick = target.closest("[data-pick]") ?? this.#nearMark(at);
     if (pick) {
       const cluster =
         pick.dataset.cluster === undefined
           ? null
           : this.#labels[pick.dataset.pick][Number(pick.dataset.cluster)];
-      if (cluster && event.target.closest("[data-more]")) {
-        this.zoomBy(1, null, [cluster.items[0].at, cluster.items.at(-1).at]);
+      if (cluster && target.closest("[data-more]") && cluster.spread) {
+        this.#separate(cluster.items);
         this.#options.onUserPan?.();
         return;
       }
       // A name in a shared label is its own mark; elsewhere the label is its first.
-      const id = event.target.closest("[data-word]")?.dataset.word ?? pick.dataset.id;
+      const id = target.closest("[data-word]")?.dataset.word ?? pick.dataset.id;
       this.#options.onPick(pick.dataset.pick, id, time);
       return;
     }

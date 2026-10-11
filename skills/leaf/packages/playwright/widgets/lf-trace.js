@@ -13,12 +13,17 @@
  * Viewer.js owns image inspection.
  *
  * The playhead is a time. The shown evidence is the latest capture at or before
- * it: stepping, a moment or a mark sets the time to that capture's own time, while
+ * it. A checkpoint with an image stands at that image's capture time, which ends
+ * the snapshot its DOM time begins; one without stands at its DOM time. Stepping,
+ * a moment or a mark sets the time to that stop's own time, while
  * scrubbing and playback leave the playhead between captures and say which
  * capture is shown. Native input events carry no timestamp. A call's bar spans the
  * recorded call, its Action checkpoint is the capture taken just before input is
  * dispatched, and the image names the input only at that call's checkpoints or
- * while the playhead lies inside the call. It never implies a held key.
+ * while the playhead lies inside the call. It never implies a held key. During
+ * playback a plain image shows each capture in time over the Viewer, which takes
+ * over again when playback stops; the clock waits only when the image on screen
+ * would trail it by more than MAX_LAG.
  * The stage preserves a useful image minimum and grows in document flow when
  * transport, evidence and tools cannot fit the viewport. Later metadata never
  * overlaps it. Empty and captured states reserve the same image allocation.
@@ -136,6 +141,8 @@ const INPUT_NAMES = {
   mouseClick: "Click",
   dragTo: "Drag",
 };
+// The longest an image on screen may trail the playing clock, in milliseconds.
+const MAX_LAG = 150;
 const hex = (text) =>
   [...new globalThis.TextEncoder().encode(text)]
     .map((n) => n.toString(16).padStart(2, "0"))
@@ -251,8 +258,9 @@ customElements.define(
       this.#pause();
       // A review gesture freezes the pixels actually on screen, including when
       // another capture is still preparing.
-      if (this.#pendingPicture && this.#pictureId)
-        this.#reveal(this.#id("image", this.#pictureId));
+      const shown = this.#playbackId ?? this.#pictureId;
+      if ((this.#pendingPicture || this.#playbackId) && shown)
+        this.#reveal(this.#id("image", shown));
     }
     #visibility = () => {
       if (document.hidden) this.#pause();
@@ -263,6 +271,7 @@ customElements.define(
     #resize = () => {
       this.#resizeFrame ||= nextRender(() => {
         this.#resizeFrame = 0;
+        this.#hidePlayback();
         if (!this.imageViewport.clientWidth) {
           this.#pause();
           if (this.#pendingPicture) this.#closePicture();
@@ -298,10 +307,7 @@ customElements.define(
         this.#keys ??= commands(this, "In a Playwright recording", [
           {
             id: "trace.previous",
-            keys: () =>
-              this.timeline.contains(focused())
-                ? ["ArrowLeft", "ArrowDown", "PageDown"]
-                : ["ArrowLeft"],
+            keys: ["ArrowLeft"],
             title: "previous timeline point",
             control: this.previous,
             when: () => this.#position() > 0 || this.#cursorTime !== null,
@@ -309,10 +315,7 @@ customElements.define(
           },
           {
             id: "trace.next",
-            keys: () =>
-              this.timeline.contains(focused())
-                ? ["ArrowRight", "ArrowUp", "PageUp"]
-                : ["ArrowRight"],
+            keys: ["ArrowRight"],
             title: "next timeline point",
             control: this.next,
             when: () => this.#position() < this.#items().length - 1,
@@ -456,14 +459,23 @@ customElements.define(
       this.missingImage = el("p", "lf-trace-missing-image");
       this.inputBadge = el("span", "lf-trace-input-badge");
       this.inputPoint = el("span", "lf-trace-input-point");
-      this.inputBadge.hidden = this.inputPoint.hidden = true;
-      this.imageViewport.append(this.missingImage, this.inputBadge, this.inputPoint);
+      // During playback a plain image shows each capture in time; the inspectable
+      // Viewer surface takes over again when playback stops.
+      this.playbackImage = el("img", "lf-trace-playback-image");
+      this.playbackImage.alt = "";
+      this.inputBadge.hidden =
+        this.inputPoint.hidden =
+        this.playbackImage.hidden =
+          true;
+      this.imageViewport.append(this.missingImage, ...this.#overlays());
       this.#timeline = new RecordingTimeline(this.timeline, {
         quoted: quoted(this),
         onSeek: (time, final) => this.#seek(time, final),
         onPick: (lane, id, time) => this.#pick(lane, id, time),
         onUserPan: () => {
           if (this.#playing) this.#pause();
+          // Zoom availability follows the window the gesture left.
+          paintKeys();
         },
       });
       this.addEventListener("lf-inspect", (event) => this.#inspect(event));
@@ -478,6 +490,7 @@ customElements.define(
             keys: ["Home"],
             title: "first capture",
             control: this.first,
+            when: () => this.#items().length > 0,
             run: () => this.#navigate(this.#items().at(0)?.id ?? null),
           },
           {
@@ -576,13 +589,22 @@ customElements.define(
             id: this.#phaseId(action, phase),
             action,
             phase,
-            timestamp:
-              checkpoint?.timestamp ??
-              (phase === "end" ? action.endTime : action.startTime),
+            timestamp: this.#phaseTime(action, phase),
           });
         }
       return points;
     }
+    // A checkpoint stands where what it shows was captured: at its image, whose
+    // capture finishes after the DOM snapshot that starts it, or else at that
+    // snapshot. A call without checkpoints stands at its start and end.
+    #phaseTime(action, phase) {
+      const checkpoint = action.phases[phase];
+      if (checkpoint?.imageId) return this.#imageById.get(checkpoint.imageId).timestamp;
+      return (
+        checkpoint?.timestamp ?? (phase === "end" ? action.endTime : action.startTime)
+      );
+    }
+    #imageById = new Map();
     #itemsCache = null;
     #items() {
       const key = `${this.#trace?.archive.sha256}:${this.#scope}`;
@@ -612,13 +634,14 @@ customElements.define(
         (phase?.imageId
           ? this.#trace.images.find((image) => image.id === phase.imageId)
           : null);
+      // Otherwise the latest image of the page captured at or before the stop.
       if (!image && action)
         image =
           this.#trace.images
             .filter(
               (image) =>
                 image.stream === action.stream &&
-                (!pageId || (image.pageId === pageId && image.kind === "frame")) &&
+                (!pageId || image.pageId === pageId) &&
                 image.timestamp <= point.timestamp,
             )
             .sort((a, b) => a.timestamp - b.timestamp)
@@ -728,9 +751,7 @@ customElements.define(
       const action = this.#trace.actions.find((action) => action.id === id);
       if (!action) return;
       const phases = this.#phases(action);
-      const at = (phase) =>
-        (action.phases[phase]?.timestamp ??
-          (phase === "end" ? action.endTime : action.startTime)) - this.#bounds().start;
+      const at = (phase) => this.#phaseTime(action, phase) - this.#bounds().start;
       // An input's Action checkpoint shows its target just before dispatch.
       // A call's mark picks the checkpoint nearest the press.
       const phase =
@@ -786,9 +807,12 @@ customElements.define(
         this.#playFrame = 0;
         if (!this.#playing) return;
         const now = performance.now();
-        // The clock waits while a capture prepares, so the playhead and its
-        // readout never run ahead of the image on screen.
-        if (this.#pendingPicture) {
+        // Like a video player, playback keeps time and skips images that cannot
+        // be shown in time, but the clock waits once the image on screen falls
+        // more than MAX_LAG behind it. The readout names that image's own time.
+        const shown = this.#shownImage();
+        const waiting = this.#pendingPicture || this.#playbackWanted;
+        if (waiting && shown && time - shown.timestamp > MAX_LAG) {
           previousTick = now;
           this.#playFrame = nextAnimation(tick);
           return;
@@ -869,6 +893,7 @@ customElements.define(
       this.#boundsByScope.clear();
       this.#itemsCache = null;
       this.#origins = this.#trace ? streamOrigins(this.#trace) : new Map();
+      this.#imageById = new Map(this.#trace?.images.map((image) => [image.id, image]));
       // Every recording/page scope reserves its complete captured extent, including
       // earlier empty stops. Viewer fits each original inside this stable canvas.
       this.#imageSizes = new Map();
@@ -894,11 +919,7 @@ customElements.define(
         this.#selected = null;
         this.#cursorTime = null;
         this.#chosenBookmark = null;
-        setChildren(this.imageViewport, [
-          this.missingImage,
-          this.inputBadge,
-          this.inputPoint,
-        ]);
+        setChildren(this.imageViewport, [this.missingImage, ...this.#overlays()]);
       }
       if (this.#trace) {
         const choices = this.#scopeChoices();
@@ -1134,16 +1155,13 @@ customElements.define(
       const target = this.#destination(member.target)
         ? this.#targets.get(member.target)
         : null;
-      const capture = target?.image ?? target?.action?.phases[target.phase];
       return {
         ...member,
         scope: target?.scope,
         stream: target?.image?.stream ?? target?.action?.stream,
-        time:
-          capture?.timestamp ??
-          (target?.phase === "end"
-            ? target?.action?.endTime
-            : target?.action?.startTime),
+        time: target?.image
+          ? target.image.timestamp
+          : target && this.#phaseTime(target.action, target.phase),
       };
     }
     #scopeMoments() {
@@ -1224,7 +1242,74 @@ customElements.define(
       this.#pendingPicture = null;
     }
 
+    #overlays() {
+      return [this.playbackImage, this.inputBadge, this.inputPoint];
+    }
+
+    // The image on screen: the playback image while it shows, else the Viewer's.
+    #shownImage() {
+      return this.#imageById.get(this.#playbackId ?? this.#pictureId) ?? null;
+    }
+
+    // Show a capture at once during playback by drawing it over the committed
+    // Viewer image, in the same place and scale. Captures of another size or page
+    // wait for the Viewer, as do all of them once playback stops.
+    #playbackId = null;
+    #playbackWanted = null;
+    #playFast(image) {
+      const committed = this.#imageById.get(this.#pictureId);
+      if (
+        !this.#playing ||
+        !this.#picture?.viewed ||
+        this.#pendingPicture ||
+        committed?.pageId !== image.pageId ||
+        committed.width !== image.width ||
+        committed.height !== image.height
+      )
+        return false;
+      if (image.id === this.#pictureId) {
+        this.#hidePlayback();
+        return true;
+      }
+      if ((this.#playbackWanted ?? this.#playbackId) === image.id) return true;
+      this.#playbackWanted = image.id;
+      const loader = new globalThis.Image();
+      loader.src = scopedMediaUrl(image.url);
+      loader.decode().then(
+        () => {
+          if (this.#playbackWanted !== image.id || !this.#picture?.viewed) return;
+          this.#playbackWanted = null;
+          const raster = this.#picture.image.getBoundingClientRect();
+          const host = this.imageViewport.getBoundingClientRect();
+          const layer = this.playbackImage;
+          for (const [name, value] of [
+            ["left", raster.left - host.left],
+            ["top", raster.top - host.top],
+            ["width", raster.width],
+            ["height", raster.height],
+          ])
+            if (layer.style[name] !== layoutPx(value))
+              layer.style[name] = layoutPx(value);
+          keeps(layer, "src", loader.src);
+          keepsHidden(layer, false);
+          this.#playbackId = image.id;
+          this.#draw();
+        },
+        () => {
+          if (this.#playbackWanted === image.id) this.#playbackWanted = null;
+        },
+      );
+      return true;
+    }
+    #hidePlayback() {
+      this.#playbackWanted = null;
+      if (this.#playbackId === null) return;
+      this.#playbackId = null;
+      keepsHidden(this.playbackImage, true);
+    }
+
     #closePicture() {
+      this.#hidePlayback();
       this.#cancelPicture();
       keeps(this.imageHost, "aria-busy", null);
       this.#picture?.destroy();
@@ -1236,19 +1321,17 @@ customElements.define(
     #drawPicture(image) {
       if (!image) {
         this.#closePicture();
-        setChildren(this.imageViewport, [
-          this.missingImage,
-          this.inputBadge,
-          this.inputPoint,
-        ]);
+        setChildren(this.imageViewport, [this.missingImage, ...this.#overlays()]);
         return;
       }
+      if (this.#playFast(image)) return;
       if (this.#pendingPicture?.image.id !== image.id) this.#cancelPicture();
       const point = this.#point();
       const preview =
         image.timestamp > point.timestamp &&
         !point.action?.phases[point.phase]?.imageId;
       if (this.#pictureId === image.id) {
+        this.#hidePlayback();
         this.#picturePreview = preview;
         if (this.#pictureScope !== this.#scope && this.#picture?.viewed) {
           this.#applyPictureView(this.#picture, image);
@@ -1276,8 +1359,7 @@ customElements.define(
         this.missingImage,
         ...(this.#pictureId ? [this.#images.get(this.#pictureId)] : []),
         figure,
-        this.inputBadge,
-        this.inputPoint,
+        ...this.#overlays(),
       ]);
       if (!canvas.clientWidth) {
         keeps(this.imageHost, "aria-busy", null);
@@ -1301,6 +1383,7 @@ customElements.define(
           this.#picturePreview = preview;
           this.#pictureScope = pending.scope;
           this.#pendingPicture = null;
+          this.#hidePlayback();
           keeps(this.imageHost, "aria-busy", null);
           figure.classList.remove("lf-trace-image-pending");
           figure.inert = false;
@@ -1309,8 +1392,7 @@ customElements.define(
           setChildren(this.imageViewport, [
             this.missingImage,
             figure,
-            this.inputBadge,
-            this.inputPoint,
+            ...this.#overlays(),
           ]);
           if (hadFocus) focusDestination(canvas, "return");
           retired?.destroy();
@@ -1399,7 +1481,10 @@ customElements.define(
     }
 
     #inputLabel(action) {
-      if (action.input.key) return `Press ${action.input.key}`;
+      const key = action.input.key;
+      if (key && action.method === "keyboardDown") return `Key down ${key}`;
+      if (key && action.method === "keyboardUp") return `Key up ${key}`;
+      if (key) return `Press ${key}`;
       return (
         INPUT_NAMES[action.method] ??
         action.method[0].toUpperCase() + action.method.slice(1)
@@ -1430,7 +1515,11 @@ customElements.define(
     #inputRelation(image, action) {
       if (image.callId === action.callId && INPUT_PHASES[image.phase])
         return INPUT_PHASES[image.phase];
-      if (image.timestamp < action.startTime) return "before";
+      // Before the Action checkpoint the input has not been sent; after it, and
+      // until the call ends, it may have been.
+      const send = action.phases.action ? this.#phaseTime(action, "action") : null;
+      if (image.timestamp < (send ?? action.startTime)) return "before";
+      if (send !== null && Math.abs(image.timestamp - send) < 0.5) return "next";
       if (image.timestamp > (action.endTime ?? action.startTime)) return "after";
       return "during";
     }
@@ -1448,7 +1537,7 @@ customElements.define(
       // intermediate pose synchronously; draw only after that view is complete.
       if (this.#applyingPictureView) return;
       const action = this.#currentInput();
-      const image = this.#trace?.images.find((image) => image.id === this.#pictureId);
+      const image = this.#shownImage();
       const imageReady = image && this.#picture?.viewed;
       keepsHidden(this.inputBadge, !action || !imageReady);
       const relation = action && image ? this.#inputRelation(image, action) : null;
@@ -1521,12 +1610,18 @@ customElements.define(
           active: inside(action),
         };
         if (action.input) {
-          const send = action.phases.action;
+          const send = action.phases.action ? this.#phaseTime(action, "action") : null;
           inputs.push({
             ...mark,
-            send: send ? send.timestamp - origin : null,
-            label: action.input.key ?? this.#inputLabel(action),
-            title: `${this.#inputLabel(action)} · call ${span(action)}${send ? ` · Action checkpoint ${this.#time(send.timestamp, action.stream)}, just before it is sent` : ""}`,
+            send: send === null ? null : send - origin,
+            label: !action.input.key
+              ? this.#inputLabel(action)
+              : action.method === "keyboardDown"
+                ? `${action.input.key}↓`
+                : action.method === "keyboardUp"
+                  ? `${action.input.key}↑`
+                  : action.input.key,
+            title: `${this.#inputLabel(action)} · call ${span(action)}${send === null ? "" : ` · Action checkpoint ${this.#time(send, action.stream)}, just before it is sent`}`,
           });
         } else
           calls.push({
@@ -1598,7 +1693,7 @@ customElements.define(
       // When the image on screen was taken at another time than the playhead,
       // say so: between captures, at a checkpoint without its own image, or
       // while the next image prepares.
-      const shown = this.#trace?.images.find((image) => image.id === this.#pictureId);
+      const shown = this.#shownImage();
       const selection =
         shown && playhead !== null && Math.abs(playhead - shown.timestamp) >= 0.5
           ? `Image from ${this.#time(shown.timestamp, shown.stream)} · ${description}`
@@ -1776,13 +1871,13 @@ customElements.define(
               <div class="lf-trace-stage">
                 <div class="lf-trace-toolbar">
                   <div class="lf-trace-transport">
-                    ${transport("lf-trace-first", "Start", "start", q || !items.length)}
+                    ${transport("lf-trace-first", "Start", "start", q)}
                     <button
                       ${offered("lf-trace-transport-button lf-trace-play")}
                       aria-label=${playLabel}
                       title=${playLabel}
                       data-playing=${this.#playing ? "" : nothing}
-                      ?disabled=${q || items.length < 2}
+                      ?disabled=${q}
                       @pointerdown=${(event) => {
                         this.#pressedPlay = {
                           pointerId: event.pointerId,
@@ -1849,7 +1944,7 @@ customElements.define(
                   tabindex=${q ? -1 : 0}
                   role="group"
                   aria-label="Recording timeline"
-                  aria-description="Left and Right step through captures. Home and End reach the first and last capture."
+                  aria-description="Left and Right step through captures, Shift with Left and Right through inputs and moments, Home and End to the first and last capture. Space plays and pauses."
                   ?hidden=${!trace || !items.length}
                 ></div>
                 <div class="lf-trace-images">
@@ -2083,11 +2178,10 @@ customElements.define(
             : ["actions", actionIndex],
         );
       }
+      // Comments name the image on screen, during playback too.
       if (this.#picture?.viewed) {
-        const committed = this.#trace.images.find(
-          (item) => item.id === this.#pictureId,
-        );
-        const displayed = this.#picture.image;
+        const committed = this.#shownImage();
+        const displayed = this.#playbackId ? this.playbackImage : this.#picture.image;
         const label = this.#targets.get(this.#id("image", committed.id)).label;
         keeps(displayed, "width", String(committed.width));
         keeps(displayed, "height", String(committed.height));

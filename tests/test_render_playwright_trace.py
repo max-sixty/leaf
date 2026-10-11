@@ -36,6 +36,17 @@ def test_trace_viewer_stays_idle_after_initial_presentation(browser, serve):
     assert at_rest(still_page(browser, url)) == []
 
 
+def stop_time(record, checkpoint):
+    """A checkpoint's stop: its image's capture time, or else its DOM snapshot's."""
+    if checkpoint.get("imageId"):
+        return next(
+            image["timestamp"]
+            for image in record["images"]
+            if image["id"] == checkpoint["imageId"]
+        )
+    return checkpoint["timestamp"]
+
+
 def navigate_at(timeline, index):
     """Walk real keyboard routes to the ordered native checkpoint or frame."""
     timeline.focus()
@@ -155,7 +166,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     )
     checkpoints = sorted(
         [
-            (checkpoint["timestamp"], candidate, name)
+            (stop_time(record, checkpoint), candidate, name)
             for candidate in record["actions"]
             for name, checkpoint in candidate["phases"].items()
             if checkpoint["pageId"] == first_page["id"]
@@ -218,7 +229,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         f"After checkpoint · {elapsed}"
     )
     expect(widget.locator(".lf-trace-phase")).to_have_text(
-        f"After checkpoint · {(phase['timestamp'] - origin) / 1000:.3f} s"
+        f"After checkpoint · {(stop_time(record, phase) - origin) / 1000:.3f} s"
     )
     expect(widget.locator(".lf-trace-clock")).to_have_text(
         "Times are elapsed since the recording started"
@@ -249,7 +260,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     expect(page_source).to_have_attribute("aria-checked", "true")
     expect(widget.locator(f'[data-lf-datum="{target}"]')).to_be_visible()
     expect(widget.locator(".lf-trace-phase")).to_have_text(
-        f"After checkpoint · {(phase['timestamp'] - origin) / 1000:.3f} s"
+        f"After checkpoint · {(stop_time(record, phase) - origin) / 1000:.3f} s"
     )
     user.keyboard.press("Escape")
 
@@ -801,11 +812,11 @@ def test_trace_bookmarks_jump_to_exact_evidence_in_page_flow(browser, serve):
     origin = record["streams"][0]["monotonicTime"]
     expect(widget.locator(".lf-trace-action")).to_have_text(actions[0]["title"])
     expect(widget.locator(".lf-trace-phase")).to_have_text(
-        f"After checkpoint · {(actions[0]['phases']['after']['timestamp'] - origin) / 1000:.3f} s"
+        f"After checkpoint · {(stop_time(record, actions[0]['phases']['after']) - origin) / 1000:.3f} s"
     )
     for index, label in enumerate(("Documentation reviewed", "API reviewed")):
         action = actions[index]
-        elapsed = (action["phases"]["after"]["timestamp"] - origin) / 1000
+        elapsed = (stop_time(record, action["phases"]["after"]) - origin) / 1000
         if index:
             button = widget.locator(".lf-trace-bookmarks").get_by_role(
                 "button", name=re.compile(re.escape(label))
@@ -878,7 +889,7 @@ def test_trace_bookmarks_jump_to_exact_evidence_in_page_flow(browser, serve):
     phone.locator(".lf-trace-bookmarks").get_by_role(
         "button", name="API reviewed"
     ).tap()
-    api_elapsed = (actions[-1]["phases"]["after"]["timestamp"] - origin) / 1000
+    api_elapsed = (stop_time(record, actions[-1]["phases"]["after"]) - origin) / 1000
     expect(phone.locator(".lf-trace-phase")).to_have_text(
         f"After checkpoint · {api_elapsed:.3f} s"
     )
@@ -891,7 +902,7 @@ def test_trace_bookmarks_jump_to_exact_evidence_in_page_flow(browser, serve):
     # A short window keeps a usable capture and lets the document scroll,
     # rather than crushing the image to force every control into one screen.
     expect(phone.locator(".lf-trace-phase")).to_have_text(
-        f"After checkpoint · {(actions[0]['phases']['after']['timestamp'] - origin) / 1000:.3f} s"
+        f"After checkpoint · {(stop_time(record, actions[0]['phases']['after']) - origin) / 1000:.3f} s"
     )
     tools = phone.locator(".lf-trace-image-tools")
     tools.scroll_into_view_if_needed()
@@ -952,7 +963,7 @@ def test_trace_comparison_pairs_authored_results_across_delayed_sources(browser,
     expect(after.locator(".lf-trace-position")).to_be_visible()
     origin = record["streams"][0]["monotonicTime"]
     expected_positions = [
-        f"{(action['phases']['after']['timestamp'] - origin) / 1000:.3f} s"
+        f"{(stop_time(record, action['phases']['after']) - origin) / 1000:.3f} s"
         for action in actions[:2]
     ]
     assert expected_positions[0] != expected_positions[1]
@@ -1893,7 +1904,7 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
     archive = record["archive"]["sha256"]
     page = record["pages"][0]
     checkpoints = [
-        (f"trace-{archive}-phase-{action['id']}-{name}", phase["timestamp"])
+        (f"trace-{archive}-phase-{action['id']}-{name}", stop_time(record, phase))
         for action in record["actions"]
         for name, phase in action["phases"].items()
         if phase["pageId"] == page["id"]
@@ -2163,8 +2174,8 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     pins = widget.locator(".lf-trace-moment-pin")
     expect(pins).to_have_text(["1 2", "3"])
     shared, solo = pins.nth(0), pins.nth(1)
-    docs_time = (clicks[0]["phases"]["after"]["timestamp"] - origin) / 1000
-    api_time = (clicks[1]["phases"]["after"]["timestamp"] - origin) / 1000
+    docs_time = (stop_time(record, clicks[0]["phases"]["after"]) - origin) / 1000
+    api_time = (stop_time(record, clicks[1]["phases"]["after"]) - origin) / 1000
     tip = widget.locator(".lf-trace-tip")
     for color_scheme in ("light", "dark"):
         user.emulate_media(color_scheme=color_scheme)
@@ -2346,7 +2357,7 @@ def test_hidden_recording_prepares_when_shown_without_blocking_page(browser, ser
     user = open_page(browser, url)
     widget = user.locator("#journey")
     expect(widget).to_be_hidden()
-    expect(widget.locator(".vis-timeline, .viewer-container")).to_have_count(0)
+    expect(widget.locator(".viewer-container")).to_have_count(0)
     toggle = user.get_by_role("checkbox", name="Show recording", exact=True)
     toggle.check()
     wait_until_ready(user)
@@ -2565,7 +2576,7 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
     # The After checkpoint names the input it follows rather than suggesting a
     # click is happening; the Input checkpoint precedes its dispatch.
     assert (
-        pointer["phases"]["after"]["timestamp"]
+        stop_time(record, pointer["phases"]["after"])
         > pointer["phases"]["action"]["timestamp"]
     )
     expect(widget.locator(".lf-trace-input-badge")).to_have_text(
@@ -2633,9 +2644,6 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
     expect(widget.locator(".lf-trace-caption")).to_contain_text(
         "First capture after this point"
     )
-    expect(
-        widget.get_by_role("checkbox", name="Show intermediate frames")
-    ).to_have_count(0)
 
 
 def test_trace_play_press_belongs_to_its_pointer_click(browser, serve):
@@ -2874,3 +2882,72 @@ def test_trace_render_gate_restores_the_zoomed_time_window(browser, serve):
     # Marks outside the zoomed window are drawing, not controls hidden by a clip.
     assert evaluate_probe(user, "reachabilityReading")["clipped"] == []
     assert time_window() == before
+
+
+def test_trace_images_stand_at_their_own_capture_times(browser, serve):
+    """The image on screen is never captured after the playhead, and calls that
+    overlap keep their own rows through every redraw."""
+    source = ROOT / "examples/developer/playwright-trace-gallery.html"
+    record = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]
+    # Make the context's first call overlap the next one.
+    calls = sorted(
+        (action for action in record["actions"] if not action["input"]),
+        key=lambda action: action["startTime"],
+    )
+    calls[0]["endTime"] = calls[1]["startTime"] + 100
+    media = {
+        image["url"]: (example_media() / Path(image["url"]).name).read_bytes()
+        for image in record["images"]
+    }
+    url = serve(
+        leaf_page(
+            "Capture times",
+            '<h1>Capture times</h1><lf-trace id="journey" source="timed-trace"></lf-trace>',
+            layout="wide",
+        ),
+        packages=("playwright",),
+        media=media,
+    )
+    data_model.cmd_data_set(serve.page_dir, "timed-trace", record)
+    user = open_page(browser, url)
+    resized(user, 1280, 900)
+    widget = user.locator("#journey")
+    timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
+    position = widget.locator(".lf-trace-position")
+    selection = widget.locator(".lf-trace-selection")
+    rows = "nodes => nodes.map(node => Math.round(node.getBoundingClientRect().top))"
+    bars = widget.locator(".lf-trace-call-bar")
+    first_rows = bars.evaluate_all(rows)
+    assert len(set(first_rows)) == 2, first_rows
+    # Step through every stop: a stop shows the image captured at its time or the
+    # latest one before it, never a later one.
+    timeline.focus()
+    timeline.press("Home")
+    for _ in range(40):
+        rendered(user)
+        shown = re.match(r"Image from ([0-9.]+) s", selection.inner_text())
+        at = float(position.inner_text().removesuffix(" s"))
+        preview = (
+            "First capture after this point"
+            in widget.locator(".lf-trace-caption").inner_text()
+        )
+        if shown and not preview:
+            assert float(shown[1]) <= at, (shown[1], at)
+        before = position.inner_text()
+        timeline.press("ArrowRight")
+        if position.inner_text() == before:
+            break
+    assert bars.evaluate_all(rows) == first_rows, "Rows hold through redraws"
+    # Scrubbing anywhere shows the latest image at or before the pointer.
+    ruler = widget.locator(".lf-trace-ruler").bounding_box()
+    for fraction in (0.2, 0.45, 0.6, 0.75, 0.9):
+        user.mouse.click(ruler["x"] + ruler["width"] * fraction, ruler["y"] + 8)
+        rendered(user)
+        shown = re.match(r"Image from ([0-9.]+) s", selection.inner_text())
+        at = float(position.inner_text().removesuffix(" s"))
+        preview = (
+            "First capture after this point"
+            in widget.locator(".lf-trace-caption").inner_text()
+        )
+        if shown and not preview:
+            assert float(shown[1]) <= at + 0.0005, (fraction, shown[1], at)

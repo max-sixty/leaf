@@ -124,7 +124,7 @@ export function replaceEntry(url, state = history.state) {
 // paint, including in browsers without the Navigation API. The Navigation listener's
 // live focus reading is replaced with the original working place after the write.
 export function prepareEntry() {
-  const key = window.navigation?.currentEntry.key;
+  const key = window.navigation?.currentEntry?.key;
   const place = readPlace();
   const offset = place.offset;
   const sourceUrl = window.location.href;
@@ -163,7 +163,8 @@ export function mountHistory({ followFragment, returnToFragment }) {
     if (event.navigationType !== "replace") {
       const live = new Set(window.navigation.entries().map((entry) => entry.key));
       for (const key of places.keys()) if (!live.has(key)) places.delete(key);
-      places.set(window.navigation.currentEntry.key, readPlace());
+      const key = window.navigation.currentEntry?.key;
+      if (key) places.set(key, readPlace());
     }
     if (event.navigationType === "traverse") {
       const handler = claimed(url) ?? returnToFragment(url);

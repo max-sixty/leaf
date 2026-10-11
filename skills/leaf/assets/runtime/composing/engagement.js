@@ -1,6 +1,5 @@
 /* User gestures and drafts that a document replacement would discard. */
 import { TEXT_BOX } from "../control-selectors.js";
-import { runtime } from "../context.js";
 import { dragHeld } from "../widget-elements.js";
 import { focused } from "../focus.js";
 import { replyCompositionHasDraft, replyDraftsHold } from "../thread/replies.js";
@@ -11,7 +10,7 @@ import { composerOpen } from "./selection.js";
 
 export function createEngagement({ hasPending, fabAnchorAt, targetPickerOpen }) {
   function unaccountedGesture() {
-    return runtime.undoing || hasPending() || dragHeld();
+    return hasPending() || dragHeld();
   }
 
   // Admission supplies the install's native-node retention proof. A selected passage

@@ -1438,10 +1438,10 @@ def neighbour_page(directory, title=None, dead=False, published=True, port=59999
     initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(directory)])
     assert initialized.exit_code == 0, initialized.output
     write_revision(directory, 1, html.encode())
-    # A neighbour the agent has finished with.
+    # A neighbour waiting on its user: a closed one is not listed (`other_leaves`).
     cleanup_model.write_json(
         directory / "status.json",
-        {"state": "idle", "detail": "", "ts": None},
+        {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
     )
     if published:
         append_carried_log_record(

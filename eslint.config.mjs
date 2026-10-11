@@ -1176,46 +1176,10 @@ export default [
     },
   },
   {
-    files: ["skills/leaf/scripts/leaf/render-checks/widgets.js"],
-    rules: {
-      // This core probe validates the visual-part registry itself. Keep that diagnostic
-      // out of the package facade while leaving every other probe on the public API.
-      "no-restricted-imports": [
-        "error",
-        {
-          paths: [
-            {
-              name: "/leaf.js",
-              message: "Import Leaf capabilities from /runtime/widget-api.js.",
-            },
-          ],
-          patterns: [
-            {
-              regex: "^/runtime/(?!widget-api\\.js$|visual-parts\\.js$)",
-              message: "Behavior and probe modules use /runtime/widget-api.js.",
-            },
-            {
-              regex: "^\\.{1,2}/(?:.*/)?runtime/",
-              message: "Behavior and probe modules use /runtime/widget-api.js.",
-            },
-            {
-              regex: "^\\.{1,2}/(?:.*/)?(?:leaf|widget-api)\\.js$",
-              message: "Do not create a relative edge to the entry or public facade.",
-            },
-          ],
-        },
-      ],
-    },
-  },
-  {
-    files: [
-      "skills/leaf/scripts/leaf/render-checks/replay.js",
-      "skills/leaf/scripts/leaf/render-checks/runtime.js",
-      "skills/leaf/scripts/leaf/render-checks/widgets.js",
-    ],
+    files: ["skills/leaf/scripts/leaf/render-checks/*.js"],
     rules: {
       // Render checks use their diagnostic adapter alongside the public widget API.
-      // Validation and visual-part owners remain private to the kernel.
+      // Every other runtime owner remains private to the kernel.
       "no-restricted-imports": [
         "error",
         {

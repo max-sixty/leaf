@@ -245,11 +245,7 @@ export function createQuestionView({
   // inventory: the source or unambiguous context holding where `node` stands
   // (standing-target.js). DOM containment says where focus is; it never decides whether
   // the Question belongs to that inventory.
-  const questionAt = (questions, node) =>
-    questionHolding(
-      questions.filter((question) => question.source.kind === "widget"),
-      placeOf(node),
-    );
+  const questionAt = (questions, node) => questionHolding(questions, placeOf(node));
   // The question the user is standing in: the one holding the focus, or the one a control
   // hoisted into the margin decides, or the one a thread about it holds the focus for.
   //

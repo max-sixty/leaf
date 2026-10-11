@@ -53,7 +53,7 @@ function widgetCommand(command) {
 }
 
 /** @typedef {{
- * afterEnqueue: (entry: import("./state.js").DeliveryHandle) => Promise<unknown>,
+ * afterEnqueue: (entry: import("./state.js").DeliveryHandle) => void,
  * withdraw: (event: UndoCandidate) => Promise<Event | null> | null,
  * onCollision: (attempt: string | undefined) => void,
  * }} DispatchDependencies */
@@ -81,10 +81,11 @@ export function createCommandDispatch() {
       onCollision(event.attempt);
       return null;
     }
-    return Object.freeze({ answer: entry.answer, presentation: afterEnqueue(entry) });
+    afterEnqueue(entry);
+    return entry.answer;
   };
   /** @param {PendingCommand} event */
-  const post = (event) => startPost(event)?.answer ?? Promise.resolve(null);
+  const post = (event) => startPost(event) ?? Promise.resolve(null);
   /** @param {WidgetDescriptor} descriptor @param {unknown} input */
   const dispatchWidget = (descriptor, input) => {
     const command = widgetCommand(input);
@@ -102,7 +103,7 @@ export function createCommandDispatch() {
     }
     const revision = descriptor.document.revision;
     if (revision === null || !reading.actions[command.verb]?.available) return null;
-    return startPost(actionForWidget(descriptor, command, revision))?.answer ?? null;
+    return startPost(actionForWidget(descriptor, command, revision));
   };
   return Object.freeze({
     ledger,

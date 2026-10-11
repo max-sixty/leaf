@@ -118,6 +118,8 @@ A behavior module follows these rules:
   button type defaults to `button`. A native input's `type` binding precedes
   `offered` so its press marker reads that type. Bind values and handlers normally, and use
   `repeat(items, identity, template)` to retain editable controls under their identities.
+  `said(true)`, `said(false)`, or `said("echo")` marks a template element's words with
+  the same passage and print meaning as `relabel`; Lit owns the element's content.
 - Read UI based on element geometry synchronously from `PRESENTATION` for its
   first paint, then through normal layout signals. Reconcile UI derived from
   authored structure at `PAGE_INTERFACE`, at startup and each in-place revision
@@ -140,6 +142,9 @@ A behavior module follows these rules:
 - Register `commands()` at upgrade. Use `DISCLOSE(el)` for folding controls,
   whose commands the runtime owns. Check `quoted()` before wiring input and
   controller command availability before a semantic widget’s optimistic gesture.
+  In templates, `commandsOn(title, rows, options)` attaches that same command scope
+  to its element. It reads the current declaration on each render and withdraws its
+  attachment when the directive leaves; projected commands on the element remain.
 
 Each helper's header under `runtime/` explains its contract.
 

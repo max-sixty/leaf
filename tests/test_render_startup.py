@@ -1426,7 +1426,8 @@ def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
 
           // Hidden until it is removed below.
           previewHost.hidden = true;
-          const hiddenBounds = leaf.shownRegionBounds(previewId);
+          const { shownRegionBounds } = await window.__lfRuntimeImport('/runtime/check-api.js');
+          const hiddenBounds = shownRegionBounds(previewId);
 
           let refused;
           try {
@@ -7060,9 +7061,12 @@ def test_user_view_context_waits_for_a_samples_viewport_allocation(browser, serv
     # one frame later a zero-wide document stands as tall as its words wrapped one per
     # line. Either axis at zero is unallocated (user-view.js).
     frame.wait_for_function(
-        """() => window.frameElement.isConnected &&
-          document.documentElement.clientWidth === 0 && visualViewport.width === 0"""
+        """() => document.documentElement.clientWidth === 0 &&
+          visualViewport.width === 0"""
     )
+    # The sample has an opaque origin, so its window.frameElement is null; the
+    # parent can still verify that the iframe itself remains connected.
+    assert element.evaluate("frame => frame.isConnected")
     # Cover the observer's 10-second heartbeat and 300ms resize quiet interval.
     page.wait_for_timeout(11_000)
     assert reports[before:] == [], "the unallocated sample sent a user view"
@@ -7078,7 +7082,7 @@ def test_user_view_context_waits_for_a_samples_viewport_allocation(browser, serv
     assert recovered["viewport"]["height"] > 0
     assert recovered["visual_viewport"]["width"] > 0
     assert recovered["visual_viewport"]["height"] > 0
-    assert frame.evaluate("() => window.frameElement.isConnected")
+    assert element.evaluate("frame => frame.isConnected")
 
 
 def test_user_view_context_follows_real_tabs_without_changing_the_page(browser, serve):

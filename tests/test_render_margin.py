@@ -2772,7 +2772,7 @@ def test_page_map_keyed_reconciliation_preserves_user_standing(browser, serve):
           window.lfKeyedMap.change();
           const current = window.lfKeyedMap.reordered.control('keep', 'map', true);
           const actions = [...current.parentElement.children]
-            .map(node => node.lfMapAction?.record?.key);
+            .map(node => node.dataset.lfMarginEntryKey);
           const words = [...document.querySelectorAll(
             '.lf-page-map-list .lf-page-map-action-label-word')]
             .map(node => node.textContent);
@@ -5109,11 +5109,11 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
             )
         ).to_be_focused()
         assert (
-            dialog.locator(".lf-page-map-action").evaluate_all(
-                """(buttons, target) => buttons
-              .filter(button => button.lfMapAction.entry.targetId === target)
-              .map(button => button.lfMapAction.record.key)""",
-                target,
+            dialog.locator(".lf-page-map-group")
+            .filter(has=page.get_by_role("heading", name=f"{target.title()} target"))
+            .locator(".lf-page-map-action")
+            .evaluate_all(
+                "buttons => buttons.map(button => button.dataset.lfMarginEntryKey)"
             )
             == action_order
         )

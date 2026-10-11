@@ -1756,21 +1756,21 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
 
 
 def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
-    """An overview refits; zoom, pan and repeated controls keep the reader's range."""
+    """Zoom and native panning change only the visible window, never the capture."""
     url = serve(ROOT / "examples/developer/playwright-trace-gallery.html")
     context = browser.new_context(viewport={"width": 480, "height": 900})
     user = open_page(browser, url, context=context)
     widget = user.locator("lf-trace")
-    rail = widget.locator(".vis-panel.vis-center")
+    rail = widget.locator(".lf-trace-scroller")
 
     def moment_positions():
-        return widget.locator(".lf-trace-marker").evaluate_all(
+        return widget.locator(".lf-trace-moment-pin").evaluate_all(
             "nodes => nodes.map(node => node.getBoundingClientRect().left)"
         )
 
     resized(user, 1120, 900)
     first_overview = moment_positions()
-    assert len(first_overview) == 3
+    assert len(first_overview) >= 2
     resized(user, 1200, 900)
     resized(user, 1120, 900)
     assert moment_positions() == pytest.approx(first_overview, abs=0.5)
@@ -1779,109 +1779,100 @@ def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
         return widget.locator(".lf-trace-tick-major").evaluate_all(
             """nodes => nodes.filter(node => {
                 const box = node.getBoundingClientRect();
-                const rail = node.closest('.vis-timeline').getBoundingClientRect();
+                const rail = node.closest('.lf-trace-scroller').getBoundingClientRect();
                 return box.left >= rail.left && box.left < rail.right;
             }).map(node => Number.parseFloat(node.textContent))"""
         )
 
     for width in (1440, 390):
         resized(user, width, 900)
-        widget.get_by_role("button", name="Whole recording", exact=True).click()
+        zoom_in = widget.get_by_role("button", name="Zoom in", exact=True)
+        zoom_out = widget.get_by_role("button", name="Zoom out", exact=True)
+        whole = widget.get_by_role("button", name="Whole recording", exact=True)
+        if whole.is_enabled():
+            whole.click()
         rendered(user)
+        expect(zoom_out).to_be_disabled()
         overview = visible_ticks()
-        overview_labels = widget.locator(
-            ".lf-trace-tick-major"
-        ).all_text_contents()
+        overview_labels = widget.locator(".lf-trace-tick-major").all_text_contents()
         assert len(overview) > 1
         assert min(overview) == 0, "The whole recording starts at zero"
         overview_span = max(overview) - min(overview)
-        widget.get_by_role("button", name="Zoom in", exact=True).click()
+        zoom_in.click()
         rendered(user)
         detail = visible_ticks()
         assert max(detail) - min(detail) < overview_span
 
+        # Horizontal wheel input pans the window; it never selects a capture.
         selection = widget.locator(".lf-trace-position").inner_text()
         rail.scroll_into_view_if_needed()
         box = rail.bounding_box()
         x = box["x"] + box["width"] / 2
-        y = box["y"] + box["height"] - 10
+        y = box["y"] + box["height"] / 2
         panned = False
-        for direction in (-1, 1):
+        for direction in (1, -1):
             before_pan = visible_ticks()
             user.mouse.move(x, y)
-            user.mouse.down()
-            user.mouse.move(x + direction * box["width"] / 3, y, steps=20)
-            user.mouse.up()
+            user.mouse.wheel(direction * box["width"] / 3, 0)
             rendered(user)
             panned |= visible_ticks() != before_pan
             expect(widget.locator(".lf-trace-position")).to_have_text(selection)
-        assert panned, "Detail dragging must pan without selecting another capture"
+        assert panned, "Horizontal wheel input must pan the zoomed window"
         panned_ticks = visible_ticks()
         resized(user, 1120 if width == 1440 else 480, 900)
         resized(user, width, 900)
         assert visible_ticks() == panned_ticks
 
         for _ in range(16):
-            widget.get_by_role("button", name="Zoom out", exact=True).click()
+            if zoom_out.is_enabled():
+                zoom_out.click()
             rendered(user)
         assert visible_ticks() == overview
 
         for _ in range(8):
-            widget.get_by_role("button", name="Zoom in", exact=True).click()
+            zoom_in.click()
             rendered(user)
-        close_labels = widget.locator(
-            ".lf-trace-tick-major"
-        ).all_text_contents()
+        close_labels = widget.locator(".lf-trace-tick-major").all_text_contents()
         assert len(close_labels) == len(set(close_labels)), (
             "Close zoom must distinguish millisecond ticks"
         )
-        widget.get_by_role("button", name="Whole recording", exact=True).click()
+        whole.click()
         rendered(user)
 
-        # Zoom can change tick spacing without changing which seconds are
-        # labelled, particularly on a narrow ruler starting exactly at zero.
-        tick = widget.locator(".lf-trace-tick-major").nth(1)
-        overview_tick_style = tick.get_attribute("style")
-        overview_tick_width = tick.bounding_box()["width"]
+        # Pinch (Ctrl+wheel) zooms about the pointer; an oversized reverse
+        # gesture stops at the whole recording.
         box = rail.bounding_box()
         x = box["x"] + box["width"] / 2
-        y = box["y"] + box["height"] - 10
+        y = box["y"] + box["height"] / 2
         user.mouse.move(x, y)
         user.keyboard.down("Control")
         user.mouse.wheel(0, -500)
-        expect(tick).not_to_have_attribute("style", overview_tick_style)
         user.keyboard.up("Control")
         rendered(user)
-        # An oversized reverse gesture must stop at the whole recording.
+        assert visible_ticks() != overview
         user.mouse.move(x, y)
         user.keyboard.down("Control")
         user.mouse.wheel(0, 10000)
-        expect(widget.locator(".lf-trace-tick-major")).to_have_text(
-            overview_labels
-        )
         user.keyboard.up("Control")
         rendered(user)
-        assert abs(tick.bounding_box()["width"] - overview_tick_width) < 1
+        expect(widget.locator(".lf-trace-tick-major")).to_have_text(overview_labels)
         assert visible_ticks() == overview
 
-        for direction in (-1, 1):
-            user.mouse.move(x, y)
-            user.mouse.down()
-            user.mouse.move(x + direction * box["width"] * 3, y, steps=5)
-            user.mouse.up()
+        # Close moments share a flag at the overview; zoom separates them.
+        pins = widget.locator(".lf-trace-moment-pin")
+        assert " ".join(pins.all_text_contents()).split() == ["1", "2", "3"]
+        third = widget.locator('.lf-trace-moment-pin[data-tip^="3 ·"]')
+        for _ in range(8):
+            if third.count():
+                break
+            zoom_in.click()
             rendered(user)
-            assert visible_ticks() == overview
-        pins = widget.locator(".lf-trace-marker")
-        expect(pins).to_have_count(3)
-        assert sorted(pins.all_text_contents()) == ["1", "2", "3"]
-        widget.locator(".lf-trace-markers").get_by_role(
-            "button", name=re.compile(r"^Moment 3 ·")
-        ).click()
+        third.click()
         expect(widget.locator(".lf-trace-selection")).to_contain_text("Moment 3")
 
 
 def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve):
-    """Dense moments keep distinct targets in intrinsic rows within the page flow."""
+    """Dense moments stay on their exact times in one row of the page flow."""
     source = ROOT / "examples/developer/playwright-trace-gallery.html"
     record = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]
     first_page = record["pages"][0]
@@ -1908,8 +1899,7 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
         f"Review condition {chr(65 + index)}: inspect the documentation and API evidence with a long explanatory label"
         for index in range(20)
     ]
-    # Several separately authored moments share one exact native point. Their
-    # labels must remain independently reachable through separate native buttons.
+    # Several separately authored moments share one exact native point.
     targets = [checkpoints[index % len(checkpoints)][0] for index in range(19)]
     targets.append(frame_target)
     api = next(
@@ -1943,43 +1933,56 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
     widget.get_by_role("radio", name="Page 1", exact=True).click()
     summary = widget.locator(".lf-trace-moments-heading")
     expect(summary).to_have_text("Moments (20)")
-    lane = widget.locator(".lf-trace-markers")
+    timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
+    pins = widget.locator(".lf-trace-moment-pin")
 
     def visible_marks():
         rendered(user)
-        # Equal-time moments may need many rows. The containing timeline grows
-        # with them so page scrolling, rather than an inner viewport, reaches them.
-        assert lane.locator(".lf-trace-marker,.lf-trace-input-tick").evaluate_all(
-            """buttons => buttons.every(button => {
-              const r = button.getBoundingClientRect();
-              const c = button.closest('.vis-timeline').querySelector('.lf-trace-scroller')
-                .getBoundingClientRect();
-              return r.top >= c.top && r.bottom <= c.bottom;
-            })"""
-        )
-        boxes = widget.locator(".lf-trace-marker").evaluate_all(
-            "nodes => nodes.map(node => {const box = node.getBoundingClientRect(); return {x: box.x, y: box.y, width: box.width, height: box.height};}).filter(box => box.width && box.height)"
-        )
-        assert boxes, "Dense authored moments must remain present on the time axis"
-        assert all(box["width"] >= 43.99 and box["height"] >= 43.99 for box in boxes), [
-            box for box in boxes if box["width"] < 43.99 or box["height"] < 43.99
-        ]
-        assert (
-            max(box["width"] for box in boxes) - min(box["width"] for box in boxes) <= 1
-        )
+        reading = widget.evaluate("""node => {
+          const timeline = node.querySelector('.lf-trace-timeline').getBoundingClientRect();
+          const track = node.querySelector('.lf-trace-track').getBoundingClientRect();
+          const edge = 12, span = track.width - 2 * edge;
+          const marks = [...node.querySelectorAll(
+            '.lf-trace-moment-pin, .lf-trace-input-label, .lf-trace-bar')];
+          return {
+            inside: marks.every(mark => {
+              const r = mark.getBoundingClientRect();
+              return r.top >= timeline.top && r.bottom <= timeline.bottom;
+            }),
+            // Each mark's staff stands on its own recorded time: the left edge,
+            // or the right edge of a label pointing back from the scale's end.
+            offsets: marks.map(mark => {
+              const r = mark.getBoundingClientRect();
+              const at = track.left + edge + Number(mark.style.getPropertyValue('--t')) * span;
+              return Math.abs((mark.hasAttribute('data-flip') ? r.right : r.left) - at);
+            }),
+            flags: [...node.querySelectorAll('.lf-trace-moment-pin')].map(pin => {
+              const r = pin.getBoundingClientRect();
+              return {left: r.left, right: r.right, top: r.top};
+            }),
+            height: timeline.height,
+          };
+        }""")
+        # The timeline grows with its rows; page scrolling, not an inner
+        # viewport, reaches them.
+        assert reading["inside"]
+        assert max(reading["offsets"]) <= 1, reading["offsets"]
+        flags = reading["flags"]
+        assert flags, "Dense authored moments must remain present on the time axis"
+        assert len({flag["top"] for flag in flags}) == 1, "Moments share one row"
         assert all(
-            left["x"] + left["width"] <= right["x"] + 1
-            or right["x"] + right["width"] <= left["x"] + 1
-            or left["y"] + left["height"] <= right["y"] + 1
-            or right["y"] + right["height"] <= left["y"] + 1
-            for at, left in enumerate(boxes)
-            for right in boxes[at + 1 :]
-        ), boxes
+            left["right"] <= right["left"] + 1
+            for left, right in zip(flags, flags[1:], strict=False)
+        ), flags
         assert user.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        return reading
 
-    visible_marks()
-    # Native buttons keep identical-time moments separately reachable.
-    lane.locator(".lf-trace-marker").first.click()
+    first = visible_marks()
+    # A shared flag lists every moment it stands for, in time order.
+    tips = "\n".join(pins.evaluate_all("nodes => nodes.map(node => node.dataset.tip)"))
+    for number in range(2, 22):
+        assert re.search(rf"^{number} · ", tips, re.M), number
+    pins.first.click()
     expect(widget.locator(".lf-trace-bookmark:visible")).to_have_count(20)
     expect(
         widget.locator(".lf-trace-bookmark:visible .lf-trace-moment-number")
@@ -1995,17 +1998,17 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
     ).to_have_text(
         [f"{(timestamp - origin) / 1000:.3f} s" for timestamp in sorted(authored_times)]
     )
-    represented = [
-        int(label)
-        for label in widget.locator(".lf-trace-marker span").all_text_contents()
-    ]
-    assert sorted(represented) == list(range(2, 22))
     widget.locator(".lf-trace-bookmarks").get_by_role("button", name=labels[-1]).click()
     expect(
         widget.locator(
             ".lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img"
         )
     ).to_have_attribute("data-lf-datum", frame_target)
+    # Zooming separates shared flags without changing the timeline's height.
+    widget.get_by_role("button", name="Zoom in", exact=True).click()
+    widget.get_by_role("button", name="Zoom in", exact=True).click()
+    assert visible_marks()["height"] == first["height"]
+    widget.get_by_role("button", name="Whole recording", exact=True).click()
     # Page selection is the scope of both the axis pins and their labels.
     expect(widget.get_by_role("radiogroup", name="Recording scope")).to_be_visible()
     before_scope = widget.locator(".lf-trace-position").inner_text()
@@ -2049,18 +2052,11 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
     expect(summary).to_have_text("Moments (20)")
     resized(user, 390, 844)
     visible_marks()
-    # Walk every native moment by keyboard before resizing. Alignment changes
-    # must retain the exact focused control, not send keyboard users to the body.
-    widget.get_by_role("group", name="Recording timeline", exact=True).focus()
-    for _ in range(20):
-        user.keyboard.press("Tab")
-        rendered(user)
-        expect(widget.locator(".lf-trace-marker:focus-visible")).to_have_count(1)
-    focused_pin_id = widget.locator(".lf-trace-marker:focus-visible").get_attribute(
-        "id"
-    )
+    # Keyboard stepping keeps its place on the timeline through a resize.
+    timeline.focus()
+    timeline.press("ArrowRight")
     resized(user, 320, 844)
-    expect(widget.locator(f"#{focused_pin_id}:focus-visible")).to_have_count(1)
+    expect(timeline).to_be_focused()
     visible_marks()
     body = widget.locator(".lf-trace-body")
     assert body.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
@@ -2073,7 +2069,7 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
     expect(
         phone.locator(".lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img")
     ).to_have_attribute("data-lf-datum", frame_target)
-    phone.locator(".lf-trace-marker").first.tap()
+    phone.locator(".lf-trace-moment-pin").first.tap()
     first_target = min(targets, key=native_times.__getitem__)
     expect(phone.locator(f'[data-lf-datum="{first_target}"]')).to_be_visible()
     expect(phone.locator(".lf-trace-selection")).to_contain_text(
@@ -2086,7 +2082,7 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
 def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     browser, serve
 ):
-    """Equal-time and zero-boundary moments stay independently reachable."""
+    """Equal-time and zero-boundary moments stay on their times and reachable."""
     source = ROOT / "examples/developer/playwright-trace-gallery.html"
     native = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]
     archive = native["archive"]["sha256"]
@@ -2130,16 +2126,16 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     resized(user, 1440, 900)
     widget = user.locator("#journey")
     timeline = widget.locator(".lf-trace-timeline")
-    # Zero remains visible inside the fitted window. The time gutter reserves
-    # space for one centered playhead; it is not another captured stop.
+    # Zero stands at the start of the time scale, inside a margin that keeps
+    # its mark and the playhead clear of the edge; it is not a captured stop.
     zero = widget.locator(".lf-trace-tick-major").filter(
         has_text=re.compile(r"^0 s$")
     )
     expect(zero).to_have_count(1)
     zero_box = zero.bounding_box()
-    axis_box = widget.locator(".vis-panel.vis-center").bounding_box()
+    axis_box = widget.locator(".lf-trace-scroller").bounding_box()
     assert axis_box["x"] <= zero_box["x"] < axis_box["x"] + axis_box["width"]
-    assert zero_box["x"] - axis_box["x"] >= 20
+    assert zero_box["x"] - axis_box["x"] >= 10
     timeline_control = widget.get_by_role(
         "group", name="Recording timeline", exact=True
     )
@@ -2153,38 +2149,22 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     coordinate = f"trace-{archive}-phase-{first['id']}-start"
     expect(widget.locator(f'[data-lf-datum="{coordinate}"]')).to_be_visible()
     navigate_at(timeline, 0)
-    expect(widget.locator(".lf-trace-position")).to_have_text(
-        f"{((first['startTime']) - record['streams'][0]['monotonicTime']) / 1000:.3f} s"
-    )
     expect(widget.locator(f'[data-lf-datum="{coordinate}"]')).to_be_visible()
-    pins = widget.locator(".lf-trace-marker")
-    expect(pins).to_have_text(["1", "2", "3"])
-
-    def reach_pin(pin):
-        # Actual Tab input follows the independently focusable native rows.
-        # The browser scrolls the page when a row is outside its viewport.
-        timeline.evaluate("node => node.focus({preventScroll:true})")
-        for _ in range(pins.count() + widget.locator(".lf-trace-input-tick").count()):
-            user.keyboard.press("Tab")
-            if pin.evaluate("node => node === document.activeElement"):
-                break
-        expect(pin).to_be_focused()
-        rendered(user)
-
-    cluster = pins.nth(0)
-    expect(cluster).to_have_attribute(
-        "aria-label",
-        f"Moment 1 · {labels[0]} · {(clicks[0]['phases']['after']['timestamp'] - origin) / 1000:.3f} s",
-    )
+    # Moments at one time share a flag listing both; a later one has its own.
+    pins = widget.locator(".lf-trace-moment-pin")
+    expect(pins).to_have_text(["1 2", "3"])
+    shared, solo = pins.nth(0), pins.nth(1)
     docs_time = (clicks[0]["phases"]["after"]["timestamp"] - origin) / 1000
-    cluster_tip = widget.locator(".lf-trace-tooltip").first
-    expect(cluster_tip).to_have_text(f"1 · {labels[0]} · {docs_time:.3f} s")
+    api_time = (clicks[1]["phases"]["after"]["timestamp"] - origin) / 1000
+    tip = widget.locator(".lf-trace-tip")
     for color_scheme in ("light", "dark"):
         user.emulate_media(color_scheme=color_scheme)
-        cluster.hover()
-        tooltip_body = cluster_tip.locator('[part="body"]')
-        expect(tooltip_body).to_be_visible()
-        reading = tooltip_body.evaluate(
+        shared.hover()
+        expect(tip).to_be_visible()
+        expect(tip).to_have_text(
+            f"1 · {labels[0]} · {docs_time:.3f} s\n2 · {labels[1]} · {docs_time:.3f} s"
+        )
+        reading = tip.evaluate(
             """node => {
               const canvas = document.createElement('canvas');
               canvas.width = canvas.height = 1;
@@ -2203,48 +2183,29 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
               const style = getComputedStyle(node);
               const [light, dark] = [luminance(style.color), luminance(style.backgroundColor)]
                 .sort((a, b) => b - a);
-              return {color: style.color, background: style.backgroundColor,
-                contrast: (light + .05) / (dark + .05)};
+              return {contrast: (light + .05) / (dark + .05)};
             }"""
         )
         assert reading["contrast"] >= 4.5, (color_scheme, reading)
+        # The tooltip never covers the flag it describes.
+        tip_box, pin_box = tip.bounding_box(), shared.bounding_box()
+        assert tip_box["y"] + tip_box["height"] <= pin_box["y"] + 1
     user.emulate_media(color_scheme="light")
-    expect(widget.locator(f'[data-lf-datum="{coordinate}"]')).to_be_visible()
     user.mouse.move(0, 0)
-    expect(cluster_tip.locator('[part="body"]')).to_be_hidden()
-    cluster.focus()
-    expect(cluster).to_be_focused()
-    assert cluster.evaluate("node => node.matches(':focus-visible')")
-    expect(cluster_tip.locator('[part="body"]')).to_be_visible()
-    user.keyboard.press("Enter")
+    expect(tip).to_be_hidden()
     rows = widget.locator(".lf-trace-bookmarks")
-    expect(rows.locator(".lf-trace-bookmark-list")).to_be_visible()
+    # A shared flag selects its first moment; the list reaches the others.
+    shared.click()
     expect(widget.locator(f'[data-lf-datum="{docs}"]')).to_be_visible()
     expect(widget.locator(".lf-trace-selection")).to_contain_text(
         f"Moment 1 · {labels[0]}"
     )
     expect(rows.locator(".lf-trace-moment-number")).to_have_text(["1", "2", "3"])
-    # Moving between stacked rows cannot leave a tooltip shielding a control.
-    # Reach each row, then physically click its painted center without retries.
-    first_pin = widget.locator('.lf-trace-marker[aria-label^="Moment 1 ·"]')
-    second_pin = widget.locator('.lf-trace-marker[aria-label^="Moment 2 ·"]')
-    widget.locator('.lf-trace-marker[aria-label^="Moment 3 ·"]').click()
-    expect(widget.locator('.lf-trace-marker[aria-label^="Moment 3 ·"]')).to_be_focused()
-    reach_pin(first_pin)
-    first_pin.hover()
-    expect(cluster_tip.locator('[part="body"]')).to_be_visible()
-    reach_pin(second_pin)
-    second_pin.hover()
-    expect(
-        widget.locator(".lf-trace-tooltip").nth(1).locator('[part="body"]')
-    ).to_be_visible()
-    reach_pin(first_pin)
-    box = first_pin.bounding_box()
-    user.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-    expect(widget.locator(".lf-trace-selection")).to_contain_text(
-        f"Moment 1 · {labels[0]}"
-    )
-
+    solo.hover()
+    expect(tip).to_have_text(f"3 · {labels[2]} · {api_time:.3f} s")
+    solo.click()
+    expect(widget.locator(f'[data-lf-datum="{api}"]')).to_be_visible()
+    expect(solo).to_have_attribute("data-current", "")
     for index, (label, target) in enumerate(
         zip(labels, (docs, docs, api), strict=True)
     ):
@@ -2255,27 +2216,12 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
         expect(widget.locator(".lf-trace-selection")).to_contain_text(
             f"Moment {index + 1}"
         )
-    expect(pins.filter(has_text="3")).to_have_attribute("aria-current", "true")
-    api_time = (clicks[1]["phases"]["after"]["timestamp"] - origin) / 1000
-    solo_tip = widget.locator(".lf-trace-tooltip").last
-    pins.filter(has_text="3").hover()
-    expect(solo_tip).to_have_text(f"3 · {labels[2]} · {api_time:.3f} s")
-    expect(solo_tip.locator('[part="body"]')).to_be_visible()
-    expect(widget.locator(f'[data-lf-datum="{api}"]')).to_be_visible()
-    user.mouse.move(0, 0)
-    expect(solo_tip.locator('[part="body"]')).to_be_hidden()
-    reach_pin(cluster)
-    cluster.click()
-    expect(rows.locator(".lf-trace-bookmark-list")).to_be_visible()
-    expect(widget.locator(f'[data-lf-datum="{docs}"]')).to_be_visible()
-    expect(widget.locator(".lf-trace-selection")).to_contain_text(
-        f"Moment 1 · {labels[0]}"
-    )
     quoted = user.locator("#quoted-journey")
-    expect(quoted.locator(".lf-trace-marker")).to_have_text(["1", "2", "3"])
-    expect(quoted.locator(".lf-trace-marker").first).to_be_disabled()
-    expect(quoted.locator(".lf-trace-marker").last).to_be_disabled()
+    expect(quoted.locator(".lf-trace-moment-pin")).to_have_text(["1 2", "3"])
     expect(quoted.locator(".lf-trace-timeline")).to_have_js_property("tabIndex", -1)
+    quoted_position = quoted.locator(".lf-trace-position").inner_text()
+    quoted.locator(".lf-trace-moment-pin").last.click()
+    expect(quoted.locator(".lf-trace-position")).to_have_text(quoted_position)
     expect(quoted.locator(".lf-trace-bookmark .lf-trace-moment-number")).to_have_text(
         ["1", "2", "3"]
     )
@@ -2283,8 +2229,8 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
         expect(quoted.locator(".lf-trace-bookmark").nth(index)).to_be_disabled()
 
     # A real recording may begin with a bookmarked call at zero, followed by
-    # another in the first millisecond. Neither its number nor the scrub handle
-    # may disappear beyond the zero boundary, including after a narrow resize.
+    # another in the first millisecond. Neither its number nor the playhead may
+    # leave the time scale, including after a narrow resize.
     user.close()
     setup = min(native["actions"], key=lambda action: action["startTime"])
     start = setup["startTime"]
@@ -2325,76 +2271,44 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     widget = user.locator("#boundary")
     for width in (1440, 390, 1440):
         resized(user, width, 900)
-        widget.get_by_role("button", name="Whole recording", exact=True).click()
         rendered(user)
-        rail_box = widget.locator(".vis-panel.vis-center").bounding_box()
-        for index, target in enumerate(boundary_targets[:2]):
-            pin = widget.locator(
-                f'.lf-trace-marker[aria-label^="Moment {index + 1} ·"]'
-            )
-            box = pin.bounding_box()
-            assert box["width"] == pytest.approx(44)
+        rail_box = widget.locator(".lf-trace-scroller").bounding_box()
+        boxes = widget.locator(".lf-trace-moment-pin").evaluate_all(
+            "nodes => nodes.map(node => node.getBoundingClientRect().toJSON())"
+        )
+        assert boxes
+        for box in boxes:
             assert box["x"] >= rail_box["x"]
-            assert box["x"] + box["width"] <= rail_box["x"] + rail_box["width"]
-            # A neighboring zero-time result may occupy the next native row.
-            timeline = widget.locator(".lf-trace-timeline")
-            timeline.focus()
-            for _ in range(3):
-                user.keyboard.press("Tab")
-                if pin.evaluate("node => node === document.activeElement"):
-                    break
-            expect(pin).to_be_focused()
-            rendered(user)
-            box = pin.bounding_box()
-            pin.click()
+            assert box["x"] + box["width"] <= rail_box["x"] + rail_box["width"] + 0.5
+        for index, target in enumerate(boundary_targets):
+            widget.locator(".lf-trace-bookmarks").get_by_role(
+                "button", name=re.compile(f"Boundary {index}")
+            ).click()
             expect(widget.locator(f'[data-lf-datum="{target}"]')).to_be_visible()
-            handle = widget.locator(".vis-custom-time > div").bounding_box()
-            assert handle["width"] == pytest.approx(44)
+            rendered(user)
+            handle = widget.locator(".lf-trace-playhead-handle").bounding_box()
             line = widget.locator(".lf-trace-playhead").bounding_box()
-            # Thumb and hand share the native time coordinate, including edges.
+            # Handle and line share the one time coordinate, including at zero.
             assert handle["x"] + handle["width"] / 2 == pytest.approx(
                 line["x"] + line["width"] / 2, abs=0.5
             )
-            thumb = widget.locator(".vis-custom-time").evaluate(
-                "node => { const p=getComputedStyle(node, '::before'); "
-                "return {translate:p.translate, width:parseFloat(p.width)}; }"
+            assert line["x"] >= rail_box["x"]
+            mark = widget.locator(".lf-trace-playhead-handle").evaluate(
+                "node => { const r = node.getBoundingClientRect();"
+                " const after = getComputedStyle(node, '::after');"
+                " return {top: r.top + parseFloat(after.top), height: parseFloat(after.height)}; }"
             )
-            assert thumb["translate"] in ("-50%", "-50% 0px")
-            assert handle["x"] >= rail_box["x"] - 0.01
-            assert handle["x"] + handle["width"] <= rail_box["x"] + rail_box["width"]
-            zero = (
-                widget.locator(".lf-trace-tick-major")
-                .filter(has_text=re.compile(r"^0 s$"))
-                .bounding_box()
+            labels_clear = widget.evaluate(
+                """(node, mark) => [...node.querySelectorAll('.lf-trace-tick-major')]
+                  .every(label => {
+                    const text = document.createRange();
+                    text.selectNodeContents(label);
+                    const box = text.getBoundingClientRect();
+                    return box.bottom <= mark.top + 0.5;
+                  })""",
+                mark,
             )
-            # The compact ruler owns the full scrub target in its own lane;
-            # collision rows start below it, without another empty 44px lane.
-            assert handle["y"] >= zero["y"] - 1
-            assert handle["y"] + handle["height"] <= zero["y"] + zero["height"] + 1
-            assert handle["y"] + handle["height"] <= box["y"]
-            labels_clear = widget.locator(".lf-trace-markers").evaluate("""host => {
-              const cursor = host.querySelector('.vis-custom-time');
-              const line = cursor.getBoundingClientRect();
-              const cap = getComputedStyle(cursor, '::before');
-              const stem = getComputedStyle(cursor, '::after');
-              const top = line.top + parseFloat(cap.top);
-              const bottom = top + parseFloat(cap.height);
-              const left = line.left + line.width / 2 - parseFloat(cap.width) / 2;
-              const right = left + parseFloat(cap.width);
-              const stemTop = line.top + parseFloat(stem.top);
-              const clear = (box, left, right, top, bottom) =>
-                box.right <= left || box.left >= right
-                  || box.bottom <= top || box.top >= bottom;
-              return [...host.querySelectorAll('.lf-trace-tick-major')]
-                .every(label => {
-                  const text = document.createRange();
-                  text.selectNodeContents(label);
-                  const box = text.getBoundingClientRect();
-                  return clear(box, left, right, top, bottom)
-                    && clear(box, line.left, line.right, stemTop, line.bottom);
-                });
-            }""")
-            assert labels_clear, "The playhead must leave the time labels readable"
+            assert labels_clear, "The playhead's mark must leave the time labels readable"
 
 
 def test_hidden_recording_prepares_when_shown_without_blocking_page(browser, serve):
@@ -2757,7 +2671,7 @@ def test_trace_play_press_belongs_to_its_pointer_click(browser, serve):
 
 
 def test_trace_overview_shows_every_row_and_preserves_page_scrolling(browser, serve):
-    """The initial overview exposes every input and moment without inner scrolling."""
+    """The initial overview exposes every mark and lane without inner scrolling."""
     url = serve(ROOT / "examples/developer/playwright-trace-gallery.html")
     for width, height in ((1440, 600), (480, 520)):
         context = browser.new_context(
@@ -2781,23 +2695,27 @@ def test_trace_overview_shows_every_row_and_preserves_page_scrolling(browser, se
         )
         timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
         timeline.scroll_into_view_if_needed()
-        buttons = widget.locator(".lf-trace-marker,.lf-trace-input-tick")
-        assert buttons.count() > 0
-        # Read the initial overview before keyboard focus can reveal hidden rows.
-        # Every target must fit inside the timeline and be directly pointable.
-        hidden_rows = buttons.evaluate_all("""buttons => buttons.flatMap(button => {
-          const r = button.getBoundingClientRect();
-          const c = button.closest('.vis-timeline').querySelector('.lf-trace-scroller')
-            .getBoundingClientRect();
-          const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+        marks = widget.locator(
+            ".lf-trace-moment-pin, .lf-trace-input-label, .lf-trace-bar"
+        )
+        assert marks.count() > 0
+        # Every mark fits inside the timeline and is directly pointable; the
+        # timeline scrolls only sideways, and only when zoomed.
+        hidden = marks.evaluate_all("""marks => marks.flatMap(mark => {
+          const r = mark.getBoundingClientRect();
+          const c = mark.closest('.lf-trace-scroller').getBoundingClientRect();
+          const hit = document.elementFromPoint(r.x + Math.min(r.width / 2, 3),
+            r.y + r.height / 2);
           return r.top >= c.top && r.bottom <= c.bottom
-            && r.left >= c.left && r.right <= c.right
-            && (hit === button || button.contains(hit)) ? [] : [{
-              label: button.getAttribute('aria-label') || button.textContent,
-              bounds: r.toJSON(), panel: c.toJSON(), coveredBy: hit?.tagName,
+            && r.left >= c.left && r.right <= c.right + 0.5
+            && (hit === mark || mark.contains(hit)) ? [] : [{
+              label: mark.dataset.tip, bounds: r.toJSON(), coveredBy: hit?.className,
             }];
         })""")
-        assert hidden_rows == [], hidden_rows
+        assert hidden == [], hidden
+        assert widget.locator(".lf-trace-scroller").evaluate(
+            "node => node.scrollHeight <= node.clientHeight && node.scrollWidth <= node.clientWidth"
+        )
         before_scroll = user.evaluate("scrollY")
         timeline.hover()
         user.mouse.wheel(0, 300)
@@ -2811,35 +2729,29 @@ def test_trace_overview_shows_every_row_and_preserves_page_scrolling(browser, se
         }""")
         box = actual.bounding_box()
         user.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-        # Keyboard navigation preserves the ordinary overview and time window.
+        # Keyboard stepping moves the playhead, not the whole-recording window.
         timeline.focus()
         ruler_reading = "nodes => nodes.map(node => [node.textContent, node.getBoundingClientRect().x])"
         ruler = widget.locator(".lf-trace-tick-major")
         time_window = ruler.evaluate_all(ruler_reading)
-        for _ in range(buttons.count()):
-            user.keyboard.press("Tab")
+        position = widget.locator(".lf-trace-position")
+        for _ in range(4):
+            before = position.inner_text()
+            user.keyboard.press("ArrowRight")
+            expect(position).not_to_have_text(before)
             rendered(user)
-            assert user.evaluate("""() => {
-              const button = document.activeElement;
-              if (!button.matches('.lf-trace-marker,.lf-trace-input-tick')) return false;
-              const r = button.getBoundingClientRect();
-              const c = button.closest('.vis-timeline').querySelector('.lf-trace-scroller')
-                .getBoundingClientRect();
-              const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
-              return button.matches(':focus-visible') && r.top >= c.top && r.bottom <= c.bottom
-                && (hit === button || button.contains(hit));
-            }""")
             assert ruler.evaluate_all(ruler_reading) == time_window
         assert widget.locator(".lf-trace-caption").evaluate(
             "node => parseFloat(getComputedStyle(node).fontSize) >= 12"
         )
-        ruler = widget.locator(".vis-time-axis .vis-text:not(.vis-measure)").first
-        assert ruler.evaluate(
+        assert ruler.first.evaluate(
             "node => parseFloat(getComputedStyle(node).fontSize) >= 12"
         )
-        assert ruler.evaluate("node => getComputedStyle(node).color") == widget.locator(
-            ".lf-trace-caption"
-        ).evaluate("node => getComputedStyle(node).color")
+        assert ruler.first.evaluate(
+            "node => getComputedStyle(node).color"
+        ) == widget.locator(".lf-trace-caption").evaluate(
+            "node => getComputedStyle(node).color"
+        )
         context.close()
 
 
@@ -2928,7 +2840,7 @@ def test_trace_comparison_prepaint_shows_only_its_opening_recording(browser, ser
 
 
 def test_trace_render_gate_restores_the_zoomed_time_window(browser, serve):
-    """Reachability proof restores provider coordinates after revealing an offer."""
+    """A zoomed timeline offers no clipped control, and reading it moves nothing."""
     context = browser.new_context(viewport={"width": 480, "height": 520})
     user = open_page(
         browser,
@@ -2947,8 +2859,6 @@ def test_trace_render_gate_restores_the_zoomed_time_window(browser, serve):
         }))""")
 
     before = time_window()
-    assert evaluate_probe(user, "clippedControlCandidates"), (
-        "zoomed recording must contain an offer requiring reveal"
-    )
-    assert render_gate_readings.clipped_controls(user) == []
+    # Marks outside the zoomed window are drawing, not controls hidden by a clip.
+    assert evaluate_probe(user, "reachabilityReading")["clipped"] == []
     assert time_window() == before

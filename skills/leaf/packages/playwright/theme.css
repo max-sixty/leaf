@@ -99,8 +99,13 @@
 .lf-trace-input-bar { inset-block-end: 4px; block-size: 8px; background: var(--lf-trace-input); opacity: 0.55; }
 /* A label sits above its first call's bar, its left edge on that bar's start. */
 .lf-trace-input-label { inset-block-start: 3px; padding: 2px 4px; border-inline-start: 2px solid var(--lf-trace-input); background: var(--paper); color: var(--ink); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-sizing: border-box; cursor: pointer; }
-.lf-trace-moment-pin { inset-block-start: calc(3px + var(--row, 0) * var(--lf-trace-row-h)); block-size: calc(var(--lf-trace-row-h) - 2px); border-inline-start: 2px solid var(--ink); cursor: pointer; }
-.lf-trace-moment-flag { display: block; padding-inline: 4px; line-height: calc(var(--lf-trace-row-h) - 2px); border-radius: 0 8px 8px 0; background: var(--paper-2, var(--paper)); border: 1px solid var(--border-2); border-inline-start: 0; font-weight: 600; }
+/* A moment flag's staff stands on its time; its numbers read to the right. */
+.lf-trace-moment-pin { inset-block-start: 3px; block-size: calc(var(--lf-trace-row-h) - 2px); box-sizing: border-box; border-inline-start: 2px solid var(--ink); cursor: pointer; }
+.lf-trace-moment-flag { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding-inline: 4px; line-height: calc(var(--lf-trace-row-h) - 4px); border-radius: 0 8px 8px 0; background: var(--paper-2, var(--paper)); border: 1px solid var(--border-2); border-inline-start: 0; font-weight: 600; }
+/* Near the end of the scale a label points back from its staff. */
+:is(.lf-trace-moment-pin, .lf-trace-input-label)[data-flip] { translate: -100% 0; border-inline-start: 0; border-inline-end: 2px solid var(--ink); }
+.lf-trace-input-label[data-flip] { border-inline-end-color: var(--lf-trace-input); }
+.lf-trace-moment-pin[data-flip] .lf-trace-moment-flag { border-radius: 8px 0 0 8px; border-inline-start: 1px solid var(--border-2); border-inline-end: 0; }
 .lf-trace-capture { inset-block: 3px; inline-size: 1px; background: var(--border-2); }
 .lf-trace-capture-checkpoint { inline-size: 2px; background: var(--lf-trace-mark); }
 :is(.lf-trace-call-bar, .lf-trace-input-label, .lf-trace-moment-pin):hover { z-index: 1; filter: brightness(0.94); }
@@ -108,7 +113,7 @@
 .lf-trace-input-label[data-current] { background: var(--accent); }
 .lf-trace-call-bar[data-current] { background: var(--accent-tint); border-inline-start-color: var(--accent); color: var(--accent); }
 .lf-trace-bar[data-active] { outline: 1px solid var(--accent); outline-offset: 0; }
-.lf-trace-moment-pin[data-current] { border-inline-start-color: var(--accent); }
+.lf-trace-moment-pin[data-current] { border-inline-start-color: var(--accent); border-inline-end-color: var(--accent); }
 .lf-trace-moment-pin[data-current] .lf-trace-moment-flag { background: var(--accent-tint); color: var(--accent); border-color: var(--accent); }
 .lf-trace-capture[data-current] { inline-size: 3px; translate: -1px 0; background: var(--accent); }
 /* The playhead: one line across every lane on the shared time coordinate. */

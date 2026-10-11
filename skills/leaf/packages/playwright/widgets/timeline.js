@@ -32,6 +32,7 @@ import {
 } from "/runtime/widget-api.js";
 
 const LABEL_GAP = 6;
+const LABEL_CHROME = 12;
 const TICK_SPACING = 84;
 const STEPS = [1, 2, 5];
 const EDGE = 12;
@@ -89,7 +90,6 @@ export class RecordingTimeline {
   // time, not the pixel offset, is the reader's place.
   #start = 0;
   #labels = { input: [], moments: [] };
-  #momentRows = 1;
   #callRows = 1;
 
   /**
@@ -145,11 +145,10 @@ export class RecordingTimeline {
       );
       this.#zoom = Math.min(this.#zoom, this.#maxZoom());
     }
-    this.#draw();
-    if (changed) {
-      this.connect();
-      this.#layoutLabels(true);
-    }
+    // Labels carry each mark's selection state, so they follow every update.
+    if (!this.#host.querySelector(".lf-trace-track")) this.#draw();
+    this.#layoutLabels();
+    if (changed) this.connect();
     this.setTime(model.time);
   }
 
@@ -250,7 +249,7 @@ export class RecordingTimeline {
     const track = this.#host.querySelector(".lf-trace-track");
     if (!track) return;
     keepVar(track, "--lf-trace-zoom", String(this.#zoom));
-    this.#layoutLabels(false);
+    this.#layoutLabels();
     this.#drawRuler();
   }
   #resized() {
@@ -259,48 +258,82 @@ export class RecordingTimeline {
     // A width change rescales the track. Keep the window's left time in place.
     const resized = this.#width !== 0;
     this.#width = width;
-    this.#layoutLabels(false);
+    this.#layoutLabels();
     if (resized) this.#scrollTo(this.#timeToPx(this.#start));
     this.#drawRuler();
   }
 
   // Labels -----------------------------------------------------------------------
 
-  // Labels are laid out in pixels, so they follow zoom and width. Lane heights are
-  // fixed by the overview layout, which has the most collisions.
-  #layoutLabels(fixHeights) {
+  // Labels are laid out in pixels, so they follow zoom and width. Every lane but
+  // the calls' keeps one row, so a label never changes a lane's height.
+  #layoutLabels() {
     if (!this.#model) return;
     const track = this.#host.querySelector(".lf-trace-track");
-    if (!track || !this.scroller.clientWidth) return;
-    const font = getComputedStyle(track).font;
+    if (!track || !this.scroller.clientWidth) return this.#draw();
+    // Labels are set in the track's family at the labels' weight; their box adds
+    // padding, a border and the 2px staff.
+    const style = getComputedStyle(track);
+    const font = `600 ${style.fontSize} ${style.fontFamily}`;
     const pxPerMs = this.#pxPerMs();
-    const clusters = [];
-    for (const input of this.#model.inputs) {
-      const x = input.start * pxPerMs;
-      const last = clusters.at(-1);
-      if (last && x < last.x + last.width + LABEL_GAP) {
-        last.items.push(input);
-        last.text = this.#clusterText(last.items, font);
-        last.width = measure(last.text, font) + 2 * 4;
-      } else {
-        clusters.push({ x, items: [input], text: input.label });
-        clusters.at(-1).width = measure(input.label, font) + 2 * 4;
+    // Marks too close to label separately share one label, which starts at the
+    // first and lists them in time order; each keeps its own mark.
+    const cluster = (items) => {
+      const clusters = [];
+      for (const item of items) {
+        const x = item.at * pxPerMs;
+        let current = clusters.at(-1);
+        if (current && x < current.x + current.width + LABEL_GAP) current.items.push(item);
+        else clusters.push((current = { x, items: [item] }));
+        current.text = this.#clusterText(current.items, font);
+        current.width = measure(current.text, font) + LABEL_CHROME;
       }
-    }
-    this.#labels.input = clusters;
-    if (fixHeights) {
-      const moments = this.#model.moments.map((moment) => ({ ...moment }));
-      const badge = 26;
-      this.#momentRows = assignRows(
-        moments,
-        (moment) => moment.time * pxPerMs,
-        (moment) => moment.time * pxPerMs + badge + LABEL_GAP,
-      );
-      this.#momentRowOf = new Map(moments.map((moment) => [moment.id, moment.row]));
-    }
+      // A label that would run past the end of the time scale points back:
+      // its staff still stands on its time, at the label's right edge. One that
+      // would then meet its neighbour joins that neighbour's label instead.
+      const end = this.#span();
+      const fit = (current) => {
+        current.text = this.#clusterText(current.items, font);
+        current.width = measure(current.text, font) + LABEL_CHROME;
+        current.flip = current.x + current.width > end;
+      };
+      clusters.forEach(fit);
+      for (let index = clusters.length - 1; index > 0; index--) {
+        const current = clusters[index];
+        const previous = clusters[index - 1];
+        if (!current.flip) continue;
+        const previousEnd = previous.flip ? previous.x : previous.x + previous.width;
+        if (current.x - current.width >= previousEnd + LABEL_GAP) continue;
+        previous.items.push(...current.items);
+        clusters.splice(index, 1);
+        fit(previous);
+      }
+      return clusters;
+    };
+    this.#labels.input = cluster(
+      this.#model.inputs.map((input) => ({ ...input, at: input.start })),
+    );
+    this.#labels.moments = cluster(
+      this.#model.moments
+        .map((moment) => ({ ...moment, at: moment.time, label: String(moment.number) }))
+        .toSorted((a, b) => a.at - b.at),
+    );
     this.#draw();
   }
-  #momentRowOf = new Map();
+  // A label may run until the next label in its lane begins.
+  #labelRoom(clusters, index) {
+    const cluster = clusters[index];
+    if (cluster.flip) {
+      const previous = clusters[index - 1];
+      return previous
+        ? layoutPx(Math.max(12, cluster.x - previous.x - previous.width - LABEL_GAP))
+        : "none";
+    }
+    const next = clusters[index + 1];
+    if (!next) return "none";
+    const nextStart = next.flip ? next.x - next.width : next.x;
+    return layoutPx(Math.max(12, nextStart - cluster.x - LABEL_GAP));
+  }
   #clusterText(items, font) {
     const text = items.map((item) => item.label).join(" ");
     if (measure(text, font) <= CLUSTER_WIDTH) return text;
@@ -329,11 +362,7 @@ export class RecordingTimeline {
             ([lane, name]) =>
               html`<span
                 class="lf-trace-lane-name lf-trace-lane-name-${lane}"
-                style="--lf-trace-rows: ${lane === "calls"
-                  ? this.#callRows
-                  : lane === "moments"
-                    ? this.#momentRows
-                    : 1}"
+                style="--lf-trace-rows: ${lane === "calls" ? this.#callRows : 1}"
                 >${name}</span
               >`,
           )}
@@ -356,24 +385,22 @@ export class RecordingTimeline {
           >
             <div class="lf-trace-ruler"></div>
             ${model.moments.length
-              ? html`<div
-                  class="lf-trace-lane lf-trace-lane-moments"
-                  style="--lf-trace-rows: ${this.#momentRows}"
-                >
-                  ${repeat(
-                    model.moments,
-                    (moment) => moment.id,
-                    (moment) =>
+              ? html`<div class="lf-trace-lane lf-trace-lane-moments">
+                  ${this.#labels.moments.map(
+                    (cluster, index) =>
                       html`<span
                         class="lf-trace-moment-pin"
+                        ?data-flip=${cluster.flip}
                         data-pick="moments"
-                        data-id=${moment.id}
-                        data-tip=${moment.title}
-                        ?data-current=${moment.current}
-                        style="--t: ${fraction(moment.time)}; --row: ${this.#momentRowOf.get(
-                          moment.id,
-                        ) ?? 0}"
-                        ><span class="lf-trace-moment-flag">${moment.number}</span></span
+                        data-id=${cluster.items[0].id}
+                        data-cluster=${index}
+                        data-tip=${cluster.items.map((item) => item.title).join("\n")}
+                        ?data-current=${cluster.items.some((item) => item.current)}
+                        style="--t: ${fraction(cluster.items[0].at)}; max-inline-size: ${this.#labelRoom(
+                          this.#labels.moments,
+                          index,
+                        )}"
+                        ><span class="lf-trace-moment-flag">${cluster.text}</span></span
                       >`,
                   )}
                 </div>`
@@ -384,18 +411,15 @@ export class RecordingTimeline {
                     (cluster, index) =>
                       html`<span
                         class="lf-trace-input-label"
+                        ?data-flip=${cluster.flip}
                         data-pick="input"
                         data-id=${cluster.items[0].id}
                         data-cluster=${index}
                         data-tip=${cluster.items.map((item) => item.title).join("\n")}
                         ?data-current=${cluster.items.some((item) => item.current)}
-                        style="--t: ${fraction(cluster.items[0].start)}; max-inline-size: ${layoutPx(
-                          Math.max(
-                            12,
-                            (this.#labels.input[index + 1]?.x ?? Infinity) -
-                              cluster.x -
-                              LABEL_GAP,
-                          ),
+                        style="--t: ${fraction(cluster.items[0].at)}; max-inline-size: ${this.#labelRoom(
+                          this.#labels.input,
+                          index,
                         )}"
                         >${cluster.text}</span
                       >`,
@@ -640,11 +664,11 @@ export class RecordingTimeline {
     if (pick) {
       let id = pick.dataset.id;
       const time = this.#eventTime(event);
-      // A shared label picks the call nearest the press.
+      // A shared label picks the mark nearest the press; ties keep time order.
       if (pick.dataset.cluster !== undefined) {
-        const items = this.#labels.input[Number(pick.dataset.cluster)].items;
+        const items = this.#labels[pick.dataset.pick][Number(pick.dataset.cluster)].items;
         id = items.reduce((best, item) =>
-          Math.abs(item.start - time) < Math.abs(best.start - time) ? item : best,
+          Math.abs(item.at - time) < Math.abs(best.at - time) ? item : best,
         ).id;
       }
       this.#options.onPick(pick.dataset.pick, id, time);

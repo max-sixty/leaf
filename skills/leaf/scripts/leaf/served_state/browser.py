@@ -9,9 +9,11 @@ from ..gesture_words import GestureWords, RevisionReader
 from ..history import history, wants_history
 from ..passages import SourceReading
 from ..projection import FrozenThreadReading, canonical_updates, page_reading
+from ..questions import collection
 from ..schema import WIDGET_KINDS
 from .context import PageRead
 from .document import browser_document, browser_undo_candidates
+from .queues import queues
 from .thread import browser_thread
 from .work import WorkState, work_state
 
@@ -83,13 +85,11 @@ def _apply_thread_attention(
                 "kind": "waiting",
                 "reason": "task",
                 "workflow": None,
-                # The line of the start running on it, while that start holds.
+                # The line of the start running on it, while one holds it.
                 "task": {
                     "id": task["id"],
                     "title": task["title"],
-                    "line": task["running"]["text"]
-                    if task["running"] and task["running"]["condition"] is None
-                    else None,
+                    "line": task["running"]["text"] if task["running"] else None,
                 },
             }
         else:
@@ -223,6 +223,18 @@ def browser_state(
         workflows,
         [task for task in tasks if task["owner"] == "agent"],
     )
+    # Each view's Questions are its own document's beside the frozen thread's, so
+    # each view carries the queues they add up to.
+    for view in views.values():
+        view["queues"] = queues(
+            thread["threads"],
+            workflows,
+            tasks,
+            ended_tasks,
+            collection(
+                view["document"]["questions"]["all"] + thread["questions"]["all"]
+            ),
+        )
     if wants_history(readings[revision] for revision in view_revisions):
         words = GestureWords(events, active_registry, revisions or readings.__getitem__)
         page_history = {

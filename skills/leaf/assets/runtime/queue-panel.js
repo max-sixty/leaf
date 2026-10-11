@@ -12,10 +12,10 @@
    is used, and change them freely.
 
    The panel decides no membership. Its two queues are the application's one reading,
-   `queues.onYou` and `queues.onAgent` (`queues.js`, the browser's side of
-   `agent_state.queues`), the same lists the `q` walk steps through and the banner
-   counts; what is done is `done`, selected beside them from ended tasks and answered
-   or withdrawn Questions. So a reply the user sends
+   `queues.onYou` and `queues.onAgent` (the server's `served_state.queues`, with this
+   tab's sends placed against it), the same lists the `q` walk steps through and the
+   banner counts; what is done is `done`, served beside them from ended tasks and
+   answered or withdrawn Questions. So a reply the user sends
    leaves "On you" and joins the agent's queue in the turn it is sent, as it leaves the
    banner's count.
 

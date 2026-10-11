@@ -457,7 +457,7 @@ export function createAnnotationInventory({
         continue;
       if (activityAlreadyShown.has(`widget:${task.subject.id}`)) continue;
       const target = elementById(task.subject.id);
-      const running = task.running && !task.running.condition ? task.running : null;
+      const { running } = task;
       const label = running ? "Working" : "Task open";
       const account = [task.agent, running?.text ?? task.title]
         .filter(Boolean)

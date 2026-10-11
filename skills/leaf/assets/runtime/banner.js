@@ -257,7 +257,7 @@ function paintTab() {
 let saidKind;
 let saidActionableWork;
 
-// The page's two queues (`runtime/queues.js`) are told apart in the banner by where
+// The page's two queues (`served_state.queues`) are told apart in the banner by where
 // they stand. What waits on the user, which `q` walks, is the Questions door beside
 // Threads (queue-panel.js paints its count), and on a phone's one row it waits in More.
 // What waits on the agent, its Tasks, stands beside the status, apart from the sentence,

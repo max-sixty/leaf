@@ -19,14 +19,12 @@ from .events import bare_reaction, is_reaction
 from .files import revision_path
 from .passages import page_passages
 from .projection import FrozenThreadReading, retirement_outcomes
-from .questions import collection
 from .registry.storage import layer_metadata, require_registry
 from .revision_artifact import active_enclosing
 from .revisioning import activate_source
 from .schema import DATA_DIR, DATA_FILE
 from .served_state.context import read_page
 from .served_state.page import read_served_page
-from .served_state.work import at_work
 from .server import running_server
 from .service import PageTransaction, unacknowledged
 from .user_views import read_user_views
@@ -284,95 +282,6 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
     }
 
 
-def task_item(task: dict) -> dict:
-    """One open task as an item on the queue of its `owner`."""
-    return {
-        "kind": "task",
-        "id": task["id"],
-        "owner": task["owner"],
-        "subject": task["subject"],
-        "thread": task["thread"],
-        "title": task["title"],
-        "running": task["running"],
-        "agent": task["agent"],
-        "session": task["session"],
-        "ends": task["ends"],
-    }
-
-
-def question_item(question: dict) -> dict:
-    """One Question on a work queue; it retains its canonical record."""
-    source = question["source"]
-    subject = (
-        {"kind": "widget", "id": source["id"]}
-        if source["kind"] == "widget"
-        else {"kind": "page"}
-        if source["kind"] == "approval"
-        else {"kind": "thread", "id": question["thread"]}
-    )
-    return {
-        "kind": "question",
-        "id": question["id"],
-        "owner": "user",
-        "subject": subject,
-        "thread": question["thread"],
-        "title": question["prompt"]["text"],
-        "running": None,
-        "agent": None,
-        "session": None,
-        "ends": source["kind"],
-        "question": question,
-    }
-
-
-def queues(
-    threads: list[dict], workflows: list[dict], tasks: list[dict], questions: dict
-) -> dict:
-    """Select Question obligations, explicit tasks and response recovery once.
-
-    Questions are not tasks. Their canonical next actor selects their queue row;
-    explicit work and delivery recovery keep their existing completion routes.
-    """
-    on_you = [question_item(question) for question in questions["user"]]
-    on_you += [task_item(task) for task in tasks if task["owner"] == "user"]
-    on_you += [
-        {
-            "kind": "recovery",
-            "id": thread["id"],
-            "subject": {"kind": "thread", "id": thread["id"]},
-            "thread": thread["id"],
-        }
-        for thread in threads
-        if thread["attention"] is not None
-        and thread["attention"]["kind"] == "needs_user"
-        and thread["attention"]["reason"] == "recovery"
-    ]
-    on_agent = []
-    for workflow in workflows:
-        item = {
-            "id": workflow["id"],
-            "subject": workflow["subject"],
-            "thread": workflow["thread"],
-        }
-        # A move handed back in a thread is that thread's item above.
-        if workflow["next_actor"] == "user":
-            if workflow["thread"] is None:
-                on_you.append({"kind": "recovery", **item})
-        elif workflow["answer"] is not None:
-            on_agent.append(
-                {
-                    "kind": "answer",
-                    **item,
-                    "answer": workflow["answer"],
-                    "stage": workflow["stage"],
-                }
-            )
-        elif at_work(workflow):
-            on_agent.append({"kind": "work", **item, "detail": workflow["detail"]})
-    on_agent += [task_item(task) for task in tasks if task["owner"] == "agent"]
-    return {"on_you": on_you, "on_agent": on_agent}
-
-
 def _write_page_state(
     page_dir: Path,
     events: list,
@@ -475,12 +384,10 @@ def _write_page_state(
             + browser["thread"]["questions"]["all"]
         )
         state["tasks"] = browser["tasks"]
-        state["queues"] = queues(
-            browser["thread"]["threads"],
-            state["workflows"],
-            state["tasks"],
-            collection(state["questions"]),
-        )
+        served_queues = browser["views"][str(active["revision"])]["queues"]
+        state["queues"] = {
+            side: served_queues[side] for side in ("on_you", "on_agent")
+        }
     subject = None
     if target is not None:
         subject = page_subject(page_dir, events, target)

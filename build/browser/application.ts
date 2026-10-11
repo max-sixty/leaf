@@ -32,11 +32,7 @@ import {
   turnMessage,
 } from "../../skills/leaf/assets/runtime/pending/model.js";
 import { PENDING } from "../../skills/leaf/assets/runtime/thread/identity.js";
-import {
-  queueOffers,
-  selectDone,
-  selectQueues,
-} from "../../skills/leaf/assets/runtime/queues.js";
+import { queueOffers } from "../../skills/leaf/assets/runtime/queues.js";
 
 import type {
   AuthoredMap,
@@ -248,7 +244,8 @@ interface WireTask {
   state: "open" | "done" | "failed" | "dropped";
   ts: string;
   revision: number | null;
-  /** The start running on the task, while one does. */
+  /** The start that holds the task, while one does; one gone quiet holds nothing
+   * (`activity._canonical_tasks`). */
   running: {
     id: string;
     text: string;
@@ -257,13 +254,37 @@ interface WireTask {
     agent: string | null;
     session: string | null;
     turn: string | null;
-    condition: { kind: "stale"; operation: "work" } | null;
   } | null;
   agent: string | null;
   session: string | null;
   outcome: { id?: string; ts: string | null; detail?: string | null } | null;
   /** Explicit work ends through its agent, or the user's Done. */
   ends: "agent" | "done";
+}
+
+/** One item on a work queue, as `served_state.queues` serves it. A Question item
+ * keeps its record; a task item the task fields a row draws. */
+interface QueueItem {
+  kind: "question" | "task" | "recovery" | "answer" | "work";
+  id: string;
+  owner?: "user" | "agent";
+  subject: { kind: "thread" | "widget"; id: string } | { kind: "page" };
+  thread: string | null;
+  question?: QuestionRecord;
+  [field: string]: unknown;
+}
+
+/** A finished item: how it ended, when, and the outcome's detail. */
+type DoneItem = QueueItem & {
+  state: "done" | "failed" | "dropped";
+  ended: string | null;
+  detail: string | null;
+};
+
+interface WireQueues {
+  on_you: QueueItem[];
+  on_agent: QueueItem[];
+  done: DoneItem[];
 }
 
 export interface SemanticDocument {
@@ -321,6 +342,7 @@ export interface AuthoritativeState {
         coverage: Coverage[];
         updates: object[];
         published_at: string | null;
+        queues: WireQueues;
       }
     >;
     thread: {
@@ -519,6 +541,131 @@ function localTasks(
     ],
   };
 }
+
+const NO_QUEUES: WireQueues = { on_you: [], on_agent: [], done: [] };
+
+/* What is on the user, what is on the agent, and what is done: the view's served
+ * queues (`served_state.queues`), with this tab's unresolved sends placed against
+ * them. A send moves an item the server listed when it changes that item's record: a
+ * Done or its undo moves a task between its queue and done, an approval or its undo
+ * moves the approval Question, and prose sent in a thread, or settling it, takes that
+ * thread's Question and its retry off the user. It adds only the items it alone
+ * implies: the answer a pending send is owed, and the retry a refused one leaves. A
+ * pending send also stands for the response the thread was already owed. Nothing here
+ * selects a queue again. */
+function localQueues(
+  served: WireQueues,
+  threads: readonly Pick<Thread, "id" | "resolved" | "attention">[],
+  workflows: readonly Workflow[],
+  tasks: ReturnType<typeof localTasks>,
+  questions: WireQuestions,
+) {
+  const record = new Map(questions.all.map((question) => [question.id, question]));
+  const open = new Set(tasks.open.map((task) => task.id));
+  const ended = new Set(tasks.ended.map((task) => task.id));
+  const byThread = new Map(threads.map((thread) => [thread.id, thread]));
+  const sending = workflows.filter(
+    (workflow) => workflow.stage === "sending" && workflow.subject.kind === "thread",
+  );
+  const resent = new Set(sending.map((workflow) => workflow.thread));
+  const retrying = (thread: string) => {
+    const reading = byThread.get(thread);
+    return Boolean(
+      reading &&
+      !reading.resolved &&
+      reading.attention?.kind === "needs_user" &&
+      reading.attention.reason === "recovery",
+    );
+  };
+  const question = (item: QueueItem) => {
+    const local = record.get(item.id);
+    if (!local) throw new Error(`Queue item ${item.id} names no Question`);
+    return local;
+  };
+  // Whether an item the server listed as open still stands open in this tab.
+  const standsOpen = (item: QueueItem) => {
+    switch (item.kind) {
+      case "question":
+        return question(item).next_actor === "user";
+      case "task":
+        return open.has(item.id);
+      case "recovery":
+        return item.thread === null || retrying(item.thread);
+      case "answer":
+        return !resent.has(item.thread);
+      default:
+        return true;
+    }
+  };
+  // Whether an item the server listed as done stands open again in this tab.
+  const reopened = (item: DoneItem) =>
+    item.kind === "question"
+      ? question(item).status === "open" && question(item).next_actor === "user"
+      : open.has(item.id);
+  // Whether an item the server listed as open has ended in this tab.
+  const endedHere = (item: QueueItem) =>
+    item.kind === "question"
+      ? question(item).status !== "open"
+      : item.kind === "task" && ended.has(item.id);
+  // A Question item carries this tab's record of its Question.
+  const current = <T extends QueueItem>(item: T): T =>
+    item.kind === "question" ? { ...item, question: question(item) } : item;
+  const asOpen = ({ state: _state, ended: _ended, detail: _detail, ...item }: DoneItem) =>
+    current(item as QueueItem);
+  const asDone = (item: QueueItem): DoneItem => ({
+    ...current(item),
+    state:
+      item.kind === "question" && question(item).status !== "answered"
+        ? "dropped"
+        : "done",
+    ended: null,
+    detail: null,
+  });
+  const listed = new Set(
+    [...served.on_you, ...served.on_agent].map((item) => `${item.kind}:${item.id}`),
+  );
+  const retry = (id: string, subject: QueueItem["subject"], thread: string | null) =>
+    listed.has(`recovery:${id}`) ? [] : [{ kind: "recovery" as const, id, subject, thread }];
+  const reopenedFor = (owner: "user" | "agent") =>
+    served.done.filter((item) => (item.owner ?? "user") === owner && reopened(item));
+  return {
+    onYou: [
+      ...served.on_you.filter(standsOpen).map(current),
+      ...reopenedFor("user").map(asOpen),
+      ...threads.flatMap((thread) =>
+        retrying(thread.id)
+          ? retry(thread.id, { kind: "thread", id: thread.id }, thread.id)
+          : [],
+      ),
+      ...workflows.flatMap((workflow) =>
+        workflow.next_actor === "user" && workflow.thread === null
+          ? retry(workflow.id, workflow.subject, null)
+          : [],
+      ),
+    ].toSorted((a, b) => onYouRank(a) - onYouRank(b)),
+    onAgent: [
+      ...served.on_agent.filter((item) => item.kind !== "task" && standsOpen(item)),
+      ...sending.map((workflow) => ({
+        kind: "answer" as const,
+        id: workflow.id,
+        subject: workflow.subject,
+        thread: workflow.thread,
+        answer: workflow.answer,
+        stage: workflow.stage,
+      })),
+      ...served.on_agent.filter((item) => item.kind === "task" && standsOpen(item)),
+      ...reopenedFor("agent").map(asOpen),
+    ],
+    done: [
+      ...served.done.filter((item) => !reopened(item)).map(current),
+      ...[...served.on_you, ...served.on_agent].filter(endedHere).map(asDone),
+    ].toSorted((a, b) => Number(a.kind === "task") - Number(b.kind === "task")),
+  };
+}
+
+// The order the server lists what is on the user in: Questions, tasks, then retries.
+const onYouRank = (item: QueueItem) =>
+  item.kind === "question" ? 0 : item.kind === "task" ? 1 : 2;
 
 function widgetReading(
   root: ReturnType<ReturnType<typeof createSemanticApplication>["read"]>,
@@ -882,7 +1029,13 @@ export function createSemanticApplication({
       ready,
     );
     const questions = questionAttention(admittedQuestions, threads);
-    const selectedQueues = selectQueues({ threads, workflows, tasks: tasks.open, questions });
+    const selectedQueues = localQueues(
+      ready ? (view?.queues ?? NO_QUEUES) : NO_QUEUES,
+      threads,
+      workflows,
+      tasks,
+      questions,
+    );
     const workflowById = new Map(workflows.map((workflow) => [workflow.id, workflow]));
     const contextual = <T extends { id: string; kind: string }>(
       items: T[],
@@ -917,13 +1070,13 @@ export function createSemanticApplication({
         ],
       },
       questions: { phase, ...questions },
-      // What is on the user and what is on the agent, selected from the readings
-      // above once this tab's sends are folded into them (`runtime/queues.js`).
+      // What is on the user, on the agent, and done: the served queues with this
+      // tab's sends placed against them (`localQueues`).
       queues: {
         phase,
         onYou: contextual(selectedQueues.onYou, true),
         onAgent: contextual(selectedQueues.onAgent),
-        done: contextual(selectDone({ tasks: tasks.ended, questions })),
+        done: contextual(selectedQueues.done),
       },
       // Inside the publication signature, so a read that changes only the view's
       // updates, publication time, or undo list still reaches its watchers.

@@ -92,7 +92,8 @@ declarations and provenance, `storage` owns the vendored-file cache, and
 Within `served_state/`, `context` owns the live or captured inputs every fold reads;
 `work` enriches the shared durable reading with live activity and response bindings;
 `wire` serializes one declared fold, `thread` and `document`
-own their scoped readings, `browser` assembles the requested views, `page` composes
+own their scoped readings, `queues` selects the work queues each view serves and
+`page state` prints, `browser` assembles the requested views, `page` composes
 the served response, `reading` names filesystem changes for freshness reads, and
 `service` owns the page transaction every route reads through.
 

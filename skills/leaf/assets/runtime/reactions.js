@@ -95,11 +95,11 @@ const anchorChoices = (anchor) =>
 // (thread/reaction-strips.js). The token names the control and the compact face
 // stays the declared mark. Digits remain keyboard accelerators without changing the
 // shape of every chip.
-function reactionChip({ name, glyph }, pressed) {
+function reactionChip({ name, glyph, label }, pressed) {
   const chip = offer("button", `lf-react ${HOLDS_WORD}`);
   chip.dataset.token = name;
-  chip.title = name;
-  chip.setAttribute("aria-label", name);
+  chip.title = label;
+  chip.setAttribute("aria-label", label);
   responseAction(chip, { glyph, label: name, collapse: true });
   chip.onclick = () => pressed(name);
   return chip;
@@ -260,7 +260,7 @@ export function createReactionController({
           key: marginReactionKey(choice.name, ordinal),
           activation: choice.name,
           glyph: choice.glyph,
-          label: choice.name,
+          label: choice.label,
           rank: "secondary",
           className: `lf-react ${HOLDS_WORD}`,
           pressed: Boolean(choice.standing),

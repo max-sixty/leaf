@@ -56,8 +56,8 @@ export class ReactionStripView {
                 data-lf-gen="1"
                 data-lf-offer="button"
                 data-token=${choice.name}
-                title=${choice.name}
-                aria-label=${choice.name}
+                title=${choice.label}
+                aria-label=${choice.label}
                 aria-pressed=${String(Boolean(choice.standing))}
                 aria-busy=${String(Boolean(choice.standing?.pending))}
                 @click=${() => this.#press(choice.name)}

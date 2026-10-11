@@ -79,6 +79,7 @@ export const tokenChoices = (tokens, standing) =>
   Object.entries(tokens).map(([name, entry]) => ({
     name,
     glyph: entry.glyph,
+    label: name,
     standing: standing.find((item) => item.token === name) ?? null,
   }));
 /** @param {Thread} thread */

@@ -169,14 +169,6 @@ has tried; settle that before building it.
   has: a mode's or search's steps take Threads off the row until it ends, Android's back
   gesture closes nothing (the Escape ladder could answer it), Draw mode blocks scrolling
   and zoom, and an `lf-draft` has no close that keeps the edit.
-- **Decide whether the response bar's reactions and Suggest need a pointer route.**
-  The floating comment bar shows no ellipsis (⋯), so its field spans the bar and a sent
-  message keeps the card's measure. Its other responses, Suggest and the emoji
-  reactions, open only by key: Tab from the field, or `e`. A mouse alone has no
-  route to them, and a finger has none at all. Decide whether to make them more
-  available, such as a banner control under a coarse pointer, a reaction row on the
-  sent card, or a control that keeps the field's measure
-  (`skills/leaf/assets/runtime/composing/selection.js`).
 - **Reconsider thread navigation.** Decide how the Threads panel should change
   before refining it (`skills/leaf/assets/AGENTS.md`, "Space and scrolling").
 
@@ -234,7 +226,7 @@ and its chrome coordinate.
     growing along it and changed cells outlined. `lf-visual-review` steps through one
     case at a time, so the grid is a new view, in that package or beside it.
   - For comment placement alone, an SVG atlas of the side `comment-placement.js`
-    chooses (`commentSide`) over a grid of inputs, which `npm run test:runtime` can
+    chooses (`commentSide`) over a grid of inputs, which `pnpm run test:runtime` can
     draw without a browser.
 
   How to keep the candidates maintainable is not yet thought through, and comes before

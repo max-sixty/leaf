@@ -1184,9 +1184,8 @@ def test_page_state_lists_each_user_move_over_the_active_html(page_dir):
 
 
 def test_page_state_names_each_bound_source_and_its_failures(page_dir):
-    """`data_bindings` names each bound source and the widgets that read it, whose
-    value is `data/<source>.json`, and a file another process rewrote past its
-    contract reads as that source's error."""
+    """`data_bindings` names each source and its consumers; corruption of a stored
+    publication's value past its contract reads as that source's error."""
     declare_data_input(
         page_dir, "builds", {"type": "array", "items": {"type": "string"}}
     )
@@ -1198,12 +1197,13 @@ def test_page_state_names_each_bound_source_and_its_failures(page_dir):
     stored = data_model.source_file(page_dir, "builds")
     state = state_json(page_dir)
     assert stored == page_dir / state["data"]["dir"] / "builds.json"
-    assert json.loads(stored.read_text()) == ["passing"]
+    assert json.loads(stored.read_text())["value"] == ["passing"]
     [consumer] = state["data_bindings"]["builds"]["consumers"]
     assert consumer["widget"] == "test-data"
     assert state["data"]["errors"] == []
 
-    stored.write_text('["passing", 3]')
+    publication = json.loads(stored.read_text())
+    stored.write_text(json.dumps({**publication, "value": ["passing", 3]}))
     [error] = state_json(page_dir)["data"]["errors"]
     assert "builds" in error
 
@@ -2095,6 +2095,7 @@ def test_reply_refuses_a_suggestion(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--text",
             "Fixed:",
@@ -2127,7 +2128,14 @@ def test_response_addresses_one_obligation_and_activates_the_current_source(page
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", response_reference(page_dir, "c1"), "--text", "Updated."],
+        [
+            "response",
+            "reply",
+            "--done",
+            response_reference(page_dir, "c1"),
+            "--text",
+            "Updated.",
+        ],
     )
 
     assert result.exit_code == 0, result.output
@@ -2157,7 +2165,14 @@ def test_reply_refuses_an_invalid_current_source(page_dir):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", response_reference(page_dir, "c1"), "--text", "Updated."],
+        [
+            "response",
+            "reply",
+            "--done",
+            response_reference(page_dir, "c1"),
+            "--text",
+            "Updated.",
+        ],
     )
 
     assert result.exit_code != 0
@@ -2197,7 +2212,7 @@ def test_response_reference_selects_one_of_several_obligations(page_dir):
 
     ambiguous = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", "--text", "Updated."],
+        ["response", "reply", "--done", "--text", "Updated."],
     )
     assert ambiguous.exit_code != 0
     assert "Missing argument" in ambiguous.output
@@ -2205,7 +2220,14 @@ def test_response_reference_selects_one_of_several_obligations(page_dir):
 
     selected = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", response_reference(page_dir, "c2"), "--text", "Updated."],
+        [
+            "response",
+            "reply",
+            "--done",
+            response_reference(page_dir, "c2"),
+            "--text",
+            "Updated.",
+        ],
     )
 
     assert selected.exit_code == 0, selected.output
@@ -2243,7 +2265,7 @@ def test_response_never_settles_a_newer_undelivered_correction(page_dir):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", reference, "--text", "Made it blue."],
+        ["response", "reply", "--done", reference, "--text", "Made it blue."],
     )
 
     assert result.exit_code != 0
@@ -2276,7 +2298,7 @@ def test_response_belongs_to_the_session_with_the_opened_delivery(
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", reference, "--text", "Updated."],
+        ["response", "reply", "--done", reference, "--text", "Updated."],
     )
 
     assert result.exit_code != 0
@@ -2302,7 +2324,14 @@ def test_response_address_survives_its_delivery_turn_closing(page_dir):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", response_reference(page_dir, "c1"), "--text", "Updated."],
+        [
+            "response",
+            "reply",
+            "--done",
+            response_reference(page_dir, "c1"),
+            "--text",
+            "Updated.",
+        ],
     )
 
     assert result.exit_code == 0, result.output
@@ -2398,6 +2427,7 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
         [
             "response",
             "reply",
+            "--done",
             reference,
             "--attempt",
             "distinct-retry-attempt",
@@ -2694,15 +2724,15 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
         read = run("page", "state", name)
         assert read.exit_code == 0, read.output
         assert json.loads(read.output)["thread"]["id"] == opened["id"]
-    opened_task = runner.invoke(
-        cli_model.cli,
-        ["task", "open", str(page_dir), "t-ask", "Weigh it"],
+    promised = run(
+        "thread", "reply", "t-ask", "--text", "Weighing it.", "--task", "Weigh"
     )
-    assert opened_task.exit_code == 0, opened_task.output
-    assert json.loads(opened_task.output)["subject"] == {
-        "kind": "thread",
-        "id": opened["id"],
-    }
+    assert promised.exit_code == 0, promised.output
+    [task] = json.loads(run("page", "state").output)["tasks"]
+    assert (task["id"], task["subject"]) == (
+        json.loads(promised.output)["id"],
+        {"kind": "thread", "id": opened["id"]},
+    )
 
     not_a_thread = run("thread", "resolve", "g1")
     assert not_a_thread.exit_code != 0
@@ -3072,44 +3102,57 @@ def test_user_state_survives_without_source_copying(page_dir):
 
 
 def test_check_reports_a_measurement_whose_source_ran_again(page_dir):
-    """A version keeps the scalar it stated; the replaceable source contributes only
-    evidence that its measurement ran later. The same generic reading appears as
-    passing check advice and structured page state, and disappears once the authored
-    capture instant catches up."""
+    """A source write supplies an opaque run receipt, independent of the clock.
+    The authored number is current when pinned to that receipt and stale after
+    another write, even when the measured value is unchanged."""
 
-    def write(at):
+    def write(run):
         measured = (
             '<p>The import takes <lf-num id="p95" source="import-latency" '
-            f'at="{at}" via="uv run bench-import">184 ms</lf-num> at p95.</p>'
+            f'run="{run}" via="uv run bench-import">184 ms</lf-num> at p95.</p>'
         )
         html = PAGE.replace("</main>", measured + "\n</main>")
         (page_dir / "index.html").write_text(html)
         return html[: html.index("<lf-num")].count("\n") + 1
 
-    captured = "2026-08-01T12:00:00Z"
-    captured_line = write(captured)
+    write("not-yet-measured")
     runner = CliRunner()
-    set_result = runner.invoke(
-        cli_model.cli,
-        ["data", "set", str(page_dir), "import-latency"],
-        input="184",
-    )
-    assert set_result.exit_code == 0, set_result.output
-    updated = read_page_data(page_dir)["sources"]["import-latency"]["updated"]
 
+    def measure():
+        result = runner.invoke(
+            cli_model.cli,
+            ["data", "set", str(page_dir), "import-latency"],
+            input="184",
+        )
+        assert result.exit_code == 0, result.output
+        return json.loads(result.output)["run"]
+
+    captured = measure()
+    captured_line = write(captured)
+    current = check(page_dir)
+    assert current.exit_code == 0, current.output
+    assert "measurement behind its source" not in current.output
+    assert state_json(page_dir)["measurement_lag"] == []
+
+    copied = page_dir.with_name("copied-measurement")
+    shutil.copytree(page_dir, copied, copy_function=shutil.copy2)
+    assert state_json(copied)["measurement_lag"] == []
+    assert read_page_data(copied) == read_page_data(page_dir)
+
+    later = measure()
+    assert later != captured
     result = check(page_dir)
     assert result.exit_code == 0, result.output
     assert "measurement behind its source" in result.output
-    assert "import-latency" in result.output
-    assert captured in result.output and updated in result.output
+    assert captured in result.output and later in result.output
     assert state_json(page_dir)["measurement_lag"] == [
         {
             "tag": "lf-num",
             "widget": "p95",
             "line": captured_line,
             "source": "import-latency",
-            "at": captured,
-            "updated": updated,
+            "run": captured,
+            "current_run": later,
         }
     ]
 
@@ -3120,17 +3163,18 @@ def test_check_reports_a_measurement_whose_source_ran_again(page_dir):
     )
     assert rejected.exit_code != 0
     assert "value is invalid" in rejected.output
+    assert read_page_data(page_dir)["sources"]["import-latency"]["run"] == later
 
-    write(updated)
+    write(later)
     current = check(page_dir)
     assert current.exit_code == 0, current.output
     assert "measurement behind its source" not in current.output
     assert state_json(page_dir)["measurement_lag"] == []
 
-    write("yesterday")
+    write("")
     malformed = check(page_dir)
     assert malformed.exit_code != 0
-    assert "is not a 'date-time'" in malformed.output
+    assert "non-empty" in malformed.output or "too short" in malformed.output
 
 
 def test_file_state_scopes_a_nested_pick_to_its_nearest_recorded_owner(page_dir):
@@ -3284,7 +3328,10 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     stored = data_model.source_file(page_dir, "deployments")
     assert first["sources"]["deployments"] == {
         "contract": "deployment-rows",
-        "revision": hashlib.sha256(stored.read_bytes()).hexdigest()[:16],
+        "revision": hashlib.sha256(
+            cleanup_model.json_bytes(["api", "worker"])
+        ).hexdigest()[:16],
+        "run": json.loads(written.output)["run"],
         "updated": first["sources"]["deployments"]["updated"],
         "value": ["api", "worker"],
     }
@@ -3415,14 +3462,12 @@ diff --git a/src/second file.py b/src/second file.py
         for file in source["value"]["files"]
     ] == [
         {
-            "key": "app.py",
             "path": "app.py",
             "kind": "patch",
             "additions": 1,
             "deletions": 1,
         },
         {
-            "key": "new.py",
             "path": "new.py",
             "previousPath": "old.py",
             "kind": "patch",
@@ -3430,7 +3475,6 @@ diff --git a/src/second file.py b/src/second file.py
             "deletions": 1,
         },
         {
-            "key": "docs/new.md",
             "path": "docs/new.md",
             "previousPath": "docs/old.md",
             "kind": "rename",
@@ -3438,14 +3482,12 @@ diff --git a/src/second file.py b/src/second file.py
             "deletions": 0,
         },
         {
-            "key": "café2026 notes.py",
             "path": "café2026 notes.py",
             "kind": "patch",
             "additions": 1,
             "deletions": 1,
         },
         {
-            "key": "src/second file.py",
             "path": "src/second file.py",
             "kind": "patch",
             "additions": 1,
@@ -3559,16 +3601,16 @@ def test_data_set_reads_a_structured_value_from_a_file(page_dir, tmp_path):
 
     assert result.exit_code == 0, result.output
     source = read_page_data(page_dir)["sources"]["builds"]
-    # The printed instant is the one an author pins in `at`, so it is the stored one;
+    # The printed run receipt is the one an author pins, so it is the stored one;
     # the value is the writer's own, so it does not come back.
     assert json.loads(result.output) == {
         "source": "builds",
-        **{key: source[key] for key in ("contract", "revision", "updated")},
+        **{key: source[key] for key in ("contract", "revision", "run", "updated")},
     }
     assert source["value"] == {"main": "passing"}
-    assert json.loads(data_model.source_file(page_dir, "builds").read_text()) == {
-        "main": "passing"
-    }
+    assert json.loads(data_model.source_file(page_dir, "builds").read_text())[
+        "value"
+    ] == {"main": "passing"}
 
 
 def test_a_page_source_can_be_shared_but_needs_one_simultaneous_contract(page_dir):
@@ -3658,7 +3700,9 @@ def test_a_later_version_can_reuse_a_source(page_dir, clear):
         data_model.cmd_data_set(page_dir, "project-feed", [])
     assert data_model.read_contracts(page_dir) == {"project-feed": "rows"}
     stored = data_model.source_file(page_dir, "project-feed")
-    assert not stored.exists() if clear else json.loads(stored.read_text()) == []
+    assert (
+        not stored.exists() if clear else json.loads(stored.read_text())["value"] == []
+    )
     data_model.cmd_data_set(page_dir, "project-feed", {"ready": True})
     assert data_model.read_contracts(page_dir) == {"project-feed": "other-rows"}
     assert read_page_data(page_dir)["sources"]["project-feed"]["value"] == {
@@ -3903,7 +3947,15 @@ def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
     # A value another process wrote is judged on reading by the same validator.
     (page_dir / "data.json").write_text('{"sources":{"loop":{"contract":"loop"}}}')
     (page_dir / "data").mkdir(exist_ok=True)
-    data_model.source_file(page_dir, "loop").write_text("{}")
+    data_model.source_file(page_dir, "loop").write_text(
+        json.dumps(
+            {
+                "run": "1" * 32,
+                "updated": "2026-01-01T00:00:00Z",
+                "value": {},
+            }
+        )
+    )
     assert read_page_data(page_dir)["sources"]["loop"]["error"] == (
         "source 'loop' contract 'loop' could not validate its value: "
         "a recursive reference did not terminate"
@@ -3941,13 +3993,23 @@ def test_the_contract_index_wraps_invalid_utf8_at_its_boundary(page_dir):
 
 
 @pytest.mark.parametrize(
-    ("value", "message"), [(b"\xff", "is not JSON"), (b"[NaN]", "NaN is not JSON")]
+    ("value", "message"),
+    [
+        (b"\xff", "is not JSON"),
+        (b"[NaN]", "NaN is not JSON"),
+        (b"[]", "must hold a publication"),
+        (
+            b'{"run":"bad","updated":"2026-01-01T00:00:00Z","value":[]}',
+            "must hold a publication",
+        ),
+        (
+            b'{"run":"11111111111111111111111111111111","updated":"yesterday","value":[]}',
+            "must hold a publication",
+        ),
+    ],
 )
-def test_a_value_file_that_is_not_json_reads_as_that_sources_error(
-    page_dir, value, message
-):
-    """Python's JSON reader admits `NaN`, which no browser can parse, and a value
-    file is anyone's to write, so each reading refuses what JSON cannot carry."""
+def test_a_corrupted_publication_reads_as_that_sources_error(page_dir, value, message):
+    """External corruption never becomes data or a fabricated publication receipt."""
     declare_data_input(page_dir, "builds", {"type": "array"}, contract="build-map")
     data_model.cmd_data_set(page_dir, "builds", [])
     data_model.source_file(page_dir, "builds").write_bytes(value)
@@ -4775,7 +4837,6 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
     assert initial["source"]["live"], initial["source"]["error"]
     patch = "--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-before\n+after\n"
     file = {
-        "key": "a.py",
         "path": "a.py",
         "kind": "patch",
         "additions": 1,
@@ -4800,6 +4861,41 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
                 "files": [{key: field for key, field in file.items() if key != "patch"}]
             }
         assert stored["sources"]["reading-patch"]["value"] == value
+
+
+@pytest.mark.parametrize(
+    ("files", "refusal"),
+    [
+        ([], "does not satisfy minItems: 1"),
+        (
+            [{"path": "b.py", "kind": "rename", "additions": 0, "deletions": 0}],
+            "'previousPath' is a required property",
+        ),
+        (
+            [{"path": "a.py", "kind": "patch", "additions": 1, "deletions": 1}] * 2,
+            "record keys must be unique",
+        ),
+    ],
+)
+def test_data_set_refuses_a_diff_manifest_the_widget_cannot_list(
+    page_dir, files, refusal
+):
+    """A diff manifest lists each file once, by its path, and a rename names the path
+    it came from, so the widget renders what `data set` accepted."""
+    (page_dir / "index.html").write_text(
+        before_choice(
+            PAGE,
+            '<lf-diff id="reading-diff" source="reading-patch"><pre></pre></lf-diff>',
+        )
+    )
+    patch = "--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-before\n+after\n"
+    written = CliRunner().invoke(
+        cli_model.cli,
+        ["data", "set", str(page_dir), "reading-patch"],
+        input=json.dumps({"files": [{**file, "patch": patch} for file in files]}),
+    )
+    assert written.exit_code == 1
+    assert refusal in written.output
 
 
 def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch):

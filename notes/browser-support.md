@@ -229,14 +229,28 @@ PY
 This checks API availability, not preservation behavior or the installed Safari
 application. Recheck the affected Leaf journey when resolving this entry.
 
+### Live sample host controls
+
+- **Owner:** `lf-sample.js` and the default theme's sample rules.
+- **Observed, 2026-10-10:** Firefox 157 and Playwright's Firefox lay out only a
+  table's first caption. The sample's label was the first and its Reset and Full
+  view controls a second, so Firefox drew the controls at zero size. A minimal
+  table with two captions reproduces it.
+- **Disposition:** fixed. A live sample keeps the label as its only caption; the
+  controls stand in the cell and the gutter is drawn on the exhibit around the
+  frame. Firefox, Chrome and WebKit show the controls above the gutter.
+
 ### Area capture rendering
 
 - **Disposition: DOM reconstruction with accepted visual differences.** Capture
   area uses SnapDOM 3.3.0 to render the current DOM into an image. Text and native
-  form controls can differ slightly from the screen. Leaf rejects the library's
-  reported missing-image fallback; it cannot detect every omitted resource.
+  form controls can differ slightly from the screen. Leaf attaches a capture with
+  the library's reported missing-image fallback and a notice that an image near the
+  area may be missing, since SnapDOM reads resources a margin beyond the crop and does
+  not say where the image was; it cannot detect every omitted resource.
 - **Owner:** [`region-selector.js`](../skills/leaf/assets/runtime/composing/region-selector.js)
-  selects and anchors the crop; the vendored SnapDOM module owns rendering.
+  selects and anchors the crop; [`page-image.js`](../skills/leaf/assets/runtime/composing/page-image.js)
+  draws it, and the vendored SnapDOM module owns rendering.
 - **Observed, 2026-10-09:** Chrome 155.0.8059.39, Playwright 1.63.0's Firefox
   155.0, and its WebKit 26.6 produced the same 600 × 300 crop dimensions and
   preserved open-shadow styles, inline SVG, a changed input value, page and
@@ -257,8 +271,24 @@ application. Recheck the affected Leaf journey when resolving this entry.
   journey below checks this boundary and immediate first-tap confirmation.
 - **Observed resource gap:** an image loaded from another HTTP origin without
   CORS permission remained visible on the page but produced `image-fallback`
-  during capture. Leaf refuses that result. A CSS background from the same
+  during capture. Leaf attaches it with a notice. A CSS background from the same
   external origin was omitted without a capture warning.
+- **Live samples, 2026-10-10:** SnapDOM cannot read a sample's opaque-origin frame
+  and drew each one as a placeholder box. Each sample SnapDOM reaches now draws the
+  part of its viewport inside the crop, and the parent places that image in the
+  frame's box. Chrome 155,
+  Playwright's Firefox and WebKit 26.6 all capture two live samples, their host
+  controls and the child chrome; WebKit drew a large child image blank until the
+  placeholder `<img>` carried `decoding="sync"` into SnapDOM's markup. The reply
+  editor's placeholder text is missing from the child image in all three, an
+  accepted visual difference. `test_a_region_capture_draws_live_samples_and_survives_removed_links`
+  holds the Chrome journey.
+- **Upstream observer defect, 2026-10-10:** after a capture, SnapDOM 3.3.0–3.3.3
+  counts later mutations up the target's ancestors through `getRootNode().host`. A
+  removed `<a>` subtree answers with the link's host string, which SnapDOM uses as a
+  WeakMap key, throwing an uncaught page error (Firefox 157 and Chrome 155).
+  `build/vendor.py` patches that climb to follow only a shadow root's host; drop
+  the patch once upstream fixes it.
 - **Published limitations:** the upstream
   [3.3.0 limitations](https://github.com/zumerlab/snapdom/blob/b27b35adfae9d9a8993c56b067837014bcef4750/README.md#limitations)
   require readable images, fonts, and stylesheets; cross-origin iframe contents

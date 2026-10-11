@@ -2474,7 +2474,9 @@ def test_gesture_close_does_not_own_future_or_local_motion(browser, fault):
 @pytest.mark.parametrize(
     "guard_mode, destination", [("typing", "window"), ("passive", "page")]
 )
-@pytest.mark.parametrize("fault", ["", "holder_x", "holder_y", "child_x", "child_y"])
+@pytest.mark.parametrize(
+    "fault", ["", "holder_x", "holder_y", "child_x", "child_y", "inset_y"]
+)
 def test_real_floating_plane_retains_local_motion(
     browser, serve, fault, guard_mode, destination
 ):
@@ -2526,10 +2528,10 @@ def test_real_floating_plane_retains_local_motion(
           holder.style.removeProperty('visibility');
           const original = selection();
           window.planeControl = {
-            to:async destination => {plane=destination; await place();},
+            to:async destination => {plane=destination; await place(); window.injectPlaneFault?.();},
             read:() => {
               const current = selection();
-              return {plane:current.plane, sameSubject:current.subject===original.subject,
+              return {plane:current.plane, edge:current.edges.top, sameSubject:current.subject===original.subject,
                 sameAnchor:current.anchor===original.anchor, sameTenure:current.tenure===original.tenure,
                 expected:{x:answer.x,y:answer.y}};
             },
@@ -2558,7 +2560,7 @@ def test_real_floating_plane_retains_local_motion(
       })))).observe({type:'layout-shift'});
     }""")
     page.evaluate(
-        """([fault,destination])=>{
+        """fault=>{
           window.planeChanges=0;
           const holder=document.querySelector('#holder');
           let previous=holder.dataset.lfPlane;
@@ -2566,18 +2568,22 @@ def test_real_floating_plane_retains_local_motion(
             if(holder.dataset.lfPlane===previous) return;
             previous=holder.dataset.lfPlane;
             planeChanges++;
-            if(previous===destination) {
-              if(fault==='holder_x') holder.style.transform='translateX(80px)';
-              if(fault==='holder_y') holder.style.transform='translateY(80px)';
-              if(fault==='child_x') document.querySelector('#field').style.transform='translateX(80px)';
-              if(fault==='child_y') document.querySelector('#field').style.transform='translateY(80px)';
-              // Transform-only faults need a native paint signal; this extra source
-              // cannot establish the independently asserted field displacement.
-              if(fault) document.querySelector('#evidence').style.marginLeft='30px';
-            }
           }).observe(holder,{attributes:true,attributeFilter:['data-lf-plane']});
+          window.injectPlaneFault = () => {
+            if(fault==='holder_x') holder.style.transform='translateX(80px)';
+            if(fault==='holder_y') holder.style.transform='translateY(80px)';
+            if(fault==='child_x') document.querySelector('#field').style.transform='translateX(80px)';
+            if(fault==='child_y') document.querySelector('#field').style.transform='translateY(80px)';
+            if(fault==='inset_y') {
+              const edge=planeControl.read().edge;
+              holder.style[edge]=`calc(${edge==='top'?80:-80}px + ${holder.style[edge]})`;
+            }
+            // Transform-only faults need a native paint signal; this extra source
+            // cannot establish the independently asserted field displacement.
+            if(fault) document.querySelector('#evidence').style.marginLeft='30px';
+          };
         }""",
-        [fault, destination],
+        fault,
     )
     if guard_mode == "typing":
         field.evaluate(
@@ -2608,7 +2614,8 @@ def test_real_floating_plane_retains_local_motion(
     for axis in ["x", "y"]:
         shifted = 80 if fault.endswith("_" + axis) else 0
         assert holder_after[axis] == pytest.approx(
-            state["expected"][axis] + (shifted if fault.startswith("holder") else 0),
+            state["expected"][axis]
+            + (shifted if fault.startswith("holder") or fault == "inset_y" else 0),
             abs=1,
         )
         assert after[axis] == pytest.approx(
@@ -2875,7 +2882,7 @@ def test_new_anchor_relation_cannot_credit_scroll_before_activation(browser, mod
     assert any(expected in error for error in errors), errors
 
 
-@pytest.mark.parametrize("fault", ["", "holder", "child"])
+@pytest.mark.parametrize("fault", ["", "holder", "child", "missing-source"])
 def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, fault):
     source = leaf_page(
         "Floating tenure",
@@ -2910,6 +2917,14 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
         "newStoppedTenure": True,
         "sameStoppedSubject": True,
     }, state
+    if fault == "missing-source":
+        # A source measurement may be absent: preserve the rejected inputs without
+        # granting motion credit merely because the surface still has an owner.
+        page.evaluate("""() => {
+          const entry = document.querySelector('script[data-lf-entry]');
+          const readings = entry.lfFloatingSelections;
+          entry.lfFloatingSelections = () => readings().map(s => ({...s, scrollOffsets:null}));
+        }""")
     paint(page)
     assert page.locator("#holder").bounding_box() == initial
     judge_watches()
@@ -2918,7 +2933,7 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
     paint(page)
     if fault:
         page.evaluate(
-            """fault=>{document.querySelector(fault==='holder'?'#holder':'#field').style.marginLeft='80px';document.querySelector('#evidence').style.marginLeft='40px'}""",
+            """fault=>{document.querySelector(fault==='child'?'#field':'#holder').style.marginLeft='80px';document.querySelector('#evidence').style.marginLeft='40px'}""",
             fault,
         )
         page.screenshot()
@@ -2928,6 +2943,24 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
         assert any("textarea#field moved without input" in error for error in errors), (
             errors
         )
+        if fault == "missing-source":
+            error = next(e for e in errors if "textarea#field moved without input" in e)
+            evidence = shift_evidence(error)
+            assert any(
+                not comparison["scroll_terms"]
+                and any(
+                    attachment["owner"] == "div#holder"
+                    and attachment["before"]["plane"] == "window"
+                    and attachment["after"]["plane"] == "window"
+                    and attachment["before"]["scrollOffsets"] is None
+                    and attachment["after"]["scrollOffsets"] is None
+                    and attachment["after_surface"]["left"]
+                    - attachment["before_surface"]["left"]
+                    == 80
+                    for attachment in comparison["scroll_attachments"]
+                )
+                for comparison in evidence["comparisons"]
+            ), evidence
     else:
         assert errors == [], errors
 
@@ -3325,7 +3358,17 @@ def test_viewport_constrained_attachment_credits_only_its_source_scroll(
 
 @pytest.mark.parametrize(
     "case",
-    ["root", "scaled", "fixed-both", "sticky", "fixed-fault", "clamp", "clamp-fault"],
+    [
+        "root",
+        "window",
+        "edge",
+        "scaled",
+        "fixed-both",
+        "sticky",
+        "fixed-fault",
+        "clamp",
+        "clamp-fault",
+    ],
 )
 def test_observed_attachment_credits_only_the_measured_scroll_placement(
     browser, serve, case
@@ -3376,7 +3419,7 @@ def test_observed_attachment_credits_only_the_measured_scroll_placement(
             "node => node.style.top = `${node.getBoundingClientRect().top - 10}px`"
         )
     page.evaluate(
-        """async clamp => {
+        """async ({clamp, wanted}) => {
       const module = await window.__lfRuntimeImport('/runtime/annotation-overlay/floating.js');
       const ui = await module.floatingUi();
       const subject = document.querySelector('#subject'), holder = document.querySelector('#holder');
@@ -3388,14 +3431,17 @@ def test_observed_attachment_credits_only_the_measured_scroll_placement(
         owner.begin();
         const answer = await owner.position(ui.computePosition, reference,
           {placement:'right-start',middleware:clamp ? [ui.shift({crossAxis:true,padding:0})] : []},
-          ()=>'page', subject);
+          () => wanted === 'edge' ? {edge:'top',at:0} : wanted, subject);
         if (answer) owner.stand(answer);
       }
       owner.watch(subject,reference,ui.autoUpdate);
       await place();
       holder.style.removeProperty('visibility');
     }""",
-        case.startswith("clamp"),
+        {
+            "clamp": case.startswith("clamp"),
+            "wanted": case if case in {"window", "edge"} else "page",
+        },
     )
     expect(page.locator("#holder")).to_have_attribute("data-lf-plane", "window")
     paint(page)

@@ -481,8 +481,8 @@ error without sending anything to OpenAI. There is no site-wide quota.
 Run the complete local site from the repository root with Docker available:
 
 ```sh
-npm ci
-npm run site:dev
+pnpm install --frozen-lockfile
+pnpm run site:dev
 ```
 
 ## Remote development
@@ -506,7 +506,7 @@ Wrangler secrets do not carry across named environments. The first deployment re
 both credentials from the process and creates the dev Worker with its OpenAI secret:
 
 ```sh
-CLOUDFLARE_API_TOKEN=... OPENAI_API_KEY=... npm run deploy:dev
+CLOUDFLARE_API_TOKEN=... OPENAI_API_KEY=... pnpm run deploy:dev
 ```
 
 Later deployments need only `CLOUDFLARE_API_TOKEN`, loaded from 1Password as above. The
@@ -515,7 +515,7 @@ commit plus working-tree state a release identity, waits for that exact release,
 runs the agent journey (`leaf-dev journey`):
 
 ```sh
-npm run deploy:dev
+pnpm run deploy:dev
 ```
 
 ## Production deployment
@@ -545,7 +545,7 @@ gh secret set CLOUDFLARE_API_TOKEN \
   --repo max-sixty/leaf --env cloudflare-deploy
 gh secret set CLOUDFLARE_API_TOKEN \
   --repo max-sixty/leaf --env tend
-npx wrangler secret put OPENAI_API_KEY --config worker/wrangler.toml
+pnpm exec wrangler secret put OPENAI_API_KEY --config worker/wrangler.toml
 ```
 
 In yolo mode, the next `publish-site` run can use code Tend merged to `main`

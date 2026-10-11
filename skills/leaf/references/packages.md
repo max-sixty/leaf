@@ -645,7 +645,7 @@ rendering every patch first.
 
 ```json
 {
-  "records": { "items": "files", "key": "key", "deferred": "patch" },
+  "records": { "items": "files", "key": "path", "deferred": "patch" },
   "schema": {
     "type": "object",
     "properties": {
@@ -654,10 +654,10 @@ rendering every patch first.
         "items": {
           "type": "object",
           "properties": {
-            "key": { "type": "string" },
+            "path": { "type": "string" },
             "patch": { "type": "string" }
           },
-          "required": ["key", "patch"]
+          "required": ["path", "patch"]
         }
       }
     },

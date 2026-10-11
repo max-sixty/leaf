@@ -179,6 +179,6 @@ run report.
 Dependency automation rebuilds committed browser bundles on Dependabot's PR.
 Read each `*.LICENSES.txt` diff: a package
 listed at two versions means the bump split a closure (Shiki's packages pin each
-other exactly); `npm update <package>` moves a locked dependency within its dependant's
+other exactly); `pnpm update <package> --no-save` moves a locked dependency within its dependant's
 range. Drop a Lit bump the Web Awesome build refuses. `esbuild` is left to move
 by hand when a bundle needs it; bump it and rebuild everything.

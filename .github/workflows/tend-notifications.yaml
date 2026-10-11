@@ -236,11 +236,14 @@ jobs:
         if: steps.check.outputs.count != '0' || steps.check.outputs.conflict_count != '0' || github.event_name == 'workflow_dispatch'
       - run: uv sync --frozen
         if: steps.check.outputs.count != '0' || steps.check.outputs.conflict_count != '0' || github.event_name == 'workflow_dispatch'
+      - uses: pnpm/action-setup@v6
+        if: steps.check.outputs.count != '0' || steps.check.outputs.conflict_count != '0' || github.event_name == 'workflow_dispatch'
       - uses: actions/setup-node@v7
         if: steps.check.outputs.count != '0' || steps.check.outputs.conflict_count != '0' || github.event_name == 'workflow_dispatch'
         with:
           node-version: '22'
-      - run: npm ci
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
         if: steps.check.outputs.count != '0' || steps.check.outputs.conflict_count != '0' || github.event_name == 'workflow_dispatch'
       - run: uv run playwright install --with-deps chromium webkit firefox --only-shell
         name: Install Chromium headless shell, WebKit and Firefox

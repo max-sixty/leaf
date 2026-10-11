@@ -1,5 +1,5 @@
-/* The vendored-generation gate, the event and media doors, and the page's error channel
-   to the agent.
+/* The vendored-generation gate, the event and media doors, the page's JSON requests,
+   and the page's error channel to the agent.
 
    A vendored runtime and registry are one generation. This module carries the
    epoch from `layer-generation.js` and the registry carries the same epoch
@@ -126,6 +126,39 @@ export function layerHeaders(headers = {}) {
     ...(release && { "Leaf-Release": release }),
     ...headers,
   };
+}
+
+// An answer `admitResponse` refused: it came from another delivery, and whether the page
+// reloads is already settled there. Each caller says what that means for its request.
+export class LayerRefused extends Error {}
+
+// The page's JSON requests beside the event door and the state reads: the layer's
+// headers out, the answer admitted, and the JSON read off the text so an error page a
+// proxy wrote fails as its status rather than as a parse. A failure throws the server's
+// `error`, or `<what>: HTTP <status>`, carrying the status, the raw body and the
+// answer's other fields (a file's `current`).
+export async function requestJson(url, init, what) {
+  const response = await fetch(url, { ...init, headers: layerHeaders(init.headers) });
+  if (!admitResponse(response))
+    throw new LayerRefused(`Leaf's layer changed while requesting ${what}`);
+  const text = await response.text();
+  let answer;
+  try {
+    answer =
+      response.ok ||
+      response.headers.get("Content-Type")?.split(";")[0].trim() === "application/json"
+        ? JSON.parse(text)
+        : null;
+  } catch (error) {
+    throw Object.assign(error, { status: response.status, body: text });
+  }
+  if (!response.ok)
+    throw Object.assign(
+      new Error(answer?.error ?? `${what}: HTTP ${response.status}`),
+      answer,
+      { status: response.status, body: text },
+    );
+  return answer;
 }
 
 export function sameLayer(generation) {
@@ -260,27 +293,19 @@ export const uploadMedia = async (file) => {
     throw new Error("no agent or server is available in an interactive export");
   await layerReady;
   countTraffic("sends");
-  let response;
+  let answer;
   try {
-    response = await fetch(pageUrl("api/media"), {
-      method: "POST",
-      headers: layerHeaders({
-        "Content-Type": file.type,
-      }),
-      body: file,
-    });
+    answer = await requestJson(
+      pageUrl("api/media"),
+      { method: "POST", headers: { "Content-Type": file.type }, body: file },
+      "image upload",
+    );
+  } catch (error) {
+    if (error instanceof LayerRefused) return null;
+    throw error;
   } finally {
     countTraffic("acked");
   }
-  if (!admitResponse(response)) return null;
-  let answer;
-  try {
-    answer = await response.json();
-  } catch {
-    throw new Error(`image upload returned HTTP ${response.status}`);
-  }
-  if (!response.ok)
-    throw new Error(answer?.error ?? `image upload returned HTTP ${response.status}`);
   if (typeof answer?.path !== "string")
     throw new Error("image upload returned no media path");
   return answer.path;

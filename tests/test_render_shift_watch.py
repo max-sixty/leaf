@@ -12,6 +12,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import ASK_PAGE
 from render_harness import (
     consume_browser_errors,
+    holding,
     judge_watches,
     leaf_page,
     open_page,
@@ -1151,6 +1152,53 @@ def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve, wo
     # A later passive move has the same native input in its history, but none
     # of the counted work that input began remains outstanding.
     control.evaluate("node => node.style.marginTop = '40px'")
+    rendered(page)
+    judge_watches()
+    consume_browser_errors(page, "button#control moved without input")
+
+
+def test_an_input_owns_a_widget_preparation_it_began_until_presented(browser, serve):
+    """A press's declared widget preparation is its result, however late it lands.
+
+    Opening a closed lf-diff file loads its evidence in a promise the widget presents
+    (`present`), which the rendering loop cannot see. Holding the file's grammar keeps
+    that preparation pending after the loop settles, as a loaded machine does; the files
+    after it still move only for the press that opened it."""
+    patch = "".join(
+        f"diff --git a/{name}.md b/{name}.md\n--- a/{name}.md\n+++ b/{name}.md\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+        for name in ("first", "second")
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Preparation",
+                f'<lf-diff id="patch" collapsed><pre>{escape(patch)}</pre></lf-diff>'
+                '<button id="control">Keep this control usable</button>',
+            )
+        ),
+    )
+    held = []
+    page.route("**/vendor/syntax/markdown.js", lambda route: held.append(route))
+    first = page.locator("#patch .lf-diff-file").first
+    first.locator(".lf-diff-head").click()
+    holding(page, held, 1, "the markdown grammar")
+    rendered(page)
+    assert (
+        page.evaluate(
+            "document.querySelector('script[data-lf-entry]').lfReadiness(null, 'presented')"
+        )
+        == "presented"
+    )
+    held[0].continue_()
+    expect(first.locator("[data-line]").last).to_contain_text("new")
+    rendered(page)
+    judge_watches()
+    assert page.lf_errors == []
+
+    # Once that preparation is presented, the press owns nothing further.
+    page.locator("#control").evaluate("node => node.style.marginTop = '40px'")
     rendered(page)
     judge_watches()
     consume_browser_errors(page, "button#control moved without input")

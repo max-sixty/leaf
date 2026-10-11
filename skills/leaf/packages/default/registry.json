@@ -57,7 +57,7 @@
   },
   "lf-num": {
     "description": "A measured scalar embedded in prose, tied to the snapshot that established it.",
-    "x-instructions": "Write the displayed value with its unit as the element text. Bind source to the repeatable measurement feed and set at to the updated instant leaf data set printed for that snapshot. Read authoring-evidence.md, Measured facts, for measurement and staleness checks. Use via when the source id alone leaves the command or query unclear.",
+    "x-instructions": "Write the displayed value with its unit as the element text. Bind source to the repeatable measurement feed and use the run receipt returned by leaf data set. Use via when the source id alone leaves the command or query unclear.",
     "type": "object",
     "properties": {
       "id": {
@@ -68,16 +68,16 @@
         "type": "string",
         "pattern": "^[a-z][a-z0-9-]*$"
       },
-      "at": {
+      "run": {
         "type": "string",
-        "format": "date-time"
+        "minLength": 1
       },
       "via": {
         "type": "string",
         "minLength": 1
       }
     },
-    "required": ["source", "at"],
+    "required": ["source", "run"],
     "additionalProperties": false,
     "x-content": "markup",
     "x-data": {
@@ -89,10 +89,10 @@
     "x-inline": true,
     "x-measured": {
       "input": "measurement",
-      "at": "at"
+      "run": "run"
     },
     "x-upgrade": false,
-    "x-example": "The import now takes <lf-num source=\"import-latency\" at=\"2026-08-27T09:00:00Z\" via=\"uv run bench-import\">184 ms</lf-num> at p95."
+    "x-example": "The import now takes <lf-num source=\"import-latency\" run=\"a41f103e236c985b\" via=\"uv run bench-import\">184 ms</lf-num> at p95."
   },
   "lf-text-document": {
     "description": "A file-backed text document with optional syntax coloring and rendered Markdown or HTML previews.",

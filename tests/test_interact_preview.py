@@ -1378,7 +1378,14 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     )
     reply = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", comment["answer"]["ref"], "--text", "Preserved reply"],
+        [
+            "response",
+            "reply",
+            "--done",
+            comment["answer"]["ref"],
+            "--text",
+            "Preserved reply",
+        ],
     )
     assert reply.exit_code == 0, reply.output
     status, body = fetch(

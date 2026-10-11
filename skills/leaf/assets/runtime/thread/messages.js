@@ -22,7 +22,7 @@ import {
   renderedWords,
 } from "../markdown.js";
 import { reportPageError } from "../layer-client.js";
-import { editable, isReaction, moved } from "./model.js";
+import { editable, isReaction, messageKey, moved } from "./model.js";
 import {
   MessageEditor,
   OPEN_MESSAGE_EDIT,
@@ -169,8 +169,10 @@ export function messageReading(
       : "prose";
   const prose = kind === "prose" ? proseReading(message) : null;
   return Object.freeze({
-    key: message.attempt ?? message.id,
+    key: messageKey(message),
     id: message.id,
+    // A reply still streaming, which the answer it stands for completes in place.
+    provisional: Boolean(message.provisional),
     version: message.edited?.id ?? message.id,
     seq: moved(message).seq,
     unread: message.unread,

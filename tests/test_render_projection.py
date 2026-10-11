@@ -2023,9 +2023,9 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     url = serve(
         leaf_page(
             "source comment draft",
-            '<h1 id="title">Review</h1>'
-            '<lf-text-document id="source" source="document"></lf-text-document>',
-            layout="wide",
+            '<div><h1 id="title">Review</h1>'
+            '<lf-text-document id="source" source="document"></lf-text-document></div>',
+            layout="sidebar",
         )
     )
     data_model.cmd_data_set(serve.page_dir, "document", "Original source words.")

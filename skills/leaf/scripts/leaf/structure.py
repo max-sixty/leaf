@@ -75,7 +75,7 @@ SECTIONING_TAGS = {"section", "article", "main", "body"}
 # `body` alone, the selected annotation presentation and whether the page claims the
 # overlay rail or keeps that margin for its own residents.
 AUTHORED_ALLOCATIONS = {
-    "data-width": ("column", "wide", "available"),
+    "data-width": ("wide", "available"),
     "data-bound": ("start", "end"),
     "data-height": re.compile("[1-9][0-9]*"),
     "data-rail": ("right", "none"),

@@ -1780,11 +1780,10 @@ flowchart TD
             <h2>Layouts</h2>
             <p id="layouts-lede">
               A Layout is a CSS class that arranges the element carrying it. On
-              <code>main</code>, it can give the page a reading column, a wide content
-              area, or a workspace. A workspace contains panes: regions with optional
-              headers and footers and, in a full-height workspace, their own scrolling.
-              Sidebar and tile layouts arrange an element's children and can be used on
-              <code>main</code> or on a block within the page.
+              <code>main</code>, it gives the page a reading column, a body beside a
+              side column, or a workspace. A workspace contains panes: regions with
+              optional headers and footers and, in a full-height workspace, their own
+              scrolling. The tile layout arranges the children of any block.
             </p>
             <table id="layouts-table">
               <thead>
@@ -1797,16 +1796,10 @@ flowchart TD
                 <tr id="layouts-column">
                   <td><code>layout-column</code></td>
                   <td>
-                    Text in a centred 720px column, which figures and boards can extend
-                    past. A plan, review, report or explanation read top to bottom, as
-                    most pages are, this one included.
-                  </td>
-                </tr>
-                <tr id="layouts-wide">
-                  <td><code>layout-wide</code></td>
-                  <td>
-                    A single vertical sequence of content as wide as the window, up to
-                    1600px. A code comparison or a data explorer.
+                    Text in a centred 720px column, which figures, boards and wide
+                    tables can extend past. A plan, review, report or explanation read
+                    top to bottom, as most pages are, this one included, and a
+                    playground, code comparison or trace, which extends past it.
                   </td>
                 </tr>
                 <tr id="layouts-workspace">
@@ -1820,9 +1813,9 @@ flowchart TD
                 <tr id="layouts-sidebar">
                   <td><code>layout-sidebar</code></td>
                   <td>
-                    A body beside a narrower side column; on <code>main</code>, a wide
-                    page with its header across both. A board and its status, a release
-                    dashboard, or a review with its verdict beside the diff.
+                    A body beside a narrower side column, with the header across both,
+                    as wide as the window up to 1600px. A board and its status, a
+                    release dashboard, or a review with its verdict beside the diff.
                   </td>
                 </tr>
                 <tr id="layouts-tiles">
@@ -1928,71 +1921,64 @@ flowchart TD
                   declared width, such as a diagram, extends past it.
                 </figcaption>
               </figure>
-              <figure id="kind-wide">
+              <figure id="kind-sidebar">
                 <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>
-                    A wide page: main declares a width, and every block starts at one
-                    left edge
+                    A sidebar page: a body beside its side column, each block starting
+                    at its region's left edge
                   </title>
                   <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
                   <rect class="frame-head" x="2" y="2" width="236" height="11" rx="5" />
-                  <g id="kind-wide-main">
+                  <g id="kind-sidebar-main">
                     <rect class="attr" x="8" y="18" width="224" height="136" rx="3" />
-                    <text class="mono" x="14" y="30">main.layout-wide</text>
+                    <text class="mono" x="14" y="30">main.layout-sidebar</text>
                   </g>
                   <rect class="line" x="14" y="37" width="80" height="8" rx="2" />
-                  <g id="kind-wide-text">
+                  <g id="kind-sidebar-body">
                     <rect
                       class="line soft"
                       x="14"
-                      y="51"
-                      width="130"
+                      y="53"
+                      width="120"
                       height="4"
                       rx="2"
                     />
                     <rect
                       class="line soft"
                       x="14"
-                      y="59"
+                      y="61"
+                      width="110"
+                      height="4"
+                      rx="2"
+                    />
+                    <rect
+                      class="box hot"
+                      x="14"
+                      y="72"
+                      width="140"
+                      height="54"
+                      rx="3"
+                    />
+                    <text x="84" y="103" text-anchor="middle">board</text>
+                    <rect
+                      class="line soft"
+                      x="14"
+                      y="134"
                       width="120"
                       height="4"
                       rx="2"
                     />
                   </g>
-                  <g id="kind-wide-body">
-                    <rect
-                      class="box hot"
-                      x="14"
-                      y="70"
-                      width="212"
-                      height="54"
-                      rx="3"
-                    />
-                    <text x="120" y="101" text-anchor="middle">wide widget</text>
-                  </g>
-                  <g id="kind-wide-more">
-                    <rect
-                      class="line soft"
-                      x="14"
-                      y="132"
-                      width="130"
-                      height="4"
-                      rx="2"
-                    />
-                    <rect
-                      class="line soft"
-                      x="14"
-                      y="140"
-                      width="104"
-                      height="4"
-                      rx="2"
-                    />
+                  <g id="kind-sidebar-aside">
+                    <rect class="box" x="162" y="53" width="64" height="88" rx="3" />
+                    <text class="small" x="168" y="65">aside</text>
                   </g>
                 </svg>
-                <figcaption id="cap-kind-wide">
-                  <strong>A wide page</strong><code>layout-wide</code> on
-                  <code>main</code> widens the page. Every block starts at one left
-                  edge, and text retains its reading width.
+                <figcaption id="cap-kind-sidebar">
+                  <strong>A sidebar page</strong><code>layout-sidebar</code> on
+                  <code>main</code> widens the page and sets a body beside its side
+                  column. Every block starts at its region's left edge, and text retains
+                  its reading width.
                 </figcaption>
               </figure>
               <figure id="kind-workspace">
@@ -2178,8 +2164,9 @@ flowchart TD
             </p>
             <ul id="column-widths">
               <li id="width-column">
-                <code>column</code> is the text measure. On a wide page, a
-                <code>column</code> block starts at the same left edge as the text.
+                <code>column</code> is the text measure. In a wider region, such as a
+                sidebar page's body, a <code>column</code> component starts at the same
+                left edge as the text.
               </li>
               <li id="width-wide">
                 <code>wide</code> extends up to 1080px. Wide blocks share this width so
@@ -2196,9 +2183,11 @@ flowchart TD
               <code>lf-options</code> uses <code>column</code>,
               <code>lf-board</code> uses <code>wide</code>, and
               <code>lf-diagram</code> uses <code>available</code>. A
-              <code>data-width</code> attribute on a block sets its width or overrides
-              the default. If the margins have unequal space, the block extends farther
-              into the wider margin.
+              <code>data-width</code> attribute asks for <code>wide</code> or
+              <code>available</code> on any block, overriding the default. If the
+              margins have unequal space, the block extends farther into the wider
+              margin. A table given a width takes its columns' natural width up to that
+              room rather than spreading across it.
             </p>
 
             <figure class="fig small" id="vocabulary-attribute">
@@ -2264,45 +2253,37 @@ flowchart TD
             </p>
           </section>
 
-          <section id="wide-page">
-            <h2>Wide pages</h2>
-            <p id="wide-page-what">
-              Applying a Layout other than <code>layout-column</code> to
-              <code>main</code> makes a wide page. Its blocks and title share a left
-              edge, while paragraphs still wrap at 720px. Wide, sidebar, and tiles pages
-              fill the window up to 1600px, with an outer margin that grows from 24px to
-              64px, and use larger titles than column pages. A workspace takes the whole
-              window inside a 12px gutter and uses the theme's title size.
+          <section id="sidebar-page">
+            <h2>Sidebar pages</h2>
+            <p id="sidebar-page-what">
+              <code>layout-sidebar</code> on <code>main</code> places the header across
+              the top, with a body and a narrower side column below it. The page fills
+              the window up to 1600px, with an outer margin that grows from 24px to
+              64px, and uses a larger title than a column page. Its blocks and title
+              share a left edge, while paragraphs still wrap at 720px.
             </p>
-            <p id="wide-page-tracks">
-              <code>layout-wide</code> arranges content vertically in a single wide
-              area. <code>layout-sidebar</code> places the header across the top, with a
-              body and a narrower side column below it. The side column is an
-              <code>aside</code>; placing it before or after the body in the HTML puts
-              it on the left or right. The regions stack in HTML order below about
-              870px, or when the body's content needs the full width, such as a board
-              with many columns. On an element within a page,
-              <code>layout-sidebar</code> makes the same arrangement without widening
-              the whole page.
+            <p id="sidebar-page-tracks">
+              The side column is an <code>aside</code>; placing it before or after the
+              body in the HTML puts it on the left or right. The regions stack in HTML
+              order below about 870px, or when the body's content needs the full width,
+              such as a board with many columns.
             </p>
-            <p id="wide-page-panels">
+            <p id="sidebar-page-panels">
               A side column made by <code>layout-sidebar</code> is part of that layout's
               content area. An <code>aside.sidebar</code> instead places a note in the
               margin of a column page. A <code>section.panel</code> draws a bordered
               card with a short heading to distinguish one region from another.
             </p>
-            <pre id="wide-page-markup"><code>&lt;main class="layout-sidebar"&gt;
+            <pre id="sidebar-page-markup"><code>&lt;main class="layout-sidebar"&gt;
   &lt;header&gt;&lt;h1&gt;Release 4.2 rollout&lt;/h1&gt;&lt;/header&gt;
   &lt;div&gt;…&lt;/div&gt;      &lt;!-- body: the work in progress --&gt;
   &lt;aside&gt;…&lt;/aside&gt;  &lt;!-- side column: status, counts, contents --&gt;
 &lt;/main&gt;</code></pre>
-            <p id="wide-page-examples">
-              Examples with a side column:
+            <p id="sidebar-page-examples">
+              Examples:
               <a href="/examples/live-progress/">Live progress</a>,
               <a href="/examples/triage-board/">Triage board</a>,
-              <a href="/examples/command-hub/">Command hub</a>. Examples with a single
-              wide flow: <a href="/examples/code-comparison/">Code comparison</a>,
-              <a href="/examples/data-explorer/">Data explorer</a>.
+              <a href="/examples/command-hub/">Command hub</a>.
             </p>
           </section>
 
@@ -2648,11 +2629,11 @@ flowchart TD
             <p id="chrome-markers">
               The <em>rail</em> is the strip to the right of <code>main</code> where
               Leaf places comment and decision markers. It appears when the window has
-              enough space: about 960px on a column page or about 1920px on a wide page.
-              <code>data-rail="right"</code> keeps it visible above 640px. Where no rail
-              fits, and inside a scrolling pane, a small pin appears beside the target
-              on the page. Leaf places it clear of text and controls when space permits.
-              The <kbd>o</kbd> shortcut hides pins and passage highlights.
+              enough space: about 960px on a column page or about 1920px on a sidebar
+              page. <code>data-rail="right"</code> keeps it visible above 640px. Where
+              no rail fits, and inside a scrolling pane, a small pin appears beside the
+              target on the page. Leaf places it clear of text and controls when space
+              permits. The <kbd>o</kbd> shortcut hides pins and passage highlights.
             </p>
             <p id="chrome-surfaces-what">
               A thread card opens beside its marker in the margin. If the margin is
@@ -2900,8 +2881,8 @@ flowchart TD
             <figure class="fig" id="narrow-figure">
               <svg class="drawing" viewBox="0 0 360 190" role="img">
                 <title>
-                  A wide page's regions, numbered in source order, stack into one column
-                  on a phone
+                  A sidebar page's regions, numbered in source order, stack into one
+                  column on a phone
                 </title>
                 <g id="narrow-desktop">
                   <rect class="frame" x="1" y="20" width="220" height="150" rx="6" />

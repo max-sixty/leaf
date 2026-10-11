@@ -174,6 +174,11 @@ def page_boundary_errors(parser: SourceDocument) -> list:
     return errors
 
 
+# The Layouts that shape a page. Each reads the window, so only `main` takes one; on
+# any other box it arranges nothing (layouts.css).
+PAGE_LAYOUTS = ("layout-column", "layout-sidebar", "layout-workspace")
+
+
 def authored_allocation_errors(parser: SourceDocument) -> list:
     """Authored allocations use the layer's named values, and a page's own allocation
     stands on its `body`."""
@@ -199,8 +204,7 @@ def authored_allocation_errors(parser: SourceDocument) -> list:
         ]
         + [
             f"{at(item, item['attr'])} sizes a block in the page's flow, and <main> is the "
-            "page: its width is a Layout class on it (layout-wide, layout-sidebar, "
-            "layout-workspace)"
+            f"page: its width is a Layout class on it ({', '.join(PAGE_LAYOUTS)})"
             for item in parser.authored_allocations
             if item["attr"] not in PAGE_ALLOCATIONS | {"data-height"}
             and item["tag"] == "main"
@@ -209,19 +213,28 @@ def authored_allocation_errors(parser: SourceDocument) -> list:
 
 
 def unarranged_main(parser: SourceDocument) -> list:
-    """Advice for a `main` with no Layout class. Nothing arranges such a page, so its
-    blocks run the window's width; the page's own CSS may mean exactly that, which is
-    why this is advice rather than an error."""
+    """Advice for a page Layout missing from `main` or written on another box. Nothing
+    sets the width or reading column of a `main` without one; the page's own CSS may
+    mean exactly that, which is why this is advice rather than an error."""
+
+    def layouts(node: dict) -> list:
+        return [n for n in node["attrs"].get("class", "").split() if n in PAGE_LAYOUTS]
+
+    misplaced = [
+        f"{at(node, 'class=' + json_value(name))} arranges nothing: a page Layout "
+        "shapes <main> alone"
+        for node in parser.nodes
+        if node["tag"] != "main"
+        for name in layouts(node)
+    ]
     main = next((node for node in parser.nodes if node["tag"] == "main"), None)
-    if main is None or any(
-        name.startswith("layout-") for name in main["attrs"].get("class", "").split()
-    ):
-        return []
-    return [
+    if main is None or layouts(main):
+        return misplaced
+    return misplaced + [
         (
-            "<main> has no Layout class, so nothing arranges the page and its blocks "
-            'run the window\'s width; class="layout-column" sets the reading column, '
-            "unless the page's own CSS arranges it"
+            f"<main> has no page Layout ({', '.join(PAGE_LAYOUTS)}), so nothing sets the "
+            'page\'s width or reading column; class="layout-column" sets the column, '
+            "unless the page's own CSS arranges the page"
         )
     ]
 

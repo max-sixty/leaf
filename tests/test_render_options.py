@@ -1102,7 +1102,7 @@ WIDE_PROSE = (
 )
 WIDE_ASK_PAGE = leaf_page(
     "Options on a wide page",
-    f"""
+    f"""<div>
 <h1>Where sessions live</h1>
 <div id="layout">
 <section id="body">
@@ -1126,10 +1126,10 @@ WIDE_ASK_PAGE = leaf_page(
 <lf-options id="page-cards" choose>
   <lf-option id="pc-platform"><strong>Platform</strong> They run the store.</lf-option>
   <lf-option id="pc-accounts"><strong>Accounts</strong> They own the table.</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-ask></div>
 """,
     head=regions_side_by_side("layout", "2fr 1fr"),
-    layout="wide",
+    layout="sidebar",
 )
 
 

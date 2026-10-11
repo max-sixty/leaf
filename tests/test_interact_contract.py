@@ -4591,7 +4591,7 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
     assert result.exit_code == 1
     assert (
         '<table data-width="full"> (line 9) has an invalid value; expected one of '
-        "column, wide, available" in result.output
+        "wide, available" in result.output
     )
 
 
@@ -4629,18 +4629,31 @@ def test_check_takes_a_stated_height_only_on_a_widget_that_draws_into_its_box(pa
 def test_check_takes_a_page_s_width_from_a_layout_and_not_from_data_width(page_dir):
     """A page's width is a Layout class on `main`. `data-width` sizes a block in the
     page's flow, so on `main` it would widen nothing and is refused; a `main` with no
-    Layout at all is advice, since nothing arranges it unless the page's own CSS does."""
-    unarranged = "<main> has no Layout class"
+    page Layout is advice, since nothing arranges it unless the page's own CSS does, and
+    so is a page Layout on another box, where it arranges nothing."""
+    unarranged = "<main> has no page Layout ("
+    misplaced = "arranges nothing: a page Layout shapes <main> alone"
     (page_dir / "index.html").write_text(
         PAGE.replace("<main>", '<main class="layout-column">')
     )
     result = check(page_dir)
     assert result.exit_code == 0, result.output
     assert unarranged not in result.output
+    assert misplaced not in result.output
     (page_dir / "index.html").write_text(PAGE)
     result = check(page_dir)
     assert result.exit_code == 0, result.output
     assert unarranged in result.output
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<main>", '<main class="layout-tiles">').replace(
+            "<h2>Plan</h2>", '<h2>Plan</h2><div class="layout-sidebar"><p>A.</p></div>'
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+    assert unarranged in result.output
+    assert '<div class="layout-sidebar"> (line' in result.output
+    assert misplaced in result.output
     (page_dir / "index.html").write_text(
         PAGE.replace("<main>", '<main data-width="available">')
     )

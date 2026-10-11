@@ -102,9 +102,9 @@ stands alone, since whoever reads it there has none of the page around it.
 
 Most pages use a reading column, `<main class="layout-column">`. Text stays within
 the column's measure; wider blocks extend beside it without moving the prose.
-Without a Layout class, `main`'s blocks fill the window's width. A diagram, board,
-or wide table declares its preferred width in the registry; `data-width` makes
-the same request for other blocks ("Bounds and widths", below). Compose the page
+Without a Layout class, `main`'s blocks fill the window's width. A diagram or board
+declares its preferred width in the registry; `data-width` makes the same request
+for other blocks, such as a wide table ("Bounds and widths", below). Compose the page
 from these:
 
 - **Prose read in order** — a plan, a review, a write-up, a decision — is plain
@@ -121,7 +121,7 @@ from these:
   dashboard, such as a queue worked one item at a time or a run's log beside the chart
   it explains, is a workspace (below). A document read top to bottom beside a panel
   kept in view, such as a postmortem beside its timeline, is instead a `layout-sidebar`
-  page whose `aside` sticks ("A wide page", below).
+  page whose `aside` sticks ("A sidebar page", below).
 - **Several views of one artifact** are one `lf-tabs` set: page tabs for
   project-scale views that share one history, Threads panel, Question inventory, and
   revision sequence, and a tabbed section for local alternatives within the
@@ -164,37 +164,41 @@ Write an empty `lf-toc` with a stable id. On a column page, put it in an
 With room in the desktop margin, Leaf presents the column's outline as the contents
 spine; in a narrow window it is an open outline in the page's flow ("The rail and the
 margin"). On a sidebar page, keep the outline and short verdict or status available
-in the opening overview inside the Layout's `aside` ("A wide page"). Keep that
+in the opening overview inside the Layout's `aside` ("A sidebar page"). Keep that
 overview short enough to fit the window, with detailed evidence and history in the
 body or behind a disclosure. Workspaces and root page tabs use their own navigation.
 
 ### Layouts
 
 A Layout is a class that arranges the box it is on. Three set the page's shape, on
-`main`:
+`main` alone:
 
 | Class | The page |
 | --- | --- |
 | `layout-column` | the reading column, and a block's breakout beside it |
-| `layout-wide` | as wide as the window, up to a cap, holding one flow |
+| `layout-sidebar` | a body beside its `aside`, with a `header` and `footer` across both |
 | `layout-workspace` | a screen filling the window: `header`, one body, `footer` |
 
-Two arrange a box's children, on `main` or on any block:
+One arranges a block's children:
 
 | Class | Arranges |
 | --- | --- |
-| `layout-sidebar` | a body beside its `aside`, with a `header` and `footer` across both |
 | `layout-tiles` | equal cells, as many to a row as fit |
 
-On `main`, every class but `layout-column` makes a wide page: every block, the title
-included, starts at one left edge and takes the page's width, while text keeps the
-reading measure, as do an `lf-ask`, a callout and a widget read as text, such as an option
-list or a draft. Give an `lf-ask` or a callout `data-width` where it holds a chart, a table,
-a playground or another surface that needs more room ("Bounds and widths"). A wide,
-sidebar or tiles page is capped at the widest page and sets its title larger; a
-workspace takes the whole window and leaves its title to the theme. `layout-column` on
-a block keeps the measure but gives it no room to break out into, since that room is
-the page's.
+Wide content on a column page breaks out of the column by its own declaration: a board
+or a diagram declares its width, and `data-width` asks for one on any other block, such
+as a table, a trace or the Question holding a playground ("Bounds and widths"). The
+prose keeps its axis around it.
+
+On a sidebar page or a workspace, every block, the title included, starts at one left
+edge and takes its region's width, while text keeps the reading measure, as does a
+widget read as text, such as an option list or a draft. A sidebar page is capped at the
+widest page and sets its title larger; a workspace takes the whole window and leaves its
+title to the theme.
+
+An `lf-ask` and a callout keep the reading measure in every Layout. Give one
+`data-width` where it holds a chart, a table, a playground or another surface that needs
+more room.
 
 A Layout is a starting point. The page's own `<style>` comes after it in the cascade, so
 an ordinary rule adjusts it — a different track share, a gap, an order — and a page
@@ -202,12 +206,11 @@ whose arrangement no Layout fits writes its own grid or flex rules on its own bo
 Where a Layout fits, use it rather than rebuilding it, since its tracks already hold
 the widths and wrapping every page needs.
 
-### A wide page
+### A sidebar page
 
 When the regions are the page rather than exhibits in an argument — a board with its
 status, a release dashboard, a long review whose contents and verdict stay beside the
-code — widen the page itself. `<main class="layout-wide">`
-holds one flow at the page's width. `<main class="layout-sidebar">` sets what the reader
+code — widen the page itself. `<main class="layout-sidebar">` sets what the reader
 works through beside what they keep an eye on — status, counts, the verdict's
 follow-ups, the contents — which is the Layout's `aside`, with the page's `header` above
 both:
@@ -328,18 +331,18 @@ Don't make a box scroll vertically with page CSS: Leaf keeps no reading position
 in a scroller it did not make, and `page check` advises against one.
 
 An individual block or section may request a responsive allocation with
-`data-width="column"`, `data-width="wide"`, or `data-width="available"`. `column`
-keeps the prose measure and starts where the prose does, including inside a wider
-section or on a wide page. `wide` uses the shared evidence width, `--wide`, in every
-Layout: past a column it grows to that width, and in a wider track or pane it holds
-to it at the track's start. A narrower frame still bounds it. `available` uses all
-room left by the page shell, frames, chrome, and a margin resident that takes its side,
-such as a sidebar standing in the margin or the contents map's spine; the markers beside
-it then stand as pins on it, and it moves below a note hanging level with it. The
-occurrence overrides a widget's or idiom's default, so `data-width="column"` can
-deliberately keep a normally wide widget with the prose. An `lf-ask` or a callout keeps the
-column; give it the width its chart, table or playground needs, and in a wider flow it
-also widens to a block of its own that declares one.
+`data-width="wide"` or `data-width="available"`, which overrides a widget's or idiom's
+default. `wide` uses the shared evidence width, `--wide`, in every Layout: past a
+column it grows to that width, and in a wider body or pane it holds to it at its
+start. A narrower frame still bounds it. `available` uses all room left by the page
+shell, frames, chrome, and a margin resident that takes its side, such as a sidebar
+standing in the margin or the contents map's spine; the markers beside it then stand as
+pins on it, and it moves below a note hanging level with it. A native `table` given
+either takes its columns' natural width up to that room: one that fits the column
+stands where the prose starts, and a wider one grows evenly about the prose. An
+`lf-ask` or a callout keeps the column; give it the width its chart, table or
+playground needs, and in a wider flow it also widens to a block of its own that
+declares one.
 Use these names on the semantic block itself, including a native `table`, `lf-code`, or
 `lf-diff`; do not reproduce their responsive widths in page CSS.
 
@@ -369,14 +372,14 @@ unused space when the marker is in the rail.
 On a column page, write its contents outline in the first `aside.sidebar` and
 short notes in `aside.sidenote`. Leaf moves them into the margin when they fit;
 in a narrow window they stay where you authored them. A `layout-sidebar` page
-instead has an authored body and `aside` region ("A wide page").
+instead has an authored body and `aside` region ("A sidebar page").
 
 For CSS that depends on a margin resident, use `main`'s `data-lf-margin` tokens
 (`rail`, `map`, `sidebar`, `note`), such as
 `main:not([data-lf-margin~="sidebar"]) #route { display: none }`. Verify the
 page at the widths where a resident returns to the document flow.
 
-`data-rail="right"` on `body` keeps a rail on a wide page.
+`data-rail="right"` on `body` keeps a rail on a sidebar page or a workspace.
 `data-rail="none"` gives a column page's right margin to the page's own content.
 A marker beside a hanging `aside.sidenote` already appears as a pin, so notes
 need neither override.

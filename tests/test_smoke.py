@@ -114,11 +114,11 @@ def test_a_pending_reply_keeps_the_transcript_end_when_card_fitting_reduces_room
     """
     source = leaf_page(
         "Margin reply",
-        "<h1>Reply beside a passage</h1>"
+        "<div><h1>Reply beside a passage</h1>"
         '<section id="candidate"><h2>Candidate</h2>'
         "<p>Review this candidate and reply beside its passage.</p>"
-        '<div style="height:600px"></div></section>',
-        layout="wide",
+        '<div style="height:600px"></div></section></div>',
+        layout="sidebar",
     )
     url = serve(source)
     root = panel_comment(

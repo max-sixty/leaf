@@ -2049,13 +2049,12 @@ def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
     assert root_overflow(page) == 0, "nor scroll sideways on a narrow window"
 
 
-def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
-    """One authored width contract applies to native and package blocks. An occurrence
-    wins over a package default, and column remains the prose measure when nested in a
-    wider section rather than inheriting its containing block's allocation. There a
-    column block, authored or declared by its widget (lf-options), starts at the
-    section's edge as the section's text does, rather than centred in the room. A board
-    allocated the column keeps to it even where its four columns' minimum is wider."""
+def test_authored_blocks_choose_wide_or_available_space(browser, serve):
+    """One authored width contract applies to native and package blocks. Column remains
+    the prose measure when nested in a wider section rather than inheriting its
+    containing block's allocation: there a block declared the column by its widget
+    (lf-options) starts at the section's edge as the section's text does, rather than
+    centred in the room."""
     source = leaf_page(
         "Authored block widths",
         """
@@ -2064,24 +2063,16 @@ def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
 <section id="wide" data-width="wide">
   <table id="table" data-width="available"><thead><tr><th>Case</th><th>Result</th></tr></thead>
     <tbody><tr><td>Native table</td><td>Uses its authored allocation.</td></tr></tbody></table>
-  <p id="nested-column" data-width="column">Narrow prose within wide evidence.</p>
   <p id="nested-prose">Prose within wide evidence.</p>
   <lf-options id="options" choose><lf-option id="option">One</lf-option></lf-options>
 </section>
-<lf-board id="board" data-width="column">
-  <lf-column id="todo" label="Todo"><lf-card id="card">One</lf-card></lf-column>
-  <lf-column id="doing" label="Doing"></lf-column>
-  <lf-column id="review" label="Review"></lf-column>
-  <lf-column id="done" label="Done"></lf-column>
-</lf-board>
 """,
     )
     page = open_page(browser, live_url(serve(source)))
     resized(page, 1726, 900)
     at = page.evaluate("""() => {
       const result = {};
-      for (const id of ['prose', 'wide', 'table', 'nested-column', 'nested-prose',
-                        'options', 'board']) {
+      for (const id of ['prose', 'wide', 'table', 'nested-prose', 'options']) {
         const el = document.getElementById(id), box = el.getBoundingClientRect();
         result[id] = {width: box.width, left: box.left,
           space: el.getAttribute('data-lf-space'), role: el.getAttribute('role')};
@@ -2090,15 +2081,13 @@ def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
     }""")
     assert at["wide"]["space"] == "wide"
     assert at["table"]["space"] == "available"
-    assert at["board"]["space"] == "column"
     assert at["wide"]["width"] > at["prose"]["width"]
     assert at["table"]["width"] == pytest.approx(at["wide"]["width"], abs=1)
     assert at["options"]["space"] == "column"
     assert at["wide"]["left"] < at["prose"]["left"]
-    for column in ("nested-column", "nested-prose", "options"):
+    for column in ("nested-prose", "options"):
         assert at[column]["width"] == pytest.approx(at["prose"]["width"], abs=1)
         assert at[column]["left"] == pytest.approx(at["wide"]["left"], abs=1)
-    assert at["board"]["width"] == pytest.approx(at["prose"]["width"], abs=1)
     assert page.locator("#table").evaluate("el => el.tagName") == "TABLE"
     assert root_overflow(page) == 0
 
@@ -2167,10 +2156,10 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
 
 
 def test_named_wide_is_the_evidence_width_in_every_layout(browser, serve):
-    """`wide` is the shared capped evidence width wherever a block stands. A wide
-    Layout's track and a workspace pane are wider than `--wide` at a large window, so
-    the breakout's growth alone left a named-wide block at the holder's width there:
-    1598px in `layout-wide` and 1442px in a pane at 1726px. The cap holds an authored
+    """`wide` is the shared capped evidence width wherever a block stands. A sidebar
+    page's body and a workspace pane are wider than `--wide` at a large window, so the
+    breakout's growth alone left a named-wide block at the holder's width there: 1442px
+    in a pane at 1726px. The cap holds an authored
     occurrence and a package default (a board) alike, at the page's own `--wide`, while
     a block that names no width still fills its holder and `available` takes it all. A
     narrow window's pane still bounds the wide block."""
@@ -2185,7 +2174,7 @@ def test_named_wide_is_the_evidence_width_in_every_layout(browser, serve):
 <div id="plain">No width named.</div>
 <div id="available" data-width="available">Available.</div>
 """
-    wide_page = leaf_page("Wide track", blocks, layout="wide")
+    sidebar_page = leaf_page("Sidebar body", f"<div>{blocks}</div>", layout="sidebar")
     workspace_page = leaf_page(
         "Workspace pane",
         f'<lf-pane id="pane" label="Evidence"><div id="holder">{blocks}</div></lf-pane>',
@@ -2193,16 +2182,20 @@ def test_named_wide_is_the_evidence_width_in_every_layout(browser, serve):
     )
     configured = leaf_page(
         "Configured width",
-        blocks,
+        f"<div>{blocks}</div>",
         head="<style>:root { --wide: 900px; }</style>",
-        layout="wide",
+        layout="sidebar",
     )
     measure = """() => Object.fromEntries(
       ['named', 'board', 'plain', 'available'].map(id => {
         const box = document.getElementById(id).getBoundingClientRect();
         return [id, {width: Math.round(box.width), left: Math.round(box.left)}];
       }))"""
-    for source, cap in ((wide_page, 1080), (workspace_page, 1080), (configured, 900)):
+    for source, cap in (
+        (sidebar_page, 1080),
+        (workspace_page, 1080),
+        (configured, 900),
+    ):
         page = open_page(browser, serve(source))
         resized(page, 1726, 900)
         at = page.evaluate(measure)
@@ -2222,12 +2215,14 @@ def test_named_wide_is_the_evidence_width_in_every_layout(browser, serve):
 def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     browser, serve
 ):
-    """On a wide page an Ask and a callout keep the prose's width and left edge, so the
-    Ask's ring and pin stand beside what it asks, as on a column page. One granted
+    """On a sidebar page an Ask and a callout keep the prose's width and left edge, so
+    the Ask's ring and pin stand beside what it asks, as on a column page. One granted
     `data-width`, or holding a block of its own that declares one, takes that room for
     the evidence. On a column page the Ask stays in the column and its wide block breaks
-    out of it, as the block would from a section."""
-    table = '<table id="{id}-t" data-width="wide"><tr><td>p95</td></tr></table>'
+    out of it, as the block would from a section; the table's twelve columns need the
+    room, since a table granted it takes only what its columns need."""
+    cells = "<td>p95 latency</td>" * 12
+    table = '<table id="{id}-t" data-width="wide"><tr>' + cells + "</tr></table>"
     ask = (
         '<lf-ask id="{id}"{width}><h3>Ship it?</h3>{table}<lf-options id="{id}-o" '
         'choose><lf-option id="{id}-yes">Yes</lf-option></lf-options></lf-ask>'
@@ -2264,7 +2259,10 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
         const box = document.getElementById(id).getBoundingClientRect();
         return [id, {width: Math.round(box.width), left: Math.round(box.left)}];
       }))"""
-    page = open_page(browser, serve(leaf_page("Wide flow", body, layout="wide")))
+    page = open_page(
+        browser,
+        serve(leaf_page("Sidebar body", f"<div>{body}</div>", layout="sidebar")),
+    )
     resized(page, 1726, 900)
     at = page.evaluate(measure)
     edge = at["prose"]["left"]
@@ -2320,7 +2318,6 @@ def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):
 <lf-sample id="sample-wide" data-width="wide"><p>A wide sample.</p></lf-sample>
 <div id="block-available" data-width="available">An available block.</div>
 <lf-sample id="sample-available" data-width="available"><p>An available sample.</p></lf-sample>
-<lf-sample id="sample-column" data-width="column"><p>A column sample.</p></lf-sample>
 <lf-sample id="sample-plain"><p>A plain sample.</p></lf-sample>
 <section data-width="wide"><ul><li id="item">
   <p>A list item inside wide evidence.</p>
@@ -2347,11 +2344,7 @@ def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):
                 f'a data-width="{width}" sample\'s {edge} edge is at '
                 f"{sample[edge]:.0f}px, the room's at {block[edge]:.0f}px"
             )
-    for control in ("sample-column", "sample-plain"):
-        assert at[control]["width"] == pytest.approx(at["prose"]["width"], abs=1), (
-            control,
-            at,
-        )
+    assert at["sample-plain"]["width"] == pytest.approx(at["prose"]["width"], abs=1), at
     assert at["sample-nested"]["width"] == pytest.approx(at["item"]["width"], abs=1), at
     assert root_overflow(page) == 0
 
@@ -3915,7 +3908,7 @@ def test_margin_residents_keep_their_first_painted_posture(
       const {runtimeRootState} = await window.__lfRuntimeImport('/runtime/root-state.js');
       return runtimeRootState(document.body).attributes.has('data-lf-column-shell');
     }""")
-    for revision, layout in ((5, "wide"), (6, "column")):
+    for revision, layout in ((5, "sidebar"), (6, "column")):
         next_source = source.replace(
             "--authored: initial", f"--authored: revision{revision}"
         )

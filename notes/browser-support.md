@@ -185,6 +185,24 @@ what fails and what still works.
   `test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it` hold the required
   wrapper and row behavior. Parser support alone does not establish it.
 
+### Breakout table alignment
+
+- **Disposition: accepted visual difference.** A table granted `data-width` on a
+  column page keeps its allocation as its box and centres its native grid in it with
+  `justify-items: safe center`. An engine without alignment in block layout starts the
+  grid at the allocation's edge instead, left of the prose by the room it grew into on
+  that side, where the grid stood when it stretched across the allocation. The table
+  stays inside its room and readable.
+- **Owner:** the breakout table rules in
+  [`layouts.css`](../skills/leaf/assets/layouts.css).
+- **Observed, 2026-10-10:** a `display: table` box in a block container with
+  `justify-items: center` is centred by Chrome 155, Playwright Chromium
+  153.0.8010.12 and Playwright WebKit 26.6, and starts at the container's edge in
+  Playwright Firefox 155. MDN's compatibility data lists Safari as unsupported for
+  `justify-items` in block layout, which WebKit 26.6 contradicts.
+- **Recheck:** `uv run python` on a page holding that box, in each Playwright engine,
+  reading the table's offset from its container's left edge.
+
 ### State-preserving content reordering (review #22)
 
 - **Impact: functional; support decision open.** Reordering retained content

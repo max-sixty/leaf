@@ -63,7 +63,7 @@ def leaf_page(
     title: str, body: str, *, head: str = "", layout: str | None = "column"
 ) -> str:
     """A complete page carrying the presentation boundary every fixture shares. `layout`
-    names the Layout `main` takes (`wide` is `<main class="layout-wide">`): the column,
+    names the Layout `main` takes (`sidebar` is `<main class="layout-sidebar">`): the column,
     the Layout most pages take, unless the test says otherwise, and None for a `main`
     with no Layout at all."""
     extra_head = f"{head}\n" if head else ""

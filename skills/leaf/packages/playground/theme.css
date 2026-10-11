@@ -1,4 +1,4 @@
-/* A playground is an instrument laid out as a wide page's body beside its rail: the real
+/* A playground is an instrument laid out as a sidebar page's body beside its aside: the real
  * preview is the stage and owns the larger field, and the controls stand above the
  * instruction they write, with its actions, in a rail beside it. Its regions are three
  * generated panes (data-lf-reading-role="pane", the kernel's theme.css), whose bodies
@@ -6,7 +6,7 @@
  * only places the panes and draws them.
  *
  * Each region is drawn once. The playground itself is no card: the stage is the
- * preview's own well, and each rail pane is a panel as a wide page draws its regions
+ * preview's own well, and each rail pane is a panel as a sidebar page draws its regions
  * (theme.css, section.panel), so a candidate the page draws on the stage is the only
  * surface inside the well rather than a card in a well in a card. */
 :scope:is(lf-playground) {
@@ -105,7 +105,7 @@
   flex: 1 0 auto;
 }
 
-/* A rail pane is a panel: the card a wide page draws each region in, titled in the panel's
+/* A rail pane is a panel: the card a sidebar page draws each region in, titled in the panel's
  * small capitals. Only a playground draws these regions, so the rules name no scope
  * root: `:scope` would weigh a class, and the presets band's rule below would lose its
  * bottom rule and padding to the generic header's. */

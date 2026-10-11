@@ -330,7 +330,7 @@ def test_a_bounded_document_reader_chains_wheel_at_its_edge(browser, serve, capt
 def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fit(
     browser, serve
 ):
-    """The workspace Layout takes the whole window, wider than the wide page's capped
+    """The workspace Layout takes the whole window, wider than a sidebar page's capped
     frame, and its height below the banner: each pane's body scrolls on its own. Its
     header is one row, the title with the status beside it, so the panes keep the
     window. A window too short to hold it hands the scroll to the page."""
@@ -344,7 +344,7 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     declared = open_page(
         browser,
         serve(
-            WORKSPACE_PAGE.replace('class="layout-workspace"', 'class="layout-wide"')
+            WORKSPACE_PAGE.replace('class="layout-workspace"', 'class="layout-sidebar"')
         ),
     )
     resized(declared, 1920, 720)
@@ -1101,10 +1101,10 @@ def test_page_tabs_mark_only_the_selected_name_in_forced_colors(browser, serve):
 
 
 def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
-    """Page tabs are sections of one page: on a wide page the header, the strip and the
-    open panel share main's left edge and the panel takes main's width."""
+    """Page tabs are sections of one page: on a sidebar page the header, the strip and
+    the open panel share main's left edge and the panel takes main's width."""
     source = ROOT_TABS_PAGE.read_text().replace(
-        '<main class="layout-column">', '<main class="layout-wide">', 1
+        '<main class="layout-column">', '<main class="layout-sidebar">', 1
     )
     page = open_page(browser, serve(source))
     resized(page, 1440, 900)
@@ -1137,7 +1137,7 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     assert boxes["title"]["left"] == boxes["content"]["left"], boxes
 
 
-@pytest.mark.parametrize("layout", ["column", "wide", "workspace"])
+@pytest.mark.parametrize("layout", ["column", "sidebar", "workspace"])
 def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
     browser, serve, layout
 ):
@@ -1145,24 +1145,35 @@ def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
     open panel takes the box and the column widths its twin outside the set takes: at
     first paint, before the runtime has drawn the strip, then at a desktop window, with
     the thread panel open over it, and on a phone. A boxed set's panel draws a frame,
-    so the same table there stays inside it."""
+    so the same table there stays inside it. Each table has twelve columns, so on a
+    column page, where a table granted room takes what its columns need, it needs the
+    room."""
 
     def tables(where):
+        heads = "".join(f"<th>Case {i}</th>" for i in range(12))
+        cells = "<td>Result</td>" * 12
         return "".join(
-            f'<table id="{where}-{space}" data-width="{space}"><thead><tr><th>Case</th>'
-            "<th>Result</th></tr></thead><tbody><tr><td>One</td><td>Two</td></tr>"
-            "</tbody></table>"
+            f'<table id="{where}-{space}" data-width="{space}"><thead><tr>{heads}'
+            f"</tr></thead><tbody><tr>{cells}</tr></tbody></table>"
             for space in ("wide", "available")
         )
 
-    source = leaf_page(
-        "Evidence in page tabs",
+    content = (
         f'<h1 id="t">Evidence in page tabs</h1><p id="prose">Prose.</p>{tables("out")}'
         f'<lf-tabs id="root-tabs"><lf-tab id="compare" label="Compare">{tables("in")}'
         '</lf-tab><lf-tab id="notes" label="Notes"><p>Notes.</p></lf-tab></lf-tabs>'
         f'<section><lf-tabs id="boxed"><lf-tab id="boxed-open" label="Boxed">{tables("boxed")}'
         '</lf-tab><lf-tab id="boxed-other" label="Other"><p>Other.</p></lf-tab></lf-tabs>'
-        "</section>",
+        "</section>"
+    )
+    # A sidebar page with no aside holds one flow: the page's own CSS gives each block
+    # the row, and the tab set stays root, a direct child of main.
+    source = leaf_page(
+        "Evidence in page tabs",
+        content,
+        head="<style>main > * { flex-basis: 100%; }</style>"
+        if layout == "sidebar"
+        else "",
         layout=layout,
     )
     boot = []

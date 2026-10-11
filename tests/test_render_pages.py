@@ -2640,6 +2640,7 @@ def test_a_box_that_shows_less_than_it_holds_says_so(browser, serve):
     promise of more with nothing behind it."""
     url = serve(CUT_BOXES_PAGE)
     page = open_page(browser, url)
+    resized(page, 900, 900)
     marks = page.evaluate("""() => {
         const read = (id) => {
             const el = document.getElementById(id);
@@ -2698,7 +2699,7 @@ def test_a_drawing_cut_at_its_edge_fades_toward_the_ground_and_still_reaches_it(
     drawn at throughout, and the same five steps drawn top-down fit the column and fade
     nothing."""
     page = open_page(browser, serve(LONG_CHAIN_PAGE))
-    resized(page, 1440, 900)
+    resized(page, 850, 900)
     rendered(page)
     sizes = page.evaluate("""() => Object.fromEntries(['chain', 'stack'].map((id) => {
         const el = document.getElementById(id), svg = el.querySelector('svg');

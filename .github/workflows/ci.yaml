@@ -130,10 +130,15 @@ jobs:
         # process tree from `uv run` once it has a child, and stops when it exits. Its
         # cost scales with the rate: 20 Hz took 10% of a run's CPU, 5 Hz 4.5%. At 2 Hz
         # each worker's stack is still sampled 7,200 times an hour.
+        # Accounting is machine-wide, so it runs only where the suite is the only work
+        # meanwhile: a pull request builds the website beside it.
         run: |
           mkdir -p .tmp/test-results
-          sudo touch /var/log/account/suite
-          sudo accton /var/log/account/suite
+          accounting=${{ github.event_name != 'pull_request' }}
+          if $accounting; then
+            sudo touch /var/log/account/suite
+            sudo accton /var/log/account/suite
+          fi
           uv run pytest tests -n 3 -v --junitxml=.tmp/test-results/results.xml \
             ${{ github.event_name == 'pull_request' && '--nightly-changed-since HEAD^1' || '--run-nightly' }} &
           tests=$!
@@ -145,9 +150,11 @@ jobs:
           profiler=$!
           wait "$tests" && status=0 || status=$?
           wait "$profiler" || echo "py-spy exited with $?"
-          sudo accton off
-          sudo chmod a+r /var/log/account/suite
-          sa -a -c -i /var/log/account/suite > .tmp/test-results/cpu-by-command.txt
+          if $accounting; then
+            sudo accton off
+            sudo chmod a+r /var/log/account/suite
+            sa -a -c -i /var/log/account/suite > .tmp/test-results/cpu-by-command.txt
+          fi
           exit "$status"
 
       # The website build can overlap Python; Docker must wait because its host

@@ -11,7 +11,7 @@
  * accessible shortcut hints. Visual shortcuts belong to the shared shortcut bar. Comments and workflow receipts keep their own
  * annotation layer; hiding annotations cannot hide the editor's controls. The editor
  * and its tools are Leaf surfaces even inside the document, so Draw and Design modes leave them
- * operable while the saved reading and history remain drawable.
+ * operable while the saved reading and history remain the page's to draw on or comment on.
  * History shares the footer only when edits exist and the editor is closed.
  *
  * The shared draft store retains unsent source across reloads and tabs. Save

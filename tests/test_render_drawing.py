@@ -1423,6 +1423,7 @@ def test_pointer_modes_leave_document_editing_controls_usable(browser, serve, mo
     edit = draft.get_by_role("button", name="Edit", exact=True)
     assert edit.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
     edit.click()
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
     editor = draft.get_by_role("textbox", name="Edit draft", exact=True)
     expect(editor).to_be_focused()
     assert editor.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
@@ -1434,7 +1435,6 @@ def test_pointer_modes_leave_document_editing_controls_usable(browser, serve, mo
     expect(page.locator("html" if mode == "draw" else "body")).to_have_attribute(
         f"data-lf-{mode}-mode", ""
     )
-    expect(page.locator(".lf-fab-input")).to_be_hidden()
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
 
 

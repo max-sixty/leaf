@@ -29,7 +29,9 @@
  * a scroll-driven animation: its keyframes are the lens at each scroll position where
  * the map bends, and the browser interpolates between them as the scroller moves, so a
  * scroll writes nothing to the page. New keyframes are set only when the map or the
- * landing band changes. Where the browser has no scroll timeline the map has no lens.
+ * landing band changes. Where the browser has no scroll timeline (Firefox), the same
+ * keyframes run as a paused animation whose time each scroll's paint sets, so the lens
+ * follows a frame behind the scroll, still writing nothing to the page.
  * ResizeObserver hears late diagrams, images, disclosures, and width changes in the
  * document, and the height of the track the rows are laid into, which the page's chrome
  * can shorten without the document moving at all; a widget whose view rearranges
@@ -66,6 +68,10 @@ import {
 const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 // The lens is never shorter than this, or than 1.2% of the map, so it stays in sight.
 const LENS_FLOOR = 14;
+const SCROLL_TIMELINE = "ScrollTimeline" in globalThis;
+// Without a scroll timeline the lens's animation lasts this many milliseconds over the
+// whole scroll, long enough that no browser's clamped timer precision steps it.
+const LENS_DURATION = 1_000_000;
 
 customElements.define(
   "lf-toc",
@@ -75,7 +81,7 @@ customElements.define(
     #rows;
     #list;
     #start;
-    #lens = null;
+    #lens;
     #lensMotion = null;
     #lensInputs = "";
     #sections = [];
@@ -135,9 +141,9 @@ customElements.define(
 
       this.#rows = document.createElement("div");
       this.#rows.className = "lf-toc-rows";
-      const lens = document.createElement("span");
-      lens.className = "lf-toc-window";
-      lens.setAttribute("aria-hidden", "true");
+      this.#lens = document.createElement("span");
+      this.#lens.className = "lf-toc-window";
+      this.#lens.setAttribute("aria-hidden", "true");
 
       const row = document.createElement("div");
       row.className = "lf-toc-start";
@@ -146,11 +152,7 @@ customElements.define(
       row.append(link);
       this.#start = { row, link };
       this.#list = document.createElement("ol");
-      if ("ScrollTimeline" in globalThis) {
-        this.#lens = lens;
-        this.#rows.append(lens);
-      }
-      this.#rows.append(this.#start.row, this.#list);
+      this.#rows.append(this.#lens, this.#start.row, this.#list);
       this.#nav.append(heading, this.#rows);
       this.append(this.#nav);
       this.#reconcile();
@@ -520,7 +522,7 @@ customElements.define(
         this.#lensMotion?.cancel();
         this.#lensMotion = null;
         this.#lensInputs = "";
-        if (this.#lens) keeps(this.#lens, "style", "display: none;");
+        keeps(this.#lens, "style", "display: none;");
         return;
       }
       // What the user can read is the scroller's landing band, clear of the banner over
@@ -530,6 +532,10 @@ customElements.define(
       const visibleEnd =
         this.#scroller.scrollTop + this.#scroller.clientHeight - clear.bottom;
       this.#standLens(clear);
+      if (!SCROLL_TIMELINE && this.#lensMotion)
+        this.#lensMotion.currentTime =
+          (LENS_DURATION * this.#scroller.scrollTop) /
+          (this.#scroller.scrollHeight - this.#scroller.clientHeight);
 
       const threshold = visibleStart + Math.min(32, (visibleEnd - visibleStart) * 0.08);
       this.#positions.forEach((position, index) => {
@@ -550,7 +556,6 @@ customElements.define(
     // Keyframes are set again only when a measure has moved the map, or the scroller's
     // length or landing band has changed; a scroll alone reaches the early return.
     #standLens(clear) {
-      if (!this.#lens) return;
       const scroller = this.#scroller;
       const reach = scroller.scrollHeight - scroller.clientHeight;
       const band = scroller.clientHeight - clear.top - clear.bottom;
@@ -595,11 +600,19 @@ customElements.define(
       }));
       this.#lens.removeAttribute("style");
       if (this.#lensMotion) this.#lensMotion.effect.setKeyframes(frames);
-      else
+      else if (SCROLL_TIMELINE)
         this.#lensMotion = this.#lens.animate(frames, {
           timeline: new globalThis.ScrollTimeline({ source: scroller, axis: "block" }),
           fill: "both",
         });
+      else {
+        // #paint sets the time as the scroller scrolls.
+        this.#lensMotion = this.#lens.animate(frames, {
+          duration: LENS_DURATION,
+          fill: "both",
+        });
+        this.#lensMotion.pause();
+      }
     }
 
     #destinationFor(heading, position) {

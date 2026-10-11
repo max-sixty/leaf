@@ -60,6 +60,22 @@ what fails and what still works.
   reads Chrome's native accessibility tree. This is a test-tool limitation,
   rather than an observed browser support gap.
 
+### Contents spine lens
+
+- **Owner:** `lf-toc.js` in the default package. The lens, the darker stretch of
+  the contents spine marking the part of the document in view, runs its keyframes
+  on a `ScrollTimeline` of the page's scroller.
+- **Observed 2026-10-10:** installed Firefox 157.0.1 exposes neither
+  `ScrollTimeline` nor `animation-timeline: scroll()`; Chrome 155 exposes both.
+  The widget used to build no lens without the API, so a Firefox reader's spine
+  showed only the current section's filled dot.
+- **Disposition:** without the API the same keyframes run as a paused animation
+  whose time the widget sets on each scroll's paint, a frame behind the scroll.
+  On one page at three scroll positions, Firefox 157 drew the lens within 0.1px
+  of Chrome's native timeline.
+  `test_the_lens_follows_the_scroll_without_a_scroll_timeline` holds the fallback
+  against the native timeline in Chromium with the API removed.
+
 ## Known gaps
 
 ### Native focus and scrolling inside samples

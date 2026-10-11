@@ -13207,6 +13207,83 @@ def test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor(
     assert (serve.page_dir / media_url.lstrip("/")).read_bytes() == pixels
 
 
+CAPTURE_SAMPLE_PAGE = leaf_page(
+    "Capture a live sample",
+    """<h1>Capture a live sample</h1>
+<lf-sample id="capture-sample" label="practice">
+  <template id="capture-sample-page" data-sample>
+    <h1>Practice</h1>
+    <section id="child-paint" style="height:200px;background:rgb(200,40,40)"></section>
+  </template>
+</lf-sample>""",
+)
+
+
+def test_a_region_capture_draws_live_samples_and_survives_removed_links(browser, serve):
+    """The parent cannot read a sample's opaque frame, so a capture without the child's
+    own image showed a placeholder box where the user saw the practice page. An image
+    SnapDOM cannot read attaches the capture anyway, with a notice: SnapDOM reads a
+    margin beyond the crop and cannot say whether the image fell inside it. A capture
+    also leaves SnapDOM watching mutations, and a removed link's subtree once threw from
+    that observer as an uncaught page error."""
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, device_scale_factor=2
+    )
+    page = open_page(browser, serve(CAPTURE_SAMPLE_PAGE), context=context)
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    warnings = []
+    page.on("console", lambda message: warnings.append(message.text))
+    page.evaluate("document.querySelector('#capture-sample').ready")
+    # Another origin without CORS: visible to the reader, unreadable to SnapDOM.
+    page.evaluate("""() => new Promise(resolve => {
+        const image = document.createElement('img');
+        image.src = new URL('icon.svg', location.href).href
+            .replace('127.0.0.1', 'localhost');
+        image.onload = image.onerror = resolve;
+        document.querySelector('#capture-sample').before(image);
+    })""")
+    sample = page.locator("#capture-sample").bounding_box()
+    frame = page.locator("#capture-sample iframe").bounding_box()
+    surface = open_capture_area(page)
+    left, top = int(sample["x"]) + 1, int(sample["y"]) + 1
+    page.mouse.move(left, top)
+    page.mouse.down()
+    page.mouse.move(
+        int(frame["x"] + frame["width"]) - 1, int(frame["y"]) + 260, steps=5
+    )
+    page.mouse.up()
+    with page.expect_response(lambda response: response.url.endswith("/api/media")):
+        page.keyboard.press("Enter")
+    expect(surface).to_be_hidden()
+    media_url = page.locator(".lf-composer-media-item img").get_attribute("src")
+    image = Image.open(
+        io.BytesIO((serve.page_dir / media_url.lstrip("/")).read_bytes())
+    ).convert("RGB")
+    paint = page.locator("#capture-sample iframe").content_frame.locator("#child-paint")
+    inside = paint.bounding_box()
+    at = (round((inside["x"] + 20 - left) * 2), round((inside["y"] + 20 - top) * 2))
+    assert image.getpixel(at) == (200, 40, 40)
+    assert not [text for text in warnings if "cross-origin iframe" in text]
+    expect(page.locator(".lf-status-notice")).to_contain_text(
+        "An image near this area could not be drawn"
+    )
+    consume_browser_errors(page, "localhost", "ERR_FAILED")
+
+    page.evaluate("""() => new Promise(resolve => {
+        const link = document.createElement('a');
+        link.href = 'http://127.0.0.1:9/elsewhere';
+        const label = link.appendChild(document.createElement('span'));
+        document.querySelector('main').append(link);
+        setTimeout(() => {
+            label.setAttribute('data-moved', '');
+            link.remove();
+            setTimeout(resolve, 50);
+        });
+    })""")
+    assert errors == []
+
+
 def test_touch_capture_can_cancel_and_reopen_before_attaching(browser, serve):
     page = capture_page(browser, serve, touch=True)
     touch = page.context.new_cdp_session(page)

@@ -561,5 +561,5 @@ visible change").
 `vendor/browser-runtime.js` and the modules beside it in `vendor/browser-runtime/`,
 which import the runtime's own modules, and writes `vendor/lit.js`, the page's one copy of Lit
 (`build/AGENTS.md` owns the commands). What a module decides on its own is
-tested under `tests/runtime/` (`npm run test:runtime`; `tests/AGENTS.md` says
+tested under `tests/runtime/` (`pnpm run test:runtime`; `tests/AGENTS.md` says
 which readings may go there).

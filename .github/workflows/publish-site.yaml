@@ -40,8 +40,8 @@ jobs:
   deploy-site:
     if: github.repository_owner == 'max-sixty'
     runs-on: ubuntu-24.04
-    # The verification step at the end owns most of this budget: the release wait
-    # spends up to its own 900 seconds, and the agent journey after it adds a page
+    # The verification step at the end owns most of this budget: verify-site's
+    # `--wait` spends up to 900 seconds, and the agent journey after it adds a page
     # verification, `agent_session`'s 180 seconds, the turn's `TURN_LIMIT`, and the
     # reload and its `TURN_PRESENTATION` wait — roughly 34 minutes, behind the
     # three the build, image push and deploy take. The job has to clear that, because
@@ -107,15 +107,12 @@ jobs:
       # Worker activation and container rollout are separate Cloudflare operations. A
       # real browser must see the requested build in the document, module graph, edge
       # projection, and a newly allocated container before this deployment is green.
-      # The loop owns that wait — rollout drains one container allocation at a time,
-      # so a coherent sample is what ends it — and the agent journey that follows runs
-      # the deployed turn alone rather than re-sampling readings the wait settled.
+      # verify-site's `--wait` owns that wait — rollout drains one container allocation
+      # at a time, so a coherent sample is what ends it — and the agent journey that
+      # follows runs the deployed turn alone rather than re-sampling readings the wait
+      # settled.
       - name: Verify the exact public release in Chrome
         run: |
           release=$(jq --raw-output .release .tmp/site/_leaf/site.json)
-          deadline=$(( SECONDS + 900 ))
-          until uv run leaf-dev verify-site --release "$release"; do
-            (( SECONDS < deadline )) || exit 1
-            sleep 10
-          done
+          uv run leaf-dev verify-site --release "$release" --wait 900
           uv run leaf-dev journey https://leaf.page --release "$release"

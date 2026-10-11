@@ -448,14 +448,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       }
     };
     inputPaints.set(ta, paint);
-    const refresh = () => {
-      if (dictationPhase() === "idle") {
-        stopDictationRevision?.();
-        stopDictationRevision = null;
-      }
-      // A button whose visibility follows the draft must join the tab order before
-      // the next key. The rest of its dressing can wait for the shared paint.
-      paintOwn();
+    let visibilityQueued = false;
+    const paintSubmitVisibility = () => {
+      visibilityQueued = false;
       if (mic) {
         const shown = dictationPhase() !== "idle" || !hasContent(draftValue());
         keepsHidden(mic, !shown);
@@ -463,9 +458,23 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         if (shown && focused() === sendBtn) focusDestination(ta, "return");
         if (!shown && focused() === mic) focusDestination(ta, "return");
       }
+      paintKeys();
+    };
+    const refresh = () => {
+      if (dictationPhase() === "idle") {
+        stopDictationRevision?.();
+        stopDictationRevision = null;
+      }
+      // A button whose visibility follows the draft must join the tab order before
+      // the next key. A composer can load an empty draft and then its saved words
+      // in one turn; paint the final choice once at the microtask checkpoint.
+      paintOwn();
       if (drawing) renderMedia();
       stale.add(ta);
-      paintKeys();
+      if (!visibilityQueued) {
+        visibilityQueued = true;
+        queueMicrotask(paintSubmitVisibility);
+      }
     };
     const draftChanged = () => {
       save(draftValue());

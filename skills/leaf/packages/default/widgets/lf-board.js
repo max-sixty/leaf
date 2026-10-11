@@ -51,6 +51,7 @@ import {
   keepsText,
   focusDestination,
   scrollIntoView,
+  whileConnected,
 } from "/runtime/widget-api.js";
 
 customElements.define(
@@ -62,19 +63,10 @@ customElements.define(
     #rows = new WeakMap(); // grip → its declared rows, for the grab announcement
     #namesObserver = null;
     #sortables = new Set();
-    #stopMotion = null;
     #resumeProjection = null;
 
     connectedCallback() {
-      if (!once(this)) {
-        if (!quoted(this)) {
-          for (const col of this.querySelectorAll(":scope > lf-column"))
-            this.#sortable(col);
-        }
-        this.#observeNames();
-        this.#observeMotion();
-        return;
-      }
+      if (!once(this)) return;
       this.#structure();
       // A quoted board is an exhibit: no grips, no sortable, no grip keys in
       // the command reference dialog — it stays the static board the theme renders anyway.
@@ -97,17 +89,26 @@ customElements.define(
         this.style.setProperty("--lf-grip-room", Math.ceil(box.width) + "px");
         this.style.setProperty("--lf-grip-block", Math.ceil(box.height) + "px");
       });
-      for (const col of this.querySelectorAll(":scope > lf-column"))
-        this.#sortable(col);
       this.#controller.subscribe(this.#paintAvailability);
-      this.#observeMotion();
       this.#names();
       // Grip names come from where their cards sit, so column child-list mutations
       // restate them — not the four paths that move a card (arrow step, drag, cancel,
       // replay), any of which would eventually forget. #names writes an aria-label on
       // the grip, which is not a child-list mutation and cannot feed this pass back
       // into itself.
-      this.#observeNames();
+      whileConnected(this, () => {
+        for (const col of this.querySelectorAll(":scope > lf-column"))
+          this.#sortable(col);
+        this.#observeNames();
+        const stopMotion = this.#observeMotion();
+        return () => {
+          this.#namesObserver?.disconnect();
+          this.#namesObserver = null;
+          stopMotion?.();
+          for (const sortable of this.#sortables) sortable.destroy();
+          this.#sortables.clear();
+        };
+      });
     }
 
     // What a board is, said in roles: each column a labeled list, each card an
@@ -189,22 +190,16 @@ customElements.define(
     // drop a live grab here or it holds the page's drag for good — freezing action
     // replay and version-follow.
     disconnectedCallback() {
-      this.#namesObserver?.disconnect();
-      this.#namesObserver = null;
-      this.#stopMotion?.();
-      this.#stopMotion = null;
       if (this.#grabbed) this.#cancel();
       this.#superseded = null;
       this.#finishGesture();
-      for (const sortable of this.#sortables) sortable.destroy();
-      this.#sortables.clear();
     }
 
     #observeMotion() {
-      if (this.#stopMotion || !this.#sortables.size) return;
+      if (!this.#sortables.size) return;
       for (const sortable of this.#sortables)
         sortable.option("animation", reducedMotion() ? 0 : 150);
-      this.#stopMotion = onMotionPreferenceChange((reduced) => {
+      return onMotionPreferenceChange((reduced) => {
         for (const sortable of this.#sortables)
           sortable.option("animation", reduced ? 0 : 150);
       });

@@ -10,11 +10,11 @@ and the registry's declarations. What comes out passes through
 `build/browser/shipped.mjs`, the owner `build/browser/build.mjs` shares: it refuses a module an export cannot
 load and writes the bundle's license notices (`vendor`).
 
-Every version they carry is the one `package-lock.json` resolved: `package.json`
+Every version they carry is the one `pnpm-lock.yaml` resolved: `package.json`
 names each package a bundle's entry imports, the lock settles the rest of the
-closure, and every build reads the root `node_modules` that `npm ci` installs from
+closure, and every build reads the root `node_modules` that `pnpm install --frozen-lockfile` installs from
 it. Pinned source backports are explicit build inputs beside this file. Together
-with the lock, those inputs reproduce the tracked bytes after `npm ci`.
+with the lock, those inputs reproduce the tracked bytes after `pnpm install --frozen-lockfile`.
 
 CodeMirror's style-mod provider expands its selectors before this build places
 its resulting rules in `lf-base`. The guarded provider adaptation preserves
@@ -46,7 +46,7 @@ def package_vendor(package: str) -> Path:
     """Where a bundle lands, which is the package whose widget imports it.
 
     A vendored library is payload of the package that draws with it, not of the
-    layer: Agentic Mermaid and Pierre are about 4.6MB between them and reach a
+    layer: Mermaid and Pierre are optional diagram and diff renderers and reach a
     page only when it selects `diagram` or `diff`, so a page that draws neither
     carries neither.
     """
@@ -346,22 +346,16 @@ def build_file_editor(work: Path) -> list[Path]:
     return [out]
 
 
-def build_agentic_mermaid(work: Path) -> list[Path]:
-    """Bundle Agentic Mermaid's SVG renderer and ELK into one browser-native ESM file.
+def build_mermaid(work: Path) -> list[Path]:
+    """Bundle the canonical Mermaid parser and renderers for offline use.
 
-    Upstream's ESM keeps `entities`, `elkjs` and `yaml` as bare imports. Leaf pages have no
-    package resolver and load one self-contained file, so esbuild resolves the locked
-    dependency set and leaves no runtime chunk or package lookup behind. The package
-    entry also exports PNG, CLI and agent tooling; importing only `renderMermaidSVG`
-    keeps the native rasterizer and the code-mode parser out of the bundle.
-
-    The renderer carries Material Design Icons path data for architecture diagrams
-    under Apache-2.0, which its `THIRD_PARTY_NOTICES.md` and `LICENSES/` pass on.
+    Upstream loads its diagram families with dynamic imports. Statically including
+    them keeps the ready bundle self-contained in an export; the widget still
+    imports this optional package only when it draws a diagram.
     """
-    out = package_vendor("diagram") / "agentic-mermaid.esm.js"
+    out = package_vendor("diagram") / "mermaid.esm.js"
     (work / "entry.mjs").write_text(
-        'export { renderMermaidSVG } from "agentic-mermaid";\n',
-        encoding="utf-8",
+        'export { default } from "mermaid";\n', encoding="utf-8"
     )
     esbuild(
         "entry.mjs",
@@ -369,10 +363,11 @@ def build_agentic_mermaid(work: Path) -> list[Path]:
         "--format=esm",
         "--platform=browser",
         "--target=chrome105",
+        "--supported:dynamic-import=false",
         "--minify",
         "--legal-comments=inline",
-        f"--banner:js=/*! agentic-mermaid {version('agentic-mermaid')} — MIT"
-        " — licenses: agentic-mermaid.LICENSES.txt */",
+        f"--banner:js=/*! mermaid {version('mermaid')} — MIT"
+        " — licenses: mermaid.LICENSES.txt */",
         f"--outfile={out}",
         cwd=work,
     )
@@ -391,7 +386,7 @@ def build_floating_ui(work: Path) -> list[Path]:
     # Backport upstream CSS-zoom support, merged but absent from published 1.8.0:
     # https://github.com/floating-ui/floating-ui/pull/3492
     # Commit 584a3afb1174ec00a371624afde50fc052b75a32, applied to its published ESM.
-    # Build from private copies so npm's installed source remains authoritative.
+    # Build from private copies so the installed source remains authoritative.
     for package in ("core", "dom"):
         shutil.copytree(
             NODE_MODULES / "@floating-ui" / package,
@@ -431,18 +426,13 @@ def build_webawesome(work: Path) -> list[Path]:
     on demand; the shared chunks are core payload because chrome also reads them.
 
     Lit is not bundled: every Lit import binds to `/vendor/lit.js`, the page's one
-    copy, which `build/browser/build.mjs` builds from the same install. Where that
-    Lit falls outside Web Awesome's declared range, npm nests Web Awesome's own
-    choice under the package, and the build refuses rather than run Web Awesome
-    against a Lit it was not published for.
+    copy, which `build/browser/build.mjs` builds from the same install. The
+    Web Awesome builder checks that both packages resolve the same Lit before
+    binding its imports to Leaf's copy.
     """
     directory = package_vendor("default")
     directory.mkdir(parents=True, exist_ok=True)
     out = directory / "webawesome.esm.js"
-    if (NODE_MODULES / "@awesome.me/webawesome/node_modules/lit").exists():
-        raise RuntimeError(
-            f"Web Awesome's declared Lit range excludes lit {version('lit')}"
-        )
     source = ROOT / "build/webawesome"
     for name in (
         "entry.mjs",
@@ -651,7 +641,7 @@ BUILDS: dict[str, Callable[[Path], list[Path]]] = {
     "markdown": build_markdown,
     "photoswipe": build_photoswipe,
     "sortable": build_sortable,
-    "agentic-mermaid": build_agentic_mermaid,
+    "mermaid": build_mermaid,
     "codemirror": build_codemirror,
     "file-editor": build_file_editor,
     "floating-ui": build_floating_ui,

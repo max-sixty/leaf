@@ -122,10 +122,8 @@ def playwright_driver():
     """Playwright, with a driver that never started raised as DriverNotStarted
     rather than as a Playwright private.
 
-    A driver that exits at startup fails the connection's initialization. Playwright
-    now raises that failure directly; older versions instead raise an AttributeError
-    for the missing `self._playwright` and leave the cause on the init task. Reading
-    that task also keeps asyncio from printing it as an unretrieved exception.
+    A driver that exits at startup fails the connection's initialization, and
+    Playwright raises that failure directly.
 
     A driver the host named but does not have fails one step earlier, in the spawn,
     and that OSError names the file. It reads as the same DriverNotStarted, so both
@@ -138,17 +136,11 @@ def playwright_driver():
     manager = sync_playwright()
     try:
         playwright = manager.start()
-    except AttributeError as error:
-        # The driver ran and stayed silent, so the connection stands: its reason is
-        # readable, and stopping it is what reaps the process and the loop.
-        reason = _driver_failure(manager)
-        manager.__exit__()
-        raise DriverNotStarted(reason) from error
     except OSError as error:
         raise DriverNotStarted(_spawn_failure(manager, error)) from error
     except Exception as error:
-        # Newer Playwright raises the failed initialization future itself and has
-        # already closed the manager. Check that future so unrelated errors surface.
+        # Playwright raises the failed initialization future itself and has already
+        # closed the manager. Check that future so unrelated errors surface.
         # A start refused before any connection exists (the sync API called under a
         # running event loop) has no future to check, and is not the driver's.
         connection = getattr(manager, "_connection", None)
@@ -169,27 +161,11 @@ def _spawn_failure(manager, error: OSError) -> str:
 
     The spawn's own error says it. Reading the transport's error future as well is
     what keeps asyncio from printing that same error a second time as an
-    unretrieved future, the way reading the init task does for a driver that ran."""
+    unretrieved future."""
     transport = getattr(getattr(manager, "_connection", None), "_transport", None)
     future = getattr(transport, "on_error_future", None)
     if future is not None and future.done() and not future.cancelled():
         future.exception()
-    return str(error).strip().splitlines()[0]
-
-
-def _driver_failure(manager) -> str:
-    """Why the connection ended, in one line.
-
-    The reason is an exception on the connection's init task, reachable only
-    through Playwright privates. Every reading is optional here and a plain
-    sentence stands in for a missing one, because this runs on the path whose
-    whole point is that an attribute error stops being what the user sees."""
-    task = getattr(getattr(manager, "_connection", None), "_init_task", None)
-    if task is None or not task.done() or task.cancelled():
-        return "the driver ended before answering"
-    error = task.exception()
-    if error is None:
-        return "the driver ended before answering"
     return str(error).strip().splitlines()[0]
 
 

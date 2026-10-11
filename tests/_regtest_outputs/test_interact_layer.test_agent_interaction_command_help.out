@@ -117,7 +117,9 @@ Options:
   --title TEXT   name the thread for the panel unless it has a name: a few
                  words, at most 80 characters
   --ephemeral    one-line progress, without answering
-  --awaits       the reply asks the user a question
+  --task TITLE   the reply promises work it doesn't deliver; opens that task on
+                 the thread, ended by `leaf task end` with the reply's id
+  --question     the reply asks the user a question, which waits on them
   --markup TEXT  frozen HTML fragment after the text
   --text TEXT    reply text (default: stdin)
   --detach       remove the thread's page target
@@ -131,20 +133,29 @@ Usage: leaf response reply [OPTIONS] REFERENCE
 
   Answer the exact REFERENCE printed in a delivery's answer.ref.
 
-  Text, frozen HTML, prose questions, titles and anchor moves share this
-  command. It validates and activates saved page edits, then commits the reply
-  immediately. A provider's later final yields to the recorded answer; failure
-  receipts are refused while that provider still owns the answer. Repeating a
-  committed reply's reference returns its earlier record; --attempt names
-  retries of progress.
+  An answer says what it leaves the thread with: --done when it delivers what
+  the message asked for, --question when it asks the user something back, or
+  --task TITLE when it promises work it doesn't deliver, which stays on you as a
+  task. Progress (--ephemeral) and failure receipts (--failure) take none of
+  them.
+
+  Text, frozen HTML, titles and anchor moves share this command. It validates
+  and activates saved page edits, then commits the reply immediately. A
+  provider's later final yields to the recorded answer; failure receipts are
+  refused while that provider still owns the answer. Repeating a committed
+  reply's reference returns its earlier record; --attempt names retries of
+  progress.
 
 Options:
   --attempt TEXT  retry identity (ordinary replies default to the reference)
   --failure TEXT  failure code when no answer is coming
+  --done          the reply delivers what the message asked for
   --title TEXT    name the thread for the panel unless it has a name: a few
                   words, at most 80 characters
   --ephemeral     one-line progress, without answering
-  --awaits        the reply asks the user a question
+  --task TITLE    the reply promises work it doesn't deliver; opens that task on
+                  the thread, ended by `leaf task end` with the reply's id
+  --question      the reply asks the user a question, which waits on them
   --markup TEXT   frozen HTML fragment after the text
   --text TEXT     reply text (default: stdin)
   --detach        remove the thread's page target

@@ -5,6 +5,7 @@ import json
 from interact_support import fetch, published, record_claim, state_json
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as event_log_model
+from leaf import harness as harness_model
 from leaf import service as service_model
 from leaf import thread as thread_model
 
@@ -151,15 +152,13 @@ def test_read_does_not_nudge_a_closed_agent_turn(page_dir, monkeypatch):
     )
     nudges = []
 
-    class Harness:
-        def nudge(self, page):
-            nudges.append(page)
-            return True
+    def nudge(self, page):
+        nudges.append(page)
+        return True
 
-        def title_generator(self):
-            return None
-
-    monkeypatch.setattr(endpoint_model, "claim_harness", lambda claim: Harness())
+    harness = harness_model.HARNESSES["claude-code"]
+    monkeypatch.setattr(harness, "nudge", nudge)
+    monkeypatch.setattr(harness, "title_generator", lambda self: None)
     status, answer = endpoint_model.accept_event(
         page_dir,
         {

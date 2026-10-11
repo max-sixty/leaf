@@ -10291,3 +10291,32 @@ def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, nativ
               selectionBackward(selection)];
     }"""
     ) == [True, False]
+
+
+def test_named_form_controls_leave_shadow_scroll_and_standing_readings_available(
+    browser, serve
+):
+    page = open_page(browser, serve(leaf_page("Named forms", "<h1>Named forms</h1>")))
+    page.evaluate(
+        """async () => {
+      const {watchArrivalsIn, watchScrolls} = await window.__lfRuntimeImport('/runtime/arrivals.js');
+      const host = document.createElement('div');
+      document.querySelector('main').append(host);
+      const stage = host.attachShadow({mode: 'open'});
+      stage.innerHTML = '<form style="height:40px;overflow:auto"><input name="getRootNode"><p style="height:200px">Scrollable words</p></form>';
+      const form = stage.querySelector('form');
+      watchArrivalsIn(stage);
+      watchScrolls(event => { if (event.target === form) window.namedFormScrolled = true; });
+      form.scrollTop = 50;
+    }"""
+    )
+    page.wait_for_function("window.namedFormScrolled === true")
+    assert (
+        page.evaluate(
+            """async () => {
+      const {standsOn} = await window.__lfRuntimeImport('/runtime/focus.js');
+      return standsOn(document.querySelector('main > div').shadowRoot.querySelector('form'));
+    }"""
+        )
+        is False
+    )

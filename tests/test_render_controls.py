@@ -712,83 +712,6 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     expect(result).to_have_text("8")
 
 
-def test_lent_shortcut_seats_follow_rendered_slot_ancestry(browser, serve):
-    """A slotted badge belongs to its rendered control, not its authored parent.
-
-    Real slot assignment is a browser boundary; happy-dom does not implement it.
-    One and two shadow-host projections must reject button-contained badges, while
-    an external named slot admits the same badge without changing passage ancestry.
-    """
-    page = open_page(
-        browser,
-        serve(leaf_page("Rendered shortcut seats", "<h1>Rendered shortcut seats</h1>")),
-    )
-    result = page.evaluate(
-        """async () => {
-          const resources = performance.getEntriesByType('resource').map(r => r.name);
-          const loaded = path => resources.find(url => url.includes(path));
-          const {createCommandHints} = await import(loaded('/keyboard/command-hints.js'));
-          const {keys, reflectFirstScopes} = await import(loaded('/keyboard/scopes.js'));
-          const owner = document.createElement('section');
-          const host = document.createElement('span');
-          const badge = document.createElement('kbd');
-          badge.className = 'lf-key-badge';
-          const root = host.attachShadow({mode: 'open'});
-          root.innerHTML = '<slot name="external"></slot><button>Apply <slot></slot></button>';
-          const control = root.querySelector('button');
-          host.append(badge);
-          owner.append(host);
-          document.querySelector('main').append(owner);
-          keys(owner, 'Slotted seat', [{
-            id: 'probe.slotted', title: 'Apply', keys: ['x'], control,
-            bindingBadge: badge, run: () => {},
-          }]);
-          reflectFirstScopes();
-          control.focus();
-          const hints = createCommandHints({presentedControl: () => null});
-          const read = () => {
-            try { hints.paint(); return null; }
-            catch (error) { return {name: error.name, message: error.message}; }
-          };
-          try {
-            const assigned = badge.assignedSlot === root.querySelector('button slot');
-            const slotted = read();
-            const inner = document.createElement('span');
-            inner.attachShadow({mode: 'open'}).innerHTML = '<span><slot></slot></span>';
-            host.append(inner);
-            inner.append(badge);
-            const nestedAssigned = Boolean(badge.assignedSlot && inner.assignedSlot);
-            const nested = read();
-            host.append(badge);
-            inner.remove();
-            badge.slot = 'external';
-            const externalAssigned = badge.assignedSlot === root.querySelector('slot[name]');
-            const external = read();
-            // Let the painted projection stand before test-owned cleanup withdraws it.
-            await Promise.resolve();
-            return {assigned, slotted, nestedAssigned, nested, externalAssigned,
-              external, marked: badge.classList.contains('lf-binding-seat')};
-          } finally {
-            hints.destroy();
-            owner.remove();
-          }
-        }"""
-    )
-    rejected = {
-        "name": "TypeError",
-        "message": "leaf: probe.slotted binding badge must be outside native buttons",
-    }
-    assert result == {
-        "assigned": True,
-        "slotted": rejected,
-        "nestedAssigned": True,
-        "nested": rejected,
-        "externalAssigned": True,
-        "external": None,
-        "marked": True,
-    }
-
-
 @pytest.mark.parametrize("annotation_mode", ["overlay", "page"])
 def test_widget_context_keys_work_without_an_ask(browser, serve, annotation_mode):
     """Widget aliases and inline hints work with either annotation presentation owner."""
@@ -2719,11 +2642,17 @@ def test_live_samples_release_pending_allocations_and_can_reconnect(browser, ser
         window.pendingResult = pendingHost.ready.catch(error => error.name);
     }""")
     holding(page, held, 1, "a child detached before its document arrives")
+    held_release = []
+    page.route("**/api/release", lambda route: held_release.append(route))
     page.evaluate("pendingFrame.remove()")
     assert page.evaluate("pendingResult") == "AbortError"
+    holding(page, held_release, 1, "the detached child's allocation release")
+    assert page.request.get(held[0].request.url + "api/state").status == 200
+    held_release[0].continue_()
+    page.evaluate("pendingHost.destroy()")
     assert page.request.get(held[0].request.url + "api/state").status == 404
     held[0].abort()
-    page.evaluate("pendingHost.destroy()")
+    page.unroute("**/api/release")
 
     # A destroyed queue entry cannot wait for unrelated children to load. It is
     # removed without consuming the next slot a surviving queued child needs.

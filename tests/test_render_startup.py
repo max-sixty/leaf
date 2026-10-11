@@ -975,9 +975,8 @@ RESTORED_PROSE = "".join(
 def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
     browser, serve, saved, wide, window, contained
 ):
-    """Returning users do not watch saved auxiliary chrome move the document: a restored
-    surface stands over the page, so the paragraph they were reading stands at the same
-    place from the first paint, before the runtime has loaded, to presentation."""
+    """Restored auxiliary chrome leaves a page's first-paint geometry alone; an
+    isolated sample starts without inheriting its host's saved chrome."""
     if contained and wide:
         pytest.skip("a sample's child page is the column its template writes")
     surface = saved["lf-auxiliary-surface"]
@@ -991,11 +990,6 @@ def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
         )
     url = serve(leaf_page("Restored surface", content, layout="wide" if wide else None))
     context = browser.new_context(viewport={"width": window, "height": 900})
-    if contained:
-        host = context.new_page()
-        host.goto(url, wait_until="load")
-        expect(host.get_by_role("button", name="Reset", exact=True)).to_be_enabled()
-        url = host.locator("#practice iframe").get_attribute("src")
     priming = context.new_page()
     priming.goto(url, wait_until="load")
     priming.evaluate(
@@ -1006,6 +1000,18 @@ def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
         saved,
     )
     priming.close()
+
+    if contained:
+        host = context.new_page()
+        host.goto(url, wait_until="load")
+        expect(host.get_by_role("button", name="Reset", exact=True)).to_be_enabled()
+        expect(host.locator("body")).to_have_attribute("data-lf-auxiliary-surface", surface)
+        child = host.frame_locator("#practice iframe")
+        expect(child.locator("body")).not_to_have_attribute(
+            "data-lf-auxiliary-surface", surface
+        )
+        context.close()
+        return
 
     held = []
     page = context.new_page()

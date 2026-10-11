@@ -924,17 +924,28 @@ function recordAcceptedEvent(
   });
 }
 
+// A fetched asset's headers are immutable, so this takes the one copy each edge answer
+// to a static file makes; the stamps after it edit that copy in place.
 function staticAssetResponse(response: Response, manifest: SiteManifest): Response {
+  const answer = new Response(response.body, response);
   const contentType = response.headers.get("Content-Type")?.split(";", 1)[0].trim();
-  if (contentType?.toLowerCase() !== "text/html") return response;
+  if (contentType?.toLowerCase() === "text/html") {
+    answer.headers.append("Content-Security-Policy", manifest.frame_ancestors);
+  }
+  return answer;
+}
 
-  const headers = new Headers(response.headers);
-  headers.append("Content-Security-Policy", manifest.frame_ancestors);
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
+// The headers naming the release and layer an edge answer belongs to, and the session
+// it answers when it answers one. Leaf-Session stays with each caller.
+function stampDelivery(
+  headers: Headers,
+  route: PageRoute,
+  manifest: SiteManifest,
+  reference?: string,
+): void {
+  headers.set("Leaf-Layer", route.layer);
+  headers.set("Leaf-Release", manifest.release);
+  if (reference !== undefined) headers.set("Leaf-Session-Reference", reference);
 }
 
 const manifests = new WeakMap<object, Promise<SiteManifest>>();
@@ -958,15 +969,9 @@ function stampedStaticResponse(
   route: PageRoute,
   manifest: SiteManifest,
 ): Response {
-  const staticResponse = staticAssetResponse(response, manifest);
-  const headers = new Headers(staticResponse.headers);
-  headers.set("Leaf-Layer", route.layer);
-  headers.set("Leaf-Release", manifest.release);
-  return new Response(staticResponse.body, {
-    status: staticResponse.status,
-    statusText: staticResponse.statusText,
-    headers,
-  });
+  const answer = staticAssetResponse(response, manifest);
+  stampDelivery(answer.headers, route, manifest);
+  return answer;
 }
 
 async function staticState(
@@ -988,15 +993,11 @@ async function staticState(
   const now = new Date();
   state.now = now.toISOString();
   state.taken = now.getTime() / 1000;
-  return Response.json(state, {
-    headers: {
-      "Cache-Control": "no-store",
-      "Leaf-Layer": route.layer,
-      "Leaf-Release": manifest.release,
-      "Leaf-Session": "passive",
-      "Leaf-Session-Reference": reference,
-    },
+  const answer = Response.json(state, {
+    headers: { "Cache-Control": "no-store", "Leaf-Session": "passive" },
   });
+  stampDelivery(answer.headers, route, manifest, reference);
+  return answer;
 }
 
 // Cloudflare activates a Worker and its assets in one operation and rolls the container
@@ -1016,26 +1017,18 @@ async function rollingOut(
   reference: string,
   cookies: string[],
 ): Promise<Response> {
-  const answer =
-    request.method === "GET" && route.inside === "api/state"
-      ? await staticState(request, env, manifest, route, reference)
-      : new Response("this release is still starting", {
-          status: 503,
-          headers: {
-            "Retry-After": "5",
-            "Cache-Control": "no-store",
-            "Leaf-Layer": route.layer,
-            "Leaf-Release": manifest.release,
-            "Leaf-Session-Reference": reference,
-          },
-        });
-  const headers = new Headers(answer.headers);
-  for (const cookie of cookies) headers.append("Set-Cookie", cookie);
-  return new Response(answer.body, {
-    status: answer.status,
-    statusText: answer.statusText,
-    headers,
-  });
+  let answer: Response;
+  if (request.method === "GET" && route.inside === "api/state") {
+    answer = await staticState(request, env, manifest, route, reference);
+  } else {
+    answer = new Response("this release is still starting", {
+      status: 503,
+      headers: { "Retry-After": "5", "Cache-Control": "no-store" },
+    });
+    stampDelivery(answer.headers, route, manifest, reference);
+  }
+  for (const cookie of cookies) answer.headers.append("Set-Cookie", cookie);
+  return answer;
 }
 
 export default {
@@ -1065,15 +1058,10 @@ export default {
         releasedAsset.route,
         manifest,
       );
-      const headers = new Headers(response.headers);
-      headers.set("Cache-Control", "public, max-age=31536000, immutable");
-      headers.set("Access-Control-Allow-Origin", "*");
-      headers.set("Access-Control-Expose-Headers", "*");
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers,
-      });
+      response.headers.set("Cache-Control", "public, max-age=31536000, immutable");
+      response.headers.set("Access-Control-Allow-Origin", "*");
+      response.headers.set("Access-Control-Expose-Headers", "*");
+      return response;
     }
     const route = pageRoute(pathname, manifest);
     if (route === null) {
@@ -1100,19 +1088,15 @@ export default {
         ? sampleInteractionReference(`/${route.inside.slice(0, -"/api/interaction".length)}`)
         : null;
       const interaction = sampleReference === null ? null : { request: request.clone(), sampleReference };
-      const response = await env.PAGES.get(id).fetch(request);
-      const headers = new Headers(response.headers);
-      headers.delete("Set-Cookie");
+      const fetched = await env.PAGES.get(id).fetch(request);
+      const response = new Response(fetched.body, fetched);
+      response.headers.delete("Set-Cookie");
       // Only the container can admit this capability. After admission, retain the
       // same bounded, redacted cloud evidence as a parent batch; the clone lets
       // the native request also keep its full local trace.
       if (interaction !== null && response.status === 204)
         await recordInteractions(interaction.request, route, { sampleReference: interaction.sampleReference }, manifest.release);
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers,
-      });
+      return response;
     }
 
     const secure = url.protocol === "https:";
@@ -1170,11 +1154,10 @@ export default {
         if (!response.headers.get("Content-Type")?.startsWith("text/html")) {
           return response;
         }
-        const headers = new Headers(response.headers);
-        headers.set("Leaf-Session-Reference", reference);
-        headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
+        response.headers.set("Leaf-Session-Reference", reference);
+        response.headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
         if (existing === null) {
-          headers.append("Set-Cookie", sessionCookie(sessionId, secure));
+          response.headers.append("Set-Cookie", sessionCookie(sessionId, secure));
         }
         if (
           env.AGENT_PREWARM === "true" &&
@@ -1192,11 +1175,7 @@ export default {
             ),
           );
         }
-        return new Response(response.body, {
-          status: response.status,
-          statusText: response.statusText,
-          headers,
-        });
+        return response;
       }
     }
     const postedRequest =
@@ -1249,24 +1228,20 @@ export default {
       answer.page = `${answer.page}~${objectId}`;
       body = JSON.stringify(answer);
     }
-    const headers = new Headers(response.headers);
+    const answer = new Response(body, response);
     if (body !== response.body) {
-      headers.delete("Content-Length");
-      headers.delete("Content-Encoding");
+      answer.headers.delete("Content-Length");
+      answer.headers.delete("Content-Encoding");
     }
-    headers.set("Leaf-Session", "active");
-    headers.set("Leaf-Session-Reference", reference);
+    answer.headers.set("Leaf-Session", "active");
+    answer.headers.set("Leaf-Session-Reference", reference);
     if (existing === null) {
-      headers.append("Set-Cookie", sessionCookie(sessionId, secure));
+      answer.headers.append("Set-Cookie", sessionCookie(sessionId, secure));
     }
-    if (!active) headers.append("Set-Cookie", activeCookie(secure, route.root));
+    if (!active) answer.headers.append("Set-Cookie", activeCookie(secure, route.root));
     if (response.headers.get("Content-Type")?.startsWith("text/html")) {
-      headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
+      answer.headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
     }
-    return new Response(body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers,
-    });
+    return answer;
   },
 };

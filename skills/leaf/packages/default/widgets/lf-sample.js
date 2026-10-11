@@ -14,8 +14,8 @@
  * quotation. A disconnect releases the child; moving the retained element within a
  * document does not reset its work. */
 import {
-  cancelRender,
-  nextRender,
+  frameFor,
+  whileConnected,
   keeps,
   keepsText,
   mountSample,
@@ -38,7 +38,12 @@ customElements.define(
     #reset;
     #status;
     #heightReading;
-    #fitting = 0;
+    #fit = () => {
+      const frame = this.#frame;
+      const next = `${this.#heightReading + frame.offsetHeight - frame.clientHeight}px`;
+      if (frame.style.height !== next) frame.style.height = next;
+    };
+    #scheduleFit = frameFor(this, this.#fit);
     #ready;
     #mounting = false;
     #viewOperation;
@@ -50,7 +55,21 @@ customElements.define(
     }
 
     connectedCallback() {
-      if (once(this)) this.#build();
+      if (!once(this)) return;
+      this.#build();
+      if (!this.#frame) return;
+      whileConnected(this, () => {
+        this.#mount();
+        return () => {
+          this.#viewOperation?.abort();
+          const host = this.#host;
+          this.#host = null;
+          host?.destroy().catch((error) => this.#failure(error));
+        };
+      });
+    }
+
+    #mount() {
       // Removal ends native modality even when a retained widget reconnects before
       // its host is retired. Reconcile the presentation with that platform state.
       if (
@@ -93,16 +112,7 @@ customElements.define(
     }
 
     disconnectedCallback() {
-      queueMicrotask(() => {
-        if (this.isConnected) return;
-        if (this.#view?.getAttribute("role") === "dialog") this.#embed();
-        this.#viewOperation?.abort();
-        if (!this.#host) return;
-        const host = this.#host;
-        this.#host = null;
-        cancelRender(this.#fitting);
-        host.destroy().catch((error) => this.#failure(error));
-      });
+      if (this.#view?.getAttribute("role") === "dialog") this.#embed();
     }
 
     #build() {
@@ -198,14 +208,8 @@ customElements.define(
     #height(height, { immediate = false } = {}) {
       if (this.hasAttribute("window") || this.#view.matches(":modal")) return;
       this.#heightReading = height;
-      cancelRender(this.#fitting);
-      const fit = () => {
-        const frame = this.#frame;
-        const next = `${this.#heightReading + frame.offsetHeight - frame.clientHeight}px`;
-        if (frame.style.height !== next) frame.style.height = next;
-      };
-      if (immediate) fit();
-      else this.#fitting = nextRender(fit);
+      if (immediate) this.#fit();
+      else this.#scheduleFit();
     }
 
     #failure(error) {
@@ -276,7 +280,7 @@ customElements.define(
       this.#viewOperation?.abort();
       if (this.#mounting) await this.#ready;
       if (!this.#host) {
-        this.connectedCallback();
+        this.#mount();
         return this.#ready;
       }
       return this.#track(this.#host.reset());

@@ -18,7 +18,7 @@
  * records the local realm's destruction, before the allocation release answers.
  * A mounted frame answers for its image: the child draws the requested part of its
  * viewport, which an image of the containing page puts in the frame's place. */
-import { layerHeaders } from "./layer-client.js";
+import { requestJson } from "./layer-client.js";
 import { pageUrl, runtime } from "./context.js";
 import { dressFor, registerSampleDress } from "./dress.js";
 import { widgetDescriptor } from "./widget-descriptors.js";
@@ -77,31 +77,17 @@ export const isSampleFrame = (node) => mounted.has(node);
 // A crop in the frame's viewport coordinates.
 export const sampleFrameImage = (frame, crop) => mounted.get(frame).call("image", crop);
 
-async function request(url, body, headers = {}) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: layerHeaders({ "Content-Type": "application/json", ...headers }),
-    body: JSON.stringify(body),
-    keepalive: true,
-  });
-  const text = await response.text();
-  let answer;
-  try {
-    answer =
-      response.ok ||
-      response.headers.get("Content-Type")?.split(";")[0].trim() === "application/json"
-        ? JSON.parse(text)
-        : null;
-  } catch (error) {
-    throw Object.assign(error, { status: response.status, body: text });
-  }
-  if (!response.ok)
-    throw Object.assign(new Error(answer?.error ?? `sample: HTTP ${response.status}`), {
-      status: response.status,
-      body: text,
-    });
-  return answer;
-}
+const request = (url, body, headers = {}) =>
+  requestJson(
+    url,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify(body),
+      keepalive: true,
+    },
+    "sample",
+  );
 
 export function mountSample(
   frame,

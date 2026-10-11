@@ -69,20 +69,18 @@ class VersionPickerView {
     this.menu.lfInvoker = this.button;
     this.menu.addEventListener("beforetoggle", (event) => {
       if (event.newState === "open") dismissBannerControls();
-      // Declare the arrival after the native opening finishes. Native autofocus
-      // can reveal a sample's containing frame; Leaf places focus without scrolling
-      // and reveals the row only through this document's reading regions.
-      if (event.newState === "open")
-        queueMicrotask(() => {
-          const arrival = this.#selectedRow();
-          if (!this.isOpen() || !arrival || !canPlaceFocus()) return;
-          focusDestination(arrival, "move");
-          scrollIntoView(arrival, { block: "nearest" });
-        });
     });
     this.menu.addEventListener("toggle", (event) => {
       this.#presentDisclosure();
-      if (event.newState !== "open") {
+      if (event.newState === "open") {
+        // The platform has now opened the popover and completed its autofocus.
+        // Arrive on the selected row without revealing an outer sample frame.
+        const arrival = this.#selectedRow();
+        if (arrival && canPlaceFocus()) {
+          focusDestination(arrival, "move");
+          scrollIntoView(arrival, { block: "nearest" });
+        }
+      } else {
         this.#displayedRows = this.#model.rows;
         this.#renderMenu();
       }

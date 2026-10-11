@@ -23,7 +23,7 @@ import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 import { registry } from "./registry.js";
 import { clocked } from "./presence.js";
-import { layerHeaders, reportPageError, admitResponse } from "./layer-client.js";
+import { reportPageError, requestJson } from "./layer-client.js";
 import { watchOwner } from "./arrivals.js";
 
 export function acceptData(candidate, taken) {
@@ -293,17 +293,11 @@ export async function loadDeferred(manifest, key) {
     return structuredClone(matches[0][records.deferred]);
   }
   const params = new URLSearchParams({ source, source_revision: revision, key });
-  const response = await fetch(pageUrl(`api/deferred?${params}`), {
-    headers: layerHeaders(),
-  });
-  if (!admitResponse(response)) {
-    throw new Error("Leaf's data vocabulary changed while loading a deferred value");
-  }
-  const answer = await response.json().catch(() => ({}));
-  if (!response.ok)
-    throw new Error(
-      answer.error || `deferred value failed to load (${response.status})`,
-    );
+  const answer = await requestJson(
+    pageUrl(`api/deferred?${params}`),
+    {},
+    "deferred value",
+  );
   if (
     answer.revision !== revision ||
     answer.source !== source ||

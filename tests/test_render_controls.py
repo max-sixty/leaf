@@ -6235,10 +6235,7 @@ def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
                 row["title"]: (row["activity"]["kind"], row["activity"]["detail"])
                 for row in state["others"]
             }
-            == {
-                "The closing leaf": ("closed", ""),
-                "The other leaf": ("working", "recording the demo"),
-            }
+            == {"The other leaf": ("working", "recording the demo")}
         ),
     )
     held = page.evaluate(
@@ -6578,9 +6575,8 @@ def test_a_failed_leaves_restore_keeps_application_presentation_pending(
     )
     told(
         page,
-        until=lambda state: any(
-            row["title"] == "The closing leaf" and row["activity"]["kind"] == "closed"
-            for row in state["others"]
+        until=lambda state: all(
+            row["title"] != "The closing leaf" for row in state["others"]
         ),
     )
     page.wait_for_function(

@@ -2,11 +2,9 @@
    domain owners; optional hosts load when requested. Owners import one another,
    and leaf.js only boots.
 
-   The runtime tree is not the set of importers. Package widget modules and the render
-   gate's probes under `leaf/render-checks/` both reach this file over HTTP from the
-   served page, as `/runtime/widget-api.js`, so a search of `runtime/` for a re-export's
-   importer comes back empty whether or not the export is reachable. What answers that
-   question is the browser gate, which fails to parse every probe module at once. */
+   The runtime tree is not the set of importers: package widget modules reach this file
+   over HTTP from the served page, as `/runtime/widget-api.js`. What only the render
+   gate's probes read belongs in check-api.js instead. */
 export {
   LitElement,
   html,
@@ -39,9 +37,7 @@ export async function mountSample(frame, options) {
 }
 export { dressSamples, wear } from "./dress.js";
 
-export { USER_VIEW_RESTORE_CASES } from "./restore-state.js";
 export {
-  ADDRESSABLE,
   addressableLabel,
   addressableWord,
   projectedDatum,
@@ -53,16 +49,10 @@ export { authoredScope, elementById } from "./passages.js";
 export { navigateToDatum } from "./application.js";
 // Experimental: one widget marking part of another (indication.js).
 export { indicate } from "./indication.js";
-export {
-  landingInsets,
-  shownBand,
-  shownBox,
-  shownParts,
-  shownWindow,
-} from "./geometry.js";
+export { landingInsets, shownParts, shownWindow } from "./geometry.js";
 // Holding the user's place in a scroller whose contents a widget re-renders.
 export { placeKeeper } from "./user-place.js";
-export { inUi, uiInside, upFrom, under, renderedParent } from "./shadow.js";
+export { inUi, under } from "./shadow.js";
 // Putting the user on an element, saying what moved them there; holding their place,
 // caret included, across a move or re-render of the node they stand on, by key in a
 // list; where they stand and whether it is in a scope; recording where a layer opened
@@ -123,6 +113,7 @@ export { HOLDS_WORD } from "./held-word.js";
 export { PRESS, labelOf, submitBindings, submitLabel } from "./keyboard/bindings.js";
 export {
   commandScope,
+  commandsOn,
   keys as commands,
   paintKeys,
   saying,
@@ -178,26 +169,14 @@ export {
   readingPosture,
   readingRegion,
   readingRegionFor,
-  readingRegions,
   registerReadingRegion,
   scrollerFor,
-  shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 export { announce, notice } from "./notifications.js";
 export { alignText, alignedNodes } from "./text-alignment.js";
-export {
-  inChrome,
-  quoteFrom,
-  renderRetired,
-  says,
-  textNodesUnder,
-  verbatimBoundaryIdentity,
-  verbatimOwnerIdentity,
-  wrote,
-} from "./passages.js";
+export { inChrome, renderRetired, says, textNodesUnder, wrote } from "./passages.js";
 export { ago, clocked, clockValue, quietSince, shortAgo } from "./presence.js";
-export { shallowSigs } from "./application.js";
 export { shadowStage } from "./shadow-stage.js";
 export { inBaseLayer } from "./stylesheets.js";
 export { revisionLabel } from "./context.js";
@@ -257,6 +236,7 @@ export {
   quoted,
   reachedForWords,
   relabel,
+  said,
   reserve,
   searchField,
   selectableOffer,

@@ -382,7 +382,9 @@ def post_reply(
                     or (to is not None and existing["parent"] != to)
                     or not same_scope
                 ):
-                    raise Refused(f"attempt {attempt!r} already belongs to another event")
+                    raise Refused(
+                        f"attempt {attempt!r} already belongs to another event"
+                    )
                 if (bool(existing.get("question")), existing.get("task")) != (
                     question,
                     task,

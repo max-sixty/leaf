@@ -211,6 +211,33 @@ def _verbatim_findings(context: _SchemeContext) -> list[str]:
     return findings
 
 
+def clipped_controls(page) -> list[dict]:
+    """Clipped offers no native keyboard arrival can expose.
+
+    A provider can scroll its drawing through a sibling native scrollport, which
+    an ancestor-only CSS reading cannot see. Exercise only its clipped Tab stops,
+    then restore focus, selection, provider views and every native scroll offset before any later
+    reading. No activation or application command is sent.
+    """
+    candidates = evaluate_probe(page, "beginClippedControlFocus")
+    if not candidates:
+        return []
+    lost = []
+    try:
+        # The browser's own modality, rather than a forged KeyboardEvent, makes
+        # provider handlers guarded by :focus-visible take their keyboard route.
+        for index, candidate in enumerate(candidates):
+            page.keyboard.press("Shift")
+            evaluate_probe(page, "focusClippedControl", index)
+            rendered(page)
+            if not evaluate_probe(page, "clippedControlRevealed", index):
+                lost.append(candidate)
+    finally:
+        evaluate_probe(page, "restoreClippedControlFocus")
+        rendered(page)
+    return lost
+
+
 def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     page = context.page
     scheme = context.scheme
@@ -234,7 +261,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     # position between the two read-only groups so each reads the same restored page.
     squeezed = evaluate_probe(page, "squeezedTables")
     reachability = evaluate_probe(page, "reachabilityReading")
-    clipped = reachability["clipped"]
+    clipped = clipped_controls(page)
     unreachable = reachability["unreachable"]
     covered = reachability["covered"]
     unread = evaluate_probe(page, "unreadSyntax")

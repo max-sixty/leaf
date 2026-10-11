@@ -254,7 +254,7 @@ function marginReading(main) {
 // Overflow is acceptable only when the user can reach it or the box explicitly signals
 // the cut. A scroll container may expose content in its scroll direction. `text-overflow`
 // may signal omitted text. Plain clipping does not make content reachable.
-// `misplacedBoxes`, `clippedControls`, and `coveredWords` enforce the distinct geometry,
+// `misplacedBoxes`, the clipped-control focus experiment, and `coveredWords` enforce the distinct geometry,
 // interaction, and text consequences.
 //
 // `tinyBoxes` ensures each declared widget upgrades to a usable box. `unreachableWords`

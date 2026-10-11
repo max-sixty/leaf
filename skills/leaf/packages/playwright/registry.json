@@ -4,7 +4,7 @@
       "playwright-trace": {
         "description": "A review index derived from one immutable Playwright format-9 trace archive. Times are native monotonic milliseconds within each stream; screenshots and saved accessibility trees have separate capture times.",
         "instructions": {
-          "producer": "Initialize a page with package playwright and bind an lf-trace widget to its source id. Import the native archive through the producer and Leaf canonical media writer: leaf package run playwright import_trace.py TRACE --page PAGE --leaf /absolute/path/to/bin/leaf --viewer-url URL | leaf data set PAGE SOURCE. The viewer URL must open the same unchanged trace.zip. Keep the original archive; its SHA-256 scopes every imported action, image and saved-tree node identity. Use a new source id for another recording. Format 9 only; other versions are refused explicitly. Review the recording for credentials and personal data before sharing. PNG checkpoints and accessibility trees are sequential captures: tree boxes describe the saved tree, not an exact pixel target in the neighboring image. Imported action titles, timings and action errors are retained. DOM inspection, network, console, source, test-runner hierarchy, attachments and complete assertion results remain in the linked Playwright viewer."
+          "producer": "Initialize a page with package playwright and bind an lf-trace widget to its source id. Import the native archive through the producer and Leaf canonical media writer: leaf package run playwright import_trace.py TRACE --page PAGE --leaf /absolute/path/to/bin/leaf --viewer-url URL | leaf data set PAGE SOURCE. The viewer URL must open the same unchanged trace.zip. Keep the original archive; its SHA-256 scopes every imported action, image and saved-tree node identity. Use a new source id for another recording. Format 9 only; other versions are refused explicitly. Review the recording for credentials and personal data before sharing. PNG checkpoints and accessibility trees are sequential captures: tree boxes describe the saved tree, not an exact pixel target in the neighboring image. Native method names and input selector, key, pointer coordinates and input-snapshot viewport dimensions are retained with action titles, timings and errors; filled values and other API parameters remain in the archive. Input may be absent, and keyboard input may have no pointer coordinates. Pointer coordinates use the native viewport, not raster-image dimensions; no point overlay is possible without that viewport. Native input events have no timestamp; the action phase records its snapshot time. DOM inspection, network, console, source, test-runner hierarchy, attachments and complete assertion results remain in the linked Playwright viewer."
         },
         "schema": {
           "type": "object",
@@ -188,6 +188,87 @@
               ],
               "additionalProperties": false
             },
+            "point": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number"
+                },
+                "y": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "x",
+                "y"
+              ],
+              "additionalProperties": false
+            },
+            "viewport": {
+              "type": "object",
+              "properties": {
+                "width": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "height": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "required": [
+                "width",
+                "height"
+              ],
+              "additionalProperties": false
+            },
+            "input": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "selector": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "key": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "point": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/point"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "viewport": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/viewport"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "selector",
+                "key",
+                "point",
+                "viewport"
+              ],
+              "additionalProperties": false
+            },
             "action": {
               "type": "object",
               "properties": {
@@ -210,6 +291,13 @@
                 },
                 "title": {
                   "type": "string"
+                },
+                "method": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "input": {
+                  "$ref": "#/$defs/input"
                 },
                 "startTime": {
                   "type": "number"
@@ -248,6 +336,8 @@
                 "callId",
                 "pageId",
                 "title",
+                "method",
+                "input",
                 "startTime",
                 "endTime",
                 "error",
@@ -390,7 +480,7 @@
   },
   "lf-trace": {
     "description": "A commentable Playwright recording with action phases, native captured frames and saved accessibility elements.",
-    "x-instructions": "Bind the widget to an imported playwright-trace source. Optional lf-trace-bookmark members mark exact images or action phases on a time-scaled timeline. Numbers match the chronological Moments list and selected readout. Each moment is independently selectable and exposes its name and time on hover or focus. Close times stack; explicit timeline zoom and pan preserve their native times. Image controls provide pan, zoom, fit and actual size. Ordinary wheel scrolling stays with the page. The ruler starts at recording time zero; navigation selects actual captured stops. Evidence grows in page flow. One chronological timeline includes page actions and browser/context calls without a page. A single-page recording needs no selector; multi-page recordings offer All pages and individual page filters. Separate streams retain their own clocks. Show intermediate frames includes native JPEG frames between them. Left and Right step through the displayed stops. Comments on images pin their exact capture, while comments on saved elements pin the selected action phase and tree path. Keep the linked Playwright viewer running for DOM, source, console and network inspection.",
+    "x-instructions": "Bind to an imported playwright-trace source. Introduce what the recording shows and make the results under review directly reachable with named lf-trace-bookmark members, preferably successful expectations’ After checkpoints; use imported ids and labels naming the result. The viewer supplies its controls. Its chronology includes action checkpoints and intermediate frames at native times, with page filters for multi-page recordings and separate clocks for streams. Matching elapsed times across recordings do not establish matching states. Image comments pin the actual image; saved-element comments pin the labeled checkpoint and tree path. These captures can have different times. A first-image preview before its capture time is explicitly labeled. Keep the linked Playwright viewer running for DOM snapshots, element picking, source, console and network inspection. To pair named results across recordings, give the viewers the same compare token and their corresponding bookmarks the same key. Choosing a keyed moment selects each recording’s own target; manual seeking keeps independent positions.",
     "type": "object",
     "properties": {
       "id": {
@@ -400,6 +490,14 @@
       "source": {
         "type": "string",
         "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "compare": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "label": {
+        "type": "string",
+        "minLength": 1
       }
     },
     "required": [
@@ -426,7 +524,7 @@
   },
   "lf-trace-bookmark": {
     "description": "An authored, labeled jump to an exact captured image or action phase in its trace.",
-    "x-instructions": "Set target to an existing trace visual coordinate: trace-ARCHIVE_SHA256-image-IMAGE_ID or trace-ARCHIVE_SHA256-phase-ACTION_ID-PHASE. Read those ids from the imported source; phase is before, action, after, start or end. The widget derives elapsed time from the capture. A target absent from the recording is shown as unavailable.",
+    "x-instructions": "Set target to an existing trace visual coordinate: trace-ARCHIVE_SHA256-image-IMAGE_ID or trace-ARCHIVE_SHA256-phase-ACTION_ID-PHASE. Read those ids from the imported source; phase is before, action, after, start or end. The widget derives elapsed time from the capture. A target absent from the recording is shown as unavailable. A key explicitly pairs this semantic result with bookmarks in the owner’s compare group; elapsed times and label text are never used to infer correspondence.",
     "type": "object",
     "properties": {
       "label": {
@@ -436,6 +534,10 @@
       "target": {
         "type": "string",
         "pattern": "^trace-[a-f0-9]{64}-(image|phase)-[a-z0-9-]+$"
+      },
+      "key": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
       }
     },
     "required": [
@@ -450,5 +552,25 @@
     "x-name": "label",
     "x-example": "<lf-trace id=\"recorded-checkout\" source=\"checkout-trace\"><lf-trace-bookmark label=\"Popup closes\" target=\"trace-0000000000000000000000000000000000000000000000000000000000000000-image-demo\"></lf-trace-bookmark></lf-trace>",
     "x-upgrade": false
+  },
+  "lf-trace-compare": {
+    "description": "One shared inspection workspace for recordings with explicitly paired named results.",
+    "x-instructions": "Put independent lf-trace viewers inside this container, each with a label naming the recording. Give corresponding lf-trace-bookmark members the same key. Selecting a keyed result chooses each recording’s own captured target; switching the Recording chooser retains the shared inspection position and each image view. Manual seeking remains independent.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "required": [
+      "id"
+    ],
+    "additionalProperties": false,
+    "x-content": "markup",
+    "x-upgrade": true,
+    "x-views": true,
+    "x-space": "available",
+    "x-example": "<lf-trace-compare id=\"paired-recordings\"><lf-trace id=\"before\" label=\"Before\" source=\"before-recording\"></lf-trace><lf-trace id=\"after\" label=\"After\" source=\"after-recording\"></lf-trace></lf-trace-compare>"
   }
 }

@@ -502,7 +502,7 @@ changing `leaf.js`, a runtime owner, a widget module, the registry, or the theme
 | `unmarkableElements` | every addressable element has a visible part to outline |
 | `misplacedBoxes` | boxes stay in the column or in reachable overflow at every width |
 | `squeezedTables` | a table scrolls sideways only with every column at its longest unbreakable run |
-| `clippedControls` | controls are visible and reachable |
+| `clippedControlCandidates`, followed by the native-focus experiment | clipped controls have a keyboard route that reveals them; the experiment restores focus, selection, provider views and native scroll offsets |
 | `unreachableWords`, `coveredWords` | visible words stay in reachable flow and are not silently clipped or claimed by chrome |
 | `unreadSyntax` | highlighting does not alter source words |
 | `shownVerbatim` | preserving owners agree with their projected passage |

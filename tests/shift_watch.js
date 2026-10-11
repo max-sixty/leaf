@@ -42,6 +42,8 @@
 // Chrome's paint signal and landmark poses answer distinct questions. The ledger
 // retains samples that precede the source-associated frame window and is classified
 // before paint admission, so delayed observer delivery cannot erase a sampled move.
+// Each compared endpoint must contain the landmark. A cached pose cannot cross its
+// absence and acquire the ancestors' newer scroll or coordinate bindings on return.
 // A never-painted roundtrip is dismissed; matching source motion can corroborate a
 // sampled roundtrip already restored when the observer hears it. Transform-only
 // motion produces no Layout Instability event and is outside this paint signal.
@@ -1595,7 +1597,9 @@
   const pendingMotion = [];
   const protectedMotion = (around) => {
     const growth = appendGrowth(around);
-    for (const node of new Set(around.flatMap(({ nodes }) => nodes))) {
+    const populations = around.map(({ nodes }) => new Set(nodes));
+    for (const node of populations[0]) {
+      if (!populations.every((population) => population.has(node))) continue;
       const readings = around.map(({ at }) => readingAt(node, at));
       if (!readings.every(Boolean)) continue;
       if (!readings.some(({ paint }) => paint.reading || paint.control || paint.reflow))

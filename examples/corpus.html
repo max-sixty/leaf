@@ -6360,6 +6360,29 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
       </footer>
 </lf-tab>
 
+<lf-tab id="corpus-playwright-paired-results" label="Playwright Paired Results">
+<h1>Compare reviewed results</h1>
+      <p>
+        These two views deliberately pair different Review outcomes in one recording.
+        Selecting Reviewed result aligns the declared checkpoints, whose native times
+        remain distinct.
+      </p>
+      <lf-trace-compare id="matched-results"
+        ><lf-trace id="paired-before" label="Before" source="release-journey"
+          ><lf-trace-bookmark
+            label="Reviewed result"
+            key="reviewed"
+            target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-phase-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-4e380b5061c4982e-after"
+          ></lf-trace-bookmark></lf-trace
+        ><lf-trace id="paired-after" label="After" source="release-journey"
+          ><lf-trace-bookmark
+            label="Reviewed result"
+            key="reviewed"
+            target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-phase-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-0684e283ed722175-after"
+          ></lf-trace-bookmark></lf-trace
+      ></lf-trace-compare>
+</lf-tab>
+
 <lf-tab id="corpus-review-queue" label="Review Queue">
 <header>
         <p class="eyebrow">release review · eight items</p>
@@ -9304,8 +9327,9 @@ switch --readers checkout-api,orders-api</code></pre>
             tree shows its own capture time.
           </li>
           <li>
-            Enable Show intermediate frames to include the browser’s filmstrip on that
-            same timeline. Left and Right step through the displayed stops.
+            Intermediate filmstrip images share the action timeline. Left and Right step
+            through its captured stops; Home keeps the first available image visible
+            with its capture time.
           </li>
           <li>
             Comment on one saved Review button, move to another action, and follow the

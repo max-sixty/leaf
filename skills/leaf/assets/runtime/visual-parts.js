@@ -8,7 +8,8 @@
  *
  * A visual that draws its parts over time (a timeline, an animation, a stepper) does not
  * hold every declared part at every moment. Its registration names `reveal(id)`, which
- * synchronously moves the visual to a state whose inventory holds that part. A declared
+ * synchronously settles the visual on a state whose inventory holds that part,
+ * including cancelling a pending replacement of an already visible destination. A declared
  * part missing from the current inventory then stands in for the whole visual until
  * travel or the render gate asks for it, rather than detaching. A label reader can
  * name an absent part in Threads without changing the visual's state. */
@@ -28,8 +29,9 @@ const words = (value) =>
  * `read` returns ordered `{id, element, label, surface?}` records. Call `update()` after
  * any rendering or geometry change, including in-place attribute or style changes; it
  * emits the same layout signal used by every other package-owned geometry change.
- * `reveal(id)`, when given, draws the state that holds declared part `id` before it
- * returns, so the next `read` includes it. `label(id)` names a part absent from the
+ * `reveal(id)`, when given, settles the state that holds declared part `id` before it
+ * returns, so the next `read` includes it and pending work cannot retire it. It is
+ * called for visible destinations too. `label(id)` names a part absent from the
  * current state without revealing it.
  */
 export function registerVisualParts(
@@ -79,10 +81,10 @@ export function visualPartAdmission(visual, declaration) {
 export const revealsVisualParts = (source) =>
   Boolean(registrations.get(source)?.reveal);
 
-/** Draw the state that holds part `id`, when the source can and does not already. */
+/** Settle the requested part, even while old pixels await a replacement. */
 export function revealRegisteredVisualPart(source, id) {
   const reveal = registrations.get(source)?.reveal;
-  if (reveal && !registeredVisualPart(source, id)) reveal(id);
+  if (reveal) reveal(id);
   return registeredVisualPart(source, id);
 }
 
@@ -124,7 +126,7 @@ export function visualPartProblems(source, declaration) {
   }
 }
 
-// Reveal each declared part the current state lacks. This moves the visual off the
+// Settle each declared part. This moves the visual off the
 // state it opened in, so a caller asks it last.
 export function unrevealedVisualParts(source, declaration) {
   const declared = visualPartAdmission(source, declaration)?.declared ?? [];

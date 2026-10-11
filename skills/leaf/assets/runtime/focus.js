@@ -177,7 +177,7 @@ export const wearsLentStop = (element) => lent.has(element);
 // element in light or shadow DOM, in Chromium, Firefox and WebKit.
 export function whenLeft(element, leave) {
   const blur = () => {
-    if (element.getRootNode().activeElement === element) return;
+    if (landedOn(element)) return;
     element.removeEventListener("blur", blur);
     leave();
   };

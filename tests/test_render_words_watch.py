@@ -771,6 +771,42 @@ def test_words_a_press_in_the_page_holding_their_frame_puts_away_are_put_away(br
     judge_watches()
 
 
+def test_words_a_retired_child_stops_reading_parent_edits(browser):
+    """A detached document cannot keep its health readers on a live parent's feed."""
+    child = """<p>Disposable child</p><script>
+      const home = parent;
+      lfInputWork.subscribeEdits(() => { home.childReadings++; });
+    </script>"""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            "<script>window.childReadings = 0;</script>"
+            "<textarea id=field style=display:block></textarea>"
+            f"<iframe srcdoc='{escape(child)}'></iframe>"
+        )
+    )
+    page.frame_locator("iframe").locator("p").wait_for()
+    page.locator("#field").fill("A live child hears this edit")
+    assert page.evaluate("childReadings") > 0
+    child_frame = page.frames[1]
+    child_frame.evaluate(
+        "dispatchEvent(new PageTransitionEvent('pagehide', {persisted: true}))"
+    )
+    held = page.evaluate("childReadings")
+    page.locator("#field").fill("A cached child pauses its readers")
+    assert page.evaluate("childReadings") == held
+    child_frame.evaluate(
+        "dispatchEvent(new PageTransitionEvent('pageshow', {persisted: true}))"
+    )
+    page.locator("#field").fill("A restored child hears edits again")
+    assert page.evaluate("childReadings") == held + 1
+    page.evaluate("document.querySelector('iframe').remove()")
+    held = page.evaluate("childReadings")
+    page.locator("#field").press_sequentially(" after retirement")
+    assert page.evaluate("childReadings") == held
+
+
 @pytest.mark.parametrize("continuation", ["captured", "native-await", "passive"])
 def test_words_child_work_reads_its_executing_parent_owner(browser, continuation):
     child = """<textarea id=field></textarea><script>

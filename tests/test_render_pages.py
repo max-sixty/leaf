@@ -22,6 +22,7 @@ from leaf.hosting import TemporaryPageServer
 from leaf.passages import enclosing_ids, page_passages
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import version as render_gate_model
 from PIL import Image, ImageChops, ImageStat
 from playwright.sync_api import expect
@@ -595,23 +596,19 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 card = page.locator(f'.lf-thread[data-id="{thread_id}"]')
                 if card.get_attribute("open") is None:
                     card.locator(".lf-thread-summary").click()
-                for finding, probe, arg in (
+                for finding, read in (
                     (
                         "draws a box of no size",
-                        "tinyBoxes",
-                        page_registry(page),
+                        lambda page=page: render_checks_model.evaluate_probe(
+                            page, "tinyBoxes", page_registry(page)
+                        ),
                     ),
                     (
                         "has a control clipped out of its box",
-                        "clippedControls",
-                        None,
+                        lambda page=page: render_gate_readings.clipped_controls(page),
                     ),
                 ):
-                    found = (
-                        render_checks_model.evaluate_probe(page, probe, arg)
-                        if arg
-                        else render_checks_model.evaluate_probe(page, probe)
-                    )
+                    found = read()
                     assert found == [], (
                         f"{example.stem}: with the panel open, something {finding}: {found}"
                     )

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Matched recording results</title>
+    <meta
+      name="description"
+      content="Inspect corresponding results at distinct native capture times in a shared recording workspace."
+    />
+  </head>
+  <body>
+    <main class="layout-wide density-working">
+      <h1>Compare reviewed results</h1>
+      <p>
+        These two views deliberately pair different Review outcomes in one recording.
+        Selecting Reviewed result aligns the declared checkpoints, whose native times
+        remain distinct.
+      </p>
+      <lf-trace-compare id="matched-results"
+        ><lf-trace id="paired-before" label="Before" source="release-journey"
+          ><lf-trace-bookmark
+            label="Reviewed result"
+            key="reviewed"
+            target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-phase-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-4e380b5061c4982e-after"
+          ></lf-trace-bookmark></lf-trace
+        ><lf-trace id="paired-after" label="After" source="release-journey"
+          ><lf-trace-bookmark
+            label="Reviewed result"
+            key="reviewed"
+            target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-phase-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-0684e283ed722175-after"
+          ></lf-trace-bookmark></lf-trace
+      ></lf-trace-compare>
+    </main>
+  </body>
+</html>

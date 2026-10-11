@@ -118,101 +118,6 @@
       "diff": "diff --git a/atlas/api.py b/atlas/api.py\n--- a/atlas/api.py\n+++ b/atlas/api.py\n@@ -7,3 +7,3 @@ class ImportResult:\n-    errors: list[str]\n+    failures: tuple[ImportFailure, ...]\n     rows: int"
     }
   },
-  "gallery-latency": 184,
-  "gallery-markdown": "# Release ready\n\nThe **importer** now preserves field names.\n\n- Review the schema\n- Publish the release\n\n| Check | Result |\n| --- | --- |\n| Round trip | Passed |\n\n[Read the release](https://example.com/release)\n",
-  "gallery-html": "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>Release card</title><style>body{font:18px system-ui;margin:32px;color:#17352d}article{border:2px solid #25755c;padding:24px;max-width:420px}h1{font-size:28px}strong{color:#25755c}</style><article><h1>Importer release</h1><p>The schema round trip <strong>passed</strong>.</p><details><summary>Release checklist</summary><p>Review the schema, then publish the release.</p></details></article></html>",
-  "gallery-visual-run": {
-    "title": "Optional packages move to focused pages",
-    "base": {
-      "revision": "19f3ba5f"
-    },
-    "candidate": {
-      "revision": "e2481629"
-    },
-    "cases": [
-      {
-        "id": "open-mobile-package-catalog",
-        "title": "Optional packages get focused destinations",
-        "path": "/packages/",
-        "action": "At 390 px, compare the first task section on each Packages page.",
-        "result": "The candidate replaces the general package tutorial opening with one-column links to focused package pages.",
-        "classification": "changed",
-        "capture": {
-          "observedAt": "2026-09-11T18:30:00-07:00",
-          "browser": "Chromium",
-          "browserVersion": "151.0.7922.34",
-          "viewport": {
-            "width": 390,
-            "height": 844
-          },
-          "deviceScaleFactor": 2,
-          "colorScheme": "light",
-          "locale": "en-US",
-          "timezone": "America/Los_Angeles"
-        },
-        "focus": {
-          "x": 20,
-          "y": 100,
-          "width": 350,
-          "height": 640
-        },
-        "before": "/media/2e67d22047659af6.png",
-        "after": "/media/0150b6de0768161e.png"
-      },
-      {
-        "id": "keep-mobile-destinations",
-        "title": "All mobile destinations remain reachable",
-        "path": "/packages/",
-        "action": "Read every destination in the wrapped mobile site navigation.",
-        "result": "Seeded regression for review: the candidate drops the GitHub destination.",
-        "classification": "changed",
-        "capture": {
-          "observedAt": "2026-09-11T18:30:00-07:00",
-          "browser": "Chromium",
-          "browserVersion": "151.0.7922.34",
-          "viewport": {
-            "width": 390,
-            "height": 300
-          },
-          "deviceScaleFactor": 2,
-          "colorScheme": "light",
-          "locale": "en-US",
-          "timezone": "America/Los_Angeles"
-        },
-        "focus": {
-          "x": 20,
-          "y": 108,
-          "width": 350,
-          "height": 110
-        },
-        "before": "/media/3cf0e3efe80c6b01.png",
-        "after": "/media/4f465a0582ab00fe.png"
-      },
-      {
-        "id": "check-desktop-navigation",
-        "title": "Desktop navigation is unchanged",
-        "path": "/packages/",
-        "action": "Compare the desktop header and the opening package claim.",
-        "result": "The same destinations and introduction remain in the same positions above the changed catalog.",
-        "classification": "clean",
-        "capture": {
-          "observedAt": "2026-10-08T10:51:22-07:00",
-          "browser": "Chromium",
-          "browserVersion": "154.0.8037.98",
-          "viewport": {
-            "width": 1280,
-            "height": 300
-          },
-          "deviceScaleFactor": 2,
-          "colorScheme": "light",
-          "locale": "en-US",
-          "timezone": "America/Los_Angeles"
-        },
-        "before": "/media/037e40b4680c16b4.png",
-        "after": "/media/037e40b4680c16b4.png"
-      }
-    ]
-  },
   "release-journey": {
     "archive": {
       "sha256": "11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965",
@@ -245,7 +150,9 @@
         "startTime": 2416.095,
         "endTime": 4107.181,
         "error": null,
-        "phases": {}
+        "phases": {},
+        "method": "newPage",
+        "input": null
       },
       {
         "id": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-459765577710bb98",
@@ -396,7 +303,9 @@
               ]
             }
           }
-        }
+        },
+        "method": "setContent",
+        "input": null
       },
       {
         "id": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-4e380b5061c4982e",
@@ -797,6 +706,19 @@
                 }
               ]
             }
+          }
+        },
+        "method": "click",
+        "input": {
+          "selector": "internal:role=button[name=\"Review\"s] >> nth=0",
+          "key": null,
+          "point": {
+            "x": 104.22,
+            "y": 294.9
+          },
+          "viewport": {
+            "width": 960,
+            "height": 640
           }
         }
       },
@@ -1200,6 +1122,19 @@
               ]
             }
           }
+        },
+        "method": "click",
+        "input": {
+          "selector": "internal:role=button[name=\"Review\"s] >> nth=1",
+          "key": null,
+          "point": {
+            "x": 104.22,
+            "y": 464.68
+          },
+          "viewport": {
+            "width": 960,
+            "height": 640
+          }
         }
       }
     ],
@@ -1359,6 +1294,101 @@
         "height": 640,
         "callId": "call@13",
         "phase": "after"
+      }
+    ]
+  },
+  "gallery-latency": 184,
+  "gallery-markdown": "# Release ready\n\nThe **importer** now preserves field names.\n\n- Review the schema\n- Publish the release\n\n| Check | Result |\n| --- | --- |\n| Round trip | Passed |\n\n[Read the release](https://example.com/release)\n",
+  "gallery-html": "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>Release card</title><style>body{font:18px system-ui;margin:32px;color:#17352d}article{border:2px solid #25755c;padding:24px;max-width:420px}h1{font-size:28px}strong{color:#25755c}</style><article><h1>Importer release</h1><p>The schema round trip <strong>passed</strong>.</p><details><summary>Release checklist</summary><p>Review the schema, then publish the release.</p></details></article></html>",
+  "gallery-visual-run": {
+    "title": "Optional packages move to focused pages",
+    "base": {
+      "revision": "19f3ba5f"
+    },
+    "candidate": {
+      "revision": "e2481629"
+    },
+    "cases": [
+      {
+        "id": "open-mobile-package-catalog",
+        "title": "Optional packages get focused destinations",
+        "path": "/packages/",
+        "action": "At 390 px, compare the first task section on each Packages page.",
+        "result": "The candidate replaces the general package tutorial opening with one-column links to focused package pages.",
+        "classification": "changed",
+        "capture": {
+          "observedAt": "2026-09-11T18:30:00-07:00",
+          "browser": "Chromium",
+          "browserVersion": "151.0.7922.34",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "deviceScaleFactor": 2,
+          "colorScheme": "light",
+          "locale": "en-US",
+          "timezone": "America/Los_Angeles"
+        },
+        "focus": {
+          "x": 20,
+          "y": 100,
+          "width": 350,
+          "height": 640
+        },
+        "before": "/media/2e67d22047659af6.png",
+        "after": "/media/0150b6de0768161e.png"
+      },
+      {
+        "id": "keep-mobile-destinations",
+        "title": "All mobile destinations remain reachable",
+        "path": "/packages/",
+        "action": "Read every destination in the wrapped mobile site navigation.",
+        "result": "Seeded regression for review: the candidate drops the GitHub destination.",
+        "classification": "changed",
+        "capture": {
+          "observedAt": "2026-09-11T18:30:00-07:00",
+          "browser": "Chromium",
+          "browserVersion": "151.0.7922.34",
+          "viewport": {
+            "width": 390,
+            "height": 300
+          },
+          "deviceScaleFactor": 2,
+          "colorScheme": "light",
+          "locale": "en-US",
+          "timezone": "America/Los_Angeles"
+        },
+        "focus": {
+          "x": 20,
+          "y": 108,
+          "width": 350,
+          "height": 110
+        },
+        "before": "/media/3cf0e3efe80c6b01.png",
+        "after": "/media/4f465a0582ab00fe.png"
+      },
+      {
+        "id": "check-desktop-navigation",
+        "title": "Desktop navigation is unchanged",
+        "path": "/packages/",
+        "action": "Compare the desktop header and the opening package claim.",
+        "result": "The same destinations and introduction remain in the same positions above the changed catalog.",
+        "classification": "clean",
+        "capture": {
+          "observedAt": "2026-10-08T10:51:22-07:00",
+          "browser": "Chromium",
+          "browserVersion": "154.0.8037.98",
+          "viewport": {
+            "width": 1280,
+            "height": 300
+          },
+          "deviceScaleFactor": 2,
+          "colorScheme": "light",
+          "locale": "en-US",
+          "timezone": "America/Los_Angeles"
+        },
+        "before": "/media/037e40b4680c16b4.png",
+        "after": "/media/037e40b4680c16b4.png"
       }
     ]
   }

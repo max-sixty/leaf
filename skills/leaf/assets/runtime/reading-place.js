@@ -12,7 +12,9 @@
  * gesture still holds focus in this region. Focus on the reading surface itself keeps
  * its passage as the place. The destination's DOM identity stays local;
  * serialized places and replaced elements use the ordinary passage reading. A restore
- * jumps rather than glides.
+ * jumps rather than glides. Restoration preserves the current disclosures and
+ * selected views: a landmark the user concealed no longer supplies geometry.
+ * Explicit navigation owns revealing a destination before restoring its place.
  *
  * Whoever remembers a place owns when to take it and where to keep it: version
  * continuity (version.js) across revisions and reading-region shifts, a root tab set
@@ -57,7 +59,6 @@ import { moveScrollerBy, pageScroller, scrollToEnd } from "./scrolling.js";
 import { renderedParent, under, upFrom } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
 import { recentPlaceInput, focused } from "./focus.js";
-import { reveal } from "./widget-elements.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { union } from "./rect.js";
 
@@ -95,6 +96,15 @@ export const textBlocks = (root = document.querySelector("body > main")) =>
 // place instead requires words the browser draws. Ask the text's own parent, rather
 // than its block: display: contents still draws text, and a child can restore visibility
 // inside a concealed block. Skipped subtrees are left alone before asking for any boxes.
+const drawsLandmark = (parent) => {
+  if (!parent || skipped(parent) || getComputedStyle(parent).visibility !== "visible")
+    return false;
+  // A contents wrapper draws through its children. Its first boxed ancestor
+  // supplies display/opacity; the text parent's visibility can override it.
+  let box = parent;
+  while (box && getComputedStyle(box).display === "contents") box = renderedParent(box);
+  return Boolean(box?.checkVisibility({ opacityProperty: true }));
+};
 const blockWords = new WeakMap();
 function* renderedBlocks(blocks) {
   const reading = pageText();
@@ -117,19 +127,7 @@ function* renderedBlocks(blocks) {
     for (const segment of words.get(block)) {
       const { node, start, end } = segment;
       const parent = renderedParent(node);
-      if (!drawn.has(parent)) {
-        let visible = false;
-        if (!skipped(parent) && getComputedStyle(parent).visibility === "visible") {
-          // Text in display: contents has no parent box to ask. Its first boxed
-          // ancestor supplies the browser's opacity/display reading; visibility
-          // belongs to the text parent, since its children may override that ancestor.
-          let box = parent;
-          while (box && getComputedStyle(box).display === "contents")
-            box = renderedParent(box);
-          visible = Boolean(box?.checkVisibility({ opacityProperty: true }));
-        }
-        drawn.set(parent, visible);
-      }
+      if (!drawn.has(parent)) drawn.set(parent, drawsLandmark(parent));
       if (!drawn.get(parent)) {
         run = null;
         continue;
@@ -330,12 +328,12 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
   const text = pageText();
   const found = view.quote && resolveAnchor(view, text);
   const segments = targetSegments(found);
-  if (segments.length) {
-    reveal(segments[0].node.parentElement, currentIntent); // the passage may sit behind a tab
-    moveScrollerBy(
-      box,
-      rangeOf(segments).getBoundingClientRect().top - boxTop - view.quoteTop,
-    );
+  const quoteBox =
+    segments.length &&
+    segments.every(({ node }) => drawsLandmark(renderedParent(node))) &&
+    rangeOf(segments).getBoundingClientRect();
+  if (quoteBox && (quoteBox.width || quoteBox.height)) {
+    moveScrollerBy(box, quoteBox.top - boxTop - view.quoteTop);
     return;
   }
   // Repeated passage words may have no unique anchor. In that case the live
@@ -349,8 +347,8 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
     return;
   }
   const section = targetElement(resolveAnchor({ section: view.section }, text));
-  if (section) {
-    reveal(section, currentIntent);
+  const sectionBox = section && drawsLandmark(section) && shownBox(section);
+  if (sectionBox && (sectionBox.width || sectionBox.height)) {
     // A section containing this scroller cannot move when its contents scroll.
     // Its outer rectangle therefore supplies no alignment inside the body: keep
     // the old offset only in the same box, otherwise arrive at the section's opening.
@@ -363,7 +361,7 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
     // generates no box of its own is one a suggestion wrapping whole sections leaves
     // there. Read raw, both sides come back 0 and the correction is 0 — so the restore
     // that had somewhere to land did nothing, silently, and left the user at the top.
-    moveScrollerBy(box, shownBox(section).top - boxTop - view.sectionTop);
+    moveScrollerBy(box, sectionBox.top - boxTop - view.sectionTop);
   } else if (rawOffsetFits(view, box))
     box.scrollTo({ top: view.y, behavior: "instant" });
 }

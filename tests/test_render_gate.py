@@ -5165,6 +5165,138 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     assert not [f for f in failures if "(#clean-drawing-control)" in f], failures
 
 
+def test_clipped_control_gate_proves_focus_reveal_and_restores_native_scroll_owners(
+    browser, serve
+):
+    """A translated drawing can use a sibling native scrollport without hiding offers."""
+    markup = leaf_page(
+        "Provider scrolling",
+        '<h1>Provider scrolling</h1><input id="prior" name="prior">'
+        '<lf-test-provider-scroll id="neighbor"></lf-test-provider-scroll>'
+        '<lf-test-provider-scroll id="reachable"></lf-test-provider-scroll>'
+        '<lf-test-provider-scroll id="delegated"></lf-test-provider-scroll>'
+        '<lf-test-provider-scroll id="delegated-blocked"></lf-test-provider-scroll>'
+        '<lf-test-provider-scroll id="locked"></lf-test-provider-scroll>'
+        '<lf-test-provider-scroll id="notabbable"></lf-test-provider-scroll>',
+    )
+    registry = {
+        "lf-test-provider-scroll": {
+            "description": "A drawing scrolled by a native sibling controller.",
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "required": ["id"],
+            "additionalProperties": False,
+            "x-content": "empty",
+            "x-upgrade": True,
+            "x-example": '<lf-test-provider-scroll id="reachable"></lf-test-provider-scroll>',
+        }
+    }
+    widgets = {
+        "lf-test-provider-scroll.js": """
+import { once, offer, registerMechanicalView } from '/runtime/widget-api.js';
+customElements.define('lf-test-delegated-control', class extends HTMLElement {
+  constructor() {
+    super();
+    const shadow = this.attachShadow({mode: 'open', delegatesFocus: true});
+    shadow.innerHTML = '<button style="width:70px;height:40px">Inspect</button>';
+  }
+});
+customElements.define('lf-test-provider-scroll', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    this.style.cssText = 'display:flex;height:44px;margin-block:20px';
+    const viewport = document.createElement('div');
+    viewport.style.cssText = 'position:relative;width:80px;height:44px;overflow:clip';
+    const content = document.createElement('div');
+    content.style.cssText = 'position:relative;height:180px';
+    const control = offer(this.id.startsWith('delegated') ? 'lf-test-delegated-control' : 'button', 'provider-control', 'Inspect');
+    control.id = `${this.id}-control`;
+    control.style.cssText = 'display:block;position:relative;top:100px;width:70px;height:40px';
+    if (this.id === 'neighbor') control.style.top = '0';
+    if (['notabbable', 'delegated-blocked'].includes(this.id)) control.tabIndex = -1;
+    const position = document.createElement('output');
+    let window = 0;
+    position.textContent = String(window);
+    registerMechanicalView(this, () => {
+      const held = window;
+      return () => { window = held; position.textContent = String(window); };
+    });
+    const scroller = document.createElement('div');
+    scroller.style.cssText = 'width:20px;height:44px;overflow:auto';
+    scroller.innerHTML = '<div style="height:180px"></div>';
+    scroller.addEventListener('scroll', () => {
+      content.style.transform = `translateY(${-scroller.scrollTop}px)`;
+    });
+    if (this.id !== 'locked') control.addEventListener('focus', () => {
+      if ((control.shadowRoot?.activeElement ?? control).matches(':focus-visible')) {
+        scroller.scrollTop = this.id === 'neighbor' ? 0 : 100;
+        position.textContent = String(++window);
+      }
+    });
+    content.append(control);
+    viewport.append(content);
+    this.append(viewport, scroller, position);
+  }
+});
+"""
+    }
+    page = open_page(
+        browser, serve(markup, layer_registry=registry, layer_widgets=widgets)
+    )
+    prior = page.locator("#prior")
+    prior.fill("Keep this caret")
+    prior.evaluate("node => node.setSelectionRange(5, 9, 'backward')")
+    before = page.locator("#reachable-control").bounding_box()
+    candidates = render_checks_model.evaluate_probe(page, "clippedControlCandidates")
+    assert {item["id"] for item in candidates} == {
+        "reachable-control",
+        "delegated-control",
+        "delegated-blocked-control",
+        "locked-control",
+        "notabbable-control",
+    }
+    lost = render_gate_readings.clipped_controls(page)
+    assert {item["id"] for item in lost} == {
+        "locked-control",
+        "notabbable-control",
+        "delegated-blocked-control",
+    }
+    expect(prior).to_be_focused()
+    assert prior.evaluate(
+        "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
+    ) == [5, 9, "backward"]
+    assert page.locator("#reachable-control").bounding_box() == before
+    assert (
+        page.locator("#reachable").evaluate("node => node.children[1].scrollTop") == 0
+    )
+    expect(page.locator("#neighbor output")).to_have_text("0")
+    expect(page.locator("#reachable output")).to_have_text("0")
+    expect(page.locator("#delegated output")).to_have_text("0")
+
+    # A returned provider receives focus again before its captured view restores.
+    page.locator("#reachable-control").focus()
+    rendered(page)
+    held = page.locator("#reachable output").text_content()
+    render_gate_readings.clipped_controls(page)
+    expect(page.locator("#reachable-control")).to_be_focused()
+    expect(page.locator("#reachable output")).to_have_text(held)
+
+    page.evaluate(RELEASE_FOCUS)
+    page.locator("h1").evaluate("""node => {
+      getSelection().setBaseAndExtent(node.firstChild, 8, node.firstChild, 0);
+    }""")
+    render_gate_readings.clipped_controls(page)
+    assert page.evaluate("document.activeElement === document.body")
+    assert not page.locator("body").evaluate("node => node.matches(':focus')")
+    assert page.locator("body").get_attribute("tabindex") is None
+    assert page.evaluate("getSelection().toString()") == "Provider"
+    assert page.locator("h1").evaluate("""node => {
+      const selection = getSelection();
+      return [selection.anchorNode === node.firstChild, selection.anchorOffset,
+              selection.focusNode === node.firstChild, selection.focusOffset];
+    }""") == [True, 8, True, 0]
+
+
 def test_the_render_gate_reads_a_scrolled_container_from_its_content(browser, serve):
     """A scroller's rects say where it is scrolled to, not how far its content reaches,
     and the gate reads a page the user has already worked: the runtime scrolls a

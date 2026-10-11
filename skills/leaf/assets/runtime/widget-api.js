@@ -42,7 +42,11 @@ export {
   shownWindow,
 } from "./geometry.js";
 // Holding the user's place in a scroller whose contents a widget re-renders.
-export { placeKeeper } from "./user-place.js";
+export {
+  holdMechanicalViews,
+  placeKeeper,
+  registerMechanicalView,
+} from "./user-place.js";
 export { inUi, uiInside, upFrom } from "./shadow.js";
 // Putting the user on an element, saying what moved them there; holding their place,
 // caret included, across a move or re-render of the node they stand on, by key in a
@@ -59,8 +63,11 @@ export {
   layerLanding,
   openLayer,
   openerOf,
+  readCaret,
+  releaseFocus,
   rove,
   standingIn,
+  tabStops,
   whenLeft,
 } from "./focus.js";
 export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
@@ -148,6 +155,7 @@ export { pageScroller } from "./scrolling.js";
 export { scrollIntoReadingBand } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";
+export { selectEnds } from "./passages.js";
 export { claimTraversals, pushEntry, replaceEntry } from "./history.js";
 export { removeRuntimeRootStyle, setRuntimeRootStyle } from "./root-state.js";
 export {

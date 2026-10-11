@@ -1686,6 +1686,39 @@ def test_reading_and_controls_keep_their_place_inside_a_stationary_parent(
         consume_browser_errors(page, f"{protected} moved without input")
 
 
+@pytest.mark.parametrize("local_motion", [False, True])
+def test_returning_a_detached_reading_does_not_inherit_an_absent_scroll_pose(
+    browser, local_motion
+):
+    """A retained node returns at the current scroll offset; its old pose is not
+    evidence of movement while it was absent. Later local movement still fails."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body style="margin:0;height:1600px">
+<div id="host" style="position:relative;height:900px">
+  <span id="badge" style="position:absolute;left:10px;top:300px">Input checkpoint</span>
+</div>
+<div id="source" style="position:fixed;left:400px;top:100px;width:200px;height:60px;background:red"></div>
+<script>window.retainedBadge=badge;</script></body>""")
+    )
+    paint(page)
+    page.evaluate("retainedBadge.remove(); scrollTo(0,100)")
+    paint(page)
+    page.evaluate("host.append(retainedBadge); source.style.left='420px'")
+    paint(page)
+    judge_watches()
+    assert page.evaluate("scrollY") == 100
+    assert page.locator("#badge").bounding_box()["y"] == 200
+    if local_motion:
+        page.evaluate("retainedBadge.style.left='30px'")
+        paint(page)
+        judge_watches()
+        consume_browser_errors(
+            page, "#text in span#badge moved without input by (20, 0)px"
+        )
+
+
 def test_an_unpainted_roundtrip_keeps_the_visible_control_in_place(browser):
     page = browser.new_page()
     page.goto(

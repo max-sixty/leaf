@@ -309,6 +309,14 @@ as it holds it, so the browser's own Tab order continues from there and no `tabi
 left on the page behind the user. It keeps the page still unless `{ scroll: true }` asks
 the browser to bring the element into view.
 
+Providers whose mechanical views include coordinates outside native DOM scroll
+offsets call `registerMechanicalView(owner, captureReturningRestore)`. The capture
+reads the provider's current view and returns a function that restores it through
+the provider's own API. Temporary traversals use `holdMechanicalViews(nodes)` before
+moving focus and call its returned restore after returning focus, then restore native
+scroll offsets and wait for rendering. Register all such coordinates that focus can
+change, including a time window; semantic state stays outside this hold.
+
 A module that moves, hides, or replaces nodes the user may be standing in, as a reorder or
 a re-render does, calls `holdFocus(scope)` before the change and the function it returns
 after it. Moving a focused node drops its focus to the page body; the returned function
@@ -712,8 +720,10 @@ box before wiring it.
 
 A visual with generated part ids declares accepted `x-visual.prefixes` and calls
 `registerVisualParts(source, read, {reveal, label})`. The `read` function returns
-the parts currently drawn as `{id, element, label}` records. `reveal(id)` draws an
-absent part when someone follows its thread; `label(id)` names that part in
+the parts currently drawn as `{id, element, label}` records. `reveal(id)` settles
+the visual on the requested part when someone follows its thread, even if the
+part is already visible: cancel any pending work that would retire it before
+returning. `label(id)` names that part in
 Threads without changing the visual's state, and returns `null` for an unknown id.
 An `x-visual.parts` declaration may set `complete: true` when listing some drawn
 parts while leaving their peers unaddressable would confuse a reader. The render

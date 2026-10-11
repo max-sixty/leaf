@@ -1,4 +1,10 @@
-/* Holding the user's place in a scroll container while its contents change.
+/* Holding the user's mechanical view while its surroundings change.
+
+   Native scroll offsets belong to their DOM nodes. Providers whose views also
+   include a time window or another non-native coordinate register its capture /
+   restore pair with registerMechanicalView. A temporary traversal holds every
+   participating view with holdMechanicalViews; the provider alone reads and writes
+   its coordinates. These holds carry no semantic state or persistent snapshot.
 
    A surface that re-renders a list the user may be scrolled into takes a place hold
    around the change: `placeKeeper(scroller, {items, identity})` names the nodes that
@@ -56,6 +62,20 @@ import { cancelRender, nextFrame, nextRender } from "./rendering.js";
 import { headerInset, visibleBand } from "./geometry.js";
 import { pointerAt } from "./pointer.js";
 import { recentPlaceInput, focused } from "./focus.js";
+
+const mechanicalViews = new WeakMap();
+export function registerMechanicalView(owner, capture) {
+  mechanicalViews.set(owner, capture);
+}
+
+export function holdMechanicalViews(nodes) {
+  const restores = [...nodes]
+    .filter((node) => mechanicalViews.has(node))
+    .map((node) => mechanicalViews.get(node)());
+  return () => {
+    for (const restore of restores.toReversed()) restore();
+  };
+}
 
 // The candidates in the order they may hold the place, each once: an inherited
 // reference, named items in input order, the surface's preferred reading, then the

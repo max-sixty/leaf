@@ -1431,7 +1431,7 @@ customElements.define(
     }
 
     attachEntryControls(entry) {
-      entry.lineGutters = new WeakMap();
+      this.attachLineComments(entry);
       const hover = (event) => {
         const line = event.target.closest("[data-content] > [data-line]");
         const gutter = entry.lineGutters.get(line);
@@ -1449,9 +1449,9 @@ customElements.define(
       entry.node
         .querySelector(":scope > .lf-diff-file-actions")
         .prepend(entry.fileComment);
-      this.attachLineComments(entry);
     }
     attachLineComments(entry) {
+      entry.lineGutters ??= new WeakMap();
       for (const line of entry.lines) {
         const { gutterRow } = this.threadPair(line.node);
         entry.lineGutters.set(line.node, gutterRow);

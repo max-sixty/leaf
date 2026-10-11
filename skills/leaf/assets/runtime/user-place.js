@@ -1,10 +1,4 @@
-/* Holding the user's mechanical view while its surroundings change.
-
-   Native scroll offsets belong to their DOM nodes. Providers whose views also
-   include a time window or another non-native coordinate register its capture /
-   restore pair with registerMechanicalView. A temporary traversal holds every
-   participating view with holdMechanicalViews; the provider alone reads and writes
-   its coordinates. These holds carry no semantic state or persistent snapshot.
+/* Holding the user's place in a scroll container while its contents change.
 
    A surface that re-renders a list the user may be scrolled into takes a place hold
    around the change: `placeKeeper(scroller, {items, identity})` names the nodes that
@@ -17,8 +11,9 @@
    The place is one reference node and its offset in the scroller's content. The
    reference is chosen by what the user last named: an item under the pointer or
    holding focus, whichever input came last, then the other, then the items in the
-   scroller's visible band (less the sticky headers stuck over each item, `headerInset`, so an
-   item wholly under a stuck heading is not where anyone is reading) from the top down.
+   scroller's visible band (less the sticky headers stuck over each item, `headerInset`,
+   so an item wholly under a stuck heading is not where anyone is reading) from the top
+   down.
    Only an item whose top stands in the band can be named or lead by default.
    A surface may supply a visible `preferred` item
    whose interior is the active reading, even with its top clipped; it follows named
@@ -57,24 +52,31 @@
    the reading and lands the reference where it stood, whatever the browser did first,
    and the scroller's style is never written and taken back in the one task. So `mutate`
    moves no scroller itself: a `focus()` without `preventScroll` or a `scrollIntoView`
-   inside it would be read as reflow and undone. */
+   inside it would be read as reflow and undone.
+
+   The module also owns when focus marks the user's place at all (`focusedInView`), for
+   the readers outside a hold that take focus as that place. */
 import { cancelRender, nextFrame, nextRender } from "./rendering.js";
-import { headerInset, visibleBand } from "./geometry.js";
+import { headerInset, seenRect, stuckBox, visibleBand } from "./geometry.js";
 import { pointerAt } from "./pointer.js";
 import { recentPlaceInput, focused } from "./focus.js";
 
-const mechanicalViews = new WeakMap();
-export function registerMechanicalView(owner, capture) {
-  mechanicalViews.set(owner, capture);
-}
-
-export function holdMechanicalViews(nodes) {
-  const restores = [...nodes]
-    .filter((node) => mechanicalViews.has(node))
-    .map((node) => mechanicalViews.get(node)());
-  return () => {
-    for (const restore of restores.toReversed()) restore();
-  };
+// The focused control while it marks where the user is: while any of it is in front of
+// them (geometry.js, `seenRect`), and it is not riding in a stuck sticky box
+// (`stuckBox`). A user who scrolled away from the control they stand on is reading
+// something else, though the control keeps focus, and a stuck tab strip, title or reply
+// row stays in view over whatever they scroll to, so it names no place in what it holds.
+// A reflow then holds, and a landing returns them to, what they see instead. A render
+// holding the box they type in (reply-landing.js, `holdBox`), a reading place
+// (reading-place.js, `capturePlace`), and revision continuity (version.js), for the
+// region the user is working and whether a replaced reply box is scrolled back into
+// view, ask this. Two readers ask a question of their own
+// instead: a place hold here, whether the item focus names begins in the scroller's
+// band, as it asks of the pointer's item, and the Threads list's resize landing
+// (thread/landing.js), whether the focused title stands wholly where a landing puts it.
+export function focusedInView() {
+  const node = focused();
+  return node && seenRect(node, new Map()) && !stuckBox(node) ? node : null;
 }
 
 // The candidates in the order they may hold the place, each once: an inherited

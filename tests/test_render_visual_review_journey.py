@@ -1,6 +1,5 @@
 """Authenticated website-journey proof for the visual-review package."""
 
-import hashlib
 import json
 import re
 import shutil
@@ -17,6 +16,7 @@ from render_cases_layout import (
     ring_faults,
     standing_ring,
 )
+from render_cases_navigation import source_revision
 from render_harness import (
     CORPUS_SOURCES,
     consume_browser_errors,
@@ -89,6 +89,59 @@ def test_a_visual_review_in_flow_takes_its_evidence_height(browser, serve):
     host.click()
     page.keyboard.press("d")
     page.wait_for_function("document.scrollingElement.scrollTop > 0")
+
+
+def test_a_visual_review_in_flow_keeps_its_navigation_over_a_tall_pair(browser, serve):
+    """Scrolling a document through a pair taller than the window keeps the case
+    navigation stuck under the banner and the view controls under it, and focusing
+    either where it sticks leaves the page where it is."""
+    url = serve(VISUAL_REVIEW_GALLERY)
+    stamp_page(
+        serve.page_dir,
+        leaf_page(
+            "visual inspection in flow",
+            """<h1>Review the package change</h1>
+<p>The review follows this context.</p>
+<section><lf-visual-review id="visual-review-run" source="gallery-visual-run"></lf-visual-review></section>
+<p style="min-height: 40rem">The decision record continues after the evidence.</p>""",
+        ),
+        "put visual inspection in document flow",
+    )
+    url = url.rsplit("/versions/", 1)[0] + "/?" + url.partition("?")[2]
+    page = open_page(browser, url)
+    resized(page, 1000, 700)
+    widget = page.locator("#visual-review-run")
+    widget.get_by_text("Inspect comparison", exact=True).click()
+    widget.get_by_role("radio", name="Full frame").click()
+    widget.get_by_role("radio", name="100%").click()
+    widget.get_by_role("radio", name="Flip").click()
+    host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
+    assert host.evaluate("node => node.getBoundingClientRect().height") > 700
+    page.evaluate(
+        "y => scrollTo({top: scrollY + y, behavior: 'instant'})",
+        host.evaluate("node => node.getBoundingClientRect().top + 300"),
+    )
+    scroll_settled(page)
+    read = """() => {
+      const box = (selector) => document.querySelector(selector).getBoundingClientRect();
+      const banner = document.querySelector('.lf-banner').getBoundingClientRect().bottom;
+      return {banner, queue: box('#visual-review-run .lf-vr-queue'),
+              toolbar: box('#visual-review-run .lf-vr-case:not([hidden]) .lf-vr-toolbar-slot'),
+              y: document.scrollingElement.scrollTop};
+    }"""
+    stuck = page.evaluate(read)
+    assert stuck["queue"]["top"] == pytest.approx(stuck["banner"], abs=1), stuck
+    assert stuck["toolbar"]["top"] == pytest.approx(stuck["queue"]["bottom"], abs=1), (
+        stuck
+    )
+    for control in (
+        widget.get_by_role("button", name="Next", exact=True),
+        widget.get_by_role("combobox", name="Selected visual case"),
+        widget.get_by_role("radio", name="Flip"),
+    ):
+        control.focus()
+        scroll_settled(page)
+        assert page.evaluate(read)["y"] == stuck["y"], control
 
 
 def go_to(page, target, kind="Control"):
@@ -196,8 +249,9 @@ def target_document(title, body):
     )
 
 
+@pytest.mark.parametrize("height", [600, 760])
 def test_visual_review_keeps_its_inline_comment_editor_in_view_after_phone_resize(
-    browser, serve
+    browser, serve, height
 ):
     """A focused comment editor remains reachable when its visual-review seat narrows."""
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
@@ -212,12 +266,33 @@ def test_visual_review_keeps_its_inline_comment_editor_in_view_after_phone_resiz
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
     page.keyboard.type("Keep the destinations together")
+    page.keyboard.press("Shift+ArrowLeft")
+    caret = field.evaluate("node => [node.selectionStart, node.selectionEnd]")
     assert_keyboard_focus(page, field)
 
     # Resizing alone must keep the focused editor in view. The reader has not scrolled.
-    resized(page, 390, 760)
+    resized(page, 390, height)
     expect(field).to_have_js_property("value", "Keep the destinations together")
+    assert field.evaluate("node => [node.selectionStart, node.selectionEnd]") == caret
     assert_keyboard_focus(page, field)
+
+    # A shorter window changes the visible band even when the inline seat's
+    # width and scroll container stay the same.
+    resized(page, 390, height - 120)
+    assert_keyboard_focus(page, field)
+    assert field.evaluate("node => [node.selectionStart, node.selectionEnd]") == caret
+
+    # Native scrolling can leave the same editor focused. The next reflow must
+    # keep that newer reading instead of pulling the draft back into view.
+    page.mouse.wheel(0, -10000)
+    page.wait_for_function("document.scrollingElement.scrollTop === 0")
+    scroll_settled(page)
+    expect(field).to_be_focused()
+    assert field.evaluate("node => node.getBoundingClientRect().bottom > innerHeight")
+    resized(page, 420, height - 120)
+    assert page.evaluate("document.scrollingElement.scrollTop") == 0
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", "Keep the destinations together")
 
 
 def test_an_authenticated_navigation_journey_becomes_credential_free_review_evidence(
@@ -315,7 +390,6 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
         expect(capture.locator("body")).to_have_attribute("data-lf-presented", "1")
         capture.evaluate("window.scrollTo(0, 0)")
         capture.wait_for_function("window.scrollY === 0")
-        assert capture_key not in capture.content()
         path = tmp_path / f"{name}.png"
         path.write_bytes(capture.screenshot())
         capture_files[name] = path
@@ -391,11 +465,12 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
             },
         ],
     }
+    # The capture page retains its share link, but the reviewer receives only the
+    # recorded stills and metadata, never the capture browser's access link.
+    assert capture_key not in json.dumps(record)
     data_model.cmd_data_set(review_dir, "journey-run", record)
     # The draft begun on this value keeps its revision across the replacement below.
-    drafted_revision = hashlib.sha256(
-        data_model.source_file(review_dir, "journey-run").read_bytes()
-    ).hexdigest()[:16]
+    drafted_revision = source_revision(review_dir, "journey-run")
 
     user = open_page(browser, review_url)
     resized(user, 1366, 768)
@@ -622,7 +697,7 @@ def test_a_visual_review_states_where_its_pair_differs_in_every_view(browser, se
     """lf-shot's rail is hidden outside Flip, and the default focus crop hides the
     outlines, since it shows one part of the frame. A focus authored on an area that
     did not change would then show nothing, so the case's position line states the
-    reading, with the strong changes the focus leaves out, and the full frame outlines
+    reading, with groups that extend beyond the focus, and the full frame outlines
     every region."""
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     widget = page.locator("#visual-review-run")
@@ -634,8 +709,8 @@ def test_a_visual_review_states_where_its_pair_differs_in_every_view(browser, se
     case.get_by_text("Capture details", exact=True).click()
     expect(case.locator(".lf-vr-analysis")).to_have_text(
         re.compile(
-            r"Case 1 of 3 · Changed · [1-9]\d* changed areas "
-            r"\([1-9]\d* outside the focus\)"
+            r"Case 1 of 3 · Changed · [1-9]\d* changed areas? "
+            r"\([1-9]\d* beyond the focus\)"
         )
     )
     expect(marks.first).to_be_hidden()
@@ -643,9 +718,7 @@ def test_a_visual_review_states_where_its_pair_differs_in_every_view(browser, se
     widget.get_by_text("Inspect comparison", exact=True).click()
     widget.get_by_role("radio", name="Full frame").click()
     expect(widget).to_have_attribute("data-inspection-scope", "full")
-    expect(case.locator(".lf-vr-shot-host")).to_have_attribute(
-        "data-focus-active", "false"
-    )
+    expect(case.locator("lf-shot")).to_have_attribute("data-lf-shot-crop", "false")
     expect(marks.first).to_be_visible()
     # Below the compare view's frame label, where the image starts.
     image_top, first_mark_top = case.locator(".lf-shotframe").first.evaluate(
@@ -772,7 +845,7 @@ def test_visual_review_reports_an_image_failure_after_its_peer_has_loaded(
     url = serve(VISUAL_REVIEW_GALLERY)
     run = json.loads(
         data_model.source_file(serve.page_dir, "gallery-visual-run").read_text()
-    )
+    )["value"]
     failed_source = run["cases"][0]["after"]
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
@@ -831,7 +904,7 @@ def test_visual_review_case_navigation_keeps_equal_stable_step_targets(
     )
     record = json.loads(
         data_model.source_file(serve.page_dir, "gallery-visual-run").read_text()
-    )
+    )["value"]
     for index in range(3):
         next_button.click()
         expect(selected).to_have_js_property(
@@ -866,6 +939,28 @@ def test_visual_review_case_navigation_keeps_equal_stable_step_targets(
     expect(previous).to_be_enabled()
     expect(next_button).to_be_enabled()
     assert nav.evaluate(reading) == baseline
+
+
+def test_visual_review_verdict_navigation_reveals_a_taller_case(browser, serve):
+    """A short case's bottom-edge verdict can route to a taller case's verdict."""
+    context = browser.new_context(viewport={"width": 390, "height": 520})
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY), context=context)
+    widget = page.locator("#visual-review-run")
+    selected = widget.locator(".lf-vr-case-select")
+    first_id = selected.evaluate("node => node.value")
+    verdict = widget.locator(".lf-vr-case:not([hidden])").get_by_role(
+        "button", name="Looks right", exact=True
+    )
+    verdict.focus()
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("ArrowDown")
+    expect(selected).not_to_have_js_property("value", first_id)
+    verdict.evaluate("node => node.scrollIntoView({block: 'end'})")
+    verdict.focus()
+    page.keyboard.press("ArrowDown")
+    expect(selected).to_have_js_property("value", first_id)
+    expect(verdict).to_be_focused()
+    expect(verdict).to_be_in_viewport(ratio=1)
 
 
 def test_visual_review_leads_with_evidence_and_walks_only_remaining_cases(

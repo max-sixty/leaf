@@ -22,7 +22,6 @@ from leaf.hosting import TemporaryPageServer
 from leaf.passages import enclosing_ids, page_passages
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered, wait_until_ready
-from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import version as render_gate_model
 from PIL import Image, ImageChops, ImageStat
 from playwright.sync_api import expect
@@ -337,8 +336,9 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
     the mapped revision, and it has to name the same passage once the browser has
     built the page; a rewritten sentence leaves the quote resolving to nothing and
     the thread standing there detached, which is a broken demo and no error
-    anywhere. The corpus's own anchor sweep does not cover it, because that sweep
-    writes its own anchors. This is what reads the shipped one.
+    anywhere. A sample can instead explicitly retain a historical quote after a
+    reply detaches it from a section the current page removed. The corpus's own
+    anchor sweep does not cover shipped anchors, because that sweep writes its own.
 
     A log can also carry a widget, and that is the second thing read here. Markup
     in a message renders in the panel and nowhere else, so no authored page can
@@ -394,10 +394,8 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         assert {event["id"] for event in events} <= previous
         # Read standing roots through the same fold as the page. A resolved root keeps
         # its thread and attachment but owes no paint; a withdrawn reaction owes neither.
-        threads = thread_model.build_threads(
-            logged,
-            enclosing_ids(structure_model.SourceDocument(example.read_text())),
-        )
+        page_ids = enclosing_ids(structure_model.SourceDocument(example.read_text()))
+        threads = thread_model.build_threads(logged, page_ids)
         reacted = [
             thread["root"]
             for thread in threads.values()
@@ -410,6 +408,22 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             for thread in threads.values()
             if not thread_model.bare_reaction(thread)
         ]
+        sample_threads = set(
+            page.eval_on_selector_all(
+                "template[data-sample-threads]",
+                "els => els.flatMap(el => el.dataset.sampleThreads.split(/\\s+/))",
+            )
+        )
+        # A sample may deliberately demonstrate a quote retained after its original
+        # section was removed. It names that historical thread explicitly; ordinary
+        # shipped anchors must still resolve in the current page.
+        retained = {
+            thread["id"]
+            for thread in listed
+            if thread["id"] in sample_threads
+            and thread["detached_from"]
+            and thread["detached_from"]["section"] not in page_ids
+        }
         anchored = [
             thread["root"]
             for thread in listed
@@ -490,13 +504,16 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                     f"{example.stem}: the reaction's passage is painted nowhere; the "
                     f"wash reads {painted[:120]!r}"
                 )
-        detached = page.eval_on_selector_all(
-            ".lf-thread .lf-quote.detached", "els => els.map(e => e.textContent)"
+        detached = set(
+            page.eval_on_selector_all(
+                ".lf-thread .lf-quote.detached",
+                "els => els.map(el => el.closest('.lf-thread').dataset.id)",
+            )
         )
-        assert detached == [], (
-            f"{example.stem} ships an anchor that resolves to nothing: {detached}. "
-            "The passage it quotes has been rewritten; recapture it with "
-            "`leaf thread open --quote` against the current file."
+        assert detached == retained, (
+            f"{example.stem} has unexpected detached anchors: {detached - retained}. "
+            "Recapture unintended quotes with `leaf thread open --quote` against "
+            f"the current file; missing historical sample quotes: {retained - detached}."
         )
         # Only where the log named a passage. The thread count above already allows a
         # seed of general comments, which a page may hold; waiting unconditionally for
@@ -596,19 +613,23 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 card = page.locator(f'.lf-thread[data-id="{thread_id}"]')
                 if card.get_attribute("open") is None:
                     card.locator(".lf-thread-summary").click()
-                for finding, read in (
+                for finding, probe, arg in (
                     (
                         "draws a box of no size",
-                        lambda page=page: render_checks_model.evaluate_probe(
-                            page, "tinyBoxes", page_registry(page)
-                        ),
+                        "tinyBoxes",
+                        page_registry(page),
                     ),
                     (
                         "has a control clipped out of its box",
-                        lambda page=page: render_gate_readings.clipped_controls(page),
+                        "clippedControls",
+                        None,
                     ),
                 ):
-                    found = read()
+                    found = (
+                        render_checks_model.evaluate_probe(page, probe, arg)
+                        if arg
+                        else render_checks_model.evaluate_probe(page, probe)
+                    )
                     assert found == [], (
                         f"{example.stem}: with the panel open, something {finding}: {found}"
                     )
@@ -1419,10 +1440,19 @@ def test_a_screenshot_margin_trace_paints_one_complete_quiet_contour(browser, se
         return Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
 
     quiet = screenshot()
-    toggle = page.get_by_role(
-        "button",
-        name="Show after — the run list with and without a status column",
-    )
+    # Exercise the generic contribution trace with a real public registration;
+    # the screenshot's own endpoint actions live in its native control rail.
+    page.evaluate("""async () => {
+      const {contributionEntry, registerContribution} =
+        await window.__lfRuntimeImport('/runtime/widget-api.js');
+      registerContribution({key: 'review-capture',
+        target: document.querySelector('#rn-console-shot'),
+        read: () => ({entries: [contributionEntry({key: 'review', glyph: 'R',
+          label: 'Review capture'})]}), activate: () => {},
+      });
+    }""")
+    margins_laid_out(page)
+    toggle = page.get_by_role("button", name="Review capture", exact=True)
     toggle.hover()
     trace = page.locator('.lf-target-trace[data-for="rn-console-shot"]')
     expect(trace).to_be_visible()
@@ -1442,7 +1472,7 @@ def test_a_screenshot_margin_trace_paints_one_complete_quiet_contour(browser, se
         f"the screenshot frame covered the trace's {missing} edge: {changed} ink pixels"
     )
     assert shot.evaluate("element => getComputedStyle(element).outlineStyle") == "none"
-    toggle.click()
+    shot.locator('.lf-shotcap[data-lf-state="after"]').click()
     expect(shot.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
 
 
@@ -3736,7 +3766,10 @@ DISCLOSURES = """() => [...document.querySelectorAll('details')]
     open: d.open,
     displayed: d.checkVisibility(),
     summary: (d.querySelector('summary')?.textContent || '').trim().slice(0, 40),
-    shown: [...d.children].filter(c => !c.matches('summary, script, style, template') && !c.hasAttribute('data-lf-gen'))
+    // An authored output placeholder that is explicitly hidden has no paper reading.
+    shown: [...d.children].filter(c =>
+      !c.matches('summary, script, style, template') &&
+      !c.hasAttribute('data-lf-gen') && !c.hidden)
       .every(c => c.checkVisibility()),
   }))"""
 

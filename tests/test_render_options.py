@@ -816,7 +816,7 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     mark.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
-    expect(page.locator("#approach-decision[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#approach-decision[data-lf-question]")).to_have_count(1)
     ring_on = """el => { const on = el.closest('lf-option');
                       const drawn = (e) => { const s = getComputedStyle(e);
                           return s.outlineStyle === 'none' ? 0 : parseFloat(s.outlineWidth); };
@@ -1395,7 +1395,7 @@ def test_one_band_says_where_the_user_is_standing(browser, serve):
     mark.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
-    expect(page.locator("#storage-decision[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#storage-decision[data-lf-question]")).to_have_count(1)
     drawn = """el => { const s = getComputedStyle(el);
                        return s.outlineStyle === 'none' ? 0 : parseFloat(s.outlineWidth); }"""
     assert page.locator("#storage-decision").evaluate(drawn) == 0
@@ -2159,7 +2159,7 @@ def test_a_pick_states_the_whole_set(browser, serve):
     ]
     expect(
         page.locator('[data-lf-margin-for="bracket-decision"] .lf-margin-marker')
-    ).to_have_attribute("data-lf-kinds", "ask")
+    ).to_have_attribute("data-lf-kinds", "question")
 
 
 def test_a_send_waits_for_the_send_before_it(browser, serve):
@@ -2562,11 +2562,17 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
         assert page.locator(f"#{spec}").evaluate("el => el.checkVisibility()"), (
             f"{spec} remained hidden after opening its tabs"
         )
+        # A live sample paints its gutter on the exhibit around its frame, since its
+        # host controls cannot be the table's second caption.
+        painter = page.locator(f"#{spec}").evaluate(
+            "el => el.querySelector(':scope > .lf-sample-view > .lf-sample-exhibit')"
+            " ? `#${el.id} .lf-sample-exhibit` : `#${el.id}`"
+        )
         ink = tuple(
             int(n)
             for n in re.findall(
                 r"\d+",
-                page.locator(f"#{spec}").evaluate(
+                page.locator(painter).evaluate(
                     "el => getComputedStyle(el).borderLeftColor"
                 ),
             )[:3]

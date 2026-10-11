@@ -10,6 +10,7 @@ import {
   notice,
   TEXT_FIELD,
   watchDraft,
+  whileConnected,
   wireInput,
 } from "/runtime/widget-api.js";
 
@@ -25,7 +26,6 @@ export class OptionAddition {
   #input = null;
   #add = null;
   #syncInput = () => {};
-  #stopDraftWatch = null;
   #standing = new Set();
 
   constructor(host, { offered, available, commit }) {
@@ -38,22 +38,13 @@ export class OptionAddition {
 
   connect() {
     if (!this.#offered) return;
-    if (!this.#form) this.#buildForm();
-    if (!this.#stopDraftWatch) {
-      this.#stopDraftWatch = watchDraft(
-        this.#context,
-        (value) => {
-          if (!this.#form.isConnected) return this.disconnect();
-          this.#syncInput.load(value ?? "");
-        },
-        { input: this.#input },
-      );
-    }
-  }
-
-  disconnect() {
-    this.#stopDraftWatch?.();
-    this.#stopDraftWatch = null;
+    if (this.#form) return;
+    this.#buildForm();
+    whileConnected(this.#host, () =>
+      watchDraft(this.#context, (value) => this.#syncInput.load(value ?? ""), {
+        input: this.#input,
+      }),
+    );
   }
 
   get input() {

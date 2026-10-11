@@ -4,21 +4,29 @@
  * other block and focus moves into it the way it moves into any iframe. A `window`
  * sample is instead a whole Leaf window at the frame's own height, chrome included,
  * and scrolls inside itself. The child's
- * final Escape brings focus back to this element. Each presented child announces
- * lf-sample-ready with its Document, on first mount and Reset. Reset stays focusable
+ * final Escape brings focus back to this element. Full view promotes the same frame
+ * into a native modal dialog, keeping its document, gestures, and drafts alive. The
+ * sample retains its embedded allocation while the dialog fills the viewport; Return
+ * to page and the child's final Escape restore the Full view button. Each child announces
+ * lf-sample-ready with its sample element, on first mount and Reset. Reset stays focusable
  * while loading but accepts no new press, preserving the parent's keyboard position.
  * Ordinary children remain static
  * quotation. A disconnect releases the child; moving the retained element within a
  * document does not reset its work. */
 import {
-  cancelRender,
+  frameFor,
+  whileConnected,
   keeps,
+  keepsText,
   mountSample,
-  nextRender,
   once,
   offer,
   widgetController,
   focusDestination,
+  closeLayer,
+  showNativeLayer,
+  closeNativeLayer,
+  handBack,
 } from "/runtime/widget-api.js";
 
 customElements.define(
@@ -29,23 +37,51 @@ customElements.define(
     #template;
     #reset;
     #status;
-    #fit;
-    #fitting = 0;
+    #heightReading;
+    #fit = () => {
+      const frame = this.#frame;
+      const next = `${this.#heightReading + frame.offsetHeight - frame.clientHeight}px`;
+      if (frame.style.height !== next) frame.style.height = next;
+    };
+    #scheduleFit = frameFor(this, this.#fit);
     #ready;
     #mounting = false;
     #viewOperation;
+    #view;
+    #full;
 
     get ready() {
       return this.#ready;
     }
 
     connectedCallback() {
-      if (once(this)) this.#build();
+      if (!once(this)) return;
+      this.#build();
+      if (!this.#frame) return;
+      whileConnected(this, () => {
+        this.#mount();
+        return () => {
+          this.#viewOperation?.abort();
+          const host = this.#host;
+          this.#host = null;
+          host?.destroy().catch((error) => this.#failure(error));
+        };
+      });
+    }
+
+    #mount() {
+      // Removal ends native modality even when a retained widget reconnects before
+      // its host is retired. Reconcile the presentation with that platform state.
+      if (
+        this.#view?.getAttribute("role") === "dialog" &&
+        !this.#view.matches(":modal")
+      )
+        this.#embed();
       if (!this.#frame || this.#host || this.#mounting) return;
       this.#mounting = true;
       const ready = mountSample(this.#frame, {
         template: this.#template.id,
-        window: this.hasAttribute("window"),
+        window: this.hasAttribute("window") || this.#view.matches(":modal"),
       }).then(
         async (host) => {
           this.#mounting = false;
@@ -56,6 +92,13 @@ customElements.define(
             throw new DOMException("sample disconnected", "AbortError");
           }
           this.#host = host;
+          host.on("height", ({ height }) => this.#height(height));
+          host.on("loading", () => this.#track(host.ready));
+          host.on("departed", () => {
+            this.#ready = host.ready;
+            keepsText(this.#status, "");
+            keeps(this.#reset, "aria-disabled", null);
+          });
           return host.ready;
         },
         (error) => {
@@ -63,19 +106,13 @@ customElements.define(
           throw error;
         },
       );
-      widgetController(this).present(this.#track(ready));
+      // A failed child is drawn by this widget's status and Reset. That is a
+      // completed parent rendering; the public sample.ready still rejects.
+      widgetController(this).present(this.#track(ready).catch(() => {}));
     }
 
     disconnectedCallback() {
-      queueMicrotask(() => {
-        if (this.isConnected) return;
-        this.#viewOperation?.abort();
-        if (!this.#host) return;
-        const host = this.#host;
-        this.#host = null;
-        cancelRender(this.#fitting);
-        host.destroy().catch((error) => this.#failure(error));
-      });
+      if (this.#view?.getAttribute("role") === "dialog") this.#embed();
     }
 
     #build() {
@@ -86,7 +123,18 @@ customElements.define(
       this.#frame.className = "lf-sample-frame";
       this.#frame.title = this.getAttribute("label") || "Leaf sample";
       this.#frame.addEventListener("lf-sample-return", () => {
-        focusDestination(this, "return");
+        if (this.#view.matches(":modal")) this.#return();
+        else focusDestination(this, "return");
+      });
+
+      this.#view = document.createElement("dialog");
+      this.#view.className = "lf-sample-view";
+      this.#view.dataset.lfGen = "1";
+      this.#view.setAttribute("open", "");
+      this.#view.setAttribute("role", "presentation");
+      this.#view.addEventListener("cancel", (event) => {
+        event.preventDefault();
+        this.#return();
       });
 
       const controls = document.createElement("div");
@@ -100,58 +148,98 @@ customElements.define(
       });
       this.#status = offer("span", "lf-sample-status");
       this.#status.setAttribute("role", "status");
-      actions.append(this.#reset, this.#status);
+      this.#full = offer("button", "lf-btn", "Full view");
+      this.#full.addEventListener("click", () => {
+        if (this.#view.matches(":modal")) this.#return();
+        else {
+          // The frame never moves in the DOM: reparenting it destroys its browsing
+          // context. Native modality supplies focus containment and parent isolation.
+          // The label stays in flow; reserve only the controls and frame leaving it.
+          const height =
+            this.#frame.getBoundingClientRect().bottom -
+            controls.getBoundingClientRect().top;
+          this.style.setProperty("--lf-sample-height", `${height}px`);
+          closeNativeLayer(this.#view);
+          this.#view.setAttribute("role", "dialog");
+          this.#view.setAttribute("aria-label", this.#frame.title);
+          keepsText(this.#full, "Return to page");
+          showNativeLayer(this.#view);
+          this.#setWindow(true);
+          focusDestination(this.#full, "move");
+        }
+      });
+      actions.append(this.#reset, this.#full, this.#status);
       controls.append(actions);
-      this.append(controls, this.#frame);
+      const exhibit = document.createElement("div");
+      exhibit.className = "lf-sample-exhibit";
+      exhibit.append(this.#frame);
+      this.#view.append(controls, exhibit);
+      this.append(this.#view);
     }
 
-    // The frame's height follows its child's page, so nothing scrolls inside it. It
-    // takes the child's height as the child presents, inside the presentation the page
-    // waits on, so the sample first appears at that height rather than at the
-    // stylesheet's placeholder. Every later write waits a frame: the new height relays
-    // out the containing page, which can reach the child's body again inside the
-    // observation that asked for it. The observer is the child's own, watching its own
-    // body; the write it queues is this page's, and this page's settled reading counts
-    // it. A reset replaces the child, so it cancels the write the last child queued.
-    #follow(doc) {
-      this.#fit?.disconnect();
-      cancelRender(this.#fitting);
-      const frame = this.#frame;
-      const view = doc.defaultView;
-      const fit = () => {
-        const border = frame.offsetHeight - frame.clientHeight;
-        const height = `${Math.ceil(doc.body.getBoundingClientRect().height) + border}px`;
-        if (frame.style.height !== height) frame.style.height = height;
-      };
-      fit();
-      this.#fit = new view.ResizeObserver(() => {
-        cancelRender(this.#fitting);
-        this.#fitting = nextRender(fit);
-      });
-      this.#fit.observe(doc.body);
+    #return() {
+      closeLayer(
+        () => this.#embed(),
+        () => handBack(this.#full),
+      );
+      if (this.#heightReading !== undefined)
+        this.#height(this.#heightReading, { immediate: true });
+    }
+
+    #embed() {
+      closeNativeLayer(this.#view);
+      // Initial open markup keeps the embedded group visible without the native
+      // focusing steps of show(), which could scroll the containing page.
+      this.#view.setAttribute("open", "");
+      this.#view.setAttribute("role", "presentation");
+      this.#view.removeAttribute("aria-label");
+      this.style.removeProperty("--lf-sample-height");
+      keepsText(this.#full, "Full view");
+      this.#setWindow(this.hasAttribute("window"));
+    }
+
+    #setWindow(value) {
+      this.#host?.setWindow(value).then(
+        ({ height }) => this.#height(height),
+        (error) => this.#failure(error),
+      );
+    }
+
+    // The child owns its body observer and reports values over the private port.
+    // Full view retains the embedded height while its same frame fills the dialog;
+    // returning applies the current block reading without replacing any native editor.
+    #height(height, { immediate = false } = {}) {
+      if (this.hasAttribute("window") || this.#view.matches(":modal")) return;
+      this.#heightReading = height;
+      if (immediate) this.#fit();
+      else this.#scheduleFit();
     }
 
     #failure(error) {
       if (error.name === "AbortError") return;
-      this.#status.textContent = error.message;
+      keepsText(this.#status, error.message);
       keeps(this.#reset, "aria-disabled", null);
     }
 
     #track(promise) {
       keeps(this.#reset, "aria-disabled", "true");
-      this.#status.textContent = "Loading sample…";
-      const ready = promise.then((doc) => {
-        if (this.#ready !== ready) return doc;
+      keepsText(this.#status, "Loading sample…");
+      const ready = promise.then(async (reading) => {
+        if (this.#ready !== ready) return reading;
+        const current = await this.#host.setWindow(
+          this.hasAttribute("window") || this.#view.matches(":modal"),
+        );
+        if (this.#ready !== ready) return reading;
+        this.#height(current.height, { immediate: true });
         keeps(this.#reset, "aria-disabled", null);
-        this.#status.textContent = "";
-        if (doc.documentElement.hasAttribute("data-lf-sample-block")) this.#follow(doc);
+        keepsText(this.#status, "");
         this.dispatchEvent(
           new CustomEvent("lf-sample-ready", {
             bubbles: true,
-            detail: { document: doc },
+            detail: { sample: this },
           }),
         );
-        return doc;
+        return reading;
       });
       this.#ready = ready;
       ready.catch((error) => {
@@ -175,7 +263,6 @@ customElements.define(
       });
       const select = async () => {
         if (signal.aborted || ready !== this.#ready || !this.isConnected) return false;
-        const invoker = this.ownerDocument.activeElement;
         const shown = await this.#host.showThread(id, {
           surface,
           status,
@@ -183,13 +270,6 @@ customElements.define(
           signal,
         });
         if (signal.aborted || ready !== this.#ready || !this.isConnected) return false;
-        if (
-          shown &&
-          invoker &&
-          this.ownerDocument.activeElement === this.#frame &&
-          invoker !== this.#frame
-        )
-          focusDestination(invoker, "return");
         return shown;
       };
       try {
@@ -203,7 +283,7 @@ customElements.define(
       this.#viewOperation?.abort();
       if (this.#mounting) await this.#ready;
       if (!this.#host) {
-        this.connectedCallback();
+        this.#mount();
         return this.#ready;
       }
       return this.#track(this.#host.reset());

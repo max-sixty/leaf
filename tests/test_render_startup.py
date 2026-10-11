@@ -2293,7 +2293,9 @@ def test_foreign_state_waits_until_a_live_drag_releases_the_page(browser, serve)
         },
     )
     told(page)
-    expect(page.locator("#draft-ops .lf-draft-body")).to_have_text(DRAFT_TEXT)
+    expect(page.locator("#draft-ops .lf-draft-body")).to_have_text(
+        DRAFT_TEXT, use_inner_text=True
+    )
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "0")
 
     page.mouse.up()
@@ -2583,7 +2585,7 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
         "/widgets/lf-board.js",
     ], modules
     assert not [p for p in asked if "pierre-diffs" in p], asked
-    assert not [p for p in asked if "agentic-mermaid" in p], asked
+    assert not [p for p in asked if "mermaid" in p], asked
     assert asked.count("/theme.css") == 1, [p for p in asked if p == "/theme.css"]
     assert "/shadow.css" not in asked, asked
     assert asked.count("/registry.json") == 1, [
@@ -2600,7 +2602,7 @@ def test_diagrams_load_one_renderer_bundle_when_they_draw(browser, serve):
     page = open_page(browser, serve(TYPED_PARTS_PAGE), context=context)
 
     expect(page.locator("lf-diagram svg")).to_have_count(6)
-    assert [p for p in asked if "mermaid" in p] == ["/vendor/agentic-mermaid.esm.js"]
+    assert [p for p in asked if "mermaid" in p] == ["/vendor/mermaid.esm.js"]
 
 
 def test_floating_ui_loads_after_the_page_presents(browser, serve):
@@ -2788,6 +2790,7 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
         [
             "response",
             "reply",
+            "--done",
             response_reference(d, "c-store"),
             "--text",
             "Depends what you want to keep:",
@@ -3277,8 +3280,7 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
     panel_settled(page)
     status = page.locator(".lf-status-detail")
     port = serve.httpd.server_address[1]
-    serve.httpd.shutdown()
-    serve.httpd.server_close()
+    next(server for server in serve.servers if server.httpd is serve.httpd).close()
     expect(status).to_have_text(
         "Server offline — reconnecting. Keep this page open so pending changes can send."
     )
@@ -4703,7 +4705,7 @@ customElements.define('lf-feed', class extends HTMLElement {
     expect(page.locator('[data-lf-datum="b-1"]')).not_to_have_class(
         re.compile(r"\blf-mark-el\b")
     )
-    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_count(0)
+    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Changed")
 
     with sending(page, "the kept draft"):
         draft.press("ControlOrMeta+Enter")
@@ -5115,7 +5117,7 @@ customElements.define('lf-derived', class extends HTMLElement {
     )
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
     expect(page.locator(".lf-thread .lf-quote")).to_contain_text("Ready")
-    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_count(0)
+    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Changed")
 
 
 def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
@@ -5128,7 +5130,7 @@ def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
         f"""
 <h1 id="title">Leaf skill</h1>
 <lf-text-document id="skill-source" source="leaf-skill" label="{long_label}" language="markdown"></lf-text-document>
-<p id="latency-line">Import latency: <lf-num source="import-latency" at="2026-08-29T12:00:00Z">10 ms</lf-num>.</p>
+<p id="latency-line">Import latency: <lf-num source="import-latency" run="a41f103e236c985b">10 ms</lf-num>.</p>
 """,
     )
     url = live_url(serve(source_page))
@@ -5452,6 +5454,68 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
     expect(timestamp).to_have_text("1h ago")
 
 
+def test_data_subscribers_receive_each_publication_and_recover(browser, serve):
+    """A same-value rerun reaches a package with its own durable run receipt.
+
+    Repeated reads stay quiet; corruption and clearing remove the reading, and a
+    later valid publication restores the same subscription.
+    """
+    page = open_page(browser, data_projection_page(serve))
+    page.evaluate("""async () => {
+      const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      window.publications = [];
+      window.stopPublications = watchData(document.querySelector('lf-feed'), 'rows',
+        snapshot => window.publications.push(snapshot));
+    }""")
+    read = """async () => {
+      const {readAndApply} = await window.__lfRuntimeImport('/runtime/application.js');
+      await readAndApply();
+      return window.publications;
+    }"""
+    publication_file = data_model.source_file(serve.page_dir, "deployments")
+    original = json.loads(publication_file.read_text())
+    first = page.evaluate("window.publications")[0]
+
+    data_model.cmd_data_set(serve.page_dir, "deployments", original["value"])
+    deliveries = page.evaluate(read)
+    assert len(deliveries) == 2, deliveries
+    for snapshot, publication in zip(
+        deliveries, [original, json.loads(publication_file.read_text())], strict=True
+    ):
+        assert {
+            key: snapshot[key] for key in ("run", "updated", "value")
+        } == publication
+    second = deliveries[-1]
+    assert second["revision"] == first["revision"]
+    assert second["run"] != first["run"]
+    assert second["origin"] == first["origin"]
+    assert len(page.evaluate(read)) == 2
+
+    publication_file.write_text("{}")
+    deliveries = page.evaluate(read)
+    assert len(deliveries) == 3 and deliveries[-1] is None, deliveries
+    assert len(page.evaluate(read)) == 3
+
+    data_model.cmd_data_set(serve.page_dir, "deployments", original["value"])
+    deliveries = page.evaluate(read)
+    assert len(deliveries) == 4, deliveries
+    recovered = deliveries[-1]
+    assert recovered["revision"] == first["revision"]
+    assert recovered["run"] not in {first["run"], second["run"]}
+
+    data_model.cmd_data_clear(serve.page_dir, "deployments")
+    deliveries = page.evaluate(read)
+    assert len(deliveries) == 5 and deliveries[-1] is None, deliveries
+    assert len(page.evaluate(read)) == 5
+
+    data_model.cmd_data_set(serve.page_dir, "deployments", original["value"])
+    deliveries = page.evaluate(read)
+    assert len(deliveries) == 6, deliveries
+    assert deliveries[-1]["revision"] == first["revision"]
+    assert deliveries[-1]["run"] not in {first["run"], second["run"], recovered["run"]}
+    page.evaluate("window.stopPublications()")
+
+
 def test_an_idle_page_keeps_its_dom_and_data_subscriptions_at_rest(browser, serve):
     """An unchanged clock must not render state or redeliver an unchanged source.
 
@@ -5682,7 +5746,7 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
 def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
     browser, serve
 ):
-    """Retiring a queued read cannot revive it or its clock subscription."""
+    """Refresh acquires clock work; retiring a read cannot revive that subscription."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     result = page.evaluate(
         """async () => {
@@ -5709,12 +5773,22 @@ def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
           clock += 1;
           await tickClock(message => { throw new Error(message); });
           let calls = 0;
+          let trackClock = false;
           const stop = watchProjection(owner, () => {
             calls += 1;
-            clockValue(() => clock);
+            if (trackClock) clockValue(() => clock);
           });
           await Promise.resolve();
           const initial = calls;
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          const untracked = calls;
+          trackClock = true;
+          stop.refresh();
+          const subscribed = calls;
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          const clocked = calls;
           await changed(() => { owner.remove(); document.body.append(owner); });
           const moved = calls;
           await changed(() => owner.remove());
@@ -5724,28 +5798,37 @@ def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
           await changed(() => document.body.append(owner));
           await Promise.resolve();
           const resumed = calls;
+          stop.refresh();
+          const refreshed = calls;
           stop();
+          stop.refresh();
           await changed(() => owner.remove());
           await changed(() => document.body.append(owner));
           clock += 1;
           await tickClock(message => { throw new Error(message); });
           owner.remove();
-          return {cancelled, initial, moved, detached, resumed, stopped: calls};
+          return {cancelled, initial, untracked, subscribed, clocked,
+            moved, detached, resumed, refreshed, stopped: calls};
         }"""
     )
     assert result == {
         "cancelled": 0,
         "initial": 1,
-        "moved": 1,
-        "detached": 1,
-        "resumed": 2,
-        "stopped": 2,
+        "untracked": 1,
+        "subscribed": 2,
+        "clocked": 3,
+        "moved": 3,
+        "detached": 3,
+        "resumed": 4,
+        "refreshed": 5,
+        "stopped": 5,
     }
 
 
 def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, serve):
     """Detachment releases data/clock work; reattachment restores the newest reading.
 
+    Refresh can acquire a clock dependency absent from the initial paint.
     A move in one mutation batch retains the original subscription. Removing an owner
     with an in-flight render also releases its presentation, so readiness can settle
     without waiting for a renderer whose owner is absent.
@@ -5769,14 +5852,24 @@ def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, ser
           });
           const deliveries = [];
           let clock = 0;
+          let trackClock = false;
           let release;
           const stop = watchData(widget, 'rows', snapshot => {
-            clockValue(() => clock);
+            if (trackClock) clockValue(() => clock);
             deliveries.push(snapshot?.revision ?? null);
             if (snapshot?.revision === 'held-owner')
               return new Promise(resolve => { release = resolve; });
           });
           const initial = deliveries.length;
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          const untracked = deliveries.length;
+          trackClock = true;
+          stop.refresh();
+          const subscribed = deliveries.length;
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          const clocked = deliveries.length;
           await changed(() => document.body.append(widget));
           const moved = deliveries.length;
           await changed(() => widget.remove());
@@ -5788,7 +5881,10 @@ def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, ser
           const next = structuredClone(runtime.data);
           next.version = 'held-owner-version';
           next.sources.deployments.revision = 'held-owner';
+          const beforeStaging = deliveries.at(-1);
           acceptData(next, runtime.state.taken);
+          stop.refresh();
+          const stagingKept = deliveries.at(-1) === beforeStaging;
           const pending = notifyDataSubscribers();
           const held = deliveries.at(-1);
           await changed(() => widget.remove());
@@ -5802,24 +5898,33 @@ def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, ser
           const absent = deliveries.length;
           await changed(() => home.append(widget));
           const restored = deliveries.at(-1);
+          stop.refresh();
+          const refreshed = deliveries.at(-1);
           stop();
+          stop.refresh();
           await changed(() => widget.remove());
           await changed(() => home.append(widget));
           clock += 1;
           await tickClock(message => { throw new Error(message); });
-          return {initial, moved, detached, resumed, held, absent, restored,
+          return {initial, untracked, subscribed, clocked,
+            moved, detached, resumed, held, absent, restored, refreshed, stagingKept,
             stopped: deliveries.length};
         }"""
     )
     assert result == {
         "initial": 1,
-        "moved": 1,
-        "detached": 1,
-        "resumed": 2,
+        "untracked": 1,
+        "subscribed": 2,
+        "clocked": 3,
+        "moved": 3,
+        "detached": 3,
+        "resumed": 4,
         "held": "held-owner",
-        "absent": 3,
+        "absent": 6,
         "restored": "newest-owner",
-        "stopped": 4,
+        "refreshed": "newest-owner",
+        "stagingKept": True,
+        "stopped": 8,
     }
 
 
@@ -6007,15 +6112,17 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
     assert page.evaluate("window.healthyClock") == 2
     assert _traffic(page).asked == asked
     consume_browser_errors(page, "clock paint failed:")
-    assert {
+    errors = [
         e["text"]
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "error"
-    } == {
+    ]
+    assert {error.splitlines()[0] for error in errors} == {
         "clock paint failed: read broke",
         "clock paint failed: paint broke",
         "clock paint failed: async broke",
     }
+    assert all("\n" in error for error in errors), errors
 
 
 def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
@@ -6078,23 +6185,58 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
     assert result["throwingDeliveries"] == 2, result
     assert result["afterMount"] == result["before"], result
     assert result["afterUpdate"] == result["version"], result
-    errors = consume_browser_errors(
-        page,
-        "data subscriber failed: mount projection failed",
-        "data subscriber failed: update projection failed",
-        "data subscriber failed: synchronous update projection failed",
+    errors = consume_browser_errors(page, "data subscriber failed")
+    assert {error.splitlines()[0] for error in errors} == {
+        "leaf: data subscriber failed for lf-feed#deployments input rows source deployments: "
+        + f"{message} projection failed"
+        for message in ("mount", "update", "synchronous update")
+    }
+    assert len(errors) == 3 and all("\n" in error for error in errors), errors
+    told(page)
+    agent_errors = [
+        event["text"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "error"
+    ]
+    assert set(agent_errors) == {error.removeprefix("leaf: ") for error in errors}
+
+
+def test_widget_errors_keep_exception_evidence(browser, serve):
+    """A failed Lit paint can recover; the agent retains the actual throw site."""
+    page = open_page(browser, data_projection_page(serve))
+    page.evaluate(
+        """async () => {
+          const {failSoft} = await window.__lfRuntimeImport('/runtime/widget-upgrade.js');
+          const {html, render} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const widget = document.querySelector('lf-feed');
+          window.paintRecoveredWidget = text => render(html`<p>${text}</p>`, widget);
+          window.paintRecoveredWidget('Before failure');
+          function widgetProjection() { throw new TypeError('projection rejected'); }
+          let error;
+          try { widgetProjection(); } catch (caught) { error = caught; }
+          failSoft(widget, error);
+        }"""
     )
-    assert (
-        sum("data subscriber failed: mount projection failed" in e for e in errors) == 1
+    expect(page.locator("lf-feed .lf-error")).to_have_text(
+        "<lf-feed> failed: projection rejected"
     )
-    assert any("data subscriber failed: update projection failed" in e for e in errors)
-    assert (
-        sum(
-            "data subscriber failed: synchronous update projection failed" in e
-            for e in errors
-        )
-        == 1
-    )
+    errors = consume_browser_errors(page, "projection rejected")
+    assert len(errors) == 1, errors
+    assert any(
+        error.startswith('leaf: <lf-feed id="deployments"> failed: projection rejected')
+        and "widgetProjection" in error
+        for error in errors
+    ), errors
+    told(page)
+    agent_errors = [
+        event["text"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "error"
+    ]
+    assert any("widgetProjection" in error for error in agent_errors), agent_errors
+    page.evaluate("window.paintRecoveredWidget('Recovered reading')")
+    expect(page.locator("lf-feed")).to_have_text("Recovered reading")
+    expect(page.locator("lf-feed .lf-error")).to_have_count(0)
 
 
 def test_unchanged_source_waits_for_its_inflight_render(browser, serve):

@@ -12,6 +12,7 @@ const runtimePrimitives = [
   "control-selectors.js",
   "keeps.js",
   "rendering.js",
+  "sample-visibility.js",
   "queued-work.js",
   "repaint.js",
   "root-state.js",
@@ -39,6 +40,7 @@ const browserGlobals = Object.fromEntries(
     "Element",
     "Event",
     "EventSource",
+    "FileReader",
     "HTMLAnchorElement",
     "HTMLButtonElement",
     "HTMLDialogElement",
@@ -477,9 +479,56 @@ export const placementsRule = {
       arg.type === "ObjectExpression" ||
       arg.type === "SpreadElement" ||
       (arg.type === "Identifier" && /^opt/u.test(arg.name));
+    // CodeMirror's imported state effect asks its view's scroll handler to reveal;
+    // it is not the browser method. Resolve the binding so aliases work and a local
+    // element merely named EditorView does not gain an exception.
+    const editorReveal = (callee) => {
+      if (callee.object.type !== "Identifier") return false;
+      for (
+        let scope = context.sourceCode.getScope(callee);
+        scope;
+        scope = scope.upper
+      ) {
+        const binding = scope.set.get(callee.object.name);
+        if (!binding) continue;
+        return binding.defs.some(
+          (definition) =>
+            definition.type === "ImportBinding" &&
+            definition.node.imported?.name === "EditorView" &&
+            /(?:^|\/)vendor\/codemirror\.esm\.js$/u.test(
+              definition.parent.source.value,
+            ),
+        );
+      }
+      return false;
+    };
     return {
       CallExpression(node) {
         const { callee, arguments: args } = node;
+        if (callee.type === "MemberExpression" && !callee.computed) {
+          if (
+            ["scrollIntoView", "scrollIntoViewIfNeeded"].includes(
+              callee.property.name,
+            ) &&
+            !(callee.property.name === "scrollIntoView" && editorReveal(callee))
+          )
+            context.report({
+              node,
+              message:
+                "Reveal with scrollIntoView(node, options) from runtime/landing-scroll.js: native reveal can scroll the containing page.",
+            });
+          if (
+            ["showModal", "showPopover", "hidePopover"].includes(
+              callee.property.name,
+            ) &&
+            file !== "skills/leaf/assets/runtime/keyboard/layer-stack.js"
+          )
+            context.report({
+              node,
+              message:
+                "Use showNativeLayer(layer, options) or closeNativeLayer(layer): native focus must respect the document holding input.",
+            });
+        }
         if (callee.type === "Identifier" && callee.name === "focusDestination") {
           if (args.length < 2)
             context.report({ node, message: "focusDestination names its cause." });
@@ -988,7 +1037,7 @@ export default [
   // alone; beside another key it would ignore those paths for that config alone and
   // leave every later one linting them. `.venv` is uv's, and holds Playwright's
   // bundled JavaScript: the pre-commit hook passes staged files and never reaches it,
-  // but a bare `npx eslint .` walks it.
+  // but a bare `pnpm exec eslint .` walks it.
   {
     ignores: [
       ".tmp/**",
@@ -1274,6 +1323,8 @@ export default [
           // The text field's own `focus()`, which the placement calls, hands on to the
           // editor its shadow tree holds.
           "skills/leaf/assets/runtime/composing/text-field.js",
+          // The shared CodeMirror adapter places its own native editor.
+          "skills/leaf/assets/runtime/editor-view.js",
         ],
       ],
       "architecture/layer-returns": [
@@ -1301,7 +1352,7 @@ export default [
     // These are the two boundaries that load authored/package modules, whose paths
     // are data rather than runtime dependencies. Literal imports still enter the graph.
     files: [
-      "skills/leaf/assets/runtime/interaction-gallery.js",
+      "skills/leaf/assets/runtime/interaction-gallery-playback.js",
       "skills/leaf/assets/runtime/widget-loader.js",
     ],
     rules: {

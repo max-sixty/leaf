@@ -79,30 +79,15 @@ test("a lazy widget answers with its hydration", () => {
   assert.deepEqual(asked, ["row-7"]);
 });
 
-test("travel settles a visible part before a pending replacement can retire it", async () => {
+test("an opted-in complete inventory derives targets while omission keeps the whole visual", () => {
   document.body.innerHTML = "<main></main>";
-  const source = document.createElement("lf-film");
-  source.setAttribute("parts", "one two");
-  let shown = "one";
-  let replacing = true;
-  const surface = document.createElement("span");
-  source.append(surface);
+  registry["lf-film"]["x-visual"].all = "all";
+  const source = film();
+  source.setAttribute("parts", "all");
   document.querySelector("main").append(source);
-  registerVisualParts(
-    source,
-    () => [{ id: shown, element: surface, label: "a frame" }],
-    {
-      reveal: (id) => {
-        replacing = false;
-        shown = id;
-      },
-    },
-  );
-  const replacement = Promise.resolve().then(() => {
-    if (replacing) shown = "two";
-  });
-
-  revealAddressed(source, "one");
-  await replacement;
-  assert.equal(shown, "one", "the requested destination remains the drawn part");
+  assert.deepEqual(frame(source, "one"), ["one"]);
+  revealAddressed(source, "two");
+  assert.deepEqual(frame(source, "two"), ["two"]);
+  source.removeAttribute("parts");
+  assert.deepEqual(frame(source, "two"), []);
 });

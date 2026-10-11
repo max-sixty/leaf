@@ -101,4 +101,4 @@ export function createApplicationPublisher                               (initia
     },
   });
 }
-// Generated from build/browser/snapshot.ts by npm run build:browser.
+// Generated from build/browser/snapshot.ts by build/browser/build.mjs.

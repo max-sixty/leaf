@@ -32,12 +32,10 @@ from conftest import LEAF_COMMAND
 from interact_support import (
     COMPOSITE_TIMEOUT,
     PAGE,
-    PAGE_PACKAGES,
     STATED_TIMEOUT,
     TOKEN,
     append_carried_log_record,
     append_command,
-    asks_on_you,
     check,
     declare_data_input,
     declare_work,
@@ -45,8 +43,10 @@ from interact_support import (
     fetch,
     live_versions,
     neighbour_page,
+    page_packages,
     page_state,
     publish,
+    questions_on_you,
     read_page_data,
     record_claim,
     release_codex_command,
@@ -87,11 +87,12 @@ from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
+from leaf import thread_titles as thread_titles_model
 from leaf import vendoring as vendoring_model
+from leaf.refusals import Refused
 from leaf.registry import storage as registry_storage
 from leaf.served_state import browser as served_browser
 from leaf.served_state import context as served_context
@@ -121,12 +122,36 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
         fetch(f"{server}/api/interaction", data=b'{"session":"tab-1","entries":[]}')[0]
         == 400
     )
+    for entry in (
+        {"type": "interaction_part", "sequence": 1},
+        {"type": "keydown", "ts": 42},
+        {"type": "focusin", "target": [{}]},
+    ):
+        assert (
+            fetch(
+                f"{server}/api/interaction",
+                data=json.dumps({"session": "malformed", "entries": [entry]}).encode(),
+            )[0]
+            == 400
+        )
     assert (
         fetch(
             f"{server}/api/interaction", data=json.dumps(payload).encode(), token=None
         )[0]
         == 401
     )
+    for entry in (
+        {"type": "keydown", "sequence": True},
+        {"type": "interaction_part", "sequence": 1},
+        {"type": "focusin", "target": [{}]},
+    ):
+        assert (
+            fetch(
+                f"{server}/api/interaction",
+                data=json.dumps({"session": "bad", "entries": [entry]}).encode(),
+            )[0]
+            == 400
+        )
     assert fetch(f"{server}/missing")[0] == 404
 
     rows = [
@@ -173,7 +198,8 @@ def test_interaction_trace_is_writable_from_a_read_only_page_preview(page_dir):
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
         artifact_model.read_revision(page_dir, active["revision"]).document,
-        active,
+        active["revision"],
+        url=active["url"],
     )
     before = event_model.read_events(page_dir)
     with hosting_model.TemporaryPageServer(
@@ -243,21 +269,6 @@ def test_a_staged_write_moves_neither_the_page_nor_its_presence_reading(page_dir
     assert presence_model._page_stamp(page_dir) == presence_stamp
 
 
-def test_interaction_trace_does_not_keep_an_unattended_page_active(page_dir):
-    session_model.cmd_waiting(page_dir, "")
-    old = time.time() - schema_model.ACTIVITY_GRACE_SECS - 60
-    for entry in page_dir.iterdir():
-        os.utime(entry, (old, old))
-    claimed_at = datetime.fromtimestamp(old).astimezone().isoformat()
-    assert not service_model._touched_recently(page_dir, claimed_at)
-
-    interaction_model.append_interactions(page_dir, [{"source": "server"}])
-    assert not service_model._touched_recently(page_dir, claimed_at)
-
-    os.utime(page_dir / "status.json", None)
-    assert service_model._touched_recently(page_dir, claimed_at)
-
-
 def test_samples_use_captured_resources_and_independent_event_logs(server, page_dir):
     template = '<template id="practice" data-sample><h1>Practice</h1><p id="child-copy">Child text.</p><script type="module" src="/page/sample.js"></script></template>'
     (page_dir / "page").mkdir(exist_ok=True)
@@ -281,23 +292,31 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
         headers={"Leaf-View-Revision": "1"},
     )
     assert status == 200, raw
-    child = server + json.loads(raw)["url"].rstrip("/")
+    allocated = json.loads(raw)
+    child = server + allocated["url"].rstrip("/")
     status, document = fetch(child + "/")
     assert status == 200, document
     assert b"Child text." in document
-    root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
-    assert f'data-lf-entry="{root}/leaf.js"'.encode() in document
-    assert f'data-lf-page-root="{child.removeprefix(server)}"'.encode() in document
+    assert b"data-lf-share-url" not in document
     served = structure_model.SourceDocument(document.decode()).tree
+    assert f'data-lf-page-root="{child.removeprefix(server)}"'.encode() in document
     assert "inert" in served.find("body").attrs
+    child_assets = (
+        served.find("script", attrs={"data-lf-entry": True})
+        .attrs["data-lf-entry"]
+        .removesuffix("leaf.js")
+    )
+    assert child_assets.startswith(child.removeprefix(server) + "/revisions/")
+    assert fetch(server + child_assets + "page/sample.js", token=None) == (200, module)
+    assert fetch(server + child_assets + "theme.css", token=None) == (
+        200,
+        captured_theme,
+    )
     trace = page_dir / interaction_model.INTERACTIONS_FILE
     before_housekeeping = trace.read_bytes()
-    assert fetch(child + "/api/news")[0] == 200
-    assert fetch(child + "/theme.css") == (200, captured_theme)
+    assert fetch(child + "/api/news", token=None)[0] == 200
+    assert fetch(child + "/theme.css", token=None) == (200, captured_theme)
     assert trace.read_bytes() == before_housekeeping
-    [module_path] = re.findall(rb'src="([^"]+/page/sample.js)"', document)
-    assert module_path == f"{root}/page/sample.js".encode()
-    assert fetch(server + module_path.decode()) == (200, module)
     status, raw = fetch(child + "/api/state")
     assert status == 200, raw
     assert json.loads(raw)["events"] == []
@@ -334,7 +353,7 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
     assert any(
         row["source"] == "client"
         and row["session"] == "child-tab"
-        and row["page"] == child.removeprefix(server)
+        and row["page"] == allocated["page"]
         for row in map(
             json.loads,
             (page_dir / interaction_model.INTERACTIONS_FILE).read_text().splitlines(),
@@ -474,7 +493,7 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
     assert event_model.read_events(page_dir) == before
     status, raw = fetch(f"{server}/api/samples", data=b'{"template":"missing"}')
     assert status == 400 and "unknown sample template" in json.loads(raw)["error"]
-    assert fetch(children[0] + "/api/state", token=None)[0] == 401
+    assert fetch(children[0] + "/api/state", token=None)[0] == 200
 
 
 def test_sample_template_lookup_stays_within_the_requesting_page(server, page_dir):
@@ -499,11 +518,141 @@ def test_sample_template_lookup_stays_within_the_requesting_page(server, page_di
     nested = create(outer, "practice")
     nested_document = fetch(nested + "/")[1]
     assert b"Nested practice" in nested_document
-    root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
-    assert f'data-lf-entry="{root}/leaf.js"'.encode() in nested_document
+    entry = re.search(rb'data-lf-entry="([^"]+)"', nested_document)[1].decode()
+    assert entry.startswith(nested.removeprefix(server) + "/revisions/")
+    assert fetch(server + entry, token=None)[0] == 200
     assert fetch(server + "/api/samples", data=b'{"template":"nested-only"}')[0] == 400
     assert fetch(outer + "/api/release", data=b"{}")[0] == 200
     assert fetch(nested + "/")[0] == 404
+
+
+@pytest.mark.parametrize("routed", [False, True])
+def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed):
+    template = """<template id="practice" data-sample><h1>Practice</h1>
+      <template id="inner" data-sample><h1>Nested practice</h1></template>
+    </template>"""
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
+    publish(page_dir)
+    with hosting_model.TemporaryPageServer(page_dir, token=TOKEN) as preview:
+        origin = preview.origin
+
+        allocation_pages = {}
+
+        def create(parent, name, token):
+            generation = json.loads(fetch(parent + "/api/state", token=token)[1])[
+                "layer"
+            ]["generation"]
+            status, raw = fetch(
+                parent + "/api/samples",
+                data=json.dumps({"template": name}).encode(),
+                token=token,
+                layer=generation,
+                headers={"Leaf-Layer": generation},
+            )
+            assert status == 200, raw
+            url = origin + json.loads(raw)["url"].rstrip("/")
+            if routed and parent == origin:
+                url += "~" + "1" * 64
+            allocation_pages[url] = json.loads(raw)["page"]
+            return url
+
+        first = create(origin, "practice", TOKEN)
+        second = create(origin, "practice", TOKEN)
+        preflight = urllib.request.Request(
+            first + "/api/event",
+            method="OPTIONS",
+            headers={
+                "Origin": "null",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type,leaf-layer",
+            },
+        )
+        with urllib.request.urlopen(preflight) as answer:
+            assert answer.status == 204
+            assert answer.headers["Access-Control-Allow-Origin"] == "*"
+            assert (
+                answer.headers["Access-Control-Allow-Headers"]
+                == "content-type,leaf-layer"
+            )
+            assert answer.headers["Referrer-Policy"] == "no-referrer"
+            assert answer.headers.get("Access-Control-Allow-Credentials") is None
+        with urllib.request.urlopen(first + "/") as answer:
+            assert answer.headers.get("Content-Security-Policy") is None
+        assert fetch(first + "/api/state", token=None)[0] == 200
+        assert (
+            fetch(
+                first + "/api/interaction",
+                token=None,
+                data=json.dumps(
+                    {"session": "routed-sample", "entries": [{"type": "checkpoint"}]}
+                ).encode(),
+            )[0]
+            == 204
+        )
+        routed_trace = next(
+            row
+            for row in map(
+                json.loads,
+                (page_dir / interaction_model.INTERACTIONS_FILE)
+                .read_text()
+                .splitlines(),
+            )
+            if row.get("session") == "routed-sample"
+        )
+        assert routed_trace["page"] == first.removeprefix(origin)
+        assert fetch(origin + "/api/state", token=None)[0] == 401
+        assert fetch(origin + "/api/samples/" + "0" * 32 + "/", token=None)[0] == 404
+        nested = create(first, "inner", None)
+        assert fetch(nested + "/", token=None)[0] == 200
+        assert (
+            fetch(
+                nested + "/api/interaction",
+                token=None,
+                data=json.dumps(
+                    {"session": "nested-sample", "entries": [{"type": "checkpoint"}]}
+                ).encode(),
+            )[0]
+            == 204
+        )
+        assert fetch(first + "/api/release", data=b"{}", token=None)[0] == 200
+        assert fetch(first + "/", token=None)[0] == 404
+        # A read already sent by the opaque child can arrive after Reset revokes
+        # its capability. It still receives the HTTP refusal, not a CORS failure.
+        for method in ("GET", "OPTIONS"):
+            request = urllib.request.Request(
+                first + "/api/state", method=method, headers={"Origin": "null"}
+            )
+            if method == "OPTIONS":
+                # Browsers reject non-2xx preflights regardless of their headers.
+                with urllib.request.urlopen(request) as answer:
+                    assert answer.status == 204
+                    headers = answer.headers
+            else:
+                with pytest.raises(urllib.error.HTTPError) as refused:
+                    urllib.request.urlopen(request)
+                assert refused.value.code == 404
+                headers = refused.value.headers
+            assert headers["Access-Control-Allow-Origin"] == "*"
+            assert headers.get("Access-Control-Allow-Credentials") is None
+        assert fetch(nested + "/", token=None)[0] == 404
+        nested_trace = next(
+            row
+            for row in map(
+                json.loads,
+                (page_dir / interaction_model.INTERACTIONS_FILE)
+                .read_text()
+                .splitlines(),
+            )
+            if row.get("session") == "nested-sample"
+        )
+        assert (
+            nested_trace["page"]
+            == nested.removeprefix(origin)
+            == allocation_pages[nested]
+        )
+        assert fetch(second + "/api/state", token=None)[0] == 200
+        assert fetch(second + "/api/release", data=b"{}", token=None)[0] == 200
+        assert preview.httpd.samples.pages == {}
 
 
 @pytest.mark.parametrize("explicit_revision", [False, True])
@@ -528,9 +677,7 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
         PAGE.replace("</main>", template + "</main>")
     )
     # The checked candidate is r2, absent from the mutable page's revision files.
-    snapshot = page_snapshot_model.capture_page_snapshot(
-        page_dir, document, {"revision": 2, "version": None, "url": "/"}
-    )
+    snapshot = page_snapshot_model.capture_page_snapshot(page_dir, document, 2, url="/")
     append_carried_log_record(
         page_dir,
         {
@@ -555,12 +702,21 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
         assert status == 200, raw
         child = preview.origin + json.loads(raw)["url"]
         body = fetch(child)[1]
-        root = "/revisions/" + snapshot.revision_names[2].removesuffix(".html")
         assert b"Frozen child" in body
-        assert f'data-lf-entry="{root}/leaf.js"'.encode() in body
-        assert fetch(preview.origin + root + "/leaf.js")[0] == 200
+        tree = structure_model.SourceDocument(body.decode()).tree
+        assets = (
+            tree.find("script", attrs={"data-lf-entry": True})
+            .attrs["data-lf-entry"]
+            .removesuffix("leaf.js")
+        )
+        assert assets.startswith(child.removeprefix(preview.origin) + "revisions/")
+        assert fetch(preview.origin + assets + "leaf.js", token=None)[0] == 200
         state = json.loads(fetch(child + "api/state")[1])
         # The child reads the data the checked preview holds, as the preview does.
+        assert (
+            state["data"]["sources"]["builds"]
+            == snapshot.context.stored_data()["sources"]["builds"]
+        )
         assert state["data"]["sources"]["builds"]["value"] == ["checked"]
         assert [event["text"] for event in state["events"]] == ["Frozen seed"]
         for path in ("/api/event", "/api/media"):
@@ -993,7 +1149,7 @@ def test_api_state_carries_each_sources_current_value(server, page_dir):
     assert data["sources"]["builds"]["contract"] == "build-map"
     assert data["sources"]["builds"]["value"] == {"main": "green"}
 
-    data_model.source_file(page_dir, "builds").write_text('{"main": "red"}')
+    data_model.cmd_data_set(page_dir, "builds", {"main": "red"})
     rewritten = json.loads(fetch(f"{server}/api/state")[1])["data"]
     assert rewritten["sources"]["builds"]["value"] == {"main": "red"}
     assert rewritten["version"] != data["version"]
@@ -1763,11 +1919,10 @@ def test_server_round_trip(server, page_dir):
             "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "0i"},
             "revision": 2,
         },
-        # Message revisions are agent-authored too. The browser cannot turn the
-        # user into the recorded author of another speaker's words.
+        # A revision names a message the log holds.
         {
             "kind": "edit",
-            "message": posted["id"],
+            "message": "no-such-message",
             "text": "rewritten in the browser",
         },
         ["not", "an", "object"],
@@ -1922,10 +2077,12 @@ def test_the_live_root_places_its_delivery_at_the_parsers_head_boundary(
     assert "<title>Backfill plan\u2028Q3</title>" in body
     # The old splice corrupted this tag while leaving the page renderable.
     artifact_root = "/revisions/" + files_model.revision_path(page_dir, 1).stem
-    assert (
-        f'<link rel="stylesheet" href="{artifact_root}/theme.css" data-lf-runtime>'
-        in body
+    theme = structure_model.SourceDocument(body).tree.find(
+        "link", attrs={"href": f"{artifact_root}/theme.css"}
     )
+    assert theme is not None
+    assert theme.attrs["rel"] == ["stylesheet"]
+    assert "data-lf-runtime" in theme.attrs
 
 
 def test_a_revision_s_resources_are_cached_and_its_document_is_not(server, page_dir):
@@ -1980,7 +2137,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     )
     assert status == 400
     assert json.loads(body)["error"] == (
-        "v2 still has unanswered Asks: plan-choice-decision"
+        "v2 still has unanswered widget Questions: widget:choice"
     )
 
     status, body = fetch(
@@ -2012,6 +2169,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "approval-question"),
             "--text",
             "Choose the follow-up:",
@@ -2031,7 +2189,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     )
     assert status == 400
     assert json.loads(body)["error"] == (
-        "v2 still has unanswered Asks: thread-approval-decision"
+        "v2 still has unanswered widget Questions: widget:thread-approval"
     )
 
     status, body = fetch(
@@ -2867,6 +3025,39 @@ def test_a_state_fault_after_append_leaves_the_attempt_retryable(
     )
 
 
+def test_a_fault_before_the_event_body_is_read_answers_in_the_doors_shape(
+    server, page_dir, monkeypatch
+):
+    """A host's page selection runs before the body is read, and a fault there is
+    still the door's 500, which names no attempt because none was read."""
+    publish(page_dir)
+
+    def fail_selection(_endpoint):
+        raise RuntimeError("selection failed")
+
+    monkeypatch.setattr(http_model.PageEndpoint, "_select_page", fail_selection)
+    sent = {"kind": "comment", "revision": 1, "text": "Hi", "attempt": "attempt-1"}
+    status, body = fetch(
+        f"{server}/api/event", data=json.dumps(sent).encode(), layer="any"
+    )
+    assert status == 500
+    assert json.loads(body) == {"ok": False, "error": "RuntimeError: selection failed"}
+
+
+def test_a_refusal_from_corrupt_page_state_is_an_answered_fault(server, page_dir):
+    """A helper the server shares with the command line refuses corrupt state
+    rather than exiting, so the request boundary answers it like any fault."""
+    publish(page_dir)
+    revisions = page_dir / "revisions"
+    [marker] = revisions.glob("r1-*.html")
+    shutil.copyfile(marker, revisions / "r1-0000000000000000.html")
+    status, body = fetch(f"{server}/api/state")
+    assert status == 500
+    assert json.loads(body) == {
+        "error": "Refused: more than one immutable revision has the same order"
+    }
+
+
 def test_flocked_refuses_a_platform_without_cross_process_locking(
     page_dir, monkeypatch
 ):
@@ -3023,6 +3214,7 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--text",
             "Pick one:",
@@ -3102,7 +3294,7 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
             [
                 "page",
                 "init",
-                *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+                *package_selection_args((*page_packages(), "./.leaf")),
                 str(page_dir),
             ],
         )
@@ -3140,7 +3332,7 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
             [
                 "page",
                 "init",
-                *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
+                *package_selection_args((*page_packages(), "./.leaf")),
                 str(page_dir),
             ],
         )
@@ -4092,7 +4284,8 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
         artifact_model.read_revision(page_dir, active["revision"]).document,
-        active,
+        active["revision"],
+        url=active["url"],
     )
     preview = hosting_model.LeafHTTPServer(
         ("127.0.0.1", 0),
@@ -4319,7 +4512,8 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
         artifact_model.read_revision(page_dir, active["revision"]).document,
-        active,
+        active["revision"],
+        url=active["url"],
     )
     projection = served_service.PageStateService(
         page_dir, page_snapshot=snapshot
@@ -4405,7 +4599,8 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
         artifact_model.read_revision(page_dir, active["revision"]).document,
-        active,
+        active["revision"],
+        url=active["url"],
     )
     service = served_service.PageStateService(page_dir, page_snapshot=snapshot)
     before = service.page_state()
@@ -4426,6 +4621,8 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
     then = snapshot.through(picked["seq"]).context
     assert then.events[-1]["id"] == picked["id"]
     assert [version["version"] for version in then.versions] == [1]
+    assert then.active["version"] is None
+    assert then.active["label"] == "Draft after v1"
 
 
 def test_comparison_revision_reads_stay_inside_the_page_transaction(
@@ -4555,7 +4752,8 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
         artifact_model.read_revision(page_dir, active["revision"]).document,
-        active,
+        active["revision"],
+        url=active["url"],
     )
     assert set(snapshot.data_resources) == {urls[1]}
     assert snapshot.data_resources[urls[1]].data == second.read_bytes()
@@ -4592,7 +4790,8 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
     current = page_snapshot_model.capture_page_snapshot(
         page_dir,
         artifact_model.read_revision(page_dir, changed.revision).document,
-        {"revision": changed.revision, "version": None, "url": "/"},
+        changed.revision,
+        url="/",
     )
     assert current.data_resources == {}
     assert snapshot.data_resources[urls[1]].data == second.read_bytes()
@@ -4600,7 +4799,8 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
     revised = page_snapshot_model.capture_page_snapshot(
         page_dir,
         artifact_model.read_revision(page_dir, changed.revision).document,
-        {"revision": changed.revision, "version": None, "url": "/"},
+        changed.revision,
+        url="/",
     )
     assert set(revised.data_resources) == {urls[0]}
     assert revised.data_resources[urls[0]].data == first.read_bytes()
@@ -4622,7 +4822,8 @@ def test_a_preview_uses_the_validated_module_graph_after_a_later_edit(page_dir):
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
         checked.document,
-        {"revision": revision, "version": None, "url": "/"},
+        revision,
+        url="/",
         artifact=checked.artifact,
     )
     with hosting_model.TemporaryPageServer(
@@ -5176,15 +5377,16 @@ def test_a_stated_host_is_a_hostname_or_ip_and_nothing_else(page_dir):
     literal is a name a user can route to, and it must not be mistaken for a
     host:port."""
     for junk in ("devbox:8443", "http://devbox", "devbox/page", "devbox one"):
-        with pytest.raises(SystemExit):
+        with pytest.raises(Refused):
             server_model.page_access(page_dir, host=junk)
     assert not (page_dir / "service.json").exists()
 
     assert server_model.page_access(page_dir, host="fd7a:115c:a1e0::1")["bind"] == "::"
 
 
-def test_server_bind_failure_preserves_the_real_socket_error(page_dir):
-    """A failed bind closes partially initialized wake resources without masking EADDRINUSE."""
+def test_server_bind_failure_preserves_the_real_socket_error(page_dir, monkeypatch):
+    """An occupied address refuses after the wait budget, retaining EADDRINUSE."""
+    monkeypatch.setattr(hosting_model, "PORT_WAIT_SECONDS", 0.01)
     with socket.socket() as occupied:
         occupied.bind(("127.0.0.1", 0))
         occupied.listen()
@@ -5195,19 +5397,116 @@ def test_server_bind_failure_preserves_the_real_socket_error(page_dir):
     assert refused.value.errno == errno.EADDRINUSE
 
 
+@pytest.mark.parametrize(
+    "first_bind,second_bind",
+    [
+        ("::", "127.0.0.1"),
+        ("127.0.0.1", "::"),
+    ],
+)
+def test_the_os_excludes_overlapping_leaf_listeners_across_processes(
+    page_dir, spawn, first_bind, second_bind
+):
+    """A different bind must not route one Leaf URL to another live page."""
+    if "::" in (first_bind, second_bind) and not socket.has_dualstack_ipv6():
+        pytest.skip("the kernel has no dual-stack listener")
+    first = hosting_model.LeafHTTPServer(
+        (first_bind, 0), http_model.page_endpoint(page_dir, TOKEN)
+    )
+    try:
+        assert first.socket.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR) == 0
+        contender = spawn_probe(
+            spawn,
+            page_dir,
+            """
+import json
+from leaf import hosting
+from leaf.hosting import LeafHTTPServer
+from leaf.http import page_endpoint
+hosting.PORT_WAIT_SECONDS = 0
+try:
+    server = LeafHTTPServer((os.environ["BIND"], int(os.environ["PORT"])),
+                            page_endpoint(Path(os.environ["PAGE"]), "key"))
+except OSError as error:
+    print(json.dumps({"errno": error.errno}))
+else:
+    server.server_close()
+    print(json.dumps({"errno": None}))
+""",
+            BIND=second_bind,
+            PORT=first.server_address[1],
+        )
+        output, error = contender.communicate(timeout=STATED_TIMEOUT)
+        assert contender.returncode == 0, error
+        assert json.loads(output) == {"errno": errno.EADDRINUSE}
+    finally:
+        first.server_close()
+
+
+def test_a_fixed_url_waits_for_its_port_to_become_available(page_dir, monkeypatch):
+    """Both preview lifetimes use native port availability, without changing URLs.
+
+    A held listener arranges EADDRINUSE without depending on a platform's TCP
+    cooldown duration. The real keepalive shutdown/restart is also exercised
+    manually against macOS, where it takes about 30 seconds.
+    """
+    refused = threading.Event()
+    native_bind = socket.socket.bind
+
+    def observed_bind(sock, address):
+        try:
+            return native_bind(sock, address)
+        except OSError as error:
+            if error.errno == errno.EADDRINUSE:
+                refused.set()
+            raise
+
+    monkeypatch.setattr(socket.socket, "bind", observed_bind)
+    occupied = socket.socket()
+    occupied.bind(("127.0.0.1", 0))
+    occupied.listen()
+    port = occupied.getsockname()[1]
+    with ThreadPoolExecutor(max_workers=1) as workers:
+        restarting = workers.submit(
+            hosting_model.TemporaryPageServer, page_dir, token=TOKEN, port=port
+        )
+        try:
+            assert refused.wait(STATED_TIMEOUT), (
+                "the OS did not refuse the occupied port"
+            )
+            assert not restarting.done()
+        finally:
+            occupied.close()
+        with restarting.result(timeout=STATED_TIMEOUT) as server:
+            assert server.url == f"http://127.0.0.1:{port}/?t={TOKEN}"
+            assert (
+                server.httpd.socket.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR)
+                == 0
+            )
+            assert fetch(f"{server.origin}/api/state")[0] == 200
+
+
 def test_the_stated_host_wildcard_accepts_an_ipv4_user(page_dir):
-    """A stated host binds the wildcard of both families, so a v4 user reaches it.
+    """A stated host reaches IPv4 users, and IPv6 users where the kernel supports it.
 
     IPV6_V6ONLY is cleared before the bind; with it set, the address a `--host`
     serve records answers only the users who arrive over IPv6.
     """
+    ipv6 = socket.has_dualstack_ipv6()
     httpd = hosting_model.LeafHTTPServer(
         ("::", 0), http_model.page_endpoint(page_dir, TOKEN)
     )
-    assert httpd.socket.family == socket.AF_INET6
     with running_http_server(httpd):
+        assert httpd.socket.family == (socket.AF_INET6 if ipv6 else socket.AF_INET)
         port = httpd.server_address[1]
         assert fetch(f"http://127.0.0.1:{port}/api/state")[0] == 200
+        if ipv6:
+            client = http.client.HTTPConnection("::1", port, timeout=STATED_TIMEOUT)
+            try:
+                client.request("GET", f"/api/state?t={TOKEN}")
+                assert client.getresponse().status == 200
+            finally:
+                client.close()
 
 
 def test_the_stated_host_wildcard_binds_what_a_kernel_without_ipv6_has(
@@ -5236,11 +5535,11 @@ def test_the_stated_host_wildcard_binds_what_a_kernel_without_ipv6_has(
     httpd = hosting_model.LeafHTTPServer(
         ("::", 0), http_model.page_endpoint(page_dir, TOKEN)
     )
-    try:
+    with running_http_server(httpd):
         assert httpd.socket.family == socket.AF_INET
         assert httpd.server_address[0] == "0.0.0.0"
-    finally:
-        httpd.server_close()
+        port = httpd.server_address[1]
+        assert fetch(f"http://127.0.0.1:{port}/api/state")[0] == 200
 
 
 def test_the_address_and_key_outlive_the_session_that_first_served(
@@ -5380,8 +5679,7 @@ def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
     the sweep exactly like a page a test forgot: a held lease under an enabled
     service. The sweep once took its root from the environment before
     `isolated_session` had moved it, and stopped every such server on the
-    machine after every test (tests/AGENTS.md, "A process the suite starts ends
-    with the run").
+    machine after every test (tests/AGENTS.md, "Processes and servers").
 
     So a run is made against a home planted the way the developer's is, of the
     one test that leaves a page for the sweep. The planted page must come out as
@@ -5742,7 +6040,7 @@ def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_d
     def run_stamp():
         try:
             publishing_model.cmd_stamp(page_dir, "next")
-        except (AssertionError, SystemExit) as error:  # surface thread failures here
+        except (AssertionError, Refused) as error:  # surface thread failures here
             failures.append(error)
 
     action = {
@@ -5866,10 +6164,10 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     open_state = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
     assert open_state.exit_code == 0, open_state.output
     open_reading = json.loads(open_state.output)
-    assert asks_on_you(open_reading) == [
+    assert questions_on_you(open_reading) == [
         {
-            "id": "orphan-decision",
-            "tag": "lf-ask",
+            "id": "widget:orphan-choice",
+            "tag": "lf-options",
             "widget": "orphan-choice",
             "widget_tag": "lf-options",
             "thread": "c-lost",
@@ -5909,7 +6207,7 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
         "unread": [],
         "attention": None,
     }
-    assert asks_on_you(closed_reading) == []
+    assert questions_on_you(closed_reading) == []
     assert [
         element["id"]
         for element in closed_reading["elements"]
@@ -6079,6 +6377,57 @@ def test_nested_sample_fixtures_resolve_in_the_immediate_parent_document(
         event["text"] for event in json.loads(fetch(inner + "api/state")[1])["events"]
     ] == ["Nested fixture"]
     assert event_model.read_events(page_dir) == parent_before
+
+
+def test_test_teardown_joins_titles_before_reusing_the_page(
+    claimed, tmp_path, isolated_session, monkeypatch
+):
+    """A pending title cannot escape the test that owns its page.
+
+    Hold the real title worker inside its generator. Teardown must wait for it
+    before a page loan can be reused by the following test.
+    """
+    comment = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "Why here?"}
+    )
+    started = threading.Event()
+    answered = threading.Event()
+
+    def generate(request, page_dir):
+        started.set()
+        assert answered.wait(timeout=STATED_TIMEOUT), "the title was never released"
+        raise RuntimeError("the title stand-in failed")
+
+    thread_titles_model.name_admitted_thread(generate, claimed, comment["id"], "s1")
+    assert started.wait(timeout=STATED_TIMEOUT), "the title generator did not start"
+    [worker] = [
+        thread for thread in threading.enumerate() if thread.name == "leaf-thread-title"
+    ]
+    joining = threading.Event()
+    native_join = worker.join
+
+    def observed_join(*args, **kwargs):
+        joining.set()
+        return native_join(*args, **kwargs)
+
+    monkeypatch.setattr(worker, "join", observed_join)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        retirement = pool.submit(retire_test_services, tmp_path, isolated_session)
+        try:
+            wait_for(
+                lambda: joining.is_set() or retirement.done(),
+                bool,
+                failure="teardown neither joined the pending title nor finished",
+            )
+            assert joining.is_set(), (
+                "teardown returned while its title was still running"
+            )
+            assert not retirement.done(), "teardown did not wait for its title"
+        finally:
+            answered.set()
+            retirement.result(timeout=STATED_TIMEOUT)
+            native_join(timeout=STATED_TIMEOUT)
+    assert not worker.is_alive(), "the title outlived its page fixture"
 
 
 def test_test_teardown_ends_detached_delivery_before_removing_state(

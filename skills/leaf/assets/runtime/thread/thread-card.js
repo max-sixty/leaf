@@ -24,11 +24,10 @@
    title gesture policy, outgoing fold paint and local draft repaint. Surfaces receive
    whole-thread geometry readings rather than descendant nodes. */
 import { nextRender, sizeObserver } from "../rendering.js";
-import { holdFocus, focusDestination, focused } from "../focus.js";
+import { holdFocus, focusDestination, focused, standsOn } from "../focus.js";
 import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
-import { reactionReading } from "./reaction-model.js";
 import { offer, reachedForWords, measure, reserve } from "../widget-elements.js";
 import { keeps, keepsHidden, layoutPx } from "../keeps.js";
 import { keys } from "../keyboard/scopes.js";
@@ -38,25 +37,26 @@ import {
   replyIsEditing,
   replyAvailable,
   dismissReply,
+  threadHoldsDraft,
 } from "./replies.js";
-import { settleThread, foldOut, finishFold, isFolding } from "./folding.js";
+import {
+  settleThread,
+  landGesture,
+  foldOut,
+  finishFold,
+  isFolding,
+} from "./folding.js";
 import { iconTemplate } from "../icons.js";
-import { loadDraft } from "../drafts.js";
 import { SAY_BOX } from "./selectors.js";
 import { focusThread, threadFocusStop } from "./focus.js";
 import { renderMarkdown } from "../markdown.js";
 import { summaryRanges, unreadBoundaries } from "./summary-ranges.js";
 import { threadAttention } from "./workflow.js";
-import { seenRect, shownRect } from "../geometry.js";
+import { growthAfterIsSeen, growthIsSeen, seenRect, shownRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
-import { scrollThreadIntoView, replyPinned } from "./reply-landing.js";
-import {
-  HeldNews,
-  newsNotice,
-  growthAfterIsSeen,
-  growthInsideIsSeen,
-} from "./held-news.js";
+import { scrollThreadIntoView, replyPinned, revealEditor } from "./reply-landing.js";
+import { HeldNews, newsNotice } from "./held-news.js";
 import { ReplyContinuity } from "./reply-continuity.js";
 
 function quoteReading(thread, anchors) {
@@ -121,7 +121,7 @@ export function threadReading(thread, surface, commands, options) {
         typeof commands.nativeAuthored === "function"
           ? commands.nativeAuthored(message)
           : Boolean(commands.nativeAuthored ?? panel),
-      reactions: reactionReading(thread, message, panel || surface === "outlet"),
+      reactions: panel || surface === "outlet" ? message.reactions : null,
       workflows: message.workflows,
     }),
   );
@@ -176,7 +176,6 @@ export function threadReading(thread, surface, commands, options) {
       word,
       label,
       pending: settling,
-      icon: !resolved || Boolean(kept),
     }),
     reply: replyAvailable(thread),
     summaries: Object.freeze(thread.summaries),
@@ -196,7 +195,10 @@ function navigationSummary(model, control) {
   // The reserved box under the title's control carries that control's words.
   const status =
     control ?? (model.resolved ? "Resolved" : model.attention?.label || "");
-  const draft = Boolean(loadDraft("reply:" + model.key));
+  const draft = threadHoldsDraft(
+    model.key,
+    model.messages.map(({ id }) => id),
+  );
   // While a title is on its way, the title slot says so in words drawn apart from any
   // title; the theme keeps the placeholder muted while naming is under way.
   // The meta row digests a folded card. What the open card shows elsewhere is marked
@@ -344,6 +346,41 @@ export class ThreadView {
     this.#messageCommands = {
       ...commands,
       reaction: { ...commands.reaction, pressed: () => this.#showNews() },
+      // A rewrite of one of the user's messages (`message-edit.js`). Opening or closing
+      // it paints at once, so its editor takes or gives back the focus in the same press.
+      edit: {
+        paint: (message) => this.repaint({ writing: message }),
+        send: (id, text, options) =>
+          this.#speak(
+            () => commands.reply.actions.edit(this.#model.key, id, text, options),
+            options.attempt,
+            "reply",
+          ),
+        // The rung above a rewrite is the thread's reply box, where ↑ came from, while
+        // it is in view; a thread showing none, as a resolved one or a margin card not
+        // replying, or one whose box is off screen, hands the user on as a sent reply
+        // does, which moves nothing.
+        land: () => {
+          const box = this.node.querySelector(SAY_BOX);
+          if (box && seenRect(box, new Map())) commands.reply.landInThread(box);
+          else commands.reply.landSent(this.node);
+        },
+        previous: (id) => this.#lastEditable(id),
+        // A rewrite starts from the words as they stand, so opening one is acting in
+        // the thread and shows what it holds (held-news.js). One rewrite stands open in
+        // a thread unless the user changed its words: opening one closes another left
+        // as the message says it, and unfolds a summary holding the message, since it
+        // opens to be seen.
+        opening: (id) => {
+          this.#showNews();
+          for (const view of this.#messages.values()) view.putEditAside();
+          const folded = this.#model?.summaries.find(({ covers }) =>
+            covers.includes(id),
+          );
+          if (folded) this.#expandedSummaries.add(folded.id);
+        },
+        reveal: (message, caretLine) => revealEditor(message, caretLine),
+      },
     };
     this.node = document.createElement(
       surface === "outlet" || surface === "panel" ? "details" : "div",
@@ -417,8 +454,26 @@ export class ThreadView {
 
   // Local disclosure and draft changes repaint the complete received descriptor,
   // never feed a held presentation back into the news owner's input.
-  repaint() {
-    this.present(this.#received);
+  repaint(options) {
+    this.present(this.#received, options);
+  }
+
+  // The view of the user's latest words in this thread, or the latest before message
+  // `before`, which ↑ opens for rewriting: from the empty reply box (`wireReply`), or from
+  // the start of a rewrite already open (`message-edit.js`). A message with no words,
+  // such as a bare drawing, is passed over; none while the words found cannot be
+  // rewritten, such as a message still sending, rather than older words.
+  #lastEditable(before = null) {
+    const messages = this.#model?.messages ?? [];
+    const end =
+      before === null ? messages.length : messages.findIndex(({ id }) => id === before);
+    const message = messages
+      .slice(0, Math.max(end, 0))
+      .findLast(
+        (item) =>
+          item.author === "user" && item.body.kind !== "reaction" && item.body.text,
+      );
+    return message?.editable ? (this.#messages.get(message.key) ?? null) : null;
   }
 
   // The last of the thread a reader can see, after which its news grows: a folded
@@ -505,8 +560,13 @@ export class ThreadView {
   // its reply row and later cards. Existing-message changes and active compositions
   // retain the hold. A pinned reply can absorb growth at the thread's end, but cannot
   // absorb changes above it or settlement replacing the reply itself.
-  newsMoves({ news, changed, folds, appendedAtEnd }) {
+  newsMoves({ news, changed, folds, appendedAtEnd, footFold }) {
     const pinned = replyPinned(this.#reply?.node);
+    // An answer's own fold of the progress run at the thread's end changes only the
+    // thread's foot, as the answer's arrival does, unless the user stands on a message
+    // the fold would put away, by focus or by a selection reaching into it.
+    const foot =
+      footFold && !folds.messages.some((key) => standsOn(this.#messageNode(key)));
     const idleAppend =
       this.#model?.surface === "panel" &&
       this.node.open &&
@@ -515,29 +575,23 @@ export class ThreadView {
       !news.settled &&
       !news.summaries &&
       !changed.size &&
-      !folds.messages.length &&
-      !folds.summaries.length;
+      (foot || (!folds.messages.length && !folds.summaries.length));
     const followed = (pinned && !news.settled) || idleAppend ? this.#foot : null;
     return (
       [
         ...[...changed].map((message) => this.#messageNode(message)),
         (news.appended || news.settled) && this.#foot,
       ].some((node) => node && node !== followed && growthAfterIsSeen(node)) ||
-      growthInsideIsSeen(
+      (!(idleAppend && foot) &&
         [
           ...folds.messages.map((message) => this.#messageNode(message)),
           ...folds.summaries.map((summary) => this.#summaryNode(summary)),
-        ].filter(Boolean),
-      ) ||
-      Boolean(
-        news.settled &&
-        this.#settlementRow &&
-        growthInsideIsSeen([this.#settlementRow]),
-      )
+        ].some((node) => node && growthIsSeen(node))) ||
+      Boolean(news.settled && this.#settlementRow && growthIsSeen(this.#settlementRow))
     );
   }
 
-  present(model, { retaining = false, viewChanged = false } = {}) {
+  present(model, { retaining = false, viewChanged = false, writing = null } = {}) {
     this.#received = model;
     const prior = this.#model;
     // The list chooses membership. The complete thread owns its outgoing paint and
@@ -575,7 +629,16 @@ export class ThreadView {
     // Capture the standing words only when news starts waiting, before its update
     // removes a receipt. This allocation lives with the held view, not its reading.
     if (model.news && !prior?.news) this.#retainHeaderSlot({ observe: false });
-    const bodyPlace = this.#continuity?.before();
+    // The messages being rewritten, whose own changes of height the held extent follows
+    // (ReplyContinuity): the one a rewrite gesture names, and every one whose rewrite
+    // stands open, a save closing it among them.
+    const rewritten = new Set(
+      [...this.#messages.values()]
+        .filter((view) => view.editing)
+        .map(({ node }) => node),
+    );
+    if (writing) rewritten.add(writing);
+    const bodyPlace = this.#continuity?.before([...rewritten]);
     const restoreFocus = holdFocus(this.node);
     const standing = focused();
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
@@ -617,10 +680,27 @@ export class ThreadView {
     }
     const replySlot = reply || Boolean(this.#replyReservation);
     const panel = model.surface === "panel";
-    // A resolved panel card's title holds its one control: Reopen, or, while the thread
-    // holds news, the notice in Reopen's place, since the card has no other row to
-    // draw it in without growing.
-    const headerSettlement = panel && model.resolved && !replySlot && !model.folding;
+    const marginControls = model.surface === "margin" ? this.#marginControls : null;
+    // Where the settlement stands, decided once: the container it renders in and the
+    // face it wears both follow from it.
+    // - "title": a resolved panel card's title holds its one control, Reopen, or, while
+    //   the thread holds news, the notice in Reopen's place, since the card has no other
+    //   row to draw it in without growing.
+    // - "margin": a margin card's own controls row.
+    // - "row": a resolved page or outlet thread's own row, with room for the word.
+    // - "head": the head's controls row, which reserves the room of one icon control
+    //   (shadow.css, `--lf-thread-action-room`) beside the first message's own
+    //   controls, so whatever stands there is the check: Resolve, or the Reopen in its
+    //   place while a reply box holds a resolved card open. The word, wider, ran over
+    //   the message's pencil.
+    const settlementPlace = marginControls
+      ? "margin"
+      : model.resolved && !replySlot && !model.folding
+        ? panel
+          ? "title"
+          : "row"
+        : "head";
+    const headerSettlement = settlementPlace === "title";
     const notice = headerSettlement ? this.#titleNews : this.#news;
     if (model.news) notice.set(model.news);
     const news = model.news ? notice.node : nothing;
@@ -647,12 +727,18 @@ export class ThreadView {
     }
     if (model.surface === "outlet" && this.#outletReplyShown !== reply) {
       this.node.toggleAttribute("open", reply);
+      // Chrome drops scroll anchoring for a layout that both opens or shuts a `details`
+      // and changes what it holds, so an outlet folding above the screen as the agent
+      // resolves it would carry what the user reads by the fold's height. Laying out
+      // the disclosure before the render below changes the thread lets anchoring take
+      // each change.
+      this.node.getBoundingClientRect();
       this.#outletReplyShown = reply;
     }
     const wanted = new Set(model.messages.map((message) => message.key));
     for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
     const settlement = model.settlement
-      ? this.#settlement(model, headerSettlement)
+      ? this.#settlement(model, settlementPlace)
       : null;
     // The title holds one control, Reopen or the notice in its place, and the card's
     // notice stands there or in a row of its own. Whichever takes the place of the one
@@ -667,12 +753,11 @@ export class ThreadView {
         ? successor
         : null;
     this.#titleControl = titleControl;
-    const marginControls = model.surface === "margin" ? this.#marginControls : null;
     let threadActions = null;
-    if (!model.resolved || replySlot || model.folding || marginControls) {
+    if (settlementPlace === "head" || settlementPlace === "margin") {
       const actions = marginControls
         ? [marginControls.nav, settlement, marginControls.close].filter(Boolean)
-        : [headerSettlement ? null : settlement].filter(Boolean);
+        : [settlement].filter(Boolean);
       for (const child of [...this.#actions.children])
         if (!actions.includes(child)) child.remove();
       actions.forEach((control, index) => {
@@ -855,7 +940,7 @@ export class ThreadView {
         ${replySlot ? (this.#continuity?.gap ?? nothing) : nothing}
         ${reply ? this.#reply.node : (this.#replyReservation ?? nothing)}
         ${
-          model.resolved && !replySlot && !model.folding && !marginControls && !panel
+          settlementPlace === "row"
             ? html`<div class="lf-page-thread-resolved lf-ui">
                 <span
                   >${
@@ -1115,15 +1200,18 @@ export class ThreadView {
 
   // The panel's resolved title keeps its state label as the reopening action.
   // Other surfaces use Reopen or the completed check in Resolve's place.
-  #settlement(model, header = false) {
+  #settlement(model, place) {
     const state = model.settlement;
     const reopen = state.kind === "unresolve";
-    const face = `${state.kind}${state.icon ? " icon" : ""}${header ? " header" : ""}`;
+    const header = place === "title";
+    // A margin card's controls row draws Resolve as the check and Reopen as the word.
+    const icon = place === "head" || (place === "margin" && !model.resolved);
+    const face = `${state.kind} ${place}`;
     let button = this.#settlements.get(face);
     if (!button) {
       button = offer(
         "button",
-        `lf-btn ${reopen ? "lf-reopen" : "lf-resolve"} ${header ? "lf-thread-header-action lf-thread-action" : state.icon ? "lf-icon-action" : "lf-thread-action"}`,
+        `lf-btn ${reopen ? "lf-reopen" : "lf-resolve"} ${header ? "lf-thread-header-action lf-thread-action" : icon ? "lf-icon-action" : "lf-thread-action"}`,
       );
       button.type = "button";
       this.#settlements.set(face, button);
@@ -1144,7 +1232,7 @@ export class ThreadView {
     if (header) {
       keeps(button, "aria-label", `${model.resolvedBy || "Resolved"} · Reopen thread`);
       keeps(button, "title", `${model.resolvedBy || "Resolved"} · Reopen thread`);
-    } else if (state.icon) {
+    } else if (icon) {
       const label = model.folding ? "Resolved" : state.label;
       keeps(button, "aria-label", label);
       keeps(button, "title", label);
@@ -1152,7 +1240,7 @@ export class ThreadView {
     render(
       header
         ? model.resolvedBy || "Resolved"
-        : state.icon
+        : icon
           ? iconTemplate("check", "lf-action-icon")
           : state.label,
       button,
@@ -1225,7 +1313,7 @@ export class ThreadView {
     // The trip promises to show the passage, so it clears the panel where the panel
     // stands over most of it and leaves the panel open beside one seen where it stands.
     travel.scrollToThread(model.id, {
-      focus: "reply",
+      part: "reply",
     });
   };
 
@@ -1260,8 +1348,25 @@ export class ThreadView {
         if (this.#model.resolved) this.#commands.reply.changed();
       });
     };
-    const lifetime = createReplyView(model.key, this.#commands.reply, {
+    const { actions } = this.#commands.reply;
+    const commands = {
+      ...this.#commands.reply,
+      actions: {
+        ...actions,
+        reply: (key, text, options) =>
+          this.#speak(
+            () => actions.reply(key, text, options),
+            options.attempt,
+            "thread",
+          ),
+      },
+    };
+    const lifetime = createReplyView(model.key, commands, {
       onChange: replyChanged,
+      editLast: {
+        available: () => Boolean(this.#lastEditable()),
+        open: () => this.#lastEditable()?.openEdit(),
+      },
     });
     const { node: row, input } = lifetime;
     if (panel)
@@ -1309,28 +1414,67 @@ export class ThreadView {
         },
       };
     }
+    return this.#goWithThread({ part: "reply", always: true });
+  }
+
+  // A turn of the user's own in a panel thread: `post` sends it and answers the send.
+  // Where the turn takes the thread out of the view the user wrote it in, as a reply
+  // under "Waiting on you" or a rewrite under Resolved does, the view widens to show
+  // it and the user goes with it, landing on `part`, and back if the log refuses
+  // it while they have not acted since.
+  #speak(post, attempt, part) {
+    const landing =
+      this.#model.surface === "panel"
+        ? this.#goWithThread({ part, always: false })
+        : null;
+    const answer = post();
+    if (landing && answer)
+      void landGesture({
+        landing,
+        answer,
+        standing: () =>
+          this.#commands.settlement
+            .pendingEntries()
+            .some(({ event }) => event.attempt === attempt),
+      }).catch(() => {});
+    return answer;
+  }
+
+  // Carrying the user with the thread into the view that holds it as it now stands:
+  // always, for a Reopen, or, for another turn, only where the view leaves it out.
+  #goWithThread({ part, always }) {
+    const { travel } = this.#commands;
+    const mayLand = travel.retainPanelLanding(this.node);
+    const shownCard = () =>
+      !this.node.hidden && this.node.isConnected ? this.node : null;
+    // Until the user arrives with the thread, the gesture's own lease stands for them.
+    let mayRestore = mayLand;
     const narrowing = travel.retainNarrowing();
+    // The card leaves the view the turn was written in: hidden, or drawn only for the
+    // turn's words on their way (thread-list-view.js, `keepsForWords`).
+    const leftOut = () =>
+      this.node.hidden || this.#commands.listRoot.keepsForWords(this.#model.id);
     return {
       optimistic: async () => {
         if (!mayLand()) return false;
-        const arriving = travel.showThread(this.#model.id);
+        if (!always && !leftOut()) return false;
+        const arriving = travel.showThread(this.#model.id, { part });
         narrowing.replaced();
         if (!(await arriving)) return false;
         const destination = shownCard();
         if (destination) mayRestore = travel.retainPanelLanding(destination);
         return Boolean(destination);
       },
-      // The filter the reopen cleared goes back with the thread, while Threads is open.
-      // An undo's intent governs the whole reversal, so a later input wins over both
-      // halves. A refusal has none: the narrowing's own guard decides the filter, and
-      // the landing's decides the focus.
+      // The view the turn widened goes back with the user, while Threads is open and
+      // they have not acted since (the user's decision, 2026-10-07): an undo's intent,
+      // or for a refusal the landing's own, governs the whole reversal, so a later input
+      // keeps both the view and the focus where the user took them.
       reverse: async (may = null) => {
-        if (!mayLand.available() || (may && !may())) return;
-        const restoreFocus = (may ?? mayRestore)();
-        await narrowing.restore(async () => {
-          if (restoreFocus)
-            await travel.showThread(this.#model.id, { focus: "thread" });
-        });
+        const acting = may ?? mayRestore;
+        if (!mayLand.available() || !acting()) return;
+        await narrowing.restore(() =>
+          travel.showThread(this.#model.id, { part: "thread" }),
+        );
       },
     };
   }

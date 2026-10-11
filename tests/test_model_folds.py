@@ -9,7 +9,7 @@ putting one in the claim.
 """
 
 import model_folds as model
-from interact_support import PAGE_PACKAGES
+from interact_support import page_packages
 
 HUB = model.leaf_page(
     "command hub",
@@ -30,23 +30,15 @@ HELD_REQUEST = (
     {"kind": "reply", "author": "agent", "parent": "e1", "text": "The hunk is ready."},
 )
 
-# One draft, three revisions of it. The user rewrote the authored words in r1;
-# r2 rewrote them again and said so; r3 is an unrelated edit on r2's words.
-DRAFT = """<h1 id="t">Journey</h1>
-<lf-draft id="draft-ops"{attrs}><pre>{text}</pre></lf-draft>"""
-AUTHORED = "Run the migration before deploying."
-USER_EDIT = "Run the migration before deploying. It takes about a minute."
-CORRECTED = "Run the migration after deploying — it needs the new column."
-
 
 def test_summaries_replace_overlaps_and_edits_do_not_resurrect_them():
+    identity = {"author": "agent", "agent": "Agent", "session": "session-1"}
     messages = (
         {"kind": "comment", "text": "one"},
         {"kind": "reply", "parent": "e1", "text": "two"},
-        {"kind": "reply", "parent": "e2", "text": "three"},
+        {"kind": "reply", **identity, "parent": "e2", "text": "three"},
         {"kind": "reply", "parent": "e3", "text": "four"},
     )
-    identity = {"author": "agent", "agent": "Agent", "session": "session-1"}
     state = model.reading(
         HUB,
         (
@@ -117,9 +109,9 @@ def test_folds_without_summary_prose_keep_corrected_originals():
         HUB,
         (
             {"kind": "comment", "text": "one"},
-            {"kind": "reply", "parent": "e1", "text": "two"},
+            {"kind": "reply", **identity, "parent": "e1", "text": "two"},
             {"kind": "reply", "parent": "e1", "text": "three"},
-            {"kind": "reply", "parent": "e1", "text": "four"},
+            {"kind": "reply", **identity, "parent": "e1", "text": "four"},
             {
                 "kind": "summary",
                 **identity,
@@ -180,6 +172,7 @@ def test_ephemeral_updates_wait_for_an_answer_and_preserve_user_interjections():
     )
     pending = model.threads(model.reading(HUB, messages))["e1"]
     assert pending["summaries"] == []
+    assert pending["unread"] == [{"message": "e4", "version": "e4"}]
 
     answer = {"kind": "reply", **identity, "parent": "e1", "text": "Both fit."}
     later_progress = {
@@ -206,6 +199,10 @@ def test_ephemeral_updates_wait_for_an_answer_and_preserve_user_interjections():
         "Checking the camera.",
         "Both fit.",
         "Checking the next week.",
+    ]
+    assert completed["unread"] == [
+        {"message": "e5", "version": "e5"},
+        {"message": "e6", "version": "e6"},
     ]
 
 
@@ -245,6 +242,7 @@ def test_explicit_summaries_own_progress_overlap_and_progress_edits_keep_the_fol
     )["e1"]
     assert [fold["covers"] for fold in corrected["summaries"]] == [["e2", "e3"]]
     assert corrected["msgs"][1]["text"] == "Mounts checked."
+    assert corrected["unread"] == [{"message": "e4", "version": "e4"}]
 
     explicit = model.threads(
         model.reading(
@@ -266,6 +264,53 @@ def test_explicit_summaries_own_progress_overlap_and_progress_edits_keep_the_fol
         (["e1", "e2"], "The mounts were checked."),
         (["e3"], ""),
     ]
+    assert explicit["unread"] == [{"message": "e4", "version": "e4"}]
+
+
+def test_only_a_main_reply_in_the_same_thread_supersedes_progress():
+    agent = {"author": "agent", "agent": "Codex", "session": "session-1"}
+    reply = {"kind": "reply", **agent, "parent": "e1"}
+    messages = (
+        {"kind": "comment", "text": "Check the schedule."},
+        {**reply, "text": "Checking mounts.", "ephemeral": True},
+        {**reply, "token": "keep"},
+        {
+            **reply,
+            "text": "Connection failed.",
+            "failure": "unavailable",
+            "responds": "e1",
+        },
+        {**reply, "text": "Retrying.", "ephemeral": True},
+        {"kind": "comment", "text": "A separate question."},
+        {**reply, "parent": "e6", "text": "A separate answer."},
+    )
+    pending = model.threads(model.reading(HUB, messages))["e1"]
+    assert pending["summaries"] == []
+    assert pending["unread"] == [
+        {"message": identity, "version": identity} for identity in ("e2", "e4", "e5")
+    ]
+
+    completed = (*messages, {**reply, "text": "Both mounts fit."})
+    thread = model.threads(model.reading(HUB, completed))["e1"]
+    assert thread["unread"] == [
+        {"message": identity, "version": identity} for identity in ("e4", "e8")
+    ]
+    assert [fold["trigger"] for fold in thread["summaries"]] == ["e8", "e8"]
+
+    revised = model.threads(
+        model.reading(
+            HUB,
+            (
+                *completed,
+                {"kind": "read", "messages": [{"message": "e8", "version": "e8"}]},
+                {"kind": "edit", **agent, "message": "e8", "text": "Only one fits."},
+            ),
+        )
+    )["e1"]
+    assert revised["unread"] == [
+        {"message": "e4", "version": "e4"},
+        {"message": "e8", "version": "e10"},
+    ]
 
 
 def test_a_decision_on_any_message_settles_the_thread_it_belongs_to():
@@ -278,7 +323,7 @@ def test_a_decision_on_any_message_settles_the_thread_it_belongs_to():
     and a command page reading the thread's `holds` would go on calling settled
     work outstanding.
     """
-    registry = model.model_layer(PAGE_PACKAGES[0])
+    registry = model.model_layer(page_packages()[0])
     open_thread = model.threads(model.reading(HUB, HELD_REQUEST, registry=registry))
     # The contrast: without it a fold that resolved every thread would pass below.
     assert open_thread["e1"]["resolved"] is None
@@ -291,56 +336,6 @@ def test_a_decision_on_any_message_settles_the_thread_it_belongs_to():
     assert resolved["resolved"] is not None, "a resolve on the reply left it open"
     assert resolved["resolved"]["parent"] == "e2"
     assert resolved["attention"] is None
-
-
-def test_a_retraction_outlives_the_version_that_made_it():
-    """`restated` belongs to the version that rewrote the words, and to no other.
-
-    v3 has nothing to declare, because it is not the one taking anything back. So
-    the retraction cannot live in the markup, or v3's silence would read as "carry
-    the decision" and hand the user's edit straight back — the same resurrection
-    one version later and just as quiet. The note records it in the log instead,
-    where it is a fact with a revision on it that every later revision inherits.
-    """
-    revisions = {
-        1: model.leaf_page("draft", DRAFT.format(text=AUTHORED, attrs="")),
-        2: model.leaf_page("draft", DRAFT.format(text=CORRECTED, attrs=" restated")),
-        3: model.leaf_page("draft", DRAFT.format(text=CORRECTED, attrs="")),
-    }
-    log = (
-        {
-            "kind": "action",
-            "widget": "draft-ops",
-            "action": "edit",
-            "detail": {"value": USER_EDIT},
-        },
-        {
-            "kind": "note",
-            "author": "agent",
-            "version": 2,
-            "revision": 2,
-            "text": "rewrote the draft",
-            "restated": ["draft-ops"],
-        },
-        {
-            "kind": "note",
-            "author": "agent",
-            "version": 3,
-            "revision": 3,
-            "text": "unrelated copy edits",
-        },
-    )
-
-    def standing(revision):
-        state = model.reading(revisions, log, revision=revision)
-        return model.projected(state, revision)["desired"]
-
-    # r1 is the anchor: the edit is a standing decision on the words it was made
-    # against, or the two readings below say nothing about retraction.
-    assert standing(1) == ["e1"]
-    assert standing(2) == []
-    # The version that says nothing inherits it.
-    assert standing(3) == []
 
 
 def test_every_served_agent_record_carries_the_name_it_is_shown_under():
@@ -397,7 +392,7 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
                 "parent": "e1",
                 "responds": "e1",
                 "text": "Here is the board. Which card goes first?",
-                "awaits": True,
+                "question": True,
                 "markup": board,
             },
             {
@@ -417,7 +412,7 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
     threads = model.threads(state)
     assert threads["e1"]["attention"] == {
         "kind": "needs_user",
-        "reason": "ask",
+        "reason": "question",
         "workflow": None,
     }
     assert threads["e4"]["attention"] == {
@@ -427,37 +422,46 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
     }
 
 
-def test_the_runtime_tests_build_on_the_records_the_server_serves():
-    """`served_records.json` is this fold's output, so a Node test built on it carries
-    every field the server sends; a change to the served shape fails here until the
-    file is rewritten."""
-    import served_records
+def test_gesture_sequence_keeps_surviving_edits_and_durable_retractions():
+    from served_records import gesture_sequence
 
-    assert served_records.RECORDS.read_text() == served_records.serialized(), (
-        "the served thread or workflow changed — rerun `uv run tests/served_records.py`"
-    )
-
-
-def test_each_served_action_says_whether_it_still_stands():
-    """The browser withdraws the action on top of a coordinate before the log does,
-    and shows the next one that stands. Whether an older action stands is this fold's
-    reading, so the wire carries it: an undo ends one, and the one beneath survives."""
-    page = model.leaf_page("draft", DRAFT.format(text=AUTHORED, attrs=""))
-    edit = {"kind": "action", "widget": "draft-ops", "action": "edit"}
-    state = model.reading(
-        page,
-        (
-            {**edit, "detail": {"value": USER_EDIT}},
-            {**edit, "detail": {"value": CORRECTED}},
-            {**edit, "detail": {"value": AUTHORED}},
-            {"kind": "undo", "undoes": "e3"},
-        ),
-    )
-    projection = model.projected(state, 1)
+    sequence = gesture_sequence()
+    assert sequence["states"][4]["revision_labels"] == {"1": "Draft"}
+    assert sequence["states"][5]["revision_labels"] == {"1": "Draft", "2": "v1"}
+    assert sequence["states"][6]["revision_labels"] == {
+        "1": "Draft",
+        "2": "v1",
+        "3": "v2",
+    }
+    projections = [
+        model.projected(
+            state["browser"], 1 if index == 7 else state["active"]["revision"]
+        )
+        for index, state in enumerate(sequence["states"])
+    ]
+    assert [projection["desired"] for projection in projections] == [
+        [],
+        ["e1"],
+        ["e2"],
+        ["e3"],
+        ["e2"],
+        [],
+        [],
+        ["e2"],
+    ]
     assert {
-        entry["event"]["id"]: entry["stands"] for entry in projection["entries"]
+        entry["event"]["id"]: entry["stands"] for entry in projections[4]["entries"]
     } == {"e1": True, "e2": True, "e3": False}
-    assert projection["actions"] == ["e2"]
+    assert [projection["actions"] for projection in projections] == [
+        [],
+        ["e1"],
+        ["e2"],
+        ["e3"],
+        ["e2"],
+        [],
+        [],
+        ["e2"],
+    ]
 
 
 def test_question_lifecycle_selects_current_prompt_and_preserves_first_settlement():
@@ -472,36 +476,51 @@ def test_question_lifecycle_selects_current_prompt_and_preserves_first_settlemen
     add("comment", "first", text="Which route?")
     add("reply", "update", parent="first", text="Checking.")
     add("reply", "progress", parent="first", text="Still checking.", ephemeral=True)
-    state = add("reply", "second", parent="first", text="Which colour?", awaits=True)
+    state = add("reply", "second", parent="first", text="Which colour?", question=True)
     assert model.threads(state)["first"]["user_prompt"] == {
         "message": "second",
         "version": "second",
     }
-    assert [task["id"] for task in state["tasks"]] == ["second"]
+    assert state["tasks"] == []
+    assert [question["id"] for question in state["thread"]["questions"]["all"]] == [
+        "reply:first",
+        "reply:second",
+    ]
+    assert [question["id"] for question in state["thread"]["questions"]["user"]] == [
+        "reply:second"
+    ]
     state = add("reply", "reaction", "user", parent="second", token="keep")
     assert model.threads(state)["first"]["user_prompt"] == {
         "message": "first",
         "version": "first",
     }
-    assert [task["id"] for task in state["tasks"]] == ["first"]
-    assert [(task["id"], task["outcome"]["id"]) for task in state["ended_tasks"]] == [
-        ("second", "reaction")
+    assert [question["id"] for question in state["thread"]["questions"]["user"]] == [
+        "reply:first"
     ]
+    assert state["thread"]["questions"]["all"][1]["answer"]["event"]["id"] == "reaction"
     state = add(
-        "task_end", "end", task="first", outcome="dropped", detail="Asked elsewhere"
+        "task_end",
+        "end",
+        task="reply:first",
+        outcome="dropped",
+        detail="Asked elsewhere",
     )
     assert model.threads(state)["first"]["user_prompt"] is None
     state = add("reply", "answer", "user", parent="first", text="Route A")
-    assert [
-        (task["id"], task["state"], task["outcome"]["id"])
-        for task in state["ended_tasks"]
-    ] == [("first", "dropped", "end"), ("second", "done", "reaction")]
-    state = add("reply", "third", parent="first", text="Which size?", awaits=True)
+    first, second = state["thread"]["questions"]["all"]
+    assert (first["status"], first["answer"]) == ("withdrawn", None)
+    assert (second["status"], second["answer"]["event"]["id"]) == (
+        "answered",
+        "reaction",
+    )
+    state = add("reply", "third", parent="first", text="Which size?", question=True)
     state = add("resolve", "close", "user", parent="first")
     assert state["tasks"] == []
     assert model.threads(state)["first"]["user_prompt"] is None
     state = add("unresolve", "reopen", "user", parent="first")
-    assert [task["id"] for task in state["tasks"]] == ["third"]
+    assert [question["id"] for question in state["thread"]["questions"]["user"]] == [
+        "reply:third"
+    ]
     assert model.threads(state)["first"]["user_prompt"] == {
         "message": "third",
         "version": "third",
@@ -526,13 +545,13 @@ def test_frozen_ask_attention_comes_from_its_widget_without_a_prose_task():
     assert thread["user_prompt"] is None
     assert thread["attention"] == {
         "kind": "needs_user",
-        "reason": "ask",
+        "reason": "question",
         "workflow": None,
     }
-    [task] = state["tasks"]
-    assert task["id"] == "routes"
-    assert task["ends"] == "widget"
-    assert task["ask"]["held_by_seat"] is False
+    assert state["tasks"] == []
+    [question] = state["thread"]["questions"]["all"]
+    assert question["id"] == "widget:routes"
+    assert question["next_actor"] == "user"
     events.append(
         {
             "kind": "action",
@@ -544,9 +563,12 @@ def test_frozen_ask_attention_comes_from_its_widget_without_a_prose_task():
     state = model.reading(HUB, events)
     assert model.threads(state)["e1"]["user_prompt"] is None
     assert state["tasks"] == []
-    assert [(task["id"], task["ends"]) for task in state["ended_tasks"]] == [
-        ("routes", "widget")
-    ]
+    assert state["ended_tasks"] == []
+    [question] = state["thread"]["questions"]["all"]
+    assert (question["status"], question["answer"]["value"]) == (
+        "answered",
+        ["route-a"],
+    )
 
 
 def test_summary_protects_the_unanswered_question_after_later_agent_updates():

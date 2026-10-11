@@ -13,6 +13,7 @@ from stat import S_ISDIR, S_ISREG
 
 from .locations import path_location
 from .page_memory import Slot, memo
+from .refusals import Refused
 from .schema import REVISION_NAME, VERSION_NAME
 from .state import replace_bytes
 
@@ -198,7 +199,7 @@ def revision_names(page_dir: Path) -> dict[int, str]:
     """Each revision's immutable marker file name, in revision order."""
     markers = _revision_files(page_dir)
     if any(len(names) > 1 for names in markers.values()):
-        sys.exit("more than one immutable revision has the same order")
+        raise Refused("more than one immutable revision has the same order")
     return {revision: names[0] for revision, names in markers.items()}
 
 
@@ -212,8 +213,8 @@ def revision_path(page_dir: Path, revision: int) -> Path:
     names = _revision_files(page_dir).get(revision, ())
     if len(names) != 1:
         if not names:
-            sys.exit(f"no revision r{revision} in {revisions}")
-        sys.exit(f"more than one immutable file records revision r{revision}")
+            raise Refused(f"no revision r{revision} in {revisions}")
+        raise Refused(f"more than one immutable file records revision r{revision}")
     return revisions / names[0]
 
 
@@ -231,7 +232,7 @@ def require_revision(page_dir: Path) -> int:
     """The newest valid revision; a command that needs one stops without it."""
     revision = latest_revision(page_dir)
     if revision is None:
-        sys.exit(missing_revision(page_dir))
+        raise Refused(missing_revision(page_dir))
     return revision
 
 
@@ -268,10 +269,9 @@ def stamped_version(events: list, revision: int) -> int | None:
     )
 
 
-def version_descriptors(page_dir: Path, events: list) -> list[dict]:
-    """The public stamps whose note names an existing immutable revision."""
+def version_descriptors(events: list, revisions: Collection[int]) -> list[dict]:
+    """The public stamps whose note names an available immutable revision."""
     mappings = version_revisions(events)
-    revisions = set(list_revisions(page_dir))
     return [
         {
             "version": version,
@@ -292,20 +292,38 @@ def active_descriptor(page_dir: Path, events: list) -> dict | None:
         return None
     reading = read_revision(page_dir, revision)
     path = reading.marker
-    version = stamped_version(events, revision)
-    label = f"v{version}" if version is not None else revision_label(events, revision)
+    return document_descriptor(
+        revision,
+        events,
+        url=f"/revisions/{path.name}",
+        executable=reading.manifest.get("executable"),
+        activated_at=datetime.fromtimestamp(path.stat().st_mtime, UTC).isoformat(),
+    )
+
+
+def document_descriptor(
+    revision: int,
+    events: list,
+    *,
+    url: str,
+    executable: str | None,
+    activated_at: str,
+) -> dict:
+    """One revision's live address, public stamp or draft label, and captured identity.
+
+    Filesystem readers supply the immutable marker and capture metadata; the log
+    alone determines whether this document is a stamped version or a draft.
+    A client compares the executable identity with its delivered document to
+    decide whether it needs a fresh document; a new public stamp alone does not.
+    """
     return {
         "revision": revision,
-        "version": version,
-        "url": f"/revisions/{path.name}",
-        "label": label,
-        # This revision's identity as executable code, decided when it was
-        # captured. A reader already holding a document compares it with the
-        # digest that document's own delivery stamped, and needs a fresh document
-        # only when the two differ. Read once here, so every consumer of the
-        # active revision works from one reading of it.
-        "executable": reading.manifest.get("executable"),
-        "activated_at": datetime.fromtimestamp(path.stat().st_mtime, UTC).isoformat(),
+        "version": stamped_version(events, revision),
+        "url": url,
+        "label": revision_label(events, revision),
+        # The capture decides executable identity, independently of public stamps.
+        "executable": executable,
+        "activated_at": activated_at,
     }
 
 
@@ -323,7 +341,10 @@ def revision_label(events: list, revision: int) -> str:
 
 def published_versions(page_dir: Path, events: list) -> list:
     """Public versions whose stamp and mapped immutable revision both exist."""
-    return [item["version"] for item in version_descriptors(page_dir, events)]
+    return [
+        item["version"]
+        for item in version_descriptors(events, list_revisions(page_dir))
+    ]
 
 
 def read_json(path: Path):
@@ -345,7 +366,7 @@ def replace_files(files: list) -> None:
         for index, left in enumerate(located_targets)
         for right in located_targets[index + 1 :]
     ):
-        sys.exit("two staged files resolve to the same target")
+        raise Refused("two staged files resolve to the same target")
     replace_bytes(
         [
             (target, data, follow_symlink or not path.is_symlink())

@@ -4,10 +4,12 @@
    A settlement's landing is the surface's own: `optimistic` carries the user where the
    gesture leaves them, and `reverse` puts them back once it no longer stands. The log
    refusing it runs `reverse` here; the user taking it back runs the same `reverse`,
-   which the undo door holds by the gesture's attempt, under the undo's intent. */
+   which the undo door holds by the gesture's attempt, under the undo's intent. The
+   user's other turns in a panel thread land the same way (`landGesture`), going with
+   the thread out of a view it leaves (thread-card.js, `#goWithThread`). */
 import { newAttempt } from "../drafts.js";
 import { paintKeys } from "../keyboard/scopes.js";
-import { FOLD_MS, motion } from "../motion.js";
+import { foldDuration, motion } from "../motion.js";
 import { pendingForParent } from "../pending/model.js";
 import { bindQueuedWork } from "../queued-work.js";
 import { whenDocumentPresented } from "../semantic-state.js";
@@ -32,6 +34,19 @@ export async function settleThread({
     : actions.resolve(key, { attempt });
   if (!answer) return;
   if (landing) retainReversal(attempt, landing.reverse);
+  await landGesture({
+    landing,
+    answer,
+    standing: () => Boolean(pendingSettlement(pendingEntries(), parent())),
+  });
+}
+
+/** Carry the user where a sent gesture leaves them, and back if the log refuses it.
+ *
+ * `landing` is the surface's {optimistic, reverse}, or null; `answer` the send's
+ * answer; `standing` whether the gesture is still on its way, so a landing the log
+ * answered before the page presented the gesture waits for that answer. */
+export async function landGesture({ landing, answer, standing }) {
   const land = async (step) => {
     try {
       return Boolean(await step?.());
@@ -42,7 +57,7 @@ export async function settleThread({
   // These are the command's two deferred invocations, rather than the native async
   // tail that waits for them. Capture both before presentation yields the gesture.
   const startLanding = bindQueuedWork(() =>
-    pendingSettlement(pendingEntries(), parent()) ? land(landing?.optimistic) : false,
+    standing() ? land(landing?.optimistic) : false,
   );
   const finishLanding = bindQueuedWork((accepted, landed) => {
     if (!accepted) return land(landing?.reverse);
@@ -83,7 +98,7 @@ export function foldOut(node, repaintThread) {
   };
   const to = Object.fromEntries(Object.keys(from).map((key) => [key, "0px"]));
   to.opacity = 0;
-  const played = motion(node, [from, to], FOLD_MS);
+  const played = motion(node, [from, to], foldDuration());
   if (!played) return false;
   const record = { played };
   folding.set(node, record);

@@ -73,14 +73,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            worker/package-lock.json
-            evals/package-lock.json
+          cache: pnpm
 
       # The runner supplies installed Chrome for the two launcher tests. The rest of
       # the browser suite uses the headless shell matching the locked Playwright, and
@@ -94,30 +91,16 @@ jobs:
       - name: Fetch pinned image assets
         run: uv run leaf-dev fetch-assets
 
-      - name: Install browser-build dependencies
-        run: npm ci
-
-      # Python exercises the real Wrangler wrapper, including on main/nightly runs.
-      - name: Install website dependencies
-        run: npm ci
-        working-directory: worker
-
-      - name: Check committed browser framework
-        run: npm run check:browser && npm run test:browser
+      - name: Install development dependencies
+        run: pnpm install --frozen-lockfile
 
       # The bundles build from the installed lock, so a rebuild reproduces the
       # tracked bytes exactly and any difference is a lock nobody rebuilt from.
       - name: Check vendored bundles
-        run: |
-          uv run build/vendor.py > /dev/null
-          git status --porcelain
-          test -z "$(git status --porcelain)"
+        run: pnpm run check:bundles
 
-      - name: 🧪 Runtime folds
-        run: npm run test:runtime
-
-      - name: Check eval assertions without model calls
-        run: npm ci --prefix evals && npm test --prefix evals
+      - name: Check browser, runtime, Worker and eval assertions
+        run: pnpm run check
 
       # Cheap gates fail before the complete Python suite spends its runner time.
       # The runner's four vCPUs sat ~41% idle under two workers; four left 7% idle
@@ -141,12 +124,10 @@ jobs:
       - name: Wait for Python tests
         wait: python-tests
 
-      - name: 🧪 Website worker tests
+      - name: Check website deployment
         if: github.event_name == 'pull_request'
         run: |
-          npm run typecheck
-          npm test
-          npx wrangler deploy --dry-run --outdir ../.tmp/worker-deploy
+          pnpm --dir .. exec wrangler --cwd worker deploy --dry-run --outdir ../.tmp/worker-deploy
         working-directory: worker
 
       - name: Measure the bundled release in Chrome

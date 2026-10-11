@@ -11,7 +11,6 @@ from interact_support import (
     SUGGESTION,
     append_carried_log_record,
     append_command,
-    asks_on_you,
     before_choice,
     check,
     comment,
@@ -21,6 +20,7 @@ from interact_support import (
     page_state,
     publish,
     published,
+    questions_on_you,
     response_reference,
     stamp,
     state_json,
@@ -334,6 +334,7 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_its_delivery_reference(
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, asked["id"]),
             "--text",
             "a week",
@@ -366,6 +367,33 @@ def test_a_section_handed_a_settled_move_is_told_nothing_is_owed(page_dir):
     assert "--for" not in mistaken.output
 
 
+def test_a_reply_refused_after_user_resolution_names_the_resolution(page_dir):
+    """An agent should know why its delivered reply became unnecessary."""
+    root = append_carried_log_record(
+        published(page_dir),
+        {"kind": "comment", "author": "user", "text": "Can you check this?"},
+    )
+    reference = response_reference(page_dir, root["id"])
+    resolution = append_carried_log_record(
+        page_dir,
+        {"kind": "resolve", "author": "user", "parent": root["id"]},
+    )
+
+    refused = CliRunner().invoke(
+        cli_model.cli,
+        ["response", "reply", "--done", reference, "--text", "I checked it."],
+    )
+
+    assert refused.exit_code != 0
+    assert "the user resolved the thread" in refused.output
+    assert resolution["ts"] in refused.output
+    assert "leaf thread reply" not in refused.output
+    misplaced = comment(page_dir, "--section", root["id"], "--text", "I checked it.")
+    assert "the user resolved the thread" in misplaced.output
+    assert "leaf thread reply" not in misplaced.output
+    assert not any(e["kind"] == "reply" for e in events_model.read_events(page_dir))
+
+
 def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     """A message is not the only id an agent is handed. A user's press on a widget
     frozen into a reply is answered through its exact delivery reference. The
@@ -386,6 +414,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--markup",
             frozen,
@@ -413,6 +442,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, pressed["id"]),
             "--section",
             pressed["id"],
@@ -647,7 +677,7 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
             "detached_from": None,
             "resolved": None,
             "unread": [root["id"], reply["id"]],
-            "attention": {"kind": "needs_user", "reason": "ask", "workflow": None},
+            "attention": {"kind": "needs_user", "reason": "question", "workflow": None},
         }
     ]
     transcript = CliRunner().invoke(
@@ -1156,7 +1186,7 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
     )
     assert refused.exit_code != 0
     assert (
-        "reply widget ids already taken" in refused.output and "flow" in refused.output
+        "reply markup ids already taken" in refused.output and "flow" in refused.output
     )
     assert files_model.latest_revision(page_dir) == 1
     assert all(event["kind"] != "reply" for event in events_model.read_events(page_dir))
@@ -1189,7 +1219,7 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
             "detached_from": root["anchor"],
             "resolved": None,
             "unread": [root["id"], reply["id"]],
-            "attention": {"kind": "needs_user", "reason": "ask", "workflow": None},
+            "attention": {"kind": "needs_user", "reason": "question", "workflow": None},
         }
     ]
     stored_root = next(event for event in events if event["id"] == root["id"])
@@ -1316,6 +1346,7 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, root["id"]),
             "--section",
             "backfill-first",
@@ -1332,6 +1363,7 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, root["id"]),
             "--detach",
             "--text",
@@ -1374,7 +1406,7 @@ def test_a_moving_reply_validates_markup_against_the_prospective_revision(page_d
     )
 
     assert moved.exit_code != 0
-    assert "reply widget ids already taken" in moved.output and "answer" in moved.output
+    assert "reply markup ids already taken" in moved.output and "answer" in moved.output
     assert all(event["kind"] != "reply" for event in events_model.read_events(page_dir))
     assert files_model.latest_revision(page_dir) == 1
     checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
@@ -2055,6 +2087,7 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
             [
                 "response",
                 "reply",
+                "--done",
                 response_reference(page_dir, root["id"]),
                 "--text",
                 "fixed in v2",
@@ -2126,10 +2159,7 @@ def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):
 
 
 def test_a_closed_thread_stops_asking(page_dir):
-    """A question in a thread is the thread's, so closing the thread withdraws it.
-    Otherwise an agent that asked and then answered the question for itself leaves
-    the user a standing decision for the life of the page, pointing into the disclosure
-    closed threads live in."""
+    """Resolving a thread suppresses its Question attention while retaining inventory."""
     (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
     root = append_carried_log_record(
@@ -2146,10 +2176,10 @@ def test_a_closed_thread_stops_asking(page_dir):
             "</lf-options></lf-ask>",
         },
     )
-    assert asks_on_you(state_json(page_dir)) == [
+    assert questions_on_you(state_json(page_dir)) == [
         {
-            "id": "gm-decision",
-            "tag": "lf-ask",
+            "id": "widget:gm",
+            "tag": "lf-options",
             "widget": "gm",
             "widget_tag": "lf-options",
             "thread": root["id"],
@@ -2158,7 +2188,7 @@ def test_a_closed_thread_stops_asking(page_dir):
     append_carried_log_record(
         page_dir, {"kind": "resolve", "author": "agent", "parent": root["id"]}
     )
-    assert asks_on_you(state_json(page_dir)) == []
+    assert questions_on_you(state_json(page_dir)) == []
 
 
 def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
@@ -2183,17 +2213,17 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
                 },
             )
         )
-    assert asks_on_you(state_json(page_dir)) == [
+    assert questions_on_you(state_json(page_dir)) == [
         {
-            "id": "group-a-decision",
-            "tag": "lf-ask",
+            "id": "widget:group-a",
+            "tag": "lf-options",
             "widget": "group-a",
             "widget_tag": "lf-options",
             "thread": roots[0]["id"],
         },
         {
-            "id": "group-b-decision",
-            "tag": "lf-ask",
+            "id": "widget:group-b",
+            "tag": "lf-options",
             "widget": "group-b",
             "widget_tag": "lf-options",
             "thread": roots[1]["id"],
@@ -2211,10 +2241,10 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
             "detail": {"value": ["option-a"]},
         },
     )
-    assert asks_on_you(state_json(page_dir)) == [
+    assert questions_on_you(state_json(page_dir)) == [
         {
-            "id": "group-b-decision",
-            "tag": "lf-ask",
+            "id": "widget:group-b",
+            "tag": "lf-options",
             "widget": "group-b",
             "widget_tag": "lf-options",
             "thread": roots[1]["id"],
@@ -2222,7 +2252,68 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
     ]
 
 
-def test_message_markup_may_not_dress_the_document_it_is_put_into(page_dir):
+def test_native_message_markup_shares_admission_and_id_ownership(page_dir):
+    """Native evidence posts through every agent writer and reserves its ids."""
+    published(page_dir)
+    table = (
+        '<table id="run-results"><caption>Deploy checks</caption>'
+        '<tr><th scope="col">Check</th><th scope="col">Result</th></tr>'
+        "<tr><td>Smoke test</td><td>Passed</td></tr></table>"
+    )
+    opened = comment(page_dir, "--text", "Results:", "--markup", table)
+    assert opened.exit_code == 0, opened.output
+    root = events_model.read_events(page_dir)[-1]["id"]
+    log = '<details id="deploy-log"><summary>Deploy log</summary><pre>Ready\nDone</pre></details>'
+    proactive = CliRunner().invoke(
+        cli_model.cli,
+        ["thread", "reply", str(page_dir), root, "--text", "Log:", "--markup", log],
+    )
+    assert proactive.exit_code == 0, proactive.output
+    append_command(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": root, "text": "And now?"},
+    )
+    user = events_model.read_events(page_dir)[-1]["id"]
+    answered = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "response",
+            "reply",
+            "--done",
+            response_reference(page_dir, user),
+            "--text",
+            "Ready.",
+            "--markup",
+            '<p id="deploy-status">All checks passed.</p>',
+        ],
+    )
+    assert answered.exit_code == 0, answered.output
+    assert [
+        e["markup"] for e in events_model.read_events(page_dir) if "markup" in e
+    ] == [table, log, '<p id="deploy-status">All checks passed.</p>']
+    for identifier in ("run-results", "deploy-log", "deploy-status", "plan"):
+        refused = comment(
+            page_dir,
+            "--text",
+            "Again:",
+            "--markup",
+            f'<p id="{identifier}">Duplicate</p>',
+        )
+        assert refused.exit_code != 0, refused.output
+        assert "already taken" in refused.output, refused.output
+    source = page_dir / "index.html"
+    source.write_text(
+        source.read_text().replace(
+            "</main>", '<p id="run-results">New result</p></main>'
+        )
+    )
+    refused = check(page_dir)
+    assert refused.exit_code != 0, refused.output
+    assert "ids already taken by message markup" in refused.output, refused.output
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_message_markup_may_not_dress_the_document_it_is_put_into(page_dir, native):
     """A fragment has no page of its own, so it gets no stylesheet of its own.
 
     The runtime parses an agent's markup into a template and moves those nodes into the
@@ -2233,13 +2324,14 @@ def test_message_markup_may_not_dress_the_document_it_is_put_into(page_dir):
     !important on a protected presentation property outranks the theme's first
     important layer, which is exactly what a version is refused for.
 
-    The widget beside them is what makes each refusal specific — a fragment carrying
-    nothing but a widget still posts."""
+    Native evidence and widgets pass through the same presentation gate."""
     published(page_dir)
     widget = (
         '<lf-ask id="d1-decision"><h3>Choose one</h3><lf-options id="d1" choose>'
         '<lf-option id="d1-a">A</lf-option></lf-options></lf-ask>'
     )
+    if native:
+        widget = '<pre id="native-log">Ready</pre>'
 
     sheet = comment(
         page_dir,
@@ -2317,7 +2409,8 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
     ] == [("ps-q", "choose", {"value": ["ps-cookie"]}, thread)]
 
 
-def test_message_markup_may_not_declare_the_document(page_dir):
+@pytest.mark.parametrize("native", [False, True])
+def test_message_markup_may_not_declare_the_document(page_dir, native):
     """A message renders in every revision of its page, so a base, header, or import
     map in one would redirect, navigate, or break that page for good. Handlers are the
     author's to write, as in the page itself."""
@@ -2326,6 +2419,8 @@ def test_message_markup_may_not_declare_the_document(page_dir):
         '<lf-ask id="d1-decision"><h3>Choose one</h3><lf-options id="d1" choose>'
         '<lf-option id="d1-a">A</lf-option></lf-options></lf-ask>'
     )
+    if native:
+        widget = '<table id="native-checks"><tr><td>Passed</td></tr></table>'
     for declaration in (
         '<base href="https://outside.example/">',
         '<meta http-equiv="refresh" content="0;url=https://outside.example/">',
@@ -2364,6 +2459,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--text",
             "See:",
@@ -2378,6 +2474,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--text",
             "See:",

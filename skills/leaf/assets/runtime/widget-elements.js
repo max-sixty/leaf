@@ -45,7 +45,7 @@ import { pressIsKeyboardActivation } from "./pointer.js";
 import { iconElement } from "./icons.js";
 import { renderedParent } from "./shadow.js";
 import { keeps, keepsText } from "./keeps.js";
-import { Directive, PartType, directive, nothing } from "../vendor/lit.js";
+import { Directive, PartType, directive, nothing } from "../vendor/browser-runtime.js";
 
 // A scroll target can sit inside a collapsed container — a closed <details>, an
 // inactive tab. Opening what the platform owns (details) and letting a container
@@ -299,6 +299,26 @@ export function worksInside(node, container) {
 export const offer = (...args) => document.documentElement.lfInitial.offer(...args);
 export const offerElement = (...args) =>
   document.documentElement.lfInitial.offerElement(...args);
+
+// Runtime searches share the vendor's native editor, frame and focus band. Callers
+// own their query and results; an auxiliary reading, such as a match count, belongs
+// in the control's `end` slot so it stays inside that same frame.
+export function searchField(cls, { name, label, placeholder = label }) {
+  const field = offer("wa-input", `lf-search-field lf-label-hidden ${cls}`);
+  field.type = "search";
+  field.value = "";
+  field.size = "s";
+  field.withClear = true;
+  // delegatesFocus keeps one native stop; the host declaration also lets modal
+  // traversal discover that stop without reaching into the component's shadow DOM.
+  field.tabIndex = 0;
+  field.name = name;
+  field.label = label;
+  field.placeholder = placeholder;
+  field.autocomplete = "off";
+  field.spellcheck = false;
+  return field;
+}
 
 // The template form of `offer`: `<button ${offered("lf-btn")}>`. It owns the
 // element's class and generated-control markers; attributes, values and handlers

@@ -20,6 +20,7 @@ from render_cases_interaction import (
     ASK_PAGE,
     SEATED_QUESTION_PAGE,
     live_url,
+    panel_comment,
 )
 from render_cases_layout import (
     glyph_action_face,
@@ -55,7 +56,6 @@ from render_harness import (
     draft_control,
     draft_key,
     example_media,
-    expect_banner_control_offered,
     expect_comment_notes,
     held_stale,
     hold_pending_thread_presentation,
@@ -184,6 +184,81 @@ def test_a_visible_focused_element_is_the_reading_place_until_the_reader_scrolls
     rendered(page)
     expect(field).to_be_focused()
     assert not in_view(), "stale focus displaced the reader's new place"
+
+
+@pytest.mark.parametrize("region", [False, True], ids=["page", "pane"])
+def test_a_page_keeps_its_place_below_the_banner_as_the_window_changes_width(
+    browser, serve, region
+):
+    """The banner takes a second row when the window narrows. The browser's scroll
+    anchoring holds the line the reader landed on where it stood in the window, which is
+    now under the banner; the page moves with the banner instead, in a document as in
+    a pane the page carries, and back again when the window widens. A control the reader
+    has focused at the top of the page, where the browser anchors nothing, stays in view
+    as the words above it rewrap."""
+    lines = "".join(
+        f'<p id="line-{n}">Line {n} of the incident, long enough to rewrap when the '
+        "window narrows to a phone and the banner takes its second row.</p>"
+        for n in range(60)
+    )
+    lines = (
+        f'<lf-pane id="reading" label="Reading"><div>{lines}</div></lf-pane>'
+        if region
+        else lines
+    )
+    question = (
+        '<lf-ask id="ask"><h2>Which way?</h2><lf-options id="way" choose>'
+        '<lf-option id="way-one"><strong>One</strong> the first way.</lf-option>'
+        '<lf-option id="way-two"><strong>Two</strong> the second way.</lf-option>'
+        "</lf-options></lf-ask>"
+    )
+    opening = "".join(
+        f"<p>Paragraph {n} opens the page with enough words that it rewraps to more "
+        "lines when the window narrows, pushing what follows further down.</p>"
+        for n in range(6)
+    )
+    source = leaf_page("Keeping a place", f"{opening}{question}{lines}")
+    page = open_page(browser, serve(source))
+    resized(page, 1280, 800)
+    rendered(page)
+    reading = """async (id) => {
+      const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+      let node = document.getElementById(id) ?? document.activeElement;
+      while (!id && node.shadowRoot?.activeElement) node = node.shadowRoot.activeElement;
+      return {band: landingBand(document.scrollingElement).top,
+              top: node.getBoundingClientRect().top,
+              bottom: node.getBoundingClientRect().bottom};
+    }"""
+
+    page.evaluate("location.hash = 'line-30'")
+    rendered(page)
+    landed = page.evaluate(reading, "line-30")
+    below = landed["top"] - landed["band"]
+    resized(page, 700, 800)
+    rendered(page)
+    narrowed = page.evaluate(reading, "line-30")
+    assert narrowed["band"] > landed["band"], "the banner should take a second row"
+    assert narrowed["top"] - narrowed["band"] == pytest.approx(below, abs=2), narrowed
+    resized(page, 1280, 800)
+    rendered(page)
+    assert page.evaluate(reading, "line-30") == pytest.approx(landed, abs=2)
+
+    page = open_page(browser, serve(source))
+    resized(page, 1280, 1100)
+    rendered(page)
+    page.locator("#way-one").evaluate(
+        """option => [option, ...option.shadowRoot?.querySelectorAll('*') ?? [],
+                     ...option.querySelectorAll('*')].find(node => node.tabIndex >= 0).focus()"""
+    )
+    rendered(page)
+    focused = page.evaluate(reading, None)
+    assert page.evaluate("document.scrollingElement.scrollTop") == 0
+    assert focused["bottom"] < 1100, focused
+    resized(page, 420, 1100)
+    rendered(page)
+    assert page.evaluate(reading, None)["bottom"] < 1100, (
+        "the focused option left the window"
+    )
 
 
 @pytest.mark.parametrize("bounded", [False, True])
@@ -355,7 +430,7 @@ def test_clicking_a_shadow_widget_input_keeps_its_focus_and_thread_reading(
             "parent": root["id"],
             "revision": 1,
             "text": "Filter the files in this patch.",
-            "markup": """<lf-diff id="reply-patch" data-height="201"><pre>
+            "markup": """<lf-diff id="reply-patch" data-height="151"><pre>
 diff --git a/reading.py b/reading.py
 --- a/reading.py
 +++ b/reading.py
@@ -1004,7 +1079,7 @@ def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(
     expect(draft.locator(".lf-draft-body strong")).to_have_text("this")
     expect(draft.locator(".lf-draft-body code")).to_have_text("that")
     expect(draft.locator(".lf-draft-body")).to_have_text(
-        "Keep this and that exactly. A second line."
+        "Keep this and that exactly. A second line.", use_inner_text=True
     )
     edits = [
         event
@@ -1212,10 +1287,10 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "3")
 
 
-def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, serve):
+def test_an_empty_draft_survives_reload_and_a_live_revision(browser, serve):
     """Empty text is a real replacement, not the absence of a saved draft. Deleting
-    the whole body must hold a live editor on its version, survive reload, and arrive
-    in the log as an ordinary absolute edit."""
+    the whole body must survive a live revision and reload, then arrive in the log
+    as an ordinary absolute edit."""
     url = serve(JOURNEY_V1)
     page = open_page(browser, live_url(url))
     draft = page.locator("#draft-ops")
@@ -1226,7 +1301,9 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     d = serve.page_dir
     stamp_page(d, JOURNEY_V2, "v2")
     told(page)
-    expect_banner_control_offered(page.locator(".lf-latest-chip"))
+    wait_for_revision(page, 2)
+    expect(draft.locator("leaf-text")).to_be_focused()
+    expect(draft.locator("leaf-text")).to_have_js_property("value", "")
     assert "/versions/" not in page.url
 
     page.reload(wait_until="load")
@@ -2158,8 +2235,8 @@ def test_a_comment_hidden_by_narrowing_is_revealed_in_the_open_panel(
         expect(thread.locator(":scope > .lf-thread-summary")).to_be_focused()
 
 
-def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, serve):
-    """An untouched reply is not a draft; an edit to empty is."""
+def test_an_untouched_and_an_emptied_reply_follow_live_revisions(browser, serve):
+    """Emptying a reply keeps its editing session while unrelated revisions arrive."""
     page = open_page(browser, live_url(serve(NOTED_PAGE)))
     resized(page, 1440, 900)
     select_words(page, "#p1")
@@ -2202,8 +2279,7 @@ def test_an_untouched_inline_reply_follows_but_an_emptied_draft_holds(browser, s
     )
     stamp_page(d, v3, "v3")
     told(page)
-    expect_banner_control_offered(page.locator(".lf-latest-chip"))
-    expect(page.locator(".lf-version")).to_contain_text("v2")
+    expect(page.locator(".lf-version")).to_contain_text("v3")
     expect(reply).to_have_js_property("value", "")
     expect(reply).to_be_focused()
 
@@ -3216,7 +3292,7 @@ def test_picture_paste_belongs_to_the_composer_not_the_shared_text_field(
         write(editor, "A later document edit")
         page.keyboard.press("Escape")
         compose(page, "#passage")
-        page.get_by_role("button", name="Remove pasted image 1", exact=True).click()
+        page.get_by_role("button", name="Remove attached image 1", exact=True).click()
         expect(page.locator(".lf-composer-media img")).to_have_count(0)
         page.locator("h1").click()
         page.keyboard.press("g")
@@ -3321,7 +3397,7 @@ def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
     Both directions here, and the box the user opens next, because a shelf that
     outlived its send is an image that rides into the next passage's draft."""
     page = open_page(browser, serve(LONG_PAGE))
-    image_markdown = "![Pasted image](/media/051bee487bfb5d13.png)"
+    image_markdown = "![Attached image](/media/051bee487bfb5d13.png)"
     compose(page, "#p3")
     pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
@@ -4457,6 +4533,9 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
     second_inserted = "".join(second_delta.locator("ins").all_inner_texts())
     assert "before" in second_deleted and "deploying" in second_deleted
     assert "afterthebackup" in re.sub(r"\s+", "", second_inserted)
+    # Comparisons preserve source whitespace; template indentation is visible here.
+    comparison = second_delta.locator(".lf-draft-delta").text_content()
+    assert comparison == comparison.strip()
 
     draft.get_by_role("button", name="Restore edit 1 · v1").focus()
     page.keyboard.press("Enter")
@@ -4466,6 +4545,7 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
         "Changes · 3 edits"
     )
     expect(draft.locator(".lf-draft-history > summary")).to_be_focused()
+    expect(draft.locator(".lf-draft-history")).to_have_attribute("open", "")
     expect(draft).to_have_attribute("data-lf-user-override", "1")
 
     events = [
@@ -5227,7 +5307,7 @@ def test_the_draft_box_is_its_own_door(browser, serve):
     page = open_page(browser, serve(JOURNEY_V1))
     draft = page.locator("#draft-ops")
     body = draft.locator(".lf-draft-body")
-    expect(body).to_have_text(DRAFT_TEXT)
+    expect(body).to_have_text(DRAFT_TEXT, use_inner_text=True)
 
     # A drag across the words takes the words. Read as the selection the user is left
     # holding, which is the thing the door would have destroyed.
@@ -5489,6 +5569,39 @@ def test_executable_revision_preserves_non_editor_thread_standing(browser, serve
     )
 
 
+def test_executable_revision_keeps_a_reader_who_scrolled_away_from_their_reply(
+    browser, serve
+):
+    """A replaced reply box takes focus back without pulling the reader back to it.
+
+    The reader wrote in a thread at the top of the Threads list, then scrolled the
+    list on with no other input, so the box keeps focus but no longer marks their
+    place (user-place.js, `focusedInView`). A revision that replaces the document
+    returns focus and words to the new box and leaves the list where they read."""
+    url = live_url(serve(editing_revision_source("before")))
+    ids = [panel_comment(serve.page_dir, f"General thread {n}.") for n in range(40)]
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-threads .lf-thread[data-id="{ids[0]}"]')
+    thread.click()
+    reply = thread.locator(".lf-thread-reply leaf-text")
+    words = "Words the reader left to read on."
+    write(reply, words)
+    threads = page.locator(".lf-threads")
+    threads.evaluate("list => { list.scrollTop = list.scrollHeight; }")
+    scroll_settled(page, ".lf-threads")
+    expect(reply).to_be_focused()
+    expect(reply).not_to_be_in_viewport()
+    held = threads.evaluate("list => list.scrollTop")
+    assert held > 0
+    replace_editing_document(page, serve)
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", words)
+    scroll_settled(page, ".lf-threads")
+    assert threads.evaluate("list => list.scrollTop") == pytest.approx(held, abs=2)
+
+
 def test_executable_revision_does_not_restore_a_new_draft_generation(browser, serve):
     page = editing_reply_page(browser, serve)
     editor = page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
@@ -5561,7 +5674,7 @@ def test_delayed_thread_destination_yields_to_shared_generation_or_new_input(
       const drafts=await window.__lfRuntimeImport('/runtime/drafts.js');
       const {replyDestination}=await window.__lfRuntimeImport('/runtime/thread/focus.js');
       const {retainUserIntent,restrictUserIntent}=await window.__lfRuntimeImport('/runtime/user-intent.js');
-      const {openThread}=await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {openThread}=await window.__lfRuntimeImport('/runtime/application.js');
       const button=document.createElement('button');button.id='held-reply-route';button.textContent='Continue the held reply';document.querySelector('main').append(button);
       button.onclick=()=>{
         const original=retainUserIntent();window.readOriginalIntent=original;

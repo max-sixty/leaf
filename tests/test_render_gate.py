@@ -18,6 +18,7 @@ from interact_support import (
     append_command,
     running_http_server,
 )
+from known_widget_findings import KNOWN, PACKAGES
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import hosting as hosting_model
@@ -26,17 +27,20 @@ from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import service as service_model
+from leaf.registry.contract import is_element_name
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
+from leaf.render_gate.widget_quality import own_tags
 from leaf.schema import ELEMENT_ID
-from leaf.validation import compatibility as validation_model
+from leaf.validation import composition as validation_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
     CHANGE_SHAPES_PAGE,
     PANEL_PAGE,
+    SHORT_SUGGESTION,
     panel_comment,
 )
 from render_cases_layout import (
@@ -492,7 +496,9 @@ def test_a_screen_region_that_runs_past_its_room_gets_advice(browser, serve):
     queued = source.replace("<p>Disk pressure on db-2.</p>", asks)
     reading = render_gate_model.render_version(browser, serve(queued, packages=()))
     (advice,) = [line for line in reading.advice if "past the region" in line]
-    assert "holds 2 open Asks" in advice and 'lf-tabs list="side"' in advice, advice
+    assert "holds 2 open Questions" in advice and 'lf-tabs list="side"' in advice, (
+        advice
+    )
 
 
 STACK = "{ #regions { grid-template-columns: 1fr; } }"
@@ -673,6 +679,7 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
             ]
             if spill
             else [],
+            "scrollbars": [],
             "labels": {"threshold_px": 10, "drawings": drawings},
         }
 
@@ -1271,6 +1278,42 @@ def test_a_probe_module_that_stops_loading_is_a_gate_finding(browser, serve):
     assert failures
     assert all("did not load" in failure for failure in failures)
     assert all("within 500ms" in failure for failure in failures)
+    assert all('File "' not in failure for failure in failures), failures
+
+
+@pytest.mark.parametrize("fault", ["exception", "null"])
+def test_a_failed_probe_import_keeps_its_original_throw_site(browser, serve, fault):
+    thrown = (
+        "new TypeError('probe import rejected')" if fault == "exception" else "null"
+    )
+
+    def failing_probe(page):
+        page.route(
+            "**/checks/index.js",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="text/javascript; charset=utf-8",
+                body=f"function loadBrowserProbes() {{ throw {thrown}; }} loadBrowserProbes();",
+            ),
+        )
+
+    failures = render_gate_model.render_version(
+        primed(browser.unwatched, failing_probe),
+        serve(LONG_PAGE),
+    ).failures
+    assert len(failures) == 2, failures
+    assert all('File "' not in failure for failure in failures), failures
+    if fault == "exception":
+        assert all(
+            "TypeError: probe import rejected" in failure
+            and "loadBrowserProbes" in failure
+            and "checks/index.js:" in failure
+            for failure in failures
+        ), failures
+    else:
+        assert all(
+            "null" in failure and "did not load" not in failure for failure in failures
+        ), failures
 
 
 def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
@@ -2000,6 +2043,56 @@ def test_the_render_gate_resolves_a_part_its_visual_draws_on_reveal(browser, ser
     )
 
 
+def test_visual_reveal_findings_keep_the_throw_site(browser, serve):
+    """A caught package fault is useful evidence, even without a pageerror event."""
+    widgets = visual_widgets(staged=True)
+    widgets["visual-fixture.js"] = widgets["visual-fixture.js"].replace(
+        'if (id !== "inner") return;',
+        'if (id !== "inner") return; null.revealInner();',
+    )
+    failures = render_gate_model.render_version(
+        browser.unwatched,
+        serve(
+            GENERIC_VISUAL_PAGE,
+            layer_registry=GENERIC_VISUAL_LAYER,
+            layer_widgets=widgets,
+        ),
+    ).failures
+    assert len(failures) == 2, failures
+    assert all('File "' not in failure for failure in failures), failures
+    assert all(
+        "could not reveal visual parts" in failure
+        and "TypeError:" in failure
+        and "visual-fixture.js:" in failure
+        and "at reveal" in failure
+        for failure in failures
+    ), failures
+
+
+def test_replay_findings_keep_the_throw_site(browser, serve):
+    """A direct complete-state replay retains the package's original exception."""
+    page = open_page(browser, serve(SHORT_SUGGESTION))
+    page.evaluate("""async () => {
+      const {validationWidgetStates} = await window.__lfRuntimeImport('/runtime/check-api.js');
+      const widget = validationWidgetStates().find(s => s.widget?.renderState).widget;
+      window.restoreReplay = () => { widget.renderState = original; };
+      const original = widget.renderState;
+      widget.renderState = function replayProjection() { throw new TypeError('replay rejected'); };
+    }""")
+    try:
+        findings = render_checks_model.evaluate_probe(page, "relativeReplays")
+    finally:
+        page.evaluate("restoreReplay()")
+    assert len(findings) == 1, findings
+    assert 'File "' not in findings[0], findings
+    assert (
+        "renderState threw when the complete state was rendered a second time: replay rejected"
+        in findings[0]
+    )
+    assert "TypeError: replay rejected" in findings[0]
+    assert "replayProjection" in findings[0]
+
+
 def test_the_render_gate_reads_a_visual_before_revealing_its_parts(browser, serve):
     """Reveals come after every other reading, so a defect in the opening state stands
     even when revealing a part draws it away."""
@@ -2035,14 +2128,14 @@ def test_the_render_gate_rejects_invalid_visual_inventory_records(browser, serve
             layer_widgets=widgets,
         ),
     ).failures
-    assert failures == [
+    assert [failure.splitlines()[0] for failure in failures] == [
         (
             "[light] <lf-test-visual id='missing'> declares addressable visual parts "
             "but its module did not register declared parts absent"
         ),
         (
             "[light] <lf-test-visual id='outside'> declares addressable visual parts "
-            "but its module Visual part outer has no descendant Element surface"
+            "but its module could not read visual parts: Visual part outer has no descendant Element surface"
         ),
         (
             "[dark] <lf-test-visual id='missing'> declares addressable visual parts "
@@ -2050,9 +2143,18 @@ def test_the_render_gate_rejects_invalid_visual_inventory_records(browser, serve
         ),
         (
             "[dark] <lf-test-visual id='outside'> declares addressable visual parts "
-            "but its module Visual part outer has no descendant Element surface"
+            "but its module could not read visual parts: Visual part outer has no descendant Element surface"
         ),
     ]
+
+    inventory_errors = [
+        failure for failure in failures if "could not read visual parts" in failure
+    ]
+    assert len(inventory_errors) == 2, failures
+    assert all(
+        "TypeError:" in failure and "registeredVisualParts" in failure
+        for failure in inventory_errors
+    )
 
 
 def test_the_render_gate_bounds_a_prefixed_inventory_by_its_prefixes(browser, serve):
@@ -2128,30 +2230,165 @@ stateDiagram-v2
     assert render_gate_model.render_version(browser, serve(page)).failures == []
 
 
-def test_a_class_named_for_its_namespace_keeps_its_part(browser, serve):
-    """A namespace and a class inside it can share a name, and the class is the box.
-
-    The renderer writes the same `data-id` on both groups. Treating the pair as an
-    ambiguous id would leave `node:Job` unregistered, which the gate reports against a
-    declared part; `Runner` is the control that registers either way.
-    """
+def test_a_namespaced_class_keeps_its_source_identity(browser, serve):
+    """Class and container inventory comes from the parser, not rendered labels."""
     page = leaf_page(
         "namespaced class",
         """<h1 id="title">Namespaced class</h1>
-<lf-diagram id="model" parts="node:Job node:Runner"><pre>
+<lf-diagram id="model" parts="all"><pre>
 classDiagram
-  namespace Job {
+  namespace Jobs {
     class Job
   }
   Runner --&gt; Job
 </pre></lf-diagram>""",
     )
-    assert render_gate_model.render_version(browser, serve(page)).failures == []
+    url = serve(page)
+    assert render_gate_model.render_version(browser, url).failures == []
+    drawn = open_page(browser, url)
+    assert (
+        drawn.locator("#model").evaluate("e => e.visualParts.get('node:Jobs').label")
+        == "Jobs"
+    )
+
+
+def test_diagram_identity_collisions_fail_before_layout(browser, serve):
+    """A node and its container cannot share the graph identity used by layout."""
+    url = serve(
+        leaf_page(
+            "colliding class",
+            """
+<h1 id="title">Colliding class</h1>
+<lf-diagram id="model"><pre>
+classDiagram
+  namespace Job {
+    class Job
+  }
+</pre></lf-diagram>
+""",
+        )
+    )
+    failures = render_gate_model.render_version(browser.unwatched, url).failures
+    assert (
+        sum(
+            "Mermaid declares diagram identity Job more than once" in f
+            for f in failures
+        )
+        == 2
+    )
+
+
+def test_diagrams_preserve_late_state_labels_and_sequence_titles(browser, serve):
+    """Both sources used to draw successfully while silently dropping their words."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "diagram semantics",
+                """
+<h1 id="title">Diagram semantics</h1>
+<lf-diagram id="life" parts="all"><pre>
+stateDiagram-v2
+  [*] --&gt; A
+  A --&gt; B
+  state "Preparing order" as A
+  state A {
+    Fetch --&gt; Build
+  }
+</pre></lf-diagram>
+<lf-diagram id="exchange" parts="all"><pre>
+sequenceDiagram
+  title Order handshake
+  loop Retry
+    User-&gt;&gt;Server: Submit order
+  end
+  Note right of Server: Checks order
+</pre></lf-diagram>
+<lf-diagram id="relationships" parts="all"><pre>
+erDiagram
+  RUNNER ||--o{ JOB : runs
+</pre></lf-diagram>
+<lf-diagram id="identities" parts="all"><pre>
+flowchart TD
+  123[Start] --&gt; Ω[Done]
+</pre></lf-diagram>
+""",
+            )
+        ),
+    )
+    expect(page.locator("#life svg")).to_contain_text("Preparing order")
+    expect(page.locator("#exchange svg")).to_contain_text("Order handshake")
+    assert set(page.locator("#life").evaluate("e => [...e.visualParts.keys()]")) == {
+        "node:A",
+        "node:B",
+        "node:Fetch",
+        "node:Build",
+    }
+    assert page.locator("#exchange").evaluate("e => [...e.visualParts.keys()]") == [
+        "node:User",
+        "node:Server",
+    ]
+
+    svg = page.locator("#exchange svg").element_handle()
+    for scheme in ("dark", "light"):
+        page.emulate_media(color_scheme=scheme)
+        paint = page.locator("#exchange svg").evaluate("""svg => {
+          const ink = getComputedStyle(svg.querySelector('.messageText')).color;
+          const canvas = document.createElement('canvas');
+          canvas.width = canvas.height = 1;
+          const ctx = canvas.getContext('2d', {willReadFrequently: true});
+          const luminance = color => {
+            ctx.fillStyle = color;
+            ctx.fillRect(0, 0, 1, 1);
+            return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3)
+              .map(c => c / 255)
+              .map(c => c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
+              .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
+          };
+          const actor = svg.querySelector('rect.actor');
+          const targets = [
+            ...[...svg.querySelectorAll('text.actor > tspan, text.loopText > tspan, text.noteText > tspan')]
+              .map(e => [e, actor, 'fill', 4.5]),
+            ...[...document.querySelectorAll('#relationships .edgeLabel .label text, #relationships .edgeLabel .label tspan')]
+              .filter(e => !e.children.length)
+              .map(e => [e, e.closest('.label').querySelector('rect'), 'fill', 4.5]),
+            [document.querySelector('#life rect.outer'), document.querySelector('#life rect.outer'), 'stroke', 3],
+            [document.querySelector('#life circle.state-start'), document.querySelector('#life rect.outer'), 'fill', 3],
+          ];
+          return targets.map(([e, background, property, minimum]) => {
+            const paper = luminance(getComputedStyle(background).fill);
+            const fill = getComputedStyle(e)[property];
+            const text = luminance(fill);
+            const contrast = (Math.max(paper, text) + 0.05) / (Math.min(paper, text) + 0.05);
+            return {text: e.textContent, fill, ink, contrast, minimum};
+          });
+        }""")
+        assert {p["text"] for p in paint} >= {
+            "User",
+            "Server",
+            "[Retry]",
+            "Checks order",
+            "runs",
+        }, paint
+        assert all(
+            (p["minimum"] == 3 or p["fill"] == p["ink"])
+            and p["contrast"] >= p["minimum"]
+            for p in paint
+        ), (
+            scheme,
+            paint,
+        )
+        assert svg.evaluate("e => e === document.querySelector('#exchange svg')")
+
+    assert page.locator("#identities").evaluate("e => [...e.visualParts.keys()]") == [
+        "node:123",
+        "node:Ω",
+    ]
 
 
 DIAGRAM_FAMILIES = {
     "pie": 'pie title Pets\n  "Dogs" : 386\n  "Cats" : 85',
-    "gantt": "gantt\n  dateFormat YYYY-MM-DD\n  section Build\n  Draft :a1, 2026-01-01, 3d\n  Review :after a1, 2d",
+    "gantt": "gantt\n  dateFormat YYYY-MM-DD\n  tickInterval 2day\n  section Build\n  Draft :a1, 2026-01-01, 3d\n  Review :after a1, 2d",
     # A box whose id is several words can never be a part, and still has to draw.
     "mindmap": "mindmap\n  root((Leaf))\n    Big idea\n    Threads",
     "er-quoted-name": 'erDiagram\n  "Line Item" ||--o{ ORDER : in',
@@ -2165,7 +2402,7 @@ DIAGRAM_FAMILIES = {
 
 
 def test_the_gate_passes_what_the_renderer_draws(browser, serve):
-    """Leaf draws what Agentic Mermaid draws, beyond the families its guide documents.
+    """Leaf draws what Mermaid draws, beyond the families its guide documents.
 
     The gate reports a source the renderer cannot draw at all (`UNPARSABLE_DIAGRAM`); a
     family it can draw is no failure, whether or not the guide names it.
@@ -2183,28 +2420,38 @@ def test_the_gate_passes_what_the_renderer_draws(browser, serve):
     assert render_gate_model.render_version(browser, url).failures == []
 
 
-def test_the_render_gate_rejects_an_unresolved_svg_paint_token(browser, serve):
+def test_the_render_gate_rejects_an_unresolved_svg_paint_token(
+    browser, serve, tmp_path, monkeypatch
+):
     """The browser must resolve generated paint against the page's live cascade.
 
-    A missing custom property is valid CSS syntax, so the diagram renderer accepts it
-    and SVG silently falls back to black. The same contract covers widgets frozen into
+    A missing custom property is valid CSS syntax, so a generated SVG silently
+    falls back to black. The same contract covers widgets frozen into
     an agent's reply, which render in the thread panel outside main. A fallback is the
     control: it names an absent property but resolves to a shipped color in both schemes.
     The native SVG is the other control: a gradient reference is valid paint even though
     it is not a color.
     """
+    monkeypatch.chdir(tmp_path)
+    package = tmp_path / ".leaf"
+    add_test_widget(package, "lf-paint", upgrade=True)
+    (package / "widgets" / "lf-paint.js").write_text("""
+import { once } from "/runtime/widget-api.js";
+customElements.define("lf-paint", class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    this.innerHTML = `<svg width="160" height="80" viewBox="0 0 160 80">
+      <rect data-id="missing" width="70" height="70" fill="var(--accent-glow)" />
+      <rect x="80" width="70" height="70" fill="var(--diagram-safe)" />
+    </svg>`;
+  }
+});
+""")
     page = leaf_page(
         "diagram paint",
         """
 <h1 id="title">Diagram paint</h1>
-<lf-diagram id="flow"><pre>
-flowchart LR
-  Missing[Missing] --&gt; Fallback[Fallback]
-  classDef missing fill:var(--accent-glow),stroke:var(--accent),color:var(--ink)
-  classDef fallback fill:var(--diagram-safe),stroke:var(--ok),color:var(--ok-ink)
-  class Missing missing
-  class Fallback fallback
-</pre></lf-diagram>
+<lf-paint id="flow"></lf-paint>
 <svg id="gradient" width="20" height="20" viewBox="0 0 20 20">
   <defs><linearGradient id="blue"><stop stop-color="var(--accent)" /></linearGradient></defs>
   <rect width="20" height="20" fill="var(--diagram-gradient)" />
@@ -2216,7 +2463,7 @@ flowchart LR
 }</style>""",
     )
 
-    url = serve(page)
+    url = serve(page, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     append_carried_log_record(
         serve.page_dir,
         {
@@ -2235,12 +2482,7 @@ flowchart LR
             "parent": "c-paint",
             "revision": 1,
             "text": "Here it is:",
-            "markup": """<lf-diagram id="sent"><pre>
-flowchart LR
-  Missing[Missing]
-  classDef missing fill:var(--accent-glow),stroke:var(--accent),color:var(--ink)
-  class Missing missing
-</pre></lf-diagram>""",
+            "markup": '<lf-paint id="sent"></lf-paint>',
         },
     )
 
@@ -2250,8 +2492,8 @@ flowchart LR
     assert len(unresolved) == 4, failures
     for diagram in ("flow", "sent"):
         expected = (
-            f"<lf-diagram id='{diagram}'> renders fill='var(--accent-glow)' on <rect> "
-            "for data-id='node-shape:Missing'"
+            f"<lf-paint id='{diagram}'> renders fill='var(--accent-glow)' on <rect> "
+            "for data-id='missing'"
         )
         assert sum(expected in failure for failure in unresolved) == 2, unresolved
     assert not any(
@@ -3726,12 +3968,49 @@ def typed_box_findings(page):
     return findings
 
 
+# Each bundled widget's package, which answers for it in `KNOWN`, by tag.
+WIDGET_PACKAGES = {
+    tag: package.name for package in PACKAGES for tag in own_tags(package)
+}
+
+
+def held_scroller_findings(page, source):
+    """Each box in a widget that holds its own height and scrolls inside it
+    (`grows-with-content`, widget_quality.py), in the page and each Leaf document it
+    frames. `package check --render` reads a widget's worked example, which carries no
+    data, so a box that holds its height only once rows arrive goes unseen there; the
+    corpus gives the widgets their data. A widget is one a bundled package or the page's
+    own package declares, and a finding `KNOWN` lists for the widget's package is that
+    defect, wherever it stands. A box the page or a Layout bounds on purpose declares
+    `--lf-holds-height: 1`, as a workspace's panes do. `heldScrollers` writes the page,
+    so it reads a page nothing reads again."""
+    local = source.with_suffix(".page")
+    tags = sorted({*WIDGET_PACKAGES, *(own_tags(local) if local.is_dir() else ())})
+    findings = []
+    for frame in page.frames:
+        if not frame.evaluate(
+            "() => !!document.querySelector('script[data-lf-entry]')"
+        ):
+            continue
+        where = "" if frame == page.main_frame else f" in {urlsplit(frame.url).path}"
+        findings += [
+            f"<{box['tag']} id={box['id']!r}> {box['at']} holds {box['height']}px and "
+            f"scrolls inside it{where}"
+            for box in render_checks_model.evaluate_probe(frame, "heldScrollers", tags)
+            if (box["tag"], "grows-with-content")
+            not in KNOWN.get(WIDGET_PACKAGES.get(box["tag"]), set())
+        ]
+    return findings
+
+
 @pytest.mark.parametrize("source", CORPUS_SOURCES, ids=lambda p: p.stem)
 def test_a_still_page_comes_back_from_every_journey_as_it_was(browser, serve, source):
     """A still_page goes through each journey that must leave it as it found it: left
     alone (`rest_findings`), every surface opened and closed (`surface_findings`),
     resized to a phone's width and back (`resize_findings`), and each typed box scrolled
-    away and back (`typed_box_findings`).
+    away and back (`typed_box_findings`). The page those journeys hand back, at the width
+    it opened at, is then read for widgets that hold their height
+    (`held_scroller_findings`), which writes it.
 
     They share one page because each reads only what its own journey changes, and
     the page the journey before handed over is one a reader could have reached.
@@ -3744,6 +4023,7 @@ def test_a_still_page_comes_back_from_every_journey_as_it_was(browser, serve, so
         "closed surfaces": surface_findings(page),
         "resized from the widest": resize_findings(page, RESIZE_PATH),
         "typed boxes": typed_box_findings(page),
+        "held scrollers": held_scroller_findings(page, source),
         "resized from the narrowest": resize_findings(
             still_page(browser, url, width=RESIZE_PATH[-1]), RESIZE_PATH[::-1]
         ),
@@ -3957,7 +4237,9 @@ def test_every_idiom_in_the_catalog_stands_in_a_corpus_source(browser):
             COMMAND_HUB_PACKAGE,
         ]
     )
-    idioms = [key for key in registry["$idioms"] if key != "description"]
+    idioms = [
+        key for key in registry if not key.startswith("$") and not is_element_name(key)
+    ]
     assert idioms, "no idioms read — an empty catalog demonstrates itself"
     page = browser.new_page()
     held, invalid = set(), set()
@@ -4352,6 +4634,226 @@ def test_a_widget_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar
     for name, reading in measured.items():
         assert reading["scrolls"], f"the {name} fits, so it proves nothing"
         assert reading["clear"] >= 15, measured
+
+
+def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
+    browser, serve, tmp_path, monkeypatch
+):
+    """An author's scrolling strip needs room for the overlay bar just as code does.
+
+    Controls, ordinary text flow, and words a widget puts in its open shadow tree
+    all reach the same check. Fitting content and an intentionally hidden bar do not.
+    Adding block-end room preserves both horizontal overflow and keyboard access.
+    """
+    monkeypatch.chdir(tmp_path)
+    add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
+    registry_path = tmp_path / ".leaf" / "registry.json"
+    entries = json.loads(registry_path.read_text())
+    entries["lf-callout"].pop("x-verbatim")
+    entries["lf-callout"]["x-shadow"] = True
+    registry_path.write_text(json.dumps(entries, indent=2))
+    (tmp_path / ".leaf" / "widgets" / "lf-callout.js").write_text(
+        'import { once, shadowStage } from "/runtime/widget-api.js";\n'
+        'customElements.define("lf-callout", class extends HTMLElement {\n'
+        "  connectedCallback() {\n"
+        "    if (!once(this)) return;\n"
+        "    const content = document.createElement('span');\n"
+        "    content.textContent = this.textContent;\n"
+        "    this.textContent = '';\n"
+        "    shadowStage(this, [content]);\n"
+        "  }\n"
+        "});\n"
+    )
+    wide = "sideways words " * 30
+    source = leaf_page(
+        "Scrollbar room",
+        '<h1 id="t">Reading a scrolling box</h1>'
+        '<div id="strip"><button>First choice</button><button>Middle choice</button>'
+        "<button>Last choice</button></div>"
+        f'<div id="flow"><span>{wide}</span><span>{wide}</span>'
+        f"<span>{wide}</span></div>"
+        f'<div id="shadow"><lf-callout id="words">{wide}</lf-callout></div>'
+        f'<div id="raw-words">{wide}</div>'
+        '<div id="slotted"><div id="slot-host" style="display: block; width: 600px">'
+        '<button style="display: block; width: 600px; height: 40px; margin: 0">Slotted choice</button>'
+        '<p style="height: 100px; margin: 0">Hidden words below the clip</p></div></div>'
+        '<div id="fits">Short words</div>'
+        f'<div id="hidden">{wide}</div>',
+        head="""<style>
+          #strip, #flow, #shadow, #raw-words, #slotted, #fits, #hidden {
+            box-sizing: content-box; width: 240px; overflow: auto;
+            padding: 0; border: 0; margin-block: 20px; line-height: 20px;
+            white-space: nowrap;
+          }
+          #strip { display: flex; }
+          #strip button { flex: 0 0 180px; height: 40px; margin: 0; }
+          #flow { height: 40px; }
+          #flow span { display: block; }
+          #hidden { scrollbar-width: none; }
+          #shadow lf-callout { display: inline; padding: 0; border: 0; margin: 0; }
+        </style>""",
+    )
+    url = serve(source, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
+    page = open_page(browser, url)
+    page.evaluate(
+        """() => {
+          const raw = document.getElementById('raw-words');
+          raw.attachShadow({mode: 'open'}).append(document.createTextNode(raw.textContent));
+          raw.textContent = '';
+          document.getElementById('slot-host').attachShadow({mode: 'open'}).innerHTML =
+            '<div style="height: 40px; overflow: hidden; line-height: 20px"><slot></slot></div>';
+        }"""
+    )
+    before = page.evaluate(
+        """() => Object.fromEntries(['strip', 'flow', 'shadow', 'raw-words', 'slotted', 'fits', 'hidden'].map(id => {
+          const box = document.getElementById(id);
+          return [id, {width: box.scrollWidth, scrolls: box.scrollWidth > box.clientWidth,
+                       vertical: box.scrollHeight > box.clientHeight}];
+        }))"""
+    )
+    assert all(
+        before[name]["scrolls"]
+        for name in ("strip", "flow", "shadow", "raw-words", "slotted", "hidden")
+    ), before
+    assert before["flow"]["vertical"], before
+    assert not before["fits"]["scrolls"], before
+    assert page.locator("#words").evaluate("el => el.textContent") == ""
+    assert page.locator("#raw-words").evaluate(
+        "el => el.shadowRoot.lastChild.nodeType === Node.TEXT_NODE && "
+        "el.shadowRoot.lastChild.parentElement === null"
+    )
+
+    findings = render_checks_model.evaluate_probe(page, "scrollbarClearance")
+    assert {finding["at"] for finding in findings} == {
+        "<div id=strip>",
+        "<div id=flow>",
+        "<div id=shadow>",
+        "<div id=raw-words>",
+        "<div id=slotted>",
+    }, findings
+    assert all(finding["clear"] < finding["required"] == 15 for finding in findings), (
+        findings
+    )
+
+    page.locator("#strip").evaluate("box => { box.style.visibility = 'hidden'; }")
+    hidden = render_checks_model.evaluate_probe(page, "scrollbarClearance")
+    page.locator("#strip").evaluate("box => { box.style.visibility = ''; }")
+    assert not any(finding["at"] == "<div id=strip>" for finding in hidden), hidden
+
+    page.add_style_tag(
+        content="#strip { transform: scale(.5); transform-origin: top left; }"
+    )
+    scaled = render_checks_model.evaluate_probe(page, "scrollbarClearance")
+    assert any(finding["at"] == "<div id=strip>" for finding in scaled), scaled
+
+    page.add_style_tag(
+        content="#strip, #flow, #shadow, #raw-words, #slotted { padding-bottom: 15px; }"
+    )
+    page.locator("#flow").evaluate("box => { box.scrollTop = box.scrollHeight; }")
+    assert render_checks_model.evaluate_probe(page, "scrollbarClearance") == []
+    page.add_style_tag(content="#strip { transform: scale(2); }")
+    assert render_checks_model.evaluate_probe(page, "scrollbarClearance") == []
+    page.add_style_tag(content="#strip { transform: none; }")
+    page.get_by_role("button", name="Middle choice").press("Shift+Tab")
+    expect(page.get_by_role("button", name="First choice")).to_be_focused()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
+    last = page.get_by_role("button", name="Last choice")
+    expect(last).to_be_focused()
+    assert last.evaluate("el => el.matches(':focus-visible')")
+    reached = last.evaluate(
+        """el => {
+          const box = el.parentElement, rect = box.getBoundingClientRect();
+          const control = el.getBoundingClientRect();
+          return {left: box.scrollLeft, visible: control.right <= rect.right + 1,
+                  clear: rect.bottom - control.bottom};
+        }"""
+    )
+    assert reached["left"] > 0 and reached["visible"], reached
+    assert reached["clear"] >= 15, reached
+    assert render_checks_model.evaluate_probe(page, "scrollbarClearance") == []
+    assert page.evaluate(
+        "() => Object.fromEntries(['strip', 'flow', 'shadow', 'raw-words', 'slotted', 'fits', 'hidden']"
+        ".map(id => [id, document.getElementById(id).scrollWidth]))"
+    ) == {name: reading["width"] for name, reading in before.items()}
+    page.close()
+    failures = render_gate_model.render_version(browser, url).failures
+    for name in ("strip", "flow", "shadow"):
+        assert any(
+            f"<div id={name}>" in failure and "horizontal overlay scrollbar" in failure
+            for failure in failures
+        ), failures
+    assert any(
+        "<div id=raw-words>" in failure and "horizontal overlay scrollbar" in failure
+        for failure in failures
+    ), failures
+
+
+def test_scrollbar_clearance_catches_an_intermediate_width(browser, serve):
+    """A control row fits at both fixed viewports but loses its track room between them."""
+    source = leaf_page(
+        "Mid-width scrollbar",
+        '<h1>Review sections</h1><div id="strip">'
+        "<button>Summary</button><button>Release scope</button>"
+        "<button>Owner handoff</button></div>",
+        head="""<style>
+          #strip { display: flex; width: 240px; overflow: auto; padding: 0 0 15px;
+                   border: 0; }
+          #strip button { flex: 0 0 180px; height: 40px; margin: 0; }
+          @media (min-width: 600px) and (max-width: 900px) {
+            #strip { padding-bottom: 0; }
+          }
+        </style>""",
+    )
+    failures = render_gate_model.render_version(browser, serve(source)).failures
+    (collision,) = [failure for failure in failures if "overlay scrollbar" in failure]
+    assert collision.startswith("at 600–880px wide, <div id=strip> leaves 0px"), (
+        failures
+    )
+
+
+def test_scrollbar_clearance_reads_main_when_it_is_the_scroller(browser, serve):
+    """The page's main region can itself own the horizontal track."""
+    source = leaf_page(
+        "Scrolling main",
+        '<button style="flex: 0 0 600px; height: 40px; margin: 0">Wide choice</button>',
+        layout=None,
+    ).replace(
+        "<main>",
+        '<main style="display: flex; box-sizing: content-box; width: 240px; '
+        'max-width: none; overflow: auto; padding: 0; border: 0">',
+    )
+    page = open_page(browser, serve(source))
+    assert page.locator("main").evaluate("box => box.scrollWidth > box.clientWidth")
+    findings = render_checks_model.evaluate_probe(page, "scrollbarClearance")
+    assert len(findings) == 1, findings
+    assert findings[0]["at"].startswith("<main"), findings
+    assert findings[0]["clear"] == 0, findings
+    page.add_style_tag(content="main { padding-bottom: 15px !important; }")
+    assert render_checks_model.evaluate_probe(page, "scrollbarClearance") == []
+
+
+def test_scrollbar_clearance_accepts_room_allocated_to_a_classic_track(
+    scrollbar_browser, serve
+):
+    """A classic scrollbar has its own track below the content, so needs no spacer."""
+    source = leaf_page(
+        "Classic scrollbar room",
+        '<h1 id="t">Allocated track</h1>'
+        f'<div id="classic">{"sideways words " * 30}</div>',
+        head="""<style>
+          #classic { width: 240px; overflow: auto; white-space: nowrap;
+                     padding: 0; border: 0; }
+          #classic::-webkit-scrollbar { height: 20px; }
+        </style>""",
+    )
+    page = open_page(scrollbar_browser, serve(source))
+    allocated = page.locator("#classic").evaluate(
+        """box => ({scrolls: box.scrollWidth > box.clientWidth,
+                     track: box.offsetHeight - box.clientHeight})"""
+    )
+    assert allocated["scrolls"] and allocated["track"] == 20, allocated
+    assert render_checks_model.evaluate_probe(page, "scrollbarClearance") == []
 
 
 FRAMED_TABLES_PAGE = leaf_page(
@@ -5163,138 +5665,6 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
         and "page offers a press it does not show" in f
     ], f"the drawing declaration concealed a lost control: {failures}"
     assert not [f for f in failures if "(#clean-drawing-control)" in f], failures
-
-
-def test_clipped_control_gate_proves_focus_reveal_and_restores_native_scroll_owners(
-    browser, serve
-):
-    """A translated drawing can use a sibling native scrollport without hiding offers."""
-    markup = leaf_page(
-        "Provider scrolling",
-        '<h1>Provider scrolling</h1><input id="prior" name="prior">'
-        '<lf-test-provider-scroll id="neighbor"></lf-test-provider-scroll>'
-        '<lf-test-provider-scroll id="reachable"></lf-test-provider-scroll>'
-        '<lf-test-provider-scroll id="delegated"></lf-test-provider-scroll>'
-        '<lf-test-provider-scroll id="delegated-blocked"></lf-test-provider-scroll>'
-        '<lf-test-provider-scroll id="locked"></lf-test-provider-scroll>'
-        '<lf-test-provider-scroll id="notabbable"></lf-test-provider-scroll>',
-    )
-    registry = {
-        "lf-test-provider-scroll": {
-            "description": "A drawing scrolled by a native sibling controller.",
-            "type": "object",
-            "properties": {"id": {"type": "string"}},
-            "required": ["id"],
-            "additionalProperties": False,
-            "x-content": "empty",
-            "x-upgrade": True,
-            "x-example": '<lf-test-provider-scroll id="reachable"></lf-test-provider-scroll>',
-        }
-    }
-    widgets = {
-        "lf-test-provider-scroll.js": """
-import { once, offer, registerMechanicalView } from '/runtime/widget-api.js';
-customElements.define('lf-test-delegated-control', class extends HTMLElement {
-  constructor() {
-    super();
-    const shadow = this.attachShadow({mode: 'open', delegatesFocus: true});
-    shadow.innerHTML = '<button style="width:70px;height:40px">Inspect</button>';
-  }
-});
-customElements.define('lf-test-provider-scroll', class extends HTMLElement {
-  connectedCallback() {
-    if (!once(this)) return;
-    this.style.cssText = 'display:flex;height:44px;margin-block:20px';
-    const viewport = document.createElement('div');
-    viewport.style.cssText = 'position:relative;width:80px;height:44px;overflow:clip';
-    const content = document.createElement('div');
-    content.style.cssText = 'position:relative;height:180px';
-    const control = offer(this.id.startsWith('delegated') ? 'lf-test-delegated-control' : 'button', 'provider-control', 'Inspect');
-    control.id = `${this.id}-control`;
-    control.style.cssText = 'display:block;position:relative;top:100px;width:70px;height:40px';
-    if (this.id === 'neighbor') control.style.top = '0';
-    if (['notabbable', 'delegated-blocked'].includes(this.id)) control.tabIndex = -1;
-    const position = document.createElement('output');
-    let window = 0;
-    position.textContent = String(window);
-    registerMechanicalView(this, () => {
-      const held = window;
-      return () => { window = held; position.textContent = String(window); };
-    });
-    const scroller = document.createElement('div');
-    scroller.style.cssText = 'width:20px;height:44px;overflow:auto';
-    scroller.innerHTML = '<div style="height:180px"></div>';
-    scroller.addEventListener('scroll', () => {
-      content.style.transform = `translateY(${-scroller.scrollTop}px)`;
-    });
-    if (this.id !== 'locked') control.addEventListener('focus', () => {
-      if ((control.shadowRoot?.activeElement ?? control).matches(':focus-visible')) {
-        scroller.scrollTop = this.id === 'neighbor' ? 0 : 100;
-        position.textContent = String(++window);
-      }
-    });
-    content.append(control);
-    viewport.append(content);
-    this.append(viewport, scroller, position);
-  }
-});
-"""
-    }
-    page = open_page(
-        browser, serve(markup, layer_registry=registry, layer_widgets=widgets)
-    )
-    prior = page.locator("#prior")
-    prior.fill("Keep this caret")
-    prior.evaluate("node => node.setSelectionRange(5, 9, 'backward')")
-    before = page.locator("#reachable-control").bounding_box()
-    candidates = render_checks_model.evaluate_probe(page, "clippedControlCandidates")
-    assert {item["id"] for item in candidates} == {
-        "reachable-control",
-        "delegated-control",
-        "delegated-blocked-control",
-        "locked-control",
-        "notabbable-control",
-    }
-    lost = render_gate_readings.clipped_controls(page)
-    assert {item["id"] for item in lost} == {
-        "locked-control",
-        "notabbable-control",
-        "delegated-blocked-control",
-    }
-    expect(prior).to_be_focused()
-    assert prior.evaluate(
-        "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
-    ) == [5, 9, "backward"]
-    assert page.locator("#reachable-control").bounding_box() == before
-    assert (
-        page.locator("#reachable").evaluate("node => node.children[1].scrollTop") == 0
-    )
-    expect(page.locator("#neighbor output")).to_have_text("0")
-    expect(page.locator("#reachable output")).to_have_text("0")
-    expect(page.locator("#delegated output")).to_have_text("0")
-
-    # A returned provider receives focus again before its captured view restores.
-    page.locator("#reachable-control").focus()
-    rendered(page)
-    held = page.locator("#reachable output").text_content()
-    render_gate_readings.clipped_controls(page)
-    expect(page.locator("#reachable-control")).to_be_focused()
-    expect(page.locator("#reachable output")).to_have_text(held)
-
-    page.evaluate(RELEASE_FOCUS)
-    page.locator("h1").evaluate("""node => {
-      getSelection().setBaseAndExtent(node.firstChild, 8, node.firstChild, 0);
-    }""")
-    render_gate_readings.clipped_controls(page)
-    assert page.evaluate("document.activeElement === document.body")
-    assert not page.locator("body").evaluate("node => node.matches(':focus')")
-    assert page.locator("body").get_attribute("tabindex") is None
-    assert page.evaluate("getSelection().toString()") == "Provider"
-    assert page.locator("h1").evaluate("""node => {
-      const selection = getSelection();
-      return [selection.anchorNode === node.firstChild, selection.anchorOffset,
-              selection.focusNode === node.firstChild, selection.focusOffset];
-    }""") == [True, 8, True, 0]
 
 
 def test_the_render_gate_reads_a_scrolled_container_from_its_content(browser, serve):

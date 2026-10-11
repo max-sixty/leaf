@@ -13,6 +13,8 @@ COMMANDS = {
     "bench-check": "bench_check",
     "bench-latency": "bench_latency",
     "bugback": "bugback",
+    "catalog": "site",
+    "compare": "compare",
     "corpus": "corpus",
     "fetch-assets": "leaf_assets",
     "journey": "journey",
@@ -28,6 +30,7 @@ COMMANDS = {
     "publish-distribution": "distribution",
     "record-demo": "record_demo",
     "refresh-previews": "example_previews",
+    "setup": "setup",
     "site": "site",
     "stills": "stills",
     "thread-snapshots": "thread_snapshots",
@@ -37,6 +40,15 @@ COMMANDS = {
 
 
 class DeveloperCommands(click.Group):
+    def invoke(self, ctx: click.Context):
+        """Present a refusal from Leaf's own code as a Click error, as `leaf` does."""
+        from leaf.refusals import Refused
+
+        try:
+            return super().invoke(ctx)
+        except Refused as error:
+            raise click.ClickException(str(error)) from error
+
     def list_commands(self, ctx):
         return sorted(COMMANDS)
 

@@ -19,6 +19,7 @@ from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
 from leaf.registry import storage as registry_storage
+from leaf.registry.contract import element_declarations
 from leaf.render_checks import rendered
 from leaf.render_gate import scheme as render_gate_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -143,7 +144,7 @@ def arrival_findings(browser, url):
         target.append(message.text)
 
     page.on("console", console_message)
-    page.on("pageerror", lambda e: errors.append(str(e)))
+    render_gate_model.collect_page_exceptions(page, errors)
     page.on(
         "response",
         lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
@@ -441,7 +442,7 @@ OVER_ITS_CONTAINER = LONG_PAGE.replace(
     "</main>",
     "<div id='clipping' style='width: 300px; overflow: hidden'>"
     "<div id='eaten' style='width: 420px'>Nobody sees the end of this.</div></div>"
-    "<div id='scrolling' style='width: 300px; overflow-x: auto'>"
+    "<div id='scrolling' style='width: 300px; overflow-x: auto; padding-bottom: 15px'>"
     "<div id='reachable' style='width: 420px'>This one scrolls into view.</div></div>"
     "<div id='holding' style='width: 300px; height: 40px; overflow: hidden'>"
     "<div id='hung' style='position: absolute; width: 420px'>Placed, so this one "
@@ -561,7 +562,7 @@ HIDDEN_SCROLLERS = {
 }
 SCROLLED_CONTAINER = LONG_PAGE.replace(
     "</main>",
-    "<div id='rolled' style='width: 300px; overflow-x: auto'>"
+    "<div id='rolled' style='width: 300px; overflow-x: auto; padding-bottom: 15px'>"
     "<div id='riding' style='width: 900px'>Where the content of a scrolled box "
     "starts.</div></div>\n</main>",
 )
@@ -892,7 +893,9 @@ BANNER_ORDER = r"""() => {
             getComputedStyle(control).visibility !== 'hidden')
     .map(control => (control.getAttribute('aria-label') || control.textContent).trim()
       // The version's age ticks with the clock between two readings; the order does not.
-      .replace(/ · \S+ ago$/, ''));
+      .replace(/ · \S+ ago$/, '')
+      // The queue's population does not change the control's place in that order.
+      .replace(/^Questions: \d+ waiting on you$/, 'Questions'));
 }"""
 
 
@@ -941,9 +944,7 @@ def aim_targets(page_dir):
     clicking its prose. The vocabulary is read from the page's own registry rather than
     listed, so the twelfth widget is swept by existing. Prose has no handler at all, so
     one press into it proves what fifty would."""
-    tags = ", ".join(
-        t for t in registry_storage.load_registry(page_dir) if not t.startswith("$")
-    )
+    tags = ", ".join(element_declarations(registry_storage.load_registry(page_dir)))
     return f":is({PRESS}, {tags}):not(.lf-chrome *)"
 
 

@@ -17,6 +17,7 @@ import {
   anchorLabel,
   annotationMode,
   consumeAnnotations,
+  declarationFor,
   placePageThreads,
   contributionItemKey,
   HeldReading,
@@ -27,9 +28,11 @@ import {
   layoutPx,
   once,
   offer,
-  openThread,
+  offerElement,
+  threadActions,
   registerReadingRegion,
   setChildren,
+  whileConnected,
 } from "/runtime/widget-api.js";
 
 const make = (tag, className, text = "") => {
@@ -41,7 +44,6 @@ customElements.define(
   class extends HTMLElement {
     #surface = null;
     #annotations = null;
-    #stopReading = null;
     #actionRows = new Map();
     #nextSlot = 0;
     #actionOrder;
@@ -70,43 +72,48 @@ customElements.define(
     };
 
     connectedCallback() {
-      if (once(this)) this.#build();
+      if (!once(this)) return;
+      this.#build();
       if (annotationMode !== "page") return;
-      this.#stopReading ??= registerReadingRegion({
-        id: this.id,
-        host: this,
-        body: this,
+      whileConnected(this, () => {
+        const stopReading = registerReadingRegion({
+          id: this.id,
+          host: this,
+          body: this,
+        });
+        this.#surface = placePageThreads(this, (targets, { collection }) =>
+          this.#present(targets, collection),
+        );
+        this.#annotations = consumeAnnotations(this, (entries, view) =>
+          this.#presentActions(entries, view),
+        );
+        return () => {
+          stopReading();
+          this.#surface.unregister();
+          this.#surface = null;
+          this.#annotations.unregister();
+          this.#annotations = null;
+          this.#actionOrder?.dispose();
+          this.#threadOrder?.dispose();
+        };
       });
-      this.#surface ??= placePageThreads(this, (targets, { collection }) =>
-        this.#present(targets, collection),
-      );
-      this.#annotations ??= consumeAnnotations(this, (entries, view) =>
-        this.#presentActions(entries, view),
-      );
     }
 
-    disconnectedCallback() {
-      this.#stopReading?.();
-      this.#stopReading = null;
-      this.#surface?.unregister();
-      this.#surface = null;
-      this.#annotations?.unregister();
-      this.#annotations = null;
-      this.#actionOrder?.dispose();
-      this.#threadOrder?.dispose();
-    }
-
+    // The rail draws by filling in a copy of the structure delivery writes in for its
+    // first paint (x-prepaint), so the empty rail presents at the box it first painted.
     #build() {
-      const region = make("section", "lf-ar-region lf-ui");
-      region.dataset.lfGen = "1";
+      const drawing = document.createElement("template");
+      drawing.innerHTML = declarationFor(this, "x-prepaint");
+      const region = drawing.content.firstElementChild;
+      for (const node of [region, ...region.querySelectorAll("*")])
+        offerElement(
+          node,
+          [...node.classList].filter((name) => !name.startsWith("lf-ui")).join(" "),
+        );
       region.dataset.lfRuntime = "";
-      region.setAttribute("aria-label", "Page annotations");
-      region.append(make("h2", "lf-ar-heading", "Annotations"));
-      this.#empty = make("p", "lf-ar-empty", "No threads yet.");
-      this.#list = make("div", "lf-ar-list");
-      this.#actions = make("div", "lf-ar-actions");
-      this.#actionNotice = make("button", "lf-ar-notice lf-btn", "Annotations current");
-      this.#actionNotice.type = "button";
+      [, this.#actionNotice, this.#composer, this.#empty, this.#list, this.#actions] =
+        region.children;
+      [this.#composerName, this.#composerOutlet] = this.#composer.children;
       this.#actionOrder = new HeldReading(
         () => [this.#actions],
         () => this.#annotations?.update(),
@@ -119,18 +126,7 @@ customElements.define(
         this.#threadOrder.release();
         this.#actionOrder.show();
       });
-      this.#composer = make("section", "lf-ar-composer");
-      this.#composer.hidden = true;
-      this.#composerName = make("h3", "lf-ar-source");
-      this.#composerOutlet = make("div", "lf-ar-outlet");
-      this.#composer.append(this.#composerName, this.#composerOutlet);
-      region.append(
-        this.#actionNotice,
-        this.#composer,
-        this.#empty,
-        this.#list,
-        this.#actions,
-      );
+      this.querySelector(":scope > [data-lf-prepaint]")?.remove();
       this.append(region);
     }
 
@@ -157,9 +153,9 @@ customElements.define(
         const outlet = make("div", "lf-ar-outlet");
         const button = make("button", "lf-ar-open lf-btn", "Open thread");
         button.type = "button";
-        row = { node, outlet, button, id: thread.id };
+        row = { node, outlet, button };
         button.addEventListener("click", async () => {
-          await openThread(row.id, { focus: "thread", travel: false });
+          await threadActions.open(thread.key, { part: "thread", travel: false });
         });
         node.append(button, outlet);
         group.rows.append(node);
@@ -170,7 +166,6 @@ customElements.define(
         group.rows.append(row.node);
         restore?.();
       }
-      row.id = thread.id;
       keepsText(
         row.button,
         `Open thread · ${anchorLabel(thread.anchor, thread.root.about) || "The page"}`,
@@ -289,9 +284,9 @@ customElements.define(
       );
       if (view.arriving) this.#actionOrder.release();
       let shown = this.#actionOrder.hold(wanted);
-      // A strip owns its whole allocated width. A trailing action that fits there
-      // changes no surviving slot or neighbouring row, so it is already drawable.
-      // Changed ordering, new rows and overflow still wait at the notice.
+      // Trailing actions may fill the existing rows without moving a surviving slot
+      // or a neighbouring source. Another wrapped row changes the allocation, so it
+      // waits at the same notice as changed ordering and a new source group.
       if (shown !== wanted) {
         const shape = JSON.parse(shown);
         for (const rowShape of shape) {
@@ -303,6 +298,7 @@ customElements.define(
             continue;
           const { row } = reading;
           const previous = [...row.body.children];
+          const height = row.body.getBoundingClientRect().height;
           const slots = next.map((id) => {
             const slot = row.slots.get(id);
             setChildren(slot.node, [reading.allocations.get(id)]);
@@ -310,7 +306,12 @@ customElements.define(
           });
           setChildren(row.body, slots);
           const width = row.body.clientWidth;
-          if (width > 0 && row.body.scrollWidth <= width) rowShape[1] = next;
+          if (
+            width > 0 &&
+            row.body.scrollWidth <= width &&
+            row.body.getBoundingClientRect().height <= height
+          )
+            rowShape[1] = next;
           setChildren(row.body, previous);
         }
         const fitting = JSON.stringify(shape);

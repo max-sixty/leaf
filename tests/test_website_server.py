@@ -3,6 +3,7 @@
 import itertools
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -46,6 +47,7 @@ from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
 from leaf.leases import take_lease, waiter_lease_path
 from leaf.machine import pid_alive
+from leaf.refusals import Refused
 from leaf.render_checks import rendered
 from leaf.revision_artifact import capture_artifact
 from leaf.revision_delivery import compose_document
@@ -79,7 +81,7 @@ def accept_in_turn(thread_id: str, turn: str = "app-server-turn") -> None:
         [(path, _)] = [
             (path, record)
             for path, record in delivery_records(thread_id)
-            if record["state"] == "offering"
+            if record.state == "offering"
         ]
     accept_codex_delivery(thread_id, path.stem, turn)
 
@@ -518,7 +520,7 @@ def test_an_active_thread_has_its_unwatched_turn_stopped_before_the_next_starts(
     assert sent[0][1] == {"threadId": "hosted-thread", "turnId": ""}
     assert sent[1][1]["clientUserMessageId"]
     [(_, queue)] = delivery_records("hosted-thread")
-    assert queue["state"] == "offering"
+    assert queue.state == "offering"
 
 
 def test_attach_accepts_its_named_event_after_an_older_reply_slice(
@@ -862,6 +864,46 @@ def test_a_follower_that_faults_still_hands_the_page_on(page_dir, monkeypatch):
 
     assert continued == [comment["id"]]
     assert "hosted-thread" not in harness.following_threads
+
+
+def test_a_refused_correction_receipt_still_hands_the_page_on(
+    page_dir, monkeypatch, capsys
+):
+    """A correction turn that cannot restart receipts what it owed, and the page can
+    refuse that receipt while a reply is still held. The refusal is recorded and
+    the page's next move is still started."""
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    harness = website_server.WebsiteCodexHarness("codex")
+    harness.following_threads.add("hosted-thread")
+    turn = unfollowed_turn(harness, page_dir)
+    turn.correction = {"source": "index.html"}
+
+    def no_server():
+        raise RuntimeError("no App Server")
+
+    def refused_receipt():
+        raise Refused("failure receipts wait for this turn to release the answer")
+
+    continued = []
+    monkeypatch.setattr(harness, "_ensure_server", no_server)
+    monkeypatch.setattr(turn, "_receipt_unanswered", refused_receipt)
+    monkeypatch.setattr(
+        harness, "attach", lambda target, event_id: continued.append(event_id)
+    )
+    harness._run_follow_turn(turn)
+
+    assert continued == [comment["id"]]
+    [record] = [
+        json.loads(line)
+        for line in capsys.readouterr().out.splitlines()
+        if json.loads(line)["event"] == "turn_receipt_refused"
+    ]
+    assert (
+        record["detail"] == "failure receipts wait for this turn to release the answer"
+    )
 
 
 def test_an_ending_on_an_unopenable_page_still_answers_every_move(
@@ -1814,7 +1856,7 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
     competing_writer_rejected = []
 
     def refuse(*args, **kwargs):
-        with pytest.raises(SystemExit, match="answered by this turn's messages"):
+        with pytest.raises(Refused, match="answered by this turn's messages"):
             post_reply(
                 page_dir,
                 comment["id"],
@@ -3000,7 +3042,12 @@ def test_an_invalid_source_still_releases_a_finished_website_turn(page_dir):
     ] == [comment["id"]]
 
 
-def test_a_rejected_streamed_reply_still_releases_its_website_turn(page_dir):
+@pytest.mark.parametrize(
+    "restart", ["started", "refused", "offline", "transferred", "reacquired"]
+)
+def test_a_rejected_streamed_reply_starts_a_website_correction(
+    page_dir, monkeypatch, restart
+):
     append_event(
         page_dir,
         {"kind": "comment", "author": "user", "text": "edit the page"},
@@ -3042,9 +3089,69 @@ def test_a_rejected_streamed_reply_still_releases_its_website_turn(page_dir):
             self.closed = True
 
     socket = Socket()
-    with pytest.raises(ValueError, match="unclosed tags"):
-        harness = website_server.WebsiteCodexHarness("codex")
-        hosted_follower(harness, page_dir, prepared, socket).follow()
+    harness = website_server.WebsiteCodexHarness("codex")
+    restarted = []
+
+    def server():
+        if restart == "offline":
+            raise RuntimeError("provider unavailable")
+        return SimpleNamespace(pid=os.getpid())
+
+    monkeypatch.setattr(harness, "_ensure_server", server)
+
+    def resume(target, session, process, event_id):
+        repair = website_server.prepare_codex_delivery(
+            target, website_server.website_harness(session, process.pid)
+        )
+        restarted.append(repair.payload)
+        return restart == "started"
+
+    if restart not in {"transferred", "reacquired"}:
+        monkeypatch.setattr(harness, "_resume_and_start", resume)
+    else:
+        monkeypatch.setattr(
+            harness,
+            "_request",
+            lambda *_: (Socket(), {"thread": {"status": {"type": "idle"}}}, []),
+        )
+
+        def send(socket, method, params, pending):
+            restarted.append(json.loads(params["toolOutput"]["output"]))
+            return {"turn": {"id": "repair-turn"}}
+
+        monkeypatch.setattr(harness, "_send", send)
+        monkeypatch.setattr(harness, "_follow", lambda *_: None)
+    turn = hosted_follower(harness, page_dir, prepared, socket)
+    if restart in {"transferred", "reacquired"}:
+        follow = turn.follow
+
+        def transfer_after_final():
+            follow()
+            assert turn.correction is not None
+            session = "successor" if restart == "transferred" else "hosted-thread"
+            with website_server.PageTransaction(page_dir) as page:
+                page.take_claim(website_server.website_harness(session, os.getpid()))
+            replacement.append(website_server.page_claim(page_dir))
+
+        replacement = []
+        monkeypatch.setattr(turn, "follow", transfer_after_final)
+    harness.following_threads.add("hosted-thread")
+    harness._run_follow_turn(turn)
+    if restart in {"transferred", "reacquired"}:
+        claim = website_server.page_claim(page_dir)
+        assert all(
+            claim[key] == replacement[0][key]
+            for key in ("id", "generation", "acquisition")
+        )
+        assert restarted == []
+        assert delivery_records("hosted-thread") == []
+        assert socket.closed
+        return
+    if restart != "offline":
+        [repair] = restarted
+        assert repair["correction"]["delivery"] == prepared.payload["id"]
+        assert "unclosed tags" in repair["correction"]["diagnostic"]
+        assert website_server.stream_reply_target(repair) == turn.reply_target
 
     claim = website_server.page_claim(page_dir)
     assert claim["turn_closed"] is not None
@@ -3054,11 +3161,14 @@ def test_a_rejected_streamed_reply_still_releases_its_website_turn(page_dir):
         "Done.",
         False,
     )
-    # The page the turn left cannot take the answer, and closing the turn on it is
-    # what raised — so the receipt is the only thing the user can still be given,
-    # and it is owed exactly where the rest of the account failed.
-    [receipt] = [event for event in read_events(page_dir) if event["kind"] == "reply"]
-    assert receipt["failure"] == "turn_failed"
+    replies = [event for event in read_events(page_dir) if event["kind"] == "reply"]
+    if restart == "started":
+        # A rejected final remains outstanding while its correction runs.
+        assert replies == []
+    else:
+        assert len(replies) == 1
+        assert replies[0]["failure"] == "turn_failed"
+        assert delivery_records("hosted-thread") == []
     assert socket.closed
 
 
@@ -3099,10 +3209,21 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     assert watcher is not None
     request.addfinalizer(watcher.close)
     thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
-    # An active editor holds the turn's update so this journey exercises the receipt
-    # beside held news; an idle panel thread now shows the update immediately.
+    # An active editor holds the turn's opening so this journey exercises the receipt
+    # beside held news; an idle panel thread streams it immediately. The reply joins
+    # the thread with its first words, not when the turn opens its seat.
     thread.locator("leaf-text").focus()
     turn.begin()
+    turn.reply_stream.update(
+        {
+            "message": {
+                "item": "msg-0",
+                "phase": "commentary",
+                "text": "Looking at the page.",
+                "complete": False,
+            }
+        }
+    )
     # Present the accepted turn before resolving it: coalescing these server writes
     # would never exercise a workflow receipt disappearing beside the news control.
     told(page)
@@ -3666,17 +3787,20 @@ def test_website_samples_serve_private_pages_without_starting_an_agent(
         url = origin + child["url"]
         document, headers = get(url)
         assert b"A private child page." in document
-        asset_root = (
-            manifest["pages"]["/examples/decision"]["assets"]
-            if published_revision
-            else "/examples/decision"
-        )
-        expected = f"{asset_root}/revisions/{revision_path(published, 1).stem}"
-        assert f'data-lf-entry="{expected}/leaf.js"'.encode() in document
+        if published_revision:
+            asset_root = manifest["pages"]["/examples/decision"]["assets"]
+            expected = f"{asset_root}/revisions/{revision_path(published, 1).stem}"
+            assert f'data-lf-entry="{expected}/leaf.js"'.encode() in document
+        else:
+            entry = re.search(rb'data-lf-entry="([^"]+)"', document)[1].decode()
+            assert entry.startswith(child["url"] + "revisions/")
+            assert get(origin + entry)[0]
         assert f'data-lf-page-root="{child["url"].rstrip("/")}"'.encode() in document
         assert b"sitenote.js" not in document
         assert b"data-lf-release=" not in document
-        assert headers["Content-Security-Policy"] == "frame-ancestors 'self'"
+        assert headers.get("Content-Security-Policy") is None
+        assert headers["Access-Control-Allow-Origin"] == "*"
+        assert headers["Referrer-Policy"] == "no-referrer"
         assert headers["Leaf-Layer"] == state["layer"]["generation"]
         accepted, _ = post(
             url + "api/event",
@@ -3798,7 +3922,9 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         }
         # The comparison base carries its own Ask reading, because the browser reads
         # which Asks a revision holds rather than folding the declarations again.
-        assert set(view["browser"]["views"][str(revision)]["document"]["asks"]) == {
+        assert set(
+            view["browser"]["views"][str(revision)]["document"]["questions"]
+        ) == {
             "all",
             "user",
             "unanswered",
@@ -4072,6 +4198,7 @@ def test_a_product_route_uses_the_same_real_page_server(
     with running_http_server(httpd):
         document, _ = get(f"{root}{page_root}/")
         assert b"data-lf-site" not in document
+        assert b"data-lf-share-url" not in document
         artifact = revision_path(published, 1).stem
         assert (
             f'data-lf-entry="{page_root}/revisions/{artifact}/leaf.js"'.encode()
@@ -4320,7 +4447,7 @@ def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
         "reply => window.__leafVerifier.replyShownAt(reply)", arg=reply
     )
     shown = page.evaluate("window.__leafVerifier.replyShownAt", reply)
-    assert shown["by"] == "message"
+    assert shown["by"] == "message" and shown["message"] == shown["at"]
     assert before <= shown["at"] <= page.evaluate("Date.now()")
 
 
@@ -5253,7 +5380,7 @@ class _DeployedPage:
         if script == "window.__leafVerifier.startVisibleReplyClock":
             return 100.0
         if script == "window.__leafVerifier.replyShownAt":
-            return {"at": 12_600.0, "by": "message"}
+            return {"at": 12_600.0, "by": "message", "message": 12_600.0}
         if script == "window.__leafStartup.reading":
             presented_at = (
                 self.presented_at
@@ -5671,6 +5798,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             "sinceSendMs": {
                 "acknowledged": [250.0],
                 "responseVisible": 12500.0,
+                "responseMessageVisible": 12500.0,
             },
             "responseShownBy": "message",
             "activity": [

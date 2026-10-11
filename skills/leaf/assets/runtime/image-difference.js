@@ -1,8 +1,7 @@
 /* Where two images differ: the one rule every reader of a before/after pair shares.
  *
- * Experimental. The reading below is our own, tuned by eye on about 56 pairs of Leaf
- * captures and not yet tried on other screenshots (another site, a terminal, a plot).
- * We looked for a dependency first and found none that reads moves: pixelmatch, odiff,
+ * Experimental. Block detection and movement matching are our own; final changed
+ * outlines use density-clustering's DBSCAN. Pixelmatch, odiff,
  * BlazeDiff and looks-same compare pixels in place; lcs-image-diff aligns rows, so it
  * follows content pushed down but not a move across columns, and returns an image
  * rather than regions; x-img-diff-js, the one built for moved regions, took 7 s on a
@@ -39,26 +38,36 @@
  * rule.
  *
  * Each image's blocks are then read against the other image. A block none of whose
- * squares holds a changed pixel is the same. A block that did change is looked for in
- * the other image, among its blocks of the same size that changed too, the nearest
- * first: found there, no pixel more than SLIGHT apart, it moved; found nowhere, it
- * changed. Each frame of the pair is outlined on its own, around its own blocks: where
- * content changed, in both frames at the place it has in each, and where it moved, at
- * its old place in before and its new place in after. So a list that moved beside a
- * chart is outlined at the foot of before and beside the chart in after, and nothing
- * marks the empty place it left. A change where neither image draws an edge, such as
- * rows of ground only the taller image has, lies inside no block; its struck squares
- * are outlined as a change in each image that reaches them, joined with the outlines
- * they touch there.
+ * squares holds a changed pixel is the same. A frame is a line, so it is the same
+ * unless a pixel it draws changed: where only the ground beside a rule changed (the
+ * colour around it), as where the other image's border crossed it, the change is the
+ * border's. A block that did change is looked for in the other image, among its blocks
+ * of the same size that changed too, the nearest first: found there, no pixel more than
+ * SLIGHT apart, it moved; found nowhere, it changed. Each frame of the pair is outlined
+ * on its own, around its own blocks: where content changed, in both frames at the place
+ * it has in each, and where it moved, at its old place in before and its new place in
+ * after. So a list that moved beside a chart is outlined at the foot of before and
+ * beside the chart in after, and nothing marks the empty place it left. A change where
+ * neither image draws an edge, such as rows of ground only the taller image has, lies
+ * inside no block; its struck squares are outlined as a change in each image that
+ * reaches them, joined with the outlines they touch there.
  *
- * A block that holds another outline is a container, such as a panel, a card or a lane.
+ * A block that holds another block is a container, such as a panel, a card or a lane.
  * One that changed and holds only what changed too, as a card whose text rewrapped, is
- * outlined whole. Any other gives way to what it holds: its contents are outlined, and
- * its own changed squares that no outline covers widen the outline within ABSORB of
- * them, as a card's edge does below the text that grew it, or stand alone. A frame
- * alone that moved, and a move inside a change, are not outlined. Outlines of one kind
- * that would touch as drawn join, and moves that share a displacement join within
- * MOVED_REACH.
+ * outlined whole. Any other gives way to what it holds: its contents are outlined where
+ * they changed or moved, and its own changed squares that no outline covers widen the
+ * outline within ABSORB of them, as a card's edge does below the text that grew it, or
+ * stand alone. So a card that only grew or shrank, its contents untouched, is outlined
+ * between its two edges rather than whole. A frame alone that moved, and a move inside
+ * a change, are not outlined. Moves that share a displacement join within MOVED_REACH.
+ * Changed fragments join through DBSCAN using the gap between their original
+ * rectangles, never newly enclosed whitespace. Fragments within eight pixels also join,
+ * preserving the touching-outline rule for thin marks. The minimum population is one,
+ * so even an isolated edit survives. The radius grows with the square root of fragment
+ * count, capped at two median fragment thicknesses: crowded comparisons consolidate
+ * more, while distant edits stay separate. Thickness and gap exclude the one-pixel edge
+ * on each side, so capture density scales their ratio. These presentation groups form
+ * after matching and do not reclassify pixels or moves.
  *
  * A strong change over most of the image, such as a photo turned black and white, has
  * no place to point to: where squares COARSE pixels on a side holding a pixel that moved
@@ -67,7 +76,8 @@
  *
  * A before/after widget states the reading and, when asked, draws each frame's outlines,
  * and `leaf-dev stills` loads this module into its browser on its own and crops a
- * changed state to them, so the module imports nothing and touches no document. */
+ * changed state to them. The clustering dependency loads only when a comparison
+ * needs regions, after page presentation; this module touches no document. */
 
 const SLIGHT = 48;
 const STEP = 4;
@@ -76,7 +86,6 @@ const CELL = 4;
 const SPACING = 1;
 const COARSE = 8;
 const THROUGHOUT = 0.5;
-const PAD = 4;
 const ABSORB = 16;
 const MOVED_REACH = 32;
 
@@ -85,8 +94,9 @@ const MOVED_REACH = 32;
  * side, kind}`: an outline on the `side` ("before" for `a`, "after" for `b`) around
  * content that `kind` "changed" or "moved", in that image's own pixels, in reading order.
  * `a` and `b` are ImageData, or `width`, `height`, and RGBA bytes in a `data` array of
- * their own, which each pixel is read from as one 32-bit word. */
-export function differingRegions(a, b) {
+ * their own, which each pixel is read from as one 32-bit word. Returns a promise
+ * so loading the clustering library can wait until a pair needs it. */
+export async function differingRegions(a, b) {
   const width = Math.max(a.width, b.width);
   const height = Math.max(a.height, b.height);
   const columns = Math.ceil(width / CELL);
@@ -117,18 +127,44 @@ export function differingRegions(a, b) {
   // A block changed only where a square was struck, so with none, none did.
   if (!struck.includes(1))
     return { width, height, changed, throughout: false, regions: [] };
+  const { DBSCAN } = await import("/vendor/density-clustering.esm.js");
   const before = blocksOf(a, one, columns);
   const after = blocksOf(b, other, columns);
-  const touched = (block) => block.cells.some((cell) => struck[cell]);
+  // A frame is a line, so it changed only where it is drawn. A struck square at its edge
+  // can hold only the ground beside it, as where the other image's border crosses a rule:
+  // that is the border's change, not the rule's. The ground is the colour around the
+  // frame, just outside the edge pixels that bound it.
+  const drawnChange = (block, image, pixels, otherImage, otherPixels) =>
+    block.cells.some((cell) => {
+      if (!struck[cell]) return false;
+      block.ground ??= around(block, image, pixels) ?? null;
+      const box = block.boxes.get(cell);
+      for (let y = box.y; y < box.y + box.height; y += 1)
+        for (let x = box.x; x < box.x + box.width; x += 1) {
+          const p = pixels[y * image.width + x];
+          if (block.ground !== null && distance(p, block.ground) <= STEP) continue;
+          const q =
+            x < otherImage.width && y < otherImage.height
+              ? otherPixels[y * otherImage.width + x]
+              : undefined;
+          if (q === undefined || distance(p, q) >= SLIGHT) return true;
+        }
+      return false;
+    });
+  const touched = (block, image, pixels, otherImage, otherPixels) =>
+    block.frame
+      ? drawnChange(block, image, pixels, otherImage, otherPixels)
+      : block.cells.some((cell) => struck[cell]);
   const reading = (blocks, image, pixels, others, otherImage, otherPixels) =>
     blocks.map((block) => {
-      if (!touched(block)) return { state: "same" };
+      if (!touched(block, image, pixels, otherImage, otherPixels))
+        return { state: "same" };
       let found = null;
       let nearest = Infinity;
       for (const candidate of others) {
         // Content arrives only where the other image changed, so a block that stayed
         // where it was, such as one of a row of like icons, is never where this went.
-        if (!touched(candidate)) continue;
+        if (!touched(candidate, otherImage, otherPixels, image, pixels)) continue;
         if (candidate.width !== block.width || candidate.height !== block.height)
           continue;
         const far = Math.abs(candidate.x - block.x) + Math.abs(candidate.y - block.y);
@@ -189,8 +225,8 @@ export function differingRegions(a, b) {
     }),
   );
   const regions = [
-    ...outlines(before, readBefore, struck, columns, "before", unowned),
-    ...outlines(after, readAfter, struck, columns, "after", unowned),
+    ...outlines(before, readBefore, struck, "before", unowned, DBSCAN),
+    ...outlines(after, readAfter, struck, "after", unowned, DBSCAN),
   ]
     .sort((p, q) => p.y - q.y || p.x - q.x)
     .map(({ x, y, width, height, side, kind }) => ({
@@ -206,7 +242,7 @@ export function differingRegions(a, b) {
 
 /* One image's outlines from its blocks and their readings, joined with the changes on
  * its side that lie in no block (`bare`), so content inside added ground is one area. */
-function outlines(blocks, states, struck, columns, side, bare) {
+function outlines(blocks, states, struck, side, bare, DBSCAN) {
   const marks = [];
   for (const [i, block] of blocks.entries()) {
     const { state, d } = states[i];
@@ -226,7 +262,10 @@ function outlines(blocks, states, struck, columns, side, bare) {
   );
   const inWhole = (mark) => whole.some((outer) => contains(outer, mark));
   const holds = (mark) =>
-    !whole.includes(mark) && marks.some((inner) => contains(mark, inner));
+    !whole.includes(mark) &&
+    (mark.kind === "changed" ? blocks : marks).some(
+      (inner) => inner !== mark.block && contains(mark, inner),
+    );
   const shown = marks.filter((mark) => !holds(mark) && !inWhole(mark));
   for (const mark of marks) {
     if (!holds(mark) || inWhole(mark) || mark.kind !== "changed") continue;
@@ -242,7 +281,7 @@ function outlines(blocks, states, struck, columns, side, bare) {
       else shown.push({ ...group, side, kind: "changed" });
     }
   }
-  const joined = join([...shown, ...bare.filter((box) => box.side === side)]);
+  const joined = join([...shown, ...bare.filter((box) => box.side === side)], DBSCAN);
   return joined.filter(
     (mark) =>
       mark.kind !== "moved" ||
@@ -505,17 +544,61 @@ function merged(items, joins) {
   return list;
 }
 
-// Outlines of one kind that would touch as drawn become one, and moves that share a
-// displacement join within MOVED_REACH.
-const join = (marks) =>
-  merged(
-    marks,
-    (p, q) =>
-      p.kind === q.kind &&
-      (p.kind === "moved"
-        ? p.d.join() === q.d.join() && near(p, q, MOVED_REACH)
-        : near(p, q, 2 * PAD)),
+// Movement keeps its correspondence; changed fragments cluster by original gaps.
+function join(marks, DBSCAN) {
+  const moves = merged(
+    marks.filter((mark) => mark.kind === "moved"),
+    (p, q) => p.d.join() === q.d.join() && near(p, q, MOVED_REACH),
   );
+  const changed = marks.filter((mark) => mark.kind === "changed");
+  if (changed.length < 2) return [...moves, ...changed];
+  const sizes = changed
+    .map((mark) => Math.max(1, Math.min(mark.width, mark.height) - 2))
+    .sort((a, b) => a - b);
+  const scale = sizes[Math.floor(sizes.length / 2)];
+  const radius = scale * Math.min(2, Math.sqrt(changed.length) / 2);
+  const gap = (p, q) =>
+    near(p, q, 8)
+      ? 0
+      : Math.max(
+          0,
+          p.x - q.x - q.width + 2,
+          q.x - p.x - p.width + 2,
+          p.y - q.y - q.height + 2,
+          q.y - p.y - p.height + 2,
+        );
+  const groups = new DBSCAN().run(changed, radius, 1, gap);
+  return [
+    ...moves,
+    ...groups.map((indices) => ({
+      ...changed[indices[0]],
+      ...indices.map((i) => changed[i]).reduce(union),
+    })),
+  ];
+}
+
+// The commonest colour on the ring of pixels just outside `block`'s box: the ground the
+// block stands on.
+function around({ x, y, width, height }, image, pixels) {
+  const counts = new Map();
+  let best;
+  const count = (column, row) => {
+    if (column < 0 || row < 0 || column >= image.width || row >= image.height) return;
+    const p = pixels[row * image.width + column];
+    const n = (counts.get(p) ?? 0) + 1;
+    counts.set(p, n);
+    if (best === undefined || n > counts.get(best)) best = p;
+  };
+  for (let column = x - 1; column <= x + width; column += 1) {
+    count(column, y - 1);
+    count(column, y + height);
+  }
+  for (let row = y; row < y + height; row += 1) {
+    count(x - 1, row);
+    count(x + width, row);
+  }
+  return best;
+}
 
 function words(image) {
   return new Uint32Array(
@@ -581,8 +664,9 @@ export function countAreas(regions) {
   };
 }
 
-/* `differingRegions` for two decoded images: HTMLImageElements, ImageBitmaps, or any
- * other canvas image source, read at their natural size. */
+/* `differingRegions`' promise for two decoded images: HTMLImageElements, ImageBitmaps,
+ * or any other canvas image source, read at their natural size. Sources must keep
+ * the canvas origin-clean; cross-origin images need a successful CORS response. */
 export function compareImages(a, b) {
   return differingRegions(pixels(a), pixels(b));
 }

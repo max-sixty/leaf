@@ -1,3 +1,7 @@
+/* Browser working state has one backing policy, selected by prepaint before widgets
+ * draw. Isolated samples keep all stores inside their disposable realm; ordinary
+ * documents use native scoped storage, whose refusal never prevents reading. */
+
 // ---------- which address this document is ----------
 // Which version a document is comes from its served `lf-version` marker
 // (`document-identity.js`), and where another version is from that version's `url` in
@@ -13,6 +17,21 @@ export const LIVE_ROOT = PAGE_PATH.endsWith("/");
 // has no server and no link, so no root: the file is the page.
 export const PAGE_ROOT =
   document.querySelector('link[rel="canonical"][data-lf-runtime]')?.href ?? null;
+// A keyed transport declares its share address even on a cookie-authorized reload.
+// Samples and the public website have no share address. Preserve the current
+// version path, query and passage while taking access from the transport's URL.
+export const SHARE_ROOT = document.querySelector(
+  "script[data-lf-runtime][data-lf-server]",
+)?.dataset.lfShareUrl;
+export function shareUrl() {
+  const url = new URL(SHARE_ROOT);
+  url.pathname = location.pathname;
+  const access = [...url.searchParams];
+  url.search = location.search;
+  for (const [key, value] of access) url.searchParams.set(key, value);
+  url.hash = location.hash;
+  return url.href;
+}
 // The same page as a prefix for what the tab keeps, which the prepaint declares on the
 // root before the first paint, since it reads the tab's memory then too (prepaint.js).
 export const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
@@ -63,17 +82,3 @@ export const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
 // The delivery declares a child page's private user scope. Bootstrap reads the
 // same fact before this module loads; neither derives it from the viewed revision.
 export const userStore = document.documentElement.lfStorage.userStore;
-
-// Disposable child pages have an exclusive URL scope. Call only after their
-// browsing context has stopped: pagehide itself saves tab state.
-export function discardPageStorage(url) {
-  const scope = new URL(url).pathname;
-  if (scope === "/") throw new Error("cannot discard root page storage");
-  for (const [open, name] of [
-    [() => localStorage, "local"],
-    [() => sessionStorage, "session"],
-  ]) {
-    const store = stored(open, name, scope);
-    for (const key of store.keys()) store.set(key, null);
-  }
-}

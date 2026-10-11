@@ -1,11 +1,9 @@
 """Thread writes, addressed response admission, and provider reply reservations."""
 
-import sys
 from hashlib import sha256
 from pathlib import Path
 
 from leaf.activity import answer_command
-from leaf.asks import local_ask_entry
 from leaf.delivery import (
     ReceiptRefused,
     current_responses,
@@ -30,10 +28,12 @@ from leaf.projection import (
     retirement_outcomes,
     rewritten_bodies,
 )
+from leaf.questions import asking, local_question_entry, quoted_in
+from leaf.refusals import Refused
 from leaf.registry.schema import json_value
 from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.schema import MESSAGE_KINDS
-from leaf.service import PageTransaction, delivery_reply_attempt
+from leaf.service import PageTransaction, delivery_reply_attempt, same_claim
 from leaf.tasks import start_line_error
 from leaf.thread_context import thread_message, thread_names
 from leaf.validation.admission import (
@@ -50,7 +50,7 @@ def _messages(events: list) -> dict[str, dict]:
 
 def _unknown_message(page_dir: Path, events: list, name: str) -> None:
     held = logged_id(events, name, current_responses(page_dir, events))
-    sys.exit(
+    raise Refused(
         f"unknown comment id {name!r}"
         + (f"; {held}" if held else "")
         + f"; known: {json_value(sorted(_messages(events)))}"
@@ -74,7 +74,7 @@ def thread_addressed(page_dir: Path, events: list, name: str) -> tuple[str, str]
     if subject is None:
         _unknown_message(page_dir, events, name)
     if subject["kind"] == "widget":
-        sys.exit(f"{name} is a widget on the page, not a thread")
+        raise Refused(f"{name} is a widget on the page, not a thread")
     return subject["id"], thread_message(events, subject["id"], name)
 
 
@@ -83,13 +83,21 @@ def thread_named(page_dir: Path, events: list, name: str) -> str:
     return thread_addressed(page_dir, events, name)[0]
 
 
-def reserve_delivery_reply(session_id: str, delivery_id: str, target: dict) -> None:
+def reserve_delivery_reply(
+    session_id: str,
+    delivery_id: str,
+    target: dict,
+    *,
+    expected_claim: dict | None = None,
+) -> None:
     """Reserve a delivery's response address before provider execution begins."""
     attempt = delivery_reply_attempt(delivery_id)
     with PageTransaction(Path(target["page"])) as page:
         claim = page.active_claim
         if claim is None or claim["id"] != session_id:
-            raise RuntimeError(f"page is not claimed by session {session_id!r}")
+            raise ReceiptRefused(f"page is not claimed by session {session_id!r}")
+        if expected_claim is not None and not same_claim(claim, expected_claim):
+            raise ReceiptRefused("the correction's page acquisition has ended")
         page.bind_delivery_reply(session_id, target["responds"], attempt)
 
 
@@ -151,7 +159,7 @@ def _current_anchor(
 
         activation = activate_source(page_dir, transaction=transaction)
         if activation.error and (quote or section or part):
-            sys.exit(f"cannot use invalid index.html: {activation.error}")
+            raise Refused(f"cannot use invalid index.html: {activation.error}")
         revision = require_revision(page_dir)
     if not (quote or section or part):
         return revision, None
@@ -201,7 +209,7 @@ def _capture_anchor(
             if held
             else ""
         )
-        sys.exit(f"can't anchor in revision r{revision}: {err}{recourse}")
+        raise Refused(f"can't anchor in revision r{revision}: {err}{recourse}")
     return anchor
 
 
@@ -227,7 +235,7 @@ def cmd_comment(
     body = read_text_arg(page_dir, text)
     with PageTransaction(page_dir) as page:
         if title is not None and (refusal := title_refusal(page_dir, title)):
-            sys.exit(refusal)
+            raise Refused(refusal)
         events = page.events
         revision, anchor = _current_anchor(
             page_dir, events, quote, section, part, transaction=page
@@ -250,20 +258,27 @@ def cmd_comment(
         return append_admitted(page, event)
 
 
-def successful_replies(events: list[dict], for_event: str) -> list[dict]:
-    """Agent answers to this exact input, excluding progress and failure receipts.
+def is_answer(event: dict) -> bool:
+    """Whether an event is an agent's answer to the input its ``responds`` names.
 
     A thread parent locates presentation; only ``responds`` names the input an
-    answer settles. User replies, progress and failures do not assert an answer.
+    answer settles. User replies carry none. Progress is never an answer, though a log
+    written before #1727 addresses it to its input. A failure receipt names the input
+    it gives up on without answering it, so an answer may still follow it.
     """
-    return [
-        event
-        for event in events
-        if event["kind"] == "reply"
+    return (
+        event["kind"] == "reply"
         and event["author"] == "agent"
-        and event.get("responds") == for_event
+        and event.get("responds") is not None
         and not event.get("ephemeral")
         and "failure" not in event
+    )
+
+
+def successful_replies(events: list[dict], for_event: str) -> list[dict]:
+    """Agent answers to this exact input (`is_answer`)."""
+    return [
+        event for event in events if is_answer(event) and event["responds"] == for_event
     ]
 
 
@@ -282,8 +297,9 @@ def post_reply(
     to: str | None,
     text,
     markup: str,
-    awaits: bool = False,
+    question: bool = False,
     *,
+    task: str | None = None,
     for_event: str | None,
     quote: str = "",
     section: str = "",
@@ -321,6 +337,11 @@ def post_reply(
 
     ``failure`` records a harness-owned failure code alongside its presentation text;
     ordinary agent answers omit it.
+
+    ``question`` makes the reply a prose Question on the user (`questions`).
+    ``task`` titles work the reply promises and does not deliver: the reply opens
+    that task on its thread, under the reply's own id (`tasks.task_reading`), so
+    the user's message is answered and the work stays on the agent in one write.
 
     ``ephemeral`` posts progress at the same response address without answering it.
     It remains content, and cannot carry a question, widgets, failure or relocation.
@@ -368,7 +389,20 @@ def post_reply(
                     or (to is not None and existing["parent"] != to)
                     or not same_scope
                 ):
-                    sys.exit(f"attempt {attempt!r} already belongs to another event")
+                    raise Refused(
+                        f"attempt {attempt!r} already belongs to another event"
+                    )
+                if (bool(existing.get("question")), existing.get("task")) != (
+                    question,
+                    task,
+                ):
+                    # A repeat that asks or promises differently would otherwise
+                    # return the first answer and drop what this one declares.
+                    raise Refused(
+                        f"{existing['id']!r} already answered this with a different "
+                        "declaration; ask or promise in a new message with "
+                        "`leaf thread reply`"
+                    )
                 return existing
         if (
             when_settled == "post"
@@ -386,7 +420,7 @@ def post_reply(
                 )
                 if when_settled == "skip":
                     return None
-                sys.exit(refusal)
+                raise Refused(refusal)
             to = expected["to"]
         assert to is not None
         thread_id, to = thread_addressed(page_dir, events, to)
@@ -404,9 +438,10 @@ def post_reply(
                 if when_settled == "skip":
                     return None
                 if when_settled != "post":
-                    sys.exit(
+                    held = logged_id(events, for_event, responses)
+                    raise Refused(
                         f"event {for_event!r} no longer requires a reply to {to!r}; "
-                        "read the current delivery or thread state"
+                        + (held or "read the current delivery or thread state")
                     )
             elif ephemeral:
                 in_hand = for_event
@@ -433,11 +468,11 @@ def post_reply(
                             "use `leaf response reply <answer.ref>` to commit "
                             "an explicit answer"
                         )
-                    sys.exit(refusal)
+                    raise Refused(refusal)
         else:
             standing = thread_obligation(events, responses, thread_id)
             if standing is not None:
-                sys.exit(
+                raise Refused(
                     f"thread {thread_id!r} currently requires a response; "
                     f"{answer_command(standing)} answers it"
                 )
@@ -446,26 +481,28 @@ def post_reply(
         ):
             return None
         moving = bool(quote or section or part)
-        if ephemeral and (awaits or markup or failure or moving or detach):
-            sys.exit(
-                "--ephemeral is for progress text; it cannot ask a question, carry widgets, report failure, or move the thread"
+        if ephemeral and (question or task or markup or failure or moving or detach):
+            raise Refused(
+                "--ephemeral is for progress text; it cannot ask a question, open a task, carry widgets, report failure, or move the thread"
             )
         if in_hand is not None and start_line_error(text.strip()):
-            sys.exit(
+            raise Refused(
                 f"progress on {in_hand!r}, a move you owe, takes it in hand, and its "
                 "text is the Working line beside the thread and in the banner: write "
                 "it as one line saying what you are doing"
             )
         if detach and moving:
-            sys.exit("--detach cannot be combined with --quote, --section, or --part")
+            raise Refused(
+                "--detach cannot be combined with --quote, --section, or --part"
+            )
         relocating = moving or detach
         if relocating and opening is None:
-            sys.exit(
+            raise Refused(
                 f"thread {thread_id!r} has no surviving opening comment, so its "
                 "anchor cannot be changed"
             )
         if relocating and opening.get("holds"):
-            sys.exit(
+            raise Refused(
                 f"thread {thread_id!r} holds the command goal named by its opening "
                 "comment, so its anchor cannot be changed"
             )
@@ -475,7 +512,7 @@ def post_reply(
             else None
         )
         if detach and (current_thread is None or current_thread["anchor"] is None):
-            sys.exit(f"thread {thread_id!r} has no current anchor to detach")
+            raise Refused(f"thread {thread_id!r} has no current anchor to detach")
         reply_revision = None
         prospective_page = None
         prospective_anchor = None
@@ -512,7 +549,7 @@ def post_reply(
                 checked = check_source(page_dir, source_events)
                 if checked.errors:
                     operation = "reply" if validate_source else "detach"
-                    sys.exit(
+                    raise Refused(
                         f"cannot {operation} while index.html is invalid: "
                         f"{'; '.join(checked.errors)}"
                     )
@@ -534,7 +571,7 @@ def post_reply(
             if markup
             else None
         )
-        if awaits and fragment:
+        if question and fragment:
             from leaf.registry.storage import require_registry
 
             registry = require_registry(page_dir)
@@ -542,13 +579,17 @@ def post_reply(
                 {
                     rec["tag"]
                     for rec in fragment.lf_elements
-                    if local_ask_entry(registry.get(rec["tag"]) or {})
+                    if local_question_entry(registry.get(rec["tag"]) or {})
+                    and asking(
+                        rec["attrs"], registry[rec["tag"]]["x-awaits"].get("when")
+                    )
+                    and not quoted_in(rec, registry)
                 }
             )
             if structural:
-                sys.exit(
-                    "--awaits is for a prose question; reply markup already declares "
-                    "a local Ask "
+                raise Refused(
+                    "--question is for a prose question; reply markup already declares "
+                    "a local Question "
                     f"({', '.join(f'<{tag}>' for tag in structural)})"
                 )
         if not source_matches_active:
@@ -596,8 +637,10 @@ def post_reply(
                 "item": in_hand,
                 **({"turn": turn} if turn else {}),
             }
-        if awaits:
-            event["awaits"] = True
+        if question:
+            event["question"] = True
+        if task is not None:
+            event["task"] = task
         if markup:
             event["markup"] = markup
         if attempt is not None:
@@ -634,7 +677,7 @@ def post_response(
     """
     address = response_address(reference)
     if address["kind"] != "reply":
-        sys.exit(
+        raise Refused(
             f"response {reference!r} requires {answer_command(address)}, not a reply"
         )
     attempt = options.pop("attempt", None)
@@ -680,7 +723,7 @@ def fail_answer(
     - a `reply` answer takes a reply carrying `failure` in its thread, which
       the user resends into; provider custody refuses it until its turn gives the
       reply up;
-    - a `markup` answer takes a failed pickup: the user's Ask answer stands in the
+    - a `markup` answer takes a failed pickup: the user's Question answer stands in the
       log, and answering again sends a new move.
 
     A move with no answer outstanding writes nothing, except that a repeated reply
@@ -743,23 +786,20 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
     The message event is immutable: the edit points back to it, so the log retains
     every wording while thread folds project the latest one. Markup stays frozen with
     the original message because user actions may already rest on widgets it sent.
+    Admission refuses a message another voice wrote (`event_contracts._edit_error`).
     """
     from leaf.registry.storage import require_registry
 
     body = read_text_arg(page_dir, text)
     with PageTransaction(page_dir) as page:
         require_registry(page_dir)
-        events = page.events
-        target = _message(page_dir, events, to)
-        if target["author"] != "agent":
-            sys.exit(f"message {to!r} is not agent-authored")
-        identity = message_identity()
+        _message(page_dir, page.events, to)
         return append_admitted(
             page,
             {
                 "kind": "edit",
                 "author": "agent",
-                **identity,
+                **message_identity(),
                 "message": to,
                 "text": body,
             },
@@ -782,20 +822,14 @@ def title_refusal(page_dir: Path, title: str) -> str | None:
     whose thread it names: a command that posts and names does neither when the name
     is refused, rather than posting and then failing."""
     from leaf.event_contracts import (
-        APPEND_STAMPED,
         admitting_registry,
-        command_record_schema,
+        command_error,
     )
     from leaf.page_view import PageView
-    from leaf.registry.schema import schema_error
 
     event = title_event("pending", title, message_identity())
     registry = admitting_registry(PageView(page_dir), event, read_events(page_dir))
-    error = schema_error(
-        command_record_schema(registry["$events"]["kinds"]["thread_title"]),
-        {**APPEND_STAMPED, **event},
-    )
-    return error and f"thread_title event is invalid: {error}"
+    return command_error(event, registry["$events"]["kinds"])
 
 
 def name_untitled(page, thread: str, title: str, identity: dict) -> dict | None:
@@ -891,7 +925,7 @@ def cmd_report(
     for field in fields:
         name, eq, value = field.partition("=")
         if not eq or not name:
-            sys.exit(f"detail fields are name=value, got {field!r}")
+            raise Refused(f"detail fields are name=value, got {field!r}")
         detail[name] = value
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, transaction=page)

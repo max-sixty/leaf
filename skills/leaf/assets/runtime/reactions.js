@@ -36,7 +36,8 @@
    capabilities; thread views register their template-owned trigger and palette.
    mount installs the mode teardown listeners after composition. */
 
-import { whenOffScreen } from "./geometry.js";
+import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
+import { clipsPastSurfaces, seenRect, whenNone } from "./geometry.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { registerContribution } from "./contributions.js";
 import { runtime } from "./context.js";
@@ -91,15 +92,14 @@ const reactionVocabulary = () => registry.$reactions?.tokens;
 export const reactionTokens = () => Object.entries(reactionVocabulary() ?? {});
 
 // One token as a press in the response bar; a reply's strip builds its own
-// (thread/reaction-strips.js). The token names the control; a layer may add an
-// explanation without making prose part of the platform's vocabulary. The compact face stays the declared mark. Digits remain keyboard
-// accelerators without changing the shape of every chip.
+// (thread/reaction-strips.js). The token names the control and the compact face
+// stays the declared mark. Digits remain keyboard accelerators without changing the
+// shape of every chip.
 function reactionChip(name, entry, pressed) {
   const chip = offer("button", `lf-react ${HOLDS_WORD}`);
-  const meaning = entry.means ? `${name} — ${entry.means}` : name;
   chip.dataset.token = name;
-  chip.title = meaning;
-  chip.setAttribute("aria-label", meaning);
+  chip.title = name;
+  chip.setAttribute("aria-label", name);
   responseAction(chip, { glyph: entry.glyph, label: name, collapse: true });
   chip.onclick = () => pressed(name, chip);
   return chip;
@@ -257,7 +257,7 @@ export function createReactionController({
             key: marginReactionKey(name, ordinal),
             activation: name,
             glyph: entry.glyph,
-            label: entry.means ? `${name} — ${entry.means}` : name,
+            label: name,
             rank: "secondary",
             className: `lf-react ${HOLDS_WORD}`,
             pressed: standing.has(name),
@@ -312,7 +312,7 @@ export function createReactionController({
     const picker = pickerFor(surface);
     // The platform hands focus back to the opener as the list closes, the layer's own
     // return (focus.js).
-    picker?.palette.hidePopover();
+    if (picker) closeNativeLayer(picker.palette);
     picker?.trigger.setAttribute("aria-expanded", "false");
   }
 
@@ -390,11 +390,16 @@ export function createReactionController({
         const picker = pickerFor(reactSurface);
         // `e` opens the latest reply of the thread the user stands in, which may be
         // scrolled out of the list: it comes into view to be answered, since a list
-        // hung from a trigger out of view would neither show nor stay open.
+        // hung from a trigger out of view would neither show nor stay open, and it
+        // closes once none of the trigger is in front of the user (`seenRect`). The
+        // list stands in the top layer, above the thread panel, so a surface standing
+        // over the trigger does not take it away; a scroll carrying the trigger out of
+        // sight does.
         scrollIntoReadingBand(picker.trigger, picker.trigger, "nearest", "instant");
-        picker.palette.showPopover({ source: picker.trigger });
+        showNativeLayer(picker.palette, { source: picker.trigger });
         const opened = reactSurface;
-        reactDeparture = whenOffScreen([picker.trigger], () => {
+        const seen = (trigger) => seenRect(trigger, clipsPastSurfaces());
+        reactDeparture = whenNone([picker.trigger], seen, () => {
           if (reactSurface === opened) setReact(false);
         });
         picker.trigger.setAttribute("aria-expanded", "true");

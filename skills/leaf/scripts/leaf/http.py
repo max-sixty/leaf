@@ -10,7 +10,6 @@ import html
 import json
 import re
 import secrets
-import sys
 import time
 from collections.abc import Mapping
 from dataclasses import replace
@@ -35,12 +34,12 @@ from .data import (
 )
 from .event_endpoint import accept_event, event_fault, event_rejection
 from .event_log import read_events
+from .file_bindings import FileBindingError, StaleFileError, read_file, save_file
 from .files import (
     latest_revision,
     list_revisions,
     missing_revision,
     published_versions,
-    read_json,
     revision_names,
     revision_num,
     revision_path,
@@ -53,6 +52,7 @@ from .layer import foreign_runtime
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .passages import SourceReading
+from .refusals import Refused
 from .registry.storage import layer_metadata, require_registry
 from .render_checks import PROBE_SOURCES
 from .revision_artifact import (
@@ -79,13 +79,12 @@ from .schema import (
     NO_KEY,
     REVISION_NAME,
     SERVED_PATH,
-    VIEWED_FILE,
 )
 from .served_state import reading as served_reading
 from .served_state.service import PageStateService
 from .server import preview_metadata
 from .service import PageTransaction
-from .state import now_iso, write_json
+from .state import now_iso
 from .structure import FRAME_ANCESTORS_CSP
 from .user_views import FRESH_FOR_S, observe_user_view, read_user_views
 
@@ -160,6 +159,11 @@ def scope_page_urls(value, page_root: str):
     return scoped
 
 
+def child_interaction_page(page_root: str, owner_root: str) -> str:
+    """The child identity relative to the durable diagnostic owner."""
+    return page_root[len(owner_root) :]
+
+
 def page_delivery(
     resources: Mapping[str, Resource],
     *,
@@ -168,6 +172,7 @@ def page_delivery(
     release_id: str | None = None,
     page_root: str = "",
     asset_root: str | None = None,
+    share_url: str | None = None,
 ) -> Delivery:
     """How an HTTP host delivers a page's document: supervised before anything loads.
 
@@ -175,7 +180,9 @@ def page_delivery(
     and starts under the import map its layer modules resolve through and the runtime
     bootstrap with its server incarnation probe, so historical
     sources inherit the current delivery boundary without carrying delivery markup
-    themselves. `write_live_shell` delivers published documents the same way.
+    themselves. A keyed top-level page declares its share address here, including
+    on a bare-URL reload. Disposable samples and public website documents have no
+    such address. `write_live_shell` delivers published documents the same way.
     """
     assets = asset_root if asset_root is not None else page_root
     address = DeliveryAddress(page_root, assets)
@@ -185,10 +192,15 @@ def page_delivery(
         if release_id is not None
         else ""
     )
+    share = (
+        f' data-lf-share-url="{html.escape(share_url, quote=True)}"'
+        if share_url is not None
+        else ""
+    )
 
     runtime = (
         f'<script data-lf-runtime data-lf-server="{server_id}" '
-        f'data-lf-layer="{layer_id}"{release} '
+        f'data-lf-layer="{layer_id}"{release}{share} '
         f'data-lf-page-root="{html.escape(page_root, quote=True)}" '
         f'data-lf-entry="{html.escape(address("/leaf.js"), quote=True)}" '
         f'data-lf-probe="{html.escape(address("/registry.json"), quote=True)}">'
@@ -269,6 +281,17 @@ class PageEndpoint:
         # bytes, which a document load asks for a few hundred times. A refusal or
         # fault on either is still traced.
         self.housekeeping = False
+        # Set when the route names a child capability, including a revoked one.
+        # The opaque child must be able to read refusals and faults as HTTP too.
+        self.sample_request = False
+        # The endpoint a sample's child answers inside (`SampleEndpoint`); None for
+        # the authored page.
+        self.parent: PageEndpoint | None = None
+        # A POST's body and the refusal reading it earned, which `_answer` reads only
+        # once the request is authorized. Empty until then, so a fault met before
+        # that still answers in the route's shape.
+        self.posted = {}
+        self.posted_error: str | None = None
 
     @property
     def layer(self) -> str:
@@ -279,11 +302,20 @@ class PageEndpoint:
         """
         return self.layer_identity["generation"] if self.layer_identity else ""
 
+    def interaction_owner(self) -> "PageEndpoint":
+        """The durable authored page retaining every descendant sample's trace."""
+        owner = self
+        while owner.parent is not None:
+            owner = owner.parent
+        return owner
+
     def respond(self) -> Response:
         """Answer this request, on a worker thread of the serving loop's own pool."""
         started = time.monotonic()
         if self.method in {"GET", "HEAD"}:
             answer = self._answer(self._get)
+        elif self.method == "OPTIONS":
+            answer = self._answer(self._not_found)
         elif self.method == "POST":
             answer = self._answer(self._post, prepare=self._read_posted)
         else:
@@ -291,11 +323,13 @@ class PageEndpoint:
         if self.method == "HEAD":
             answer.body = b""
         answer.headers.update(self._delivery_headers())
+        if self.sample_request:
+            answer = self._sample_headers(answer)
         # The request boundary sees successful answers and refusals alike. Keep
         # query strings (including the access key) and request bodies out of it.
         if (
             self.page_dir is not None
-            and getattr(self, "parent", None) is None
+            and self.parent is None
             and not (self.housekeeping and answer.status_code < 400)
         ):
             try:
@@ -444,10 +478,7 @@ class PageEndpoint:
                 served_reading.page_reading(self.page_dir),
                 presence_model.presence_reading(self.page_dir),
             )
-            viewed = (read_json(self.page_dir / VIEWED_FILE) or {"t": 0})["t"]
-            now = time.time()
-            if now - viewed > 30:
-                write_json(self.page_dir / VIEWED_FILE, {"t": now})
+            presence_model.renew_viewed(self.page_dir)
         return self._content(200, "text/plain; charset=utf-8", reading.encode())
 
     @property
@@ -466,8 +497,8 @@ class PageEndpoint:
         set out of it. One arrival is enough: the runtime's own fetches are
         relative and carry no query, and the bootstrap leaves only the bare
         address in the tab, which the cookie authorizes on reload or from a
-        bookmark. So nothing has to thread the key through the page, and
-        `leaf.js` never learns there is one."""
+        bookmark. Delivery also declares the key for the explicit Share control;
+        ordinary page requests continue to use the cookie."""
         if secrets.compare_digest(self.query.get("t", [""])[0], self.token):
             self.set_cookie = True
         else:
@@ -668,9 +699,10 @@ class PageEndpoint:
         the one person still looking, and `record_fault` keeps a copy for whoever
         else reads this host. This is the only place a 500 is written: a route that
         cannot answer raises rather than composing one of its own, so no fault
-        reaches a browser without passing the record. The key is checked here for `_delivery_headers`'s
-        reason: every request passes through, so there is one gate rather than one
-        per method, and a route added later cannot be the one that forgot to ask.
+        reaches a browser without passing the record. Authorization lives here:
+        a disposable child's unguessable path grants that child's routes; every
+        parent route requires its handover key or cookie. A route added later
+        cannot be the one that forgot to ask.
         POST preparation is deliberately after that gate, so an unknown peer cannot
         choose a body-read cost.
 
@@ -686,15 +718,13 @@ class PageEndpoint:
             answered = self._select_page()
             if answered is not None:
                 return answered
-            if prepare:
-                self.posted, self.posted_error = {}, None
+            sample_answer = self._sample_request()
+            if sample_answer is not None:
+                return sample_answer
             if not self.authorized():
                 if prepare:
                     self.body_unread = True
                 return self._json({"error": NO_KEY}, 401)
-            sample_answer = self._sample_request()
-            if sample_answer is not None:
-                return sample_answer
             if prepare:
                 self.posted, self.posted_error = prepare()
                 prepared = True
@@ -718,11 +748,23 @@ class PageEndpoint:
         """
 
     def _sample_request(self) -> Response | None:
-        """Enter a child only after its parent transport has authorized this request."""
-        match = re.fullmatch(r"/api/samples/([a-f0-9]{32})(/.*)?", self.path)
+        """An unguessable child path authorizes only that disposable page.
+
+        Opaque frames cannot carry the parent cookie. Every native loader and API
+        uses this same child capability, before the parent cookie gate.
+        """
+        match = re.fullmatch(
+            r"/api/samples/([a-f0-9]{32}(?:~[a-f0-9]{64})?)(/.*)?", self.path
+        )
         if match is None:
             return None
-        identity, inside = match.groups()
+        self.sample_request = True
+        # Preflight grants no page access. The actual request below checks the
+        # capability, so a late read can receive its 404 even after revocation.
+        if self.method == "OPTIONS":
+            return self._content(204, "text/plain", b"")
+        segment, inside = match.groups()
+        identity = segment.split("~", 1)[0]
         sample = self.server.samples.get(self.page_dir, identity)
         if sample is None:
             return self._not_found()
@@ -733,14 +775,14 @@ class PageEndpoint:
         child = SampleEndpoint(
             self.request,
             self.server,
+            parent=self,
+            path=inside or "/",
+            passive=sample.passive,
+            asset_root=sample.asset_root,
             page_dir=sample.directory,
             layer_identity=sample.layer,
-            page_root=f"{self.page_root}/api/samples/{identity}",
+            page_root=f"{self.page_root}/api/samples/{segment}",
         )
-        child.path = inside or "/"
-        child.parent = self
-        child.passive = sample.passive
-        child.asset_root = sample.asset_root
         with sample.lock:
             if sample.closed:
                 return self._not_found()
@@ -748,6 +790,29 @@ class PageEndpoint:
             self.response_layer = child.response_layer
             self.housekeeping = child.housekeeping
             return answer
+
+    def _sample_headers(self, response: Response) -> Response:
+        """Every child-capability answer is readable without parent credentials.
+
+        This includes revoked capabilities and faults: a late native request must
+        receive the HTTP result rather than an opaque browser CORS failure.
+        """
+        response.headers.update(
+            {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
+                "Access-Control-Allow-Headers": self.headers.get(
+                    "Access-Control-Request-Headers", "*"
+                ),
+                "Access-Control-Expose-Headers": "*",
+                "Referrer-Policy": "no-referrer",
+            }
+        )
+        # An opaque parent is not expressible as a frame-ancestors source. Child
+        # capabilities admit nested samples; parent documents keep their policy.
+        if response.headers.get("Content-Security-Policy") == FRAME_ANCESTORS_CSP:
+            del response.headers["Content-Security-Policy"]
+        return response
 
     def _serve_root(self) -> Response:
         if self.page_snapshot is not None:
@@ -792,9 +857,9 @@ class PageEndpoint:
         """The immutable dependency namespace selected for this document."""
         return self._artifact_root(revision)
 
-    def _sample_asset_root(self, revision: int) -> str:
-        """Capture the parent's resource provenance when creating a child."""
-        return self._document_asset_root(revision)
+    def _sample_asset_root(self, revision: int) -> str | None:
+        """A host's public captured graph, or the child's own capability namespace."""
+        return None
 
     def _serve_document(
         self, artifact: RevisionArtifact, revision: int, version: int | None
@@ -811,7 +876,9 @@ class PageEndpoint:
             registry=artifact.registry,
             delivery=self._delivery(artifact, revision),
         )
-        return self._content(200, "text/html; charset=utf-8", projected.encode())
+        response = self._content(200, "text/html; charset=utf-8", projected.encode())
+        response.headers["Leaf-Document"] = str(revision)
+        return response
 
     def _delivery(self, artifact: RevisionArtifact, revision: int) -> Delivery:
         """How this transport delivers a document; a transport adds its own marks."""
@@ -822,6 +889,15 @@ class PageEndpoint:
             release_id=self.release,
             page_root=self.page_root,
             asset_root=self._document_asset_root(revision),
+            share_url=(
+                str(
+                    self.request.url.replace(
+                        path=f"{self.page_root}/", query=""
+                    ).include_query_params(t=self.token)
+                )
+                if self.token is not None
+                else None
+            ),
         )
 
     def _serve_artifact_resource(self) -> Response | None:
@@ -939,6 +1015,13 @@ class PageEndpoint:
 
     def _get(self) -> Response:
         path = self.path
+        if match := re.fullmatch(r"/api/files/([^/]+)", path):
+            if self.page_snapshot is not None:
+                return self._refuse("Captured previews cannot read live files.", 403)
+            try:
+                return self._json(read_file(self.page_dir, match[1]))
+            except FileBindingError as error:
+                return self._refuse(str(error))
         if probe_source := PROBE_SOURCES.get(path):
             return self._content(
                 200, "text/javascript; charset=utf-8", probe_source.read_bytes()
@@ -997,6 +1080,29 @@ class PageEndpoint:
 
     def _post(self) -> Response:
         path = self.path
+        if match := re.fullmatch(r"/api/files/([^/]+)", path):
+            # File writes are mechanical editing, outside event admission and layer
+            # vocabulary. Only the mutable, authenticated, same-origin page writes.
+            try:
+                view_revision = self.requested_view_revision()
+            except ValueError as error:
+                return self._refuse(str(error))
+            if self.page_snapshot is not None or (
+                view_revision is not None
+                and view_revision != latest_revision(self.page_dir)
+            ):
+                return self._refuse("This view cannot edit live files.", 403)
+            expected_origin = f"{self.request.url.scheme}://{self.request.url.netloc}"
+            if self.headers.get("Origin") != expected_origin:
+                return self._refuse("File saving requires this page's origin.", 403)
+            if self.posted_error:
+                return self._refuse(self.posted_error)
+            try:
+                return self._json(save_file(self.page_dir, match[1], self.posted))
+            except StaleFileError as error:
+                return self._json({"error": str(error), "current": error.current}, 409)
+            except (FileBindingError, UnicodeEncodeError) as error:
+                return self._refuse(str(error))
         if path not in {
             "/api/event",
             "/api/media",
@@ -1036,12 +1142,20 @@ class PageEndpoint:
                 or any(not isinstance(entry, dict) for entry in entries)
             ):
                 return self._refuse("interaction requires a nonempty array of entries")
-            # A sample's directory is temporary. Keep its trace in the owning
-            # page, with the scoped address identifying which child produced it.
-            owner = getattr(self, "parent", None)
-            directory = owner.page_dir if owner is not None else self.page_dir
-            page = self.page_root[len(owner.page_root) :] if owner is not None else "/"
-            append_interactions(directory, client_records(session, page, entries))
+            # Every sample directory is temporary, including a nested sample's
+            # parent. Retain all descendants in the authored page's trace, with
+            # their complete root-relative addresses surviving ancestor release.
+            owner = self.interaction_owner()
+            page = (
+                child_interaction_page(self.page_root, owner.page_root)
+                if owner is not self
+                else "/"
+            )
+            try:
+                records = client_records(session, page, entries)
+            except (TypeError, ValueError) as error:
+                return self._refuse(str(error))
+            append_interactions(owner.page_dir, records)
             return self._content(204, "text/plain", b"")
         # Preview requests have passed authentication and body preparation. An event
         # refusal can therefore name its attempt; media uses the route's generic shape.
@@ -1120,7 +1234,15 @@ class PageEndpoint:
                 )
             except ValueError as error:
                 return self._refuse(str(error))
-            return self._json({"url": f"{self.page_root}/api/samples/{identity}/"})
+            root = f"{self.page_root}/api/samples/{identity}"
+            return self._json(
+                {
+                    "url": root + "/",
+                    "page": child_interaction_page(
+                        root, self.interaction_owner().page_root
+                    ),
+                }
+            )
         if path == "/api/media":
             try:
                 media_path = store_uploaded_media(
@@ -1138,10 +1260,34 @@ class PageEndpoint:
 
 
 class SampleEndpoint(PageEndpoint):
-    """A normal child page whose parent route already checked access."""
+    """A normal child page authorized by its scoped, unguessable route."""
+
+    def __init__(
+        self,
+        request: Request,
+        server,
+        *,
+        parent: PageEndpoint,
+        path: str,
+        passive: bool,
+        asset_root: str | None,
+        **binding,
+    ) -> None:
+        super().__init__(request, server, **binding)
+        self.parent = parent
+        # The address inside the child, below the capability its parent matched.
+        self.path = path
+        self.passive = passive
+        self.asset_root = asset_root
 
     def authorized(self) -> bool:
         return True
+
+    def _document_asset_root(self, revision: int) -> str:
+        return self.asset_root or super()._document_asset_root(revision)
+
+    def _sample_asset_root(self, revision: int) -> str | None:
+        return self.asset_root
 
     def record_fault(self, error: Exception) -> None:
         # `_sample_request` builds this child, not the host that chose the parent's
@@ -1151,9 +1297,6 @@ class SampleEndpoint(PageEndpoint):
         # reading the fault is looking for.
         self.parent.record_fault(error)
 
-    def _document_asset_root(self, revision: int) -> str:
-        return self.asset_root
-
     def _delivery(self, artifact: RevisionArtifact, revision: int) -> Delivery:
         # Every child arrives inert, so its startup cannot take focus from the page;
         # the host releases a live one once it presents. A passive replay never takes
@@ -1161,7 +1304,10 @@ class SampleEndpoint(PageEndpoint):
         # say (sample.js), which its bootstrap asks before it paints.
         return replace(
             super()._delivery(artifact, revision),
-            html_attributes={"data-lf-user-scope": self.page_root + "/"},
+            html_attributes={
+                "data-lf-user-scope": self.page_root + "/",
+                "data-lf-sample": "",
+            },
             body_attributes={"inert": ""}
             | ({"data-lf-sample-passive": ""} if self.passive else {}),
         )
@@ -1179,7 +1325,7 @@ def page_endpoint(
     The layer identity and the preview reading are read once here rather than per
     request: they are facts about the vendored page this server was started over. So
     is whether this Leaf can serve that page at all: every one-page server, durable
-    or temporary, passes here before it binds, and exits naming the re-vendor when
+    or temporary, passes here before it binds, and refuses naming the re-vendor when
     the page's runtime came from another Leaf (`foreign_runtime`).
     The key has no default: every server over a page directory is reachable by
     whatever reached the machine, so there is no construction that should quietly go
@@ -1190,7 +1336,7 @@ def page_endpoint(
         else layer_metadata(page_dir)
     )
     if refusal := foreign_runtime(page_dir, identity):
-        sys.exit(refusal)
+        raise Refused(refusal)
     return partial(
         endpoint,
         page_dir=page_dir,

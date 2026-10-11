@@ -1,0 +1,7 @@
+/* Shared delivery entrypoint: component owners are independent of document or
+ * declared-shadow delivery. Composition supplies the existing cascade tiers. */
+@import "./components/surfaces.css";
+@import "./components/reading.css";
+@import "./components/controls.css";
+@import "./components/response.css";
+@import "./components/integration.css";

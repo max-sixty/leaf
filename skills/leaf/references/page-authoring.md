@@ -13,56 +13,61 @@
 
 ## Read the registry
 
-Run `leaf page instructions <page>` and read the shared `author` instructions
-when listed before choosing widgets. Shared composition rules guide that choice.
+Write semantic HTML and use the registry's elements and class idioms. The vendored
+theme owns palette, type, spacing, headings, tables, code, and widget presentation.
+Use a page-local `<style>` only for presentation unique to this page.
+
+Read the shared author instructions before choosing vocabulary:
+
+```bash
+leaf page instructions <page> | jq -er '.author'
+```
 
 `<page>/registry.json` is the vocabulary `page init` vendored; a
 `page/registry.json` the page writes adds to it or replaces its entries ("Page
-behavior"). Discover widgets by their short purpose and use case:
+behavior"). Ordinary keys are authoring vocabulary: custom-element names or CSS
+selectors. `$` keys are shared layer facts. Discover all vocabulary by purpose:
 
 ```bash
 registry="<page>/registry.json"
-jq 'with_entries(select(.key | startswith("lf-")))
+jq 'with_entries(select(.key | startswith("$") | not))
     | map_values(.description)' "$registry"
 ```
 
-Once you select a widget, read its attribute schema and worked example. Ask for
-a group's parent and child together, because the parent's example shows both:
+Read a selected entry's complete example and instructions. Elements also carry
+an attribute schema; idioms show the semantic HTML and classes the theme styles.
+Both use the same lookup and the same `x-example` and `x-instructions` fields:
 
 ```bash
-registry="<page>/registry.json"
-jq '{"lf-options": .["lf-options"], "lf-option": .["lf-option"]}
-    | map_values({"x-example", properties, required})' "$registry"
+jq '.["lf-options"], .[".eyebrow"]' "$registry"
 ```
 
-Before writing the markup, list the selected widgets' instruction audiences and
-read `author` when listed, including when you copy their examples:
+Before writing markup, read the composed author instructions for the entries you
+will use, including examples you copy:
 
 ```bash
-leaf page instructions <page> --widget lf-options
-leaf page instructions <page> author --widget lf-options
+leaf page instructions <page> --use lf-options --use .eyebrow | jq -er '.author'
 ```
 
-The command includes shared package instructions and the instructions for the
-selected widgets, their required members, custom tags in their examples, and
-declared data contracts. Select each additional widget the page uses with another
-`--widget`. A widget's `x-instructions` guides how to use it after selection.
+Each repeated `--use` selects an element or idiom. The command includes shared
+package instructions, the selected entries' instructions, elements and idioms used in
+their examples, and declared data contracts. It returns one JSON map from audience
+to complete text. Whoever takes another role, you or an agent you assign, reads
+that audience's value for the same selection before acting. Inspect the map's
+keys to see the roles it carries; `--contract` selects a data contract directly.
+"Package contract" in `packages.md` defines composition.
 
-Read the complete entry wherever the page does more than the example shows, and
-for every `$` fact:
+Read each `$` fact the page relies on in full:
 
 ```bash
-registry="<page>/registry.json"
-jq '{"lf-chart": .["lf-chart"], "$series": .["$series"]}' "$registry"
+jq '.["$series"]' "$registry"
 ```
 
-`description` identifies a widget's purpose and when it helps. The schema and
+`description` identifies purpose and when an entry helps. The schema and
 `x-example` state its form; `x-instructions` carries authoring choices and
 obligations the schema cannot express. Implementation contracts live beside
-their owning modules. Package-defined tags and `$` facts join the same registry.
-`leaf page instructions <page>` lists available audiences; read the assigned
-audience before acting in another role, selecting the widgets or data contracts
-that work uses. "Package contract" in `packages.md` defines the command.
+their owning modules. Package-defined elements, idioms, and `$` facts join the
+same registry.
 
 ## Document scaffold
 
@@ -118,7 +123,7 @@ from these:
   kept in view, such as a postmortem beside its timeline, is instead a `layout-sidebar`
   page whose `aside` sticks ("A wide page", below).
 - **Several views of one artifact** are one `lf-tabs` set: page tabs for
-  project-scale views that share one history, Threads panel, Ask inventory, and
+  project-scale views that share one history, Threads panel, Question inventory, and
   revision sequence, and a tabbed section for local alternatives within the
   surrounding view. Page tabs are sections of one page: each panel takes the page's
   width, so a Layout class on `main` widens every tab, and a sidebar stands beside
@@ -183,8 +188,8 @@ Two arrange a box's children, on `main` or on any block:
 
 On `main`, every class but `layout-column` makes a wide page: every block, the title
 included, starts at one left edge and takes the page's width, while text keeps the
-reading measure, as do an Ask, a callout and a widget read as text, such as an option
-list or a draft. Give an Ask or a callout `data-width` where it holds a chart, a table,
+reading measure, as do an `lf-ask`, a callout and a widget read as text, such as an option
+list or a draft. Give an `lf-ask` or a callout `data-width` where it holds a chart, a table,
 a playground or another surface that needs more room ("Bounds and widths"). A wide,
 sidebar or tiles page is capped at the widest page and sets its title larger; a
 workspace takes the whole window and leaves its title to the theme. `layout-column` on
@@ -287,9 +292,9 @@ A workspace usually takes it, and so can a dense pane or table on a column page.
 
 A queue whose items open one at a time beside it, such as tickets, cases or findings to
 decide, is one `lf-tabs list="side"` as the body: its list is the queue and each item an
-`lf-tab`, so one opens beside the list and a link or an Ask opens its own, and a row
-whose item's Asks are all answered shows a check, with the picked answer beside it
-where the item holds one Ask. Write no script to select, hide or mark an item; the tab
+`lf-tab`, so one opens beside the list and a link or a Question opens its own, and a row
+whose item's Questions are all answered shows a check, with the picked answer beside it
+where the item holds one Question. Write no script to select, hide or mark an item; the tab
 set does all three. Where the items fall into kinds the user works through in turn,
 such as merge, close and FYI, give each `lf-tab` its kind as `group` and keep each
 kind's items together: the list sets each run under a heading of its group.
@@ -332,7 +337,7 @@ room left by the page shell, frames, chrome, and a margin resident that takes it
 such as a sidebar standing in the margin or the contents map's spine; the markers beside
 it then stand as pins on it, and it moves below a note hanging level with it. The
 occurrence overrides a widget's or idiom's default, so `data-width="column"` can
-deliberately keep a normally wide widget with the prose. An Ask or a callout keeps the
+deliberately keep a normally wide widget with the prose. An `lf-ask` or a callout keeps the
 column; give it the width its chart, table or playground needs, and in a wider flow it
 also widens to a block of its own that declares one.
 Use these names on the semantic block itself, including a native `table`, `lf-code`, or
@@ -381,15 +386,16 @@ need neither override.
 Leaf's default draws markers, passage marks and contextual replies over the page.
 For an arrangement that places annotations in the document instead, select
 `data-annotations="page"` on `body`. This choice omits the overlay's modules,
-styles and geometry. Exact comments, Asks, decisions, Undo, live revisions and
+styles and geometry. Exact comments, Questions, decisions, Undo, live revisions and
 drawing capture still use the shared Leaf mechanisms. Changing the selection
 replaces the document through the ordinary revision lifetime.
 
 When the task needs conversations and actions kept in an independent region
 ("Bounds and widths"), place one empty
-`<lf-annotation-rail id="annotations"></lf-annotation-rail>` there. Allocate its
-width and height in the page's CSS; it scrolls inside that box. At narrow widths,
-give it a place the user can reach by touch and keyboard. Leaf supplies native disclosures,
+`<lf-annotation-rail id="annotations"></lf-annotation-rail>` there. It grows with
+its rows; where the page's CSS bounds its height, as a workspace region does, it
+scrolls inside that box. At narrow widths, give it a place the user can reach by
+touch and keyboard. Leaf supplies native disclosures,
 reply editors, action controls and retained reading; the page supplies their layout.
 Widget-local conversations keep their exact seats before the page rail takes
 remaining targets. The Threads panel remains the complete conversation index.
@@ -444,10 +450,6 @@ shape of its own or backing that belongs under `<details>`.
 
 ## Theme and vocabulary
 
-Write semantic HTML and use the class idioms the registry lists under `$idioms`,
-where each one comes with the markup it is written as. The vendored theme owns
-palette, type, spacing, headings, tables, code, and widget presentation. Use a
-page-local `<style>` only for presentation unique to this page.
 For a page-specific inset, use the frame declaration in `references/packages.md`,
 "A theme change".
 
@@ -464,6 +466,9 @@ leading `<strong>`. A data-bodied widget such as `lf-code` holds escaped
 notation in `<pre>`, because its whitespace is part of the data. Escape `&`
 first, then `<` and `>`; any other order can silently decode entity text.
 
+Format filenames and paths as inline code, using backticks in Markdown and
+`<code>` in HTML; use an authored link when the file has a known destination.
+
 Display source snippets as `<pre><code class="language-javascript">…</code></pre>`,
 or `lf-code language="javascript"` for a line-numbered walkthrough, naming the actual
 language from `$languages.names`. Format illustrative code with the language's usual
@@ -474,13 +479,14 @@ whitespace. Verbatim source quotations keep their exact text; logs and transcrip
 stay literal and uncolored when they are not source code.
 
 The runtime injects the status banner, thread panel, Versions menu, keyboard
-shortcuts, live-leaves drawer, and Questions panel, which lists the page's open Asks.
+shortcuts, live-leaves drawer, and Questions panel. `conversation-loop.md`,
+"Questions and Tasks", owns what belongs in those lists and how to inspect them.
 Readers can turn off **Quick keyboard shortcuts** under **More → Keyboard shortcuts**.
 This preference persists across pages on the same origin and removes Leaf's character
 shortcuts and their hints; commands and ordinary control navigation remain available.
 A package can arrange conversations and obligations with the canonical APIs in
 `module-authoring.md`, "Owning the primary conversation presentation" and "Reading
-Asks and obligation queues". Leaf owns their state, rendering, and activation;
+Questions and obligation queues". Leaf owns their state, rendering, and activation;
 page composition can choose their layout.
 
 Keep content within its allocated column, visual surface, or pane. The theme scrolls a `<pre>` or a table
@@ -514,9 +520,13 @@ identity must survive a rewrite ("Stable anchors").
 Changing the registry or JavaScript opens a fresh document. Leaf restores reading
 position, recoverable drafts, and comparison state. It can also restore focus and
 supported control state when an element keeps its authored id and tag. Element
-instances and arbitrary module state do not survive the reload. Both update paths
-wait while the user is composing, dragging, or undoing, has a gesture the server
-has not yet admitted, or has the version menu open.
+instances and arbitrary module state do not survive the reload. Reloads wait while
+the user is composing. An in-place revision can arrive during selection, commenting,
+or editing when it preserves every selected passage or comment's complete authored
+anchor scope and every active native editor. Thread replies keep their editing session
+independently of the page's authored content. Otherwise the revision waits until
+composition ends. Both update paths wait during dragging or undoing, while a gesture
+awaits server admission, or while the version menu is open.
 
 Page modules follow `references/module-authoring.md`, "What a behavior module owes". In
 particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-state
@@ -585,11 +595,16 @@ Leaf's banner, bottom bar, or drawers, the boolean `window` attribute makes the 
 a whole Leaf window instead, chrome included, at a fixed height that scrolls inside.
 A click or Tab reaches the child directly; its normal widget controls, keyboard
 routes, comments, and replies work there. Escape closes the child's open controls
-before returning to the surrounding page. Reset creates a fresh page from the template.
-Child decisions and comments do not change the parent's log or Ask inventory.
+before returning to the surrounding page. Every live sample supplies **Full view**,
+which expands the same child to a whole Leaf window at viewport size. **Return to
+page**, or Escape after closing the child's controls, restores the embedded view
+with its choices, drafts, and history intact. Reset creates a fresh page from the template.
+Child decisions and comments do not change the parent's log or Question inventory.
 Set a page-wide body declaration, such as `data-annotations="page"`, on the sample
 template when the child needs it. Leaf carries that declaration onto the child's
 body; the surrounding page keeps its own choice.
+Host-driven view changes preserve focus. Programmatic navigation inside a sample
+scrolls only that child document.
 The child is temporary: use an ordinary Leaf page when its history must outlive
 the sample. A live sample needs a server, so a page declaring one cannot be
 exported (`references/serving-pages.md`, "Exported files").
@@ -634,10 +649,27 @@ replies remain independent. A template chooses either `data-sample-events` or
 
 The child is a document of its own: a `<style>` or module script in the template
 applies to the child alone, and the surrounding page's styles and scripts do not
-reach it. A page module can await the element's `ready` promise to receive the child
-`Document`, and await `reset()` to replace it. The bubbling `lf-sample-ready`
-event carries `detail.document` after each child presents, including Reset, so
+reach it. The child has an opaque sandbox origin: neither page can access the other's
+DOM, browser storage, or runtime functions. A page module can await the element's
+`ready` promise for its presentation, and await `reset()` to replace it. The bubbling
+`lf-sample-ready` event carries `detail.sample` after each child presents, including Reset, so
 host controls can reapply a selected view without inspecting the Reset button.
+Leaf’s own navigation stays inside the child: focus placement requires the child
+to own input, reveals stop at its document, and native layer transitions prevent
+automatic focus before placing their intended arrival. Scripts and embedded frames
+remain permitted. The sandbox isolates DOM and data; arbitrary scripts calling
+native browser focus or reveal APIs keep those APIs’ browser behavior. Forms, popups,
+downloads and pointer lock keep their native routes. The child's unguessable URL
+authorizes its own document, captured assets and APIs, so native resource loaders and
+module-relative URLs work directly. It grants no parent routes. Child responses
+suppress referrers; external requests retain the browser's opaque-origin CORS rules.
+Reload reconnects the child; Reset replaces it with a fresh copy of its initial state.
+Initial document admission failures reject `ready` after releasing the failed
+allocation; the sample keeps its error and Reset control. Later native navigation
+keeps the destination in the frame and Reset available. While that document has no
+Leaf connection, `ready` and presentation commands reject with `AbortError`; a
+valid Leaf reload reconnects. The containing page cannot distinguish an external
+destination from a failed reload inside the opaque frame.
 To select a conversation, call `await sample.showThread(id)` with its root event id;
 this shows the same page destination as its marker. To inspect it in Threads,
 call `await sample.showThread(id, {surface: "panel"})`. The panel view accepts
@@ -745,12 +777,12 @@ navigation. Follow the page's links and operate its navigation with pointer and 
 At each destination, check that the visible content and focus leave the user
 oriented and able to continue; compare equivalent moves across the page's views.
 
-For a page with Asks, the check also saves the window at each of the first eight
+For a page with Questions, the check also saves the window at each of the first eight
 as `q` reaches it from the top, which is how a user working the page meets each
 question. At each arrival, confirm that the question, shared premise, alternatives,
 and evidence that distinguishes them are visible together, the displayed numbers
 match the available actions, and the next press of `q` reaches the next thing waiting
-on the user (an open Ask, a thread whose question is theirs, or a move to send again)
+on the user (an open Question, a thread whose question is theirs, or a move to send again)
 while the complete page remains visible.
 
 Without a way to inspect the rendered page, read `leaf page state <page>`'s

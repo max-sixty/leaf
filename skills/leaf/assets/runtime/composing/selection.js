@@ -56,17 +56,12 @@ import { sentDrawing, validDrawing } from "./drawing-record.js";
 import { commitPoint } from "../pointed-place.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";
+import { iconElement } from "../icons.js";
 
 // The floating field immediately accepts a comment on the target the user named.
-// Tab from the field, or `e` while it stands unfocused, unfolds every other response
+// Other responses, Tab from the field, or `e` while it stands unfocused, unfolds every response
 // the target offers. The field is the group's stable primary control; reaction
 // vocabulary changes the choices, not the disclosure or the field's place.
-//
-// The bar shows no ellipsis (⋯) on any pointer: the field spans the bar, so a sent
-// message keeps the card's whole measure rather than ending a button's width short of
-// its Reply field. The keys are the only route to Suggest and the reactions, so a mouse
-// or a finger alone has none. That gap is accepted for now; whether to make them more
-// available is open (TODO.md, keyboard/AGENTS.md "Touch routes").
 // One affordance, raised only where the user has already pointed: a native text
 // selection or an explicit Comment target gesture on an item or visual part.
 export const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
@@ -89,6 +84,13 @@ export const fabOptions = el("span", "lf-response-options");
 fabOptions.id = "lf-response-options";
 fabOptions.setAttribute("role", "group");
 fabOptions.setAttribute("aria-label", "Other responses");
+const fabMore = el("button", "lf-ui lf-icon-action lf-fab-more");
+fabMore.type = "button";
+fabMore.setAttribute("aria-label", "Other responses");
+fabMore.title = "Other responses";
+fabMore.setAttribute("aria-controls", fabOptions.id);
+fabMore.setAttribute("aria-expanded", "false");
+fabMore.append(iconElement("more", "lf-action-icon"));
 const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
   icon: "edit",
   label: "Suggest",
@@ -271,7 +273,7 @@ export function createSelectionComposer({
   }
   let composerEpoch = 0;
   // What the box holds that a user would miss, asked once. The complete draft, because a
-  // pasted image is in it and not in the field, plus a drawing, which stands beside the
+  // attached image is in it and not in the field, plus a drawing, which stands beside the
   // words rather than in them. Three places ask: the send's own guard, the sentence a
   // hiding box says about what became of the words, and the word Escape's row shows. They
   // had a spelling each, and the one over the field alone read a box holding a picture
@@ -306,7 +308,7 @@ export function createSelectionComposer({
     if (suggestCheck.checked && syncComposer.hasMedia()) {
       suggestCheck.checked = false;
       syncSuggestMode();
-      notice("Remove pasted images before suggesting replacement text");
+      notice("Remove attached images before suggesting replacement text");
       focusDestination(composerInput, "return");
       return;
     }
@@ -380,6 +382,7 @@ export function createSelectionComposer({
     }
     if (next) setReact(false);
     responseOptionsOpen = next;
+    keeps(fabMore, "aria-expanded", String(next));
     fabBar.classList.toggle("lf-response-open", next);
     if (place && fabAnchorAt()) showFab(fabAnchorAt());
     if (next && focus) focusResponseOption(focus);
@@ -398,6 +401,8 @@ export function createSelectionComposer({
     );
     if (responseOptionsOpen && !responseOptionsAvailable())
       setResponseOptions(false, { place: false });
+    keepsHidden(fabMore, !responseOptionsAvailable());
+    fabBar.toggleAttribute("data-lf-other-responses", responseOptionsAvailable());
   }
 
   function resetResponseOptions() {
@@ -455,7 +460,7 @@ export function createSelectionComposer({
     closeReactions();
     // A box holding nothing but the machine's seed is a box holding nothing. Asked of the
     // seed rather than of the box, because an empty seed matches an empty field, and a
-    // draft that is one pasted image and no words has exactly that field.
+    // draft that is one attached image and no words has exactly that field.
     if (seededQuote && composerInput.value === seededQuote) syncComposer.load("");
     seededQuote = "";
     const ctx = composerCtx(anchor || null);
@@ -534,6 +539,14 @@ export function createSelectionComposer({
       rememberWriting(composerInput);
     }
   }
+  // A capture arrives with its passage and bytes together. Opening and attaching in one
+  // synchronous turn binds delivery to that draft's arrival generation, while carrying
+  // unsent words under the same rule as an explicit Comment gesture. Upload completion
+  // cannot retarget the picture if the user moves this composer to another passage.
+  function openComposerWithMedia(anchor, images, options = {}) {
+    openComposer(anchor, "", { carry: true, ...options });
+    return syncComposer.addMedia(images);
+  }
   // The box is one view of the draft standing on this passage, and it follows the plain
   // boxes' rule with one thing of its own: the composer is chrome as well as a box, so a
   // draft settled in another tab — sent, or discarded — leaves it nothing to be open about
@@ -579,7 +592,7 @@ export function createSelectionComposer({
     if (discard) clearDraft(composerCtx(pendingAnchor)); // before the anchor goes: the key is the anchor
     composerWatch?.();
     composerWatch = null;
-    syncComposer.load(""); // the whole draft, so a pasted image does not outlive its send
+    syncComposer.load(""); // the whole draft, so an attached image does not outlive its send
     seededQuote = "";
     suggestCheck.checked = false;
     pendingAnchor = null;
@@ -735,7 +748,8 @@ export function createSelectionComposer({
         // settling.
         if (shouldReveal || panelIsOpen()) {
           const destination = await revealSent({
-            focus: shouldReveal ? "thread" : false,
+            part: shouldReveal ? "thread" : "reply",
+            focus: shouldReveal,
             travel: false,
             flash: false,
             intent: shouldReveal
@@ -749,6 +763,8 @@ export function createSelectionComposer({
         }
       },
     });
+    composerInput.closest(".lf-compose-field").append(fabMore);
+    fabMore.onclick = () => setResponseOptions(!responseOptionsOpen);
     suggestCheck.onchange = () => setSuggestionMode(suggestCheck.checked);
     fabSuggest.onclick = () => setSuggestionMode(!suggestCheck.checked);
     onStanding((node) => {
@@ -864,6 +880,7 @@ export function createSelectionComposer({
     syncResponseOptions,
     resetResponseOptions,
     openComposer,
+    openComposerWithMedia,
     hideComposer,
     detachComposer,
     carryComposerToReply,

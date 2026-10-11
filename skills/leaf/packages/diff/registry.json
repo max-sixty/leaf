@@ -3,10 +3,10 @@
     "contracts": {
       "unified-diff": {
         "description": "A unified patch, either as one text value or as a file manifest whose patch fields Leaf delivers separately on demand.",
-        "instructions": {"producer": "Pipe the exact Git patch, with Git's default `a/` and `b/` prefixes, through this package's producer script into the source:\n\n```bash\ngit diff <base>...<head> | leaf package run diff patch_manifest.py | leaf data set \"$PAGE\" <source-id>\n```\n\nThe script writes the file manifest, whose `patch` fields Leaf sends only when their files open, and refuses what `lf-diff` cannot present \u2014 binary, mode-only, copy, and empty added or deleted files \u2014 naming the entry on stderr. State those changes in prose rather than setting a patch that omits them silently."},
+        "instructions": {"producer": "Pipe the exact Git patch, with Git's default `a/` and `b/` prefixes, into the source as one JSON string; the widget parses and validates it:\n\n```bash\ngit diff <base>...<head> | jq -Rs . | leaf data set \"$PAGE\" <source-id>\n```\n\n`lf-diff` accepts textual entries with `@@` hunks and exact path-only renames. If the comparison includes binary, mode-only, copy, or empty added/deleted files, describe those changes in prose and supply only supported entries to the widget. The raw form transfers and renders the whole supported patch. For a large supported patch whose files should load only when opened, optionally use this package's file-manifest producer:\n\n```bash\ngit diff <base>...<head> | leaf package run diff patch_manifest.py | leaf data set \"$PAGE\" <source-id>\n```\n\nThe script writes the file manifest, whose `patch` fields Leaf sends only when their files open, and refuses what `lf-diff` cannot present \u2014 binary, mode-only, copy, and empty added or deleted files \u2014 naming the entry on stderr. State those changes in prose rather than setting a patch that omits them silently."},
         "records": {
           "items": "files",
-          "key": "key",
+          "key": "path",
           "deferred": "patch"
         },
         "schema": {
@@ -14,10 +14,10 @@
           "properties": {
             "files": {
               "type": "array",
+              "minItems": 1,
               "items": {
                 "type": "object",
                 "properties": {
-                  "key": { "type": "string", "minLength": 1 },
                   "path": { "type": "string", "minLength": 1 },
                   "previousPath": { "type": "string", "minLength": 1 },
                   "kind": { "enum": ["patch", "rename"] },
@@ -26,13 +26,14 @@
                   "patch": { "type": "string", "minLength": 1 }
                 },
                 "required": [
-                  "key",
                   "path",
                   "kind",
                   "additions",
                   "deletions",
                   "patch"
                 ],
+                "if": { "properties": { "kind": { "const": "rename" } } },
+                "then": { "required": ["previousPath"] },
                 "additionalProperties": false
               }
             }
@@ -44,8 +45,8 @@
     }
   },
   "lf-diff": {
-    "description": "A unified patch with per-file navigation, commentable source lines, and optional durable review marks.",
-    "x-instructions": "Add review when the user needs to inspect every file and retain review progress, and collapsed when every file should start closed. Bind source to a page-owned patch feed or files manifest; the bound form keeps an empty pre. With no source, write the exact patch in pre at column 0. Keep file headers so languages and line targets can be identified. Each changed file needs an @@ header whose old and new counts match its lines. A hunkless path-only rename uses exactly diff --git, similarity index 100%, rename from, and rename to, with matching nonempty paths; a rename with edits needs ordinary hunks. State binary, mode-only, empty added/deleted, and copy entries separately in prose. For an edited copy destination, omit copy metadata and include its textual hunks. Preserve context-line leading spaces; encode a space-only context line as &#32; so HTML parsing keeps it. HTML-escape an inline patch, & before < and >, or entity text in the source will change silently.",
+    "description": "A unified patch with per-file navigation and commentable source lines.",
+    "x-instructions": "Add collapsed when every file should start closed. Bind source to a page-owned patch feed or files manifest; the bound form keeps an empty pre. With no source, write the exact patch in pre at column 0. Keep file headers so languages and line targets can be identified. Each changed file needs an @@ header whose old and new counts match its lines. A hunkless path-only rename uses exactly diff --git, similarity index 100%, rename from, and rename to, with matching nonempty paths; a rename with edits needs ordinary hunks. State binary, mode-only, empty added/deleted, and copy entries separately in prose. For an edited copy destination, omit copy metadata and include its textual hunks. Preserve context-line leading spaces; encode a space-only context line as &#32; so HTML parsing keeps it. HTML-escape an inline patch, & before < and >, or entity text in the source will change silently.",
     "type": "object",
     "properties": {
       "id": {
@@ -57,9 +58,6 @@
         "pattern": "^[a-z][a-z0-9-]*$"
       },
       "collapsed": {
-        "type": "boolean"
-      },
-      "review": {
         "type": "boolean"
       }
     },
@@ -74,33 +72,11 @@
         "source": "source"
       }
     },
-    "x-state": {
-      "review": {
-        "detail": {
-          "type": "object",
-          "properties": {
-            "file": {
-              "type": "string",
-              "minLength": 1
-            },
-            "reviewed": {
-              "type": "boolean"
-            }
-          },
-          "required": [
-            "file",
-            "reviewed"
-          ],
-          "additionalProperties": false
-        },
-        "unit": "file"
-      }
-    },
     "x-upgrade": true,
     "x-shadow": true,
     "x-thread-surface": true,
     "x-height": true,
-    "x-example": "<lf-diff id=\"mount-diff\" data-height=\"169\"><pre>\ndiff --git a/feeders/mount.py b/feeders/mount.py\n--- a/feeders/mount.py\n+++ b/feeders/mount.py\n@@ -1,2 +1,2 @@\n def bracket():\n-    return \"plastic\"\n+    return \"steel\"\n</pre></lf-diff>"
+    "x-example": "<lf-diff id=\"mount-diff\" data-height=\"151\"><pre>\ndiff --git a/feeders/mount.py b/feeders/mount.py\n--- a/feeders/mount.py\n+++ b/feeders/mount.py\n@@ -1,2 +1,2 @@\n def bracket():\n-    return \"plastic\"\n+    return \"steel\"\n</pre></lf-diff>"
   },
   "$diff": {
     "widgets": {

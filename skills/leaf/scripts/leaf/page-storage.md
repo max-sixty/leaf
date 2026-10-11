@@ -47,7 +47,7 @@ other page files and the external state listed below.
 - `widgets/` — one ES module per upgraded widget (lf-tabs.js, lf-board.js)
 
 - `vendor/` — vendored third-party assets (sortable.esm.js, plot.esm.js), and whatever a
-  selected package brings (agentic-mermaid.esm.js)
+  selected package brings (mermaid.esm.js)
 
 - `page/` — mutable page-specific browser-ready modules, styles, assets,
   page/registry.json declarations, and page/widgets/ modules. These are candidate inputs
@@ -67,13 +67,22 @@ other page files and the external state listed below.
 
 - `interactions.jsonl` — diagnostic JSON-lines trace of server requests and browser
   interactions, including refused requests. It is separate from `events.jsonl` and
-  never enters page state or acknowledgement, and no command reads it: a reader
-  follows the file itself (`tail -F`). The server appends request method, path without query, status, and
+  never enters page state or acknowledgement. `leaf page interactions` reads it
+  chronologically, deduplicates retries, reconstructs complete split records, and
+  reports missing sequences and incomplete records before applying time or type
+  filters. No final gap can be inferred from an unsent tail. Server requests have
+  no browser session association, so a session filter excludes them. Human output
+  uses the reader's local timezone and shortens long values; `--json` preserves
+  complete reconstructed values. The server appends request method, path without query, status, and
   duration for every request except a successful `/api/news` look or delivery of a
   resource's bytes (a module, stylesheet, or media file); `/api/interaction` appends browser batches with a session id, scoped
-  page address, and server receipt time. Sample activity remains in its parent
-  page's trace. The diagnostic file changes neither page/source reading nor
-  presence cache keys. It is private page data and is never served as an asset.
+  page address, and server receipt time. All descendant sample activity remains
+  in the containing authored page's trace, with complete root-relative sample
+  addresses; releasing any sample leaves its recorded activity intact. The diagnostic
+  file changes neither page/source reading nor presence cache keys. It is private page data and is never served as an asset.
+  Command records capture the selected command's title and description before
+  it runs, together with current focus and document scroll. Following focus and
+  scroll observations show its effect, including commands that change no page event.
   A tab retries failed batches and may resend an in-flight batch on page hide;
   `(session, sequence)` identifies duplicates. Large browser records arrive as
   `interaction_part` rows whose `json` fields concatenate in `part` order.
@@ -84,6 +93,13 @@ other page files and the external state listed below.
   `interaction_omitted`. This is a best-effort diagnostic trace, not an audit
   guarantee: an offline tab closed with unsent data may lose it. The semantic
   event log remains the durable record of accepted decisions.
+  Browser admission validates the diagnostic transport fields (timestamps,
+  sequences, target paths, node identities, and split-record coordinates), while
+  observation types and other payload fields remain open. The reader reports
+  damaged stored rows and conflicting duplicates as `interaction_invalid`, with
+  their line, reason, and original record. Rows without a usable timestamp remain
+  visible under time filters as `unknown-time`; those without a usable session
+  remain visible under session filters.
 
 - `user-views.json` — replaceable per-document browser
   observations (`user_views.py`). These are author
@@ -96,9 +112,26 @@ other page files and the external state listed below.
 - `data.json` — the current contract each external-data source id was set under.
   `data.py` owns storage and updates.
 
-- `data/` — one JSON file per source, `<source>.json`, holding its current value.
-  Any process may rewrite one; readings validate it against the recorded contract.
-  Deferred record fields served by `/api/deferred` come from these same files.
+- `files.json` — explicit local text-file grants, written by `leaf file bind PAGE
+  ID PATH` as `{ "bindings": { "ID": "/absolute/canonical/path" } }`.
+  `file_bindings.py` owns the grants and current-file reads and writes. Browser
+  requests name only a binding, never a path. These files remain their own authority:
+  editing is mechanical browser state, outside document revisions and event history.
+  The API reads current UTF-8 text up to 256 KiB and saves against a revision of its
+  path and exact bytes, preserving LF or CRLF and file permission bits. Mixed line endings,
+  binary controls, and later symlink substitutions are refused. Captured previews
+  cannot read or save live files; immutable views offer no editor access. Target locks
+  under `<state-home>/files/` serialize file-editor saves, including different pages
+  bound to the same path. An unrelated
+  writer which does not use those locks can still race the last comparison and atomic
+  replacement; this is not an operating-system compare-and-swap guarantee.
+
+- `data/` — one JSON publication per source, `<source>.json`, holding `run`,
+  `updated`, and `value` together. `leaf data set` validates and atomically writes
+  it; a new write gets a new opaque run receipt, including an identical value.
+  Copying the page preserves that receipt. Readings validate the publication and
+  its value against the recorded contract. Deferred record fields served by
+  `/api/deferred` come from the value in these same publications.
 
 - `status.json` — the agent's `waiting` or `idle` declaration, observed activity,
   and reply bindings. The work in hand is no status: it is the log's `start` events.
@@ -110,7 +143,8 @@ other page files and the external state listed below.
   use `<state-home>/sessions/<session>.wait`. See [session-lifetime.md](session-lifetime.md).
 
 - `viewed.json` — last visible browser attention, written by the server and absent until
-  first viewed. `http.py` owns throttled renewal; hidden tabs do not renew it.
+  first viewed. `presence.py` owns throttled renewal, which the server runs as a
+  visible tab asks for news; hidden tabs do not renew it.
 
 - `cursor.json` — acknowledged position in this page's event log. Acknowledgement and
   log replacement rules are defined in [session-lifetime.md](session-lifetime.md).
@@ -158,11 +192,10 @@ other page files and the external state listed below.
 
 ## Revision delivery
 
-The live root follows the active revision. Immutable revision and version
-addresses use the same delivery boundary, and all three advertise the page
-root as their canonical URL. The executable and widget digests in the revision
-manifest control document replacement and widget retention;
-`revision_artifact.py` owns their inputs and construction.
+The live root serves the active revision, and revision and version addresses go
+through the same delivery; all three name the page root as canonical. The revision
+manifest's executable and widget digests decide whether an open tab replaces its
+document or keeps its widgets (`revision_artifact.py`).
 
 ## Page state
 
@@ -183,7 +216,7 @@ The page's document is not repeated in the reading: an agent reads the HTML at
 `active.file` beside `state`, which lists each standing user move by widget, unit and
 verb with the detail it carries, so where the two differ the page shows the move.
 `data_bindings` names each bound source and the widgets that read it, and
-`data/<source>.json` holds its value.
+`data/<source>.json` holds its publication.
 
 `leaf page state <page> <id>` narrows the reading to what `<id>` names. A message,
 or a widget frozen into one, names its thread: the reading is that thread's current
@@ -197,8 +230,8 @@ contract, source id and revision, or to the `error` a failing value reads as;
 contracts with a deferred record field expose the manifest plus the value file and
 its revision for their payload. The reading's `content_source` names the thread and
 vocabulary file. A widget on the page names itself: the reading is its `widget`
-element, the `state` and `updates` standing on it, the open `tasks` on it, an Ask's
-task it holds or answers among them, and the `workflows` it is the subject of, with
+element, the `state` and `updates` standing on it, the explicit open `tasks` on it,
+the canonical `questions` sourced by it, and the `workflows` it is the subject of, with
 their `activity` obligations. Page ids
 and event ids share one address space, which is why `page check` refuses an authored
 id shaped like an event id. Default `page state` thread entries stay compact. Raw

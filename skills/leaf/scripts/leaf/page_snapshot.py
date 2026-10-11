@@ -11,8 +11,8 @@ from pathlib import Path
 from .data import read_data
 from .data_contracts import resource_urls
 from .files import (
+    document_descriptor,
     list_revisions,
-    revision_label,
     revision_path,
     version_descriptors,
 )
@@ -60,8 +60,9 @@ class PageSnapshot:
 def capture_page_snapshot(
     page_dir: Path,
     document: SourceDocument,
-    active: dict,
+    revision: int,
     *,
+    url: str,
     artifact: RevisionArtifact | None = None,
 ) -> PageSnapshot:
     """Freeze a candidate and every page authority it is projected against."""
@@ -69,13 +70,12 @@ def capture_page_snapshot(
         raise ValueError("preview artifact does not contain the checked document")
     with PageTransaction(page_dir) as page:
         events = tuple(copy.deepcopy(page.events))
-        snapshot_active = copy.deepcopy(active)
-        versions = tuple(copy.deepcopy(version_descriptors(page_dir, list(events))))
         revisions = list_revisions(page_dir)
+        versions = tuple(copy.deepcopy(version_descriptors(list(events), revisions)))
         artifacts = {
             revision: read_artifact(page_dir, revision) for revision in revisions
         }
-        selected = artifact or artifacts.get(active["revision"])
+        selected = artifact or artifacts.get(revision)
         if selected is None or selected.html != document.data:
             page_registry = read_page_registry(page_dir)
             if page_registry is None:
@@ -89,7 +89,7 @@ def capture_page_snapshot(
                 declaration_sources=page_registry.declaration_sources,
                 widget_sources=page_registry.widget_sources,
             )
-        artifacts[active["revision"]] = selected
+        artifacts[revision] = selected
         registry = copy.deepcopy(selected.registry)
         data = read_data(page_dir, registry)
         # External data remains current even in a historical document. Its media
@@ -112,9 +112,9 @@ def capture_page_snapshot(
         readings = {
             revision: read_revision(page_dir, revision) for revision in revisions
         }
-        shown = readings.get(active["revision"])
+        shown = readings.get(revision)
         if shown is None or shown.digest != selected.digest:
-            readings[active["revision"]] = SourceReading(document, selected.registry)
+            readings[revision] = SourceReading(document, selected.registry)
         # Read inside the transaction, so a snapshot serves what it froze even if
         # the page directory later moves or goes away.
         for reading in readings.values():
@@ -122,22 +122,19 @@ def capture_page_snapshot(
         revision_names = {
             revision: revision_path(page_dir, revision).name for revision in revisions
         }
-        revision_names[active["revision"]] = (
-            artifact_name(active["revision"], artifacts[active["revision"]]) + ".html"
+        revision_names[revision] = (
+            artifact_name(revision, artifacts[revision]) + ".html"
         )
         present, live_stream = presence_with_activity(page_dir, list(events))
         others = tuple(copy.deepcopy(other_leaves(page_dir)))
         observed_at = now_iso()
-        snapshot_active["label"] = (
-            f"v{snapshot_active['version']}"
-            if snapshot_active.get("version") is not None
-            else revision_label(list(events), snapshot_active["revision"])
+        snapshot_active = document_descriptor(
+            revision,
+            list(events),
+            url=url,
+            executable=selected.executable,
+            activated_at=observed_at,
         )
-        snapshot_active.setdefault("activated_at", observed_at)
-        # A preview serves the frozen candidate, not whatever the page directory
-        # holds, so its executable identity is that capture's rather than the live
-        # revision's.
-        snapshot_active["executable"] = artifacts[active["revision"]].executable
         taken = time.time()
     files_reading = hashlib.sha256(
         repr(

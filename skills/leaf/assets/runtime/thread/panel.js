@@ -5,6 +5,7 @@
    button is the banner's, so opening by pointer leaves the user outside, and `g T`, `t`,
    Tab or a click on a thread is what puts them in. The thread scope draws one step further
    in, so its rows shadow these. Every page has this scope. */
+import { scrollIntoView } from "../landing-scroll.js";
 import { keys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { runtime } from "../context.js";
@@ -106,7 +107,8 @@ export function createThreadPanelKeys({
         title: "find",
         control: () => findInput,
         run: () => {
-          focusDestination(findInput, "move", { scroll: true });
+          focusDestination(findInput, "move");
+          scrollIntoView(findInput, { block: "nearest" });
           findInput.select();
         },
       },

@@ -13,7 +13,7 @@ from collections.abc import Collection
 from copy import deepcopy
 from typing import NamedTuple
 
-from .contract import RegistryError
+from .contract import RegistryError, is_element_name
 from .layer import merge_layer_declarations, stamp_composition
 from .validation import validate_registry
 
@@ -55,7 +55,7 @@ def compose_page_registry(
 
         # Example validation consumes source/instance readers which themselves load
         # page registries. Import it after those owners have finished initializing.
-        from leaf.validation.compatibility import validate_registry_examples
+        from leaf.validation.composition import validate_registry_examples
 
         if page_declarations:
             validate_registry_examples(registry, source)
@@ -64,7 +64,7 @@ def compose_page_registry(
     widget_sources = {}
     available = set(widget_paths)
     for tag, entry in registry.items():
-        if not tag.startswith("lf-"):
+        if not is_element_name(tag):
             continue
         declaration_sources[tag] = "page" if tag in page_declarations else "layer"
         if not entry["x-upgrade"]:

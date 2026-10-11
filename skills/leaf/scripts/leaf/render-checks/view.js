@@ -14,6 +14,7 @@ import {
   rootOverflow,
 } from "./layout.js";
 import { shrunkLabelReading } from "./words.js";
+import { scrollbarClearance } from "./scrollbars.js";
 
 export function readViewChecks(open) {
   return {
@@ -24,6 +25,7 @@ export function readViewChecks(open) {
     },
     checks: {
       horizontal_overflow_px: rootOverflow(),
+      scrollbar_clearance: scrollbarClearance(),
       overflowing_regions: overflowingRegions(),
       shrunk_labels: shrunkLabelReading(),
     },

@@ -1,35 +1,50 @@
 /* Core Thread destinations and held identity.
 
-   A registered primary reader supplies its retained destination first. Without
-   that destination, the open Threads panel wins; otherwise the exact outlet wins,
-   then a page preview, then a deliberately revealed widget seat, then Threads.
+   A registered primary reader supplies its retained destination first. A message
+   part needs the reader that renders its native authored content: the primary,
+   then Threads. A thread or reply part uses the nearest reader: an open Threads
+   panel, otherwise the exact outlet, then a page preview, then a deliberately
+   revealed widget seat, then Threads.
    A compact preview keeps held widget arrivals held until its own release gesture.
    The optional preview supplies physical
    opening, placement proof, current focus node and target accompaniment; it owns
    no destination policy. A command retains its original intent through placement
    and returns its actual focus destination. Surface defaults enter the reply,
    compact previews default to the thread, and Threads defaults to the reply.
-   `travel: false` keeps the page under the gesture while revealing its destination.
+   `travel: false` keeps the page under the gesture while revealing its destination;
+   `scroll: false` also leaves every scroller where it stands, for a continuation into
+   a box the user had scrolled away from.
    A native continuation (`focus: false`) returns its presented route under session
    availability even after Tab supersedes positioning; it never takes focus, and the
    original intent alone permits scrolling or another reveal gesture.
+   Addressed part and focus are independent. Materializing a thread Question asks
+   for its message part without focus; a native editing continuation asks for the
+   reply part without focus. Omitting part follows each surface's ordinary route.
+   A focused primary arrival uses page travel's ordinary arrival, which clears a
+   surface covering the native reader before disclosure, focus and placement. A
+   travelling arrival captures its return place before releasing held content or
+   changing layout and commits it only after the destination is reached.
 
    Held identity is the focused Thread across shadow roots. An unheld preview or
    panel conversation may accompany its page target; when focus returns to the body,
    a visible accompanying preview remains the current conversation. Canonical page
    targets always come from anchor placement, independently of whichever view draws a
    Thread. */
+import { scrollIntoView } from "../landing-scroll.js";
 import { focusDestination, focused } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
-import { retainUserIntent } from "../user-intent.js";
+import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { replyAvailable } from "./replies.js";
 import { allThreads, readThreads } from "./state.js";
 import { heldThread } from "./focus.js";
-import { showHeldThread } from "./held-news.js";
+import { showHeld, showHeldThread } from "./held-news.js";
 import { revealHeld, surfaceFocusTarget } from "./surfaces.js";
 import { reveal } from "../widget-elements.js";
+import { closestAcross } from "../passages.js";
 import { renderedUnder } from "../shadow.js";
-import { threadNames } from "./model.js";
+import { threadKey, threadNames } from "./model.js";
+import { openMessageEditIn } from "./message-edit.js";
+import { THREAD } from "./selectors.js";
 
 export function createThreadDestinations({
   placedAt,
@@ -37,6 +52,8 @@ export function createThreadDestinations({
   panelIsOpen,
   showThread,
   scrollToThread,
+  arrive,
+  prepareTrip,
   preview = null,
 }) {
   let presentation = null;
@@ -77,24 +94,28 @@ export function createThreadDestinations({
     const thread = allThreads().find((candidate) => candidate.id === id);
     return thread && replyAvailable(thread) ? id : null;
   };
-  const threadFocusTarget = (id, { focus = null } = {}) =>
-    focus === "message"
+  const threadFocusTarget = (id, { part = null } = {}) =>
+    part === "message"
       ? null
-      : (surfaceFocusTarget(id, { focus }) ??
-        preview?.focusTarget(id, { focus }) ??
+      : (surfaceFocusTarget(id, { part }) ??
+        preview?.focusTarget(id, { part }) ??
         null);
 
   async function openPageThread(
     id,
     {
-      focus = null,
+      part = null,
+      focus = true,
       travel = true,
       flash = true,
+      scroll = true,
       intent = retainUserIntent(),
       transition = null,
     } = {},
   ) {
     if (!intent()) return null;
+    // A trip moves the page, so a destination that may move no scroller takes none.
+    const trip = travel && scroll;
     const selected = presentation;
     if (selected?.owner.isConnected) {
       const thread = threadNames(readThreads().threads).get(id);
@@ -102,8 +123,16 @@ export function createThreadDestinations({
       opening?.abort();
       const abort = new AbortController();
       opening = abort;
+      const cancelled = new Promise((resolve) =>
+        abort.signal.addEventListener("abort", () => resolve(null), { once: true }),
+      );
+      const whileCurrent = (work) => Promise.race([work, cancelled]);
       const request = {
-        message: focus === "message" ? id : null,
+        message:
+          part === "message"
+            ? (thread.msgs.find((message) => message.id === id)?.key ?? null)
+            : null,
+        part,
         focus,
         signal: abort.signal,
         current: () =>
@@ -112,23 +141,29 @@ export function createThreadDestinations({
           selected.owner.isConnected &&
           (focus === false ? intent.available() : intent()),
       };
-      const result = selected.open(thread.key, request);
-      const destination = result?.then
-        ? await Promise.race([
-            result,
-            new Promise((resolve) =>
-              abort.signal.addEventListener("abort", () => resolve(null), {
-                once: true,
-              }),
-            ),
-          ])
-        : result;
       const mayPresent = () =>
         !abort.signal.aborted &&
         presentation === selected &&
         selected.owner.isConnected &&
         (focus === false ? intent.available() : intent());
+      const arriving = restrictUserIntent(intent, mayPresent);
+      const departure =
+        focus !== false && trip
+          ? prepareTrip({
+              landing: () => selected.reader.destination(thread.key, request),
+              intent: arriving,
+            })
+          : null;
+      showHeld(id);
+      const result = selected.open(thread.key, request);
+      const selectedLayout = result?.then ? await whileCurrent(result) : result;
       if (!mayPresent()) return null;
+      if (selectedLayout !== false) await whileCurrent(selected.reader.update());
+      if (!mayPresent()) return null;
+      const destination =
+        selectedLayout === false
+          ? null
+          : selected.reader.destination(thread.key, request);
       if (destination !== null) {
         if (
           !(destination instanceof Element) ||
@@ -139,46 +174,56 @@ export function createThreadDestinations({
           throw new TypeError(
             "A Thread destination must be a retained part of its registered presentation",
           );
-        await reveal(destination, intent).ready;
-        if (!mayPresent()) return null;
-        if (focus !== false)
-          intent.handoff(() => {
-            focusDestination(destination, "move");
-            if (travel)
-              destination.scrollIntoView({
-                behavior: scrollBehavior(),
-                block: "nearest",
-              });
-          });
-        return destination;
+        if (focus === false) {
+          await whileCurrent(reveal(destination, intent).ready);
+          return mayPresent() ? destination : null;
+        }
+        departure?.plan(destination);
+        const reached = await whileCurrent(
+          arrive(
+            () => {
+              const current = selected.reader.destination(thread.key, request);
+              return (
+                current && {
+                  where: current,
+                  focus: current,
+                  scroll: trip ? [{ at: current, block: "nearest" }] : [],
+                }
+              );
+            },
+            { intent: arriving, departure },
+          ),
+        );
+        return reached ? selected.reader.destination(thread.key, request) : null;
       }
     }
     const mayPresent = () => (focus === false ? intent.available() : intent());
-    if (!panelIsOpen() && focus !== "message") {
-      const localFocus = focus ?? "reply";
+    if (!panelIsOpen() && part !== "message") {
+      const localPart = part ?? "reply";
       const openSurface = async () => {
         if (preview) intent.handoff(preview.close);
-        if (travel) {
-          if (!(await scrollToThread(id, { focus: localFocus, intent }))) return null;
+        if (trip) {
+          if (!(await scrollToThread(id, { part: localPart, focus, intent })))
+            return null;
         } else {
-          await reveal(surfaceFocusTarget(id, { focus: localFocus }), intent).ready;
-          const current = surfaceFocusTarget(id, { focus: localFocus });
+          await reveal(surfaceFocusTarget(id, { part: localPart }), intent).ready;
+          const current = surfaceFocusTarget(id, { part: localPart });
           if (
             !current ||
             !mayPresent() ||
             (focus !== false &&
               !intent.handoff(() => {
                 focusDestination(current, "move");
-                current.scrollIntoView({ block: "nearest" });
+                if (scroll) scrollIntoView(current, { block: "nearest" });
               }))
           )
             return null;
         }
-        return surfaceFocusTarget(id, { focus: localFocus });
+        return surfaceFocusTarget(id, { part: localPart });
       };
-      if (surfaceFocusTarget(id, { focus: localFocus })) return openSurface();
+      if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
       // A thread a seat holds whole has no node until the seat shows it (held-news.js).
-      if (showHeldThread(id) && surfaceFocusTarget(id, { focus: localFocus }))
+      if (showHeldThread(id) && surfaceFocusTarget(id, { part: localPart }))
         return openSurface();
       let opened = null;
       if (preview)
@@ -186,10 +231,11 @@ export function createThreadDestinations({
           opened = preview.open(id, { transition });
         });
       if (opened) {
-        if (travel) {
+        if (trip) {
           if (
             !(await scrollToThread(id, {
-              focus: focus ?? "thread",
+              part: part ?? "thread",
+              focus,
               presented: opened.presented,
               intent,
             }))
@@ -197,35 +243,56 @@ export function createThreadDestinations({
             return null;
         } else {
           if (!(await opened.presented) || !mayPresent()) return null;
-          const current = threadFocusTarget(id, { focus });
+          const current = threadFocusTarget(id, { part });
           if (
             !current ||
             !mayPresent() ||
             (focus !== false &&
               !intent.handoff(() => {
                 focusDestination(current, "move");
-                current.scrollIntoView({
-                  behavior: scrollBehavior(),
-                  block: "nearest",
-                });
+                if (scroll)
+                  scrollIntoView(current, {
+                    behavior: scrollBehavior(),
+                    block: "nearest",
+                  });
               }))
           )
             return null;
         }
-        return threadFocusTarget(id, { focus });
+        return threadFocusTarget(id, { part });
       }
       const held = revealHeld([id]);
       if (held) {
         await held.presented;
         if (!mayPresent()) return null;
       }
-      if (surfaceFocusTarget(id, { focus: localFocus })) return openSurface();
+      if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
     }
-    return showThread(id, { focus: focus ?? "reply", flash, intent });
+    return showThread(id, { part: part ?? "reply", focus, flash, scroll, intent });
   }
+
+  // Where a thread holds the user's draft `context`, with its box ready for the caret:
+  // the thread's reply box, or the rewrite of one of its messages, which opens on that
+  // message where the Threads panel lands on it (`message-edit.js`). Landed on the
+  // thread instead, a long one's landing on its latest turn took the view away from a
+  // rewrite it had just opened higher up.
+  async function openThreadDraft(context, intent) {
+    const name = context.slice(context.indexOf(":") + 1);
+    if (context.startsWith("reply:")) {
+      const thread = allThreads().find((each) => threadKey(each) === name);
+      return thread ? openPageThread(thread.id, { part: "reply", intent }) : null;
+    }
+    if (!allThreads().some((each) => each.msgs.some(({ id }) => id === name)))
+      return null;
+    const landed = await showThread(name, { part: "message", intent });
+    const card = landed && closestAcross(landed, THREAD);
+    return card ? openMessageEditIn(card, name) : null;
+  }
+
   return {
     register,
     openPageThread,
+    openThreadDraft,
     threadFocusTarget,
     threadHere,
     threadAtStanding,

@@ -53,6 +53,11 @@
    and a group's one Tab stop (`rove`).
 
    The selector vocabulary lives in control-selectors.js, which imports nothing.
+   In a sample, only the document already holding input may place focus. A trusted
+   pointer or keyboard entry gives the child that ownership before Leaf handles the
+   gesture; remote commands and delayed work cannot borrow it from the parent. This
+   is a rule for Leaf placements, not a restriction on authored browser scripts.
+
    This module imports only that vocabulary, rendering.js and keeps.js: importing a
    gesture owner would cycle through its focus dependency. */
 import { nextRender } from "./rendering.js";
@@ -111,17 +116,23 @@ export const tabStops = (root) =>
 // that the focus and the place inside it land in one act rather than in two. Passing no
 // caret leaves the platform's, which is what a first arrival wants.
 //
-// The placement keeps the page still unless `scroll` asks the browser to bring the
-// element into view, as a list whose rows run past its box does for the row it lands on.
+// Placements never ask the browser to reveal their target: native focus scrolling
+// crosses browsing contexts. A caller needing reveal uses document-local scrolling.
+export const canPlaceFocus = () =>
+  !document.documentElement.lfSample || document.hasFocus();
 const CAUSES = new Set(["move", "step", "return", "press"]);
 export function focusDestination(
   destination,
   cause,
-  { caret = null, scroll = false } = {},
+  { caret = null, ...unknown } = {},
 ) {
   if (!CAUSES.has(cause)) throw new TypeError(`focusDestination: no cause ${cause}`);
+  const unexpected = Object.keys(unknown);
+  if (unexpected.length)
+    throw new TypeError(`focusDestination: unknown options ${unexpected.join(", ")}`);
+  if (!canPlaceFocus()) return;
   placed(cause, () => {
-    destination.focus({ preventScroll: !scroll });
+    destination.focus({ preventScroll: true });
     if (!landedOn(destination) && lendable(destination)) lendStop(destination);
   });
   if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
@@ -131,6 +142,7 @@ export function focusDestination(
 // arrival is the one that gave the node its focus, so the node it lands on takes that
 // arrival's cause, whether a placement or the user's own Tab or press gave it.
 export function forwardFocus(destination) {
+  if (!canPlaceFocus()) return;
   placed(placing ?? cause(destination), () =>
     destination.focus({ preventScroll: true }),
   );
@@ -177,7 +189,7 @@ export const wearsLentStop = (element) => lent.has(element);
 // element in light or shadow DOM, in Chromium, Firefox and WebKit.
 export function whenLeft(element, leave) {
   const blur = () => {
-    if (landedOn(element)) return;
+    if (element.getRootNode().activeElement === element) return;
     element.removeEventListener("blur", blur);
     leave();
   };
@@ -269,6 +281,37 @@ function landLabelPress() {
 // Where the user stands: the element holding focus, inside any open shadow tree, or the
 // element a press on a label holds them on.
 export const focused = () => heldByLabel() ?? deepFocus();
+
+// The selection the user drew in the tree `node` stands in, where the browser keeps it.
+const selectionOf = (node) => {
+  const root = node.getRootNode();
+  return (root instanceof ShadowRoot && root.getSelection?.()) || getSelection();
+};
+
+// Where the user stands, nearest first: the focused node, unless focus rests on the
+// body, then the ends of a selection they drew, its focus before its anchor, a caret a
+// click left included, since a selection names where a reader is as surely as focus
+// does. Each reader takes these by its own rule: the first that is a place on the page
+// (`standingPlace`, standing-target.js), or any that lies in a node (`standsOn`).
+export function standingNodes() {
+  const at = focused();
+  const selection = getSelection();
+  return [
+    at && at !== document.body ? at : null,
+    selection?.focusNode ?? null,
+    selection?.anchorNode ?? null,
+  ].filter(Boolean);
+}
+
+// Whether the user stands on `node` or on something in it: where they stand
+// (`standingNodes`) is inside it, or a selection they drew reaches into it. A change
+// that puts `node` away would take that place from them.
+export function standsOn(node) {
+  if (!node) return false;
+  if (standingNodes().some((at) => at === node || node.contains(at))) return true;
+  const selection = selectionOf(node);
+  return Boolean(selection?.rangeCount && selection.getRangeAt(0).intersectsNode(node));
+}
 
 // Holding the user's place across a change to the tree they stand in. Moving a node
 // blurs whatever it holds to the body in the same call, and hiding one does the same a
@@ -527,6 +570,26 @@ export const inputCount = () => inputs.count;
 // Mechanical owners may stop motion at the input edge, before a command or drawing
 // handler consumes it. Observation adds no binding and never claims the event.
 export const onUserInput = (read) => inputs.observe(read);
+
+// Where the caret stood, as a key went down, in each box the key went down in, before
+// the box's own handling moved it. A command whose meaning hangs on the caret's place,
+// as ↑ from the start of a box walks out of it, reads this rather than the caret the
+// field has already moved by the time the command's row is asked. It holds until the
+// task after the key's, so a row read outside a key falls back to the live caret.
+let keyCarets = null;
+onUserInput((event) => {
+  if (event.type !== "keydown") return;
+  const carets = new Map();
+  for (const node of event.composedPath()) {
+    const caret = node instanceof Element && readCaret(node);
+    if (caret) carets.set(node, caret);
+  }
+  keyCarets = carets;
+  setTimeout(() => {
+    if (keyCarets === carets) keyCarets = null;
+  });
+});
+export const caretAtKey = (node) => keyCarets?.get(node) ?? null;
 onUserInput((event) => {
   if (event.type !== "blur") return;
   landLabelPress();
@@ -998,10 +1061,10 @@ export function controlNavigationKeys(node) {
 
 // Landing the user in the document. One act at both ends of the ladder, and for every
 // step that would otherwise leave them on Leaf's own apparatus, because standing on an
-// Ask out on the page and standing on a banner button are the same state — the user
+// Question out on the page and standing on a banner button are the same state — the user
 // holding something — reached from either side of the chrome. What those rungs do not
 // share is the word, and neither word is the other's: leaving the chrome names where the
-// user lands, since that is the whole of what the rung is for, and letting go of an Ask
+// user lands, since that is the whole of what the rung is for, and letting go of a Question
 // names the act, since they were on the page all along.
 //
 // Where they land is the block they are reading in the page region they last acted in

@@ -1,22 +1,28 @@
 # The Python side
 
-This directory is the project's module root, and `leaf/` is the package a harness
-installs. `leaf/__main__.py` is the CLI as `python -m leaf`, which `bin/leaf` and
-every leaf subprocess run; the `leaf` console script is the same entry. `leaf/cli.py`
-composes the commands and stays a facade: domain logic, and any branching across the
+`leaf/` is the package a harness installs. `leaf/cli.py` declares the commands, and
+`leaf/__main__.py` runs them as `python -m leaf`, the form `bin/leaf` and every leaf
+subprocess use. `cli.py` stays a facade: domain logic, and any branching across the
 owners below, belongs in the owning module.
 
-Each module owns one concern, and callers import the owning module directly. Each
-subpackage's initializer is only a marker, never a second API.
+Each module owns one concern and states its contract in its header. Callers import
+the owning module directly; a subpackage's initializer is only a marker, never a
+second API.
+
+Domain code refuses by raising `refusals.Refused` or a subclass; only a process or
+transport boundary exits, prints, or answers HTTP.
 
 ## Owners
 
+- `refusals`: the one refusal exception and the reason it carries;
 - `files`, `revisioning`, `revision_artifact`, `revision_delivery`: atomic page
   files, immutable revisions, their captured inputs and held readings, and delivery
   URLs;
 - `locations`: filesystem path identity, containment, and overlap;
 - `file_changes`: native subscriptions shared by page, session, and preview
   maintenance, with explicit ownership and canonical reads after notifications;
+- `file_bindings`: explicit local file grants, revision-checked writes, and
+  cross-page target locks, outside the page's event log;
 - `page_memory`: how long a process keeps what it read of a page: while the page is
   among the eight it read most recently;
 - `page`: vendored page instructions;
@@ -39,13 +45,13 @@ subpackage's initializer is only a marker, never a second API.
   serving and delivery;
 - `workflows`, `activity`: unsettled user moves with their evidence, and the
   page-level fold over workflows, tasks, starts, status, claim, turn, and watcher;
-- `asks`: the one implementation of page and thread Asks, which every surface reads;
+- `questions`: the canonical inventory of widget and prose Questions, including typed
+  answers, completion, withdrawal and attention, which every surface selects;
 - `work`: the subjects work stands on: what an id names, which widgets seat a task,
   and which widget tasks a version would leave without a target;
-- `tasks` (experimental, expected to change a lot): tasks on either side, each with
-  its owner: the agent's the log holds until it ends them, the user's the log, the
-  document's Asks and the threads' questions hold, and the `start` that takes a move
-  or task in hand; their folds, admission gate, and `leaf task`;
+- `tasks` (experimental, expected to change a lot): explicit committed work on either
+  side, held by the log until ended, and the `start` that takes a move or task in
+  hand; their folds, admission gate, and `leaf task`. Questions never become Tasks;
 - `delivery`, `session`, `hooks`, `hook_transport`, `harness`: the delivery envelope
   and its receipt, status and the `leaf wait` watch, the harness hooks' entry, the
   prompt and Stop hooks as a session's transport, and harness declarations;
@@ -71,8 +77,8 @@ subpackage's initializer is only a marker, never a second API.
 - `http`: HTTP transport;
 - `layer`, `packages`, `vendoring`: package discovery and composition, package
   authoring gates, and page init and layer transitions;
-- `schema`, `structure`, `styles`: authored-page gates and the complete source
-  reading;
+- `schema`: the layer's JSON schemas and the page-directory vocabulary;
+- `structure`, `styles`: authored-page gates and the complete source reading;
 - `passages`, `anchor_capture`: the file-side text reading and anchor construction;
 - `render_checks`: browser probes;
 - `exporting`: a stamped version as one offline file;
@@ -104,21 +110,23 @@ author, `picture` owns the picture `page picture` draws of a drawing comment,
 
 Within `validation/`, `markup` owns shared document structure, `instances` owns
 registry-declared instance rules, `admission` owns what an agent's writer hands in,
-`compatibility` owns layer changes against the standing log, `source_history` owns
-predecessor readings and automatic anchor relocation,
-`source` composes current-document validation, and `command` owns the CLI and render handoff.
+`composition` validates a composed registry's catalog examples and builds the
+registry `page init` vendors, `source_history` owns predecessor readings and automatic
+anchor relocation, `source` composes current-document validation, and `command` owns
+the CLI and render handoff.
 
 ## Protocol references
 
-The references that own each boundary:
+Each boundary shared across modules or runtimes has its reference beside the code:
 
-- `leaf/page-storage.md` for page files and atomic state;
-- `leaf/events.md` for event shapes, threads, undo, edits, and reactions;
-- `leaf/layer-registry.md` for composition, vendoring, and layer generations;
-- `leaf/session-lifetime.md` for claims, watchers, and service lifetime;
-- `leaf/validation.md` for where each input is validated, static and browser checks,
+- `leaf/page-storage.md`: page files and atomic state;
+- `leaf/events.md`: what each event kind means, admission, threads, undo, edits, and
+  reactions;
+- `leaf/layer-registry.md`: composition, vendoring, and layer generations;
+- `leaf/session-lifetime.md`: claims, watchers, and service lifetime;
+- `leaf/validation.md`: where each input is validated, static and browser checks,
   parsed source, and file-side passages.
 
 `../references/packages.md` owns the public package contract, and
-`../assets/AGENTS.md` owns the browser's parallel projection, passage, registry, and
-render rules.
+`../assets/AGENTS.md` the browser's side of projection, passages, the registry,
+and rendering.

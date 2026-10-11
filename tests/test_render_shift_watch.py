@@ -1,6 +1,7 @@
 """The browser fixture fails the layout shifts the "Stability" rule forbids
 (`shift_watch.js`): a shift without input, and typing that carries its field."""
 
+import json
 from datetime import UTC, datetime, timedelta
 from html import escape
 from urllib.parse import quote
@@ -69,17 +70,93 @@ def field_page(browser, key=""):
     return page
 
 
+def shift_evidence(error):
+    """Every reported credit is explained by the terms its owner accepted."""
+    evidence = json.loads(error.split("\nshift evidence: ", 1)[1])
+    assert evidence["comparisons"], evidence
+    for comparison in evidence["comparisons"]:
+        for axis in ["left", "top"]:
+            for kind in ["scroll", "animation"]:
+                terms = comparison[kind + "_terms"]
+                assert all(term["branch"] and term["owner"] for term in terms), terms
+                assert sum(
+                    term["amount"] for term in terms if term["axis"] == axis
+                ) == pytest.approx(comparison[kind + "_credit"][axis]), comparison
+            assert comparison["residual"][axis] == pytest.approx(
+                comparison["observed"][axis]
+                - comparison["scroll_credit"][axis]
+                - comparison["animation_credit"][axis]
+            ), comparison
+    return evidence
+
+
 def test_typing_that_carries_its_field_fails_at_the_last_keystroke(browser):
     page = field_page(browser, "carry")
     page.locator("#field").fill("a")
     judge_watches()
-    consume_browser_errors(page, "typing in textarea#field moved textarea#field")
+    errors = consume_browser_errors(
+        page, "typing in textarea#field moved textarea#field"
+    )
+    evidence = shift_evidence(errors[0])
+    assert evidence["kind"] == "typing"
+    comparison = evidence["comparisons"][0]
+    assert comparison["observed"] == {"left": 0, "top": 59}
+    assert comparison["scroll_credit"] == {"left": 0, "top": 0}
+    assert comparison["animation_credit"] == {"left": 0, "top": 0}
+    assert comparison["residual"] == comparison["observed"]
+    assert comparison["before"]["at"] < comparison["after"]["at"]
 
 
 def test_typing_may_grow_its_field(browser):
     page = field_page(browser, "grow")
     page.locator("#field").fill("a")
     judge_watches()
+
+
+def test_native_document_replacement_preserves_sensor_input_ownership(browser):
+    """A parser replacement retains sensors, including their input listeners.
+
+    A real click owns its movement; later passive movement and lost words still fail.
+    The same realm replaces its document twice; application listeners retire normally.
+    """
+    page = browser.new_page()
+    page.goto("data:text/html,<!doctype html><body>")
+    page.evaluate("""() => {
+      window.retiredClicks = 0;
+      addEventListener('click', () => retiredClicks++);
+    }""")
+    source = """<!doctype html><body style="margin:0">
+      <button id="press">Move the control</button><div id="above"></div>
+      <button id="control">Keep this control usable</button><textarea id="field"></textarea>
+      <script>
+        document.querySelector('#press').addEventListener('click', () => {
+          window.inputSource = lfInputWork.current()?.event.type ?? null;
+          document.querySelector('#above').style.height = '40px';
+        });
+      </script>"""
+    for _ in range(2):
+        page.evaluate(
+            "source => { document.open(); document.write(source); document.close(); }",
+            source,
+        )
+    paint(page)
+    page.locator("#press").click()
+    paint(page)
+    assert page.evaluate("inputSource") == "click"
+    assert page.evaluate("retiredClicks") == 0
+    assert page.locator("#above").bounding_box()["height"] == 40
+    judge_watches()
+    assert page.lf_errors == []
+
+    page.locator("#control").evaluate("node => { node.style.marginTop = '30px'; }")
+    paint(page)
+    judge_watches()
+    consume_browser_errors(page, "moved without input")
+
+    page.locator("#field").fill("Half a thought")
+    page.locator("#field").evaluate("node => { node.value = ''; }")
+    judge_watches()
+    consume_browser_errors(page, "typed words left the screen without a key or press")
 
 
 @pytest.mark.parametrize("nested", [False, True])
@@ -1107,34 +1184,38 @@ def test_shift_judgement_waits_for_paint_instead_of_a_time_cap(browser):
 
 
 @pytest.mark.parametrize(
-    "when",
+    "when, opaque",
     [
-        "already-hidden",
-        "hidden-during-drain",
-        "resize-during-drain",
-        "cssom-during-drain",
+        pytest.param("already-hidden", False, id="already-hidden"),
+        pytest.param("hidden-during-drain", False, id="hidden-during-drain"),
+        pytest.param("resize-during-drain", False, id="resize-during-drain"),
+        pytest.param("resize-during-drain", True, id="opaque-resize-during-drain"),
+        pytest.param("cssom-during-drain", False, id="cssom-during-drain"),
     ],
 )
-def test_a_hidden_frame_judges_existing_records_without_awaiting_paint(browser, when):
+def test_a_hidden_frame_judges_existing_records_without_awaiting_paint(
+    browser, when, opaque
+):
     page = field_page(browser)
     page.set_viewport_size({"width": 900, "height": 600})
     page.evaluate(
-        """when => {
+        """({when, opaque}) => {
       const style = document.createElement('style');
       style.textContent = '@media(max-width:600px){iframe{display:none}}';
       document.head.append(style);
       const frame = document.createElement('iframe');
       if (when === 'already-hidden') frame.style.display = 'none';
+      if (opaque) frame.setAttribute('sandbox', 'allow-scripts');
       frame.srcdoc = '<!doctype html><body><button>Hidden control</button></body>';
       document.body.append(frame);
     }""",
-        when,
+        {"when": when, "opaque": opaque},
     )
-    page.wait_for_function(
-        "document.querySelector('iframe').contentDocument?.readyState === 'complete'"
-    )
+    page.frame_locator("iframe").locator("button").wait_for(state="attached")
     frame = page.frames[1]
-    frame.evaluate("""() => {
+    drawn = page.locator("iframe").evaluate("frame => frame.checkVisibility()")
+    frame.evaluate(
+        """async drawn => {
       const nativeFrame = window.lfWatchPlatform.frame;
       const held = [];
       window.lfWatchPlatform.frame = callback => { held.push(callback); return 0; };
@@ -1142,9 +1223,22 @@ def test_a_hidden_frame_judges_existing_records_without_awaiting_paint(browser, 
         window.lfWatchPlatform.frame = nativeFrame;
         for (const callback of held.splice(0)) nativeFrame(callback);
       };
+      window.readHeldFrame = () => {
+        for (const callback of held.splice(0)) callback(performance.now());
+      };
+      // Holding future registrations leaves previously requested callbacks live.
+      // Let them enter the hold before forcing the next reading to verify itself.
+      if (drawn) await new Promise(nativeFrame);
+      // The driver publishes owner visibility; this sensor-level fixture supplies
+      // the same fact while holding paint. Opaque-frame integration is above.
+      window.lfWatchJudgement = {
+        ancestorsDrawn: drawn,
+      };
       window.hiddenJudged = false;
       window.lfShiftsJudged().then(() => window.hiddenJudged = true);
-    }""")
+    }""",
+        drawn,
+    )
     try:
         if when != "already-hidden":
             assert frame.evaluate("window.hiddenJudged") is False
@@ -1156,10 +1250,16 @@ def test_a_hidden_frame_judges_existing_records_without_awaiting_paint(browser, 
                 )
             else:
                 page.evaluate("document.querySelector('iframe').style.display = 'none'")
+        # A native callback may run after the owner hides but before the driver
+        # refreshes its visibility fact. Child frames retain complete readings
+        # because the embedding page's changes do not announce themselves here.
+        frame.evaluate("window.readHeldFrame()")
+        drawn = page.locator("iframe").evaluate("frame => frame.checkVisibility()")
+        frame.evaluate("drawn => lfWatchJudgement.ancestorsDrawn = drawn", drawn)
         frame.wait_for_function("window.hiddenJudged === true", polling=100)
-        assert frame.evaluate("window.frameElement.checkVisibility()") is False
+        assert drawn is False
     finally:
-        frame.evaluate("window.restoreFrame()")
+        frame.evaluate("window.restoreFrame(); delete window.lfWatchJudgement")
 
 
 @pytest.mark.parametrize(
@@ -1456,44 +1556,171 @@ def test_completed_input_does_not_own_an_effects_unrelated_passive_motion(
     consume_browser_errors(page, "textarea#field moved without input by (80, 0)px")
 
 
+@pytest.mark.parametrize(
+    "creation,timeline,scale,property",
+    [
+        ("startup", "scroll", 1, "transform"),
+        ("startup", "view", 1, "transform"),
+        ("press", "scroll", 1, "transform"),
+        ("startup", "scroll", 0.5, "transform"),
+        ("startup", "scroll", 0.5, "top"),
+        ("press", "document", 0.5, "transform"),
+    ],
+)
 @pytest.mark.parametrize("local_motion", [False, True])
-def test_completed_input_keeps_only_its_native_attachment_displacement(
-    browser, local_motion
+def test_native_attachment_keeps_only_its_measured_displacement(
+    browser, creation, timeline, scale, property, local_motion
 ):
-    """A retained scroll effect carries its field without owning the field's own move."""
+    """Native effects retain viewport travel without owning their field's own move."""
     page = browser.new_page()
     page.goto(
         "data:text/html,"
-        + quote("""<!doctype html><body><button id="attach">Attach moving surface</button>
+        + quote(
+            """<!doctype html><body><button id="attach">Attach moving surface</button>
 <div id="source" style="height:80px;width:200px;overflow:auto"><div style="height:400px">Scroll source</div></div>
-<div id="attachment" style="position:absolute;left:250px;top:130px"><textarea id="field"></textarea></div>
+<div style="position:absolute;left:0;top:0;transform:scale(HOLDER_SCALE);transform-origin:0 0">
+<div id="attachment" style="position:absolute;left:250px;top:130px;zoom:TARGET_ZOOM"><textarea id="field"></textarea></div></div>
 <svg id="evidence" aria-hidden="true" style="position:absolute;left:0;top:400px;width:300px;height:30px;background:gray"></svg>
-<script>attach.addEventListener('click',()=>{
+<script>function attachMotion(){
+  const timeline=TIMELINE;
+  const from=timeline instanceof ViewTimeline ? timeline.startOffset.value : 0;
+  const to=timeline instanceof ViewTimeline ? timeline.endOffset.value : 320;
+  const frames='PROPERTY'==='top'
+    ? [{top:`${130-from}px`},{top:`${130-to}px`}]
+    : [{transform:`translateY(${-from}px)`},{transform:`translateY(${-to}px)`}];
   window.attachmentMotion=attachment.animate(
-    [{transform:'translateY(0px)'},{transform:'translateY(-320px)'}],
-    {timeline:new ScrollTimeline({source:source,axis:'y'}),duration:'auto',fill:'both'});
-});</script></body>""")
+    frames,
+    {timeline:timeline,duration:timeline===document.timeline?32000000:'auto',fill:'both'});
+  if(timeline===document.timeline)attachmentMotion.playbackRate=0;
+}
+attach.addEventListener('click',attachMotion);
+STARTUP</script></body>""".replace(
+                "STARTUP", "attachMotion();" if creation == "startup" else ""
+            )
+            .replace("HOLDER_SCALE", str(scale if property == "transform" else 1))
+            .replace("TARGET_ZOOM", str(scale if property == "top" else 1))
+            .replace("PROPERTY", property)
+            .replace(
+                "TIMELINE",
+                "new ViewTimeline({subject:source.firstElementChild,axis:'y'})"
+                if timeline == "view"
+                else "document.timeline"
+                if timeline == "document"
+                else "new ScrollTimeline({source:source,axis:'y'})",
+            )
+        )
     )
     paint(page)
-    page.locator("#attach").click()
+    if creation == "press":
+        page.locator("#attach").click()
     assert page.evaluate("attachmentMotion.playState") == "running"
     judge_watches()
     assert take_browser_errors(page) == []
     before = page.locator("#field").bounding_box()
     page.evaluate(
-        "carry=>{source.scrollTop=20;if(carry)field.style.marginLeft='80px';evidence.style.left='20px'}",
-        local_motion,
+        """({carry,scale,timeline})=>{
+          source.scrollTop=20;
+          if(timeline==='document')attachmentMotion.currentTime+=2000000;
+          if(carry){if(scale===1)field.style.marginLeft='80px';else field.style.marginTop='-20px'}
+          evidence.style.left='20px';
+        }""",
+        {"carry": local_motion, "scale": scale, "timeline": timeline},
     )
     paint(page)
     after = page.locator("#field").bounding_box()
     assert page.evaluate("source.scrollTop") == 20
-    assert after["y"] - before["y"] == pytest.approx(-20, abs=0.5)
-    assert after["x"] - before["x"] == (80 if local_motion else 0)
+    assert after["y"] - before["y"] == pytest.approx(
+        -20 * scale * (2 if local_motion and scale != 1 else 1), abs=0.5
+    )
+    assert after["x"] - before["x"] == (80 if local_motion and scale == 1 else 0)
     judge_watches()
     if local_motion:
-        consume_browser_errors(page, "textarea#field moved without input")
+        errors = consume_browser_errors(page, "textarea#field moved without input")
+        evidence = shift_evidence(errors[0])
+        assert any(
+            term["branch"]
+            == ("animation" if timeline == "document" else "scroll_animation")
+            and term["owner"] == "div#attachment"
+            and term["axis"] == "top"
+            and term["amount"] < 0
+            for comparison in evidence["comparisons"]
+            for term in comparison["animation_terms"]
+        ), evidence
     else:
         assert take_browser_errors(page) == []
+
+
+@pytest.mark.parametrize(
+    "change",
+    ["rebase", "retarget", "range", "layout", "unscrolled", "faster", "sideways"],
+)
+def test_native_scroll_credit_requires_its_retained_translation_trajectory(
+    browser, change
+):
+    """Uniform placement rebases retain scroll; changed trajectories cannot borrow it."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            """<!doctype html><body>
+<div id="source" style="height:80px;width:200px;overflow:auto"><div style="height:400px">Scroll source</div></div>
+<div id="attachment" style="position:absolute;left:250px;top:130px"><textarea id="field"></textarea></div>
+<svg id="evidence" aria-hidden="true" style="position:absolute;left:0;top:400px;width:300px;height:30px;background:gray"></svg>
+<script>
+window.attachmentMotion=attachment.animate(
+  [{transform:'translateY(0px)'},{transform:'END_TRANSLATION'}],
+  {timeline:new ScrollTimeline({source:source,axis:'y'}),duration:'auto',fill:'both'});
+</script></body>""".replace(
+                "END_TRANSLATION",
+                "translateX(-320px)"
+                if change == "sideways"
+                else "translateY(-640px)"
+                if change == "faster"
+                else "translateY(-320px)",
+            )
+        )
+    )
+    paint(page)
+    judge_watches()
+    assert take_browser_errors(page) == []
+    before = page.locator("#field").bounding_box()
+    page.evaluate(
+        """change=>{
+      if(change!=='unscrolled')source.scrollTop=20;
+      if(['rebase','retarget','unscrolled'].includes(change)){
+        attachmentMotion.effect.setKeyframes([
+          {transform:'translateY(20px)'},
+          {transform:`translateY(${change==='retarget'?-280:-300}px)`}]);
+        if(change!=='unscrolled')attachment.style.top='110px';
+      }
+      if(change==='range')attachmentMotion.rangeEnd='640px';
+      if(change==='layout')source.firstElementChild.style.height='720px';
+      evidence.style.left='20px';
+    }""",
+        change,
+    )
+    paint(page)
+    after = page.locator("#field").bounding_box()
+    assert after["y"] - before["y"] == pytest.approx(
+        {
+            "rebase": -20,
+            "retarget": -18.75,
+            "range": -10,
+            "layout": -10,
+            "unscrolled": 20,
+            "faster": -40,
+            "sideways": 0,
+        }[change],
+        abs=0.5,
+    )
+    assert after["x"] - before["x"] == pytest.approx(
+        -20 if change == "sideways" else 0, abs=0.5
+    )
+    judge_watches()
+    if change == "rebase":
+        assert take_browser_errors(page) == []
+    else:
+        consume_browser_errors(page, "textarea#field moved without input")
 
 
 # Rows in a box that clips without scrolling, as a diff's file does, and a box among
@@ -1554,6 +1781,49 @@ def test_a_press_in_the_page_holding_a_frame_is_input_to_it(browser):
     )
     page.locator("#grow").click()
     judge_watches()
+
+
+def test_disposing_a_frame_releases_parent_input_without_unwatching_its_sibling(
+    browser, serve
+):
+    """Removed documents stop reading parent edits; live siblings retain their sensor."""
+    child = """<div id="above"></div><p id="below">Below.</p><script>
+      const owner = parent, id = frameElement.id;
+      lfInputWork.subscribeEdits(() => owner.editCounts[id]++);
+    </script>"""
+    embedded = escape(child, quote=True)
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Frame lifetime",
+                '<script type="module">window.editCounts = {gone: 0, live: 0};</script>'
+                f'<iframe id="gone" srcdoc="{embedded}"></iframe>'
+                f'<iframe id="live" srcdoc="{embedded}"></iframe>'
+                '<textarea id="field"></textarea>'
+                "<button onclick=\"document.getElementById('gone').remove()\">Remove</button>",
+            )
+        ),
+    )
+    expect(page.frame_locator("#gone").locator("#below")).to_be_visible()
+    expect(page.frame_locator("#live").locator("#below")).to_be_visible()
+    page.locator("#field").fill("Before disposal.")
+    before = page.evaluate("editCounts")
+    assert before["gone"] > 0 and before["live"] > 0
+    page.get_by_role("button", name="Remove", exact=True).click()
+    expect(page.locator("#gone")).to_have_count(0)
+    page.locator("#field").fill("Still editing.")
+    judge_watches()
+    after = page.evaluate("editCounts")
+    assert after["gone"] == before["gone"]
+    assert after["live"] > before["live"]
+
+    # Input attribution must still reach a sibling. Its passive shift must also
+    # remain visible; dropping every child subscription would conceal that fault.
+    live = page.frame_locator("#live").locator("#above")
+    live.evaluate("element => { element.style.height = '40px'; }")
+    judge_watches()
+    consume_browser_errors(page, "#text in p#below moved without input")
 
 
 @pytest.mark.parametrize("surface", ["card", "panel", "inline"])
@@ -1684,39 +1954,6 @@ def test_reading_and_controls_keep_their_place_inside_a_stationary_parent(
     judge_watches()
     if protected:
         consume_browser_errors(page, f"{protected} moved without input")
-
-
-@pytest.mark.parametrize("local_motion", [False, True])
-def test_returning_a_detached_reading_does_not_inherit_an_absent_scroll_pose(
-    browser, local_motion
-):
-    """A retained node returns at the current scroll offset; its old pose is not
-    evidence of movement while it was absent. Later local movement still fails."""
-    page = browser.new_page()
-    page.goto(
-        "data:text/html,"
-        + quote("""<!doctype html><body style="margin:0;height:1600px">
-<div id="host" style="position:relative;height:900px">
-  <span id="badge" style="position:absolute;left:10px;top:300px">Input checkpoint</span>
-</div>
-<div id="source" style="position:fixed;left:400px;top:100px;width:200px;height:60px;background:red"></div>
-<script>window.retainedBadge=badge;</script></body>""")
-    )
-    paint(page)
-    page.evaluate("retainedBadge.remove(); scrollTo(0,100)")
-    paint(page)
-    page.evaluate("host.append(retainedBadge); source.style.left='420px'")
-    paint(page)
-    judge_watches()
-    assert page.evaluate("scrollY") == 100
-    assert page.locator("#badge").bounding_box()["y"] == 200
-    if local_motion:
-        page.evaluate("retainedBadge.style.left='30px'")
-        paint(page)
-        judge_watches()
-        consume_browser_errors(
-            page, "#text in span#badge moved without input by (20, 0)px"
-        )
 
 
 def test_an_unpainted_roundtrip_keeps_the_visible_control_in_place(browser):
@@ -1940,7 +2177,21 @@ const scroller=host.shadowRoot.getElementById('scroller');</script>"""
     page.screenshot()
     judge_watches()
     if carry:
-        consume_browser_errors(page, "typing in textarea#field moved textarea#field")
+        errors = consume_browser_errors(
+            page, "typing in textarea#field moved textarea#field"
+        )
+        evidence = shift_evidence(errors[0])
+        if sticky:
+            assert any(
+                term["branch"] == "sticky_scroll"
+                and term["axis"] == "top"
+                and any(
+                    source["after"]["top"] - source["before"]["top"] == 6
+                    for source in term["inputs"]["sources"]
+                )
+                for comparison in evidence["comparisons"]
+                for term in comparison["scroll_terms"]
+            ), evidence
 
 
 @pytest.mark.parametrize("carry", [False, True])
@@ -2223,7 +2474,9 @@ def test_gesture_close_does_not_own_future_or_local_motion(browser, fault):
 @pytest.mark.parametrize(
     "guard_mode, destination", [("typing", "window"), ("passive", "page")]
 )
-@pytest.mark.parametrize("fault", ["", "holder_x", "holder_y", "child_x", "child_y"])
+@pytest.mark.parametrize(
+    "fault", ["", "holder_x", "holder_y", "child_x", "child_y", "inset_y"]
+)
 def test_real_floating_plane_retains_local_motion(
     browser, serve, fault, guard_mode, destination
 ):
@@ -2275,10 +2528,10 @@ def test_real_floating_plane_retains_local_motion(
           holder.style.removeProperty('visibility');
           const original = selection();
           window.planeControl = {
-            to:async destination => {plane=destination; await place();},
+            to:async destination => {plane=destination; await place(); window.injectPlaneFault?.();},
             read:() => {
               const current = selection();
-              return {plane:current.plane, sameSubject:current.subject===original.subject,
+              return {plane:current.plane, edge:current.edges.top, sameSubject:current.subject===original.subject,
                 sameAnchor:current.anchor===original.anchor, sameTenure:current.tenure===original.tenure,
                 expected:{x:answer.x,y:answer.y}};
             },
@@ -2307,7 +2560,7 @@ def test_real_floating_plane_retains_local_motion(
       })))).observe({type:'layout-shift'});
     }""")
     page.evaluate(
-        """([fault,destination])=>{
+        """fault=>{
           window.planeChanges=0;
           const holder=document.querySelector('#holder');
           let previous=holder.dataset.lfPlane;
@@ -2315,18 +2568,22 @@ def test_real_floating_plane_retains_local_motion(
             if(holder.dataset.lfPlane===previous) return;
             previous=holder.dataset.lfPlane;
             planeChanges++;
-            if(previous===destination) {
-              if(fault==='holder_x') holder.style.transform='translateX(80px)';
-              if(fault==='holder_y') holder.style.transform='translateY(80px)';
-              if(fault==='child_x') document.querySelector('#field').style.transform='translateX(80px)';
-              if(fault==='child_y') document.querySelector('#field').style.transform='translateY(80px)';
-              // Transform-only faults need a native paint signal; this extra source
-              // cannot establish the independently asserted field displacement.
-              if(fault) document.querySelector('#evidence').style.marginLeft='30px';
-            }
           }).observe(holder,{attributes:true,attributeFilter:['data-lf-plane']});
+          window.injectPlaneFault = () => {
+            if(fault==='holder_x') holder.style.transform='translateX(80px)';
+            if(fault==='holder_y') holder.style.transform='translateY(80px)';
+            if(fault==='child_x') document.querySelector('#field').style.transform='translateX(80px)';
+            if(fault==='child_y') document.querySelector('#field').style.transform='translateY(80px)';
+            if(fault==='inset_y') {
+              const edge=planeControl.read().edge;
+              holder.style[edge]=`calc(${edge==='top'?80:-80}px + ${holder.style[edge]})`;
+            }
+            // Transform-only faults need a native paint signal; this extra source
+            // cannot establish the independently asserted field displacement.
+            if(fault) document.querySelector('#evidence').style.marginLeft='30px';
+          };
         }""",
-        [fault, destination],
+        fault,
     )
     if guard_mode == "typing":
         field.evaluate(
@@ -2357,7 +2614,8 @@ def test_real_floating_plane_retains_local_motion(
     for axis in ["x", "y"]:
         shifted = 80 if fault.endswith("_" + axis) else 0
         assert holder_after[axis] == pytest.approx(
-            state["expected"][axis] + (shifted if fault.startswith("holder") else 0),
+            state["expected"][axis]
+            + (shifted if fault.startswith("holder") or fault == "inset_y" else 0),
             abs=1,
         )
         assert after[axis] == pytest.approx(
@@ -2370,7 +2628,32 @@ def test_real_floating_plane_retains_local_motion(
         else "textarea#field moved without input"
     )
     if fault:
-        assert any(expected in error for error in errors), (fault, errors)
+        error = next(error for error in errors if expected in error)
+        evidence = shift_evidence(error)
+        assert evidence["kind"] == guard_mode
+        comparisons = evidence["comparisons"]
+        assert comparisons
+        terms = [
+            term for comparison in comparisons for term in comparison["scroll_terms"]
+        ]
+        assert any(
+            term["branch"] == "floating_plane"
+            and term["owner"] == "div#holder"
+            and term["inputs"]["before"]["plane"] == initial
+            and term["inputs"]["after"]["plane"] == destination
+            and term["inputs"]["same_attachment"]
+            and not term["inputs"]["crosses_fixed"]
+            and term["inputs"][
+                "before_origin" if initial == "page" else "after_origin"
+            ]["camera"]["left"]
+            is not None
+            for term in terms
+        ), terms
+        assert any(
+            abs(comparison["scroll_credit"][axis]) >= 1
+            for comparison in comparisons
+            for axis in ["left", "top"]
+        ), comparisons
     else:
         assert errors == [], errors
 
@@ -2599,7 +2882,7 @@ def test_new_anchor_relation_cannot_credit_scroll_before_activation(browser, mod
     assert any(expected in error for error in errors), errors
 
 
-@pytest.mark.parametrize("fault", ["", "holder", "child"])
+@pytest.mark.parametrize("fault", ["", "holder", "child", "missing-source"])
 def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, fault):
     source = leaf_page(
         "Floating tenure",
@@ -2634,6 +2917,14 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
         "newStoppedTenure": True,
         "sameStoppedSubject": True,
     }, state
+    if fault == "missing-source":
+        # A source measurement may be absent: preserve the rejected inputs without
+        # granting motion credit merely because the surface still has an owner.
+        page.evaluate("""() => {
+          const entry = document.querySelector('script[data-lf-entry]');
+          const readings = entry.lfFloatingSelections;
+          entry.lfFloatingSelections = () => readings().map(s => ({...s, scrollOffsets:null}));
+        }""")
     paint(page)
     assert page.locator("#holder").bounding_box() == initial
     judge_watches()
@@ -2642,7 +2933,7 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
     paint(page)
     if fault:
         page.evaluate(
-            """fault=>{document.querySelector(fault==='holder'?'#holder':'#field').style.marginLeft='80px';document.querySelector('#evidence').style.marginLeft='40px'}""",
+            """fault=>{document.querySelector(fault==='child'?'#field':'#holder').style.marginLeft='80px';document.querySelector('#evidence').style.marginLeft='40px'}""",
             fault,
         )
         page.screenshot()
@@ -2652,6 +2943,24 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
         assert any("textarea#field moved without input" in error for error in errors), (
             errors
         )
+        if fault == "missing-source":
+            error = next(e for e in errors if "textarea#field moved without input" in e)
+            evidence = shift_evidence(error)
+            assert any(
+                not comparison["scroll_terms"]
+                and any(
+                    attachment["owner"] == "div#holder"
+                    and attachment["before"]["plane"] == "window"
+                    and attachment["after"]["plane"] == "window"
+                    and attachment["before"]["scrollOffsets"] is None
+                    and attachment["after"]["scrollOffsets"] is None
+                    and attachment["after_surface"]["left"]
+                    - attachment["before_surface"]["left"]
+                    == 80
+                    for attachment in comparison["scroll_attachments"]
+                )
+                for comparison in evidence["comparisons"]
+            ), evidence
     else:
         assert errors == [], errors
 
@@ -2855,7 +3164,20 @@ def test_long_held_native_anchor_keeps_complete_history(browser, fault):
     assert after["width"] == initial["width"] and after["height"] == initial["height"]
     if fault:
         assert page.evaluate("nativeEntries.length") > 0
-        assert any("textarea#field moved without input" in e for e in errors), errors
+        error = next(e for e in errors if "textarea#field moved without input" in e)
+        evidence = shift_evidence(error)
+        comparisons = evidence["comparisons"]
+        assert any(
+            term["branch"] == "native_anchor"
+            and term["owner"] == "textarea#field"
+            and term["inputs"]["anchor"] == "div#target"
+            and term["inputs"]["after"]["top"] - term["inputs"]["before"]["top"] == -20
+            and term["inputs"]["layout_stable"]
+            and term["axis"] == "top"
+            and term["amount"] == -20
+            for comparison in comparisons
+            for term in comparison["scroll_terms"]
+        ), comparisons
         assert all("moved without input" in error for error in errors), errors
     else:
         assert not errors, errors
@@ -2931,17 +3253,122 @@ def test_owned_native_finish_records_the_applied_endpoint(browser, fault, fill):
     judge_watches()
     errors = take_browser_errors(page)
     if fault:
-        assert any("textarea#field moved without input" in error for error in errors), (
-            errors
-        )
+        error = next(e for e in errors if "textarea#field moved without input" in e)
+        evidence = shift_evidence(error)
+        if fault == "child":
+            assert any(
+                abs(comparison["animation_credit"]["left"]) >= 1
+                and any(
+                    term["owner"] == "div#panel"
+                    and term["inputs"]["before"]["values"]
+                    != term["inputs"]["after"]["values"]
+                    for term in comparison["animation_terms"]
+                )
+                for comparison in evidence["comparisons"]
+            ), evidence
         assert all("moved without input" in error for error in errors), errors
     else:
         assert not errors, errors
 
 
+@pytest.mark.parametrize("zoom", [1, 2])
+@pytest.mark.parametrize("fault", [False, True])
+def test_viewport_constrained_attachment_credits_only_its_source_scroll(
+    browser, serve, fault, zoom
+):
+    """Opposite viewport clamps retain source travel, never extra child movement."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Viewport attachment scroll",
+                '<p id="subject" style="position:absolute;left:100px;top:500px;'
+                'margin:0;width:80px;height:30px">Exact subject</p>'
+                '<div id="holder" style="visibility:hidden;position:fixed;'
+                'width:200px;height:60px;margin:0;background:white">'
+                '<textarea id="field" style="width:160px;height:30px"></textarea></div>'
+                '<div style="height:2400px"></div>',
+                head=f"<style>html {{zoom:{zoom}}}</style>",
+                layout=None,
+            )
+        ),
+    )
+    resized(page, 900, 600)
+    source_top = page.locator("#subject").evaluate(
+        "node => node.getBoundingClientRect().top + scrollY"
+    )
+    page.evaluate("top => scrollTo({top, behavior:'instant'})", source_top - 70)
+    scroll_settled(page)
+    page.evaluate(
+        """async zoom => {
+      const module = await window.__lfRuntimeImport('/runtime/annotation-overlay/floating.js');
+      const ui = await module.floatingUi();
+      const subject = document.querySelector('#subject'), holder = document.querySelector('#holder');
+      const boundary = {x:0, y:100, width:900, height:100 * zoom};
+      const owner = module.floatingPlacement({floating:holder, update:()=>void place()});
+      async function place() {
+        owner.begin();
+        const answer = await owner.position(ui.computePosition, subject,
+          {placement:'right-start',middleware:[ui.shift({boundary:[],rootBoundary:boundary,crossAxis:true})]},
+          answer => ({edge:answer.middlewareData.shift.y > 0 ? 'top' : 'bottom', at:answer.middlewareData.shift.y > 0 ? 100 : 100 + 100 * zoom}), subject);
+        if (answer) owner.stand(answer);
+      }
+      owner.watch(subject,subject,ui.autoUpdate);
+      await place();
+      window.constrainedSelection = () => module.floatingSelections().find(item => item.floating === holder);
+      holder.style.removeProperty('visibility');
+    }""",
+        zoom,
+    )
+    paint(page)
+    judge_watches()
+    assert take_browser_errors(page) == []
+    before = page.locator("#field").bounding_box()
+    assert page.locator("#subject").bounding_box()["y"] == pytest.approx(70)
+    assert page.locator("#holder").bounding_box()["y"] == pytest.approx(100)
+    assert page.evaluate("constrainedSelection().plane") == "window"
+    page.evaluate(
+        """([fault, top]) => {
+          scrollTo({top, behavior:'instant'});
+          if (fault) {
+            const field = document.querySelector('#field');
+            field.style.position = 'relative';
+            field.style.top = '20px';
+          }
+        }""",
+        [fault, source_top - (70 + 100 * zoom)],
+    )
+    page.wait_for_function(
+        "top => constrainedSelection().edges.top === 'bottom' && holder.getBoundingClientRect().top === top",
+        arg=100 + 40 * zoom,
+    )
+    scroll_settled(page)
+    paint(page)
+    assert page.locator("#subject").bounding_box()["y"] == pytest.approx(
+        70 + 100 * zoom
+    )
+    assert page.locator("#holder").bounding_box()["y"] == pytest.approx(100 + 40 * zoom)
+    assert page.locator("#field").bounding_box()["y"] - before["y"] == pytest.approx(
+        (40 + (20 if fault else 0)) * zoom
+    )
+    judge_watches()
+    if fault:
+        consume_browser_errors(page, "textarea#field moved without input")
+
+
 @pytest.mark.parametrize(
     "case",
-    ["root", "scaled", "fixed-both", "sticky", "fixed-fault", "clamp", "clamp-fault"],
+    [
+        "root",
+        "window",
+        "edge",
+        "scaled",
+        "fixed-both",
+        "sticky",
+        "fixed-fault",
+        "clamp",
+        "clamp-fault",
+    ],
 )
 def test_observed_attachment_credits_only_the_measured_scroll_placement(
     browser, serve, case
@@ -2992,7 +3419,7 @@ def test_observed_attachment_credits_only_the_measured_scroll_placement(
             "node => node.style.top = `${node.getBoundingClientRect().top - 10}px`"
         )
     page.evaluate(
-        """async clamp => {
+        """async ({clamp, wanted}) => {
       const module = await window.__lfRuntimeImport('/runtime/annotation-overlay/floating.js');
       const ui = await module.floatingUi();
       const subject = document.querySelector('#subject'), holder = document.querySelector('#holder');
@@ -3004,14 +3431,17 @@ def test_observed_attachment_credits_only_the_measured_scroll_placement(
         owner.begin();
         const answer = await owner.position(ui.computePosition, reference,
           {placement:'right-start',middleware:clamp ? [ui.shift({crossAxis:true,padding:0})] : []},
-          ()=>'page', subject);
+          () => wanted === 'edge' ? {edge:'top',at:0} : wanted, subject);
         if (answer) owner.stand(answer);
       }
       owner.watch(subject,reference,ui.autoUpdate);
       await place();
       holder.style.removeProperty('visibility');
     }""",
-        case.startswith("clamp"),
+        {
+            "clamp": case.startswith("clamp"),
+            "wanted": case if case in {"window", "edge"} else "page",
+        },
     )
     expect(page.locator("#holder")).to_have_attribute("data-lf-plane", "window")
     paint(page)
@@ -3046,7 +3476,19 @@ def test_observed_attachment_credits_only_the_measured_scroll_placement(
         before["y"] + delta, abs=1
     )
     if case.endswith("fault"):
-        consume_browser_errors(page, "textarea#field moved without input")
+        errors = consume_browser_errors(page, "textarea#field moved without input")
+        evidence = shift_evidence(errors[0])
+        assert any(
+            term["branch"] == "observed_attachment"
+            and term["owner"] == "div#holder"
+            and term["axis"] == "top"
+            and term["amount"] == term["inputs"]["placed"]
+            and term["inputs"]["before"]["plane"] == "window"
+            and term["inputs"]["after"]["plane"] == "window"
+            and not term["inputs"]["crosses_fixed"]
+            for comparison in evidence["comparisons"]
+            for term in comparison["scroll_terms"]
+        ), evidence
 
 
 FRAMES = """count => new Promise((done) => {

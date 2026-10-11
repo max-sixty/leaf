@@ -4,10 +4,16 @@
    resolves the current message target and constructs the event. Core controls call
    these same commands. The application ledger remains the one optimistic and
    admission path, so a stale or unavailable command returns null. */
+import { editable } from "./model.js";
 import { readThreads } from "./state.js";
-import { reactionReading } from "./reaction-model.js";
 
-export function createThreadActions({ post, withdraw, sendReaction, currentRevision }) {
+export function createThreadActions({
+  post,
+  withdraw,
+  sendReaction,
+  currentRevision,
+  open,
+}) {
   const create = (command) => {
     const {
       text,
@@ -49,7 +55,7 @@ export function createThreadActions({ post, withdraw, sendReaction, currentRevis
     if (attempt !== undefined && (typeof attempt !== "string" || !attempt))
       throw new TypeError("A Thread reply attempt must be a non-empty string");
     const thread = find(key);
-    if (!thread || thread.settling) return null;
+    if (!thread?.offers.reply) return null;
     return post({
       kind: "reply",
       revision: currentRevision(),
@@ -59,12 +65,29 @@ export function createThreadActions({ post, withdraw, sendReaction, currentRevis
     });
   };
 
+  // The user rewriting a message of their own (`message-edit.js`), written over the
+  // revision `base` names. Words the message already says, and none, send nothing.
+  const edit = (key, messageId, text, { attempt, base } = {}) => {
+    if (typeof text !== "string") throw new TypeError("A message edit needs text");
+    if (typeof base !== "string") throw new TypeError("A message edit needs its base");
+    const thread = find(key);
+    if (!thread || thread.settling) return null;
+    const message = thread.msgs.find((item) => item.id === messageId);
+    if (!message || !editable(message) || !text || text === message.text) return null;
+    return post({
+      kind: "edit",
+      message: messageId,
+      text,
+      base,
+      ...(attempt && { attempt }),
+    });
+  };
+
   // A thread that already stands as asked, such as one resolved elsewhere while its
   // card still draws it open (held-news.js), sends nothing.
   const settle = (key, resolved, { attempt } = {}) => {
     const thread = find(key);
-    if (!thread || Boolean(thread.resolved) === resolved || thread.settling)
-      return null;
+    if (!thread?.offers[resolved ? "resolve" : "reopen"]) return null;
     return post({
       kind: resolved ? "resolve" : "unresolve",
       parent: thread.root.id,
@@ -72,21 +95,16 @@ export function createThreadActions({ post, withdraw, sendReaction, currentRevis
     });
   };
 
-  // A press means what its control drew: it takes the reaction off where the control
-  // drew it standing, and puts it on where it drew none. A package's control draws the
-  // current reading, which `drawn` defaults to. The thread's own strip can draw an
-  // earlier one while news waits behind its notice (held-news.js), and a reaction that
-  // already stands as the press means sends nothing.
-  const toggleReaction = (key, messageId, token, drawn) => {
+  // An explicit desired state retains the meaning of a control drawn from a held
+  // reading. A concurrent change that already achieved it sends nothing.
+  const setReaction = (key, messageKey, token, active) => {
+    if (typeof active !== "boolean")
+      throw new TypeError("A reaction needs its desired standing state");
     const thread = find(key);
-    const message = thread?.msgs.find((item) => item.id === messageId);
+    const message = thread?.msgs.find((item) => item.key === messageKey);
     const choice =
-      message &&
-      reactionReading(thread, message, true)?.choices.find(
-        (item) => item.name === token,
-      );
-    if (!choice || (drawn ?? Boolean(choice.standing)) !== Boolean(choice.standing))
-      return null;
+      message && message.reactions?.choices.find((item) => item.name === token);
+    if (!choice || active === Boolean(choice.standing)) return null;
     if (choice.standing) return withdraw(choice.standing);
     return sendReaction(
       {
@@ -102,10 +120,22 @@ export function createThreadActions({ post, withdraw, sendReaction, currentRevis
   };
 
   return Object.freeze({
+    async open(key, { message = null, ...options } = {}) {
+      const thread = find(key);
+      if (!thread?.offers.open) return null;
+      const target =
+        message === null ? thread : thread.msgs.find((item) => item.key === message);
+      if (!target) return null;
+      return open(
+        target.id,
+        message === null ? options : { ...options, part: "message" },
+      );
+    },
     create,
     reply,
+    edit,
     resolve: (key, options) => settle(key, true, options),
     reopen: (key, options) => settle(key, false, options),
-    toggleReaction,
+    setReaction,
   });
 }

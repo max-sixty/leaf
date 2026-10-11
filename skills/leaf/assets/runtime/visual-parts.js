@@ -8,12 +8,12 @@
  *
  * A visual that draws its parts over time (a timeline, an animation, a stepper) does not
  * hold every declared part at every moment. Its registration names `reveal(id)`, which
- * synchronously settles the visual on a state whose inventory holds that part,
- * including cancelling a pending replacement of an already visible destination. A declared
+ * synchronously moves the visual to a state whose inventory holds that part. A declared
  * part missing from the current inventory then stands in for the whole visual until
  * travel or the render gate asks for it, rather than detaching. A label reader can
  * name an absent part in Threads without changing the visual's state. */
 
+import { exceptionText } from "./layer-client.js";
 import { under, upFrom } from "./shadow.js";
 import { layoutChanged } from "./widget-elements.js";
 
@@ -29,9 +29,8 @@ const words = (value) =>
  * `read` returns ordered `{id, element, label, surface?}` records. Call `update()` after
  * any rendering or geometry change, including in-place attribute or style changes; it
  * emits the same layout signal used by every other package-owned geometry change.
- * `reveal(id)`, when given, settles the state that holds declared part `id` before it
- * returns, so the next `read` includes it and pending work cannot retire it. It is
- * called for visible destinations too. `label(id)` names a part absent from the
+ * `reveal(id)`, when given, draws the state that holds declared part `id` before it
+ * returns, so the next `read` includes it. `label(id)` names a part absent from the
  * current state without revealing it.
  */
 export function registerVisualParts(
@@ -60,8 +59,8 @@ const hasVisualParts = (source) => registrations.has(source);
  * `declared` is the ids authored in its `parts` attribute, which the registration must
  * be able to show; `prefixes` declares kinds rather than ids, so it names none. `rank(id)`
  * is an id's place in the declaration, which orders the visual's targets: its authored
- * token's index, 0 for any longer id one of the prefixes begins so those keep
- * registration order, and -1 for an id the declaration does not admit. Null for a
+ * token's index, 0 for a prefixed id or an `all` sentinel admitting the complete
+ * inventory so those keep registration order, and -1 for an id it does not admit. Null for a
  * declaration that names no parts (`whole`, or none). Only an admitted id becomes a
  * durable coordinate; the `registered…` readers below report the whole inventory. */
 export function visualPartAdmission(visual, declaration) {
@@ -72,8 +71,10 @@ export function visualPartAdmission(visual, declaration) {
       declared: [],
       rank: (id) => (prefixes.some((p) => id !== p && id.startsWith(p)) ? 0 : -1),
     };
-  const declared =
-    visual.getAttribute(declaration.parts)?.trim().split(/\s+/).filter(Boolean) ?? [];
+  const value = visual.getAttribute(declaration.parts)?.trim();
+  if (declaration.all && value === declaration.all)
+    return { declared: [], rank: (id) => (id && !/\s/.test(id) ? 0 : -1) };
+  const declared = value?.split(/\s+/).filter(Boolean) ?? [];
   return { declared, rank: (id) => declared.indexOf(id) };
 }
 
@@ -81,10 +82,10 @@ export function visualPartAdmission(visual, declaration) {
 export const revealsVisualParts = (source) =>
   Boolean(registrations.get(source)?.reveal);
 
-/** Settle the requested part, even while old pixels await a replacement. */
+/** Draw the state that holds part `id`, when the source can and does not already. */
 export function revealRegisteredVisualPart(source, id) {
   const reveal = registrations.get(source)?.reveal;
-  if (reveal) reveal(id);
+  if (reveal && !registeredVisualPart(source, id)) reveal(id);
   return registeredVisualPart(source, id);
 }
 
@@ -122,11 +123,11 @@ export function visualPartProblems(source, declaration) {
         : []),
     ];
   } catch (error) {
-    return [String(error?.message ?? error)];
+    return [exceptionText(error, "could not read visual parts")];
   }
 }
 
-// Settle each declared part. This moves the visual off the
+// Reveal each declared part the current state lacks. This moves the visual off the
 // state it opened in, so a caller asks it last.
 export function unrevealedVisualParts(source, declaration) {
   const declared = visualPartAdmission(source, declaration)?.declared ?? [];
@@ -136,7 +137,7 @@ export function unrevealedVisualParts(source, declaration) {
       ? [`did not reveal declared parts ${missing.join(", ")}`]
       : [];
   } catch (error) {
-    return [String(error?.message ?? error)];
+    return [exceptionText(error, "could not reveal visual parts")];
   }
 }
 

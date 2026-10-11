@@ -1,20 +1,16 @@
 # The `leaf-dev` package
 
-`leaf_dev` is Leaf's developer tooling as a package: the mechanisms the suite and
-the eval harnesses share, and the `leaf-dev` commands built on them.
+`leaf_dev` is Leaf's developer tooling: the mechanisms the suite and the eval
+harnesses share, and the `leaf-dev` commands built on them. `uv run leaf-dev --help`
+lists the commands, and each command's `--help` says what it does.
 
-```sh
-uv run leaf-dev --help
-```
-
-It is a uv workspace member that only the root dev group depends on, so the checkout's
+Only the root dev group depends on this uv workspace member, so the checkout's
 environment installs it editable and `bin/leaf`, which runs `--no-dev`, never does.
-Nothing in `skills/` may import it. Its code runs under the same pre-commit hooks as
-the rest of the tree.
+Nothing in `skills/` may import it.
 
-A command's output lands under `.tmp/` unless its reader finds it at a committed
-path, as `examples/corpus.html` and its companions are. Evidence, previews, and probe
-results leave the tracked tree unchanged.
+A command writes under `.tmp/` unless its reader finds the output at a committed
+path, as with `examples/corpus.html` and its companions. Evidence, previews, and
+probe results leave the tracked tree unchanged.
 
 ## Where tooling goes
 
@@ -69,8 +65,7 @@ reaches a module by importing it from this package, never through `sys.path`,
   outcome from pytest's junit report, refusing a selection pytest would not run.
 - `leaf-dev flake NODEID...` runs tests from the working tree as 18 copies, six at a
   time, and prints every failure's message, since a load flake never shows serially.
-  The copies share every fixed path a test writes in the checkout, such as an export
-  under `.tmp/`, so a failure naming one is the copies racing there, not load.
+  It snapshots the candidate once; each copy owns its checkout and test output.
 - `leaf-dev bugback NODEID...` runs the tests on HEAD and with the branch's non-test
   change reverted, in a scratch worktree, and reports which went red.
 - `leaf-dev bench-latency [BASE_REF]` times an open page's answer to a gesture, an
@@ -96,6 +91,8 @@ reaches a module by importing it from this package, never through `sys.path`,
   page, or exports it with `--export`. `/developing-leaf` says when to pass `--user`.
 - `leaf-dev corpus` generates `examples/corpus.html` and its companions.
 - `leaf-dev keydocs` writes the `x-` key index in `docs/registry.html`.
+- `leaf-dev catalog` refreshes `docs/examples.html` descriptions from example metadata;
+  the site build derives them again before publication.
 
 ## Website and demo
 
@@ -106,7 +103,7 @@ The `prepared-install` workflow owns publication. Never merge that generated
 branch into a development branch. Source checkouts remain directly runnable;
 consumer installs and custom packages require no browser compiler.
 
-CI, `worker/`'s npm scripts and `.config/wt.toml` run these. The images they
+CI, the root pnpm scripts and `.config/wt.toml` run these. The images they
 write live in `max-sixty/leaf-assets`, so outside `.tmp/` they write only the pin
 in `leaf-assets.json` and the README's image URLs that name it.
 
@@ -114,7 +111,7 @@ in `leaf-assets.json` and the README's image URLs that name it.
   `.tmp/site-assets`, and the prepared installation that vendors its pages and that
   the container image installs into `.tmp/site-install`; `--output` gives an
   independent build its own destination. Writes to one destination are serialized.
-  `npm run dev --prefix worker` builds and serves it through `wrangler dev`, which
+  `pnpm run site:dev` builds and serves it through `wrangler dev`, which
   chooses available HTTP and inspector ports.
 - `leaf-dev verify-site` verifies a release at an origin, or with `website-worker`
   the site `leaf-dev site` built, through the local Worker and container, and prints
@@ -133,7 +130,7 @@ in `leaf-assets.json` and the README's image URLs that name it.
   is also appended to `$XDG_STATE_HOME/leaf-dev/journey.jsonl` on the machine that
   ran it, and `leaf-dev journey-chart` prints an `lf-chart` of those samples, for
   the latest version each target ran at each user end, to put on a page.
-- `worker/deploy-dev.sh` (`npm run deploy:dev --prefix worker`) deploys the checkout
+- `worker/deploy-dev.sh` (`pnpm run deploy:dev`) deploys the checkout
   to the standing `leaf-website-dev` environment and verifies it. Production deploys
   only through `.github/workflows/publish-site.yaml`.
 - `leaf-dev fetch-assets` fetches the `max-sixty/leaf-assets` revision pinned in

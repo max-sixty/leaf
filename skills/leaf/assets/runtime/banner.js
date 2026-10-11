@@ -9,6 +9,7 @@ import {
   BANNER_CONTROL_RANK,
   bannerActions,
   markBannerControl,
+  overflowMenu,
   registerBannerControl,
   showBannerControl,
   showNews,
@@ -26,12 +27,14 @@ import {
   registerNoticePresentation,
 } from "./notifications.js";
 import { watchProjection } from "./projection-watch.js";
+import { readQuestions } from "./questions/model.js";
 import { createBannerApprovalFace } from "./banner-approval.js";
 import { createBannerStatusView } from "./banner-status-view.js";
 import { declareBanner } from "./geometry.js";
 import { agentName, watchSemantic } from "./semantic-state.js";
 import { taskNoun } from "./queues.js";
 import { readQueues } from "./queue-api.js";
+import { SHARE_ROOT, shareUrl } from "./storage.js";
 
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
@@ -77,6 +80,9 @@ export function setThreadCounts(open, unread) {
   paintThreadCounts();
 }
 const approveBtn = el("button", "lf-btn primary lf-signoff");
+approveBtn.id = "lf-approve";
+// The queue arrives at the one approval control, including its overflow seat.
+export const approvalTarget = () => (signoff ? approveBtn : null);
 approveBtn.title = "Approve this work; the page stays open for follow-up";
 // The page's decision is not actionable until the page itself is present. Discussion chrome
 // stays live during replay, but approving hidden authored content would decide a version
@@ -214,8 +220,7 @@ function iconUrl(color) {
 }
 export async function loadIcon() {
   const response = await fetch(runtimeResource("/icon.svg"));
-  if (!response.ok)
-    throw new Error(`leaf: the tab icon failed to load (${response.status})`);
+  if (!response.ok) throw new Error(`icon.svg answered ${response.status}`);
   const doc = new DOMParser().parseFromString(await response.text(), "image/svg+xml");
   // Two failures, and the same symptom: no element to paint. A parse error is reported
   // as a document rather than thrown, so a mark that isn't SVG at all reaches the class
@@ -226,11 +231,11 @@ export async function loadIcon() {
     throw new Error(
       // Collapsed, because the browser's report is laid out as a page and reads as
       // several lines of it; what matters is the line and column it names.
-      `leaf: icon.svg is not SVG — ${broken.textContent.replace(/\s+/g, " ").trim()}`,
+      `icon.svg is not SVG — ${broken.textContent.replace(/\s+/g, " ").trim()}`,
     );
   if (!doc.querySelector(".lf-tone"))
     throw new Error(
-      "leaf: icon.svg carries no lf-tone element, which is where the page's " +
+      "icon.svg carries no lf-tone element, which is where the page's " +
         "status is painted",
     );
   iconMark = doc.documentElement;
@@ -269,8 +274,8 @@ let saidActionableWork;
 // agent's in the turn it is sent. A press on either opens the Questions panel, which
 // lists both.
 const QUEUE_WORDS = Object.freeze({
-  ask: ["Ask", "Asks"],
   question: ["question", "questions"],
+  approval: ["approval", "approvals"],
   recovery: ["update to send again", "updates to send again"],
   answer: ["answer", "answers"],
   reply: ["reply", "replies"],
@@ -361,6 +366,43 @@ function copyControl(trigger, success, error) {
   copy.addEventListener("wa-error", () => notice(error, { announce: false }));
   copy.append(trigger);
   return copy;
+}
+
+if (SHARE_ROOT) {
+  const details = el("details", "lf-share");
+  const share = el("summary", "lf-btn", "Share");
+  share.title = "Show this page's access link";
+  const panel = el("div", "lf-share-panel");
+  const label = el("label", "", "Share link");
+  const link = offer("input", "lf-share-link");
+  link.id = "lf-share-link";
+  link.type = "url";
+  link.readOnly = true;
+  link.addEventListener("focus", () => link.select());
+  label.append(link);
+  const copyButton = el("button", "lf-btn", "Copy link");
+  copyButton.type = "button";
+  const copy = copyControl(copyButton, "Link copied", "Select and copy the link above");
+  copy.copyLabel = "Copy link";
+  copy.hidden = !navigator.clipboard?.writeText;
+  panel.append(
+    el("p", "", "Grants access to all Leaf pages on this machine."),
+    label,
+    copy,
+  );
+  details.append(share, panel);
+  details.addEventListener("toggle", () => {
+    if (details.open) link.value = copy.value = shareUrl();
+  });
+  overflowMenu.addEventListener("beforetoggle", (event) => {
+    if (event.newState === "closed") details.open = false;
+  });
+  registerBannerControl({
+    key: "share",
+    control: details,
+    focusTarget: share,
+    rank: BANNER_CONTROL_RANK.share,
+  });
 }
 
 // How old a Leaf payload is, so a user who meets a problem can tell whether it
@@ -519,7 +561,7 @@ const publicationWords = (published) => [
 ];
 
 // The moves an open turn picked up, by kind: a comment in a thread, or an answer to an
-// Ask. A lone move is the user's own; several are counted.
+// Question. A lone move is the user's own; several are counted.
 function pickedUpWords({ comments, answers }) {
   if (comments + answers === 1) return comments ? "your comment" : "your answer";
   const counted = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
@@ -809,11 +851,11 @@ function reserveBannerControls() {
 
 let approving = false;
 
-// `blockingAsks` is the unanswered Asks that hold approval, or null before the page has
+// `blockingQuestions` is the unanswered Questions that hold approval, or null before the page has
 // read the log and so cannot say which those are.
-export function paintApproval(pendingApprovals, blockingAsks, acceptedApprovals) {
-  const approved = [...acceptedApprovals, ...pendingApprovals].some(
-    (e) => e.kind === "done" && e.version === runtime.currentStamp,
+export function paintApproval(blockingQuestions) {
+  const approved = readQuestions().all.some(
+    (question) => question.source.kind === "approval" && question.status === "answered",
   );
   // The word and the title turn over together. The title read "Approve this work; the
   // page stays open for follow-up" whether or not the work had been approved, so the one
@@ -828,10 +870,10 @@ export function paintApproval(pendingApprovals, blockingAsks, acceptedApprovals)
       ? "There is no stamped version to approve yet"
       : !signoff ||
           !document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented) ||
-          blockingAsks === null
+          blockingQuestions === null
         ? "Approval waits until this page has read its current state"
-        : blockingAsks.length
-          ? "Answer every Ask before approving this work"
+        : blockingQuestions.length
+          ? "Answer every Question before approving this work"
           : null;
   approvalFace.present(
     Object.freeze({
@@ -842,7 +884,7 @@ export function paintApproval(pendingApprovals, blockingAsks, acceptedApprovals)
   );
   // Approval is open while a press would approve this version, and behind More, on a
   // phone, that puts More's dot up. A refused press does not: the dot comes up when the
-  // last Ask holding approval is answered, which is when the user can act on it.
+  // last Question holding approval is answered, which is when the user can act on it.
   markBannerControl(approveBtn, reason === null ? "approval open" : null);
   repaint();
 }

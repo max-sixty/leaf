@@ -1,7 +1,6 @@
 """Vendored registry storage and page lookup."""
 
 import re
-import sys
 from collections.abc import Collection
 from datetime import datetime
 from pathlib import Path
@@ -9,6 +8,7 @@ from pathlib import Path
 from leaf.files import file_stamp, latest_revision, read_json
 from leaf.page_memory import Slot, memo
 
+from ..refusals import Refused
 from .contract import RegistryError, read_registry_declarations
 from .layer import required_layer_declarations, validate_event_contracts
 
@@ -43,8 +43,8 @@ def _read_layer(page_dir: Path, path: Path) -> dict | None:
     try:
         registry = read_registry_declarations(path)
         if registry is not None:
-            kinds = required_layer_declarations(registry, path)[0]
-            validate_event_contracts(kinds, path)
+            required_layer_declarations(registry, path)
+            validate_event_contracts(registry["$events"], path)
     except RegistryError as error:
         raise _revendor(page_dir, error) from None
     return registry
@@ -247,7 +247,7 @@ def require_registry(page_dir: Path) -> dict:
     """The active revision's vocabulary, or the candidate before first activation."""
     registry = active_registry(page_dir)
     if registry is None:
-        sys.exit(f"no registry.json in {page_dir}; run `leaf page init` first")
+        raise Refused(f"no registry.json in {page_dir}; run `leaf page init` first")
     return registry
 
 

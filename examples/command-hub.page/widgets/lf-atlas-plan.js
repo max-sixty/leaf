@@ -26,7 +26,7 @@ customElements.define(
       if (!this.overview) return;
       this.hold = new HeldReading(
         () => [this.overview.querySelector(".atlas-stopped")],
-        () => this.paint(),
+        () => this.watching.refresh(),
       );
       watchOwner(this, { disconnect: () => this.hold.dispose() });
       this.button = this.overview.querySelector(".atlas-refresh");
@@ -34,10 +34,10 @@ customElements.define(
         this.hold.release();
         for (const child of this.querySelectorAll("lf-atlas-worker, lf-atlas-tree"))
           child.showUpdates();
-        this.paint();
+        this.watching.refresh();
       });
-      this.addEventListener("atlas-reading", () => this.paint());
-      watchUpdates(this, () => this.paint());
+      this.addEventListener("atlas-reading", () => this.watching.refresh());
+      this.watching = watchUpdates(this, () => this.paint());
     }
     paint() {
       const reading = readWork(this);

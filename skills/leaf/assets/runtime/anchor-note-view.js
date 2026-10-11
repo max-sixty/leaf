@@ -31,7 +31,7 @@ export function createAnchorNoteProjection({ openThread, labelAnchor }) {
     const record = { note, firstThreadId: null };
     note.addEventListener(
       "click",
-      () => void openThread(record.firstThreadId, { focus: "thread" }),
+      () => void openThread(record.firstThreadId, { part: "thread" }),
     );
     return record;
   }

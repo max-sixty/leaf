@@ -25,7 +25,7 @@ export class ReactionStripView {
     render(
       html` <button
           type="button"
-          class="lf-react-trigger lf-ui"
+          class="lf-msg-control lf-react-trigger lf-ui"
           data-lf-gen="1"
           data-lf-offer="button"
           aria-expanded="false"
@@ -34,7 +34,7 @@ export class ReactionStripView {
           title="Add reaction"
           @click=${() => this.#registration.toggle()}
         >
-          ${iconTemplate("reaction", "lf-react-trigger-icon")}
+          ${iconTemplate("reaction", "lf-msg-control-icon")}
         </button>
         <span
           class="lf-react-palette"
@@ -78,11 +78,11 @@ export class ReactionStripView {
 
   #press(name) {
     const model = this.#model;
-    const sent = this.#commands.actions.toggleReaction(
-      model.key,
-      model.parent,
+    const sent = this.#commands.actions.setReaction(
+      model.thread,
+      model.message,
       name,
-      Boolean(model.choices.find((choice) => choice.name === name).standing),
+      !model.choices.find((choice) => choice.name === name).standing,
     );
     this.#registration.close();
     this.#commands.pressed();

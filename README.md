@@ -9,14 +9,14 @@ or follow live work in a page you can comment on and change. The agent responds 
 revising the page.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/a9999772c6a104058e964f121f566866fbf87676/demo/session-dark.png">
-  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/a9999772c6a104058e964f121f566866fbf87676/demo/session-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/c931dde31651d8421956782043f355a6c39414f5/demo/session-dark.png">
+  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/c931dde31651d8421956782043f355a6c39414f5/demo/session-light.png">
 </picture>
 
 <details>
 <summary>Watch the comment-and-revision loop</summary>
 
-![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/a9999772c6a104058e964f121f566866fbf87676/demo/demo.gif)
+![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/c931dde31651d8421956782043f355a6c39414f5/demo/demo.gif)
 
 </details>
 
@@ -30,7 +30,7 @@ You need [`uv`](https://docs.astral.sh/uv/),
 browser that can reach the machine the agent runs on. No Leaf account or
 configuration is required.
 Leaf ships a prepared browser runtime. Users and package authors never need to
-build Leaf or run npm; custom widgets are ordinary browser JavaScript.
+build Leaf or run a package manager; custom widgets are ordinary browser JavaScript.
 
 Claude Code:
 

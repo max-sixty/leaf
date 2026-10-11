@@ -1,25 +1,13 @@
-import {
-  focusDestination,
-  focused,
-  holdMechanicalViews,
-  readCaret,
-  releaseFocus,
-  selectEnds,
-  standingIn,
-  tabStops,
-  shownBox,
-  shownParts,
-  TEXT_BOX,
-} from "/runtime/widget-api.js";
+import { shownBox, shownParts, TEXT_BOX } from "/runtime/widget-api.js";
 import { at } from "./locate.js";
-import { openRoots } from "./open-roots.js";
 import { coveredWords } from "./words.js";
 
-// One read-only view of words a reader cannot reach. The render gate
+// One read-only view of controls and words a reader cannot reach. The render gate
 // takes this after its table experiment has restored wrapping; no field advances or
 // changes the page. Individual readers remain available for their own controls.
 export function reachabilityReading() {
   return {
+    clipped: clippedControls(),
     unreachable: unreachableWords(),
     covered: coveredWords(),
   };
@@ -60,16 +48,13 @@ export function reachabilityReading() {
 // drew no dot, no "chosen", nothing. Paper was right throughout, the rail being
 // screen-only, so no medium outside a browser could see it.
 //
-// These are candidates: a board's columns can be reached by scrolling, and a provider
-// may move a clipped drawing on focus through a sibling native scrollport. The gate
-// proves that focus route below before calling an offer unreachable. Ancestor scrollers
-// already answer for what they hold. Only controls the page offers (data-lf-offer) enter
-// the reading, excluding deliberately clipped text used by the paint pass.
-export function clippedControlCandidates() {
-  return clippedOffers().map(({ element, ...finding }) => finding);
-}
-
-function clippedOffers() {
+// Only where the clip cannot be scrolled away. A board's columns run past the board and
+// are reached by scrolling, which is the arrangement rather than a fault, so an ancestor
+// with something to scroll answers for what it holds. And only for controls the page
+// offers (data-lf-offer), which keeps it clear of everything deliberately clipped to
+// nothing — the paint pass's quiet words, the line counting a block's comments — whose
+// whole point is to be read and not seen.
+export function clippedControls() {
   const out = [];
   for (const el of document.querySelectorAll("[data-lf-offer]")) {
     // Chromium reports descendants of a closed details as visible even though only its
@@ -124,7 +109,6 @@ function clippedOffers() {
         );
         if (lost > 1) {
           out.push({
-            element: el,
             ctrl: el.className,
             id: el.id,
             by: `<${a.tagName.toLowerCase()}${a.id ? " id=" + a.id : ""}>`,
@@ -145,80 +129,6 @@ function clippedOffers() {
     }
   }
   return out;
-}
-
-// CSS identifies a clipped offer, but a provider may reveal it on keyboard focus
-// while using a sibling native scrollport to move its drawing. Prove that route
-// rather than infer it from overflow on the offer's ancestors. The Python caller
-// supplies real keyboard modality and waits for rendering between these synchronous
-// steps. Native scrollers remain the mechanical owners, including mirrored ones.
-let controlFocus = null;
-
-export function beginClippedControlFocus() {
-  const controls = clippedOffers();
-  if (!controls.length) return [];
-  const nodes = openRoots(document).flatMap((root) => [...root.querySelectorAll("*")]);
-  const scrollers = nodes.map((node) => ({
-    node,
-    left: node.scrollLeft,
-    top: node.scrollTop,
-  }));
-  const selection = getSelection();
-  const focus = focused();
-  controlFocus = {
-    controls,
-    scrollers,
-    restoreViews: holdMechanicalViews(nodes),
-    focus,
-    caret: readCaret(focus),
-    focusActive: focus.matches(":focus"),
-    ends: selection.rangeCount
-      ? [
-          [selection.anchorNode, selection.anchorOffset],
-          [selection.focusNode, selection.focusOffset],
-        ]
-      : null,
-  };
-  return controls.map(({ element, ...finding }) => finding);
-}
-
-export function focusClippedControl(index) {
-  const { element } = controlFocus.controls[index];
-  // A programmatic arrival must not invent a Tab stop that the user lacks.
-  if (
-    element.matches(":disabled") ||
-    element.closest("[inert]") ||
-    (element.hasAttribute("tabindex") && element.tabIndex < 0)
-  )
-    return;
-  const destination =
-    element.tabIndex >= 0
-      ? element
-      : openRoots(element).flatMap((root) => tabStops(root))[0];
-  if (destination) focusDestination(destination, "step", { scroll: true });
-}
-
-export function clippedControlRevealed(index) {
-  const { element } = controlFocus.controls[index];
-  return (
-    standingIn(element) &&
-    element.checkVisibility({ checkOpacity: true, visibilityProperty: true }) &&
-    !element.closest("[hidden]") &&
-    !clippedOffers().some((offer) => offer.element === element)
-  );
-}
-
-export function restoreClippedControlFocus() {
-  const saved = controlFocus;
-  controlFocus = null;
-  if (saved.ends) selectEnds(...saved.ends);
-  else getSelection().removeAllRanges();
-  if (saved.focus === document.body && !saved.focusActive) releaseFocus();
-  else focusDestination(saved.focus, "return", { caret: saved.caret });
-  saved.restoreViews();
-  for (const { node, left, top } of saved.scrollers)
-    if (node.scrollLeft !== left || node.scrollTop !== top)
-      node.scrollTo({ left, top, behavior: "instant" });
 }
 
 export function tinyBoxes(declarations) {

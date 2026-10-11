@@ -1,6 +1,6 @@
 /* Move retained nodes without resetting native state where the browser supports it.
  * New nodes and nodes from another root use ordinary insertion. The return value
- * matches insertBefore, including for a fragment, so Lit can commit the node.
+ * matches insertBefore, including when inserting a fragment.
  * Read platform methods through prototypes: named form controls shadow methods. */
 export function move(parent, node, before) {
   const moveBefore = Object.getPrototypeOf(parent).moveBefore;

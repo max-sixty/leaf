@@ -16,8 +16,8 @@
  * into the kernel (`build/runtime-bundle.mjs`), so its file count costs a
  * development checkout requests and nothing else.
  *
- * The framework's third-party packages are minified builds from the lock and the
- * adaptations below. `vendor/lit.js` is the page's one copy of Lit: every public Lit
+ * The framework's third-party packages are minified builds, which change only when
+ * the lock does. `vendor/lit.js` is the page's one copy of Lit: every public Lit
  * module in one namespace, shaped like Lit's own `lit-all` bundle, where the
  * static-html tags are renamed `staticHtml`, `staticSvg`, and `staticMathml` so they
  * do not shadow the ordinary ones. The framework imports Lit from it, and so does
@@ -140,35 +140,6 @@ function litModule(lit) {
         contents,
         resolveDir: root,
       }));
-      // Keep upstream files untouched. Fail on a changed seam rather than silently
-      // shipping keyed moves that blur editors and reload embedded documents.
-      build.onLoad(
-        { filter: /[/\\]lit-html[/\\](?:lit-html|directive-helpers)\.js$/ },
-        async ({ path: source }) => {
-          const seams =
-            path.basename(source) === "lit-html.js"
-              ? [
-                  [
-                    "this._$AA.parentNode.insertBefore(t,this._$AB)",
-                    "leafMove(this._$AA.parentNode,t,this._$AB)",
-                  ],
-                  // Root marker insertion also goes through the platform lookup:
-                  // a named form control can shadow the container's insertBefore.
-                  ["i.insertBefore(l(),t)", "leafMove(i,l(),t)"],
-                ]
-              : [["e.insertBefore(o,l)", "leafMove(e,o,l)"]];
-          let text = await readFile(source, "utf8");
-          for (const [original, replacement] of seams) {
-            if (text.split(original).length !== 2)
-              throw new Error(`Lit move seam changed: ${source}: ${original}`);
-            text = text.replace(original, replacement);
-          }
-          return {
-            contents: 'import {move as leafMove} from "/runtime/dom-move.js";\n' + text,
-            resolveDir: path.dirname(source),
-          };
-        },
-      );
     },
   };
 }
@@ -233,7 +204,6 @@ export async function buildOutputs() {
     ),
     outdir: `${assets}/vendor`,
     plugins: [litModule(lit)],
-    external: ["/runtime/dom-move.js"],
     platform: "browser",
     format: "esm",
     target: "es2022",
@@ -246,11 +216,7 @@ export async function buildOutputs() {
   });
   for (const file of result.outputFiles) {
     const name = path.relative(root, file.path).split(path.sep).join("/");
-    if (
-      result.metafile.outputs[name].imports.some(
-        ({ path }) => path !== "/runtime/dom-move.js",
-      )
-    )
+    if (result.metafile.outputs[name].imports.length)
       throw new Error(`${name} imports another module`);
     checkModule(file.text, name);
     outputs.set(name, Buffer.from(file.contents));

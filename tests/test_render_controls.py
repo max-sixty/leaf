@@ -10199,7 +10199,7 @@ def test_a_reference_command_finishes_its_gesture_before_a_newer_control(
 
 
 @pytest.mark.parametrize("native_move", [True, False])
-def test_lit_moves_keep_native_editor_and_frame_state(browser, serve, native_move):
+def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, native_move):
     """Moves survive named form fields; native moves also retain frame state."""
     page = open_page(
         browser,
@@ -10217,27 +10217,32 @@ def test_lit_moves_keep_native_editor_and_frame_state(browser, serve, native_mov
     )
     page.evaluate(
         """async nativeMove => {
-      const {html, render: rawRender, repeat} = await import('/vendor/lit.js');
-      const {render: heldRender} = await window.__lfRuntimeImport('/runtime/dom-children.js');
-      const render = nativeMove ? rawRender : heldRender;
+      const {orderChildren} = await window.__lfRuntimeImport('/runtime/dom-children.js');
+      const {move, holdFocus} = await window.__lfRuntimeImport('/runtime/widget-api.js');
       const rows = document.querySelector('#rows');
       if (!nativeMove) Element.prototype.moveBefore = undefined;
-      let ids = ['a', 'b', 'c'];
-      const paint = () => render(repeat(ids, id => id, id => html`
-        <div data-row=${id}><input aria-label=${id}>
-          <iframe title=${id} srcdoc="<p>Retained frame</p>"></iframe></div>`), rows);
-      paint();
+      const nodes = ['a', 'b', 'c'].map(id => {
+        const row = document.createElement('div');
+        row.dataset.row = id;
+        row.innerHTML = `<input aria-label="${id}">
+          <iframe title="${id}" srcdoc="<p>Retained frame</p>"></iframe>`;
+        return row;
+      });
+      orderChildren(rows, nodes);
       const editor = rows.querySelector('[data-row=c] input');
       window.blurs = 0;
       editor.addEventListener('blur', () => window.blurs++);
       editor.addEventListener('keydown', event => {
         if (event.key === 'ArrowUp' && event.altKey) {
           event.preventDefault();
-          ids = ['c', 'a', 'b'];
-          paint();
+          const restore = holdFocus(rows);
+          orderChildren(rows, [nodes[2], nodes[0], nodes[1]]);
+          restore?.();
         } else if (event.key === 'ArrowDown' && event.altKey) {
           event.preventDefault();
-          render(editor.closest('[data-row]'), document.querySelector('#other'));
+          const restore = holdFocus(rows);
+          move(document.querySelector('#other'), editor.closest('[data-row]'), null);
+          restore?.();
         }
       });
     }""",

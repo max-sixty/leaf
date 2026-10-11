@@ -848,12 +848,13 @@ redeliver unchanged data to keep a timestamp current.
 
 The renderer owns its nodes and their placement. Use `setChildren(parent, nodes)`
 for retained native nodes: it moves only what is out of place. For an individual
-placement use `move(parent, node, before)`, with `null` to append. Leaf and Lit
-share this primitive: within one composed root it uses native `moveBefore` where
+placement use `move(parent, node, before)`, with `null` to append. Within one
+composed root it uses native `moveBefore` where
 available, preserving focus, caret and iframe documents. Otherwise it uses
 `insertBefore`, which can reset that state. Leaf's public
-`render(template, container)` also restores editor focus and caret in fallback
-browsers; `repeat(records, keyOf, template)` retains keyed template rows. Leave
+`render(template, container)` restores editor focus and caret after Lit renders;
+`repeat(records, keyOf, template)` retains keyed template rows, but Lit's ordinary
+insertion can reset iframe documents even in browsers with native moves. Leave
 native disclosure, editor and scroll state with the retained nodes, rather than
 binding them to initial defaults on each update.
 For a subtree whose contents and descendant attributes all belong to the renderer,

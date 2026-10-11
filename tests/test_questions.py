@@ -4,9 +4,12 @@ from copy import deepcopy
 
 import model_folds as model
 import pytest
+from leaf import questions as questions_model
 from leaf.passages import SourceReading
+from leaf.projection import page_reading
 from leaf.served_state.browser import browser_state
 from leaf.structure import SourceDocument
+from leaf.work_reading import WorkReading
 
 OPTIONS = '<lf-options id="choice" {attrs}><lf-option id="a">A</lf-option><lf-option id="b">B</lf-option></lf-options>'
 
@@ -232,7 +235,8 @@ def test_display_only_widget_does_not_suppress_a_prose_question():
     ] == ["reply"]
 
 
-def test_conditional_request_retains_registration_between_value_actions():
+def conditional_registry():
+    """A value write can originate a request between document revisions."""
     registry = deepcopy(model.model_layer())
     registry["lf-conditional"] = {
         "type": "object",
@@ -257,6 +261,11 @@ def test_conditional_request_retains_registration_between_value_actions():
             "answered": {"answer": {}},
         },
     }
+    return registry
+
+
+def test_conditional_request_retains_registration_between_value_actions():
+    registry = conditional_registry()
     document = model.leaf_page(
         "Conditional",
         '<lf-conditional id="conditional" phase="closed" ready></lf-conditional>',
@@ -315,6 +324,139 @@ def test_conditional_request_retains_registration_between_value_actions():
     assert any(workflow["answer"] is not None for workflow in completed["workflows"])
     events.append({"kind": "undo", "undoes": "e1"})
     assert questions(model.reading(document, events, registry=registry))["all"] == []
+
+
+@pytest.mark.parametrize("writer", ["action", "report"])
+def test_historical_conditional_registration_reuses_work_and_tracks_event_changes(
+    monkeypatch, writer
+):
+    """Retries keep completed history work, while changed facts get a fresh fold.
+
+    The same admitted event identities can occur in a regenerated log with changed
+    payloads. Withdrawals and stamped transitions also change historical readings;
+    later comments and a new active document do not.
+    """
+    registry = conditional_registry()
+    if writer == "report":
+        registry["lf-conditional"]["x-state"]["phase"]["writer"] = "agent"
+    document = model.leaf_page(
+        "Conditional",
+        '<lf-conditional id="conditional" phase="closed" ready></lf-conditional>',
+    )
+    readings = {
+        revision: SourceReading(SourceDocument(document), registry)
+        for revision in (1, 2)
+    }
+    events = [
+        {
+            "kind": writer,
+            "author": "agent" if writer == "report" else "user",
+            "widget": "conditional",
+            "action": "phase",
+            "detail": {"value": phase},
+        }
+        for phase in ("open", "closed")
+    ]
+    historical = []
+    collecting = False
+    native = questions_model.previously_requested
+
+    def counted(*args, **kwargs):
+        if collecting and args[3] == 1:
+            historical.append(args[3])
+        return native(*args, **kwargs)
+
+    monkeypatch.setattr(questions_model, "previously_requested", counted)
+
+    def read(commands):
+        """Admit a fresh log, then fold it against the same immutable readings."""
+        nonlocal collecting
+        door = model.ModelPage(
+            documents={
+                revision: reading.document for revision, reading in readings.items()
+            },
+            registry=registry,
+        )
+        log = []
+        for seq, command in enumerate(commands, 1):
+            stamped = {"id": f"e{seq}", "seq": seq, "ts": model.NOW, "author": "user"}
+            if command["kind"] != "undo":
+                stamped["revision"] = 1
+            log.append(model.admitted_event(door, log, {**stamped, **command}))
+        active = max(readings)
+        page = page_reading(
+            readings[active],
+            log,
+            active,
+            revisions=readings,
+            revision_reader=readings.__getitem__,
+        )
+        collecting = True
+        try:
+            return WorkReading(
+                log,
+                registry,
+                page,
+                registry_for_revision=lambda revision: readings[revision].registry,
+                available_revisions=readings,
+            ).document.questions
+        finally:
+            collecting = False
+
+    initial = read(events)
+    assert [question["status"] for question in initial["all"]] == ["withdrawn"]
+    assert len(historical) == 1
+    assert read(events) == initial
+    assert len(historical) == 1
+    with_comment = [*events, {"kind": "comment", "text": "Keep investigating."}]
+    assert read(with_comment) == initial
+    readings[3] = SourceReading(SourceDocument(document), registry)
+    assert read(with_comment) == initial
+    assert len(historical) == 1
+
+    changed = deepcopy(events)
+    changed[0]["detail"]["value"] = "closed"
+    assert read(changed)["all"] == []
+    assert len(historical) == 2
+    assert read(events) == initial
+    assert len(historical) == 3
+
+    if writer == "action":
+        # Undo removes the gesture; a same-revision note preserves its registration.
+        assert read([*events, {"kind": "undo", "undoes": "e1"}])["all"] == []
+        assert len(historical) == 4
+        assert (
+            read(
+                [
+                    *events,
+                    {
+                        "kind": "note",
+                        "author": "agent",
+                        "version": 1,
+                        "text": "Reconsidered.",
+                        "restated": ["conditional"],
+                    },
+                ]
+            )
+            == initial
+        )
+        assert len(historical) == 5
+    else:
+        # A settled report still records that its prefix requested an answer.
+        settled = [
+            *events,
+            {
+                "kind": "note",
+                "author": "agent",
+                "version": 1,
+                "text": "Absorbed.",
+                "settles": [{"kind": "report", "id": "e1"}],
+            },
+        ]
+        assert read(settled) == initial
+        assert len(historical) == 4
+        assert read(settled) == initial
+        assert len(historical) == 4
 
 
 def test_settled_request_repicks_keep_the_new_user_gesture_as_provenance():

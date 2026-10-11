@@ -5425,6 +5425,184 @@ def test_held_revision_readings_stay_within_their_source_budget(page_dir, monkey
         assert artifact_model.read_revision(page_dir, revisions[0]) is not readings[0]
 
 
+def test_question_history_survives_parse_eviction_and_new_revisions(
+    page_dir, monkeypatch
+):
+    """A retry or new version reuses completed historical registration work.
+
+    A history larger than the parse cache used to parse every predecessor on every
+    read. Count parses rather than time, so contention cannot change the result.
+    """
+    from leaf.work_reading import WorkReading
+
+    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    for edit in range(4):
+        (page_dir / "index.html").write_text(
+            (source if edit == 0 else source.replace(" choose", "")).replace(
+                "</main>", f"<p>edit {edit}</p></main>"
+            )
+        )
+        activated = revisioning_model.activate_source(page_dir)
+        assert activated.error is None, activated.error
+
+    monkeypatch.setattr(artifact_model._Readings, "BUDGET", 1)
+    parsed = []
+    native = artifact_model.SourceDocument
+
+    def counted(data):
+        parsed.append(data)
+        return native(data)
+
+    monkeypatch.setattr(artifact_model, "SourceDocument", counted)
+
+    def read():
+        revisions = files_model.list_revisions(page_dir)
+        events = events_model.read_events(page_dir)
+        reading = artifact_model.read_revision(page_dir, revisions[-1])
+        page = projection_model.page_reading(
+            reading,
+            events,
+            revisions[-1],
+            revisions=revisions,
+            revision_reader=lambda revision: artifact_model.read_revision(
+                page_dir, revision
+            ),
+        )
+        return WorkReading(
+            events,
+            reading.registry,
+            page,
+            registry_for_revision=lambda revision: (
+                artifact_model.read_revision(page_dir, revision).registry
+            ),
+            available_revisions=revisions,
+        ).document.questions
+
+    with fresh_process():
+        initial = read()
+        assert len(parsed) == 4
+        assert initial["all"][0]["status"] == "withdrawn"
+        parsed.clear()
+        assert read() == initial
+        assert len(parsed) <= 1  # the active revision may have been evicted
+        (page_dir / "index.html").write_text(
+            source.replace(" choose", "").replace("</main>", "<p>new</p></main>")
+        )
+        activated = revisioning_model.activate_source(page_dir)
+        assert activated.error is None, activated.error
+        parsed.clear()
+        assert read() == initial
+        assert len(parsed) <= 1
+        kept = page_memory_model.memo(page_dir, artifact_model._CompactReadings)
+        assert kept.size <= kept.BUDGET
+
+
+def test_data_history_survives_parse_eviction_with_captured_scopes_and_contracts(
+    page_dir, monkeypatch
+):
+    """Repeated source checks reuse history without changing binding identity.
+
+    Nested samples retain their own id spaces, old layers retain their contracts,
+    and a newly captured layer owns the current producer's binding.
+    """
+    declare_data_input(
+        page_dir, "project-feed", {"type": "array"}, contract="rows", activate=False
+    )
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    source = (
+        (page_dir / "index.html")
+        .read_text()
+        .replace(
+            "</main>",
+            '<lf-sample id="outer" window><template id="outer-page" data-sample>'
+            '<lf-sample id="inner" window><template id="inner-page" data-sample>'
+            '<lf-test-data id="test-data" source="project-feed"></lf-test-data>'
+            "</template></lf-sample></template></lf-sample></main>",
+        )
+    )
+    for revision in range(1, 4):
+        write_revision(page_dir, revision, source.encode())
+    registry["$data"]["contracts"]["current-rows"] = registry["$data"]["contracts"][
+        "rows"
+    ]
+    registry["lf-test-data"]["x-data"]["data"]["contract"] = "current-rows"
+    registry_path.write_text(json.dumps(registry))
+    write_revision(page_dir, 4, source.encode())
+    append_command(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": "frozen-data",
+            "revision": 1,
+            "author": "agent",
+            "text": "The captured feed.",
+            "markup": '<lf-test-data id="reply-data" source="project-feed"></lf-test-data>',
+        },
+    )
+    events = events_model.read_events(page_dir)
+    monkeypatch.setattr(artifact_model._Readings, "BUDGET", 1)
+    parsed = []
+    native = artifact_model.SourceDocument
+
+    def counted(data):
+        parsed.append(data)
+        return native(data)
+
+    monkeypatch.setattr(artifact_model, "SourceDocument", counted)
+
+    def read():
+        """The same immutable binding readings serve checks and producer inventory."""
+        documents = data_contracts_model.page_data_document_readings(
+            page_dir, events, registry
+        )
+        bindings, errors = data_contracts_model.merge_data_document_readings(documents)
+        return documents, bindings, errors
+
+    with fresh_process():
+        documents, bindings, errors = read()
+        assert len(parsed) == 4
+        assert bindings == {"project-feed": "current-rows"} and errors == []
+        assert [
+            data_contracts_model.declared_data_bindings(records, captured)[0][
+                "project-feed"
+            ]
+            for records, label, captured in documents
+            if label in {"revision r1", "revision r4", "event 'frozen-data' markup"}
+        ] == ["rows", "rows", "current-rows"]
+        expected = {
+            "project-feed": {
+                "contract": "current-rows",
+                "consumers": [
+                    {"widget": "test-data", "input": "data", "document": label}
+                    for label in (
+                        "revision r4 sample 'outer-page' sample 'inner-page'",
+                        "revision r4",
+                    )
+                ],
+            }
+        }
+        parsed.clear()
+        assert read() == (documents, bindings, errors)
+        assert (
+            data_contracts_model.page_data_binding_inventory(page_dir, registry, events)
+            == expected
+        )
+        assert parsed == []
+        write_revision(page_dir, 5, source.encode())
+        parsed.clear()
+        assert read()[1:] == (bindings, errors)
+        expected["project-feed"]["consumers"].extend(
+            {**consumer, "document": consumer["document"].replace("r4", "r5")}
+            for consumer in expected["project-feed"]["consumers"][:]
+        )
+        assert (
+            data_contracts_model.page_data_binding_inventory(page_dir, registry, events)
+            == expected
+        )
+        assert len(parsed) <= 1
+
+
 def test_a_process_keeps_the_pages_it_read_most_recently(page_dir):
     """A process keeps what it read of the last few pages it read, so one that reads
     many, such as the website or a test worker, holds a bounded amount however many

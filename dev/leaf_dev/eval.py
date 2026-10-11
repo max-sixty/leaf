@@ -44,20 +44,15 @@ from leaf_dev.arms import (
     child_class,
     claude_child,
     codex_home,
+    codex_program,
     environment,
+    install_codex_plugin,
 )
 from leaf_dev.leaf_assets import pinned_copy
 
 PROMPTFOO = ROOT / "node_modules/.bin/promptfoo"
 RUNS = ROOT / ".tmp/eval"
 SKILL_PREFIX = "Use the Leaf skill ($leaf in Codex; leaf:leaf in Claude Code).\n\n"
-
-
-def codex_program() -> Path:
-    """Resolve the host CLI used by Codex providers and plugin installation."""
-    if (installed := shutil.which("codex")) is None:
-        raise click.ClickException("Codex evals require the Codex CLI; install it")
-    return Path(installed).resolve()
 
 
 def context_case(source: dict, address: str) -> dict:
@@ -144,22 +139,12 @@ def native_provider(harness: str, payload: Path, work: Path) -> dict:
     }
     # The installer and provider use the same CLI. Installing the complete
     # plugin preserves discovery and skill references relative to the plugin root.
-    for args in (
-        ("plugin", "marketplace", "add", str(payload), "--json"),
-        ("plugin", "add", "leaf@leaf", "--json"),
-    ):
-        installed = subprocess.run(
-            [str(codex), *args],
-            cwd=work,
-            env=environment(**cli_env),
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if installed.returncode:
-            raise click.ClickException(
-                f"Codex plugin installation failed:\n{installed.stdout}{installed.stderr}"
-            )
+    try:
+        install_codex_plugin(codex, payload, cwd=work, env=environment(**cli_env))
+    except subprocess.CalledProcessError as error:
+        raise click.ClickException(
+            f"Codex plugin installation failed:\n{error.stdout}{error.stderr}"
+        ) from error
     return {
         "id": "openai:codex-app-server",
         "config": {

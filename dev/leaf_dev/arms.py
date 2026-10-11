@@ -35,7 +35,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import Self
+from typing import IO, Self
 
 import click
 from leaf.codex import APP_SERVER_ENV
@@ -264,6 +264,41 @@ def build_pair(base: str | None, dest: Path) -> tuple[dict[str, Path], dict[str,
 def load_average() -> str:
     """The machine's 1, 5 and 15 minute load averages."""
     return " ".join(f"{value:.1f}" for value in os.getloadavg())
+
+
+def codex_program() -> Path:
+    """Resolve the host CLI used to install plugins and run isolated Codex tasks."""
+    if (installed := shutil.which("codex")) is None:
+        raise click.ClickException("Codex tasks require the Codex CLI; install it")
+    return Path(installed).resolve()
+
+
+def install_codex_plugin(
+    codex: Path,
+    payload: Path,
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    output: IO[str] | None = None,
+) -> None:
+    """Install a complete Leaf payload through Codex's native marketplace commands.
+
+    Callers supply the isolated task's environment and its CLI. Output is captured
+    on subprocess failures, or streamed whole to `output` when the caller keeps a
+    log; native installer JSON documents are separate from task JSON-lines logs.
+    """
+    streams = (
+        {"stdout": output, "stderr": subprocess.STDOUT}
+        if output is not None
+        else {"capture_output": True, "text": True}
+    )
+    for arguments in (
+        ("plugin", "marketplace", "add", str(payload), "--json"),
+        ("plugin", "add", "leaf@leaf", "--json"),
+    ):
+        subprocess.run(
+            [str(codex), *arguments], cwd=cwd, env=env, check=True, **streams
+        )
 
 
 def codex_home(path: Path, config: str = "") -> Path:

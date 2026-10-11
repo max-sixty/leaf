@@ -8,7 +8,7 @@ import pytest
 from interact_support import append_carried_log_record, append_command
 from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -1398,6 +1398,7 @@ export default class extends HTMLElement {
         "whenLeafPresented().then(() => { presentationReady = true; }); true"
     )
     assert page.evaluate("presentationReady") is False
+    rendered(page)  # A deferred local edit does not hold mechanical rendering.
     resumed = page.evaluate(
         "resumeLocal(); const once = Number(pageLocal.dataset.readings); "
         "resumeLocal(); [once, Number(pageLocal.dataset.readings)]"
@@ -1443,6 +1444,9 @@ export default class extends HTMLElement {
         }"""
     )
     page.wait_for_function("beforeRemovalReady")
+    rendered(
+        page
+    )  # A removed owner's unresolved preparation no longer holds rendering.
     assert page.evaluate("Number(pageLocal.dataset.readings)") == page.evaluate(
         "beforeDetachedReading"
     )
@@ -1472,6 +1476,12 @@ export default class extends HTMLElement {
         }"""
     )
     assert page.evaluate("reconnectedReady") is False
+    assert (
+        page.evaluate(
+            "document.querySelector('script[data-lf-entry]').lfRenderingSettled()"
+        )
+        is False
+    )
     assert page.evaluate("Number(pageLocal.dataset.readings)") == page.evaluate(
         "beforeDetachedReading + 1"
     )
@@ -1511,6 +1521,92 @@ export default class extends HTMLElement {
         "leaf: Presentation failed: <lf-local> renderState threw: deliberate render failure"
     ]
     assert "Caused by: Error: deliberate render failure" in errors[0]
+
+
+@pytest.mark.parametrize(
+    "mode", ["siblings", "superseded", "reconnected", "registered-detached"]
+)
+def test_preparation_waits_for_all_capable_work(browser, serve, mode):
+    """Failures and reconnects retain every producer that can still commit DOM."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Preparation",
+                '<h1>Preparation</h1><lf-local id="page-local" choice="idle"></lf-local>',
+            ),
+            page_files={
+                "registry.json": json.dumps(PAGE_DECLARATION),
+                "widgets/lf-local.js": PAGE_WIDGET,
+            },
+        ),
+    )
+    page.locator("#page-local").evaluate("""owner => {
+      window.preparationOwner = owner;
+      window.preparationParent = owner.parentNode;
+    }""")
+    if mode == "registered-detached":
+        page.evaluate("preparationOwner.remove()")
+    page.evaluate("""() => {
+      const owner = preparationOwner;
+      const first = new Promise((done, fail) => {
+        window.finishPreparation = done;
+        window.rejectPreparation = fail;
+      });
+      owner.controller.present(first.then(() => { owner.dataset.late = 'committed'; }));
+    }""")
+    if mode == "registered-detached":
+        append_command(
+            serve.page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "page-local",
+                "action": "choose",
+                "detail": {"value": "chosen"},
+            },
+        )
+        told(page)
+    elif mode != "siblings":
+        page.get_by_role("button", name="Choose", exact=True).click()
+        expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
+    page.evaluate("""() => {
+      const owner = preparationOwner;
+      const second = new Promise(done => { window.releaseSibling = done; });
+      owner.controller.present(second);
+    }""")
+    if mode in {"reconnected", "registered-detached"}:
+        if mode == "reconnected":
+            page.get_by_role("heading", name="Preparation", exact=True).click()
+            page.evaluate("preparationOwner.remove()")
+        rendered(page)
+        page.evaluate("preparationParent.append(preparationOwner)")
+    if mode != "siblings":
+        page.evaluate("releaseSibling()")
+    else:
+        page.evaluate("rejectPreparation(new Error('deliberate preparation failure'))")
+        expect(page.locator("#page-local .lf-error")).to_contain_text(
+            "deliberate preparation failure"
+        )
+    one_frame(page)
+    assert not page.evaluate(
+        "document.querySelector('script[data-lf-entry]').lfRenderingSettled()"
+    )
+    if mode in {"reconnected", "registered-detached"}:
+        page.evaluate("finishPreparation()")
+        rendered(page)
+        expect(page.locator("#page-local")).to_have_attribute("data-late", "committed")
+        return
+    if mode == "superseded":
+        page.evaluate("rejectPreparation(new Error('deliberate preparation failure'))")
+    expect(page.locator("#page-local .lf-error")).to_contain_text(
+        "deliberate preparation failure"
+    )
+    errors = take_browser_errors(page)
+    assert errors and all("deliberate preparation failure" in error for error in errors)
+    page.evaluate("releaseSibling()")
+    rendered(page)
 
 
 def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):

@@ -1971,7 +1971,6 @@ def test_sample_host_view_changes_leave_its_scroll_and_keyboard_position(
             completed += 1
             expect(page.locator("#completed")).to_have_text(str(completed))
             child = frame.element_handle().content_frame()
-            rendered(child)
             expect(button).to_be_focused()
             assert page.evaluate("scrollY") == before
             panel = child.locator(".lf-thread-panel")

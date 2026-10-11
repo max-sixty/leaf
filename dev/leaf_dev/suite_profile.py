@@ -46,6 +46,7 @@ STACK = re.compile(
     r'^(?P<stack>process \d+:".*?) (?P<samples>\d+)$(?=\nprocess \d+:"|\n?\Z)',
     re.MULTILINE | re.DOTALL,
 )
+PROCESS = re.compile(r'process (\d+):"([^"]*)"')
 FRAME = re.compile(r"\S+ \([^()]*:\d+\)")
 
 # The running test's Playwright tally, (method from caller) -> [seconds, calls], or
@@ -56,6 +57,7 @@ _phases = pytest.StashKey[dict[str, float]]()
 
 def pytest_configure(config):
     import greenlet
+    import playwright
     from playwright._impl._sync_base import SyncBase
 
     sync = SyncBase._sync
@@ -72,6 +74,12 @@ def pytest_configure(config):
             tally[0] += time.perf_counter() - start
             tally[1] += 1
 
+    # Playwright attributes each call, in its traces and protocol metadata, to the
+    # first frame outside its own package. Filing the wrapper's code under that
+    # package keeps the attribution on the caller rather than on this module.
+    timed.__code__ = timed.__code__.replace(
+        co_filename=str(Path(playwright.__file__).parent / "_suite_profile.py")
+    )
     SyncBase._sync = timed
 
 
@@ -147,20 +155,19 @@ def suite_profile(directory: Path, rate: float | None, top: int) -> None:
 
 
 def read_cases(report: Path) -> list[dict]:
-    """Each test case's file, seconds and profile. A case reported twice, a failed call
-    and its teardown error, keeps the first; a case without a profile, a collection
-    error, has none."""
+    """Each test case's file, seconds and profile. A failed call whose teardown also
+    failed is reported as two cases, the profile on the second; they are one test
+    here. A case without a profile, a collection error, has none."""
     cases = {}
     for case in ET.parse(report).iter("testcase"):
         key = (case.get("classname", ""), case.get("name", ""))
-        if key in cases:
-            continue
-        prop = case.find("properties/property[@name='profile']")
-        cases[key] = {
-            "file": key[0].replace(".", "/") + ".py",
-            "seconds": float(case.get("time", 0)),
-            "profile": json.loads(prop.get("value")) if prop is not None else None,
-        }
+        entry = cases.setdefault(
+            key,
+            {"file": key[0].replace(".", "/") + ".py", "seconds": 0.0, "profile": None},
+        )
+        entry["seconds"] += float(case.get("time", 0))
+        if (prop := case.find("properties/property[@name='profile']")) is not None:
+            entry["profile"] = json.loads(prop.get("value"))
     return list(cases.values())
 
 
@@ -238,14 +245,25 @@ def report_stacks(path: Path, rate: float, top: int) -> None:
     """The suite's own Python in py-spy's samples of the test protocol: inclusive
     minutes by function, and the innermost frame each sample was in. The protocol's
     stack is off the thread while Playwright's event loop runs, so these minutes
-    and the report's Playwright minutes add up to the tests' time."""
+    and the report's Playwright minutes add up to the tests' time.
+
+    Then the Python processes the tests started, by command. A test waiting on one
+    shows only the wait, and its work runs in the child. py-spy samples every
+    thread of a process, idle ones included, so these are thread-minutes, a measure
+    of how long and how widely each command ran rather than of its CPU."""
     inclusive, innermost = Counter(), Counter()
     inside = 0
+    runners = set()  # pytest's own processes: the workers and their ancestors
+    children = defaultdict(Counter)  # pid -> command -> samples
     for record in STACK.finditer(path.read_text(errors="replace")):
+        processes = PROCESS.findall(record["stack"])
         frames = [f for f in record["stack"].split(";") if FRAME.fullmatch(f)]
-        if not any(f.startswith("pytest_runtest_protocol ") for f in frames):
-            continue
         samples = int(record["samples"])
+        if not any(f.startswith("pytest_runtest_protocol ") for f in frames):
+            pid, command = processes[-1]
+            children[pid][_command(command)] += samples
+            continue
+        runners.update(pid for pid, _ in processes)
         inside += samples
         for frame in set(frames):
             if not _harness_frame(frame):
@@ -264,6 +282,27 @@ def report_stacks(path: Path, rate: float, top: int) -> None:
         ("minutes", "innermost frame"),
         [(minutes(n / rate), f) for f, n in innermost.most_common(top)],
     )
+    commands = Counter()
+    for pid, counts in children.items():
+        if pid not in runners:
+            commands.update(counts)
+    section("Python processes the tests started")
+    table(
+        ("thread-minutes", "command"),
+        [(minutes(n / rate), c) for c, n in commands.most_common(top)],
+    )
+
+
+def _command(line: str) -> str:
+    """A command line without its paths: the program's name and the words before its
+    first path argument, so every run of one command groups together."""
+    program, *words = line.split()
+    kept = [Path(program).name]
+    for word in words:
+        if "/" in word:
+            break
+        kept.append(word)
+    return " ".join(kept)[:100]
 
 
 def _harness_frame(frame: str) -> bool:

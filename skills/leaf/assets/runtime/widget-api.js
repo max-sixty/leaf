@@ -111,7 +111,7 @@ export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
 export { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
 export { HOLDS_WORD } from "./held-word.js";
-export { PRESS, labelOf, submitBindings, submitLabel } from "./keyboard/bindings.js";
+export { PRESS, labelOf } from "./keyboard/bindings.js";
 export {
   commandScope,
   commandsOn,
@@ -222,8 +222,7 @@ export {
   tokenLines,
 } from "./syntax.js";
 export { bodyText, dataBody, failSoft, once } from "./widget-upgrade.js";
-export { watchReports } from "./application.js";
-export { saidAt, reportSequence, watchHistory } from "./reports.js";
+export { saidAt, reportSequence, watchHistory, watchReports } from "./reports.js";
 export {
   HIDDEN,
   LAYOUT,

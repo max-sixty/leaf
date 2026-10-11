@@ -391,7 +391,7 @@ export const semanticStoreOwnershipRule = {
 const standingRepoRoot = path.dirname(fileURLToPath(import.meta.url));
 const STANDING_MESSAGE =
   "Read where the user stands from onStanding (runtime/focus.js): a focusin or focusout listener misses moves inside a shadow tree beneath it and guesses its own cause.";
-export const standingListenersRule = {
+const standingListenersRule = {
   meta: {
     type: "problem",
     schema: [{ type: "object", additionalProperties: { type: "array" } }],
@@ -460,7 +460,7 @@ export const standingListenersRule = {
 // hands on to the editor inside it.
 const PLACEMENT_MESSAGE =
   "Put the user on an element with focusDestination(node, cause) (runtime/focus.js): a plain focus() publishes as the user's own move, so a return reads as one.";
-export const placementsRule = {
+const placementsRule = {
   meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
   create(context) {
     const file = path

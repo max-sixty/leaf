@@ -36,7 +36,6 @@ from leaf.thread_context import (
     thread_names,
     thread_structure,
     thread_widgets,
-    widget_messages,
 )
 
 
@@ -236,9 +235,6 @@ class FrozenThreadReading(NamedTuple):
 
     def registry_for_message(self, message: str) -> dict:
         return self.publications[self.message_revisions[message]].registry
-
-    def registry_for_widget(self, widget: str) -> dict:
-        return self.registry_for_message(widget_messages(self.structure)[widget])
 
     @property
     def by_id(self) -> dict:

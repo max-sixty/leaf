@@ -18,7 +18,7 @@ import { widgetImports } from "../skills/leaf/assets/runtime/widget-imports.js";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** Read initial work through the document's generated rooted import map. */
-export async function initialModules(layers, imports, entries) {
+async function initialModules(layers, imports, entries) {
   const origin = "https://leaf.invalid";
   const mappings = Object.entries(imports)
     .map(([name, target]) => [new URL(name, origin).href, new URL(target, origin).href])

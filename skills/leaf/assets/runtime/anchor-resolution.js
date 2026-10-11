@@ -193,7 +193,7 @@ function visualPart(visual, part) {
   return admitsVisualPart(visual, part) ? registeredVisualPart(visual, part) : null;
 }
 
-export function revealVisualPart(visual, part) {
+function revealVisualPart(visual, part) {
   return admitsVisualPart(visual, part)
     ? revealRegisteredVisualPart(visual, part)
     : null;
@@ -285,7 +285,7 @@ export function isAddressable(at) {
   return !declaredVisualAt(upFrom(at));
 }
 
-export function addressableAt(node) {
+function addressableAt(node) {
   let at = node?.nodeType === 1 ? node : node?.parentElement;
   for (; at; at = upFrom(at)) if (isAddressable(at)) return at;
   return null;
@@ -462,7 +462,7 @@ const addressableAimTarget = (addressable) => ({
 // The one coordinate minted from a projected datum. Pointer aim, passage capture, and
 // widget-local comment affordances all pass through this function so source provenance
 // cannot disappear merely because the gesture began in generated UI rather than text.
-export const anchorForDatum = (datum, fields = {}) => {
+const anchorForDatum = (datum, fields = {}) => {
   const sourceRevision = datum.dataset.lfSourceRevision;
   return {
     section: datum.dataset.lfProjection,

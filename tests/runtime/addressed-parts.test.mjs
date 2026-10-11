@@ -93,7 +93,7 @@ test("an opted-in complete inventory derives targets while omission keeps the wh
 });
 
 test("visual ownership and authored IDs follow each publication's own declaration", async () => {
-  const { visualAt, isAddressable, addressableAt } =
+  const { visualAt, isAddressable, aimTargetAt } =
     await import("/runtime/anchor-resolution.js");
   const { bindVocabulary, rememberVocabulary } =
     await import("/runtime/widget-contexts.js");
@@ -117,12 +117,14 @@ test("visual ownership and authored IDs follow each publication's own declaratio
     assert.ok(visualAt(prose.firstElementChild) === null);
     assert.ok(visualAt(prose.lastElementChild)?.element === prose.lastElementChild);
     assert.equal(isAddressable(prose.firstElementChild), true);
-    assert.ok(
-      addressableAt(prose.firstElementChild.firstChild) === prose.firstElementChild,
-    );
+    assert.deepEqual(aimTargetAt(prose.firstElementChild.firstChild).anchor, {
+      section: "authored-id",
+    });
     assert.ok(visualAt(visual.firstElementChild)?.element === visual);
     assert.equal(isAddressable(visual.firstElementChild), false);
-    assert.ok(addressableAt(visual.firstElementChild.firstChild) === visual);
+    assert.deepEqual(aimTargetAt(visual.firstElementChild.firstChild).anchor, {
+      section: "frozen-visual",
+    });
     // The outermost provider reading skips a same-tag ancestor whose publication
     // declares prose, rather than letting it take the nested drawing's identity.
     prose.append(visual);

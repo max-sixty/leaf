@@ -12,10 +12,7 @@ import {
   presentDocument,
 } from "./semantic-state.js";
 import { announce, notice } from "./notifications.js";
-import {
-  approvalBlockingQuestions as readApprovalBlockingQuestions,
-  readQuestions,
-} from "./questions/model.js";
+import { readQuestions } from "./questions/model.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
@@ -45,8 +42,7 @@ import {
   renderSurfaces,
 } from "./thread/surfaces.js";
 import { createStateApplication } from "./state-application.js";
-import { beginRead as beginStateRead, createStateFeed } from "./state-feed.js";
-import { watchReports as observeReports } from "./reports.js";
+import { createStateFeed } from "./state-feed.js";
 
 const commandDispatch = createCommandDispatch();
 let application = null;
@@ -72,7 +68,9 @@ export function mountApplication(dependencies) {
 
   const stateApplying = () => stateApplication?.isApplying() ?? false;
 
-  const approvalBlockingQuestions = readApprovalBlockingQuestions;
+  // The destinations are built after the overlay, whose thread preview they take, and
+  // the views built below before them hold this forwarder to open a thread.
+  const openPageThread = (...args) => threadDestinations.openPageThread(...args);
 
   // Retire the entries the ledger's lifecycle says wait only for release, once every
   // region that draws them has committed the reading that no longer does.
@@ -172,7 +170,7 @@ export function mountApplication(dependencies) {
       notice(`Couldn't send — attempt ${attempt} is already in use`),
   });
 
-  const { post, dispatchWidget } = commandDispatch;
+  const { post } = commandDispatch;
 
   const undo = createUndo({
     post,
@@ -192,7 +190,7 @@ export function mountApplication(dependencies) {
   };
   const read = createReadTracking({
     markRead,
-    openThread: (...args) => threadDestinations.openPageThread(...args),
+    openThread: openPageThread,
     firstUnreadBtn: dependencies.firstUnreadBtn,
   });
 
@@ -201,7 +199,7 @@ export function mountApplication(dependencies) {
     withdraw: undo.withdraw,
     sendReaction: dependencies.sendReaction,
     currentRevision: () => runtime.currentRevision,
-    open: (...args) => threadDestinations.openPageThread(...args),
+    open: openPageThread,
   });
   const queueActions = createQueueActions({
     post,
@@ -228,7 +226,7 @@ export function mountApplication(dependencies) {
     settlement: settlementView,
     reaction: reactionView,
     read,
-    openThread: (...args) => threadDestinations.openPageThread(...args),
+    openThread: openPageThread,
     landInThread: dependencies.landInThread,
   };
   const cardView = {
@@ -255,7 +253,7 @@ export function mountApplication(dependencies) {
     inlineComparison: dependencies.annotationCommands.inlineComparison,
     toggleInlineComparison: dependencies.annotationCommands.toggleInlineComparison,
     placedAt: dependencies.anchorPlacement.placedAt,
-    openThread: (...args) => threadDestinations.openPageThread(...args),
+    openThread: openPageThread,
     goToQuestion: dependencies.annotationCommands.goToQuestion,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
   });
@@ -292,7 +290,7 @@ export function mountApplication(dependencies) {
     inventory: annotations,
     refreshInventory: refreshAnnotationInventory,
     renderAnnotations,
-    openPageThread: (...args) => threadDestinations.openPageThread(...args),
+    openPageThread,
     panelIsOpen: dependencies.panelIsOpen,
     panel: dependencies.panel,
     accompaniedThread: dependencies.accompaniedThread,
@@ -435,8 +433,8 @@ export function mountApplication(dependencies) {
   });
 
   const feed = createStateFeed({
-    prepareActivation: dependencies.feed.prepareActivation,
-    renderStatus: dependencies.feed.renderStatus,
+    prepareActivation: dependencies.state.prepareActivation,
+    renderStatus: dependencies.state.renderStatus,
     stateApplying,
     invalidateDom,
     receiveState,
@@ -451,7 +449,7 @@ export function mountApplication(dependencies) {
   const threadSurfaceCommands = {
     invalidate: invalidateDom,
     composition: dependencies.compositionSurface,
-    reveal: (...args) => threadDestinations.openPageThread(...args),
+    reveal: openPageThread,
   };
   // data-annotations=page is the one switch that hands presentation to the page: both
   // page consumers refuse a document that keeps Leaf's own margin.
@@ -516,18 +514,13 @@ export function mountApplication(dependencies) {
   };
 
   application = {
-    ...undo,
-    watchReports: observeReports,
-    ...engagement,
-    approvalBlockingQuestions,
-    beginRead: beginStateRead,
+    withdraw: undo.withdraw,
+    midComposition: engagement.midComposition,
     threadBox,
-    dispatchWidget,
     hasPending,
     invalidateDom,
     landInThread: dependencies.landInThread,
     annotations,
-    refreshAnnotationInventory,
     renderAnnotations,
     mountAnnotations,
     overlay,
@@ -540,7 +533,6 @@ export function mountApplication(dependencies) {
     post,
     projectData: dataProjection.projectData,
     readAndApply: feed.readAndApply,
-    receiveState,
     refreshThread,
     presentThread,
     placeThreads,
@@ -573,15 +565,11 @@ export function mountApplication(dependencies) {
   return application;
 }
 
-export const approvalBlockingQuestions = (...args) =>
-  app().approvalBlockingQuestions(...args);
-export const beginRead = (...args) => app().beginRead(...args);
 export const threadBox = (...args) => app().threadBox(...args);
 export const dispatchWidget = commandDispatch.dispatchWidget;
 export const hasPending = (...args) => app().hasPending(...args);
 export const invalidateDom = (...args) => app().invalidateDom(...args);
 export const landInThread = (...args) => app().landInThread(...args);
-export const midComposition = (...args) => app().midComposition(...args);
 export const navigateToDatum = (...args) => app().navigateToDatum(...args);
 // The one route to a thread by its root id: the thread's inline destination while
 // it has one, Threads otherwise, the same choice a mark and t/T make.
@@ -589,7 +577,6 @@ export const openThread = (...args) => app().threadDestinations.openPageThread(.
 export const post = commandDispatch.post;
 export const projectData = (...args) => app().projectData(...args);
 export const readAndApply = (...args) => app().readAndApply(...args);
-export const receiveState = (...args) => app().receiveState(...args);
 export const refreshThread = (...args) => app().refreshThread(...args);
 export const placeThreads = (...args) => app().placeThreads(...args);
 export const placePageThreads = (...args) => app().placePageThreads(...args);
@@ -613,9 +600,4 @@ export const queueActions = Object.freeze({
   open: (...args) => app().queueActions.open(...args),
   done: (...args) => app().queueActions.done(...args),
 });
-export const startFeed = (...args) => app().startFeed(...args);
-export const unaccountedGesture = (...args) => app().unaccountedGesture(...args);
-export const undoable = (...args) => app().undoable(...args);
-export const undoLast = (...args) => app().undoLast(...args);
-export const watchReports = (...args) => app().watchReports(...args);
 export const wireInput = (...args) => app().wireInput(...args);

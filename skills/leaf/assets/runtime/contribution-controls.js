@@ -126,11 +126,11 @@ const iconNodes = new WeakMap();
 const contributorClasses = new WeakMap();
 
 /** Create the native host for one generated margin entry reading. */
-export function createContributionControl(record, className = "") {
+function createContributionControl(record, className = "") {
   return offer(record.behavior === "status" ? "span" : "button", className);
 }
 
-export const contributionControlMatches = (control, record) =>
+const contributionControlMatches = (control, record) =>
   record.behavior === "status"
     ? control instanceof HTMLSpanElement
     : control instanceof HTMLButtonElement;

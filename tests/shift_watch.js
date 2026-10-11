@@ -1947,6 +1947,8 @@
       : selection.size[axis === "left" ? "width" : "height"]);
   const scrollMotion = (node, from, to) => {
     const motion = nativeScrollMotion(node, from, to);
+    // Rejected credits need their input facts too, including a missing source reading.
+    motion.attachments = [];
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
     const anchored = { left: false, top: false };
     const ancestors = ancestryAt(element, to);
@@ -1968,6 +1970,26 @@
         was.tenure === now.tenure &&
         was.subject === now.subject &&
         was.anchor === now.anchor;
+      if (was || now)
+        motion.attachments.push({
+          owner,
+          before: was ?? null,
+          after: now ?? null,
+          before_origin: readingAt(owner, from)?.nativeOrigin ?? null,
+          after_origin: readingAt(owner, to)?.nativeOrigin ?? null,
+          before_surface: boxAt(owner, from),
+          after_surface: boxAt(owner, to),
+          before_frame: was?.frame && {
+            rect: boxAt(was.frame, from),
+            layout: layoutAt(was.frame, from),
+          },
+          after_frame: now?.frame && {
+            rect: boxAt(now.frame, to),
+            layout: layoutAt(now.frame, to),
+          },
+          crosses_fixed: crossesFixed,
+          same_attachment: sameAttachment,
+        });
       if (
         sameAttachment &&
         was.plane === "window" &&
@@ -2298,6 +2320,7 @@
         left: observed.left - scroll.left - motion.left,
         top: observed.top - scroll.top - motion.top,
       },
+      scroll_attachments: scroll.attachments,
       scroll_terms: scroll.terms,
       animation_terms: motion.terms,
     };

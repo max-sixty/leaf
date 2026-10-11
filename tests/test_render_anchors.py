@@ -1606,6 +1606,39 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     expect(page).to_have_url(re.compile(r"#destination$"))
 
 
+def test_code_copy_reads_sources_before_positioning_many_controls(browser, serve):
+    blocks = "".join(
+        f"<p>Example {i}</p><pre><code>code {i}</code></pre>" for i in range(60)
+    )
+    url = live_url(serve(leaf_page("Many code blocks", blocks)))
+    page = open_page(
+        browser,
+        url,
+        init_script="""(() => {
+          const events = window.copyPlacementEvents = [];
+          const rect = Element.prototype.getBoundingClientRect;
+          Element.prototype.getBoundingClientRect = function (...args) {
+            if (this.localName === 'pre' && this.querySelector(':scope > code'))
+              events.push('read');
+            return rect.apply(this, args);
+          };
+          Object.defineProperty(CSSStyleDeclaration.prototype, 'anchorName', {
+            configurable: true,
+            get() { return this.getPropertyValue('anchor-name'); },
+            set(value) {
+              if (value?.startsWith('--lf-a')) events.push('write');
+              this.setProperty('anchor-name', value);
+            },
+          });
+        })()""",
+    )
+    expect(page.locator(".lf-chrome > .lf-code-copy")).to_have_count(60)
+    events = page.evaluate("window.copyPlacementEvents")
+    assert events.count("read") >= 60
+    assert "write" in events
+    assert events.index("write") >= 60
+
+
 @pytest.mark.parametrize("holder", ["disclosure", "tab"])
 def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, holder):
     """Hidden and distant sources take no anchored control layout; Copy still works."""

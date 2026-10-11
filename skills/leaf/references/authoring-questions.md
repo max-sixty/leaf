@@ -53,11 +53,17 @@ retire its source in a version or mark that source `restated` as
 `authoring-revisions.md` says. A task is work you ask the user to do, such as trying
 a build, rather than a question they answer (`conversation-loop.md`, "Questions and Tasks").
 
-The user can finish each independently answerable proposal as they review it.
-Give each its own answering widget with explicit accept and reject choices.
-Use `lf-ask` when its heading and evidence live outside that widget. Either choice
-completes the proposal's Question; leaving it unanswered keeps it open. The
-`lf-options` entry owns questions whose answer is a selected set.
+The user can finish each independently answerable proposal as they review it,
+without leaving the material it rests on. Choosing which of several items to act
+on poses one proposal per item whenever each item's answer would stand whatever
+the others get. Give each its own answering widget with explicit accept and reject
+choices, placed with that item's case. Use `lf-ask` when its heading and evidence
+live outside that widget. Either choice completes the proposal's Question; leaving
+it unanswered keeps it open. Where many proposals are clear-cut, one Question may
+accept them together if it states, for each, what makes it clear-cut; the contested
+ones keep their own Questions. A selected set, answered in one `lf-options` with
+`multiple`, is for items whose answers depend on each other, such as a limit on how
+many or a combination that has to work together.
 
 For an interface or behavior choice, make the relevant interaction work inside
 each option so the user can try every alternative before choosing. For a choice

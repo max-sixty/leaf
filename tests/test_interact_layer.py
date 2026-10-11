@@ -230,6 +230,35 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
 
 
+@pytest.mark.parametrize("identity", ["runtime", "server"])
+def test_response_reply_names_a_page_vendored_by_another_leaf(
+    claimed, server, identity
+):
+    page = claimed
+    publish(page)
+    code, response = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "comment", "revision": 1, "text": "Hello"}).encode(),
+    )
+    assert code == 200, response
+    woke = CliRunner().invoke(cli_model.cli, ["wait", str(page)])
+    assert woke.exit_code == 0, woke.output
+    envelope = json.loads(woke.output)
+    delivery_model.receive(envelope, "s1")
+    reference = envelope["batches"][0]["events"][0]["answer"]["ref"]
+
+    registry = interact_files.read_json(page / "registry.json")
+    registry["$layer"][identity] = "sha256:" + "b" * 64
+    (page / "registry.json").write_text(json.dumps(registry))
+
+    replied = CliRunner().invoke(
+        cli_model.cli,
+        ["response", "reply", reference, "--ephemeral", "--text", "Working"],
+    )
+    assert replied.exit_code != 0, replied.output
+    assert f"leaf page init {page}" in replied.output
+
+
 def test_the_skill_routes_every_reference_it_ships():
     """A reference SKILL.md never links is a file no session opens.
 

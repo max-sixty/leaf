@@ -90,7 +90,6 @@ from render_harness import (
     any_draft_control,
     any_owner_entry,
     any_suggestion_control,
-    consume_browser_errors,
     expect_asks_answered,
     expect_comment_notes,
     held_frames,
@@ -102,6 +101,7 @@ from render_harness import (
     opened_tab,
     page_comment,
     panel_settled,
+    refuse,
     resized,
     root_overflow,
     round_trip,
@@ -5000,26 +5000,19 @@ def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, ser
     expect(live).to_contain_text("Claude is waiting for approval")
     leases_model.release_lease(lease)
 
-    held = []
-
-    def refuse_state(route):
-        held.append(route)
-        route.fulfill(status=503, body="down")
-
-    page.route("**/api/**", refuse_state)
+    page.route("**/api/**", refuse)
     try:
         # A healthy page never asks without news, so give it one: the read that follows
         # is the one the route refuses.
         nudge(serve.page_dir)
         expect(page.locator(".lf-banner .lf-dot.offline")).to_be_visible()
-        offline = page.locator(".lf-status-detail").text_content()
+        offline = " ".join(page.locator(".lf-status-detail").text_content().split())
         assert offline.startswith("Server offline"), (
             f"the banner's offline line has moved: {offline!r}"
         )
         expect(live).to_have_text(offline)
     finally:
         page.unroute("**/api/**")
-    consume_browser_errors(page, "503")
 
 
 def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
@@ -10413,6 +10406,76 @@ def test_retained_moves_keep_native_editor_and_frame_state(
               selectionBackward(selection)];
     }"""
     ) == [True, False]
+
+
+def test_editor_caret_hold_releases_after_unchanged_selection(browser, serve):
+    page = open_page(
+        browser,
+        serve(leaf_page("Editor caret", "<h1>Editor caret</h1><div id='seat'></div>")),
+    )
+    page.evaluate("""() => {
+      const field = document.createElement('leaf-text');
+      field.value = 'Intentional selection';
+      document.querySelector('#seat').append(field);
+      field.focus();
+      field.setSelectionRange(4, 4);
+    }""")
+    field = page.locator("#seat leaf-text")
+    expect(field).to_be_focused()
+    # Exercise the reconnect path after the initial focus events have settled.
+    field.evaluate(
+        "node => { node.setSelectionRange(4, 4); node.connectedCallback(); }"
+    )
+    # The first selectionchange leaves the held caret intact. It still consumes
+    # the hold, so a later programmatic change belongs to its caller.
+    page.evaluate("""() => new Promise(resolve => {
+      document.addEventListener('selectionchange', () => queueMicrotask(resolve), {once: true});
+      document.dispatchEvent(new Event('selectionchange'));
+    })""")
+    assert field.evaluate("node => node.selectionStart") == 4
+    field.evaluate("node => node.setSelectionRange(9, 9)")
+    page.evaluate("""() => new Promise(resolve => {
+      document.addEventListener('selectionchange', () => queueMicrotask(resolve), {once: true});
+      document.dispatchEvent(new Event('selectionchange'));
+    })""")
+    assert field.evaluate("node => [node.selectionStart, node.selectionEnd]") == [9, 9]
+
+
+def test_unfocused_editor_move_leaves_later_selection_alone(browser, serve):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Editor caret",
+                "<h1>Editor caret</h1><div id='first'></div><div id='second'></div>",
+            )
+        ),
+    )
+    page.evaluate("""() => new Promise(resolve => {
+      const field = document.createElement('leaf-text');
+      field.value = 'Intentional selection';
+      document.querySelector('#first').append(field);
+      document.addEventListener('selectionchange', () => queueMicrotask(resolve), {once: true});
+      field.focus();
+      field.setSelectionRange(4, 4);
+    })""")
+    held = page.evaluate("""() => {
+      const field = document.querySelector('#first leaf-text');
+      field.blur();
+      const unfocused = !field.matches(':focus');
+      document.querySelector('#second').append(field);
+      return [field.selectionStart, unfocused];
+    }""")
+    assert held == [4, True]
+    editor = page.locator("#second leaf-text")
+    page.evaluate("""() => new Promise(resolve => {
+      document.addEventListener('selectionchange', () => queueMicrotask(resolve), {once: true});
+      const field = document.querySelector('#second leaf-text');
+      field.focus();
+      field.setSelectionRange(9, 9);
+    })""")
+    expect(editor).to_be_focused()
+    assert editor.evaluate("node => [node.selectionStart, node.selectionEnd]") == [9, 9]
 
 
 def test_named_form_controls_leave_shadow_scroll_and_standing_readings_available(

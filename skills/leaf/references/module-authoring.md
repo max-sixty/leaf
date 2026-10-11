@@ -705,12 +705,11 @@ the source attachment withdraws its old routes. A nearer widget owns its declare
 an unavailable implemented binding reserves its key against a different outer meaning.
 
 Declare `bindingBadge` on a row or route to request an inline shortcut hint, whether or
-not the command is a Decision. An element names an empty face the widget positions
-outside every rendered native button; descendants through shadow roots or assigned
-slots are rejected. The presenter gives each lent
+not the command is a Decision. An element names an empty face the widget positions,
+inside the control it labels or beside it. The presenter gives each lent
 face the persistent `lf-binding-seat` class, whose shared style keeps it absolutely
-positioned even when empty or restored. Position that seat beside its control using
-its holder and offsets; filling it must not move the control. `null` requests a badge
+positioned even when empty or restored, so filling it moves neither the control nor
+anything holding it. Position the seat with its holder and offsets. `null` requests a badge
 at the control's corner. Each supplied face belongs to one action. The shared keyboard presenter writes its first reachable binding while the
 whole face is connected, visible, and uncovered; a reachable Question alias takes precedence
 over an intrinsic binding for the same command. Otherwise it paints a corner badge at

@@ -37,7 +37,9 @@
  * the page, it can open a separate thread anchored to that option.
  *
  * The keyboard walk stops at options. This widget assigns 1–9 to authored options,
- * then its add field and Done; generated options receive the remaining numbers.
+ * then its add field and Done; generated options receive the remaining numbers. Each
+ * of them wears its digit in the group's one badge column, Done included: a Question
+ * whose last step showed no key could not be finished by a user reading the keys.
  * Removing or disabling a choice leaves the other bindings intact. Tab remains the
  * platform's path through every control and into that field. There it follows Leaf's
  * shared text-box contract: Shift+Enter writes a newline and Enter adds the option. A
@@ -311,11 +313,17 @@ customElements.define(
     }
 
     // The one statement a live channel can't derive: the set is whole. Done is a
-    // reversible gesture; its pressed state is the standing answer action.
+    // reversible gesture; its pressed state is the standing answer action. Its digit
+    // is inside the button, as an option's is inside the option, so a press on it is a
+    // press on Done; the seat is out of flow, so it moves neither label nor edges.
     #doneRow() {
       this.#done = offer(DONE_TAG, "lf-options-done");
       const button = offer("button", "lf-btn lf-done", "Done");
+      const bindingBadge = offer("span", "lf-key-badge");
+      bindingBadge.setAttribute("aria-hidden", "true");
+      button.append(bindingBadge);
       this.#done.control = button;
+      this.#done.bindingBadge = bindingBadge;
       this.#done.append(button);
       this.append(this.#done);
     }
@@ -485,6 +493,7 @@ customElements.define(
           contextKeys: this.#contextKeys("done"),
           control: () => this.#done.control,
           decision: true,
+          bindingBadge: () => this.#done.bindingBadge,
           title: "Done",
           description: () =>
             this.reading?.state.answer?.action

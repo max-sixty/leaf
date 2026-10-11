@@ -6340,7 +6340,6 @@ def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(
         )
         == before
     )
-    expect(draft.locator("button .lf-key-badge")).to_have_count(0)
     page.mouse.up()
     if action == "edit":
         expect(draft.locator("leaf-text")).to_be_focused()

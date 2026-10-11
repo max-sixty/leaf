@@ -1118,7 +1118,7 @@ async function startPage() {
     }),
     offlineInteractive
       ? Promise.resolve()
-      : loadIcon().catch((error) => console.error(error)),
+      : loadIcon().catch((error) => reportPageError(error, "tab icon failed to load")),
     replayReady,
   ]);
   if (!upgraded) return;

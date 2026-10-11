@@ -92,15 +92,14 @@ const reactionVocabulary = () => registry.$reactions?.tokens;
 export const reactionTokens = () => Object.entries(reactionVocabulary() ?? {});
 
 // One token as a press in the response bar; a reply's strip builds its own
-// (thread/reaction-strips.js). The token names the control; a layer may add an
-// explanation without making prose part of the platform's vocabulary. The compact face stays the declared mark. Digits remain keyboard
-// accelerators without changing the shape of every chip.
+// (thread/reaction-strips.js). The token names the control and the compact face
+// stays the declared mark. Digits remain keyboard accelerators without changing the
+// shape of every chip.
 function reactionChip(name, entry, pressed) {
   const chip = offer("button", `lf-react ${HOLDS_WORD}`);
-  const meaning = entry.means ? `${name} — ${entry.means}` : name;
   chip.dataset.token = name;
-  chip.title = meaning;
-  chip.setAttribute("aria-label", meaning);
+  chip.title = name;
+  chip.setAttribute("aria-label", name);
   responseAction(chip, { glyph: entry.glyph, label: name, collapse: true });
   chip.onclick = () => pressed(name, chip);
   return chip;
@@ -258,7 +257,7 @@ export function createReactionController({
             key: marginReactionKey(name, ordinal),
             activation: name,
             glyph: entry.glyph,
-            label: entry.means ? `${name} — ${entry.means}` : name,
+            label: name,
             rank: "secondary",
             className: `lf-react ${HOLDS_WORD}`,
             pressed: standing.has(name),

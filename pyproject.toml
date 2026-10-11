@@ -120,7 +120,7 @@ leaf-website = { workspace = true }
 # runner sets its count in ci.yaml.
 # `-n0` to debug a single test.
 [tool.pytest.ini_options]
-addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings --image-snapshot-save-diff -p leaf_dev.thread_snapshot_plugin"
+addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings --image-snapshot-save-diff -p leaf_dev.thread_snapshot_plugin -p leaf_dev.suite_profile"
 markers = [
   "nightly: a pull request can land without it; `--run-nightly` runs it",
   "watch_shifts: a surveyed nightly test also rejects unsolicited layout shifts and typing that carries its field",

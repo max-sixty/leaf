@@ -648,6 +648,11 @@ def canonical_activity(
             observed.get("detail", "") if observed and kind == "working" else ""
         ),
         "observed_kind": observed["kind"] if observed and kind == "working" else None,
+        # Whether that step waits on the user in the agent's own window, where the
+        # user answers it rather than on the page.
+        "awaiting": bool(
+            observed and kind == "working" and observed["kind"] in AWAITING_KINDS
+        ),
         "counts": {
             "active": len(active_moves),
             "handling": len(handling),

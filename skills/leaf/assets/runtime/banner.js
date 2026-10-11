@@ -749,13 +749,7 @@ function renderStatusNow(state) {
     explanation += ` · ${activity.observed}`;
   if (facts.waiting.length && ["working", "listening"].includes(kind))
     explanation += `${explanation.endsWith(".") ? "" : "."} ${facts.waiting.join(" · ")}.`;
-  const actionableWork = [
-    "awaiting_approval",
-    "awaiting_input",
-    "awaiting_user",
-  ].includes(activity.observed_kind)
-    ? activity.observed_kind
-    : null;
+  const actionableWork = activity.awaiting ? activity.observed_kind : null;
   // An approval or a question the agent's own window holds is answered there, and
   // the page is the one place the user may be looking instead.
   if (actionableWork && kind === "working")

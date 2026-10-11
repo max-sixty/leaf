@@ -40,6 +40,7 @@ ACTIVITY_FIELDS = frozenset(
         "detail",
         "observed",
         "observed_kind",
+        "awaiting",
         "counts",
         "ts",
         "next_transition_at",

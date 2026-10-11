@@ -22,24 +22,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Branch protection requires this check by name.
-  lint:
-    if: github.event_name == 'pull_request' || github.event_name == 'push'
-    runs-on: ubuntu-24.04
-
-    steps:
-      - name: 📂 Checkout code
-        uses: actions/checkout@v7
-
-      - name: 🔍 Pre-commit hooks
-        uses: pre-commit/action@v3.0.1
-
   test:
-    # Scheduled and manual runs skip lint. A red or cancelled lint never starts tests.
-    if: >-
-      !cancelled()
-      && (needs.lint.result == 'success' || needs.lint.result == 'skipped')
-    needs: lint
+    # Keep branch protection's required check name; it now covers the full gate.
+    name: lint
     concurrency:
       # One automatic suite at a time: it holds a runner for over an hour, and
       # GitHub's concurrency pool is per-account, shared with the other repos here. A
@@ -116,7 +101,14 @@ jobs:
       - name: Check browser, runtime, Worker and eval assertions
         run: pnpm run check
 
-      # Cheap gates fail before the complete Python suite spends its runner time.
+      # Rebuilds above finish writing tracked source before lint reads it. Hooks
+      # only check source, so they can overlap Python and the private website build.
+      - name: 🔍 Pre-commit hooks
+        id: lint
+        background: true
+        uses: pre-commit/action@v3.0.1
+
+      # The synchronous gates fail before Python spends its runner time.
       # The runner's four vCPUs sat ~41% idle under two workers; four left 7% idle
       # but slowed each test 1.3–1.46×, so three take the idle share without
       # saturating the deadlines browser tests wait under.
@@ -168,10 +160,10 @@ jobs:
         if: github.event_name == 'pull_request'
         run: uv run leaf-dev site
 
-      # wait runs even when the build fails. Propagate Python's result and finish
-      # its artifacts before starting Docker or the unconditional upload below.
-      - name: Wait for Python tests
-        wait: python-tests
+      # wait runs even when the build fails. Propagate both results and finish
+      # Python's artifacts before Docker or the unconditional upload below.
+      - name: Wait for lint and Python tests
+        wait: [lint, python-tests]
 
       - name: Check website deployment
         if: github.event_name == 'pull_request'

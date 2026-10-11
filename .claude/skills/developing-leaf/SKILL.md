@@ -407,15 +407,20 @@ if Worktrunk asks to approve the project commands, ask the user to run
 
 ## Land a change
 
+Before handing over a change that adds to an area `AGENTS.md`, ask of each addition
+whether one module owns it. If one does, the rule goes in that module's header and
+the area file keeps at most a pointer (root `AGENTS.md`, "Where instructions live"),
+so the area file holds only what spans its modules and trimmed text does not come back.
+
 Thread appearance changes run `tests/test_render_thread_snapshots.py` on macOS
 before landing. Linux CI runs the same delivery journey without comparing images.
 Review captured Mac images before accepting an intentional change;
 `dev/leaf_dev/thread_snapshots.py` owns capture and acceptance.
 
-A red gate is the branch's to fix. A pull request's `test` job and the local
-pre-merge `tests` run the broad selection and the nightly tests the branch edits;
-the rest of the nightly-marked tests run once main moves, and `tend-ci-fix` answers
-them when they fail (`tests/AGENTS.md`, "Run what the change needs").
+A pull request's `test` job and the local pre-merge `tests` run the broad selection
+and the nightly tests the branch edits; the rest of the nightly-marked tests run
+once main moves, and `tend-ci-fix` answers them when they fail (`tests/AGENTS.md`,
+"Run what the change needs").
 `wt merge` checks the rebased tree and lands it; `✗ Can't push to local main branch`
 is a fast-forward failure.
 

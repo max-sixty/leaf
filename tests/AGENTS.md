@@ -72,20 +72,30 @@ nightly tests, and an explicit file, node id, `-k`, `-m`, or `--lf` runs what it
 names. Both landing gates pass `--nightly-changed-since`, which adds the nightly tests
 whose own lines the change edits.
 
-Before handing over, run the tests that hold the behavior you changed, in any file
-and nightly ones included, named by node id or `-k`; find them by reading which tests
+Before handing over, run the tests that hold the behavior you changed, in any file and
+nightly ones included, named by node id or `-k`; find them by reading which tests
 exercise the code the change touches. Run `pnpm run test:runtime` too when the change
-reaches the runtime. A change lands only on a green landing gate, which runs the broad
-selection: a pull request's `test` job, or `wt merge`'s pre-merge. A failure there that
-your selection missed is the gate doing its job; fix it and push. Every other nightly
-test is CI's to report: the `test` job in `ci.yaml` runs the complete suite once main
-moves, and `tend-ci-fix` answers what it fails. That trade is the user's choice
-(2026-10-04): a pull request can land green and break a nightly test it never ran, and
-main can stay red while `tend-ci-fix` repairs it, so a red main is no reason to widen a
-change, its gate, or its test selection. Don't run the broad selection, `--run-nightly`, `-m nightly`, or
-a whole browser file locally outside a landing: each takes minutes to over an hour
-and slows every other session on the machine. To learn what main fails, read that
-job's run, and reproduce a failure it names by node id.
+reaches the runtime. A change lands through a landing gate, which runs the broad
+selection: a pull request's `test` job, or `wt merge`'s pre-merge. A failure there
+that the change causes is the gate doing its job, even one your selection missed; fix
+it and push. A failure it doesn't cause, such as a test main's latest run also fails,
+blocks nothing and calls for no rerun: say so in the pull request and land it. `wt
+merge` refuses on any failure, so such a change lands through a pull request. Every
+other nightly test is CI's to report: the `test` job in `ci.yaml` runs the complete suite
+once main moves, and `tend-ci-fix` answers what it fails. That trade is the user's
+choice (2026-10-04): a pull request can land green and break a nightly test it never
+ran, and main can stay red while `tend-ci-fix` repairs it, so a red main is no reason
+to widen a change, its gate, or its test selection. One complete suite always runs
+while newer commits land, and each new commit replaces the run waiting behind it,
+which GitHub records as cancelled. That is the design working: a suite per merge would
+report each commit slightly sooner at up to twenty times the CI usage. Don't run the
+broad selection, `--run-nightly`, `-m nightly`, or a whole browser file locally
+outside a landing: each takes minutes to over an hour and slows every other session on
+the machine. To learn what main fails, read that job's run, and reproduce a failure it
+names by node id. `tend-ci-fix` sees only that run, so a failure on main that it does
+not show, such as one only macOS reproduces, is left to a local session. Check whether
+a live session, worktree or open pull request already covers it; if none does, start a
+separate session (for example with `/dispatch`) to fix it and land the change.
 
 CLI output and agent-facing text are regtest recordings in
 `tests/_regtest_outputs/`, normalized for temporary paths and generated identities but
@@ -104,6 +114,11 @@ Subprocess tests invoke leaf through `LEAF_COMMAND`, and `bin/leaf` only where t
 launcher itself is the subject.
 
 ## Put each assertion at the boundary that owns it
+
+Each test module's docstring names its subject. A new test goes in the module whose
+docstring names the behavior it protects, not the one the change happened to open;
+where none does, start a module for that subject. Otherwise tests pile up wherever
+a change happened to land, and a module that was split grows back.
 
 File-side fixtures live in `interact_support.py`, browser fixtures in
 `render_harness.py`, reusable browser cases in `render_cases_*.py`.
@@ -135,8 +150,9 @@ calls the probe through `leaf.render_checks.evaluate_probe`.
 
 Where the product already answers a reading's question, such as `shownBand` for the
 band a box shows, consume that answer instead of copying it: `root_overflow` for
-whether the page scrolls sideways, `draft_key` for where a draft is stored, and
-`event_log.read_events` for what the log holds. Page-side code reaches a runtime
+whether the page scrolls sideways, `draft_key` for where a draft is stored,
+`stored_draft` for the record stored there, and `event_log.read_events` for what
+the log holds. Page-side code reaches a runtime
 module through `window.__lfRuntimeImport`; a bare `/runtime/…` import loads a second
 instance that shares none of the page's state.
 

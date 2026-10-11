@@ -55,10 +55,10 @@ if (documentLayer && documentLayer !== layerGeneration) {
 // is told again, so the user spends the rollout watching the page restart. The probe
 // is the document source's own reading, as it is for startup recovery: the page's
 // release-scoped assets are gone once the edge has moved on, and the registry still
-// names this document's layer while it has not.
+// answers with this document's `Leaf-Layer` while it has not.
 // True when the source has a different document, false when it does not, and undefined
-// when the probe could not be read at all, which settles nothing and leaves the question
-// open for the next foreign answer.
+// when the probe could not be read or names no layer, which settles nothing and leaves
+// the question open for the next foreign answer.
 async function sourceMovedOn() {
   if (!probe) return true;
   let response;
@@ -71,14 +71,7 @@ async function sourceMovedOn() {
   if (!response.ok) return undefined;
   const servedRelease = response.headers.get("Leaf-Release");
   if (release && servedRelease) return servedRelease !== release;
-  let generation = response.headers.get("Leaf-Layer");
-  if (!generation) {
-    try {
-      generation = (await response.json())?.["$layer"]?.generation;
-    } catch {
-      return undefined;
-    }
-  }
+  const generation = response.headers.get("Leaf-Layer");
   return generation ? generation !== layerGeneration : undefined;
 }
 

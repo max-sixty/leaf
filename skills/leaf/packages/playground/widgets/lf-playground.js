@@ -235,9 +235,9 @@ customElements.define(
                 "focus",
                 () => {
                   const sample = standing?.closest?.("lf-sample");
-                  if (sample && standing instanceof HTMLIFrameElement)
+                  focusDestination(standing, "return");
+                  if (sample && standing?.localName === "iframe")
                     void sample.restoreStanding()?.catch(() => {});
-                  else focusDestination(standing, "return");
                 },
                 { once: true },
               );
@@ -295,7 +295,7 @@ customElements.define(
       if (!this.#preview.contains(at)) return false;
       // A sample's frame holds focus for its child page, which may stand on nothing.
       while (at?.contentDocument) at = at.contentDocument.activeElement;
-      if (at instanceof HTMLIFrameElement)
+      if (at?.localName === "iframe")
         return Boolean(at.closest("lf-sample")?.focusedContent);
       return Boolean(at) && at !== at.ownerDocument.body;
     }

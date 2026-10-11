@@ -6993,6 +6993,27 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     page.mouse.up()
     assert values()["width"] == 4
     assert child_button.evaluate(standing), "slider drag"
+    sample = page.locator("#ring-sample")
+    sample.evaluate(
+        """sample => {
+          const restore = sample.restoreStanding;
+          sample.restoreStanding = () => {
+            window.releaseRestore = () => {
+              window.restoreDone = restore.call(sample);
+            };
+            return Promise.resolve(false);
+          };
+        }"""
+    )
+    page.mouse.click(slider["x"] + 2, slider["y"] + slider["height"] / 2)
+    note = page.get_by_role("textbox", name="Note")
+    note.focus()
+    expect(note).to_be_focused()
+    page.evaluate("window.releaseRestore()")
+    assert page.evaluate("() => window.restoreDone") is False
+    expect(note).to_be_focused()
+    sample.evaluate("sample => delete sample.restoreStanding")
+    child_button.focus()
     playground.locator(".lf-playground-reset").click()
     assert values()["ring"] == "thin"
     assert child_button.evaluate(standing)

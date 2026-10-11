@@ -1,6 +1,6 @@
 /* The isolated child's explicit interface to its containing page. Values cross the
  * port; documents, DOM nodes, functions and browser owners remain in this realm. */
-import { focusDestination, onStanding } from "./focus.js";
+import { canPlaceFocus, focusDestination, onStanding } from "./focus.js";
 const child = document.documentElement.lfSample;
 const commands = new Map();
 const observers = new Map();
@@ -45,8 +45,7 @@ if (child) {
     sampleNotice("standing", { focused: Boolean(node && node !== document.body) });
   });
   registerSampleCommand("restore-standing", () => {
-    if (!standing?.isConnected) return false;
-    window.focus();
+    if (!standing?.isConnected || !canPlaceFocus()) return false;
     focusDestination(standing, "return");
     return document.hasFocus();
   });

@@ -183,8 +183,13 @@ def test_http_file_door_requires_key_origin_and_current_revision(
     assert fetch(url, token=None)[0] == 401
     assert json.loads(fetch(url)[1]) == original
     assert fetch(f"{server}/files.json")[0] == 404
-    assert fetch(f"{server}/api/files/unbound")[0] == 400
+    # A binding the page lacks reads as no file, and only a save against it refuses.
+    assert fetch(f"{server}/api/files/unbound") == (200, b"null")
     posted = json.dumps({"revision": original["revision"], "text": "edited\n"}).encode()
+    assert (
+        fetch(f"{server}/api/files/unbound", data=posted, headers={"Origin": server})[0]
+        == 400
+    )
     assert fetch(url, data=posted, headers={})[0] == 403
     assert (
         fetch(url, data=posted, headers={"Origin": "https://untrusted.example"})[0]

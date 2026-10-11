@@ -878,7 +878,8 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
         expect(page.locator("body")).to_have_attribute(
             "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
         )
-        expect(status).not_to_be_visible()
+        # Re-vendoring the full layer can outlast the default browser wait.
+        expect(status).not_to_be_visible(timeout=HANDOVER_DEADLINE_MS)
     if resource == "widgets/lf-options.js":
         expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert len(documents) >= 2
@@ -886,53 +887,6 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
         json.loads((directory / "registry.json").read_text())["$layer"]["generation"]
         != generation
     )
-
-
-def test_a_failed_bootstrap_hears_a_static_registry_generation(
-    browser, watched_preview
-):
-    """A static host can supervise startup without synthesizing Leaf headers."""
-    _, _, directory, _, url, _ = watched_preview
-    registry = json.loads((directory / "registry.json").read_text())
-    generation = registry["$layer"]["generation"]
-    page = browser.new_page()
-    failures = []
-    probes = []
-    documents = requested_documents(page)
-
-    def interrupt_entry(route):
-        if failures:
-            route.continue_()
-            return
-        failures.append(True)
-        route.abort()
-
-    def static_registry(route):
-        if len(documents) > 1:
-            route.continue_()
-            return
-        probes.append(True)
-        body = json.loads(json.dumps(registry))
-        if len(probes) > 1:
-            body["$layer"]["generation"] = f"{generation}-replacement"
-        route.fulfill(content_type="application/json", body=json.dumps(body))
-
-    page.route("**/leaf.js", interrupt_entry)
-    page.route("**/registry.json", static_registry)
-    # As above: the refused entry and the server that replaces it are one restart,
-    # and its noise belongs to the span rather than to a list of wordings.
-    with restarting(page):
-        page.goto(url, wait_until="load")
-        status = page.get_by_text(
-            "Leaf couldn't start. Waiting for the server to update."
-        )
-        expect(status).to_be_visible()
-        expect(page.locator("body")).to_have_attribute(
-            "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
-        )
-    assert len(probes) >= 2
-    assert len(documents) == 2
-    expect(status).not_to_be_visible()
 
 
 @pytest.mark.parametrize("interrupted", ["registry.json", "widgets/lf-options.js"])

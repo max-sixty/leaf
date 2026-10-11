@@ -78,11 +78,13 @@ import {
   projectData,
   quoted,
   registerVisualParts,
+  rowArrows,
   scopedMediaUrl,
   setChildren,
   sizeObserver,
   watchData,
   widgetController,
+  layoutPx,
 } from "/runtime/widget-api.js";
 
 // Reuse the default package’s selected WebAwesome controls, already shipped with Leaf.
@@ -296,12 +298,16 @@ customElements.define(
       this.#railResize.observe(this.timeline);
       if (!quoted(this))
         this.#keys ??= commands(this, "In a Playwright recording", [
+          // The rail runs the way the page's words do (`#buildRail`), so back along it
+          // is the arrow toward its start.
           {
             id: "trace.previous",
-            keys: () =>
-              this.timeline.contains(focused())
-                ? ["ArrowLeft", "ArrowDown", "PageDown"]
-                : ["ArrowLeft"],
+            keys: () => {
+              const [back] = rowArrows(this);
+              return this.timeline.contains(focused())
+                ? [back, "ArrowDown", "PageDown"]
+                : [back];
+            },
             title: "previous timeline point",
             control: this.previous,
             when: () => this.#position() > 0,
@@ -309,10 +315,12 @@ customElements.define(
           },
           {
             id: "trace.next",
-            keys: () =>
-              this.timeline.contains(focused())
-                ? ["ArrowRight", "ArrowUp", "PageUp"]
-                : ["ArrowRight"],
+            keys: () => {
+              const [, ahead] = rowArrows(this);
+              return this.timeline.contains(focused())
+                ? [ahead, "ArrowUp", "PageUp"]
+                : [ahead];
+            },
             title: "next timeline point",
             control: this.next,
             when: () => this.#position() < this.#items().length - 1,
@@ -1263,9 +1271,10 @@ customElements.define(
       widgetController(this).present(ready);
       this.#rail.addCustomTime(0, "selection");
       // Vis seats moving time cursors on a stationary background plane, separate
-      // from moment buttons. Only that plane permits its live control to travel.
+      // from moment buttons. Only that plane permits its live control to travel. A
+      // right-to-left rail names the same plane `vis-vertical-rtl`.
       const cursorPlane = this.markers.querySelector(
-        ".vis-panel.vis-background.vis-vertical",
+        ".vis-panel.vis-background:is(.vis-vertical, .vis-vertical-rtl)",
       );
       cursorPlane.setAttribute("data-lf-runtime", "");
       cursorPlane.setAttribute("data-lf-reflow", "controls");
@@ -1416,7 +1425,7 @@ customElements.define(
       const line = cursor.getBoundingClientRect();
       const rail = center.getBoundingClientRect();
       const halfControl = this.#controlSize() / 2;
-      cursor.style.setProperty("--lf-trace-cursor-axis", `${rail.top - line.top}px`);
+      cursor.style.setProperty("--lf-trace-cursor-axis", layoutPx(rail.top - line.top));
       const middle = line.left + line.width / 2;
       const left = middle - rail.left;
       const right = rail.right - middle;
@@ -1426,10 +1435,10 @@ customElements.define(
           : Math.max(0, half - left) - Math.max(0, half - right);
       cursor.style.setProperty(
         "--lf-trace-cursor-hit-shift",
-        `${shift(halfControl)}px`,
+        layoutPx(shift(halfControl)),
       );
       const halfCap = Number.parseFloat(getComputedStyle(cursor, "::before").width) / 2;
-      cursor.style.setProperty("--lf-trace-cursor-cap-shift", `${shift(halfCap)}px`);
+      cursor.style.setProperty("--lf-trace-cursor-cap-shift", layoutPx(shift(halfCap)));
     }
 
     #viewState() {

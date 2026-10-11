@@ -29,6 +29,8 @@
  * changes the words; the second announces the updated value and layout. A
  * write to `value` fires nothing, puts the caret at the end, and starts a new undo
  * history, so undo never walks back into a draft the runtime swapped out.
+ * `edit(text)` replaces the words as external text input, such as dictation: it keeps
+ * undo history and emits the same before-edit/input bracket as native typing.
  * A box owner that takes pasted pictures intercepts paste in capture; otherwise the field pastes
  * the clipboard's text, including text carried beside a picture.
  * `naturalBlockSize` reads the field's intrinsic border-box block size in CSS pixels,
@@ -41,7 +43,18 @@
  * the `placeholder` attribute, and a child in slot `placeholder` stands in its place when
  * a box wants more than one run of text there, such as a label and the key that sends.
  *
- * The editor lives while the element is in a document. A field removed and not put
+ * The editor's view arrives when the field is first needed rather than when it
+ * connects: when it is given a box, or focused. Composers stand hidden from the first
+ * paint, so a page whose fields stay hidden builds no editor. A field given a box
+ * builds its view in the next rendering pass, and draws its words plain in the frame
+ * until then, so its box has their size from the first paint. Building inside the size
+ * observer's delivery would resize boxes above it that the same delivery cannot report.
+ * Focus builds the view at once, through `focus()` or delegation, so no input reaches
+ * a field without its view. Until then the field answers every member without a view:
+ * from its words alone, and from an editor state once an edit, an owner step or a
+ * selection needs one.
+ *
+ * A built view lives while the element is in a document. A field removed and not put
  * back in the same task keeps its state and destroys its view, which releases the
  * listeners CodeMirror holds on the window and document; reconnecting builds another.
  * `:state(ready)` means that view exists. A reading surface being replaced can keep
@@ -100,8 +113,10 @@ import {
 } from "../../vendor/codemirror.esm.js";
 import { LeafEditorView } from "../editor-view.js";
 import { TEXT_FIELD } from "../control-selectors.js";
+import { inputCount } from "../focus.js";
 import { loadMarkdown, markdownReady, placedMarkdownTokens } from "../markdown.js";
-import { sizeObserver } from "../rendering.js";
+import { keepsText } from "../keeps.js";
+import { nextRender, sizeObserver } from "../rendering.js";
 
 const insertNewline = standardKeymap.find(({ key }) => key === "Enter").run;
 
@@ -133,6 +148,11 @@ sheet.replaceSync(`
      word under the action. */
   .cm-line.lf-field-last::after { content: ""; display: inline-block;
     inline-size: var(--lf-field-end-room); }
+  /* The words drawn plain before the view, as the editor's lines will wrap them. */
+  .lf-field-words { white-space: pre-wrap; overflow-wrap: anywhere;
+    word-break: break-word; min-block-size: 1lh; }
+  .lf-field-words:not(:empty)::after { content: ""; display: inline-block;
+    inline-size: var(--lf-field-end-room); }
   /* The placeholder is a single line, so it stands where a last line would. */
   .lf-field-placeholder { padding-inline-end: var(--lf-field-end-room); }
   /* The action stands beside more than the last line under a finger, whose hit box is
@@ -140,10 +160,11 @@ sheet.replaceSync(`
   @media (pointer: coarse) {
     .lf-field { padding-inline-end: var(--lf-field-end-room); }
     .lf-field-placeholder { padding-inline-end: 0; }
-    .cm-line.lf-field-last::after { content: none; }
+    :is(.cm-line.lf-field-last, .lf-field-words)::after { content: none; }
   }
   :host(:state(scrolls)) .lf-field { padding-inline-end: var(--lf-field-end-room); }
-  :host(:state(scrolls)) .cm-line.lf-field-last::after { content: none; }
+  :host(:state(scrolls)) :is(.cm-line.lf-field-last, .lf-field-words)::after {
+    content: none; }
   /* A draft wears the sent message's faces. Strong, emphasis and strikethrough are the
      elements themselves, which the platform dresses here as it does in the message;
      the rest read the theme's tokens, since its element rules stop at this root. A
@@ -317,13 +338,18 @@ const lastLineRoom = EditorView.decorations.compute(["doc"], (state) => {
 });
 
 class LeafText extends HTMLElement {
-  // The field's one model. Until the element first connects it is a bare EditorState,
-  // which holds the value, selection and configuration without a DOM; connecting hands
-  // it to the view that edits it from then on. A composer built and never shown pays
+  // The field's one model. Until something asks for more than its words it is the
+  // words alone (`#text`, caret at their end); then a bare EditorState, which holds
+  // the value, selection, history and configuration without a DOM; once the field is
+  // needed, the view that edits it from then on. A composer built and never shown pays
   // for no editor.
-  #model;
+  #text = "";
+  #model = null;
   #view = null;
+  // Whether the field has had a view, so reconnecting builds one at once.
+  #built = false;
   #nativeInput = false;
+  #reparentHold = null;
   #root;
   #internals = null;
   #editable = new Compartment();
@@ -332,10 +358,22 @@ class LeafText extends HTMLElement {
   #placeholderLayer = document.createElement("div");
   #placeholderText = document.createTextNode("");
   #frame = document.createElement("div");
+  #words = document.createElement("div");
   #readOnly = false;
-  #sizes = sizeObserver(() => {
+  // The host's box. Its first box is the field's need for a view; after that, a
+  // change in its room reveals a focused caret again and rereads overflow.
+  #sizes = sizeObserver(([entry]) => {
     const view = this.#view;
-    if (view?.hasFocus)
+    if (!view) {
+      const [box] = entry.borderBoxSize;
+      if (box.inlineSize || box.blockSize)
+        nextRender(() => {
+          if (!this.#view && this.isConnected) this.#build();
+        });
+      return;
+    }
+    this.#measureOverflow();
+    if (view.hasFocus)
       view.requestMeasure({
         key: this,
         read: () => {
@@ -381,8 +419,9 @@ class LeafText extends HTMLElement {
 
   // Host overflow holds the action's room on every line. The host stops at the page's
   // height limit while words grow inside it, so the reading watches the editor's
-  // scroller too. Editor updates and size changes share its read/write phase: the room
-  // changes layout there, rather than feeding back into resize observer delivery.
+  // scroller as well as the host (`#sizes`). Editor updates and size changes share its
+  // read/write phase: the room changes layout there, rather than feeding back into
+  // resize observer delivery.
   #overflow = sizeObserver(() => this.#measureOverflow());
 
   #measureOverflow() {
@@ -402,15 +441,25 @@ class LeafText extends HTMLElement {
     super();
     this.#root = this.attachShadow({ mode: "closed", delegatesFocus: true });
     this.#frame.className = "lf-field";
+    // Delegated focus needs a node to land on before the view exists: a focus that
+    // never meets `focus()`, such as a test driver's from its isolated world, lands on
+    // the frame, which builds the view and hands the focus to its words.
+    this.#frame.tabIndex = -1;
+    this.#frame.addEventListener("focus", () => {
+      if (this.#view || !this.isConnected) return;
+      this.#build();
+      this.#view.focus();
+    });
     this.#placeholderLayer.className = "lf-field-placeholder";
     this.#placeholderLayer.setAttribute("aria-hidden", "true");
     const hint = document.createElement("slot");
     hint.name = "placeholder";
     hint.append(this.#placeholderText);
     this.#placeholderLayer.append(hint);
-    this.#frame.append(this.#placeholderLayer);
+    this.#words.className = "lf-field-words";
+    this.#words.setAttribute("aria-hidden", "true");
+    this.#frame.append(this.#placeholderLayer, this.#words);
     this.#root.append(this.#frame);
-    this.#model = this.#create("");
     this.addEventListener("mousedown", (event) => this.#pressPadding(event));
     this.#root.addEventListener("beforeinput", () => this.#beforeEdit(), {
       capture: true,
@@ -476,6 +525,8 @@ class LeafText extends HTMLElement {
   attributeChangedCallback(name) {
     if (name === "placeholder") this.#placeholderText.data = this.placeholder;
     if (name === "aria-describedby") return this.#describe();
+    // Words alone carry no configuration; their state reads the attributes when made.
+    if (this.#bare) return;
     this.#apply({
       effects: this.#attributes.reconfigure(
         EditorView.contentAttributes.of(this.#contentAttributes()),
@@ -484,7 +535,63 @@ class LeafText extends HTMLElement {
   }
 
   connectedCallback() {
-    if (this.#view) return;
+    if (this.#view) {
+      // Reparenting keeps the CodeMirror view but can leave a pending native
+      // selectionchange that replaces its recorded caret with the DOM's reset 0.
+      // Only a focused editor needs the hold. An unfocused move may produce no
+      // selectionchange, leaving a listener to override a later intentional caret.
+      if (!this.#view.hasFocus) {
+        this.#reparentHold?.stop();
+        return;
+      }
+      // CodeMirror hears that event after reconnecting. Consume it once,
+      // restoring the held selection if needed, unless the user acted first.
+      const intent = inputCount();
+      const previous = this.#reparentHold;
+      if (
+        previous?.view === this.#view &&
+        previous.doc === this.#view.state.doc &&
+        previous.intent === intent
+      )
+        return;
+      previous?.stop();
+      const hold = {
+        view: this.#view,
+        doc: this.#view.state.doc,
+        caret: [this.selectionStart, this.selectionEnd, this.selectionDirection],
+        intent,
+      };
+      const stop = () => {
+        document.removeEventListener("selectionchange", onSelectionChange);
+        if (this.#reparentHold === hold) this.#reparentHold = null;
+      };
+      const restore = () => {
+        if (this.#reparentHold !== hold) return;
+        if (
+          this.#view !== hold.view ||
+          !this.isConnected ||
+          !hold.view.hasFocus ||
+          hold.view.state.doc !== hold.doc ||
+          inputCount() !== hold.intent
+        ) {
+          stop();
+          return;
+        }
+        stop();
+        if (
+          this.selectionStart !== hold.caret[0] ||
+          this.selectionEnd !== hold.caret[1] ||
+          this.selectionDirection !== hold.caret[2]
+        ) {
+          this.setSelectionRange(...hold.caret);
+        }
+      };
+      const onSelectionChange = () => queueMicrotask(restore);
+      hold.stop = stop;
+      this.#reparentHold = hold;
+      document.addEventListener("selectionchange", onSelectionChange);
+      return;
+    }
     if (!this.hasAttribute("role")) this.setAttribute("role", "textbox");
     if (!this.hasAttribute("aria-multiline"))
       this.setAttribute("aria-multiline", "true");
@@ -493,10 +600,19 @@ class LeafText extends HTMLElement {
     if (!this.hasAttribute("tabindex")) this.tabIndex = 0;
     this.#internals ??= this.attachInternals();
     this.#root.adoptedStyleSheets = [sheet];
+    this.#sizes.observe(this);
+    if (this.#built) this.#build();
+    else this.#paintEmpty();
+  }
+
+  #build() {
+    this.#built = true;
+    this.#frame.removeAttribute("tabindex");
+    this.#words.remove();
     this.#view = new LeafEditorView({
       root: this.#root,
       parent: this.#frame,
-      state: this.#model,
+      state: this.#state,
       // Dispatched word changes are the user's. The value setter updates the view
       // directly and silently; an owner's `record` changes no words.
       dispatchTransactions: (transactions, view) => {
@@ -513,8 +629,6 @@ class LeafText extends HTMLElement {
       },
     });
     this.#model = null;
-    this.#sizes.observe(this);
-    this.#overflow.observe(this);
     this.#overflow.observe(this.#view.scrollDOM);
     // The scroller is focusable only so a press on it keeps focus in the editor, and
     // the field's scroller never scrolls; left focusable it is the node the root
@@ -533,9 +647,11 @@ class LeafText extends HTMLElement {
   // A move between parents reconnects within the task and keeps its editor.
   disconnectedCallback() {
     queueMicrotask(() => {
-      if (this.isConnected || !this.#view) return;
-      this.#model = this.#view.state;
+      if (this.isConnected) return;
       this.#sizes.disconnect();
+      if (!this.#view) return;
+      this.#reparentHold?.stop();
+      this.#model = this.#view.state;
       this.#overflow.disconnect();
       this.#view.destroy();
       this.#view = null;
@@ -557,7 +673,10 @@ class LeafText extends HTMLElement {
   // The editor adapter places its recorded caret without native scrolling. The
   // field reveals itself separately when its caller requests ordinary focus.
   focus(options) {
-    if (!this.#view) return;
+    if (!this.#view) {
+      if (!this.isConnected) return;
+      this.#build();
+    }
     this.#view.focus();
     if (this.#root.activeElement !== this.#view.contentDOM) return;
     if (!options?.preventScroll) scrollIntoView(this, { block: "nearest" });
@@ -586,12 +705,17 @@ class LeafText extends HTMLElement {
   }
 
   get #state() {
-    return this.#view?.state ?? this.#model;
+    return this.#view?.state ?? (this.#model ??= this.#create(this.#text));
+  }
+
+  // Whether the field is still its words alone, with no editor state yet.
+  get #bare() {
+    return !this.#view && !this.#model;
   }
 
   #apply(spec) {
     if (this.#view) this.#view.dispatch(spec);
-    else this.#model = this.#model.update(spec).state;
+    else this.#model = this.#state.update(spec).state;
   }
 
   #contentAttributes() {
@@ -607,8 +731,10 @@ class LeafText extends HTMLElement {
   }
 
   #paintEmpty() {
-    if (this.#state.doc.length) this.#internals.states.delete("placeholder-shown");
+    const words = this.value;
+    if (words.length) this.#internals.states.delete("placeholder-shown");
     else this.#internals.states.add("placeholder-shown");
+    if (!this.#view) keepsText(this.#words, words);
   }
 
   // Where the field holds its action's room now: `every-line`, `last-line` after its
@@ -625,7 +751,18 @@ class LeafText extends HTMLElement {
   }
 
   get value() {
-    return this.#state.doc.toString();
+    return this.#bare ? this.#text : this.#state.doc.toString();
+  }
+
+  edit(text) {
+    text = String(text).replace(/\r\n?/g, "\n");
+    if (text === this.value) return;
+    this.#apply({
+      changes: { from: 0, to: this.#state.doc.length, insert: text },
+      selection: { anchor: text.length },
+      userEvent: "input.dictation",
+    });
+    if (!this.#view && this.#internals) this.#paintEmpty();
   }
 
   // Records a change the owner has just made outside the words as a step of the words'
@@ -665,7 +802,10 @@ class LeafText extends HTMLElement {
     text = String(text ?? "").replace(/\r\n?/g, "\n");
     if (text === this.value) return;
     if (!this.#view) {
-      this.#model = this.#create(text);
+      // Words alone again: the state they make starts a new history.
+      this.#model = null;
+      this.#text = text;
+      if (this.#internals) this.#paintEmpty();
       return;
     }
     // Loading another draft ends the old native composition. Deactivating its
@@ -691,12 +831,13 @@ class LeafText extends HTMLElement {
   }
 
   get selectionStart() {
-    return this.#state.selection.main.from;
+    return this.#bare ? this.#text.length : this.#state.selection.main.from;
   }
   get selectionEnd() {
-    return this.#state.selection.main.to;
+    return this.#bare ? this.#text.length : this.#state.selection.main.to;
   }
   get selectionDirection() {
+    if (this.#bare) return "none";
     const { main } = this.#state.selection;
     return main.empty ? "none" : main.head < main.anchor ? "backward" : "forward";
   }
@@ -729,6 +870,7 @@ class LeafText extends HTMLElement {
   }
   set readOnly(on) {
     this.#readOnly = Boolean(on);
+    if (this.#bare) return;
     this.#apply({
       effects: this.#editable.reconfigure(EditorState.readOnly.of(this.#readOnly)),
     });

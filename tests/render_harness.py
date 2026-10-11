@@ -34,7 +34,6 @@ import itertools
 import json
 import math
 import os
-import re
 import shutil
 import subprocess
 import time
@@ -71,7 +70,6 @@ from leaf_dev.browser import (
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import (
     example_media,
-    package_selection_args,
     prepare_page,
     read_fixture,
 )
@@ -556,15 +554,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
             package_path(item) if isinstance(item, Path) else item
             for item in selected_packages
         )
-        selection_args = package_selection_args(selected_packages)
         d = tmp_path / f"page{len(servers)}"
-
-        def initialize(target):
-            initialized = CliRunner().invoke(
-                cli_model.cli,
-                ["page", "init", *selection_args, str(target)],
-            )
-            assert initialized.exit_code == 0, initialized.output
 
         def run_leaf(*args, input_text=None):
             result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
@@ -582,43 +572,14 @@ def serve(tmp_path, monkeypatch, initialized_page):
                 earlier_note="t",
             )
 
-        # Local package contents vary between tests even when their selected path
-        # is the same, so only immutable bundled selections share a template. An
-        # example is a shape of its own, versions stamped and log seeded, since
+        # An example is a shape of its own, versions stamped and log seeded, since
         # preparing one stamps every version it ships: seconds per page, paid once
         # per worker rather than once per test.
-        if (
-            layer_registry is not None
-            or layer_widgets
-            or any(
-                not re.fullmatch(schema_model.HTML_NAME, selected)
-                for selected in selected_packages
-            )
-        ):
-            initialize(d)
-            if fixture:
-                prepare(d)
-        else:
-            template_name = (
-                "examples"
-                if packages is None
-                else "examples-" + ("-".join(selected_packages) or "no-packages")
-            )
-            if fixture:
-                example_name = example.resolve().relative_to(ROOT.resolve()).as_posix()
-                initialized_page(
-                    "--".join(
-                        (
-                            template_name,
-                            example_name.replace("/", "-"),
-                            "seeded" if seed_log else "unseeded",
-                        )
-                    ),
-                    d,
-                    lambda target: (initialize(target), prepare(target)),
-                )
-            else:
-                initialized_page(template_name, d, initialize)
+        initialized_page(
+            d,
+            selected_packages,
+            ((example.resolve(), seed_log), prepare) if fixture else None,
+        )
         if fixture:
             # The page pool can lend a copy hours after it stamped the template.
             # Its current publication is new to this test, so keep the timestamp
@@ -1224,33 +1185,37 @@ def draft_key(page, ctx: str) -> str:
     )
 
 
-_STORED_DRAFT_TEXT = """key => {
-  try {
-    const record = JSON.parse(localStorage.getItem(key));
-    return record && !record.settled ? record.text : null;
-  } catch { return null; }
-}"""
-_STORED_DRAFT_SETTLED = """key => {
-  try {
-    return JSON.parse(localStorage.getItem(key))?.settled === true;
-  } catch { return false; }
-}"""
+def stored_draft(page):
+    """The page's own reader of stored drafts (`storedDraft`, runtime/drafts.js)."""
+    return page.evaluate_handle(
+        """async () => (await window.__lfRuntimeImport('/runtime/drafts.js'))
+          .storedDraft"""
+    )
 
 
 def stored_draft_text(page, ctx: str) -> str | None:
     """The words storage holds for the draft at `ctx`, or None once it is settled or
     absent: what another tab or a reload would find, whatever this tab shows."""
-    return page.evaluate(_STORED_DRAFT_TEXT, draft_key(page, ctx))
+    return page.evaluate(
+        """([read, ctx]) => {
+          const record = read(ctx);
+          return record && !record.settled ? record.text : null;
+        }""",
+        [stored_draft(page), ctx],
+    )
+
+
+_STORED_DRAFT_SETTLED = "([read, ctx]) => read(ctx)?.settled === true"
 
 
 def stored_draft_settled(page, ctx: str) -> bool:
     """Whether storage holds the draft at `ctx` as settled (its tombstone)."""
-    return page.evaluate(_STORED_DRAFT_SETTLED, draft_key(page, ctx))
+    return page.evaluate(_STORED_DRAFT_SETTLED, [stored_draft(page), ctx])
 
 
 def until_draft_settled(page, ctx: str) -> None:
     """Wait until storage holds the draft at `ctx` as settled."""
-    page.wait_for_function(_STORED_DRAFT_SETTLED, arg=draft_key(page, ctx))
+    page.wait_for_function(_STORED_DRAFT_SETTLED, arg=[stored_draft(page), ctx])
 
 
 _BROWSER_PROBLEM_LISTS = None
@@ -1356,7 +1321,9 @@ def _judge_frame_watches(frame):
             break
         if time.monotonic() >= deadline:
             raise PlaywrightTimeout(f"health sensors did not drain: {frame.url}")
-        page.wait_for_timeout(100)
+        # Judgement usually completes within a frame or two; a 100ms poll cost most
+        # browser tests a tenth of a second.
+        page.wait_for_timeout(10)
     frame.evaluate("delete window.lfWatchJudgement")
 
 
@@ -1502,23 +1469,6 @@ def consume_browser_errors(page, *expected):
         for error in errors
     ), errors
     return errors
-
-
-def xfail_browser_problem(page, *expected, reason):
-    """Quarantine one verified main defect after the journey's assertions finish.
-
-    A fixed defect passes. Any other browser problem, including another report of
-    the named loss, fails. Keep the assertion after xfail so --runxfail exposes
-    the original failure rather than clearing it into a pass.
-    """
-    assert expected, "known browser problems cannot be empty"
-    page.evaluate("lfWordsJudged()")
-    errors = take_browser_errors(page)
-    if not errors:
-        return
-    assert errors == list(expected), errors
-    pytest.xfail(reason)
-    raise AssertionError(errors)
 
 
 # What navigate reports when a ResizeObserver loop notice comes back on the confirming
@@ -2064,13 +2014,8 @@ def margin_control(scope, owner: str, key: str | None = None, *, visible=True):
     return scope.locator(margin_entry(owner, key) + (":visible" if visible else ""))
 
 
-# A content widget's contribution key is its module's own choice, and these two are the
-# suite's one spelling of each: `lf-draft` registers as `draft:<id>`, `lf-suggestion`
-# as `suggestion:<id>`.
-def draft_owner(draft_id: str) -> str:
-    return f"draft:{draft_id}"
-
-
+# A content widget's contribution key is its module's own choice, and this is the
+# suite's one spelling of `lf-suggestion`'s: `suggestion:<id>`.
 def suggestion_owner(suggestion_id: str) -> str:
     return f"suggestion:{suggestion_id}"
 
@@ -2091,7 +2036,7 @@ def suggestion_control(scope, suggestion_id: str, key=None, *, visible=True):
 
 
 def any_owner_entry(kind: str, key: str | None = None) -> str:
-    """The selector for a margin entry any `kind` widget (`draft`, `suggestion`)
+    """The selector for a margin entry any `kind` widget (such as `suggestion`)
     registered, for a probe that plants one example on a page rather than tracking a
     particular id. `margin_entry` locates one owner exactly."""
     selector = f'[data-lf-margin-entry-owner^="{kind}:"]'

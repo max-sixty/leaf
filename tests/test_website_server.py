@@ -1084,10 +1084,7 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
                 "approvalPolicy": "never",
                 "sandbox": "danger-full-access",
                 "developerInstructions": website_server.CODEX_INSTRUCTIONS,
-                "config": {
-                    **website_server.LEAF_THREAD_CONFIG,
-                    "model_reasoning_effort": "low",
-                },
+                "config": {"model_reasoning_effort": "low"},
             },
         )
     ]
@@ -1171,12 +1168,44 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
         "site = Path(sys.argv[sys.argv.index('--output') + 1]) / '_leaf'\n"
         "site.mkdir(parents=True)\n"
         "(site / 'site.json').write_text('{\"release\": \"' + 'a' * 40 + '\"}')\n"
+        "install = site.parent.with_name(site.parent.name + '-install')\n"
+        "(install / '.agents/plugins').mkdir(parents=True)\n"
+        "(install / '.agents/plugins/marketplace.json').write_text('{\"name\": \"leaf\"}')\n"
+        "(install / '.venv').mkdir()\n"
         "print('built the site')\n"
     )
+    codex = tmp_path / "codex"
+    codex.write_text(
+        f"#!{sys.executable}\n"
+        "import json, os, sys\n"
+        "from pathlib import Path\n"
+        "home = Path(os.environ['CODEX_HOME'])\n"
+        "assert (home / 'auth.json').read_text() == '{\"test\": \"login\"}'\n"
+        "assert (home / 'config.toml').read_text() == 'model = \"test\"'\n"
+        "assert os.environ.get('LEAF_CODEX_APP_SERVER') is None\n"
+        "record = home / 'plugin-install.jsonl'\n"
+        "args = sys.argv[1:]\n"
+        "if args[:3] == ['plugin', 'marketplace', 'add']:\n"
+        "    assert args[-1] == '--json'\n"
+        "    plugin = Path(args[3])\n"
+        "    assert plugin.parent == home.parent\n"
+        "    assert json.loads((plugin / '.agents/plugins/marketplace.json').read_text())['name'] == 'leaf'\n"
+        "    assert not (plugin / '.venv').exists()\n"
+        "    assert not record.exists()\n"
+        "else:\n"
+        "    assert args == ['plugin', 'add', 'leaf@leaf', '--json']\n"
+        "    assert len(record.read_text().splitlines()) == 1\n"
+        "with record.open('a') as output:\n"
+        "    output.write(json.dumps(args) + '\\n')\n"
+        "print(json.dumps({'installed': args}, indent=2))\n"
+    )
+    codex.chmod(0o755)
     serve_site = tmp_path / "serve_site.py"
     serve_site.write_text(
         "import json, os\n"
+        "from pathlib import Path\n"
         "from http.server import BaseHTTPRequestHandler, HTTPServer\n"
+        "assert len((Path(os.environ['CODEX_HOME']) / 'plugin-install.jsonl').read_text().splitlines()) == 2\n"
         "class Handler(BaseHTTPRequestHandler):\n"
         "    def do_GET(self):\n"
         "        self.send_response(200)\n"
@@ -1192,6 +1221,7 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
         verify_site, "serve_site", lambda install: [sys.executable, str(serve_site)]
     )
     monkeypatch.setenv("CODEX_HOME", str(host_home))
+    monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.setenv("LEAF_CODEX_APP_SERVER", "unix:///another-session.sock")
     with (
         pytest.raises(RuntimeError, match="journey failed"),
@@ -1218,6 +1248,20 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
         ).read_bytes()
         assert (private_home / "auth.json").stat().st_mode & 0o777 == 0o600
         assert (private_home / "config.toml").read_text() == 'model = "test"'
+        installed = [
+            json.loads(line)
+            for line in (private_home / "plugin-install.jsonl").read_text().splitlines()
+        ]
+        assert installed == [
+            [
+                "plugin",
+                "marketplace",
+                "add",
+                str(private_home.parent / "leaf-plugin"),
+                "--json",
+            ],
+            ["plugin", "add", "leaf@leaf", "--json"],
+        ]
         assert private_site != root / ".tmp" / "site"
         assert (private_site / "_leaf" / "site.json").exists()
         raise RuntimeError("journey failed")
@@ -1411,7 +1455,7 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
 
 
 def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatch):
-    """A hosted task must not discover or initialize another plugin environment."""
+    """A hosted task inherits the installed Leaf CLI and selects its App Server contract."""
     site_root = tmp_path / "site"
     site_root.mkdir()
     monkeypatch.setenv("LEAF_SITE_ROOT", str(site_root))
@@ -1450,7 +1494,7 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     assert "LEAF_REPLY" not in launched["options"]["env"]
     assert "LEAF_REPLY_TOKEN" not in launched["options"]["env"]
     assert launched["options"]["cwd"] == str(site_root)
-    assert "LEAF_SKILL_DIR" not in launched["options"]["env"]
+    assert launched["options"]["env"][website_server.APP_SERVER_ENV] == harness.endpoint
     assert launched["command"] == [
         "codex",
         "app-server",

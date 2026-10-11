@@ -309,7 +309,7 @@ function disabledByFieldset(control) {
   }
   return false;
 }
-export function controlAvailable(control) {
+function controlAvailable(control) {
   if (!control?.isConnected) return false;
   const outputs = [...(controlOutputs.get(control)?.values() ?? [])];
   const disabled = outputs.some((fields) => fields.disabled)
@@ -696,6 +696,15 @@ export function checked(rows, where) {
 // page, so the leaves drawer binds Enter alone and is right to — the shared fact is what a
 // button answers, not what a control does.
 export const PRESS = ["Enter", " "];
+
+// The arrows that step back and ahead along a row of controls, as `[back, ahead]`. Back
+// is the side the row's words run from: left in left-to-right text and right in
+// right-to-left text, where the first item stands at the right, as the ARIA tabs,
+// toolbar and slider patterns ask. Read from the node the row lays out in.
+export const rowArrows = (node) =>
+  getComputedStyle(node).direction === "rtl"
+    ? ["ArrowRight", "ArrowLeft"]
+    : ["ArrowLeft", "ArrowRight"];
 
 // The one-dimensional list policy. Every step inside the list clamps; a caller may name
 // the row where its own off-list arrival enters. Tabs and spatial grids own their cyclic

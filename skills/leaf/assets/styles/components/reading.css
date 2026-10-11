@@ -170,7 +170,7 @@
  * flush, as an x-bound box does. Inset, the ring stands where the card's target trace
  * outlined the cell, and like the trace it meets the words of an outer column, which
  * keeps no padding on its outer side. */
-:where(:root, .lf-thread-transcript) :where(th, td):focus-visible { outline-offset: calc(-1 * var(--focus-ring-w)); }
+:where(:root, .lf-thread-transcript) :where(th, td)[data-lf-focus] { outline-offset: calc(-1 * var(--focus-ring-w)); }
 /* Which kind of header a th is, asked of the author's own word for it rather
    than of where it sits: a header row written without a <thead> is still column
    headings, and `scope="row"` is what a row's name needs said anyway. Each rule
@@ -192,7 +192,7 @@
    Paragraphs keep the editor's whitespace and a blank line between them through
    send, replies and reopening. */
   :is(.lf-thread-transcript, .lf-thread-reply, .lf-general) { --quote-inset: 10px; --pre-inset: 10px; }
-  leaf-text.lf-fab-input, .lf-fab-bar .lf-compose-placeholder, .lf-msg-body {
+  leaf-text.lf-fab-input, .lf-msg-body {
           font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans); color: var(--ink); }
   .lf-msg-body { min-width: 0; margin: var(--lf-msg-body-gap) 0 0; overflow-wrap: anywhere; }
   /* A message's words, or its rewrite standing where they stood (message-edit.js). */

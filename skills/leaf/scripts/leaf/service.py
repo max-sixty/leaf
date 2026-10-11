@@ -26,10 +26,7 @@ from leaf.event_log import (
 from leaf.files import read_json, unfinished_publications
 from leaf.machine import pid_alive, state_home
 from leaf.refusals import Refused
-from leaf.schema import (
-    STATUS_FILE,
-    UNNAMED_AGENT,
-)
+from leaf.schema import STATUS_FILE
 from leaf.state import (
     CLAIMED_SUFFIX,
     EVENTS_FILE,
@@ -113,24 +110,16 @@ CLAIM_LIFETIMES = frozenset({"job", "chat", "pid"})
 def readable_claim(claim: dict | None) -> dict | None:
     """The record if this version can read it as a claim, else None.
 
-    The claims directory is one per machine, and several worktrees, harnesses and
-    sessions write it at once, each running the leaf it was built from. So a
-    record here can have been written by another version, and Stage owes nothing
-    to what an older one wrote: there is no migration and no shim that reads the
-    old shape. What follows is this — a record the readings above can take their
-    answers from is a claim, and any other record is not one this version can
-    read, so the page reads as unclaimed until something claims it again.
-    Dropping it is what deleting the stale state would have done, without the
-    deletion.
+    Another version may have written the record (root AGENTS.md, "Stage"). One the
+    readings above cannot take their answers from is not a claim, so the page reads
+    as unclaimed until something claims it again.
 
-    A harness the table no longer holds is that same record. The name is a value
-    this version dispatches on rather than a field it reads, and renaming one is
-    what renaming the field around it already proved reachable, so it is decided
-    here with the rest instead of raising two calls further in.
+    A harness the table no longer holds is such a record: the name is a value this
+    version dispatches on, so it is decided here rather than raising two calls
+    further in.
 
-    Every reader goes through `page_claim` or `claim_records`, so this is the
-    only place that decides it, and a session is never taken down by a record it
-    does not own."""
+    Every reader goes through `page_claim` or `claim_records`, so this is the only
+    place that decides it."""
     if not isinstance(claim, dict) or not CLAIM_IDENTITY <= claim.keys():
         return None
     from leaf.harness import HARNESSES
@@ -431,23 +420,6 @@ class PageTransaction:
             status["stream"] = stream
         write_json(self.page_dir / STATUS_FILE, status)
         return status
-
-    def voice(self) -> dict:
-        """Who a line written on this page speaks as: the posting session where
-        one is running, which need not be the claimant, and the page's claimant
-        otherwise — a line written by a server speaks in the name of whoever
-        holds the page. `UNNAMED_AGENT` covers a page nothing has claimed,
-        where there is no name to use and inventing one would put words in a
-        program's mouth."""
-        from leaf.harness import message_identity
-
-        identity = message_identity()
-        claim = self.claim
-        return {
-            "agent": identity.get("agent")
-            or (claim["agent"] if claim else UNNAMED_AGENT),
-            "session": identity.get("session") or (claim["id"] if claim else None),
-        }
 
     def set_stream_activity(
         self, session_id: str, turn_id: str, activity: dict

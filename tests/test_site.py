@@ -20,6 +20,7 @@ import json
 import os
 import re
 import shutil
+import urllib.error
 import urllib.request
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
@@ -177,7 +178,8 @@ class ReleasedAssetEndpoint(website_server.WebsitePageEndpoint):
     the adapter up alone serves a document whose runtime nothing answers for.
 
     The rewrite is `releaseAssetRoute`'s: the key after the release names the page,
-    and what follows it is that page's own published path under the asset tree.
+    and what follows it is that page's own published path under the asset tree. The
+    delivery headers are `stampDelivery`'s, which the runtime's probes read.
     """
 
     def __init__(self, request, server, *, asset_tree: Path, **bound) -> None:
@@ -207,6 +209,8 @@ class ReleasedAssetEndpoint(website_server.WebsitePageEndpoint):
                 {
                     "Access-Control-Allow-Origin": "*",
                     "Access-Control-Expose-Headers": "*",
+                    "Leaf-Layer": page["layer"],
+                    "Leaf-Release": self.release,
                 }
             )
             return response
@@ -722,7 +726,7 @@ def test_published_visual_evidence_loads_from_its_page(served_example, browser):
         expect(option).to_be_visible()
         option.click()
         # Web Awesome finishes hiding the listbox after it records the selection.
-        expect(case_select.locator('[part="listbox"]')).to_have_attribute("hidden", "")
+        expect(case_select.locator('[part~="listbox"]')).to_have_attribute("hidden", "")
         expect(case_select).to_have_js_property("value", case_id)
         comparison = review.locator(".lf-vr-case:not([hidden]) lf-shot")
         expect(comparison).to_be_visible()
@@ -1143,6 +1147,27 @@ def test_a_link_that_reaches_nothing_stops_the_build(staged_site):
     with pytest.raises(SystemExit) as stopped:
         site_build.check_links(staged_site)
     assert "whats-new.html" in str(stopped.value)
+
+
+@pytest.mark.parametrize(
+    "target", ["/examples/triage-board/events.jsonl", "/_leaf/site.json"]
+)
+def test_a_link_to_a_built_file_the_server_does_not_route_stops_the_build(
+    staged_site, hosted, target
+):
+    """The build holds each page's log and the site's own manifest, but the server
+    routes only a page's document and served resources, so these links 404 live."""
+    assert (staged_site / target.lstrip("/")).is_file()
+    with pytest.raises(urllib.error.HTTPError) as missing:
+        urllib.request.urlopen(f"{hosted}{target}")
+    assert missing.value.code == 404
+    (site_build.product_page(staged_site, "index.html") / "index.html").write_text(
+        f'<a href="{target}">record</a>'
+    )
+
+    with pytest.raises(SystemExit) as stopped:
+        site_build.check_links(staged_site)
+    assert target in str(stopped.value)
 
 
 def test_a_directory_link_with_no_index_stops_the_build(staged_site):
@@ -2239,7 +2264,9 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
         "links => links.map(link => link.getAttribute('href'))"
     ) == ["/examples/", "/#install"]
     expect(page.locator(".sitenote")).to_have_count(0)
-    expect(page.locator(".lf-banner .lf-dot")).to_have_class(re.compile(r"^lf-dot\s*$"))
+    assert page.locator(".lf-banner .lf-dot").evaluate("dot => [...dot.classList]") == [
+        "lf-dot"
+    ]
     state = page.evaluate("() => fetch('api/state').then(r => r.json())")
     assert state["publication"] == {
         "kind": "example",

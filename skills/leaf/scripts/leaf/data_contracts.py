@@ -1,4 +1,9 @@
-"""Typed data bindings, registry contracts, inventories, and lag."""
+"""Typed data bindings, registry contracts, inventories, and lag.
+
+Immutable document readings retain only binding records and data declarations.
+Historical inventories therefore survive eviction of their source parses without
+retaining parser nodes, unrelated widget metadata, or a complete vocabulary.
+"""
 
 import re
 from pathlib import Path
@@ -144,7 +149,31 @@ def data_document_readings(
                 registry,
             )
         )
-    readings.append((document.lf_elements, label, registry))
+    declarations = {
+        rec["tag"]: {"x-data": declaration}
+        for rec in document.lf_elements
+        if (declaration := registry.get(rec["tag"], {}).get("x-data"))
+    }
+    records = [
+        {
+            "tag": rec["tag"],
+            "line": rec["line"],
+            "attrs": {
+                key: rec["attrs"][key]
+                for key in {
+                    "id",
+                    *(
+                        spec["source"]
+                        for spec in declarations[rec["tag"]]["x-data"].values()
+                    ),
+                }
+                if key in rec["attrs"]
+            },
+        }
+        for rec in document.lf_elements
+        if rec["tag"] in declarations
+    ]
+    readings.append((records, label, declarations))
     return readings
 
 
@@ -163,9 +192,10 @@ def page_data_document_readings(
         reading = read_revision(page_dir, revision)
         registries[revision] = reading.registry
         documents.append(
-            data_document_readings(
-                reading.document, f"revision r{revision}", reading.registry
-            )
+            [
+                (records, f"revision r{revision}{label}", declarations)
+                for records, label, declarations in reading.inventory.data_documents
+            ]
         )
     active_document = documents.pop() if documents else None
     for event in events:

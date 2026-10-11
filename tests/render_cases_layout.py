@@ -136,19 +136,13 @@ def arrival_findings(browser, url):
     notices = []
 
     def console_message(message):
-        if message.type != "error":
+        if (error := render_gate_model.console_error(message)) is None:
             return
-        target = (
-            notices if render_gate_model.resize_observer_error(message.text) else errors
-        )
-        target.append(message.text)
+        target = notices if render_gate_model.resize_observer_error(error) else errors
+        target.append(error)
 
     page.on("console", console_message)
     render_gate_model.collect_page_exceptions(page, errors)
-    page.on(
-        "response",
-        lambda r: errors.append(f"{r.status} {r.url}") if r.status >= 400 else None,
-    )
     render_checks_model.install_window_errors(page)
     found = []
     # A first visit, from which to read the restore cases. Reported
@@ -1546,7 +1540,7 @@ BADGE_CHROME = """      const row = document.createElement("div");
 # refused at the header, which is where the widget fails soft on any page, gated or not.
 UNPARSABLE_DIAGRAM = LONG_PAGE.replace(
     "</main>",
-    "<lf-diagram id='d-broken'><pre>\nsankey-beta\n  Ada,Review,3\n</pre></lf-diagram>\n</main>",
+    "<lf-diagram id='d-broken'><pre>\nleaf-unsupported\n  Ada,Review,3\n</pre></lf-diagram>\n</main>",
 )
 # The thread list is reconciled, not rebuilt, and the tests below are its faces: a
 # send is a gesture and reveals what it made; an arrival is news and moves nothing; a

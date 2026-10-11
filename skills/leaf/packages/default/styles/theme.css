@@ -40,7 +40,7 @@
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
   opacity: 0; pointer-events: none;
 }
-:scope:is(lf-gloss):has(> .lf-gloss-mark:is(:focus-visible, .lf-focus-visible)) {
+:scope:is(lf-gloss):has(> .lf-gloss-mark[data-lf-focus]) {
   outline: var(--focus-ring); --lf-focus-ring: gloss-mark;
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
@@ -511,7 +511,7 @@
  * specificity for the same reason they are. */
 @media screen {
  :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *) > lf-option:not([chosen]):is(:hover,
-  :has(> .lf-pick:is(:focus-visible, .lf-focus-visible))) > .lf-pick::before {
+  :has(> .lf-pick[data-lf-focus])) > .lf-pick::before {
     border-color: var(--ink-2); }
 }
 /* Child combinators, for the same reason the corner rules reach only the options the
@@ -524,7 +524,7 @@
  * the same compact check without reviving a dead control or its former status caption. */
 @media print { :scope:is(lf-option)[chosen]::after { content: "✓"; color: var(--ok-ink);
                                         font-family: var(--sans); font-weight: 700; } }
-:scope:is(lf-option) .lf-pick:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: options-pick;
+:scope:is(lf-option) .lf-pick[data-lf-focus] { outline: var(--focus-ring); --lf-focus-ring: options-pick;
                      outline-offset: var(--focus-ring-gap); border-radius: 4px; }
 /* The Question's action keys, worn on the option cells they bind. The gutter reads status,
  * binding badge, then prose, so each badge starts after the status rule and ends before the
@@ -662,7 +662,7 @@
      * their side runs the same way. Inset, the ring is inside the box it names and the
      * clip has nothing of it to take. The group's own frame is what stands off the
      * page, which is the gap's job on a box that stands alone. */
-    & .lf-btn:is(:focus-visible, .lf-focus-visible) { outline-offset: calc(-1 * var(--focus-ring-w)); }
+    & .lf-btn[data-lf-focus] { outline-offset: calc(-1 * var(--focus-ring-w)); }
     /* The hairline between neighbours: one line, stated once, on the upper of the
      * two, so a child no rule here names arrives already separated. It is the only
      * border in the group: a cell wears none of its own, and the card's is withheld
@@ -689,7 +689,7 @@
      * to the other — a page repainting itself over a tenth of a second for a change nobody
      * on it made. It is also how the contrast sweep found this, by reading a cell mid-flip
      * and getting a grey that belongs to neither palette. */
-    & > lf-option:is(:hover, :has(> .lf-pick:is(:focus-visible, .lf-focus-visible))) {
+    & > lf-option:is(:hover, :has(> .lf-pick[data-lf-focus])) {
                      background: color-mix(in srgb, var(--fill) 92%, var(--ink)); }
     & > lf-option[chosen] { --fill: var(--ok-tint); }
     /* An ok chip is drawn in the same tint the pick fills its cell with, so on the chosen
@@ -714,23 +714,23 @@
      * the author didn't think of — sunk into a band below the answers, held 18px short of
      * the column every word around it opens at, dressed as the machinery a user skips. */
     /* The joined control owns focus at row scale. The mark's generic ring stays off and
-     * the exact option row draws one inset keyboard ring below; pointer focus draws none.
+     * the exact option row draws one inset focus ring below, for every input route.
      * This leaves the permanent group frame as a frame rather than surrounding it with a
      * second border that disappears when the question is answered. */
-    & > lf-option > .lf-pick:is(:focus-visible, .lf-focus-visible) { outline: none; }
+    & > lf-option > .lf-pick[data-lf-focus] { outline: none; }
   }
   /* The runtime's semantic location mark normally rings the whole Decision. Within an
    * options control that makes the permanent frame look like a second, stateful border.
-   * Suppress that outer paint while focus is inside this control; keyboard focus is
-   * carried by the exact row, while pointer focus needs no extra channel at all.
+   * Suppress that outer paint while focus is inside this control; focus is
+   * carried by the exact row, whichever input route brought it there.
    * The decision is an ancestor of the control, so it is matched as a widget root
    * (an lf-ask) as well as a descendant of one: a bare selector here reaches only
    * descendants, and a Question standing at the page's top level kept its ring. */
   :is(:scope, :scope *)[data-lf-question]:has(
-    lf-options[choose]:not(:where([data-lf-exhibit]) *) :is(:focus, .lf-focus)
+    lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus]
   ) { --lf-question-ring: none; }
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *)
-  > lf-option:has(> .lf-pick:is(:focus-visible, .lf-focus-visible)) {
+  > lf-option:has(> .lf-pick[data-lf-focus]) {
     outline: var(--focus-ring); --lf-focus-ring: options-row;
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
@@ -740,7 +740,7 @@
    * scoped to :not([settled]) this rule left a user who had Tabbed into it with
    * nothing on screen saying where they were. */
   :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *)
-  > .lf-another:has(leaf-text:is(:focus, .lf-focus)) {
+  > .lf-another:has(leaf-text[data-lf-focus]) {
     outline: var(--focus-ring); --lf-focus-ring: options-row;
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
@@ -778,7 +778,7 @@
                                   inset-inline-end: var(--lf-option-add-seat-inset);
                                   inset-block-end: var(--lf-option-add-seat-inset); }
   /* Keep an empty Add press visible while it owns focus after submission. */
-  .lf-another .lf-compose-submit[data-lf-empty]:not(:focus) { visibility: hidden; }
+  .lf-another .lf-compose-submit[data-lf-empty]:not([data-lf-focus]) { visibility: hidden; }
   /* The leading column holds the key badge and the gap before the option's
    * words. The badge starts at the ordinary 8px inset and takes
    * --lf-key-badge-size, so changing the utility type grows the
@@ -964,7 +964,7 @@
  * is authored namespace for a fact no version carries (lf-options.js). */
 :scope:is(lf-options)[settled] > .lf-settled[aria-expanded="false"] { margin-bottom: 0; }
 :scope:is(lf-options)[settled] > .lf-settled:hover { border-color: var(--border-2); }
-:scope:is(lf-options)[settled] > .lf-settled:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: options-settled;
+:scope:is(lf-options)[settled] > .lf-settled[data-lf-focus] { outline: var(--focus-ring); --lf-focus-ring: options-settled;
               outline-offset: 1px; }
 .lf-settled::before { content: "▸"; color: var(--muted); font-weight: 400; }
 .lf-settled[aria-expanded="true"]::before { content: "▾"; }
@@ -1181,7 +1181,7 @@
    clips a pixel outside the last column's cards, so the ring's right run and both
    corners on that side fell outside the clip while the grip itself stayed whole. An
    inset ring cannot leave the box it names, at any scroll position. */
-:scope:is(lf-card) .lf-grip:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: card-grip; outline-offset: calc(-1 * var(--focus-ring-w));
+:scope:is(lf-card) .lf-grip[data-lf-focus] { outline: var(--focus-ring); --lf-focus-ring: card-grip; outline-offset: calc(-1 * var(--focus-ring-w));
           color: var(--ink-2); }
 /* SortableJS drag states on the real card: the in-flow slot and pressed card. */
 :scope:is(lf-card).lf-ghost { opacity: .4; border-style: dashed; border-color: var(--accent); }
@@ -1226,9 +1226,9 @@
 /* Focus follows the name, as in the ARIA tabs example: selection and keyboard focus
  * remain separate marks on one compact face. The containing tab keeps its larger aim
  * floor; neither mark changes layout. The gap fits inside that target's padding. */
-.lf-tabstrip .lf-tab-btn:is(:focus-visible, .lf-focus-visible) {
+.lf-tabstrip .lf-tab-btn[data-lf-focus] {
                outline: none; }
-.lf-tabstrip .lf-tab-btn:is(:focus-visible, .lf-focus-visible) > .lf-tab-name {
+.lf-tabstrip .lf-tab-btn[data-lf-focus] > .lf-tab-name {
                outline: var(--focus-ring); --lf-focus-ring: tab-btn;
                outline-offset: var(--lf-tab-focus-gap); }
 /* Every name reserves the same square face; selection paints it without changing any
@@ -1746,7 +1746,7 @@
  * 3px a mouse needs left 24px rows. */
 :scope:is(lf-toc) a { display: inline-block; color: inherit; text-decoration: none;
            padding-block: max(3px, (var(--aim-floor) - 1lh) / 2); }
-:scope:is(lf-toc) a:hover, :scope:is(lf-toc) a:focus-visible { color: var(--accent); }
+:scope:is(lf-toc) a:hover, :scope:is(lf-toc) a[data-lf-focus] { color: var(--accent); }
 
 /* The core sidebar states its actual posture after viewport and drawer-room decisions.
  * Only a fine-pointer margin form fixes itself into a viewport map; generic sidebars keep
@@ -1795,8 +1795,8 @@
       :scope:is(lf-toc) .lf-toc-rows::after { content: ""; position: absolute; z-index: 1;
                                    top: 0; bottom: 0; left: calc(-1 * var(--sp-2));
                                    width: var(--sp-4); pointer-events: auto; }
-      :scope:is(lf-toc):is(:hover, :focus-within, [data-lf-outline]),
-      :scope:is(lf-toc):is(:hover, :focus-within, [data-lf-outline]) .lf-toc-nav{ pointer-events: auto; }
+      :scope:is(lf-toc):is(:hover, [data-lf-focus-within], [data-lf-outline]),
+      :scope:is(lf-toc):is(:hover, [data-lf-focus-within], [data-lf-outline]) .lf-toc-nav{ pointer-events: auto; }
       @scope (body[data-lf-go-to-active] :scope) {
         :is(:scope:is(lf-toc), :scope:is(lf-toc) .lf-toc-nav){ pointer-events: auto; }
       }
@@ -1852,12 +1852,12 @@
       }
       :scope:is(lf-toc) .lf-toc-start a { color: var(--ink-2); font-weight: 650;
                                line-height: 1.2; max-height: 2.4em; }
-      :scope:is(lf-toc) li a[aria-current="location"]:not(:hover, :focus-visible) {
+      :scope:is(lf-toc) li a[aria-current="location"]:not(:hover, [data-lf-focus]) {
         color: var(--ink-2);
       }
-      :scope:is(lf-toc) a:focus-visible { outline: var(--focus-ring); --lf-focus-ring: toc-link;
+      :scope:is(lf-toc) a[data-lf-focus] { outline: var(--focus-ring); --lf-focus-ring: toc-link;
                                outline-offset: calc(-1 * var(--focus-ring-w)); }
-      :scope:is(lf-toc):is(:hover, :focus-within) .lf-toc-nav{
+      :scope:is(lf-toc):is(:hover, [data-lf-focus-within]) .lf-toc-nav{
         --lf-toc-label-opacity: 1;
         background: color-mix(in srgb, var(--paper) 92%, transparent);
       }
@@ -1867,7 +1867,7 @@
           background: color-mix(in srgb, var(--paper) 92%, transparent);
         }
       }
-      :scope:is(lf-toc):is(:hover, :focus-within) .lf-toc-nav a{ pointer-events: auto; }
+      :scope:is(lf-toc):is(:hover, [data-lf-focus-within]) .lf-toc-nav a{ pointer-events: auto; }
       @scope (body[data-lf-go-to-active] :scope) {
         :scope:is(lf-toc) .lf-toc-nav a{ pointer-events: auto; }
       }
@@ -2391,7 +2391,7 @@
 /* A long capture becomes a keyboard-reachable scroller inside the evidence frame.
    Keep its generic focus ring inside that frame: the figure clips at its rounded
    corners, so an outside ring loses a pixel on three sides. */
-:scope:is(lf-text-document) pre:is(:focus-visible, .lf-focus-visible) {
+:scope:is(lf-text-document) pre[data-lf-focus] {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 
@@ -2407,7 +2407,7 @@
 :scope:is(lf-draft) > pre { white-space: pre-line; }
 .lf-draft-edit.lf-ui { display: block; width: 100%; padding: 0; border: 0; background: none;
   font: inherit; min-height: 0; max-height: none; overflow: hidden; }
-.lf-draft-edit.lf-ui:is(:focus, .lf-focus) { outline: none; box-shadow: none;
+.lf-draft-edit.lf-ui[data-lf-focus] { outline: none; box-shadow: none;
   --lf-focus-ring: none; }
 .lf-draft-footer { display: none; }
 @media screen {
@@ -2419,7 +2419,7 @@
     }
   }
   :scope:is(lf-draft):has(.lf-draft-edit) { border-color: var(--muted); }
-  :scope:is(lf-draft):has(.lf-draft-edit:focus) { outline: var(--focus-ring);
+  :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus]) { outline: var(--focus-ring);
     --lf-focus-ring: draft-editor;
     outline-offset: calc(-1 * (var(--focus-ring-w) + var(--focus-ring-gap))); }
   :scope:is(lf-draft):has(.lf-draft-edit:state(ready)) > .lf-draft-body { display: none; }
@@ -2437,7 +2437,7 @@
   .lf-draft-history > summary:hover { color: var(--ink-2); }
 }
 @media (forced-colors: active) {
-  :scope:is(lf-draft):has(.lf-draft-edit:focus) {
+  :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus]) {
     outline: 2px solid Highlight; outline-offset: -5px; box-shadow: none;
   }
 }

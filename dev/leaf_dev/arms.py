@@ -35,12 +35,13 @@ from contextlib import contextmanager
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import Self
+from typing import IO, Self
 
 import click
 from leaf.codex import APP_SERVER_ENV
 from leaf.delivery import opened_input_ids
 from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
+from leaf.hook_transport import hands_delivery
 from leaf.tasks import start_reading
 from leaf.thread import successful_replies
 
@@ -267,6 +268,41 @@ def build_pair(base: str | None, dest: Path) -> tuple[dict[str, Path], dict[str,
 def load_average() -> str:
     """The machine's 1, 5 and 15 minute load averages."""
     return " ".join(f"{value:.1f}" for value in os.getloadavg())
+
+
+def codex_program() -> Path:
+    """Resolve the host CLI used to install plugins and run isolated Codex tasks."""
+    if (installed := shutil.which("codex")) is None:
+        raise click.ClickException("Codex tasks require the Codex CLI; install it")
+    return Path(installed).resolve()
+
+
+def install_codex_plugin(
+    codex: Path,
+    payload: Path,
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    output: IO[str] | None = None,
+) -> None:
+    """Install a complete Leaf payload through Codex's native marketplace commands.
+
+    Callers supply the isolated task's environment and its CLI. Output is captured
+    on subprocess failures, or streamed whole to `output` when the caller keeps a
+    log; native installer JSON documents are separate from task JSON-lines logs.
+    """
+    streams = (
+        {"stdout": output, "stderr": subprocess.STDOUT}
+        if output is not None
+        else {"capture_output": True, "text": True}
+    )
+    for arguments in (
+        ("plugin", "marketplace", "add", str(payload), "--json"),
+        ("plugin", "add", "leaf@leaf", "--json"),
+    ):
+        subprocess.run(
+            [str(codex), *arguments], cwd=cwd, env=env, check=True, **streams
+        )
 
 
 def codex_home(path: Path, config: str = "") -> Path:
@@ -605,18 +641,29 @@ class PageClient:
 
     def post(self, event: dict) -> None:
         """Post one move as the page does: keyed, on the served layer. The caller
-        names the revision and the retry key, as the browser does."""
-        request = urllib.request.Request(
-            f"{self.origin}/api/event?t={self.token}",
-            data=json.dumps(event).encode(),
-            headers={"Leaf-Layer": self.state()["layer"]["generation"]},
-        )
-        try:
-            self.opener.open(request, timeout=20).close()
-        except urllib.error.HTTPError as error:
-            raise click.ClickException(
-                f"posting {event}: HTTP {error.code} {error.read().decode()}"
-            ) from error
+        names the revision and the retry key, as the browser does.
+
+        An answer naming another layer than the one posted on admitted nothing: the
+        page was re-vendored between the state read and the post. A tab reloads onto
+        that layer and the user moves again, so the move is posted again under it.
+        """
+        layer = self.state()["layer"]["generation"]
+        while True:
+            request = urllib.request.Request(
+                f"{self.origin}/api/event?t={self.token}",
+                data=json.dumps(event).encode(),
+                headers={"Leaf-Layer": layer},
+            )
+            try:
+                with self.opener.open(request, timeout=20) as response:
+                    answered = response.headers["Leaf-Layer"]
+            except urllib.error.HTTPError as error:
+                raise click.ClickException(
+                    f"posting {event}: HTTP {error.code} {error.read().decode()}"
+                ) from error
+            if answered == layer:
+                return
+            layer = answered
 
 
 def read_page_state(arm: Path, state: Path, page: Path) -> dict:
@@ -657,7 +704,7 @@ def waits_started(record: dict) -> list[str]:
 
 def hook_delivered(record: dict) -> bool:
     """Whether one stream record is a Leaf hook handing a delivery to the turn."""
-    return record.get("subtype") == "hook_response" and "leaf-delivery-v" in (
+    return record.get("subtype") == "hook_response" and hands_delivery(
         record.get("output") or ""
     )
 

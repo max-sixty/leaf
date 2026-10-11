@@ -39,7 +39,7 @@ const questionSource = (question) => {
   }
 };
 
-export const questionItem = (question) => {
+const questionItem = (question) => {
   const { subject, ends } = questionSource(question);
   return {
     kind: "question",

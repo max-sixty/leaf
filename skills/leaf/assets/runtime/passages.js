@@ -126,7 +126,7 @@ import { decisionFor, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { COLLAPSE } from "./collapse.js";
 import { textUnits } from "./text-alignment.js";
-import { excerptWords } from "./contribution-model.js";
+import { excerptWords } from "./words.js";
 
 // Opaque widgets and their original direct children: each is a passage cell of its own.
 const passageFences = new WeakSet();
@@ -227,7 +227,7 @@ export function settledAway(el) {
     )
   );
 }
-export const GENERATED = ".lf-ui, [data-lf-gen]";
+const GENERATED = ".lf-ui, [data-lf-gen]";
 export const DATUM = "[data-lf-projection][data-lf-datum]";
 // A different question the class also used to answer, and not a question about looks at
 // all: which document is this element in? The runtime's layer is one container, so a

@@ -4,10 +4,12 @@
 // scrollports; scrollerFor is the shared answer when a caller may stand in either.
 export const pageScroller = document.scrollingElement;
 
+// The furthest a box scrolls down: its scroll height less what its scrollport shows.
+export const scrollLimit = (box) => Math.max(0, box.scrollHeight - box.clientHeight);
+
 // The end is a reading destination, rather than the pixel offset it occupies before
 // a box is resized. Fractional layout can leave the browser a pixel short.
-export const atScrollEnd = (box) =>
-  box.scrollHeight - box.clientHeight - box.scrollTop <= 2;
+export const atScrollEnd = (box) => scrollLimit(box) - box.scrollTop <= 2;
 export const scrollToEnd = (box, behavior = "instant") =>
   box.scrollTo({ top: box.scrollHeight, behavior });
 
@@ -20,7 +22,4 @@ export const moveScrollerBy = (box, top, behavior = "instant") =>
 // How much of a move a box can make from where it stands: a box at its end moves no
 // further, whatever it is asked.
 export const reachable = (box, top) =>
-  Math.max(
-    -box.scrollTop,
-    Math.min(box.scrollHeight - box.clientHeight - box.scrollTop, top),
-  );
+  Math.max(-box.scrollTop, Math.min(scrollLimit(box) - box.scrollTop, top));

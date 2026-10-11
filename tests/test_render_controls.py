@@ -12,6 +12,7 @@ from interact_support import (
     append_carried_log_record,
     append_command,
     declare_work,
+    element_declaration,
     end_work,
     record_claim,
     wait_for,
@@ -89,7 +90,6 @@ from render_harness import (
     any_draft_control,
     any_owner_entry,
     any_suggestion_control,
-    consume_browser_errors,
     expect_asks_answered,
     expect_comment_notes,
     held_frames,
@@ -101,6 +101,7 @@ from render_harness import (
     opened_tab,
     page_comment,
     panel_settled,
+    refuse,
     resized,
     root_overflow,
     round_trip,
@@ -1563,7 +1564,7 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
         "button", name="Reset", exact=True
     )
     reset.click()
-    expect(reset).to_be_enabled(timeout=30000)
+    expect(reset).to_be_enabled()
     expect(views["overview"].locator(".lf-thread-panel")).to_be_visible()
     expect(views["overview"].locator(".lf-thread:not([hidden])")).to_have_count(3)
     reset.focus()
@@ -2802,6 +2803,136 @@ diff --git a/gateway/limits.py b/gateway/limits.py
     head='<meta name="lf-review" content="sign-off">',
 )
 
+
+def test_controls_share_pointer_and_keyboard_focus_rings(browser, serve):
+    """Focus has one ring for native controls, linked carriers, and shadow controls."""
+    declaration = element_declaration("lf-shadow-focus", upgrade=True)
+    declaration["x-shadow"] = True
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Focus routes",
+                """
+<h1 id="focus-heading">Focus routes</h1>
+<p><button class="button" id="focus-button" type="button">Ordinary button</button></p>
+<lf-tabs id="focus-tabs">
+  <lf-tab id="focus-first" label="First">First panel.</lf-tab>
+  <lf-tab id="focus-second" label="Second">Second panel.</lf-tab>
+</lf-tabs>
+<lf-ask id="focus-decision"><h2>Which option?</h2>
+<lf-options id="focus-options" choose>
+  <lf-option id="focus-choice" for="focus-heading">Keep this option.</lf-option>
+  <lf-option id="focus-peer" for="focus-heading">Keep another option.</lf-option>
+</lf-options></lf-ask>
+<lf-shadow-focus id="focus-shadow"><button class="button" type="button">Shadow button</button></lf-shadow-focus>
+""",
+            ),
+            layer_registry={"lf-shadow-focus": declaration},
+            layer_widgets={
+                "lf-shadow-focus.js": """
+import {once, shadowStage} from '/runtime/widget-api.js';
+import '/vendor/webawesome.esm.js';
+customElements.define('lf-shadow-focus', class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const select = document.createElement('wa-select');
+    select.label = 'Choose a route';
+    select.withClear = true;
+    select.value = 'first';
+    for (const [value, label] of [['first', 'First route'], ['second', 'Second route']]) {
+      const option = document.createElement('wa-option');
+      option.value = value;
+      option.textContent = label;
+      select.append(option);
+    }
+    shadowStage(this, [...this.childNodes, select]);
+  }
+});
+"""
+            },
+        ),
+    )
+    paint = """el => { const s = getComputedStyle(el); return {
+      style: s.outlineStyle, width: s.outlineWidth, color: s.outlineColor,
+      offset: s.outlineOffset, name: s.getPropertyValue('--lf-focus-ring').trim()
+    }; }"""
+    button = page.locator("#focus-button")
+    tab = page.get_by_role("tab", name="First", exact=True)
+    choice = page.locator("#focus-choice > .lf-pick")
+    shadow_button = page.locator("#focus-shadow").get_by_role(
+        "button", name="Shadow button", exact=True
+    )
+    for control, carrier in (
+        (button, button),
+        (tab, tab.locator(".lf-tab-name")),
+        (choice, page.locator("#focus-choice")),
+        (shadow_button, shadow_button),
+    ):
+        control.click()
+        expect(control).to_be_focused()
+        rendered(page)
+        pointer = carrier.evaluate(paint)
+        assert pointer["style"] == "solid" and pointer["name"] != "none", pointer
+        drawn = rings_drawn(page)
+        samples = [ring for ring in drawn if ring["sample"]]
+        assert len(samples) == 1, drawn
+        assert not ring_faults(drawn, "after pointer arrival")
+
+        # Return by sequential navigation to cover the tab list's roving stop and
+        # the option row's carrier through a real keyboard arrival.
+        page.keyboard.press("Shift+Tab")
+        page.keyboard.press("Tab")
+        expect(control).to_be_focused()
+        rendered(page)
+        assert carrier.evaluate(paint) == pointer
+        drawn = rings_drawn(page)
+        assert len([ring for ring in drawn if ring["sample"]]) == 1, drawn
+        assert not ring_faults(drawn, "after keyboard arrival")
+
+    assert page.locator("#focus-shadow").evaluate(paint)["style"] == "none", (
+        "retargeting focus to the widget host drew a second ring around its button"
+    )
+
+    select = page.locator("#focus-shadow wa-select")
+    combobox = select.get_by_role("combobox")
+    listbox = select.locator('[part~="listbox"]')
+    first = select.get_by_role("option", name="First route", exact=True)
+    second = select.get_by_role("option", name="Second route", exact=True)
+
+    def one_select_ring(control, where):
+        expect(control).to_be_focused()
+        expect(control).to_be_visible()
+        rendered(page)
+        drawn = rings_drawn(page)
+        assert len(drawn) == 1 and drawn[0]["sample"], (where, drawn)
+        assert not ring_faults(drawn, where)
+
+    # The popup's options are slotted beside the combobox. Focus within the select
+    # host must not ring both the combobox and an option outside its ancestry.
+    combobox.click()
+    one_select_ring(first, "after opening the select")
+    page.keyboard.press("ArrowDown")
+    one_select_ring(second, "after moving to the next option")
+    page.keyboard.press("Enter")
+    expect(select).to_have_js_property("value", "second")
+    one_select_ring(combobox, "after choosing an option")
+    expect(listbox).to_be_hidden()
+    combobox.click()
+    one_select_ring(second, "after reopening the select")
+    page.keyboard.press("Escape")
+    one_select_ring(combobox, "after closing the select")
+    expect(listbox).to_be_hidden()
+    select.locator('[part~="clear-button"]').click()
+    expect(select).to_have_js_property("value", None)
+    one_select_ring(combobox, "after clearing the select")
+    shadow_button.click()
+    one_select_ring(shadow_button, "after leaving the select")
+    assert not select.locator('[part~="combobox"]').evaluate(
+        "el => el.part.contains('lf-focus-within')"
+    ), "the field retained its public focus part after focus left"
+
+
 # One interaction demo, the gallery's suggestion replay, under the opt-in that installs
 # the runtime's playback row, laid out as the feature gallery lays that row out. The
 # `accept` scenario (interaction-gallery.js) names its suggestion `bg-motion-accept`.
@@ -2839,6 +2970,35 @@ INTERACTION_PLAYBACK_PAGE = leaf_page(
 </style>""",
 )
 
+
+def test_departing_gallery_cancels_pending_samples_without_reporting_failure(
+    browser, serve
+):
+    """Departure cancels loading even while the old document's nodes remain connected."""
+    page = browser.new_page()
+    held = []
+    page.route("**/api/samples", lambda route: held.append(route))
+    page.goto(serve(INTERACTION_PLAYBACK_PAGE))
+    holding(page, held, 1, "the gallery's sample allocation")
+    page.evaluate("window.dispatchEvent(new PageTransitionEvent('pagehide'))")
+    assert page.locator("[data-interaction-demo]").evaluate(
+        "figure => figure.isConnected"
+    )
+    response = held[0].fetch()
+    held[0].fulfill(response=response)
+    page.evaluate("""async () => {
+        const {whenArrived} = await window.__lfRuntimeImport('/runtime/presentation.js');
+        await whenArrived();
+    }""")
+    rendered(page)
+    expect(page.locator(".lf-interaction-status")).not_to_have_text("Could not play")
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "error"
+    ]
+
+
 SIGNOFF_STABILITY_PAGE = LONG_PAGE.replace(
     "<title>long</title>",
     '<title>long</title><meta name="lf-review" content="sign-off">',
@@ -2870,9 +3030,7 @@ CONTROL_ARCHETYPES = (
         # The playground's action row: Reset, Copy instruction, and the send beside each
         # other under the controls. The send is the press with something to prove — it
         # posts the configuration and comes back disabled, and a control that changes its
-        # own paint on the press is where a neighbour moves. The row is also where the
-        # copy press used to say "Copied" in its own label; that feedback is a notice
-        # now, and this is the reading that keeps it off the row.
+        # own paint on the press is where a neighbour moves.
         "name": "playground-actions",
         "target": "#stable-playground .lf-playground-submit",
     },
@@ -4763,26 +4921,19 @@ def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, ser
     expect(live).to_contain_text("Claude is waiting for approval")
     leases_model.release_lease(lease)
 
-    held = []
-
-    def refuse_state(route):
-        held.append(route)
-        route.fulfill(status=503, body="down")
-
-    page.route("**/api/**", refuse_state)
+    page.route("**/api/**", refuse)
     try:
         # A healthy page never asks without news, so give it one: the read that follows
         # is the one the route refuses.
         nudge(serve.page_dir)
         expect(page.locator(".lf-banner .lf-dot.offline")).to_be_visible()
-        offline = page.locator(".lf-status-detail").text_content()
+        offline = " ".join(page.locator(".lf-status-detail").text_content().split())
         assert offline.startswith("Server offline"), (
             f"the banner's offline line has moved: {offline!r}"
         )
         expect(live).to_have_text(offline)
     finally:
         page.unroute("**/api/**")
-    consume_browser_errors(page, "503")
 
 
 def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
@@ -4900,15 +5051,16 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
     page.get_by_role("button", name="Close threads").tap()
     panel_settled(page, open=False)
 
-    # The page comment card's Send is the compact control a finger presses to start a
-    # page thread.
+    # The page comment's empty action and Send both keep a finger-sized aim.
     page_comment(page)
-    send = page.locator(".lf-page-comment-card .lf-general button")
-    expect(send).to_be_visible()
-    box = send.bounding_box()
-    assert box["width"] >= 43.9 and box["height"] >= 43.9, (
-        f"the page comment card's Send kept a mouse-sized aim: {box}"
-    )
+    for words in ("", "Review this page"):
+        write(page.locator(".lf-page-comment-card leaf-text"), words)
+        action = page.locator(".lf-page-comment-card .lf-general button:visible")
+        expect(action).to_be_visible()
+        box = action.bounding_box()
+        assert box["width"] >= 43.9 and box["height"] >= 43.9, (
+            f"the page comment card's action kept a mouse-sized aim: {box}"
+        )
     page.keyboard.press("Escape")
     expect(page.locator(".lf-page-comment-card")).to_be_hidden()
 
@@ -5882,7 +6034,7 @@ def test_a_recorded_move_is_acknowledged_in_the_status_and_nowhere_else(browser,
     round_trip(page)
 
     # The line's own words come back once the notice has had its moment.
-    expect(status).to_be_visible(timeout=6_000)
+    expect(status).to_be_visible()
     expect(notice).to_be_hidden()
 
 
@@ -6690,9 +6842,8 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     page = open_page(browser, serve(LONG_PAGE, comments=1))
     toggle = page.locator(".lf-threads-toggle")
     panel = page.locator(".lf-thread-panel")
-    ringed = (
-        "() => document.querySelector('.lf-threads-toggle').matches(':focus-visible')"
-    )
+    ringed = """() => getComputedStyle(document.querySelector('.lf-threads-toggle'))
+      .outlineStyle !== 'none'"""
     top = "() => document.scrollingElement.scrollTop"
     on_body = "() => document.activeElement === document.body"
 
@@ -6702,11 +6853,11 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     scroll_settled(page)
     was = page.evaluate(top)
 
-    # Opened with the pointer, the button holds focus and the browser withholds the ring.
+    # Opened with the pointer, the focused button draws the same ring as a keyboard arrival.
     toggle.click()
     expect(panel).to_be_visible()
     expect(toggle).to_be_focused()
-    assert not page.evaluate(ringed)
+    assert page.evaluate(ringed)
 
     # Closed with the key, the user is back on the page: nothing rings, and Space is
     # the page's again rather than the button's.
@@ -8155,7 +8306,9 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
     assert boxes["first"]["bottom"] <= boxes["height"] - insets["bottom"] + 1, boxes
 
 
-def test_the_page_comment_card_keeps_its_send_inside_the_side_safe_area(browser, serve):
+def test_the_page_comment_card_keeps_its_action_inside_the_side_safe_area(
+    browser, serve
+):
     """The page comment card stays inside both unsafe side edges, on a phone where it
     spans the window and beside it where it hangs from its control."""
     page = open_page(browser, serve(LONG_PAGE))
@@ -8168,6 +8321,9 @@ def test_the_page_comment_card_keeps_its_send_inside_the_side_safe_area(browser,
     for width in (500, 420):
         resized(page, width, 700)
         page_comment(page)
+        expect(
+            page.locator(".lf-page-comment-card .lf-general button:visible")
+        ).to_be_visible()
         boxes = page.evaluate(
             """() => {
               const rect = selector => {
@@ -8175,12 +8331,12 @@ def test_the_page_comment_card_keeps_its_send_inside_the_side_safe_area(browser,
                 return {left: r.left, right: r.right, top: r.top, bottom: r.bottom};
               };
               return {card: rect('.lf-page-comment-card'),
-                      send: rect('.lf-page-comment-card .lf-general button'),
+                      action: rect('.lf-page-comment-card .lf-general button:not([hidden])'),
                       viewport: {width: innerWidth, height: innerHeight}};
             }"""
         )
-        assert boxes["send"]["right"] <= boxes["viewport"]["width"] - 31 + 1, (
-            f"the page comment card's Send sat under the side safe area at {width}px: "
+        assert boxes["action"]["right"] <= boxes["viewport"]["width"] - 31 + 1, (
+            f"the page comment card's action sat under the side safe area at {width}px: "
             f"{boxes}"
         )
         assert boxes["card"]["left"] >= 23 - 1, (
@@ -8284,12 +8440,13 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
     plant = """(how) => {
       const box = document.querySelector('main p');
       box.classList.toggle('probe-target', true);
-      for (const name of ['lf-mark-el', 'lf-mark-hover', 'lf-focus-visible'])
+      for (const name of ['lf-mark-el', 'lf-mark-hover'])
         box.classList.toggle(name, false);
+      box.toggleAttribute('data-lf-focus', how === 'focused mark');
       box.style.outline = '';
       box.style.removeProperty('--lf-focus-ring');
       if (how === 'mark') box.classList.add('lf-mark-el', 'lf-mark-hover');
-      if (how === 'focused mark') box.classList.add('lf-mark-el', 'lf-focus-visible');
+      if (how === 'focused mark') box.classList.add('lf-mark-el');
       if (how === 'the ring itself') box.style.outline = 'var(--focus-ring)';
       if (how === 'unregistered focused mark') {
         box.classList.add('lf-mark-el');
@@ -8360,13 +8517,10 @@ def test_the_ring_reading_distinguishes_element_marks_from_focus(browser, serve)
 def test_the_ring_reading_sees_and_measures_a_ring_cast_as_a_shadow(browser, serve):
     """The band has two carriers, and a reading that knew one was blind to the other.
 
-    Most of the layer's rules draw the ring as an outline. Two cast it as a shadow: the
-    anchored response bar, whose focused states write `outline: none` so the field and
-    its choices keep one silhouette, and the target hint the keyboard is browsing, a chip
-    in a layer nothing can focus. To a user those are the same band, and a sweep asking
-    only the outline answered `no ring here` for both — the bar's own controls came back
-    credited to `pressable`, the name of the floor rule whose outline the bar takes away,
-    and neither ring's geometry was measured anywhere.
+    Most of the layer's rules draw the ring as an outline. A target hint the keyboard
+    is browsing casts it as a shadow, on a chip in a layer nothing can focus. To a user
+    those are the same band, and a sweep asking only the outline misses the shadow's
+    indication and geometry.
 
     Knowing one on sight is the first half, and the layer offers three shadows to mistake
     for it: the elevation lift every floating surface wears, the inset accent wash a
@@ -8471,8 +8625,7 @@ def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve)
     url = serve(example, comments=2)
     page = open_page(browser, url)
     page.locator("body").click()
-    # A real press, because `.focus()` alone never raises `:focus-visible` and a control
-    # with no ring is a control with nothing to report about one.
+    # Reach the stop by keyboard before testing what can cover its ring.
     page.locator(".lf-threads-toggle").focus()
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
@@ -8879,7 +9032,7 @@ RING_CASES = (
                 ("lf-option > .lf-pick", "options-row"),
                 (
                     any_owner_entry("suggestion", "accept") + ":visible",
-                    ("ask", "margin-entry"),
+                    "margin-entry",
                 ),
                 (".lf-draft-edit", "draft-editor"),
             ),
@@ -8893,7 +9046,7 @@ RING_CASES = (
             ),
             "release-notes": (
                 ("main p.lf-mark-el", "passage-focus"),
-                ('lf-shot .lf-shotcomparison [part~="handle"]', "shot"),
+                ('lf-shot .lf-shotcomparison [part~="handle"]', "comparison-handle"),
                 (".lf-shotcap", "pressable"),
             ),
             "ship-review": ((".lf-reopen", "thread-action"),),
@@ -8906,7 +9059,7 @@ RING_CASES = (
     (
         "an inline response",
         (),
-        {"pr-walkthrough": (("leaf-text.lf-fab-input", "response-control"),)},
+        {"pr-walkthrough": (("leaf-text.lf-fab-input", "text-box"),)},
     ),
     # The list holds focus itself only while it shows no thread, so the sample finds
     # nothing and backs out of the find box onto the emptied list.
@@ -8957,7 +9110,7 @@ RING_CASES = (
     (
         "the response bar",
         ("Tab", "s", "Shift+Tab", "Tab", "Enter"),
-        {"corpus": ((".lf-fab-input", "response-control"),)},
+        {"corpus": ((".lf-fab-input", "text-box"),)},
     ),
     # These controls live behind exact page-owned view states. Give each one a focused
     # stop rather than changing the active panel for the whole page: selecting a
@@ -9051,10 +9204,9 @@ RING_EXAMPLE_FILES = {example.stem: example for example in (*EXAMPLES, FEATURE_G
 # control or one of its ancestors. Mark the exact carrier before reading the composed
 # paint so an unrelated ring with the same name cannot credit the sample.
 RING_REMOTE_CARRIER = {
-    "ask": None,
     "target-hint": ".lf-target-picker-hint.lf-current",
     # A pane draws its focused body's band inset over the body's cell (theme.css).
-    "pane-body": '[data-lf-reading-role="pane"]:has(> :focus-visible)',
+    "pane-body": '[data-lf-reading-role="pane"]:has(> [data-lf-focus])',
 }
 
 
@@ -9172,7 +9324,7 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
         const style = document.createElement('style');
         style.id = 'lf-ring-negative-control';
         style.textContent =
-          '.lf-threads-toggle:focus-visible { outline: none !important;'
+          '.lf-threads-toggle:focus { outline: none !important;'
           + ' box-shadow: none !important; }';
         document.head.append(style);
     }""")
@@ -9484,7 +9636,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                     rendered(page)
                     open_containing_thread(target)
                     page.keyboard.press("Tab")
-                    target.focus(timeout=5_000)
+                    target.focus()
                     # A note on the details shelf is reached from the element that
                     # names it (details-shelf.js), never by Tab, and is focused here as
                     # a screen reader moving to it would focus it.
@@ -9504,17 +9656,6 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                         unseen.add(f"{where}: {lost}")
                 for ring_name in expected & RING_REMOTE_CARRIER.keys():
                     carrier_selector = RING_REMOTE_CARRIER[ring_name]
-                    if ring_name == "ask":
-                        ask_id = target.evaluate(
-                            """async node => {
-                              const { contributionEntrySource } = await window.__lfRuntimeImport(
-                                '/runtime/contribution-controls.js'
-                              );
-                              return contributionEntrySource(node)?.id ?? null;
-                            }"""
-                        )
-                        assert ask_id, f"{selector} {where} names no ask carrier"
-                        carrier_selector = f'[id="{ask_id}"]'
                     page.locator(carrier_selector).evaluate(
                         "node => node.setAttribute('data-lf-ring-sample', '')"
                     )
@@ -10084,7 +10225,10 @@ def test_a_reference_command_finishes_its_gesture_before_a_newer_control(
 
 
 @pytest.mark.parametrize("native_move", [True, False])
-def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, native_move):
+@pytest.mark.parametrize("renderer", ["children", "lit"])
+def test_retained_moves_keep_native_editor_and_frame_state(
+    browser, serve, native_move, renderer
+):
     """Moves survive named form fields; native moves also retain frame state."""
     page = open_page(
         browser,
@@ -10101,7 +10245,9 @@ def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, nativ
         ),
     )
     page.evaluate(
-        """async nativeMove => {
+        """async ([nativeMove, renderer]) => {
+      const {repeat} = await window.__lfRuntimeImport('/vendor/browser-runtime.js');
+      const {render} = await window.__lfRuntimeImport('/runtime/dom-children.js');
       const {orderChildren} = await window.__lfRuntimeImport('/runtime/dom-children.js');
       const {move, holdFocus} = await window.__lfRuntimeImport('/runtime/widget-api.js');
       const rows = document.querySelector('#rows');
@@ -10113,7 +10259,10 @@ def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, nativ
           <iframe title="${id}" srcdoc="<p>Retained frame</p>"></iframe>`;
         return row;
       });
-      orderChildren(rows, nodes);
+      const paint = nodes => renderer === 'lit'
+        ? render(repeat(nodes, node => node.dataset.row, node => node), rows)
+        : orderChildren(rows, nodes);
+      paint(nodes);
       const editor = rows.querySelector('[data-row=c] input');
       window.blurs = 0;
       editor.addEventListener('blur', () => window.blurs++);
@@ -10121,17 +10270,19 @@ def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, nativ
         if (event.key === 'ArrowUp' && event.altKey) {
           event.preventDefault();
           const restore = holdFocus(rows);
-          orderChildren(rows, [nodes[2], nodes[0], nodes[1]]);
+          paint([nodes[2], nodes[0], nodes[1]]);
           restore?.();
         } else if (event.key === 'ArrowDown' && event.altKey) {
           event.preventDefault();
           const restore = holdFocus(rows);
-          move(document.querySelector('#other'), editor.closest('[data-row]'), null);
+          const other = document.querySelector('#other');
+          if (renderer === 'lit') render(nodes[2], other);
+          else move(other, editor.closest('[data-row]'), null);
           restore?.();
         }
       });
     }""",
-        native_move,
+        [native_move, renderer],
     )
     editor = page.get_by_role("textbox", name="c", exact=True)
     editor.fill("unfinished words")
@@ -10176,6 +10327,116 @@ def test_retained_moves_keep_native_editor_and_frame_state(browser, serve, nativ
               selectionBackward(selection)];
     }"""
     ) == [True, False]
+
+
+def test_editor_caret_hold_releases_after_unchanged_selection(browser, serve):
+    page = open_page(
+        browser,
+        serve(leaf_page("Editor caret", "<h1>Editor caret</h1><div id='seat'></div>")),
+    )
+    page.evaluate("""() => {
+      const field = document.createElement('leaf-text');
+      field.value = 'Intentional selection';
+      document.querySelector('#seat').append(field);
+      field.focus();
+      field.setSelectionRange(4, 4);
+    }""")
+    field = page.locator("#seat leaf-text")
+    expect(field).to_be_focused()
+    # Exercise the reconnect path after the initial focus events have settled.
+    field.evaluate(
+        "node => { node.setSelectionRange(4, 4); node.connectedCallback(); }"
+    )
+    # The first selectionchange leaves the held caret intact. It still consumes
+    # the hold, so a later programmatic change belongs to its caller.
+    page.evaluate("""() => new Promise(resolve => {
+      document.addEventListener('selectionchange', () => queueMicrotask(resolve), {once: true});
+      document.dispatchEvent(new Event('selectionchange'));
+    })""")
+    assert field.evaluate("node => node.selectionStart") == 4
+    field.evaluate("node => node.setSelectionRange(9, 9)")
+    page.evaluate("""() => new Promise(resolve => {
+      document.addEventListener('selectionchange', () => queueMicrotask(resolve), {once: true});
+      document.dispatchEvent(new Event('selectionchange'));
+    })""")
+    assert field.evaluate("node => [node.selectionStart, node.selectionEnd]") == [9, 9]
+
+
+def test_a_field_keeps_what_it_held_before_its_editor_and_takes_focus_at_once(
+    browser, serve
+):
+    """A field builds its editor when first needed (composing/text-field.js). Before
+    that its words, external edits and owner steps stand without a view, and undo walks
+    them in order once it has one. A focus that bypasses the field's `focus()`, as a
+    driver's from its isolated world does, builds the editor in the same turn, so the
+    keys after it reach the words."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page("Editor history", "<h1>Editor history</h1><div id='seat'></div>")
+        ),
+    )
+    assert page.evaluate("""() => {
+      const field = document.createElement('leaf-text');
+      window.steps = [];
+      field.value = 'Draft';
+      field.edit('Draft edited');
+      field.record(() => steps.push('undo'), () => steps.push('redo'));
+      // Connected but not yet given a box by a rendering update.
+      document.querySelector('#seat').append(field);
+      const unbuilt = !field.matches(':state(ready)');
+      HTMLElement.prototype.focus.call(field);
+      return [unbuilt, field.matches(':state(ready)'), document.activeElement === field];
+    }""") == [True, True, True]
+    field = page.locator("#seat leaf-text")
+    page.keyboard.type(" now")
+    expect(field).to_have_js_property("value", "Draft edited now")
+    undone = []
+    for _ in range(3):
+        page.keyboard.press("ControlOrMeta+z")
+        undone.append(field.evaluate("node => [node.value, steps.join()]"))
+    assert undone == [
+        ["Draft edited", ""],
+        ["Draft edited", "undo"],
+        ["Draft", "undo"],
+    ]
+
+
+def test_unfocused_editor_move_leaves_later_selection_alone(browser, serve):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Editor caret",
+                "<h1>Editor caret</h1><div id='first'></div><div id='second'></div>",
+            )
+        ),
+    )
+    page.evaluate("""() => new Promise(resolve => {
+      const field = document.createElement('leaf-text');
+      field.value = 'Intentional selection';
+      document.querySelector('#first').append(field);
+      document.addEventListener('selectionchange', () => queueMicrotask(resolve), {once: true});
+      field.focus();
+      field.setSelectionRange(4, 4);
+    })""")
+    held = page.evaluate("""() => {
+      const field = document.querySelector('#first leaf-text');
+      field.blur();
+      const unfocused = !field.matches(':focus');
+      document.querySelector('#second').append(field);
+      return [field.selectionStart, unfocused];
+    }""")
+    assert held == [4, True]
+    editor = page.locator("#second leaf-text")
+    page.evaluate("""() => new Promise(resolve => {
+      document.addEventListener('selectionchange', () => queueMicrotask(resolve), {once: true});
+      const field = document.querySelector('#second leaf-text');
+      field.focus();
+      field.setSelectionRange(9, 9);
+    })""")
+    expect(editor).to_be_focused()
+    assert editor.evaluate("node => [node.selectionStart, node.selectionEnd]") == [9, 9]
 
 
 def test_named_form_controls_leave_shadow_scroll_and_standing_readings_available(

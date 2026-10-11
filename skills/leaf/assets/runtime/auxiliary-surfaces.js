@@ -64,7 +64,7 @@ import {
   standingIn,
 } from "./focus.js";
 import { userStore } from "./storage.js";
-import { pagePresented } from "./presentation.js";
+import { pagePresented } from "./page-paint.js";
 import { keeps, keepsHidden } from "./keeps.js";
 import { nextRender } from "./rendering.js";
 

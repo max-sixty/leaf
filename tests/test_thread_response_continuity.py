@@ -394,7 +394,7 @@ def test_passive_reply_room_ends_at_native_edit_and_new_inline_measure(browser, 
     "place", ["outlet", "seat", "nested-room", "nested-end", "margin", "panel"]
 )
 def test_refused_reply_retains_its_live_foot(browser, serve, place):
-    """Removing a provisional turn preserves the live Send and following passage.
+    """Removing a provisional turn preserves the live action and following passage.
 
     Native and panel thread bodies and both scroll boundaries exercise the same rule.
     The refused draft is retryable, and only its eventual acceptance reaches the log.
@@ -510,7 +510,9 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
             const {left, top, bottom} = subject.getBoundingClientRect();
             return {left, top, bottom};
           };
-          const pose = {send: rect(node.querySelector('.lf-thread-send')),
+          const action = [...node.querySelectorAll('.lf-compose-submit, .lf-compose-dictate')]
+            .find(button => button.checkVisibility());
+          const pose = {action: rect(action),
             tail: rect(document.querySelector('#continuity-tail'))};
           const close = document.querySelector('.lf-margin-preview-close');
           if (close?.checkVisibility()) pose.close = rect(close);
@@ -520,15 +522,14 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
             const fits = rect => rect.left >= bounds.left && rect.right <= bounds.right
               && rect.top >= bounds.top && rect.bottom <= bounds.bottom;
             const field = node.querySelector('leaf-text').getBoundingClientRect();
-            const send = node.querySelector('.lf-thread-send').getBoundingClientRect();
-            if (!fits(field) || !fits(send))
+            if (!fits(field) || !fits(action.getBoundingClientRect()))
               throw new Error('the floating reply exceeds its allocated card');
           }
           return pose;
         }""")
 
     pending = pose()
-    assert 0 < pending["send"]["top"] < pending["send"]["bottom"] < 900
+    assert 0 < pending["action"]["top"] < pending["action"]["bottom"] < 900
     held.pop().fulfill(
         status=400,
         json={
@@ -591,11 +592,12 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
 def test_narrow_panel_editor_growth_retains_the_live_send(
     browser, serve, contents, integer_band, viewport
 ):
-    """Wrapping keeps a short editor's top and a long editor's pinned Send steady.
+    """Wrapping keeps a short editor's top and a long editor's pinned action steady.
 
     Default typography gives the list a fractional height. An authored integer
     line-box theme supplies its contrast without changing any geometry rule.
-    Both the first wrap and a later wrap beside a held send preserve that placement.
+    Both the first wrap and a later wrap beside a held send preserve that placement
+    while the empty field's microphone gives way to Send.
     """
     from render_harness import holding, panel_settled
 
@@ -648,13 +650,14 @@ def test_narrow_panel_editor_growth_retains_the_live_send(
         const field = event.composedPath().find(node => node.matches?.('leaf-text'));
         const row = field?.closest('.lf-thread-reply');
         if (!row) return;
-        const send = row.querySelector('.lf-thread-send');
+        const action = [...row.querySelectorAll('.lf-compose-submit, .lf-compose-dictate')]
+          .find(button => button.checkVisibility());
         const list = row.closest('.lf-threads');
         const floor = list.getBoundingClientRect().bottom
           - parseFloat(getComputedStyle(list).paddingBottom)
           - parseFloat(getComputedStyle(row).bottom);
         window.editorGrowth.push({type, field: field.getBoundingClientRect().toJSON(),
-          send: send.getBoundingClientRect().toJSON(), row: row.getBoundingClientRect().toJSON(), floor});
+          action: action.getBoundingClientRect().toJSON(), row: row.getBoundingClientRect().toJSON(), floor});
       }, true);
     }""")
     held = []
@@ -681,23 +684,23 @@ def test_narrow_panel_editor_growth_retains_the_live_send(
         assert (before["type"], after["type"]) == ("beforeinput", "input")
         assert after["field"]["height"] > before["field"]["height"], poses
         for edge in ("left", "right"):
-            assert abs(after["send"][edge] - before["send"][edge]) < 0.5, poses
+            assert abs(after["action"][edge] - before["action"][edge]) < 0.5, poses
         if contents == "short":
             assert after["field"]["top"] == pytest.approx(
                 before["field"]["top"], abs=0.5
             ), poses
             growth = after["field"]["height"] - before["field"]["height"]
             for edge in ("top", "bottom"):
-                assert after["send"][edge] - before["send"][edge] == pytest.approx(
+                assert after["action"][edge] - before["action"][edge] == pytest.approx(
                     growth, abs=0.5
                 ), poses
         else:
             for pose in (before, after):
                 assert pose["row"]["bottom"] == pose["floor"], poses
             for edge in ("top", "bottom"):
-                assert abs(after["send"][edge] - before["send"][edge]) < 0.5, poses
+                assert abs(after["action"][edge] - before["action"][edge]) < 0.5, poses
         assert 0 <= after["field"]["top"] < after["field"]["bottom"] <= viewport[1]
-        assert 0 <= after["send"]["top"] < after["send"]["bottom"] <= viewport[1]
+        assert 0 <= after["action"]["top"] < after["action"]["bottom"] <= viewport[1]
     held.pop().continue_()
     round_trip(page)
     rendered(page)

@@ -36,8 +36,7 @@ export function createRegionSelector({
   openComposerWithMedia,
   returnTo = null,
 }) {
-  let settled;
-  const done = new Promise((resolve) => (settled = resolve));
+  const { promise: done, resolve: settled } = Promise.withResolvers();
   const standing = focused();
   const origin = standing === document.body ? returnTo : standing;
   const overlay = el("div", "lf-ui lf-region-capture");

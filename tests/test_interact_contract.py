@@ -1219,7 +1219,7 @@ def test_a_bare_re_vendor_replaces_a_broken_vendored_registry(page_dir):
 def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
     """The preview holds replacement back; its writer finishes before the test
     releases the page, including when a preview assertion fails."""
-    before = registry_storage.layer_generation(page_dir)
+    before = registry_storage.layer_metadata(page_dir)["generation"]
     theme = page_dir / "theme.css"
     theme.write_text(theme.read_text() + "\n/* repair this installed edit */\n")
     init_waiting = threading.Event()
@@ -1247,9 +1247,9 @@ def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
                 bool,
                 failure="Re-vendoring did not attempt the preview lock",
             )
-            assert registry_storage.layer_generation(page_dir) == before
+            assert registry_storage.layer_metadata(page_dir)["generation"] == before
         initing.result()
-    assert registry_storage.layer_generation(page_dir) != before
+    assert registry_storage.layer_metadata(page_dir)["generation"] != before
 
 
 def test_revendoring_serializes_with_a_browser_action_entering_the_log(
@@ -3778,6 +3778,52 @@ def test_init_refuses_handling_that_a_batch_could_not_carry(
         "$events.handling must map declared kinds to a non-empty list of clauses"
         in result.output
     )
+
+
+def test_the_events_reference_names_the_fields_each_kind_declares():
+    """events.md's kind table agrees with `$events.kinds`, the schema admission enforces.
+
+    The table has one row per declared kind. A code span in a row's Fields cell that
+    opens on a name (`messages: [...]` names `messages`) must be a field that kind
+    declares; parentheses hold values and qualifications, not fields. Every field
+    the kind requires appears in its row, except those the opening paragraph
+    describes once for every kind: the fields all kinds require, `revision`, and
+    the posting session's `agent` and `session`.
+    """
+    kinds = json.loads((schema_model.ASSETS / "registry.json").read_text())["$events"][
+        "kinds"
+    ]
+    text = Path(schema_model.__file__).with_name("events.md").read_text()
+    opening, table = text.split("\n| Kind |", 1)
+    shared = set.intersection(
+        *(set(kind["record"]["required"]) for kind in kinds.values())
+    )
+    described_once = shared | {"revision", "agent", "session"}
+    assert {name for name in described_once if f"`{name}`" not in opening} == set()
+
+    listed, rows = [], {}
+    for line in table.split("\n\n", 1)[0].splitlines()[2:]:
+        kind, _author, _door, cell, _meaning = (
+            part.strip() for part in line.strip().strip("|").split("|")
+        )
+        while (bare := re.sub(r"\([^()]*\)", "", cell)) != cell:
+            cell = bare
+        listed.append(kind.strip("`"))
+        rows[listed[-1]] = {
+            match[1]
+            for span in re.findall(r"`([^`]*)`", cell)
+            if (match := re.match(r"([a-z_]+)(?::|$)", span))
+        }
+    assert sorted(listed) == sorted(kinds)
+
+    drift = {}
+    for name, named in rows.items():
+        record = kinds[name]["record"]
+        undeclared = named - set(record["properties"])
+        missing = set(record["required"]) - described_once - named
+        if undeclared or missing:
+            drift[name] = {"undeclared": undeclared, "missing": missing}
+    assert drift == {}
 
 
 HANDLING_WALKTHROUGH = """\

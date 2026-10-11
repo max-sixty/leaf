@@ -59,7 +59,7 @@ function semanticSchema(schema) {
   );
 }
 
-export function detailSchema(entry, spec) {
+function detailSchema(entry, spec) {
   const record = spec.record;
   if (!record) return spec.detail;
   const value =
@@ -86,7 +86,6 @@ export function stateDefinition(origin, entry, spec) {
     unit: spec.unit,
     record: spec.record ?? null,
     creates: spec.creates ?? null,
-    report: spec.report ?? false,
     detail: semanticSchema(detailSchema(entry, spec)),
   };
 }
@@ -114,11 +113,16 @@ export function sameStateDefinition(recorded, current) {
   );
 }
 
+// The operation is the fields stateDefinition writes now, detail aside; a field an
+// earlier Leaf recorded beside them never retracts a decision. registry/contract.py's
+// same_state_operation holds the same rule.
 export function sameStateOperation(recorded, current) {
   if (!recorded || !current) return false;
-  const { detail: _recordedDetail, ...recordedOperation } = recorded;
-  const { detail: _currentDetail, ...currentOperation } = current;
-  return sameStateDefinition(recordedOperation, currentOperation);
+  return Object.entries(current).every(
+    ([key, value]) =>
+      key === "detail" ||
+      (Object.hasOwn(recorded, key) && sameStateDefinition(recorded[key], value)),
+  );
 }
 
 export function eventSpec(entry, event) {

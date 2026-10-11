@@ -12,7 +12,9 @@ the smallest set that exposes distinct plausible failures beyond existing covera
 Retain a broad sweep only when its extra samples catch a failure that representative
 states or transitions miss; an investigation's sampling grid is not itself a regression
 requirement. Every run pays for the test's compute, so weigh the additional cost against
-the additional coverage. When a high-level browser test is slow, or fails on timing or
+the additional coverage. Each CI `test` job's summary says where its run's time went, by
+file, phase, Playwright call and the suite's own functions; `leaf-dev suite-profile`
+prints the same from the job's `pytest-results-*` artifact. When a high-level browser test is slow, or fails on timing or
 geometry outside its contract, repair its arrangement or move its contract to the lower
 boundary.
 
@@ -70,20 +72,27 @@ nightly tests, and an explicit file, node id, `-k`, `-m`, or `--lf` runs what it
 names. Both landing gates pass `--nightly-changed-since`, which adds the nightly tests
 whose own lines the change edits.
 
-Before handing over, run the tests that hold the behavior you changed, in any file
-and nightly ones included, named by node id or `-k`; find them by reading which tests
+Before handing over, run the tests that hold the behavior you changed, in any file and
+nightly ones included, named by node id or `-k`; find them by reading which tests
 exercise the code the change touches. Run `pnpm run test:runtime` too when the change
 reaches the runtime. A change lands only on a green landing gate, which runs the broad
-selection: a pull request's `test` job, or `wt merge`'s pre-merge. A failure there that
-your selection missed is the gate doing its job; fix it and push. Every other nightly
-test is CI's to report: the `test` job in `ci.yaml` runs the complete suite once main
-moves, and `tend-ci-fix` answers what it fails. That trade is the user's choice
-(2026-10-04): a pull request can land green and break a nightly test it never ran, and
-main can stay red while `tend-ci-fix` repairs it, so a red main is no reason to widen a
-change, its gate, or its test selection. Don't run the broad selection, `--run-nightly`, `-m nightly`, or
-a whole browser file locally outside a landing: each takes minutes to over an hour
-and slows every other session on the machine. To learn what main fails, read that
-job's run, and reproduce a failure it names by node id.
+selection: a pull request's `test` job, or `wt merge`'s pre-merge. A failure there
+that your selection missed is the gate doing its job; fix it and push. Every other
+nightly test is CI's to report: the `test` job in `ci.yaml` runs the complete suite
+once main moves, and `tend-ci-fix` answers what it fails. That trade is the user's
+choice (2026-10-04): a pull request can land green and break a nightly test it never
+ran, and main can stay red while `tend-ci-fix` repairs it, so a red main is no reason
+to widen a change, its gate, or its test selection. One complete suite always runs
+while newer commits land, and each new commit replaces the run waiting behind it,
+which GitHub records as cancelled. That is the design working: a suite per merge would
+report each commit slightly sooner at up to twenty times the CI usage. Don't run the
+broad selection, `--run-nightly`, `-m nightly`, or a whole browser file locally
+outside a landing: each takes minutes to over an hour and slows every other session on
+the machine. To learn what main fails, read that job's run, and reproduce a failure it
+names by node id. `tend-ci-fix` sees only that run, so a failure on main that it does
+not show, such as one only macOS reproduces, is left to a local session. Check whether
+a live session, worktree or open pull request already covers it; if none does, start a
+separate session (for example with `/dispatch`) to fix it and land the change.
 
 CLI output and agent-facing text are regtest recordings in
 `tests/_regtest_outputs/`, normalized for temporary paths and generated identities but
@@ -102,6 +111,11 @@ Subprocess tests invoke leaf through `LEAF_COMMAND`, and `bin/leaf` only where t
 launcher itself is the subject.
 
 ## Put each assertion at the boundary that owns it
+
+Each test module's docstring names its subject. A new test goes in the module whose
+docstring names the behavior it protects, not the one the change happened to open;
+where none does, start a module for that subject. Otherwise tests pile up wherever
+a change happened to land, and a module that was split grows back.
 
 File-side fixtures live in `interact_support.py`, browser fixtures in
 `render_harness.py`, reusable browser cases in `render_cases_*.py`.
@@ -126,10 +140,16 @@ in the suite. The render gate never opens the thread panel, so the suite opens i
 puts the gate's geometry readings to it, asserting each population and planting a
 fault there first.
 
-A render-gate test calls `render_version`, not one of its probes. Where the product already answers a reading's question, such as `shownBand` for the
+A test of what the gate reports for an authored page calls `render_version`. A test
+whose state no authored page reaches, such as DOM a script builds or changes after
+load, a patched widget hook, or the thread panel, puts the page in that state and
+calls the probe through `leaf.render_checks.evaluate_probe`.
+
+Where the product already answers a reading's question, such as `shownBand` for the
 band a box shows, consume that answer instead of copying it: `root_overflow` for
-whether the page scrolls sideways, `draft_key` for where a draft is stored, and
-`event_log.read_events` for what the log holds. Page-side code reaches a runtime
+whether the page scrolls sideways, `draft_key` for where a draft is stored,
+`stored_draft` for the record stored there, and `event_log.read_events` for what
+the log holds. Page-side code reaches a runtime
 module through `window.__lfRuntimeImport`; a bare `/runtime/…` import loads a second
 instance that shares none of the page's state.
 
@@ -142,10 +162,10 @@ A test over prose compares it with something the machine states: a shown command
 against the click tree, an `x-` key against the guide, a table against its registry.
 Leave wording with no machine side to review.
 
-Focus evidence starts in keyboard modality: press `Tab` to the exact stop and require
-`:focus-visible`, or `:focus` on the runtime's text field (`leaf-text`), a host that
-delegates focus and so never matches `:focus-visible` in Chrome; `element.focus()` alone
-is not that evidence.
+Focus rings show actual focus regardless of input route. Exercise real clicks and
+keyboard arrivals when testing that shared treatment, require `:focus`, and compare
+the resulting paint. A keyboard navigation test still reaches its exact stop with
+`Tab` or its declared command; `element.focus()` alone does not prove that route.
 `RELEASE_FOCUS` (`render_harness.py`) resets the sequential starting point; `blur()` keeps
 it; `document.body.focus()` does nothing, since body holds no stop. Read
 a ring's actual paint through `RINGS_DRAWN` and `ring_faults`, because an ancestor or
@@ -269,7 +289,10 @@ do not expose their input context to JavaScript instrumentation. A native sensor
 fixture captures its DOM commit callback with `lfInputWork.capture` during the
 trusted handler and invokes that callback after `await`; the capture states the
 cause instead of guessing among concurrent operations. Leaf's draft sends put words
-away synchronously before awaiting delivery.
+away synchronously before awaiting delivery. The `toggle` a summary's activation
+announces belongs to the input whose click, trusted or dispatched by its work, opened
+it. A widget preparation (`lfObserveWidgetPreparations`) carries the input whose work
+declared it to its landing, which that input owns in the shift watch.
 
 Private document-channel endpoints publish `lfDocumentPort` on the bootstrap
 element before their first message. The harness enrolls those endpoints in input
@@ -450,9 +473,9 @@ every scroller to either end and back loses its words. The last four read a
 its timers and browser rendering still run.
 All of them run on every corpus page, so a new widget or page joins without a case of
 its own; a new surface joins the round trips by its keys, and a new box the typed
-boxes by its route. Run generated-markup probes (`undeclaredAttrs`,
-`relativeReplays`) through
-`leaf.render_checks.evaluate_probe` on fixtures that can trigger them.
+boxes by its route. Generated-markup probes (`undeclaredAttrs`, `relativeReplays`)
+run on fixtures that can trigger them, as "Put each assertion at the boundary that
+owns it" says.
 
 ### Absences
 

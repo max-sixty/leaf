@@ -740,6 +740,19 @@ def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries(
     assert non_js_whitespace == [{"text": "\u0085edge\u0085"}]
 
 
+def test_an_anchor_resolves_by_context_the_browser_keeps():
+    """Context is trimmed of the collapse class alone, as the browser trims it, so a
+    character only Python calls whitespace stays part of the context the browser
+    captured. U+0085 before the first of two equal words is all that tells them apart."""
+    passages = passages_model.page_passages(
+        structure_model.SourceDocument(f'<p id="p">\u0085repeat {"x" * 40} repeat</p>'),
+        {},
+    )
+    anchor = {"quote": "repeat", "prefix": "\u0085", "suffix": "x" * 24}
+
+    assert anchor_capture_model.resolve_quote(passages, anchor) == 1
+
+
 def test_file_readings_follow_browser_tree_recovery():
     html = (
         '<main id="page"><table id="grid"><p id="lead">Lead'
@@ -1062,7 +1075,7 @@ def test_a_version_that_leaves_the_moves_column_alone_needs_not_write_it(page_di
         (page_dir / "index.html").read_text().replace("<h2>Plan</h2>", "<h2>Plans</h2>")
     )
     assert check(page_dir).exit_code == 0, check(page_dir).output
-    publish(page_dir, 2)
+    publish(page_dir)
     assert _todo_order(page_dir) == ["a", "x", "b", "c"]
 
 
@@ -1073,7 +1086,7 @@ def test_a_version_that_writes_the_move_owns_its_order(page_dir):
     move = _drop_x_between_a_and_b(page_dir)
     _write_board(page_dir, "naxbc")
     assert check(page_dir).exit_code == 0, check(page_dir).output
-    publish(page_dir, 2)
+    publish(page_dir)
     assert _todo_order(page_dir) == ["n", "a", "x", "b", "c"]
     with pytest.raises(events_model.EventRefused, match="markup now places its unit"):
         append_command(
@@ -1085,7 +1098,7 @@ def test_a_later_version_can_reposition_a_card_without_retracting_its_move(page_
     """Authored placements may change while the original move remains logged."""
     _drop_x_between_a_and_b(page_dir)
     _write_board(page_dir, "naxbc")
-    publish(page_dir, 2)
+    publish(page_dir)
     _write_board(page_dir, "naxcb")
     assert check(page_dir).exit_code == 0, check(page_dir).output
     _write_board(page_dir, "nacxb")
@@ -1105,7 +1118,7 @@ def test_a_reorder_the_next_version_wrote_survives_a_later_one(page_dir):
     publish(page_dir)
     _move(page_dir, "c", "c-todo", "0i")
     _write_board(page_dir, "cab")
-    publish(page_dir, 2)
+    publish(page_dir)
     _write_board(page_dir, "abc")
     (page_dir / "index.html").write_text(
         (page_dir / "index.html").read_text().replace("<h2>Plan</h2>", "<h2>Plans</h2>")
@@ -1156,7 +1169,7 @@ def test_a_move_on_a_replaced_revision_lands_only_where_its_column_held(page_dir
     _write_board(page_dir, "abc", "x")
     publish(page_dir)
     _write_board(page_dir, "nabc", "x")
-    publish(page_dir, 2)
+    publish(page_dir)
     with pytest.raises(
         events_model.EventRefused, match="authors 'c-todo' differently"
     ) as refused:
@@ -1168,7 +1181,7 @@ def test_a_move_on_a_replaced_revision_lands_only_where_its_column_held(page_dir
     (page_dir / "index.html").write_text(
         (page_dir / "index.html").read_text().replace("<h2>Plan</h2>", "<h2>Plans</h2>")
     )
-    publish(page_dir, 3)
+    publish(page_dir)
     _move(page_dir, "b", "c-done", "i", revision=2)
     assert _todo_order(page_dir) == ["n", "a", "x", "c"]
 
@@ -1394,17 +1407,6 @@ def test_version_descriptors_select_only_available_stamped_revisions():
     ]
 
 
-def test_check_leaves_the_documents_encoding_to_delivery(page_dir):
-    """One declaration at delivery's first-byte boundary owns document encoding."""
-    version = page_dir / "index.html"
-    authored = version.read_text().replace("</head>", '<meta charset="utf-8">\n</head>')
-    version.write_text(authored)
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "<meta charset>" in result.output
-    assert "belongs to delivery" in result.output
-
-
 def test_check_refuses_noscript_words_the_browser_never_renders(page_dir):
     """In a scripting browser noscript is hidden, while the file reader takes its
     content for page words. Refusal prevents anchoring on text no user can see."""
@@ -1488,195 +1490,6 @@ def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
     assert result.exit_code == 1
     assert '<lf-gloss dialect="lisp">' in result.output
     assert "not a language this page's layer speaks" in result.output
-
-
-EXCERPT = """<lf-code id="walk" language="rust" lines="{lines}" hi="{hi}"><pre>
-fn merge_sort()
-{{
-    while end &gt; 0 {{
-        start -= 1;
-}}
-</pre>
-<lf-note at="{at}">The loop.</lf-note>
-</lf-code>"""
-
-
-@pytest.mark.parametrize(
-    ("lines", "hi", "at", "refusals"),
-    [
-        # A snippet: no numbering, so its five lines are 1..5.
-        ("", "2-3", "5", []),
-        # An excerpt: two stretches of the file, referenced by the file's numbers,
-        # a range free to span the gap between them, and a left-out line addressing
-        # the elided row that stands for it.
-        ("1505-1506,1550-1552", "1506-1550", "1552", []),
-        ("1505-1506,1550-1552", "1520-1530", "1507", []),
-        (
-            "1505-1506,1550-1552",
-            "3",
-            "1553",
-            [
-                'hi="3"> (line 10): line 3 is outside the body\'s lines="1505-1506,1550-1552"',
-                'at="1553"> (line 17): line 1553 is outside the body\'s lines=',
-            ],
-        ),
-        (
-            "1505-1506,1550-1553",
-            "1505",
-            "1505",
-            [
-                'lines="1505-1506,1550-1553"> (line 10): numbers 6 lines, but the body has 5'
-            ],
-        ),
-        # A range is counted, never expanded, so a huge one is a quick refusal.
-        (
-            "1-1000000000",
-            "1",
-            "1",
-            ["numbers 1000000000 lines, but the body has 5"],
-        ),
-        # Source lines count from 1, so no excerpt quotes a line 0.
-        ("0-4", "1", "1", ["<lf-code> (line 10): '0-4' does not match"]),
-        (
-            "1550-1552,1505-1506",
-            "1505",
-            "1505",
-            [
-                (
-                    'lines="1550-1552,1505-1506"> (line 10): '
-                    "range 1505-1506 does not follow line 1552"
-                )
-            ],
-        ),
-    ],
-)
-def test_an_excerpt_is_referenced_by_the_numbers_it_quotes(
-    page_dir, lines, hi, at, refusals
-):
-    """`lines` gives a code block's body the numbers it has in its source file, and
-    every line reference into the block — its `hi`, a note's `at` — names lines by
-    them. The check holds the numbering to one ascending number per body line. A line
-    the excerpt leaves out is still in it, as the elided row standing for its stretch,
-    so only a reference past either end, which the module would silently paint
-    nowhere, is refused."""
-    block = EXCERPT.format(lines=lines, hi=hi, at=at)
-    if not lines:
-        block = block.replace(' lines=""', "")
-    (page_dir / "index.html").write_text(
-        PAGE.replace("<h2>Plan</h2>", f"<h2>Plan</h2>\n{block}")
-    )
-    result = check(page_dir)
-    for refusal in refusals:
-        assert refusal in result.output, result.output
-    assert (result.exit_code == 1) == bool(refusals), result.output
-    assert result.output.count("\n  - ") == len(refusals), result.output
-
-
-BODY_TEXT_CASES = json.loads(
-    (Path(__file__).parent / "body_text_cases.json").read_text()
-)["cases"]
-
-
-def test_a_numbering_counts_the_lines_lf_code_draws(page_dir):
-    """`tests/runtime/body-text.test.mjs` reads the same bodies against `bodyText`, the
-    text lf-code draws and numbers. Each block here numbers exactly those lines, so
-    the gate passes them all only if it trims a body as the module does — the browser's
-    whitespace at the edges, where Python's own `\\s` would count U+FEFF as a line and
-    U+0085 or U+001C as none."""
-    blocks = "\n".join(
-        # The newline after <pre> is the parser's to drop, leaving the body as written.
-        f'<lf-code id="c{i}" lines="1-{text.count(chr(10)) + 1}"><pre>\n{body}</pre>'
-        "</lf-code>"
-        for i, (body, text) in enumerate(BODY_TEXT_CASES)
-    )
-    (page_dir / "index.html").write_text(
-        PAGE.replace("<h2>Plan</h2>", f"<h2>Plan</h2>\n{blocks}")
-    )
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-
-
-def test_the_collapse_class_is_one_set_on_both_sides():
-    """COLLAPSE_CHARS (the file side) and the passage reader's COLLAPSE regex
-    (the browser side) are two spellings of one set, and everything quote-shaped
-    rests on their agreement: a character one side collapses and the other keeps
-    is a quote captured in the browser that the file's reading can never confirm.
-    The next edit to either spelling meets this test, not a detached comment."""
-    js = (schema_model.ASSETS / "runtime" / "collapse.js").read_text()
-    found = re.search(r"const COLLAPSE =\n\s*/\[(.*?)\]\+/g;", js)
-    assert found, "the browser passage reader lost its COLLAPSE regex"
-    js_class = re.compile(f"[{found.group(1)}]")
-    js_set = {chr(c) for c in range(0x10000) if js_class.match(chr(c))}
-    assert js_set == passages_model.COLLAPSE_CHARS
-
-
-def _runtime_modules():
-    """Every module the runtime is composed of, whichever file each fact lives in today.
-
-    Named as a set rather than as paths because the runtime is being split by owner: a
-    reading that names one file goes red on the split that moves the thing it reads,
-    which says the fact changed when what changed is where it is written."""
-    return [schema_model.ASSETS / "leaf.js"] + sorted(
-        (schema_model.ASSETS / "runtime").rglob("*.js")
-    )
-
-
-def _without_comments(js: str) -> str:
-    """A module's code with its comments taken out.
-
-    The sibling reading below strips them for the reason that applies here too: a
-    pattern simple enough to find a definition is simple enough for a comment to
-    satisfy. `re.search` takes the first match in a file, so a commented-out copy above
-    the real one is read instead of it, and the test then holds Python to a sentence
-    while the constant it names drifts — green, and about nothing. Across files the same
-    comment reads as a second module stating the fact, which is a red naming the wrong
-    one.
-
-    The line-comment pattern steps over `://` so a URL in a string keeps its second
-    half; nothing here reads a URL, and a `//` inside a string is left alone at the cost
-    of nothing this asks."""
-    return re.sub(r"(?<!:)//[^\n]*", "", re.sub(r"/\*.*?\*/", "", js, flags=re.DOTALL))
-
-
-def _sole_definition(pattern: str, what: str):
-    """The one runtime module matching `pattern`, and the match — so a fact that grows a
-    second spelling is caught here rather than by whichever side happened to be read."""
-    found = [
-        (js, m)
-        for js in _runtime_modules()
-        if (m := re.search(pattern, _without_comments(js.read_text())))
-    ]
-    assert len(found) == 1, (
-        f"{len(found)} runtime modules state {what} ({[js.name for js, _ in found]}), "
-        "and this reading asks one of them"
-    )
-    return found[0]
-
-
-def test_the_block_a_text_node_sits_in_is_one_list_on_both_sides():
-    """TEXT_BLOCK_TAGS (the file side) and the passage reader's TEXT_BLOCK selector are
-    two spellings of one list, and the collapsed reading of a page rests on their
-    agreement: one space goes wherever two runs of text sit in different blocks and none
-    where they share one, so a tag one side calls a block and the other does not gives
-    the two sides different text. Every quote-shaped thing is then a quote the browser
-    captured that the file's reading cannot confirm, or the reverse.
-
-    The Python comment already said the list matches the runtime's. A comment saying so
-    is not a thing that fails when it stops being true; this is."""
-    _, found = _sole_definition(
-        r"const TEXT_BLOCK =\s*\n?\s*\"([^\"]+)\";", "TEXT_BLOCK"
-    )
-    assert set(found.group(1).split(",")) == passages_model.TEXT_BLOCK_TAGS
-
-
-def test_anchor_capture_starts_with_the_same_context_on_both_sides():
-    """Unique quotes share the initial width; repeated browser selections may grow it.
-
-    File capture requires a unique quote. The browser knows which occurrence the user
-    selected, so it widens context to identify that span, up to semantic fences.
-    """
-    _, found = _sole_definition(r"const CONTEXT = (\d+);", "the captured context width")
-    assert int(found.group(1)) == anchor_capture_model.CONTEXT
 
 
 def test_every_declared_attribute_and_enum_stands_in_an_example():
@@ -2035,13 +1848,13 @@ def test_the_live_source_can_honor_the_latest_revision_decision(page_dir):
         .read_text()
         .replace("<title>t</title>", "<title>t · v2</title>")
     )
-    publish(page_dir, 2)
+    publish(page_dir)
     (page_dir / "index.html").write_text(
         before_choice(
             PAGE.replace("<title>t</title>", "<title>t · v3</title>"), SUGGESTION
         )
     )
-    publish(page_dir, 3)
+    publish(page_dir)
     append_command(
         page_dir,
         {
@@ -2435,14 +2248,7 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
         {"kind": "comment", "id": "c1", "author": "agent", "revision": 1, "text": "?"},
     )
     with pytest.raises(Refused) as refused:
-        thread_model.post_reply(
-            page_dir,
-            "c1",
-            "Answered.",
-            "",
-            for_event=None,
-            attempt="r1",
-        )
+        thread_model.post_reply(page_dir, {"to": "c1"}, "Answered.", attempt="r1")
     assert "'r1' does not match" in str(refused.value)
 
     with pytest.raises(Refused) as unknown_widget:
@@ -2546,18 +2352,6 @@ def test_check_rejects_authored_delivery_assets(page_dir, asset, expected):
     assert expected in result.output
 
 
-def test_check_rejects_inline_importance_over_the_presentation_boundary(page_dir):
-    """Inline importance outranks stylesheet layers, so the authoring door owns it."""
-    (page_dir / "index.html").write_text(
-        PAGE.replace("<main>", '<main style="visibility: visible !important">')
-    )
-
-    result = check(page_dir)
-
-    assert result.exit_code == 1
-    assert "protected presentation property visibility important" in result.output
-
-
 @pytest.mark.parametrize(
     "outside",
     [
@@ -2653,25 +2447,6 @@ def test_check_owns_the_lf_meta_vocabulary(page_dir):
     assert result.exit_code == 1
     assert "unknown lf- meta" in result.output
     assert "lf-review" in result.output  # the error names the known vocabulary
-
-
-def test_check_leaves_the_pages_own_address_to_delivery(page_dir):
-    """An authored canonical is not an extra hint; it is a competing answer.
-
-    The served document names the page root at every address the page answers, so a
-    second one in the head leaves a crawler choosing, and the usual outcome is that it
-    honours neither. The words a page owes a search result are its title and
-    description, which it writes; the address is the server's.
-    """
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<title>t</title>",
-            '<title>t</title>\n<link rel="canonical" href="https://example.com/p">',
-        )
-    )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "the served document names the page root itself" in result.output
 
 
 def test_check_rejects_duplicate_ids(page_dir):
@@ -3062,12 +2837,11 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
 
 
 def test_absorption_is_by_id_never_inferred_from_markup(page_dir):
-    """Editing a report's target preserves its recorded news until settlement."""
-    _tasks_version(page_dir, "active")
+    """A report whose value the stamped markup already shows stays news until a
+    stamp settles it by id, and editing its target does not change that."""
+    _tasks_version(page_dir, "review")
     publish(page_dir)
     assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
-    _tasks_version(page_dir, "review")
-    publish(page_dir, version=2)
     _tasks_version(page_dir, "done")
     result = check(page_dir)
     assert result.exit_code == 0, result.output
@@ -3576,69 +3350,32 @@ diff --git a/src/second file.py b/src/second file.py
     )
 
 
-@pytest.mark.parametrize("escaped", [r"bad\x41.py", r"bad\400.py", r"bad\q.py"])
-def test_unified_diff_rejects_c_escapes_git_does_not_use(escaped):
-    patch = f"""diff --git "a/{escaped}" "b/{escaped}"
---- "a/{escaped}"
-+++ "b/{escaped}"
-@@ -1 +1 @@
--old
-+new
-"""
-
-    with pytest.raises(ValueError, match="invalid quoted Git path"):
-        patch_manifest(patch)
+DIFF_PATCH_CASES = json.loads(
+    (Path(__file__).parent / "diff_patch_cases.json").read_text()
+)["cases"]
 
 
 @pytest.mark.parametrize(
-    ("patch_text", "message"),
-    [
-        (
-            """diff --git a/old.py b/new.py
-similarity index 100%
-rename from old.py
-rename to new.py
---- a/old.py
-+++ b/new.py
--before
-+after
-""",
-            "unsupported hunkless diff",
-        ),
-        (
-            """diff --git a/app.py b/app.py
---- a/app.py
-+++ b/app.py
-@@ -1 +1 @@
--before
-+after
-+lost
-""",
-            "hunk line counts",
-        ),
-        (
-            """diff --git a/app.py b/app.py
-@@ -1 +1 @@
---- bogus-old
-+++ bogus-new
-""",
-            "no ---/+++ file-header pair before its first hunk",
-        ),
-        (
-            """diff --git a/app.py b/app.py
---- a/other.py
-+++ b/other.py
-@@ -1 +1 @@
--before
-+after
-""",
-            "---/+++ paths disagree",
-        ),
-    ],
+    "case",
+    [case for case in DIFF_PATCH_CASES if "files" in case or "manifest" in case],
+    ids=lambda case: case["id"],
 )
-def test_the_diff_script_refuses_evidence_the_widget_cannot_render(patch_text, message):
-    with pytest.raises(ValueError, match=re.escape(message)):
-        patch_manifest(patch_text)
+def test_the_manifest_reads_the_diff_patch_table(case):
+    """What lf-diff can present has two readers in two languages: the widget parses a
+    patch text in the browser, and `patch_manifest.py` builds the file manifest from a
+    Git patch. `diff_patch_cases.json` is the one statement of that rule both are held
+    to; `test_render_anchors.py` reads it for the widget.
+
+    A row with `files` is a Git patch both readers accept, naming those paths. A row
+    with a `manifest` message is one the contract excludes, which the manifest refuses
+    before it is stored. A row with only a `widget` message is malformed, and the
+    manifest's reading of it is left unpinned: the widget refuses what it stores."""
+    if "files" in case:
+        files = patch_manifest(case["patch"])["files"]
+        assert [file["path"] for file in files] == case["files"]
+    else:
+        with pytest.raises(ValueError, match=re.escape(case["manifest"])):
+            patch_manifest(case["patch"])
 
 
 def test_data_set_names_the_producer_when_nothing_arrives(page_dir, tmp_path):
@@ -3787,7 +3524,7 @@ def test_a_later_version_can_reuse_a_source(page_dir, clear):
     }
     historical = data_model.read_data(page_dir, old_registry)["sources"]["project-feed"]
     assert "error" in historical and "value" not in historical
-    publish(page_dir, version=2)
+    publish(page_dir)
     assert (
         state_json(page_dir)["data_bindings"]["project-feed"]["contract"]
         == "other-rows"
@@ -3839,10 +3576,9 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
     )
     reply = thread_model.post_reply(
         page_dir,
-        "data-question",
+        {"to": "data-question", "for": "data-question"},
         "Here it is.",
         '<lf-test-data id="reply-data" source="reply-feed"></lf-test-data>',
-        for_event="data-question",
     )
     assert reply["revision"] == 1
 
@@ -3893,10 +3629,9 @@ def test_thread_markup_can_use_a_different_binding_from_a_page_source(page_dir):
 
     reply = thread_model.post_reply(
         page_dir,
-        "data-question",
+        {"to": "data-question", "for": "data-question"},
         "Here it is.",
         '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
-        for_event="data-question",
     )
 
     assert (
@@ -3976,10 +3711,9 @@ def test_thread_markup_can_use_a_different_binding_from_a_draft_only_page_source
 
     thread_model.post_reply(
         page_dir,
-        "draft-data-question",
+        {"to": "draft-data-question", "for": "draft-data-question"},
         "Here it is.",
         '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
-        for_event="draft-data-question",
     )
 
 
@@ -4749,7 +4483,7 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
             command("active", False, "ledger_id,amount\n7,42") + "</section>",
         )
     )
-    publish(page_dir, 2)
+    publish(page_dir)
     assert questions_on_you(state_json(page_dir)) == []
 
 

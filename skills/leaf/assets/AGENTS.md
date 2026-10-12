@@ -133,9 +133,10 @@ cards may move by that growth. A reply still streaming at the transcript's end i
 that growth arriving: it may change at its foot in place as its words come and as its
 answer completes it. So is an answer that folds the progress run standing at the
 transcript's end into Previous updates, unless the reader stands on a message it puts
-away, by focus or by a selection reaching into it: what stood from that run down may
-move, and nothing above it. The declaration permits no other changes to existing
-messages or independent movement of following content.
+away, by focus or by a selection reaching into it. A run on screen stays open where
+it stood, its group's border drawn around it, so the fold moves none of its words; a
+run off screen folds away (`thread-card.js`). The declaration permits no other changes
+to existing messages or independent movement of following content.
 News grows where the reader isn't looking: above the screen, where scroll anchoring
 takes the growth into what they scrolled past, or below it. An active composition
 keeps its editor still. `thread/held-news.js` states which appended replies may move
@@ -316,7 +317,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Annotation inventory and controls | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js` |
 | Annotation records and Page Map | `margin-model.js`, `margin-map-model.js`, `page-map-dialog.js`, `pointed-place.js` |
 | Physical annotation presentation | `../../packages/default/runtime/annotation-overlay/` |
-| Passages and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js`, `addressable-names.js` |
+| Passages and target identity | `passages.js`, `passage-facts.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js`, `addressable-names.js` |
 | Anchor placement, decoration and travel | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`, `indication.js` |
 | Banner and approvals | `banner*.js` |
 | Drawers and neighboring pages | `drawers.js`, `queue-panel.js`, `queue-list.js`, `live-leaves*.js` |
@@ -407,7 +408,7 @@ unresolved local work into the one reading every component selects from:
 | accepted history, and the reading applied | the server event log and its `/api/state` answer, adopted whole by the publisher |
 | unresolved browser work | the publisher's one ordered ledger |
 | thread, workflow, attention, Questions, tasks, activity, unread | the server's folds; the browser adds only its own unresolved sends and the versions it is marking read |
-| what is waiting on the user and on the agent | `queues.js`'s selection from those readings, the browser's side of `agent_state.queues` |
+| what is waiting on the user and on the agent, and what is done | the server's selection (`served_state.queues`), which `page state` prints; the publisher places this tab's sends against it (`localQueues`) |
 | what the DOM represents | the presentation coordinator's renderer tickets and preparation regions |
 | when a document-wide renderer paints | the publication that opened the epoch, in the order `runtime/semantic-state.js` declares |
 | where each thread's passage lands | `anchor-placement.js`'s resolution of its anchor in this version |
@@ -451,9 +452,15 @@ keeps its own test says why beside it. Rows marked *lint* are enforced in
 | Whether a change of size there would move what is seen | `geometry.js` `motionBand`, `growthIsSeen`, `growthAfterIsSeen` |
 | When none of some nodes is seen any more | `geometry.js` `whenNone` |
 | How much of the window the page shows | `geometry.js` `shownWindow` |
+| The window's box, less its scrollbars | `geometry.js` `layoutWindow` |
+| Whether the page puts a node before the user at all, what the pages holding it show of its window, and when either may have changed | `geometry.js` `presented`, `containingView`, `frameView`, `watchRoom` |
+| Whether a box standing against a target belongs in layout yet | `geometry.js` `nearWindow`, `nearObserver` |
+| Where an element-or-Range destination stands, and what clips leave of it | `geometry.js` `placeBox`, `clippedPlace` |
 | Whether a box is stuck, and the band sticky headers cover | `geometry.js` `stuckBox`, `headerInset` |
 | Whether a box scrolls, for a script or for the user | `geometry.js` `scrollContainer`, `scrollport`, `userScrollport` |
 | Which axes a box clips | `rect.js` `clippingAxes` |
+| Whether a box is at its scroll end | `scrolling.js` `atScrollEnd`, `SCROLL_SLACK` |
+| The page's `main` | `passages.js` `pageDocument` |
 | Whether a place is already shown, and the room a landing needs | `landing-scroll.js` `alreadyShown`, `landingRoom` |
 | Bring something into view without scrolling the page around it | `landing-scroll.js` `scrollIntoView` (*lint*) |
 | Open or close a native modal or popover | `keyboard/layer-stack.js` `showNativeLayer`, `closeNativeLayer` (*lint*) |

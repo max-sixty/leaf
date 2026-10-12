@@ -199,21 +199,21 @@ export function undeclaredAttrs(declarations) {
 }
 
 // The two sides of the settlement contract, compared on the rendered page. The mark —
-// data-lf-state on a holder — is the layer's paint of a logged decision (projection
-// reconciliation in leaf.js), and the anchor pass retires slots by it, so whatever it
-// says, the page's
-// reading obeys. What can still go wrong is a family's, and both failures render
-// perfectly: a module that writes the mark where the log decided nothing silences words
-// the user can still see and select, and a settled slot can show its words anyway — a
-// later layer's rule outranking the default hide, a module re-showing what it folded —
-// leaving the user selecting words no comment can anchor to, with the refusal
-// arriving later, at `leaf thread open`, nowhere near the mistake. So the expected outcome
-// comes from the file's reading (`decisions`, folded over this version's log), never
-// from the page, and the page answers only for what it shows.
+// data-lf-state on a holder — is the layer's paint of a logged decision
+// (`projection/presentation.js`, `paintSettlements`) for CSS to style; the anchor pass
+// retires slots by the application's reading of the same decision, never by the mark.
+// What can still go wrong is a family's, and both failures render perfectly: a module
+// that writes the mark where the log decided nothing styles words as settled that the
+// page still reads, and a settled slot can show its words anyway — a later layer's
+// rule outranking the default hide, a module re-showing what it folded — leaving the
+// user selecting words no comment can anchor to, with the refusal arriving later, at
+// `leaf thread open`, nowhere near the mistake. So the expected outcome comes from the
+// file's reading (`decisions`, folded over this version's log), never from the page,
+// and the page answers only for what it shows.
 //
 // The words walk is textNodesUnder's `unsilenced` reading, on purpose: the anchor
-// pass's `says` already skips a marked holder's slots, so asking it whether
-// the retired words are gone would let the mark answer for the screen. What it keeps
+// pass's `says` already skips a settled holder's slots, so asking it whether the
+// retired words are gone would let the decision answer for the screen. What it keeps
 // of that reading is the boundary — declared shadow roots, the same trees replay's
 // elementById marks across, which is why the holders are found through OPEN_ROOTS
 // too — and the chrome test: a declared label is the page's words, so a
@@ -261,8 +261,7 @@ export function retiredSlots(holders) {
       found.push(
         `${at} wears data-lf-state=${JSON.stringify(mark)} where the ` +
           `log records ${log} — the mark is the layer's paint of a logged ` +
-          `decision, and the anchor pass retires slots by it, so a module may ` +
-          `say only what the log decided`,
+          `decision, so a module may say only what the log decided`,
       );
       continue;
     }

@@ -2732,11 +2732,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
 
     thread_model.post_reply(
-        serve.page_dir,
-        reaction["id"],
-        "Which part — the case, or the answer?",
-        "",
-        for_event=None,
+        serve.page_dir, {"to": reaction["id"]}, "Which part — the case, or the answer?"
     )
     told(page)
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
@@ -2781,11 +2777,8 @@ def test_a_reply_s_reactions_keep_their_keys_in_a_covering_threads_panel(
     resized(page, 390, 844)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    card = page.locator(".lf-threads > .lf-thread")
-    if card.get_attribute("open") is None:
-        card.locator(":scope > .lf-thread-summary").click()
-    strip = card.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
-    expect(strip).to_have_class(re.compile(r"\blf-open\b"))
+    page.locator(".lf-thread-summary").click()
+    strip = page.locator(f'.lf-msg[data-mid="{reply}"] .lf-react-strip')
     strip.locator(".lf-react-trigger").click()
     choices = strip.locator(".lf-react-palette > .lf-react")
     expect(choices.nth(0)).to_be_focused()

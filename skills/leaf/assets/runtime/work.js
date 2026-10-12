@@ -2,10 +2,10 @@
  * Pages own their task and worker vocabulary through $work.widgets; this reader
  * owns progress, assignments, report age and stopped-work meaning independently
  * of how a dashboard composes those facts. */
-import { declarationFor, elementsDeclaring, layerFact } from "./registry.js";
+import { declarationFor, elementsDeclaring, layerFact, registry } from "./registry.js";
 import { readQuestions } from "./questions/model.js";
 import { quietSince } from "./presence.js";
-import { quoted } from "./widget-elements.js";
+import { quoted } from "./widget-descriptors.js";
 import { saidAt, reportSequence } from "./reports.js";
 import { widgetController } from "./widget-controller.js";
 import { addressableName } from "./addressable-names.js";
@@ -45,7 +45,9 @@ export function workAncestor(element, role) {
 function stateReport(element, role) {
   const verb = stateVerb(element, role);
   const spec = declarationFor(element, "x-state")[verb];
-  return spec.writer === "agent" ? [verb, spec] : [null, null];
+  return registry.$states[element.localName][verb].writer === "agent"
+    ? [verb, spec]
+    : [null, null];
 }
 
 function stateVerb(element, role) {

@@ -411,24 +411,26 @@ def _canonical_workflows(
 
 def _canonical_tasks(
     tasks: list[dict], present: dict, now: datetime, *, held: bool, turn: Turn
-) -> tuple[list[dict], dict[str, tuple[bool, bool]]]:
+) -> tuple[list[dict], dict[str, tuple[dict, bool, bool]]]:
     """Age the start running on each open task as a Working update's is aged, and
-    return beside them how quiet and whether dropped each is. Nobody holding the page
-    has nothing in hand, so an unheld page's tasks run nothing."""
+    return beside them, for each task a start ran on, that start and how quiet and
+    whether dropped it is. A task's `running` is the start that holds it: one gone
+    quiet holds nothing, so every reader of the task finds it open with nothing
+    running, while the page reading below still dates its stall by that start.
+    Nobody holding the page has nothing in hand, so an unheld page's tasks run
+    nothing."""
     result = []
     aging = {}
     for raw in tasks:
         task = dict(raw)
         start = task["running"]
-        if start is not None and not held:
-            task["running"] = None
-        elif start is not None:
+        if start is not None and held:
             quiet, dropped = _start_age(start, present, now, turn)
-            task["running"] = {
-                **start,
-                "condition": {"kind": "stale", "operation": "work"} if quiet else None,
-            }
-            aging[task["id"]] = (quiet, dropped)
+            aging[task["id"]] = (start, quiet, dropped)
+            if quiet:
+                task["running"] = None
+        else:
+            task["running"] = None
         result.append(task)
     return result, aging
 
@@ -507,7 +509,7 @@ def canonical_activity(
         (aging[item["id"]][0], aging[item["id"]][1:])
         for item in workflows
         if item["stage"] == "working"
-    ] + [(task["running"], task_aging[task["id"]]) for task in tasks if task["running"]]
+    ] + [(start, age) for start, *age in task_aging.values()]
 
     # Every moment at which some belief above lapses, each as a moment and the
     # grace that runs from it. Status age and the turn's ending can change ownership
@@ -646,6 +648,11 @@ def canonical_activity(
             observed.get("detail", "") if observed and kind == "working" else ""
         ),
         "observed_kind": observed["kind"] if observed and kind == "working" else None,
+        # Whether that step waits on the user in the agent's own window, where the
+        # user answers it rather than on the page.
+        "awaiting": bool(
+            observed and kind == "working" and observed["kind"] in AWAITING_KINDS
+        ),
         "counts": {
             "active": len(active_updates),
             "handling": len(handling),

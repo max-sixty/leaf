@@ -5569,6 +5569,64 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
     assert memberships["label1"] == []
 
 
+def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_standing_there():
+    """A later action on a deciding widget changes the thread an earlier answer there
+    closed, and its undo the same, until that answer is taken back or a version
+    retracts what it rested on: after either, the thread it closed is no longer the
+    later gesture's, as a revised suggestion that resolves another thread shows."""
+    from leaf.thread_context import thread_memberships
+
+    def decide(id, outcome, answer, revision=1):
+        return {
+            "kind": "action",
+            "id": id,
+            "revision": revision,
+            "widget": "sug-a",
+            "action": "decide",
+            "detail": {"outcome": outcome},
+            "meaning": {"unit": "sug-a", "depends": ["sug-a"], "answer": answer},
+        }
+
+    comments = [{"kind": "comment", "id": "c1"}, {"kind": "comment", "id": "c2"}]
+    names = {"c1": "c1", "c2": "c2"}
+    replaced = thread_memberships(
+        [
+            *comments,
+            decide("accept", "accept", "c1"),
+            decide("reject", "reject", None),
+            {"kind": "undo", "id": "unreject", "undoes": "reject"},
+        ],
+        names,
+        {},
+        {},
+    )
+    assert (replaced["reject"], replaced["unreject"]) == (["c1"], ["c1"])
+    taken_back = thread_memberships(
+        [
+            *comments,
+            decide("accept", "accept", "c1"),
+            {"kind": "undo", "id": "unaccept", "undoes": "accept"},
+            decide("reject", "reject", None),
+        ],
+        names,
+        {},
+        {},
+    )
+    assert (taken_back["unaccept"], taken_back["reject"]) == (["c1"], [])
+    restated = thread_memberships(
+        [
+            *comments,
+            decide("accept", "accept", "c1"),
+            {"kind": "note", "id": "v2", "revision": 2, "restated": ["sug-a"]},
+            decide("again", "accept", "c2", revision=2),
+        ],
+        names,
+        {},
+        {},
+    )
+    assert (restated["v2"], restated["again"]) == (["c1"], ["c2"])
+
+
 @pytest.mark.parametrize(
     ("history", "script_attrs", "template_attrs", "complaint"),
     [

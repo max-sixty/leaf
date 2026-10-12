@@ -327,10 +327,18 @@ def test_display_only_widget_does_not_suppress_a_prose_question():
 
 
 def lists(state) -> tuple[list, list, list]:
+    """Questions and Tasks as served, and the open asks whose next move is the
+    agent's."""
     queues = state["views"]["1"]["queues"]
-    return tuple(
-        sorted(item["id"] for item in queues[side])
-        for side in ("questions", "tasks", "held")
+    asks = [*questions(state)["all"], *state["views"]["1"]["thread"]["asks"]["all"]]
+    return (
+        sorted(item["id"] for item in queues["questions"]),
+        sorted(item["id"] for item in queues["tasks"]),
+        sorted(
+            ask["id"]
+            for ask in asks
+            if ask["status"] == "open" and ask["next_actor"] == "agent"
+        ),
     )
 
 

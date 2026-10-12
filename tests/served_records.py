@@ -196,22 +196,6 @@ def build() -> dict:
                     },
                 )
             ),
-            # The agent sends a choice into a thread and nobody has answered: the
-            # thread and its ask are the user's until they write after it.
-            "frozen ask awaits the user": served_reading(
-                PAGE,
-                (
-                    {
-                        "kind": "comment",
-                        "author": "agent",
-                        "agent": "Agent",
-                        "text": "Which route?",
-                        "markup": '<lf-options id="route" choose>'
-                        '<lf-option id="route-a">A</lf-option>'
-                        '<lf-option id="route-b">B</lf-option></lf-options>',
-                    },
-                ),
-            ),
             "queues on both sides": served_reading(
                 ASK_PAGE,
                 BOTH_SIDES,

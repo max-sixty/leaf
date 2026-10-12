@@ -13,9 +13,9 @@ import {
   isProjectionEntry,
 } from "../../runtime/projection/model.js";
 import {
-  stateDefinition,
-  eventSpec,
+  stampedState,
   sameStateDefinition,
+  sameStateOperation,
 } from "../../runtime/registry-contract.js";
 import {
   discussed,
@@ -300,6 +300,13 @@ function advance(
 
 
 
+/** One verb's state as composition stamps it (`registry.contract.stamp_states`). */
+
+
+
+
+
+
 
 
 
@@ -354,13 +361,14 @@ function advance(
 /** A server view with its basis, the transport identity, left off. */
 
 
-// The server classified each entry under the registry that admitted its reading, and
-// only it can compare a recorded operation another Leaf wrote (`served_state/wire.py`).
-// The page's descriptors may come from another revision's registry, so the browser
-// takes the classification as served rather than filtering it again.
+// The server classifies page entries under the shown revision's registry and thread
+// entries under the active revision's. A pinned earlier revision captured its thread
+// widgets under its own registry, so an entry whose operation that registry does not
+// define is one those widgets cannot draw, and it is left out.
 function normalizedProjection(
   view                             ,
   thread                                                     ,
+  document                                                     ,
 ) {
   const entries = [];
   const actionIds = [];
@@ -370,6 +378,10 @@ function normalizedProjection(
     if (!projection) continue;
     for (const wire of projection.entries) {
       const e = wire.event;
+      const descriptor = document?.descriptors.get(e.widget);
+      const stamp =
+        document && descriptor && stampedState(document.registry, descriptor.tag, e);
+      if (descriptor && !sameStateOperation(e.meaning?.state, stamp?.definition)) continue;
       const coordinate = JSON.stringify(wire.coordinate);
       entries.push({
         coordinate,
@@ -541,6 +553,7 @@ function widgetReading(
     : undefined;
   const declaration = descriptor.declaration;
   const actionSpecs = declaration["x-state"] ?? {};
+  const states = root.document.registry.$states[descriptor.tag] ?? {};
   const projection = root.effective.projection;
   const classified = [...projection.classified.values()]
     .filter(
@@ -565,7 +578,7 @@ function widgetReading(
   // state and never as a control.
   const actions = Object.fromEntries(
     Object.entries(actionSpecs)
-      .filter(([, spec]) => spec.writer === "user")
+      .filter(([verb]) => states[verb]?.writer === "user")
       .map(([verb]) => [
         verb,
         {
@@ -623,7 +636,7 @@ export function createSemanticApplication({
   const initial = {
     document: {
       revision: null,
-      registry: {},
+      registry: { $states: {} },
       authored: new Map(),
       descriptors: new Map(),
     }                    ,
@@ -639,7 +652,7 @@ export function createSemanticApplication({
     effective: derive(
       {
         revision: null,
-        registry: {},
+        registry: { $states: {} },
         authored: new Map(),
         descriptors: new Map(),
       },
@@ -679,39 +692,29 @@ export function createSemanticApplication({
     const view                  = served
       ? (({ basis: _basis, ...rest }) => rest)(served)
       : null;
-    const admitted = normalizedProjection(view, state?.browser.thread);
+    const admitted = normalizedProjection(view, state?.browser.thread, document);
     const classifiedIds = new Set(admitted.entries.map(({ e }) => e.id));
     // A revision may reuse a widget/verb with a different operation. Keep its pending
     // delivery, but stop drawing it against that new declaration. This tab wrote a
     // pending action's definition itself, so it draws while the shown declaration
     // still defines the same one; the server validates the durable payload. An undo
-    // draws while its target does: a pending target by that rule, a logged one while
-    // the server's reading of this document still classifies it.
+    // draws while its target draws: in the server's reading of this document, under
+    // the id the log gave it, or as a pending action by the rule above.
     const drawsAction = (e                      ) => {
       const descriptor = document.descriptors.get(e.widget);
-      const currentSpec = descriptor && eventSpec(descriptor.declaration, e);
-      return Boolean(
-        currentSpec &&
-          sameStateDefinition(
-            e.meaning?.state,
-            stateDefinition(descriptor.tag, descriptor.declaration, currentSpec),
-          ),
-      );
+      const state = descriptor && stampedState(document.registry, descriptor.tag, e);
+      return Boolean(state && sameStateDefinition(e.meaning?.state, state.definition));
     };
-    const compatiblePending = (projection                                        ) =>
-      projection.kind !== "undo"
-        ? drawsAction(projection.e)
-        : Number.isInteger(projection.target.e.seq)
-          ? classifiedIds.has(projection.target.e.id)
-          : drawsAction(projection.target.e);
-    const localProjections = local.flatMap((entry) => {
+    const localProjections = local.flatMap((entry)                      => {
       const projection = entry.projection;
-      if (!projection || !compatiblePending(projection)) return [];
-      return [
-        projection.kind === "undo"
-          ? { ...projection, targetId: admittedId(entry.undoTarget, unresolved, receipts) }
-          : projection,
-      ];
+      if (!projection) return [];
+      if (projection.kind !== "undo") return drawsAction(projection.e) ? [projection] : [];
+      const { target } = projection;
+      const targetId = admittedId(entry.undoTarget, unresolved, receipts);
+      const pending = !Number.isInteger(target.e.seq);
+      const draws =
+        classifiedIds.has(targetId ?? target.e.id) || (pending && drawsAction(target.e));
+      return draws ? [{ ...projection, targetId }] : [];
     });
     const projection = foldProjection({
       ...admitted,
@@ -1256,10 +1259,9 @@ export function createSemanticApplication({
                   ...event,
                   id: localId,
                   meaning: {
-                    state: stateDefinition(
-                      widget.tag,
-                      before.document.registry[widget.tag],
-                      spec,
+                    state: structuredClone(
+                      before.document.registry.$states[widget.tag]?.[event.action]
+                        ?.definition,
                     ),
                   },
                 },

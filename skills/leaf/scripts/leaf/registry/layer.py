@@ -18,7 +18,7 @@ from leaf.schema import (
     INSTRUCTIONS_SCHEMA,
 )
 
-from .contract import RegistryError, is_element_name, stamp_decisions
+from .contract import RegistryError, is_element_name, stamp_decisions, stamp_states
 from .kernel import kernel_event_kinds, kernel_event_ownership
 from .schema import (
     json_validator,
@@ -68,14 +68,16 @@ def merge_layer_declarations(merged: dict, declarations: dict) -> None:
 
 def stamp_composition(registry: dict) -> dict:
     """Write into a validated vocabulary what the browser reads rather than derives:
-    `$decisions` (`registry.contract.stamp_decisions`) and `$marks`, the declared marks
+    `$decisions` (`registry.contract.stamp_decisions`), `$states`
+    (`registry.contract.stamp_states`), and `$marks`, the declared marks
     (`schema.DECLARED_MARKS`) it paints on a message it renders.
 
     Each composition that ends in a vocabulary stamps it, `page init`'s layer and a
     page's own declarations over it, overwriting whatever a layer declared under
-    either name.
+    these names.
     """
     stamp_decisions(registry)
+    stamp_states(registry)
     registry["$marks"] = deepcopy(DECLARED_MARKS)
     return registry
 

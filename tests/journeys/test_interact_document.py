@@ -19,8 +19,10 @@ from interact_support import (
     asks_on_user,
     before_choice,
     check,
+    check_findings,
     decide,
     declare_data_input,
+    found,
     fresh_process,
     publish,
     read_page_data,
@@ -300,17 +302,11 @@ def test_a_tone_the_layer_cannot_paint_is_refused_where_the_author_can_still_fix
             ' tone="dangre"></lf-column></lf-board></section>',
         )
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    output = result.output.replace('"', "'")
-    refused = [
-        line
-        for line in output.splitlines()
-        if "not a tone this page's layer paints" in line
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert [(f.code, f.at, f.values["known"]) for f in findings] == [
+        ("unknown-word", "<lf-column>", ["ok", "warn", "danger"])
     ]
-    assert len(refused) == 1
-    assert any("<lf-column" in line for line in refused)
-    assert "'ok', 'warn', 'danger'" in output
 
     # The list is the layer's, so a layer that adds one accepts it with no widget
     # touched — which is the point of $tones over an enum on each widget.
@@ -351,9 +347,9 @@ def test_a_member_is_admissible_in_each_declared_owner(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2><lf-label>stray</lf-label>")
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "must be a direct member of <lf-option> or <lf-card>" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(findings, "not-member", "<lf-label>", owners=["lf-option", "lf-card"])
 
 
 def test_flag_attribute_accepts_both_html_spellings(page_dir):
@@ -364,9 +360,11 @@ def test_flag_attribute_accepts_both_html_spellings(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace('id="backfill-first">', 'id="backfill-first" chosen="yes">')
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert 'is not of type "boolean"' in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(
+        findings, "attribute-schema", "<lf-option>", keyword="type", path=["chosen"]
+    )
 
 
 def test_tabs_validate_and_compose(page_dir):
@@ -559,15 +557,21 @@ def test_check_owns_the_lf_meta_vocabulary(page_dir):
     assert check(page_dir).exit_code == 0
 
     (page_dir / "index.html").write_text(signoff.replace("sign-off", "approve"))
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "content must be one of [\"sign-off\"], found 'approve'" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(
+        findings,
+        "meta-content",
+        name="lf-review",
+        allowed=["sign-off"],
+        found="approve",
+    )
 
     (page_dir / "index.html").write_text(signoff.replace("lf-review", "lf-signoff"))
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "unknown lf- meta" in result.output
-    assert "lf-review" in result.output  # the error names the known vocabulary
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    # The finding names the known vocabulary.
+    assert found(findings, "unknown-meta", name="lf-signoff", known=["lf-review"])
 
 
 def test_check_rejects_duplicate_ids(page_dir):
@@ -577,9 +581,9 @@ def test_check_rejects_duplicate_ids(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace('id="backfill-first"', 'id="flag-first"')
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "duplicate ids" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(findings, "duplicate-ids", ids=["flag-first"])
 
 
 def test_unreferenced_ids_and_widget_items_may_leave_the_page(page_dir):
@@ -594,10 +598,10 @@ def test_unreferenced_ids_and_widget_items_may_leave_the_page(page_dir):
         without_item.replace('<section id="plan">', "<section>")
     )
 
-    result = check(page_dir)
+    status, findings = check_findings(page_dir)
 
-    assert result.exit_code == 0, result.output
-    assert 'ids dropped from revision r1: ["backfill-first", "plan"]' in result.output
+    assert status == 0
+    assert found(findings, "dropped-ids", revision=1, ids=["backfill-first", "plan"])
 
 
 def test_an_answered_ask_moves_into_a_collapsed_section_with_its_pick_standing(
@@ -852,9 +856,9 @@ def test_check_reports_a_measurement_whose_source_ran_again(page_dir):
 
     captured = measure()
     captured_line = write(captured)
-    current = check(page_dir)
-    assert current.exit_code == 0, current.output
-    assert "measurement behind its source" not in current.output
+    status, findings = check_findings(page_dir)
+    assert status == 0
+    assert not found(findings, "measurement-lag")
     assert state_json(page_dir)["measurement_lag"] == []
 
     copied = page_dir.with_name("copied-measurement")
@@ -864,10 +868,17 @@ def test_check_reports_a_measurement_whose_source_ran_again(page_dir):
 
     later = measure()
     assert later != captured
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-    assert "measurement behind its source" in result.output
-    assert captured in result.output and later in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 0
+    assert found(
+        findings,
+        "measurement-lag",
+        "<lf-num id=p95>",
+        line=captured_line,
+        source="import-latency",
+        run=captured,
+        current_run=later,
+    )
     assert state_json(page_dir)["measurement_lag"] == [
         {
             "tag": "lf-num",
@@ -889,9 +900,9 @@ def test_check_reports_a_measurement_whose_source_ran_again(page_dir):
     assert read_page_data(page_dir)["sources"]["import-latency"]["run"] == later
 
     write(later)
-    current = check(page_dir)
-    assert current.exit_code == 0, current.output
-    assert "measurement behind its source" not in current.output
+    status, findings = check_findings(page_dir)
+    assert status == 0
+    assert not found(findings, "measurement-lag")
     assert state_json(page_dir)["measurement_lag"] == []
 
     write("")
@@ -1056,23 +1067,21 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
         .replace("<h2>Plan</h2>", "<h2>Plan</h2>" + blocks)
         .replace("</main>", "<section><p>Unnamed aside.</p></section>\n</main>")
     )
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-    advice = [line for line in result.output.splitlines() if "unpointable" in line]
-    assert len(advice) == 6, result.output
-    assert any(
-        "<h1>" in line and "nor anything enclosing it" in line for line in advice
-    )
-    assert (
-        sum("<p>" in line and "nor anything enclosing it" in line for line in advice)
-        == 2
-    )
-    assert any("<pre>" in line and "#plan" in line for line in advice)
-    assert any("<aside>" in line and "#plan" in line for line in advice)
-    assert any("<section>" in line for line in advice)
-    assert not any(
-        "<table>" in line for line in advice
-    )  # the figure's id is aim enough
+    status, findings = check_findings(page_dir)
+    assert status == 0
+    # The figure's id is aim enough for its <table>.
+    assert sorted(
+        (f.code, f.at, f.values.get("enclosing"))
+        for f in findings
+        if f.code.startswith("unpointable")
+    ) == [
+        ("unpointable", "<h1>", None),
+        ("unpointable", "<p>", None),
+        ("unpointable", "<p>", None),
+        ("unpointable-section", "<section>", None),
+        ("unpointable-wide", "<aside>", "plan"),
+        ("unpointable-wide", "<pre>", "plan"),
+    ]
 
     # Prose inside an identified section needs no id of its own. Standalone
     # prose can be named directly or through a wrapper.
@@ -1088,9 +1097,9 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
             "separate.</aside>",
         )
     )
-    result = check(page_dir)
-    assert result.exit_code == 0, result.output
-    assert "unpointable" not in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 0
+    assert not [f for f in findings if f.code.startswith("unpointable")]
 
 
 def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch):

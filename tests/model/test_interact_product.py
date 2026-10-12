@@ -914,9 +914,9 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace('<section id="plan">', '<section id="plan"><p id="q1">stolen</p>')
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "taken by message markup" in result.output and "q1" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(findings, "ids-taken-by-messages", ids=["q1"])
 
 
 def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
@@ -929,9 +929,9 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
             '<section id="plan">', '<section id="plan"><p id="lf-msg-7">mine</p>'
         )
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "lf- namespace" in result.output and "lf-msg-7" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(findings, "reserved-ids", ids=["lf-msg-7"])
     (page_dir / "index.html").write_text(PAGE)
 
     append_carried_log_record(

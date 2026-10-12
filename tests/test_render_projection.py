@@ -18,6 +18,7 @@ from interact_support import (
     declare_work,
     running_http_server,
     trial_family,
+    wait_for,
     working,
 )
 from leaf import cli as cli_model
@@ -6964,7 +6965,15 @@ def test_a_module_that_stages_bare_text_is_refused_in_its_own_name(
     page's reading from the file's. The page refuses to present at all, which is the
     loud direction — but the refusal used to arrive as `Cannot read properties of null
     (reading 'closest')` over a blank page, naming neither the widget nor the mistake,
-    which is a bug report against leaf rather than against the module that caused it."""
+    which is a bug report against leaf rather than against the module that caused it.
+
+    The refusal is also final. It used to be raised again by every later reader of the
+    page's words: each repaint frame, key and selection threw it, so a wheel, a resize
+    and three presses took one page from 6 errors to 25, while the notice waited for a
+    server update that cannot fix a module's mistake. Now the first refusal declares
+    the page failed: its widgets fall back at once, the notice says the page itself has
+    a problem, and later readers read past the refused words, so the agent and the
+    console hear it once."""
     url = serve(
         drifting_widget(tmp_path, monkeypatch, bare=True),
         packages=(*EXAMPLE_PACKAGES, "./.leaf"),
@@ -6985,14 +6994,44 @@ def test_a_module_that_stages_bare_text_is_refused_in_its_own_name(
         "the refusal is still a property name, which reads as leaf being broken: "
         + refusal
     )
+    notice = page.get_by_role("status").filter(has_text="Leaf couldn't start")
+    expect(notice).to_have_text(
+        "Leaf couldn't start: this page has a problem its author needs to fix."
+    )
+    assert not page.evaluate(
+        "() => document.documentElement.hasAttribute('data-lf-interactive')"
+    ), "the page kept its widgets' upgraded boxes rather than its readable fallback"
+
+    page.mouse.wheel(0, 300)
+    page.set_viewport_size({"width": 900, "height": 700})
+    page.keyboard.press("j")
+    page.mouse.click(200, 200)
+    page.keyboard.press("k")
+    # A selection is read by the composing surface rather than a frame or a key, and
+    # reads across the widget into the paragraphs after it.
+    start = page.locator("#drift-title").bounding_box()
+    end = page.locator("#drift-week").bounding_box()
+    page.mouse.move(start["x"] + 2, start["y"] + start["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(end["x"] + 40, end["y"] + end["height"] / 2, steps=5)
+    page.mouse.up()
+    page.locator("#drift-four").dblclick()
+    rendered(page)
     assert page.evaluate("() => document.body.dataset.lfPresented") is None, (
         "the page presented anyway, so the words with nothing over them are in it"
     )
-    # The refusal asserted above reaches the collector as well, and again from every
-    # later reader of the page's words, such as each repaint's touch controls, so the
-    # page closes before they are consumed.
-    page.close()
-    consume_browser_errors(page, '<lf-drift id="drift-note">')
+    errors = consume_browser_errors(page, '<lf-drift id="drift-note">')
+    assert len(errors) == 1, errors
+    reports = wait_for(
+        lambda: [
+            event["text"].splitlines()[0]
+            for event in events_model.read_events(serve.page_dir)
+            if event["kind"] == "error"
+        ],
+        bool,
+        failure="the agent never heard the refusal",
+    )
+    assert reports == [errors[0].splitlines()[0].removeprefix("leaf: ")], reports
 
 
 def test_the_render_gate_reads_a_page_that_has_finished_arriving(

@@ -2076,8 +2076,7 @@ def test_a_root_module_failure_leaves_authored_document_readable(browser, serve)
 def test_the_first_startup_fault_names_the_page(browser, serve):
     """The first fault before presentation names the page, and later faults leave the
     name alone: the first is the earliest evidence, and a later one is often its
-    consequence, as a page that cannot read its own words throws the same refusal from
-    every repaint. A later incomplete fault still gives back the readable fallback."""
+    consequence. A later incomplete fault still gives back the readable fallback."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.route(
         "**/leaf.js",

@@ -1736,12 +1736,7 @@ pre:hover + .lf-code-copy,
 }
 @media (pointer: coarse), (hover: none) {
   .lf-code-copy {
-    opacity: 1;
-  }
-  pre[data-lf-focus] + .lf-code-copy,
-  .lf-code-copy.lf-code-copy-focused {
-    opacity: 0;
-    pointer-events: none;
+    display: none;
   }
 }
 .lf-code-copy::part(button) {

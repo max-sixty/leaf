@@ -3,14 +3,18 @@
    their current code on activation; widgets supply their source before rendering
    line numbers, annotations, or other words. CSS anchors keep the control at the
    block's right edge without wrapping authored nodes or moving them on arrival.
-   Widgets connect their final styled block before requesting the control. On touch,
-   entering the source focuses it and hides the overlay, leaving covered words
-   available to read and select. Leaving the source restores the copy control.
-   Enter on a document code block copies it. That press is a register row projected
-   onto the block beside any scope its owner declares, so the shortcut bar, the command
-   reference and `aria-keyshortcuts` name it. A link or button inside the code keeps its
-   own Enter (`nativeActivationAt`), and the control stays out of the Tab sequence. Focus
-   need not be on the control, so every copy's result also takes the status line. */
+   Widgets connect their final styled block before requesting the control.
+   Enter on a code block the user stands on copies it. That press is a register row
+   projected onto the block beside any scope its owner declares, so the shortcut bar, the
+   command reference and `aria-keyshortcuts` name it, and its `touch` words make it the
+   banner's step under a finger (keyboard/AGENTS.md, "Touch routes"). A link or button
+   inside the code keeps its own Enter (`nativeActivationAt`), and a document block's
+   control stays out of the Tab sequence. Focus need not be on the control, so every
+   copy's result also takes the status line.
+   A finger shows no intent before it lands, so on touch the control never shows: shown
+   at rest it covered the ends of the first lines, and room made for it would move the
+   page's content (`../AGENTS.md`, "Nothing Leaf draws moves the page's content").
+   Entering the source by touch stands the user on it, and the banner offers its Copy. */
 import { offer } from "./widget-elements.js";
 import { watchArrivals } from "./arrivals.js";
 import {
@@ -77,8 +81,29 @@ function positionCodeBlock({ copy, near, anchor }) {
   return copy;
 }
 
+// Declared on each arrival, since leaving withdraws it. A widget renders a new block
+// each time, and the register forgets one that leaves the document.
+function declareCopy(pre, copy) {
+  projectCommandScope(
+    pre,
+    COPY_SCOPE,
+    commandScope("On a code block", [
+      {
+        id: "code.copy",
+        keys: ["Enter"],
+        description: "Copy this block's code to the clipboard",
+        title: "copy code",
+        touch: "Copy code",
+        run: () => copy.shadowRoot.querySelector("button").click(),
+      },
+    ]),
+  );
+}
+
 export function copyCodeBlock(pre, source) {
-  return positionCodeBlock(prepareCodeBlock(pre, source));
+  const copy = positionCodeBlock(prepareCodeBlock(pre, source));
+  declareCopy(pre, copy);
+  return copy;
 }
 
 export function watchCodeBlocks() {
@@ -103,6 +128,7 @@ export function watchCodeBlocks() {
         if (!wired.has(pre)) {
           const events = new AbortController();
           wired.set(pre, events);
+          declareCopy(pre, copy);
           const options = { signal: events.signal };
           // Let the browser continue Tab from the source's document position,
           // rather than from this control's later position in chrome.
@@ -112,19 +138,6 @@ export function watchCodeBlocks() {
               if (event.key === "Tab") focusDestination(pre, "step");
             },
             options,
-          );
-          projectCommandScope(
-            pre,
-            COPY_SCOPE,
-            commandScope("On a code block", [
-              {
-                id: "code.copy",
-                keys: ["Enter"],
-                description: "Copy this block's code to the clipboard",
-                title: "copy code",
-                run: () => copy.shadowRoot.querySelector("button").click(),
-              },
-            ]),
           );
           pre.addEventListener(
             "pointerenter",

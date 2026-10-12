@@ -26,7 +26,7 @@ import {
   word,
 } from "./bindings.js";
 import { focused } from "../focus.js";
-import { paintKeys, watchCommandScopes } from "./scopes.js";
+import { paintKeys, scopesFor, watchCommandScopes } from "./scopes.js";
 // Native activation reads declarations without assembling or validating the keyboard
 // during feature construction. Both element and page commands share one control owner.
 watchCommandScopes(() => [
@@ -280,9 +280,10 @@ export function pageScopes() {
   return resolved;
 }
 // The presses a finger reaches through a banner control rather than a key (AGENTS.md,
-// "Touch routes"): each a page command declares, in line order, and each a page scope's
-// rows declare, scope by scope in STACK order, so the first that stands is the one the
-// user is innermost in. Read from the live register, since a scope may join or leave it.
+// "Touch routes"): each a page command declares, in line order, and each a scope's rows
+// declare, scope by scope in STACK order, the focused element's own scopes at ELEMENTS,
+// so the first that stands is the one the user is innermost in. Read from the live
+// register, since a scope may join or leave it.
 export function touchPresses() {
   pageScopes();
   return {
@@ -290,12 +291,12 @@ export function touchPresses() {
       commands.has(id) ? pressesOf(commands.get(id)) : [],
     ),
     steps: STACK.flatMap((name) =>
-      typeof name === "string"
-        ? (scopes.get(name) ?? []).map((scope) => ({
-            scope,
-            presses: scope.rows.flatMap(pressesOf),
-          }))
-        : [],
+      (name === ELEMENTS
+        ? scopesFor(focused())
+        : typeof name === "string"
+          ? (scopes.get(name) ?? [])
+          : []
+      ).map((scope) => ({ scope, presses: scope.rows.flatMap(pressesOf) })),
     ).filter(({ presses }) => presses.length),
   };
 }

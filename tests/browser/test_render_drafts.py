@@ -6961,6 +6961,46 @@ def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(
     assert comments[0]["anchor"]["quote"] == "The words first shown."
 
 
+@pytest.mark.parametrize("surface", ["questions", "threads"])
+def test_covering_surface_retains_the_open_passage_editor(browser, serve, surface):
+    """Every covering auxiliary surface lends room back to the same native editor."""
+    page = open_page(browser, serve(ASK_PAGE))
+    resized(page, 900, 844)
+    page.locator(
+        ".lf-queue" if surface == "questions" else ".lf-threads-toggle"
+    ).click()
+    rendered(page)
+    select_words(page, "#h")
+    page.keyboard.press("c")
+    field = page.locator(".lf-fab-input")
+    words = "Keep this unfinished comment."
+    write(field, words)
+    field.press("Home")
+    field.press("ArrowRight")
+    field.evaluate("el => { window.heldDraftEditor = el; }")
+    resized(page, 390, 844)
+    panel = page.locator(
+        ".lf-queue-panel" if surface == "questions" else ".lf-thread-panel"
+    )
+    expect(panel).to_be_visible()
+    expect(page.locator(".lf-fab-bar")).to_have_attribute("data-lf-withheld", "")
+    expect(field).not_to_be_focused()
+    landing = panel.locator(
+        ".lf-drawer-list button, .lf-drawer-list a[href]"
+        if surface == "questions"
+        else ".lf-threads"
+    ).first
+    expect(landing).to_be_focused()
+    resized(page, 900, 844)
+    expect(field).to_be_visible()
+    expect(field).to_have_js_property("value", words)
+    assert field.evaluate("el => el === window.heldDraftEditor")
+    assert field.evaluate("el => el.selectionStart") == 1
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(field).to_be_focused()
+
+
 def test_revisiting_a_passage_recaptures_its_revision_without_losing_words(
     browser, serve
 ):

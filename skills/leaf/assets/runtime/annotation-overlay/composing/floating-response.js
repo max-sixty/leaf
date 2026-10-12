@@ -14,8 +14,8 @@
    subject is hidden; a seated editor withholds instead. Resume writing can recover it
    even after that passage is gone.
    An attached editing field follows its passage out of view. The existing Resume writing route
-   reveals that same field; no window seat or duplicate input stands in for it. A modal
-   side panel withholds the page's response bar and takes its focus until the page is
+   reveals that same field; no window seat or duplicate input stands in for it. A covering
+   auxiliary surface withholds the page's response bar and takes its focus until the page is
    available again.
 
    The floating bar shows while a placement stands it (`data-lf-placement`) and no lack of
@@ -36,8 +36,13 @@ import {
 } from "../../resolved-target.js";
 import { blockAt, pageRange, quoteFrom, segmentsIn } from "../../passages.js";
 import { pageSelection, selectionAnchor } from "../../composing/capture.js";
-import { closeLayer, drawn, holdFocus, focusDestination } from "../../focus.js";
-import { isNativeLayer } from "../../shadow-tree.js";
+import {
+  closeLayer,
+  drawn,
+  holdFocus,
+  focusDestination,
+  coveringFocus,
+} from "../../focus.js";
 import { coarsePointer } from "../../pointer.js";
 import { LAYOUT } from "../../widget-elements.js";
 import { under } from "../../shadow.js";
@@ -154,9 +159,6 @@ export function createFloatingResponsePlacement({
       Math.ceil(boundary.width) >= Math.ceil(fabBar.getBoundingClientRect().width)
     );
   };
-  const panelCoversPage = () =>
-    panelIsOpen() && isNativeLayer(threadsBox.closest("dialog"));
-
   // The editing observer reports size and horizontal target movement: CSS anchors
   // own scroll following, while a target moved without resizing must let the shared
   // placement rule choose its side again. Movement observation also hears scroll,
@@ -334,7 +336,7 @@ export function createFloatingResponsePlacement({
   // beside that whole place, or above/below it when the rail is too narrow.
   function placeFab({ reveal = false } = {}) {
     if (!response.anchor) return false;
-    if (panelCoversPage()) {
+    if (coveringFocus()) {
       withholdFab();
       return false;
     }
@@ -481,11 +483,11 @@ export function createFloatingResponsePlacement({
   // Withholds the bar while the usable window cannot contain it, keeping its draft,
   // anchor, side, and caret. Hiding a focused bar drops focus to nowhere, so it keeps
   // the user's place (`holdFocus`) and returns focus when room comes back, unless they
-  // focused something else meanwhile. Where a covering panel took the room, its
-  // Threads list takes focus. While the bar waits, its composer scope and selection
+  // focused something else meanwhile. Where an auxiliary surface took the room, it
+  // takes focus. While the bar waits, its composer scope and selection
   // rung stand down; `c` brings it back.
   function withholdFab() {
-    const covered = panelCoversPage();
+    const covered = coveringFocus();
     // Keep the target watch and its native frame: hiding retires the solve, not the
     // subject's lifetime. Its next visibility or geometry change can seat it again.
     nativeAttachment = false;
@@ -493,12 +495,13 @@ export function createFloatingResponsePlacement({
     if (fabWithheld) return;
     fabWithheld = true;
     const held = holdFocus(fabBar);
-    const toPanel = held && panelIsOpen() && (!fabFits() || covered);
+    const destination = covered ?? (panelIsOpen() && !fabFits() ? threadsBox : null);
+    const toSurface = held && destination;
     closeLayer(
       () => fabBar.toggleAttribute("data-lf-withheld", true),
-      toPanel && (() => focusDestination(threadsBox, "return")),
+      toSurface && (() => focusDestination(destination, "return")),
     );
-    if (!toPanel) fabWithheldFocus = held;
+    if (!toSurface) fabWithheldFocus = held;
   }
   // The bar is in view again, by whichever placement put it there.
   function stoodAgain() {

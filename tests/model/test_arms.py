@@ -1,11 +1,11 @@
-"""Native traces retain commands, turn outcomes and actual delivery inputs."""
+"""Isolated task environments and native command, turn and delivery traces."""
 
 import json
 
 import pytest
 from interact_support import TOKEN, publish
 from leaf.event_log import read_events
-from leaf_dev.arms import PageClient, commands, completed, trace_result
+from leaf_dev.arms import PageClient, commands, completed, environment, trace_result
 from leaf_dev.eval_codex import records_for
 
 EVENT_ENVELOPE = {
@@ -15,6 +15,17 @@ EVENT_ENVELOPE = {
     "author": "agent",
     "seq": 1,
 }
+
+
+def test_an_arm_selects_its_own_launcher(monkeypatch):
+    """A child cannot inherit the host launcher, but may select one explicitly."""
+    monkeypatch.setenv("LEAF", "/agent/bin/leaf")
+    monkeypatch.setenv("LEAF_HOST_LAUNCHER", "/parent/bin/leaf")
+    assert "LEAF_HOST_LAUNCHER" not in environment()
+    assert environment()["LEAF"] == "/agent/bin/leaf"
+    assert environment(LEAF_HOST_LAUNCHER="/arm/bin/leaf")["LEAF_HOST_LAUNCHER"] == (
+        "/arm/bin/leaf"
+    )
 
 
 def test_codex_command_and_turn_success_are_observed_harness_results():

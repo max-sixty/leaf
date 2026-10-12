@@ -2,8 +2,13 @@
 # The one launcher. Claude Code appends plugin bin/ directories to its Bash tool's
 # PATH; hooks and Codex resolve this launcher from the plugin or skill directory.
 #
-# The directory above it is a uv project — the repository and the installed
-# plugin are the same tree — and this runs that project: uv keeps one
+# A host selects its executable with an absolute LEAF_HOST_LAUNCHER path for
+# commands and native hooks, while SessionEnd keeps standalone cleanup below.
+# Selecting this launcher itself leaves the default dispatch. LEAF remains the
+# agent's locator and does not override an explicitly invoked launcher.
+#
+# By default the directory above it is a uv project — the repository and the
+# installed plugin are the same tree — and this runs that project: uv keeps one
 # environment per installed version and syncs it in place on first use.
 # `--no-dev` because the project's dev group is the test suite and the
 # `leaf-dev` tooling, recorded in the shipped lock but never a harness's to
@@ -31,6 +36,13 @@ root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 state="$root/skills/leaf/scripts/leaf/state.py"
 if [ "$#" -eq 1 ] && [ "$1" = session-end ]; then
     exec python3 -S "$state"
+fi
+case "${LEAF_HOST_LAUNCHER:-}" in
+    ''|/*) ;;
+    *) printf '%s\n' 'LEAF_HOST_LAUNCHER must name an absolute launcher path' >&2; exit 2 ;;
+esac
+if [ -n "${LEAF_HOST_LAUNCHER:-}" ] && [ ! "$LEAF_HOST_LAUNCHER" -ef "$0" ]; then
+    exec "$LEAF_HOST_LAUNCHER" "$@"
 fi
 if [ "$#" -eq 3 ] && [ "$1" = hook ] && [ "$2" = --harness ] && [ "$3" = codex ] &&
     [ -x "$root/.venv/bin/python" ]; then

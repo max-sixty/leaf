@@ -778,13 +778,14 @@ def test_revising_quotes_reparents_every_open_thread_without_answering_it(page_d
     assert events_model.read_events(page_dir) == events
 
     from leaf.events import build_threads
+    from leaf.passages import enclosing_ids
     from leaf.thread_context import sample_events
 
     document = structure_model.SourceDocument((page_dir / "index.html").read_text())
     selected = {roots["Alpha"]["id"], roots["Gamma"]["id"]}
     copied = sample_events(document, events, selected)
     assert len([e for e in copied if e["kind"] == "reanchor"]) == 2
-    child_threads = build_threads(copied, document.within)
+    child_threads = build_threads(copied, enclosing_ids(document))
     assert all(
         child_threads[identity]["anchor"] == {"section": "labels"}
         for identity in selected

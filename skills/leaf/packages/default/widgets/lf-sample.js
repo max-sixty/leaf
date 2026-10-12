@@ -8,7 +8,7 @@
  * into a native modal dialog, keeping its document, gestures, and drafts alive. The
  * sample retains its embedded allocation while the dialog fills the viewport; Return
  * to page and the child's final Escape restore the Full view button. Each child announces
- * lf-sample-ready with its sample element, on first mount and Reset. Reset stays focusable
+ * lf-sample-ready with its sample element, on first mount, Reset and reload. Reset stays focusable
  * while loading but accepts no new press, preserving the parent's keyboard position.
  * Ordinary children remain static
  * quotation. A disconnect releases the child; moving the retained element within a

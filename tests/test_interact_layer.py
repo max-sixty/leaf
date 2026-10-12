@@ -1572,6 +1572,7 @@ def test_every_widget_api_export_has_a_behavior_module_reader():
     shown = {name for name in exported if re.search(rf"\b{name}\b", in_code)}
 
     assert {"once", "html", "widgetController"} <= imported, "no import read"
+    assert sorted(imported - exported) == [], "widget imports absent from widget-api"
     assert sorted(exported - imported - shown) == []
 
 

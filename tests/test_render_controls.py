@@ -3148,7 +3148,7 @@ CONTROL_ARCHETYPES = (
         "name": "visual-review-inspection",
         "source": VISUAL_REVIEW_GALLERY,
         "open": ".lf-vr-inspection-summary",
-        "target": '.lf-vr-mode-group > [data-mode="flip"]',
+        "target": '.lf-vr-mode-group > [value="flip"]',
     },
     {
         # A disposition changes both its selected paint and the case's durable review

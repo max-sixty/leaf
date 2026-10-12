@@ -55,9 +55,9 @@ const presentNotice = (message, visible) => {
 export function announce(msg) {
   // Removing and restoring the text node makes repeated identical announcements a
   // fresh live-region change, including when two arrivals' delays overlap.
-  if (liveEl.firstChild) liveEl.replaceChildren();
+  liveEl.replaceChildren();
   setTimeout(() => {
-    if (liveEl.firstChild) liveEl.replaceChildren();
+    liveEl.replaceChildren();
     liveEl.append(msg);
   }, 30);
 }

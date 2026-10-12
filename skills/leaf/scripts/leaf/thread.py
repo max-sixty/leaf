@@ -100,7 +100,7 @@ def reserve_delivery_reply(
             raise ReceiptRefused(f"page is not claimed by session {session_id!r}")
         if expected_claim is not None and not same_claim(claim, expected_claim):
             raise ReceiptRefused("the correction's page acquisition has ended")
-        page.bind_delivery_reply(session_id, target["responds"], attempt)
+        page.reserve_delivery_reply(session_id, target["responds"], attempt)
 
 
 def release_delivery_reply(session_id: str, delivery_id: str, target: dict) -> None:
@@ -117,7 +117,7 @@ def release_delivery_reply(session_id: str, delivery_id: str, target: dict) -> N
 def _clear_delivery_reply(session_id: str, attempt: str, target: dict) -> None:
     try:
         with PageTransaction(Path(target["page"])) as page:
-            page.clear_delivery_reply_binding(
+            page.clear_delivery_reply_reservation(
                 session_id,
                 target["responds"],
                 attempt,
@@ -127,14 +127,14 @@ def _clear_delivery_reply(session_id: str, attempt: str, target: dict) -> None:
 
 
 def delivery_reply_reserved(session_id: str, delivery_id: str, target: dict) -> bool:
-    """Whether this delivery's binding of its reply address still stands."""
+    """Whether this delivery's reservation of its reply address still stands."""
     try:
         with PageTransaction(Path(target["page"])) as page:
-            binding = page.standing_reply_binding(target["responds"])
+            reservation = page.standing_reply_reservation(target["responds"])
             return bool(
-                binding is not None
-                and binding["session"] == session_id
-                and binding["attempt"] == delivery_reply_attempt(delivery_id)
+                reservation is not None
+                and reservation["session"] == session_id
+                and reservation["attempt"] == delivery_reply_attempt(delivery_id)
             )
     except FileNotFoundError:
         return False
@@ -304,7 +304,7 @@ class ProviderFinal:
 
     It keeps that address after the user settled the update, but yields to an answer
     another writer already gave it (a failure receipt is no answer), so a turn's
-    answer committed after its binding lapsed never answers twice; and it writes
+    answer committed after its reservation lapsed never answers twice; and it writes
     nothing once another delivery holds the address."""
 
     reservation: str
@@ -541,14 +541,14 @@ def _resolve_obligation(
                 )
         elif ephemeral:
             in_hand = for_event
-        # Current custody belongs to the binding, independently of capture-time
-        # writer hints and caller-supplied retry identity.
-        binding = page.standing_reply_binding(for_event)
-        if binding is not None:
+        # The standing reply reservation decides who may write, whatever the
+        # captured `writer` hint or a caller-supplied retry key says.
+        reserved = page.standing_reply_reservation(for_event)
+        if reserved is not None:
             if isinstance(settlement, ProviderFinal):
                 if (session, settlement.reservation) != (
-                    binding["session"],
-                    binding["attempt"],
+                    reserved["session"],
+                    reserved["attempt"],
                 ):
                     return None
             elif not ephemeral and (
@@ -840,8 +840,8 @@ def fail_answer(
     never left owed with nobody to answer it:
 
     - a `reply` answer takes a reply carrying `failure` in its thread, which
-      the user resends into; provider custody refuses it until its turn gives the
-      reply up;
+      the user resends into; a standing reply reservation refuses it until its
+      turn gives the reply up;
     - a `markup` answer takes a failed pickup: the user's answer to the ask stands in the
       log, and answering again sends a new answer.
 

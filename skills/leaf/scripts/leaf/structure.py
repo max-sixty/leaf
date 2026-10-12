@@ -76,7 +76,7 @@ SECTIONING_TAGS = {"section", "article", "main", "body"}
 # overlay rail or keeps that margin for its own residents. Delivery honours a width,
 # bound or height only where it means something (`authored_on`, schema.DECLARED_MARKS).
 AUTHORED_ALLOCATIONS = {
-    "data-width": ("column", "wide", "available"),
+    "data-width": ("wide", "available"),
     "data-bound": ("start", "end"),
     "data-height": re.compile("[1-9][0-9]*"),
     "data-rail": ("right", "none"),

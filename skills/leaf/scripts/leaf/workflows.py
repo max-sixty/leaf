@@ -15,13 +15,10 @@ an owed update holds the agent's turn is `activity.turn_obligations`'s to say.
 Answers are one of:
 
 - `{"kind": "reply", "to": <message>, "for": <event>}` — a thread message, or an
-  action in an answered Question in frozen thread markup, answered through its exact delivery reference by `leaf response reply`;
-  Final-message custody is independent of the operation: `activity` adds
-  `writer: "turn"` and its attempt while the provider's reply binding stands.
-  Delivery captures the same writer policy ahead of that binding, and emits an
-  exact response reference. Direct commands and provider finals resolve that
-  reference through the same rich reply writer; only the bound attempt may
-  commit while its provider owns the final.
+  action in an answered Question in frozen thread markup. The agent answers it with
+  `leaf response reply <answer.ref>`. While a reply reservation (`delivery`'s
+  header) stands on it, `activity` adds `writer: "turn"` and the reservation's
+  attempt.
 - `{"kind": "markup", "action": <action>}` — a page action that is part of its
   widget's answered Question and the authored markup does not yet record, answered by
   a stamped version that writes it in.

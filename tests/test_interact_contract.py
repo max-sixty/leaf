@@ -4624,7 +4624,7 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
     assert result.exit_code == 1
     assert (
         '<table data-width="full"> (line 9) has an invalid value; expected one of '
-        "column, wide, available" in result.output
+        "wide, available" in result.output
     )
 
 

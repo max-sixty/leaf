@@ -346,7 +346,10 @@ A compound widget whose parts scroll independently registers each with
 `compoundReadingRegionId(owner, localName)`. A composition that hides or reveals regions,
 such as a tab switch, runs the change through `preserveReadingRegions(owner, change)`,
 which awaits the change's returned layout promise before restoring the visible regions'
-scrollers. `runtime/reading-regions.js` describes the region model.
+scrollers. A region that shows one subject of several in turn, as a trace's saved tree
+shows one checkpoint's elements, replaces its body's contents inside
+`showReadingSubject(id, subject, render)`, and the runtime returns the reader to their
+place in each subject. `runtime/reading-regions.js` describes the region model.
 
 A widget that re-renders or resizes content holds the user's place with
 `placeKeeper(scroller, {items, identity})` rather than by restoring a `scrollTop`.

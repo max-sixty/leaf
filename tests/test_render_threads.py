@@ -2850,6 +2850,16 @@ def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
     page.locator("main").click(position={"x": 4, "y": 4})
     assert not card.evaluate(is_open)
     expect(box).to_have_js_property("value", "Kept for later")
+    # A second press on the control puts the card away, and it stays away: the press
+    # is on the card's own opener, so it is not also a press outside the card that
+    # closes it before the control's press opens it again.
+    control.click()
+    expect(box).to_be_focused()
+    control.click()
+    one_frame(page)
+    assert not card.evaluate(is_open)
+    expect(control).to_have_attribute("aria-expanded", "false")
+    expect(control).to_be_focused()
 
     # A refused send restores the editor on the words it handed back.
     page.route(

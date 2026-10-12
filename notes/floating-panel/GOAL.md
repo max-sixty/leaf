@@ -1,5 +1,10 @@
 # Goal: the floating Leaf panel
 
+> **Status (2026-10-12): needs an overhaul (TODO #28).** Checkpoints 1–3 landed
+> on `main` behind the preference, off by default, so work can continue there.
+> The behavior is in place, but the user doesn't like the aesthetic: the next
+> round redesigns how the panel looks rather than adding scope.
+
 Build an opt-in alternative to Leaf's chrome: one panel that hovers over the
 bottom of the page, like the Codex app's floating chat panel, and replaces both
 the banner and the bottom bar. Classic chrome stays the default. Build it on

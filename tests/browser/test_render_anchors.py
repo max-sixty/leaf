@@ -3391,6 +3391,19 @@ def test_a_selection_of_the_whole_page_still_finds_its_passage(browser, serve):
     )
 
 
+def test_select_all_on_a_page_with_a_diff_leaves_the_page_responsive(browser, serve):
+    """Select-all on a page holding an x-shadow widget. The composed selection spans
+    <html>, past the words the page reads, and the capture once grew its neighbourhood
+    forever from a position that reading lacked, pinning the tab. The press is bounded so
+    that regression fails here rather than hanging the run."""
+    page = open_page(browser, serve(TWICE_PAGE))
+    page.locator("body").press("ControlOrMeta+a", timeout=5000)
+    expect(page.locator(".lf-composer")).to_be_visible()
+    expect(page.locator("#lf-composer-quote")).to_contain_text(
+        re.compile("Something else entirely.*request.headers", re.DOTALL)
+    )
+
+
 def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serve):
     """Context may place a comment only where both of a passage's neighbours are still
     there. A passage at the edge of its section has just one, and one is a bar another copy

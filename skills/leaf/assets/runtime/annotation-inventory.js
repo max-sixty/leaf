@@ -27,7 +27,6 @@ import { claimed, heldOut } from "./thread/surfaces.js";
 import { anchorLabel } from "./thread/messages.js";
 import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
 import {
-  atWork,
   isPageWidgetWorkflow,
   isWorkflowProgress,
   strongestWorkflow,
@@ -213,7 +212,7 @@ export function createAnnotationInventory({
       kind:
         receipt.next_actor === "user" || receipt.condition
           ? "waiting"
-          : atWork(receipt)
+          : receipt.at_work
             ? "activity"
             : receipt.stage === "picked_up"
               ? "pickup"
@@ -456,7 +455,7 @@ export function createAnnotationInventory({
         continue;
       if (activityAlreadyShown.has(`widget:${task.subject.id}`)) continue;
       const target = elementById(task.subject.id);
-      const running = task.running && !task.running.condition ? task.running : null;
+      const { running } = task;
       const label = running ? "Working" : "Task open";
       const account = [task.agent, running?.text ?? task.title]
         .filter(Boolean)

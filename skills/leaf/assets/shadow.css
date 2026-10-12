@@ -283,7 +283,8 @@ summary {
 }
 .lf-primary-message > .lf-msg-head {
   position: relative;
-  padding-inline-end: 5rem;
+  --lf-msg-head-room: 5rem;
+  padding-inline-end: var(--lf-msg-head-room);
 }
 .lf-primary-part {
   position: relative;
@@ -294,7 +295,7 @@ summary {
 .lf-primary-news {
   position: absolute;
   inset-block-start: 0;
-  inset-inline-end: 0;
+  inset-inline-end: var(--lf-msg-control-room, var(--lf-msg-control, 0px));
   max-inline-size: 5rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -896,7 +897,7 @@ leaf-text.lf-fab-input,
 }
 .lf-msg:has(.lf-msg-control) > .lf-msg-head {
   --lf-msg-control: max(26px, var(--aim-floor));
-  padding-inline-end: var(--lf-msg-control-room, var(--lf-msg-control));
+  padding-inline-end: calc(var(--lf-msg-control-room, var(--lf-msg-control)) + var(--lf-msg-head-room, 0px));
 }
 .lf-msg:has(> .lf-msg-body > .lf-msg-editor) {
   scroll-margin-block-end: var(--sp-2);
@@ -1000,7 +1001,7 @@ leaf-text.lf-fab-input,
 @media (pointer: coarse), (hover: none) {
   .lf-msg:is(.agent, .user) > .lf-msg-head {
     --lf-msg-control: max(26px, var(--aim-floor));
-    padding-inline-end: var(--lf-msg-control-room, var(--lf-msg-control));
+    padding-inline-end: calc(var(--lf-msg-control-room, var(--lf-msg-control)) + var(--lf-msg-head-room, 0px));
   }
 }
 .lf-msg-meta {

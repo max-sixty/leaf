@@ -87,7 +87,6 @@ export { queueActions } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
 export {
   threadBox,
-  placeThreads,
   placePageThreads,
   consumeAnnotations,
   mountThreadViews,
@@ -95,6 +94,7 @@ export {
   threadActions,
 } from "./application.js";
 export { readThreads } from "./thread/state.js";
+export { threadSurface } from "./thread/surfaces.js";
 export { watchThreads } from "./thread/watch.js";
 export { turns as threadTurns, threadSummary } from "./thread/model.js";
 export { threadInput } from "./thread/landing.js";

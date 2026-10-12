@@ -8,6 +8,7 @@ second server stack in the client process.
 import contextlib
 import errno
 import functools
+import ipaddress
 import json
 import logging
 import secrets
@@ -48,30 +49,61 @@ from .state import write_json
 TEMPORARY_SERVER_NOTE = "server   temporary (stops with this command)"
 
 
-# Allow TCP cooldown to expire, without waiting forever for an address held
-# by another live process.
+# The side that closes a TCP connection first keeps its address in TIME_WAIT, for
+# 60 s on Linux and 30 s on macOS. A server is that side for the keep-alive
+# connections it closes or exits with, so its fixed address can stay in use after
+# it stops. Wait out what address reuse cannot pass, without waiting forever for an
+# address another live process holds.
 PORT_WAIT_SECONDS = 90
+
+# Linux refuses a SO_REUSEADDR bind beside any listener on an overlapping address
+# (socket(7)). BSD kernels, macOS among them, admit one at a specific address beside
+# a wildcard listener.
+REUSE_EXCLUDES_LISTENERS = sys.platform == "linux"
 
 
 def listening_socket(bind: str, port: int) -> socket.socket:
-    """Open an exclusive listener, retaining fixed addresses through TCP cooldown.
+    """Open an exclusive listener, rebinding a fixed address over its own TIME_WAIT.
 
-    A new service asks the OS for a port with zero; a recorded address waits up
-    to PORT_WAIT_SECONDS for native availability. No address reuse or port lease
-    relaxes the kernel's exclusion of overlapping listeners. Only EADDRINUSE is
-    retried; other failures retain their original error.
+    A new service asks the OS for a port with zero; a recorded address binds its
+    port again, retrying EADDRINUSE for up to PORT_WAIT_SECONDS. Other failures keep
+    their original error. The kernel's bind checks keep two Leaf listeners, in any
+    processes, off overlapping addresses; no port lease or record stands beside them.
+
+    SO_REUSEADDR lets a restart pass the TIME_WAIT connections the previous server
+    left on its port, and it is set wherever it keeps the exclusion. On Linux every
+    bind sets it, the first one included, because Linux passes a TIME_WAIT connection
+    only when the listener that accepted it set the option too. On BSD kernels only a
+    fixed port at a specific address sets it, since there the new socket's option
+    alone decides, and the bind then fails as in use while a wildcard listener holds
+    the port (`_refuse_wildcard_listener`). A wildcard bind there stays strict: the
+    kernel refuses it beside any specific listener, so it cannot slip in after that
+    check, and it also refuses it over TIME_WAIT, so a `--host` restart on macOS
+    still waits out the cooldown.
+
+    Resetting connections, so that the server never holds TIME_WAIT, was rejected:
+    the server exits with its keep-alive connections open (`stop_when_service_ends`),
+    so every close would have to be abortive, and an abortive close can discard a
+    response the client has not yet read.
 
     A stated host binds both IP families. Only `::` falls back to IPv4 when IPv6
     is unavailable; a literal IPv6 address never widens to every interface.
     """
 
     def bound(family: int, host: str) -> socket.socket:
+        reuse = REUSE_EXCLUDES_LISTENERS or (
+            bool(port) and not ipaddress.ip_address(host).is_unspecified
+        )
         sock = socket.socket(family, socket.SOCK_STREAM)
         try:
+            if reuse:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             if family == socket.AF_INET6:
                 sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
             sock.bind((host, port))
             sock.listen(socket.SOMAXCONN)
+            if reuse and not REUSE_EXCLUDES_LISTENERS:
+                _refuse_wildcard_listener(family, port)
         except BaseException:
             sock.close()
             raise
@@ -96,6 +128,30 @@ def listening_socket(bind: str, port: int) -> socket.socket:
             ):
                 raise
             time.sleep(0.25)
+
+
+def _refuse_wildcard_listener(family: int, port: int) -> None:
+    """Raise EADDRINUSE while a wildcard listener covering `family` holds `port`.
+
+    A BSD kernel matches a SO_REUSEADDR bind only against sockets at the same
+    address. A reusing bind of each wildcard that covers the listener's family
+    therefore fails exactly while a listener holds that wildcard, and passes both
+    the specific listener just bound and every TIME_WAIT connection, whose addresses
+    are specific. The probe binds without listening and closes at once.
+    """
+    wildcards = [(socket.AF_INET6, "::")]
+    if family == socket.AF_INET:
+        wildcards.append((socket.AF_INET, "0.0.0.0"))
+    for wildcard_family, host in wildcards:
+        try:
+            probe = socket.socket(wildcard_family, socket.SOCK_STREAM)
+        except OSError as error:
+            if error.errno != errno.EAFNOSUPPORT:
+                raise
+            continue
+        with probe:
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            probe.bind((host, port))
 
 
 class LeafHTTPServer:

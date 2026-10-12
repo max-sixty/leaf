@@ -12,6 +12,8 @@ from pathlib import Path
 from leaf import event_endpoint
 from leaf.delivery import batch_data, freeze_delivery, receive_batch, record_pickup
 from leaf.event_contracts import append_admitted
+from leaf.event_log import read_events
+from leaf.refusals import Refused
 from leaf.service import PageTransaction, unacknowledged
 from leaf.thread import post_response
 
@@ -19,6 +21,33 @@ from leaf.thread import post_response
 def admit(directory: str, event: str) -> None:
     status, body = event_endpoint.accept_event(Path(directory), json.loads(event), dict)
     assert status == 200, body
+
+
+def comment(directory: str, fixture: str) -> None:
+    """Comment as the user on the first quote the active revision holds once, as a
+    selection there would anchor it, or on the page whole with `fallback` text."""
+    # Arms from before `current_anchor` was public still run the other actions.
+    from leaf.thread import current_anchor
+
+    quotes, text, fallback, attempt = json.loads(fixture)
+    page = Path(directory)
+    events = read_events(page)
+    for quote in quotes:
+        try:
+            revision, anchor = current_anchor(page, events, quote, "", "")
+        except Refused:
+            continue
+        event = {"anchor": anchor, "text": text}
+        break
+    else:
+        revision, _ = current_anchor(page, events, "", "", "")
+        event = {"text": fallback}
+    admit(
+        directory,
+        json.dumps(
+            {"kind": "comment", "revision": revision, "attempt": attempt, **event}
+        ),
+    )
 
 
 def answer(directory: str, event_id: str, text: str) -> None:
@@ -69,4 +98,6 @@ def history(directory: str, fixture: str) -> None:
 
 if __name__ == "__main__":
     action, *args = sys.argv[1:]
-    {"admit": admit, "answer": answer, "history": history}[action](*args)
+    {"admit": admit, "answer": answer, "comment": comment, "history": history}[action](
+        *args
+    )

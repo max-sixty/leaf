@@ -131,15 +131,26 @@ def test_catalog_descriptions_follow_example_metadata(tmp_path, monkeypatch):
     )
 
 
-def test_a_composed_part_refuses_an_authored_copy():
+@pytest.mark.parametrize(
+    ("slot", "copy"),
+    [
+        (
+            '<nav class="sitenav" aria-label="Site"></nav>',
+            '<nav class="sitenav" aria-label="Site"><a href="/">leaf</a></nav>',
+        ),
+        (
+            '<img\n                alt="Sandbox',
+            '<img src="/media/0000000000000000.jpg"\n                alt="Sandbox',
+        ),
+    ],
+)
+def test_a_composed_part_refuses_an_authored_copy(slot, copy):
     """A slot holding a copy of its owner's facts would go stale silently."""
     source = DOCS / "index.html"
-    markup = source.read_text().replace(
-        '<nav class="sitenav" aria-label="Site"></nav>',
-        '<nav class="sitenav" aria-label="Site"><a href="/">leaf</a></nav>',
-    )
+    authored = source.read_text()
+    assert slot in authored
     with pytest.raises(ValueError, match="composed from its owner"):
-        docs.compose(source, markup)
+        docs.compose(source, authored.replace(slot, copy))
 
 
 def links(name: str) -> set[tuple[str, str]]:

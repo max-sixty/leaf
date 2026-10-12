@@ -7,7 +7,7 @@ every builder of a product document, the site build and a local preview alike, f
 it here from that owner as it reads the source (`page_fixtures.authored_markup`):
 
 - `nav.sitenav`: the site's routes (`SITE_NAV`), the page's own marked current;
-- an `<img>` without a `src` inside a link to `/examples/<name>/`: that example's
+- an `<img>` inside a link to `/examples/<name>/`: that example's
   catalog preview, at the address `leaf page media` gives the bytes of the asset tree
   the build reads, the pinned one unless a draft's is handed in;
 - `.example-description` inside a catalog link (`a.example-link`): the example's
@@ -105,13 +105,14 @@ def markup_record(verb_state: dict) -> str:
     return f"<code>{shape['attr']}</code> attribute{written}"
 
 
+def registries() -> list[Path]:
+    """The kernel's registry, then each bundled package's."""
+    return [ASSETS / "registry.json", *sorted(PACKAGES.glob("*/registry.json"))]
+
+
 def verb_rows() -> list[str]:
-    registries = [
-        ASSETS / "registry.json",
-        *sorted(PACKAGES.glob("*/registry.json")),
-    ]
     rows = []
-    for path in registries:
+    for path in registries():
         for tag, element in json.loads(path.read_text(encoding="utf-8")).items():
             if not tag.startswith("lf-"):
                 continue
@@ -171,6 +172,19 @@ def key_entries() -> list[str]:
     return entries
 
 
+def inputs(source: Path) -> list[Path]:
+    """The files `compose` reads for one product document, besides the asset pin, so a
+    preview follows an edit to an owner."""
+    tree = SourceDocument(source.read_text(encoding="utf-8")).tree
+    examples = [
+        EXAMPLES / f"{name}.html"
+        for link in tree.select("a.example-link")
+        if (name := example_name(link))
+    ]
+    composed = tree.select("table#all-verbs, nav.reference-index, div.reference-list")
+    return [*examples, *(registries() if composed else [])]
+
+
 def compose(source: Path, markup: str, *, assets: Path | None = None) -> str:
     """Fill the slots of one product document from their owners."""
     document = SourceDocument(markup)
@@ -201,7 +215,13 @@ def compose(source: Path, markup: str, *, assets: Path | None = None) -> str:
         name = example_name(link)
         if name is None:
             continue
-        for image in link.select("img:not([src])"):
+        for image in link.select("img"):
+            if "src" in image.attrs:
+                raise ValueError(
+                    f"{source.name}:{image.source_location.start_tag.start_line}: "
+                    "an example link's image is its preview, composed from its owner "
+                    "(leaf_dev.docs); leave out its src"
+                )
             if previews is None:
                 previews = assets or pinned_assets()
             at = document.offsets(image.source_location.start_tag)[0] + len("<img")

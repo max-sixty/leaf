@@ -124,6 +124,9 @@ def test_product_previews_prepare_the_authored_layer_and_media(
     ).read_text()
     watched = preview.watch_paths(source, ROOT, [], {})
     assert str(ROOT / "docs" / "layer.json") in watched.paths
+    # A composed part's owner is an input: a caption follows its example's edit.
+    if name == "examples":
+        assert str(ROOT / "examples" / "review-a-plan.html") in watched.paths
 
 
 @pytest.mark.parametrize("kind", ["image", "css", "inline", "stylesheet", "sample"])

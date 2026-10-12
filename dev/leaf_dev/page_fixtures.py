@@ -142,6 +142,11 @@ def authored_markup(path: Path, assets: Path | None = None) -> str:
     return docs.compose(path, markup, assets=assets)
 
 
+def composition_inputs(path: Path) -> list[Path]:
+    """The files besides `path` and the asset pin that `authored_markup` reads."""
+    return docs.inputs(path) if path.parent == docs.DOCS else []
+
+
 def read_fixture(source: Path) -> PageFixture:
     seed = seed_log(source)
     files = page_files(source)

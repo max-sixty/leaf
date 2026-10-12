@@ -23,8 +23,8 @@ preview is serving is refused. The slot is a page directory under
 its lease at `<slot>.lock` beside it.
 
 A product document is served as builders read it, with the parts other sources own
-composed in (`page_fixtures.authored_markup`); an edit to one of those owners shows at
-the document's next edit.
+composed in (`page_fixtures.authored_markup`), and an edit to one of those owners
+refreshes it like an edit to the document.
 
 While it runs, `watchfiles` reports edits. Initialization decides whether the layer
 actually changed; identical saves leave the browser and server alone. A source or
@@ -72,6 +72,7 @@ from leaf_dev.leaf_assets import assets_lock
 from leaf_dev.page_fixtures import (
     DEFAULT_PACKAGES,
     authored_markup,
+    composition_inputs,
     fixture_history,
     import_referenced_media,
     media_source,
@@ -564,6 +565,7 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path], seed: dict) -> W
         path.resolve()
         for path in (
             source,
+            *composition_inputs(source),
             companions,
             *companions.rglob("*"),
             *source_manifest_candidates(source),

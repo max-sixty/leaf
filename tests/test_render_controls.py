@@ -4035,6 +4035,68 @@ def test_every_more_row_wears_one_face_and_rings_inside_the_menu(browser, serve)
     assert ring["matches"] and ring["clear"] >= 2, ring
 
 
+def test_send_returns_to_more_when_a_gesture_step_displaced_the_comment_control(
+    browser, serve
+):
+    """Send closes the page comment card onto the control that opened it, and where a
+    gesture step has taken that control's place on the row, onto More, the door that
+    still reaches it (`bannerControlDoor`). A task on the user puts its Done step on
+    the row in the reading loop's place."""
+    url = serve(
+        leaf_page(
+            "Task on you",
+            '<section id="plan"><h2>Plan</h2>'
+            "<p>Ship it on Tuesday, after the backfill.</p></section>"
+            '<p id="tail">Nothing else is planned.</p>',
+        )
+    )
+    page = open_page(browser, url)
+    resized(page, 1280, 800)
+    actions = page.locator(".lf-banner-actions")
+    comment = actions.locator(".lf-page-comment")
+    done = actions.get_by_role("button", name="Done", exact=True)
+    more = page.locator(".lf-banner-more")
+    field = page.get_by_role("textbox", name="Comment on the page", exact=True)
+
+    def send(words):
+        page.evaluate(RELEASE_FOCUS)
+        page.keyboard.press("c")
+        expect(field).to_be_focused()
+        page.keyboard.type(words)
+        with sending(page, words):
+            page.keyboard.press("ControlOrMeta+Enter")
+        expect(page.locator(".lf-page-comment-card")).to_be_hidden()
+
+    # The control: with nothing displacing it, Send lands on the row's Comment.
+    expect(comment).to_be_visible()
+    send("With the row as it was")
+    expect(comment).to_be_focused()
+
+    # A task the agent puts on the user stands its Done step on the row.
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "task",
+            "author": "agent",
+            "agent": "Agent",
+            "session": "displaced-row",
+            "owner": "user",
+            "subject": {"kind": "element", "id": "plan"},
+            "title": "Check the plan",
+        },
+    )
+    told(page)
+    expect(done).to_be_visible()
+    expect(comment).to_be_hidden()
+    send("With the row displaced")
+    expect(more).to_be_focused()
+    assert [
+        event["text"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ] == ["With the row as it was", "With the row displaced"]
+
+
 def test_share_copies_access_after_a_bare_reload(browser, serve):
     """The copied address opens the viewed version and passage in a fresh browser."""
     url = serve(LONG_PAGE)

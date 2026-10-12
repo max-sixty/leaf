@@ -5820,6 +5820,45 @@ customElements.define(TAG, class extends HTMLElement {
     consume_browser_errors(page, "watchData(lf-array-feed, data) requires rows")
 
 
+def test_a_returning_subscriber_is_repainted_only_where_its_departure_cut_the_paint(
+    browser, serve
+):
+    """A widget abandons its unfinished paint when it leaves, so its return owes that
+    reading again. A finished paint stands, so a refused reading is not refused and
+    reported a second time."""
+    page = open_page(browser, data_projection_page(serve))
+    result = page.evaluate(
+        """async () => {
+          const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const widget = document.querySelector('lf-feed');
+          const leaveAndReturn = async () => {
+            const parent = widget.parentNode;
+            const next = widget.nextSibling;
+            widget.remove();
+            await new Promise((resolve) => setTimeout(resolve));
+            parent.insertBefore(widget, next);
+            await new Promise((resolve) => setTimeout(resolve));
+          };
+          let paints = 0;
+          let finish;
+          const finished = new Promise((resolve) => { finish = resolve; });
+          const stop = watchData(widget, 'rows', () => {
+            paints += 1;
+            return finished;
+          });
+          await leaveAndReturn();
+          const interrupted = paints;
+          finish();
+          await finished;
+          await leaveAndReturn();
+          const kept = paints;
+          stop();
+          return {interrupted, kept};
+        }"""
+    )
+    assert result == {"interrupted": 2, "kept": 2}
+
+
 def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
     browser, serve
 ):
@@ -5964,7 +6003,8 @@ def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
 
 
 def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, serve):
-    """Detachment releases data/clock work; reattachment restores the newest reading.
+    """Detachment releases data/clock work; reattachment keeps a finished paint, whose
+    time readings tick again, and delivers a reading that changed while away.
 
     Refresh can acquire a clock dependency absent from the initial paint.
     A move in one mutation batch retains the original subscription. Removing an owner
@@ -6016,6 +6056,8 @@ def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, ser
           const detached = deliveries.length;
           await changed(() => home.append(widget));
           const resumed = deliveries.length;
+          await tickClock(message => { throw new Error(message); });
+          const ticked = deliveries.length;
           const next = structuredClone(runtime.data);
           next.version = 'held-owner-version';
           next.sources.deployments.revision = 'held-owner';
@@ -6045,7 +6087,7 @@ def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, ser
           clock += 1;
           await tickClock(message => { throw new Error(message); });
           return {initial, untracked, subscribed, clocked,
-            moved, detached, resumed, held, absent, restored, refreshed, stagingKept,
+            moved, detached, resumed, ticked, held, absent, restored, refreshed, stagingKept,
             stopped: deliveries.length};
         }"""
     )
@@ -6056,7 +6098,8 @@ def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, ser
         "clocked": 3,
         "moved": 3,
         "detached": 3,
-        "resumed": 4,
+        "resumed": 3,
+        "ticked": 4,
         "held": "held-owner",
         "absent": 6,
         "restored": "newest-owner",

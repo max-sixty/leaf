@@ -354,9 +354,13 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
     page.emulate_media(media="screen")
 
 
-def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
+@pytest.mark.parametrize("returned", [False, True], ids=["stayed", "returned"])
+def test_pr_review_observed_age_refreshes_without_a_data_change(
+    browser, serve, returned
+):
     """The observation time is rendered after Markdown loading, but still follows the
-    shared clock when the source revision remains unchanged."""
+    shared clock when the source revision remains unchanged, including after the brief
+    leaves the page and returns with its painting kept."""
     authored = leaf_page(
         "pull request clock",
         '<lf-pr-brief id="reviewed-pr" source="pr-1842"></lf-pr-brief>',
@@ -386,6 +390,17 @@ def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
     page = open_page(browser, url)
     observed = page.locator(".pr-observed")
     expect(observed).to_have_text("Observed just now")
+    if returned:
+        page.locator("#reviewed-pr").evaluate(
+            """async (element) => {
+              const parent = element.parentNode;
+              const next = element.nextSibling;
+              element.remove();
+              await new Promise((resolve) => setTimeout(resolve));
+              parent.insertBefore(element, next);
+              await new Promise((resolve) => setTimeout(resolve));
+            }"""
+        )
 
     # Only the browser's clock can be moved from here, and every state answer
     # recalibrates the page's one measured offset against the server's real `now`

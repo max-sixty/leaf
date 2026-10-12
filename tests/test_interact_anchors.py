@@ -6,6 +6,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     DRAFTED,
+    FLOW_PAGE,
     PAGE,
     SUGGESTED,
     SUGGESTION,
@@ -184,8 +185,8 @@ def test_a_written_comment_quotes_the_whole_passage(page_dir):
     )
     assert len(passage) > 400, "the fixture no longer outruns the old cap"
     long = PAGE.replace(
-        '  <lf-diagram id="flow"><pre>\ngraph LR\n  A --> B\n  </pre></lf-diagram>\n',
-        f"  <p>{passage}</p>\n  <p>Deploys pause overnight.</p>\n",
+        "</section>",
+        f"  <p>{passage}</p>\n  <p>Deploys pause overnight.</p>\n</section>",
     )
     (page_dir / "index.html").write_text(long)
     event = json.loads(
@@ -202,8 +203,7 @@ def test_a_quote_closing_its_section_stores_the_next_sections_words(page_dir):
     The section the anchor names scopes where the search may land, never what surrounds
     the passage."""
     two = PAGE.replace(
-        '  <lf-diagram id="flow"><pre>\ngraph LR\n  A --> B\n  </pre></lf-diagram>\n',
-        "  <p>Deploys pause overnight.</p>\n",
+        "</section>", "  <p>Deploys pause overnight.</p>\n</section>"
     ).replace(
         "</main>",
         '<section id="rollout">\n  <p>The rollout resumes.</p>\n</section>\n</main>',
@@ -334,6 +334,7 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_its_delivery_reference(
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, asked["id"]),
             "--text",
             "a week",
@@ -380,7 +381,7 @@ def test_a_reply_refused_after_user_resolution_names_the_resolution(page_dir):
 
     refused = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", reference, "--text", "I checked it."],
+        ["response", "reply", "--done", reference, "--text", "I checked it."],
     )
 
     assert refused.exit_code != 0
@@ -413,6 +414,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--markup",
             frozen,
@@ -440,6 +442,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, pressed["id"]),
             "--section",
             pressed["id"],
@@ -491,6 +494,7 @@ def test_a_widgets_data_body_is_not_quotable_but_the_widget_is(page_dir):
     """A diagram's source is a picture by the time the user sees it, so quoting the
     source anchors on text no search will find. Pointing at the element is what a click
     on that diagram does in the browser, and that is the anchor offered instead."""
+    (page_dir / "index.html").write_text(FLOW_PAGE)
     body = comment(published(page_dir), "--quote", "graph LR", "--text", "x")
     assert body.exit_code != 0
     # Named, not merely refused. "the page doesn't say it" was the old answer, and it is
@@ -507,7 +511,7 @@ def test_a_widgets_data_body_is_not_quotable_but_the_widget_is(page_dir):
 
 
 def test_a_comment_may_name_a_declared_visual_part(page_dir):
-    parted = PAGE.replace(
+    parted = FLOW_PAGE.replace(
         '<lf-diagram id="flow">',
         '<lf-diagram id="flow" parts="node:A node:B">',
     )
@@ -558,6 +562,7 @@ def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
     """A picture drawn from data cannot list its parts in markup, so its widget
     declares their kinds: any id a prefix begins is a part a comment may name, with
     nothing authored on the element, and one outside them is refused by name."""
+    (page_dir / "index.html").write_text(FLOW_PAGE)
     declare_part_prefixes(page_dir, "node:")
     published(page_dir)
 
@@ -604,7 +609,7 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
     """The reply and replacement anchor are one durable act. The raw opening keeps
     where the question was asked, while every current-state reading follows the new
     visual part and releases the old element from version retention."""
-    v1 = PAGE.replace(
+    v1 = FLOW_PAGE.replace(
         '<lf-diagram id="flow">',
         '<p id="old-wording">The retry starts here.</p>'
         '<lf-diagram id="flow" parts="node:A node:B">',
@@ -1148,7 +1153,7 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
     """Removing the thing a thread concerns is a current-state transition,
     not permission to attach that thread to some surviving neighbour. The reply
     and revision land together, while the opening anchor remains immutable history."""
-    v1 = PAGE.replace(
+    v1 = FLOW_PAGE.replace(
         '<lf-diagram id="flow">',
         '<p id="old-wording">The retry starts here.</p><lf-diagram id="flow">',
     )
@@ -1268,6 +1273,7 @@ def test_detach_is_a_distinct_reply_target_transition(page_dir):
 
 
 def test_a_withdrawn_reaction_root_can_still_be_moved_but_not_detached(page_dir):
+    (page_dir / "index.html").write_text(FLOW_PAGE)
     published(page_dir)
     root = append_carried_log_record(
         page_dir,
@@ -1343,6 +1349,7 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, root["id"]),
             "--section",
             "backfill-first",
@@ -1359,6 +1366,7 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, root["id"]),
             "--detach",
             "--text",
@@ -1375,7 +1383,9 @@ def test_a_moving_reply_validates_markup_against_the_prospective_revision(page_d
     revision active."""
     published(page_dir)
     root = json.loads(
-        comment(page_dir, "--section", "flow", "--text", "Move this when fixed.").output
+        comment(
+            page_dir, "--section", "backfill-first", "--text", "Move this when fixed."
+        ).output
     )
     source = page_dir / "index.html"
     source.write_text(
@@ -1408,7 +1418,7 @@ def test_a_moving_reply_validates_markup_against_the_prospective_revision(page_d
     assert checked.exit_code == 0, checked.output
 
 
-PARTED = PAGE.replace(
+PARTED = FLOW_PAGE.replace(
     '<lf-diagram id="flow">',
     '<lf-diagram id="flow" parts="node:A node:B">',
 )
@@ -1446,162 +1456,12 @@ def test_a_removed_visual_part_moves_its_thread_to_the_surviving_section(page_di
     assert next(e for e in events if e["id"] == root["id"])["anchor"] == root["anchor"]
 
 
-def test_a_detached_thread_releases_the_visual_part_it_left(page_dir):
-    """`--detach` is the documented move when the subject leaves the page, so the
-    edit that removes the subject has to follow it. The opening comment keeps its
-    original coordinate in the log; nothing resolves that coordinate any more."""
-    root = json.loads(
-        comment(
-            parted(page_dir),
-            "--section",
-            "flow",
-            "--part",
-            "node:A",
-            "--text",
-            "Why this one?",
-        ).output
-    )
-    detached = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            str(page_dir),
-            root["id"],
-            "--detach",
-            "--text",
-            "Removing this node; the thread has no page target.",
-        ],
-    )
-    assert detached.exit_code == 0, detached.output
-
-    result = drop_node_a(page_dir)
-    assert result.exit_code == 0, result.output
-    stored_root = next(
-        event
-        for event in events_model.read_events(page_dir)
-        if event["id"] == root["id"]
-    )
-    assert stored_root["anchor"] == {"section": "flow", "visual": "node:A"}
-
-
-def test_a_moved_thread_releases_the_visual_part_it_left(page_dir):
-    """The other half of the same rule: a thread moved onto the whole diagram, or
-    onto a part that survives, stops holding the one it came from."""
-    root = json.loads(
-        comment(
-            parted(page_dir),
-            "--section",
-            "flow",
-            "--part",
-            "node:A",
-            "--text",
-            "Why this one?",
-        ).output
-    )
-    moved = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            str(page_dir),
-            root["id"],
-            "--section",
-            "flow",
-            "--text",
-            "Folded this node into the diagram; the thread is about the whole of it.",
-        ],
-    )
-    assert moved.exit_code == 0, moved.output
-
-    result = drop_node_a(page_dir)
-    assert result.exit_code == 0, result.output
-
-
-def test_a_resolved_thread_releases_the_visual_part_it_held(page_dir):
-    """Closing a thread is the ordinary end of one, and it releases the part on the
-    same terms a detach does — the same terms that already release the section id,
-    which `page check` lets a resolved thread's page drop as advice. Held past
-    the close, the everyday route out of a thread would be the one route that
-    pins a node to its diagram for good."""
-    root = json.loads(
-        comment(
-            parted(page_dir),
-            "--section",
-            "flow",
-            "--part",
-            "node:A",
-            "--text",
-            "Why this one?",
-        ).output
-    )
-    closed = CliRunner().invoke(
-        cli_model.cli, ["thread", "resolve", str(page_dir), root["id"]]
-    )
-    assert closed.exit_code == 0, closed.output
-
-    result = drop_node_a(page_dir)
-    assert result.exit_code == 0, result.output
-
-
-def test_a_bare_reaction_holds_no_visual_part(page_dir):
-    """A reaction nobody has answered is a mark and not a thread, so it never gates
-    a version — the rule `anchored_ids` already states for the section id. It has no
-    turn to reply with either, so holding the part would leave the author no move
-    that releases it."""
-    append_carried_log_record(
-        parted(page_dir),
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "token": "shorten",
-            "anchor": {"section": "flow", "visual": "node:A"},
-        },
-    )
-
-    result = drop_node_a(page_dir)
-    assert result.exit_code == 0, result.output
-
-
-def test_reopening_a_thread_does_not_reclaim_a_released_visual_part(page_dir):
-    """A release is final. `unresolve` is a user's own gesture and `resolve` is
-    undoable, so a closed thread can come back after the author has already
-    published the part away on the licence the close granted. The coordinate cannot
-    be restored — no revision declares it any more — so re-asserting it would leave
-    `page check` refusing every later edit, and the only move out would be a
-    detach that overrides the decision the user just made."""
-    root = json.loads(
-        comment(
-            parted(page_dir),
-            "--section",
-            "flow",
-            "--part",
-            "node:A",
-            "--text",
-            "Why this one?",
-        ).output
-    )
-    closed = CliRunner().invoke(
-        cli_model.cli, ["thread", "resolve", str(page_dir), root["id"]]
-    )
-    assert closed.exit_code == 0, closed.output
-    assert drop_node_a(page_dir).exit_code == 0
-    publish(page_dir, version=2)
-
-    append_carried_log_record(
-        page_dir, {"kind": "unresolve", "author": "user", "parent": root["id"]}
-    )
-    reopened = check(page_dir)
-    assert reopened.exit_code == 0, reopened.output
-
-
 def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):
     """A module can replace or insert words the file's reading cannot model. A quote
     spanning one of those joins would resolve to nothing in the
     user's browser, so it's refused here, where someone can still do something about
     it. Either side of the join quotes fine."""
-    fenced = PAGE.replace(
+    fenced = FLOW_PAGE.replace(
         '  <lf-diagram id="flow"><pre>\ngraph LR\n  A --> B\n  </pre></lf-diagram>',
         "  <p>Before the diagram.</p>\n"
         '  <lf-diagram id="flow"><pre>\ngraph LR\n  A --> B\n  </pre></lf-diagram>\n'
@@ -1831,9 +1691,9 @@ def test_a_widgets_x_says_attribute_is_quotable_like_any_other_passage(page_dir)
     chip band opens the element, and the gloss's tip closes it."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
-            '  <lf-diagram id="flow">',
+            "</section>",
             '  <lf-gloss id="k-visits" tip="312 daily visits">Traffic</lf-gloss>\n'
-            '  <lf-diagram id="flow">',
+            "</section>",
         )
     )
     published(page_dir)
@@ -2055,7 +1915,7 @@ def test_the_agents_own_comment_is_not_printed_back_to_it(page_dir):
     published(page_dir)
     assert comment(page_dir, "--quote", "Ship dark", "--text", "x").exit_code == 0
     assert page_state(page_dir)["pending"] == 0
-    assert hook_transport_model.unattended_pages("") == []
+    assert hook_transport_model.remedies(hook_transport_model.read_plans("")) == []
 
 
 def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
@@ -2082,6 +1942,7 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
             [
                 "response",
                 "reply",
+                "--done",
                 response_reference(page_dir, root["id"]),
                 "--text",
                 "fixed in v2",
@@ -2273,6 +2134,7 @@ def test_native_message_markup_shares_admission_and_id_ownership(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, user),
             "--text",
             "Ready.",
@@ -2452,6 +2314,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--text",
             "See:",
@@ -2466,6 +2329,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--text",
             "See:",

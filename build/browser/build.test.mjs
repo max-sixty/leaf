@@ -3,12 +3,16 @@ import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { parse } from "acorn";
+import { build } from "esbuild";
+import { adapt, seam } from "../vendor.mjs";
 import { buildOutputs, checkOutputs } from "./build.mjs";
 import { bundledPackages, checkModule } from "./shipped.mjs";
 import { createApplicationPublisher } from "./snapshot.ts";
 
 const outputs = await buildOutputs();
+const root = fileURLToPath(new URL("../../", import.meta.url));
 const vendor = "skills/leaf/assets/vendor";
 const read = (name) => outputs.get(`${vendor}/${name}`).toString();
 const exportsOf = (code) =>
@@ -22,17 +26,33 @@ test("locked source reproduces the complete committed output", async () => {
   assert.deepEqual(rebuilt, outputs);
   await checkOutputs(outputs);
   assert.deepEqual(exportsOf(read("browser-runtime.js")), [
+    "AsyncDirective",
+    "Directive",
     "LitElement",
     "PRESENTATION_HELD",
+    "PartType",
+    "classMap",
     "createPresentationCoordinator",
     "createPresentationSchedule",
+    "createRef",
     "createSemanticApplication",
     "describeFailure",
+    "directive",
+    "guard",
     "html",
+    "ifDefined",
+    "keyed",
+    "live",
+    "mathml",
     "noChange",
     "nothing",
+    "ref",
     "render",
     "repeat",
+    "styleMap",
+    "svg",
+    "unsafeHTML",
+    "when",
   ]);
   const lit = exportsOf(read("lit.js"));
   for (const name of ["LitElement", "html", "classMap", "property", "staticHtml"])
@@ -101,6 +121,43 @@ test("checking stale output refuses it without changing any bytes", async (conte
   // A module whose source is gone is stale too.
   await writeFile(path.join(scratch, vendor, "browser-runtime", "removed.js"), "");
   await assert.rejects(checkOutputs(outputs, scratch), /browser-runtime\/removed\.js/);
+  await rm(path.join(scratch, vendor, "browser-runtime", "removed.js"));
+  // So is any file in a package's vendor directory that no build writes.
+  const chunk = "skills/leaf/packages/diagram/vendor/chunk-removed.js";
+  await writeFile(path.join(scratch, chunk), "");
+  await assert.rejects(checkOutputs(outputs, scratch), new RegExp(chunk));
+});
+
+test("an upstream adaptation fails the build once its seam or its module moves", async () => {
+  const bundle = (adaptations) =>
+    build({
+      stdin: {
+        contents: 'export { diffArrays } from "diff/lib/diff/array.js";',
+        resolveDir: root,
+      },
+      absWorkingDir: root,
+      bundle: true,
+      format: "esm",
+      write: false,
+      logLevel: "silent",
+      plugins: [adapt(adaptations)],
+    });
+  const file = /diff[/\\]libesm[/\\]diff[/\\]array\.js$/;
+  const edited = await bundle([
+    { file, edit: (source) => seam(source, "arrayDiff.diff(", "arrayDiff.leaf(", "x") },
+  ]);
+  assert.match(edited.outputFiles[0].text, /arrayDiff\.leaf\(/);
+  await assert.rejects(
+    bundle([{ file, edit: (source) => seam(source, "class Missing", "", "Array") }]),
+    /Array seam changed: class Missing/,
+  );
+  await assert.rejects(
+    bundle([
+      { file, edit: (source) => source },
+      { file: /moved\.js$/, edit: (s) => s },
+    ]),
+    /no module matches adaptation \/moved\\\.js\$\//,
+  );
 });
 
 test("the bundle gate reads the parsed module, not its text", () => {

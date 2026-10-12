@@ -17,6 +17,13 @@
   }
   const script = document.currentScript;
   const root = document.documentElement;
+  // runtime/ids.js's randomId, which this classic script cannot import: a sample
+  // child served by `leaf --host` over plain HTTP has no crypto.randomUUID, nor does a
+  // site build served that way.
+  const randomId = () =>
+    Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
+      byte.toString(16).padStart(2, "0"),
+    ).join("");
   // The sample URL grants this document its own server operations. An opaque
   // origin keeps it out of its parent's DOM and storage; native network APIs keep
   // their ordinary browser behavior. Only presentation values use the private port.
@@ -55,16 +62,7 @@
       let worn = { attributes: {}, properties: {} };
       const dress = (next = { attributes: {}, properties: {} }) => {
         const root = document.documentElement;
-        for (const name of Object.keys(worn.attributes))
-          if (!Object.hasOwn(next.attributes, name))
-            root.lfInitial.setRuntimeRootAttribute(root, name, null);
-        for (const name of Object.keys(worn.properties))
-          if (!Object.hasOwn(next.properties, name))
-            root.lfInitial.removeRuntimeRootStyle(root, name);
-        for (const [name, value] of Object.entries(next.attributes))
-          root.lfInitial.setRuntimeRootAttribute(root, name, value);
-        for (const [name, value] of Object.entries(next.properties))
-          root.lfInitial.setRuntimeRootStyle(root, name, value);
+        root.lfInitial.wear(root, next);
         worn = next;
       };
       // Aim cancels native mousedown focus and places its editor after layout. A
@@ -86,7 +84,7 @@
           window.addEventListener(type, enterSample, true);
       };
       const sample = new URL(`${script.dataset.lfPageRoot}/`, location.origin).pathname;
-      const nonce = crypto.randomUUID();
+      const nonce = randomId();
       const connect = (event) => {
         if (
           event.source !== window.parent ||
@@ -117,7 +115,7 @@
     window.addEventListener("lf-startup-failed", () =>
       root.lfSample.send({
         type: "error",
-        detail: {
+        detail: root.lfStartupException ?? {
           message:
             document.documentElement.dataset.lfStartupError || "Sample could not start",
         },
@@ -313,7 +311,7 @@
         keepalive: true,
         body: JSON.stringify({
           version: 2,
-          loadId: crypto.randomUUID(),
+          loadId: randomId(),
           release,
           layer,
           outcome,
@@ -422,15 +420,8 @@
           }
         }
         const current = response.headers.get("Leaf-Server");
-        let generation = response.headers.get("Leaf-Layer");
+        const generation = response.headers.get("Leaf-Layer");
         const currentRelease = response.headers.get("Leaf-Release");
-        if (!generation && response.ok) {
-          try {
-            generation = (await response.json())?.["$layer"]?.generation;
-          } catch {
-            // A non-registry probe can still identify itself through headers.
-          }
-        }
         if (
           (current && current !== incarnation) ||
           (generation && generation !== layer) ||

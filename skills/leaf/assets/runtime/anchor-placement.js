@@ -6,7 +6,6 @@
    decoration consumes its resolved targets and never supplies their existence. These
    nodes and records are mechanical readings, outside the application snapshot. */
 import { anchoringIsReady, resolveAnchor } from "./anchor-resolution.js";
-import { pageText } from "./passages.js";
 import { targetElement } from "./resolved-target.js";
 import { placePoints } from "./pointed-place.js";
 import { threadKey, threadNames } from "./thread/model.js";
@@ -20,12 +19,11 @@ export function createAnchorPlacement() {
     if (!anchoringIsReady()) return null;
     placed.clear();
     names = threadNames(threads);
-    const text = pageText();
     const readings = [];
     const pointable = [];
     for (const thread of threads) {
       if (!thread.anchor) continue;
-      const resolved = resolveAnchor(thread.anchor, text);
+      const resolved = resolveAnchor(thread.anchor);
       if (!resolved) continue;
       const target = targetElement(resolved) ?? resolved.place;
       const placement = Object.assign(resolved, {
@@ -38,7 +36,7 @@ export function createAnchorPlacement() {
       if (!thread.resolved && !thread.anchor.quote && !thread.anchor.visual && target)
         pointable.push({ id: thread.id, key: threadKey(thread), target });
     }
-    const pointed = placePoints(pointable, new Set(threads.map(threadKey)), text);
+    const pointed = placePoints(pointable, new Set(threads.map(threadKey)));
     for (const { id, key } of pointable) {
       const point = pointed.get(key);
       if (point)
@@ -49,10 +47,10 @@ export function createAnchorPlacement() {
         });
     }
     const resolvedDraft =
-      draft.open && draft.anchor ? resolveAnchor(draft.anchor, text) : null;
+      draft.open && draft.anchor ? resolveAnchor(draft.anchor) : null;
     pendingPlaced = resolvedDraft;
     const active = draft.open ? null : actionAnchor;
-    const action = active && !active.quote ? resolveAnchor(active, text) : null;
+    const action = active && !active.quote ? resolveAnchor(active) : null;
     return { readings, draft: { ...draft, resolved: resolvedDraft }, action };
   }
   return Object.freeze({

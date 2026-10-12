@@ -13,68 +13,62 @@
 
 ## Read the registry
 
-Write semantic HTML and use the class idioms the registry lists under `$idioms`,
-where each one comes with the markup it is written as. The vendored theme owns
-palette, type, spacing, headings, tables, code, and widget presentation. Use a
-page-local `<style>` only for presentation unique to this page.
+Write semantic HTML and use the registry's elements and class idioms. The vendored
+theme owns palette, type, spacing, headings, tables, code, and widget presentation.
+Use a page-local `<style>` only for presentation unique to this page.
 
-Run `leaf page instructions <page>` and read the shared `author` instructions
-when listed before choosing widgets. Shared composition rules guide that choice.
+Read the shared author instructions, when the page's packages carry any, before
+choosing vocabulary:
+
+```bash
+leaf page instructions <page> | jq -r '.author // empty'
+```
 
 `<page>/registry.json` is the vocabulary `page init` vendored; a
 `page/registry.json` the page writes adds to it or replaces its entries ("Page
-behavior"). Discover elements and class idioms by their purpose and use case:
+behavior"). Ordinary keys are authoring vocabulary: custom-element names or CSS
+selectors. `$` keys are shared layer facts. Discover all vocabulary by purpose:
 
 ```bash
 registry="<page>/registry.json"
-jq '{elements: with_entries(select(.key | startswith("lf-")))
-      | map_values(.description),
-     idioms: ."$idioms" | del(.description) | map_values(.description)}' "$registry"
+jq 'with_entries(select(.key | startswith("$") | not))
+    | map_values(.description)' "$registry"
 ```
 
-For a selected class idiom, read its complete entry, including its `example`:
+Read a selected entry's complete example and instructions. Elements also carry
+an attribute schema; idioms show the semantic HTML and classes the theme styles.
+Both use the same lookup and the same `x-example` and `x-instructions` fields:
 
 ```bash
-jq '."$idioms"[".eyebrow"]' "$registry"
+jq '.["lf-options"], .[".eyebrow"]' "$registry"
 ```
 
-Once you select a widget, read its attribute schema and worked example. Ask for
-a group's parent and child together, because the parent's example shows both:
+Before writing markup, read the composed author instructions for the entries you
+will use, including examples you copy:
 
 ```bash
-registry="<page>/registry.json"
-jq '{"lf-options": .["lf-options"], "lf-option": .["lf-option"]}
-    | map_values({"x-example", properties, required})' "$registry"
+leaf page instructions <page> --use lf-options --use .eyebrow | jq -r '.author // empty'
 ```
 
-Before writing the markup, list the selected widgets' instruction audiences and
-read `author` when listed, including when you copy their examples:
+Each repeated `--use` selects an element or idiom. The command includes shared
+package instructions, the selected entries' instructions, elements and idioms used in
+their examples, and declared data contracts. It returns one JSON map from audience
+to complete text. Whoever takes another role, you or an agent you assign, reads
+that audience's value for the same selection before acting. Inspect the map's
+keys to see the roles it carries; `--contract` selects a data contract directly.
+"Package contract" in `packages.md` defines composition.
+
+Read each `$` fact the page relies on in full:
 
 ```bash
-leaf page instructions <page> --widget lf-options
-leaf page instructions <page> author --widget lf-options
+jq '.["$series"]' "$registry"
 ```
 
-The command includes shared package instructions and the instructions for the
-selected widgets, their required members, custom tags in their examples, and
-declared data contracts. Select each additional widget the page uses with another
-`--widget`. A widget's `x-instructions` guides how to use it after selection.
-
-Read the complete entry wherever the page does more than the example shows, and
-for every `$` fact:
-
-```bash
-registry="<page>/registry.json"
-jq '{"lf-chart": .["lf-chart"], "$series": .["$series"]}' "$registry"
-```
-
-`description` identifies a widget's purpose and when it helps. The schema and
+`description` identifies purpose and when an entry helps. The schema and
 `x-example` state its form; `x-instructions` carries authoring choices and
 obligations the schema cannot express. Implementation contracts live beside
-their owning modules. Package-defined tags and `$` facts join the same registry.
-`leaf page instructions <page>` lists available audiences; read the assigned
-audience before acting in another role, selecting the widgets or data contracts
-that work uses. "Package contract" in `packages.md` defines the command.
+their owning modules. Package-defined elements, idioms, and `$` facts join the
+same registry.
 
 ## Document scaffold
 
@@ -397,19 +391,11 @@ styles and geometry. Exact comments, Questions, decisions, Undo, live revisions 
 drawing capture still use the shared Leaf mechanisms. Changing the selection
 replaces the document through the ordinary revision lifetime.
 
-When the task needs conversations and actions kept in an independent region
-("Bounds and widths"), place one empty
-`<lf-annotation-rail id="annotations"></lf-annotation-rail>` there. Allocate its
-width and height in the page's CSS; it scrolls inside that box. At narrow widths,
-give it a place the user can reach by touch and keyboard. Leaf supplies native disclosures,
-reply editors, action controls and retained reading; the page supplies their layout.
-Widget-local conversations keep their exact seats before the page rail takes
-remaining targets. The Threads panel remains the complete conversation index.
-
-Omitting the rail is valid. Comments open in Threads, and selection offers the
-banner's Comment on selection control. A custom package can supply the same
-page presentation through "Page annotation presentation" in `module-authoring.md`;
-do not reconstruct the event log or annotation inventory in page code.
+With nothing more, comments open in Threads, which remains the complete
+conversation index, and selection offers the banner's Comment on selection control.
+A page or package that shows conversations and actions in its own layout registers
+a presentation through "Page annotation presentation" in `module-authoring.md`; do
+not reconstruct the event log or annotation inventory in page code.
 
 ## Draw the subject
 
@@ -471,6 +457,9 @@ Widget attributes carry scalars; children carry prose; a titled compound member 
 leading `<strong>`. A data-bodied widget such as `lf-code` holds escaped
 notation in `<pre>`, because its whitespace is part of the data. Escape `&`
 first, then `<` and `>`; any other order can silently decode entity text.
+
+Format filenames and paths as inline code, using backticks in Markdown and
+`<code>` in HTML; use an authored link when the file has a known destination.
 
 Display source snippets as `<pre><code class="language-javascript">…</code></pre>`,
 or `lf-code language="javascript"` for a line-numbered walkthrough, naming the actual
@@ -747,9 +736,9 @@ Longer asides belong in prose, a disclosure, or a sidenote.
 
 ## Pre-handover review
 
-Step 3 of the main skill's "Operate" decides when a page takes this review. Every
-source activation already runs the deterministic markup check; this review adds the
-browser gate and a reading:
+The main skill's "Quick pages and records" step decides when a page takes this review.
+Every source activation already runs the deterministic markup check; this review adds
+the browser gate and a reading:
 
 ```bash
 leaf page check <page> --render
@@ -785,7 +774,7 @@ as `q` reaches it from the top, which is how a user working the page meets each
 question. At each arrival, confirm that the question, shared premise, alternatives,
 and evidence that distinguishes them are visible together, the displayed numbers
 match the available actions, and the next press of `q` reaches the next thing waiting
-on the user (an open Question, a thread whose question is theirs, or a move to send again)
+on the user (an open Question, a thread whose question is theirs, or an update to send again)
 while the complete page remains visible.
 
 Without a way to inspect the rendered page, read `leaf page state <page>`'s

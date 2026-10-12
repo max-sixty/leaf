@@ -9,34 +9,41 @@
    carry no native `name`: its exclusivity closes a card the moment it is named beside
    an open one, which the list's own choice then opens again. This mechanical state
    never publishes a new application epoch. Narrowing keeps the
-   selected card when visible and otherwise selects the first visible card. A thread
-   that leaves the reading returns selection to the most recent surviving choice, so
-   refusing a provisional thread preserves the conversation the user had selected.
+   selected card when visible and otherwise selects the first visible card. Releasing
+   an allocation returns selection to the most recent surviving choice, so refusing
+   a provisional thread preserves the conversation the user had selected.
 
-   Focus given to the list goes on to that card's title, whatever gave it — `g T`, an
-   Escape from the panel's find box, a fold that took the focused card — so
-   every key answers for the thread the screen shows selected. The list keeps focus
-   itself only while it shows no card, and its ring never outlines one, and no title
-   holds focus closed: focus, selection and the open card never part.
+   Focus given to the list goes on to the selected card's title or withdrawn notice's
+   Dismiss button, whatever gave it — `g T`, Escape from the panel's find box, or a fold
+   that took the focused card. The list keeps focus itself only while it shows no
+   selected allocation, and its ring never outlines one. No title holds focus closed:
+   focus, selection and the open card never part.
 
    The list also decides when a card leaves it (`keeping`), and news takes no card
    out from in front of the user: a card another actor resolves under Open stays where
    it stands, its card holding the resolution behind its notice (held-news.js) and,
    once shown, drawn resolved in the shape it stood in, until its going would move
-   nothing the user sees. */
-import { html, repeat } from "../../vendor/browser-runtime.js";
+   nothing the user sees. A withdrawn root follows the same lifetime rule, but keeps
+   only its measured allocation and a Dismiss notice: its controls disconnect, its
+   semantic membership ends, and a selected allocation holds off fallback disclosure.
+   Dismissal or choosing another card releases it; changing view or leaving the
+   reading releases it under the same geometry and continuity policy as other news. */
+import { html, repeat, ref } from "../../vendor/browser-runtime.js";
 import { holdFocus, onStanding, focusDestination, focused } from "../focus.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
-import { draftHasContent } from "../drafts.js";
+import { threadHoldsDraft } from "./replies.js";
 import { forwardToThread } from "./focus.js";
 import { passOn, retainUserIntent } from "../user-intent.js";
 import { layoutChanged } from "../widget-elements.js";
 import { isFolding } from "./folding.js";
 import { threadKey } from "./model.js";
-import { seenRect, whenOffScreen } from "../geometry.js";
+import { elementBorderFrame } from "../element-frame.js";
+import { growthIsSeen, whenNone } from "../geometry.js";
 import { gesturedOn } from "./held-news.js";
+import { PENDING } from "./identity.js";
 import { readingIsContinuous } from "../reading-continuity.js";
+import { layoutPx } from "../keeps.js";
 
 const TAG = "leaf-thread-list";
 
@@ -46,17 +53,82 @@ const EMPTY_MODEL = Object.freeze({
   pageSeats: new Map(),
 });
 
+// Whether the user has a reply or a rewrite on its way in `thread`: a message the
+// ledger draws under its pending id, or new words standing over one of theirs
+// (`foldThreads`). A reaction is a mark, not a turn.
+const turnOnItsWay = (thread) =>
+  thread.msgs.some(
+    (message) =>
+      (message.id.startsWith(PENDING) && !message.token) || message.edited?.pending,
+  );
+
 class ThreadListView extends RetainedFace {
   #commands = null;
   #views = new Map();
   #restoreFocusAfterPaint = null;
   #generation = 0;
   #rows = [];
+  #committedRows = [];
   #retaining = false;
   #rollbackFocus = null;
   #selection = [];
   #intent = null;
   #leaving = new Map();
+  #dismissed = new Set();
+  #withdrawnFocus = null;
+
+  // An absent root is no longer a thread: disconnect its controls and keep only the
+  // allocation the reader stood in. Membership and order come from the complete
+  // committed reading, so refusing a candidate restores the same native cards.
+  #withWithdrawals(rows, intent) {
+    const present = new Set(rows.map((row) => row.key));
+    const prior = this.#committedRows;
+    const chosen = this.#selection.find((key) =>
+      this.#rows.some((row) => row.key === key),
+    );
+    for (let i = prior.length - 1; i >= 0; i--) {
+      const row = prior[i];
+      if (present.has(row.key) || this.#dismissed.has(row.key)) continue;
+      const drawn = this.#rows.find((drawn) => drawn.key === row.key);
+      const node = drawn?.node;
+      if (
+        this.#intent !== intent ||
+        !readingIsContinuous() ||
+        !node?.isConnected ||
+        (row.kind !== "withdrawn" &&
+          (row.kind !== "thread" ||
+            !row.descriptor.visible ||
+            row.descriptor.folding ||
+            gesturedOn(row.descriptor.source))) ||
+        !(row.key === chosen ? this.checkVisibility() : growthIsSeen(node))
+      )
+        continue;
+      const withdrawn =
+        row.kind === "withdrawn"
+          ? row
+          : Object.freeze({
+              kind: "withdrawn",
+              key: row.key,
+              id: row.descriptor.id,
+              topic: row.descriptor.summary.topic,
+              extent: elementBorderFrame(node).height,
+            });
+      const following = prior.slice(i + 1).find((next) => present.has(next.key));
+      const preceding = prior
+        .slice(0, i)
+        .findLast((previous) => present.has(previous.key));
+      const at = following
+        ? rows.findIndex((next) => next.key === following.key)
+        : preceding
+          ? rows.findIndex((previous) => previous.key === preceding.key) + 1
+          : 0;
+      rows.splice(at, 0, withdrawn);
+      present.add(row.key);
+    }
+    return rows.some((row) => row.kind === "withdrawn")
+      ? rows.filter((row) => row.kind !== "empty")
+      : rows;
+  }
 
   #visibleRows() {
     const eligible = new Set(
@@ -71,14 +143,23 @@ class ThreadListView extends RetainedFace {
   }
 
   #select(key) {
+    const previous = this.#expandedRow();
     this.#selection = [key, ...this.#selection.filter((chosen) => chosen !== key)];
+    if (previous?.kind === "withdrawn" && previous.key !== key) {
+      this.#dismissed.add(previous.key);
+      this.#commands.repaintThread();
+    }
   }
 
   #expandedRow() {
-    const present = new Set(this.model.rows.map((row) => row.key));
+    const present = new Set(this.#rows.map((row) => row.key));
     const preferred = this.#selection.find((key) => present.has(key));
     const visible = this.#visibleRows();
-    return visible.find((row) => row.key === preferred) ?? visible[0];
+    return (
+      this.#rows.find((row) => row.kind === "withdrawn" && row.key === preferred) ??
+      visible.find((row) => row.key === preferred) ??
+      visible[0]
+    );
   }
 
   #showExpanded() {
@@ -107,6 +188,11 @@ class ThreadListView extends RetainedFace {
     this.#showExpanded();
   }
 
+  #dismiss(row) {
+    this.#dismissed.add(row.key);
+    this.#commands.repaintThread();
+  }
+
   // Why a shown card the view no longer admits stays shown, or null where it goes: the
   // narrowing says which threads the view admits (narrowing.js), this says when a card
   // it stops admitting leaves, and the model builder combines the two into one reading.
@@ -114,36 +200,48 @@ class ThreadListView extends RetainedFace {
   // the render that first does, and its card carries the answer while it stays. The
   // user's own gesture on the thread (`gesturedOn`) takes the card in the turn it is
   // drawn, or, while its reply holds words, once the words go ("draft"), so settlement
-  // never puts a draft away; its thread owner folds a settlement out. Anything else is
+  // never puts a draft away; its thread owner folds a settlement out, and widens the
+  // view to hold a thread the user's own turn took out of it. Anything else is
   // news ("news"), and its card stays, holding the news (held-news.js) or drawn as the
   // news left it in the shape it stood in, while its going would move something the
-  // user sees: while any of it shows, since every card after it would rise, and, as
-  // the card the list shows open, while the panel shows, since another card would open
-  // in its place. Out of sight it stays only for its words,
-  // with the cause that first excluded it still carried. Its leaving the window asks
-  // for the render that lets it go (`#watchKept`), as does its closing when the user
-  // opens another card.
+  // user sees: while its going would be (geometry.js, `growthIsSeen`), since every
+  // card after it would rise, and, as the card the list shows open, while the panel
+  // shows, since another card would open in its place. Out of sight it stays only for
+  // its words, with the cause that first excluded it still carried. Its going out of
+  // sight asks for the render that lets it go (`#watchKept`), as does its closing when
+  // the user opens another card.
   keeping(thread, intent) {
     const key = threadKey(thread);
     const view = this.#views.get(`thread:${key}`);
     if (this.#intent !== intent || !view?.model.visible || view.model.folding)
       return null;
-    const news = view.model.kept ? view.model.kept === "news" : !gesturedOn(thread);
     const seen =
       readingIsContinuous() &&
-      (view.node.open
-        ? this.checkVisibility()
-        : Boolean(seenRect(view.node, new Map())));
-    const draft = draftHasContent("reply:" + key);
+      (view.node.open ? this.checkVisibility() : growthIsSeen(view.node));
+    const draft = threadHoldsDraft(
+      key,
+      thread.msgs.map(({ id }) => id),
+    );
+    // A turn of the user's own on its way, a reply or a rewrite, makes a card news kept
+    // theirs: the turn takes the card out as any turn of theirs does (thread-card.js,
+    // `#speak`). A reaction, a move or words not yet sent leave it held for the news.
+    const news = view.model.kept
+      ? view.model.kept === "news" && !turnOnItsWay(thread)
+      : !gesturedOn(thread);
     if (news && (seen || draft)) return "news";
     return draft ? "draft" : null;
   }
 
   #watchKept() {
     const kept = new Set(
-      this.model.rows
-        .filter((row) => row.kind === "thread" && row.descriptor.kept)
-        .map((row) => this.#views.get(row.key).node),
+      this.#rows
+        .filter(
+          (row) =>
+            row.kind === "withdrawn" ||
+            (row.kind === "thread" && this.#views.get(row.key).model.kept),
+        )
+        .map((row) => row.node)
+        .filter(Boolean),
     );
     for (const [node, stop] of this.#leaving)
       if (!kept.has(node)) {
@@ -154,7 +252,7 @@ class ThreadListView extends RetainedFace {
       if (!this.#leaving.has(node))
         this.#leaving.set(
           node,
-          whenOffScreen([node], () => this.#commands.repaintThread()),
+          whenNone([node], growthIsSeen, () => this.#commands.repaintThread()),
         );
   }
 
@@ -166,6 +264,15 @@ class ThreadListView extends RetainedFace {
   inPageOrder(cards) {
     const seats = this.model.pageSeats;
     return [...cards].sort((a, b) => seats.get(a.dataset.id) - seats.get(b.dataset.id));
+  }
+
+  // Whether the card drawn for thread or message `id` stands only for the user's own
+  // words on their way (`keeping`, "draft"): drawn, though the view leaves it out.
+  keepsForWords(id) {
+    const row = this.#rows.find(
+      (row) => row.kind === "thread" && this.#views.get(row.key).ownsMessage(id),
+    );
+    return Boolean(row) && this.#views.get(row.key).model.kept === "draft";
   }
 
   revealNavigation(id) {
@@ -201,7 +308,9 @@ class ThreadListView extends RetainedFace {
       const open = this.#expandedRow();
       if (!open) return;
       // Handed on with the cause that gave the list its focus (`chooseTitle`).
-      forwardToThread(open.node);
+      if (open.kind === "withdrawn")
+        focusDestination(open.node.querySelector("button"), "return");
+      else forwardToThread(open.node);
       passOn(this, focused());
     });
   }
@@ -236,10 +345,29 @@ class ThreadListView extends RetainedFace {
     // Candidate fallback is only paint; the complete committed reading retires
     // departed choices and adopts the choice its narrowing left visible.
     if (model.count !== null) {
-      this.#selection = this.#selection.filter((key) => wanted.has(key));
+      const present = new Set(this.#rows.map((row) => row.key));
+      this.#selection = this.#selection.filter((key) => present.has(key));
+      this.#dismissed = new Set(
+        this.#rows
+          .filter((row) => row.kind === "withdrawn" && this.#dismissed.has(row.key))
+          .map((row) => row.key),
+      );
       const chosen = this.#expandedRow();
       if (chosen) this.#select(chosen.key);
     }
+    this.#committedRows = this.#rows.map((row) =>
+      row.kind === "thread"
+        ? model.rows.find((candidate) => candidate.key === row.key)
+        : row.kind === "withdrawn"
+          ? Object.freeze({
+              kind: row.kind,
+              key: row.key,
+              id: row.id,
+              topic: row.topic,
+              extent: row.extent,
+            })
+          : row,
+    );
     for (const [key, view] of this.#views) {
       if (wanted.has(key)) view.commit();
       else {
@@ -273,14 +401,26 @@ class ThreadListView extends RetainedFace {
     this.#restoreFocusAfterPaint ??= holdFocus(this);
     // A change of view moves the cards, so they show what they hold.
     const viewChanged = this.#intent !== this.model.intent;
-    this.#intent = this.model.intent;
     const rows = [];
     const wanted = new Set();
-    for (const row of this.model.rows) {
+    // Allocations are mechanical paint state. Reconcile them on every attempt,
+    // including a retry after rollback restored a formerly dismissed live card.
+    const allocated = this.#retaining
+      ? this.#committedRows
+      : this.model.count === null
+        ? this.model.rows
+        : this.#withWithdrawals([...this.model.rows], this.model.intent);
+    this.#intent = this.model.intent;
+    for (const row of allocated) {
       if (row.kind !== "thread") {
-        rows.push(row);
+        if (row.kind === "withdrawn") {
+          const previous = this.#rows.find((drawn) => drawn.key === row.key);
+          if (previous?.node?.contains(focused())) this.#withdrawnFocus = row.key;
+          rows.push({ ...row, node: null });
+        } else rows.push(row);
         continue;
       }
+      this.#dismissed.delete(row.key);
       wanted.add(row.key);
       let view = this.#views.get(row.key);
       if (!view) {
@@ -313,7 +453,6 @@ class ThreadListView extends RetainedFace {
       rows.push({ kind: "thread", key: row.key, node: view.node });
     }
     for (const [key, view] of this.#views) if (!wanted.has(key)) view.retire();
-    this.#watchKept();
     // The list says it shows nothing once the last card has given its room back. Said
     // while that card still folds, the words stood above it and carried it down.
     const giving = rows.some((row) => row.kind === "thread" && isFolding(row.node));
@@ -324,12 +463,39 @@ class ThreadListView extends RetainedFace {
     this.#showExpanded();
     const restore = this.#restoreFocusAfterPaint;
     this.#restoreFocusAfterPaint = null;
-    restore?.(this);
+    const withdrawn = this.#rows.find(
+      (row) => row.kind === "withdrawn" && row.key === this.#withdrawnFocus,
+    );
+    this.#withdrawnFocus = null;
+    restore?.(withdrawn?.node.querySelector("button"), this);
+    this.#watchKept();
     this.#commands?.presentSummary(this.model);
   }
 
   #row(row) {
     if (row.kind === "thread") return row.node;
+    if (row.kind === "withdrawn")
+      return html`<div
+        ${ref((node) => {
+          row.node = node;
+        })}
+        class="lf-thread-withdrawn lf-thread-compact"
+        data-withdrawn=${row.id}
+        style=${`min-block-size:${layoutPx(row.extent)}`}
+      >
+        <div class="lf-thread-summary">
+          <span class="lf-thread-topic">${row.topic}</span>
+          <span class="lf-thread-meta" role="status">Thread withdrawn</span>
+          <button
+            type="button"
+            class="lf-thread-trailing"
+            aria-label=${`Dismiss withdrawn thread: ${row.topic}`}
+            @click=${() => this.#dismiss(row)}
+          >
+            Dismiss
+          </button>
+        </div>
+      </div>`;
     if (row.kind === "empty") return html`<div class="lf-empty">${row.text}</div>`;
     return html`<div class="lf-system" data-id=${row.id}>${row.text}</div>`;
   }

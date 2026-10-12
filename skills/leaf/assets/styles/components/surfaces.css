@@ -175,12 +175,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * `background` is the one property a control's own dress is written in, and every layer
  * writes it: a chip states a fill, chrome's .lf-btn swaps one on hover, a package restates
  * both. A shared rule setting `background` has to out-specify all of them to be seen and
- * then wins against the ones that should have won — the aim wash landed on nothing at
- * all against `.lf-command-facts > [role="button"]`, which ties it exactly. The shadow is
- * painted over whatever fill the control wears, so the chip keeps its ground, the .lf-btn
- * keeps its swap, and both deepen by the same amount under the pointer. It is inset, so
- * it paints inside the padding box, follows the corner the control already has, and adds
- * nothing outside a rectangle the movement tests are watching.
+ * then wins against the ones that should have won. The shadow is painted over whatever
+ * fill the control wears, so the chip keeps its ground, the .lf-btn keeps its swap, and
+ * both deepen by the same amount under the pointer. It is inset, so it paints inside the
+ * padding box, follows the corner the control already has, and adds nothing outside a
+ * rectangle the movement tests are watching.
  *
  * A spent press keeps its shape and gives up its opacity. That is the layer's one cue
  * for "there is nothing left to do here", and it is stated with the hand it withdraws so
@@ -215,39 +214,48 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * In this file, because a widget declaring x-shadow builds its controls in a tree the
  * document's stylesheet does not reach, and a floor that stopped at the light DOM would
  * be a floor the newest kind of widget is the one to fall through. */
-/* Every keyboard target no rule rings, the page's own among them — a link, a summary, a
+/* Focus identifies the current input destination, regardless of pointer, touch or
+   keyboard arrival. Every focus target no rule rings, the page's own among them — a link, a summary, a
    block the runtime lands the user on — wears the layer's band. At no weight, so each
    rule that rings its own control still wins. Left to the browser these drew its 1px
-   auto ring flush against the words, beside the 2px band on every Leaf control. */
-:where(:focus-visible) { outline: var(--focus-ring); --lf-focus-ring: focus;
+   auto ring flush against the words, beside the 2px band on every Leaf control.
+   focus.js assigns lf-focus from the same logical standing that routes input;
+   retargeting shadow hosts and a label press's intermediate nodes get no band. */
+:where([data-lf-focus]) { outline: var(--focus-ring); --lf-focus-ring: focus;
   outline-offset: var(--focus-ring-gap); }
 /* Where the user stands wears a ring outside its box, so a scroll that brings the focus
    into view, the browser's or a landing's (anchor-travel.js reads it), keeps the ring's
    room at the scroller's edge: an Ask landed at the top of a scrolling pane stood flush
-   with it, the top of its ring cut off under the pane's header rule. At no weight, like
-   the ring. */
-:where(:focus) { scroll-margin-block: var(--focus-ring-room); }
-/* A control in a sticky header stands where the header sticks, which a scroller's
-   landing band can count as covered: the root's band starts `--lf-landing-room` below
-   the banner, where a header sticks. The browser then scrolls toward the control on
-   every focus, and a stuck header never comes out from under the band, so each Tab
-   crept the page by the difference, and one standing wholly inside the band, a page
-   tab strip, was centred, 403px a key. A header says how far below the slot it sticks
-   against (`--lf-top`) its controls stand when stuck (`--lf-head-inset`), and the
-   margin takes the band's room back from that, so a focused control where its header
-   sticks is shown, and one revealed from elsewhere lands exactly there.
-   `--lf-landing-room` is the scroller's own: 12px on the root (theme.css), none where
-   a box that scrolls restarts the slot (state.css), and a list that pads its edge for the
-   ring says so (chrome.css). */
-:where(:focus) {
-  scroll-margin-top: calc(var(--lf-head-inset, calc(var(--focus-ring-room)
-    + var(--lf-landing-room, 0px))) - var(--lf-landing-room, 0px)); }
+   with it, the top of its ring cut off under the pane's header rule. `:focus` makes
+   that room available to the landing before the focus mark paints after the script.
+   At no weight, like the ring. */
+:where(:focus, [data-lf-focus]) { scroll-margin-block: var(--focus-ring-room); }
+/* A control in a stuck sticky header stands where the header sticks, which its
+   scroller's landing band can count as covered: the root's band starts
+   `--lf-landing-room` below where headers stick under the banner. The browser then
+   scrolled toward the control on every focus, and a stuck header never comes out from
+   under the band, so each Tab crept the page: 17px under a diff's file header, 14px
+   under a trace's toolbar, and a page tab strip, which stands wholly inside the band,
+   was centred, 313px a key.
+   So the margin is read from the slot. `--lf-top` less what the band covers whole
+   (`--lf-top-covered`, theme.css) is the headers stacked over the focused box that the
+   band does not count, so a landing clears them. A box in a header that sticks at its
+   top (reach.js marks it, `paintSlot`) stands at its own slot when stuck, so its margin
+   also takes the band's room back (`--lf-head-inset`, none) and a control focused there
+   counts as shown; anywhere else the margin keeps the focus ring's room. A page tab
+   strip, which the band covers whole, comes out negative by its height, so its names
+   count as shown too. */
+:where([data-lf-sticks]) { --lf-head-inset: 0px; }
+:where(:focus, [data-lf-focus]) {
+  scroll-margin-top: calc(var(--lf-top) - var(--lf-top-covered, var(--lf-top))
+    + var(--lf-head-inset, calc(var(--focus-ring-room) + var(--lf-landing-room, 0px)))
+    - var(--lf-landing-room, 0px)); }
 [data-lf-offer]:where(:not([data-lf-offer=""])) { cursor: pointer; }
 [data-lf-offer]:where(:not([data-lf-offer=""])):hover:where(:not([aria-disabled="true"], :disabled)) {
   box-shadow: var(--offer-hover-shadow); }
 [data-lf-offer]:where(:not([data-lf-offer=""])):is([aria-disabled="true"], :disabled) {
   cursor: default; opacity: .55; }
-[data-lf-offer]:where(:not([data-lf-offer=""])):is(:focus-visible, .lf-focus-visible) {
+[data-lf-offer]:where(:not([data-lf-offer=""]))[data-lf-focus] {
   outline: var(--focus-ring); --lf-focus-ring: pressable;
   outline-offset: var(--focus-ring-gap); }
 /* The floor under every aim the layer offers, stated once for all of them rather
@@ -291,13 +299,13 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    .lf-outline-chip is halved on how it is spelled, because the class dresses a standing
    chip as well as a press and a chip is not something to aim at. */
 [data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer="checkbox"], [data-lf-offer="radio"], .lf-skip)),
-.lf-btn, .button, .lf-outline-chip:is(button, [role="button"]), .lf-thread-notice:is(button), .lf-react, .lf-react-trigger,
+.lf-btn, .button, .lf-outline-chip:is(button, [role="button"]), .lf-thread-notice:is(button), .lf-react, .lf-msg-control,
 .lf-margin-entry,
 .lf-thread-action, .lf-preview, .lf-layer-reference, .lf-version-diff, .lf-version-row,
 .lf-command-reference-command, .lf-quote {
   min-width: var(--aim-floor); }
 [data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer="checkbox"], [data-lf-offer="radio"], .lf-skip, .lf-btn, .lf-version-row, .lf-version-diff)),
-.lf-outline-chip:is(button, [role="button"]), .lf-thread-notice:is(button), .lf-react, .lf-react-trigger,
+.lf-outline-chip:is(button, [role="button"]), .lf-thread-notice:is(button), .lf-react, .lf-msg-control,
 .lf-margin-entry, .lf-thread-action, .lf-command-reference-command, .lf-quote {
   min-height: var(--aim-floor); }
 /* A native summary retains its list marker and centers its content within the
@@ -322,23 +330,23 @@ summary { align-content: center; }
           padding: var(--sp-1);
           font-family: var(--sans); font-size: var(--t-5); line-height: var(--lf-ui-lh);
           color: var(--ink); overflow-wrap: anywhere; }
-.lf-page-thread:is(:focus-within, .lf-focus-within) {
+.lf-page-thread[data-lf-focus-within] {
           outline: none; border-radius: var(--r); background: var(--focus-surface); }
-/* The thread itself holding the keyboard's focus wears the ring, inset over the quiet
+/* The thread itself holding focus wears the ring, inset over the quiet
    ground its containing state paints; chrome.css says the same of the panel's card.
    It is drawn on a pseudo-element over the thread's contents rather than as the
    thread's own outline, which paints with the thread's in-flow content: a positioned
    row inside the thread paints after that, over the ring's bottom run. The
    pseudo-element is positioned too and comes after every row in tree order, so it
    paints over them without a z-index that would also lift it over the page. */
-.lf-page-thread:is(:focus-visible, .lf-focus-visible) { outline: none; }
-.lf-page-thread:is(:focus-visible, .lf-focus-visible)::after { content: "";
+.lf-page-thread[data-lf-focus] { outline: none; }
+.lf-page-thread[data-lf-focus]::after { content: "";
           position: absolute; inset: 0; pointer-events: none;
           border-radius: inherit;
           outline: var(--focus-ring); --lf-focus-ring: page-thread;
           outline-offset: calc(-1 * var(--focus-ring-w)); }
 @media (forced-colors: active) {
-  .lf-page-thread:is(:focus-within, .lf-focus-within) {
+  .lf-page-thread[data-lf-focus-within] {
           outline: 2px solid Highlight; outline-offset: -2px; box-shadow: none; }
 }
 .lf-say { display: none; align-items: flex-end;
@@ -366,7 +374,7 @@ summary { align-content: center; }
           anchor-scope: --lf-thread-headline;
           --lf-thread-action-room: var(--lf-msg-head-height);
           --lf-thread-notice-room: var(--lf-msg-head-height);
-          --lf-thread-reaction-room: 0px; }
+          --lf-thread-message-control-room: 0px; }
 /* A semantic separator draws its boundary without sizing the transcript. */
 .lf-read-boundary { height: 0; }
 /* One animated phase feeds every painted part of a message. Animating the
@@ -401,10 +409,14 @@ summary { align-content: center; }
    it covers. One disclosure beside that context controls the entire range. */
 .lf-thread-checkpoint { margin-block: 16px; }
 .lf-thread-checkpoint[hidden] { display: none; }
-/* An inset border groups the retained messages without changing their headers
-   or giving progress a separate background. Collapsed disclosures stay inline. */
-.lf-thread-checkpoint[data-expanded="true"] { margin-block: 12px;
-  border: 1px solid var(--rule); border-radius: 5px; padding: 6px 12px; }
+/* A border groups the retained messages without changing their headers or giving
+   progress a separate background. It is drawn around them rather than taking room,
+   so opening a group moves none of their words: an answer folding the progress a
+   reader is on keeps it open in place (held-news.js). Collapsed disclosures stay inline. */
+.lf-thread-checkpoint[data-expanded="true"] { position: relative; }
+.lf-thread-checkpoint[data-expanded="true"]::before { content: ""; position: absolute;
+  inset-block: -7px; inset-inline: -12px -6px; border: 1px solid var(--rule);
+  border-radius: 5px; pointer-events: none; }
 .lf-summary-checkpoint { padding-block: 4px; }
 /* Keep the context label readable when the disclosure needs another line. */
 .lf-summary-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
@@ -426,7 +438,7 @@ summary { align-content: center; }
 .lf-summary-originals { min-width: 0; }
 .lf-summary-originals[hidden] { display: none; }
 .lf-summary-originals > .lf-msg { margin-block: 8px; }
-.lf-thread-disclosure:is(:focus-visible, .lf-focus-visible) {
+.lf-thread-disclosure[data-lf-focus] {
   outline: var(--focus-ring); --lf-focus-ring: summary-fold;
   outline-offset: calc(-1 * var(--focus-ring-w)); }
 /* Held news and header words spend separate retained allocations. A receipt may
@@ -451,7 +463,7 @@ summary { align-content: center; }
   > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-head {
           anchor-name: --lf-thread-headline;
           margin-inline-end: calc(var(--lf-thread-action-room) + var(--sp-2));
-          padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2) + var(--lf-thread-reaction-room)); }
+          padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2) + var(--lf-thread-message-control-room)); }
 .lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript
   > .lf-thread-checkpoint:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
   > .lf-summary-checkpoint > .lf-summary-header {
@@ -460,10 +472,16 @@ summary { align-content: center; }
           margin-inline-end: calc(var(--lf-thread-action-room) + var(--sp-2));
           padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2)); }
 .lf-thread-content:has(> .lf-thread-controls):has(> .lf-thread-transcript
-  > .lf-msg.agent:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-react-strip) {
-          --lf-thread-reaction-room: calc(max(26px, var(--aim-floor)) + var(--sp-2)); }
+  > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
+  > :is(.lf-react-strip, .lf-msg-control)) {
+          --lf-thread-message-control-room: calc(max(26px, var(--aim-floor)) + var(--sp-2)); }
+.lf-thread-content:has(> .lf-thread-controls):has(> .lf-thread-transcript
+  > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-body > .lf-msg-editor) {
+          --lf-thread-message-control-room:
+            calc(max(52px, var(--aim-floor)) + 4px + max(40px, var(--aim-floor))
+              + var(--sp-2)); }
 .lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript
-  > .lf-msg.agent:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-head {
+  > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-head {
           anchor-name: --lf-thread-headline, --lf-msg-head; }
 .lf-thread-meta-actions { display: inline-flex; flex: none; align-items: center;
           gap: 4px; margin-inline-start: auto; }
@@ -474,7 +492,7 @@ summary { align-content: center; }
           inset-inline-start: calc(var(--lf-thread-news-start, 0px) + var(--sp-2));
           inline-size: var(--lf-reserved-width, max-content);
           max-inline-size: max(0px, min(
-            calc(100% - var(--lf-thread-news-start, 0px) - 2 * var(--sp-2) - var(--lf-thread-action-room) - var(--lf-thread-reaction-room)),
+            calc(100% - var(--lf-thread-news-start, 0px) - 2 * var(--sp-2) - var(--lf-thread-action-room) - var(--lf-thread-message-control-room)),
             calc(var(--lf-thread-news-visible-end, 100%) - var(--lf-thread-news-start, 0px) - var(--sp-2))));
           box-sizing: border-box; min-width: 0;
           min-height: var(--lf-thread-action-room);
@@ -492,7 +510,7 @@ button.lf-thread-notice { appearance: none; margin: 0; padding: 0;
           border: 0; background: none; cursor: pointer; }
 .lf-thread-notice:hover { box-shadow: none; text-decoration: underline;
           text-underline-offset: 3px; }
-button.lf-thread-notice:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+button.lf-thread-notice[data-lf-focus] { outline: var(--focus-ring);
           --lf-focus-ring: thread-notice; outline-offset: 1px; }
 /* What a seat holds while it would move the page under the reader (thread/held-news.js).
    The rows it appears in already stand at the height of a control beside it: the head
@@ -505,6 +523,6 @@ button.lf-thread-notice:is(:focus-visible, .lf-focus-visible) { outline: var(--f
 .lf-page-thread-resolved > .lf-thread-news { margin-inline-start: auto; }
 .lf-seat-news { display: flex; align-items: center; box-sizing: border-box; }
 .lf-msg-head time { color: var(--muted-2); }
-.lf-msg-head .lf-edited { color: var(--muted-2); }
+.lf-msg-head :is(.lf-edited, .lf-msg-kept) { color: var(--muted-2); }
 /* A thread projected inline uses the same receipt emphasis as the panel. */
 .lf-msg-head .lf-msg-failure { color: var(--warn-ink); font-weight: 600; }

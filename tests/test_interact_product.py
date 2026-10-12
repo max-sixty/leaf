@@ -1,5 +1,6 @@
 """Version corpus, registry, message, and export tests."""
 
+import copy
 import json
 import os
 import re
@@ -10,6 +11,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     COMMAND_SUBJECTS,
+    FLOW_PAGE,
     PAGE,
     ROOT,
     SHIPPED_PACKAGES,
@@ -40,12 +42,13 @@ from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import tasks as tasks_model
 from leaf.registry import storage as registry_storage
+from leaf.registry.contract import element_declarations
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_digest
-from leaf.validation import compatibility as validation_model
+from leaf.validation import composition as validation_model
 from leaf.validation.instances import reference_errors
 from leaf_dev.example_data import regression_sources
-from leaf_dev.page_fixtures import package_selection_args, prepare_page, read_fixture
+from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 PUBLIC_EXAMPLES = tuple(
     path for path in sorted((ROOT / "examples").glob("*.html")) if path.stem != "corpus"
@@ -103,7 +106,7 @@ def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
 
 def test_later_events_do_not_veto_source_readings(page_dir):
     source = page_dir / "index.html"
-    source.write_text(PAGE)
+    source.write_text(FLOW_PAGE)
     live = revisioning_model.activate_source(page_dir)
     assert live.error is None and live.revision == 1
     live = revisioning_model.activate_source(page_dir)
@@ -124,10 +127,7 @@ def test_later_events_do_not_veto_source_readings(page_dir):
 
     # Removing a thread's target activates immediately and detaches the thread;
     # the original anchor stays in the log.
-    dropped = re.sub(
-        r'<lf-diagram id="flow">.*?</lf-diagram>', "", PAGE, flags=re.DOTALL
-    )
-    source.write_text(dropped)
+    source.write_text(PAGE)
     removed = revisioning_model.activate_source(page_dir)
     assert removed.error is None and removed.created and removed.revision == 2
     threads = event_folds_model.build_threads(events_model.read_events(page_dir), {})
@@ -158,7 +158,7 @@ def test_later_events_do_not_veto_source_readings(page_dir):
     assert check(page_dir).exit_code == 0
 
     # Events cannot repair an invalid source either; only a corrected save does.
-    source.write_text(dropped.replace("</section>", ""))
+    source.write_text(PAGE.replace("</section>", ""))
     refused = revisioning_model.activate_source(page_dir)
     assert refused.error and refused.revision == 2 and not refused.created
     append_carried_log_record(
@@ -166,7 +166,7 @@ def test_later_events_do_not_veto_source_readings(page_dir):
     )
     still_refused = revisioning_model.activate_source(page_dir)
     assert still_refused.error == refused.error and still_refused.revision == 2
-    source.write_text(dropped.replace("<title>t</title>", "<title>repaired</title>"))
+    source.write_text(PAGE.replace("<title>t</title>", "<title>repaired</title>"))
     repaired = revisioning_model.activate_source(page_dir)
     assert repaired.error is None and repaired.created and repaired.revision == 3
 
@@ -324,9 +324,42 @@ def test_question_context_frames_any_number_of_independent_sources(page_dir):
         in " ".join(control_first)
     )
 
+    # A context framing no live source would show a question the banner never
+    # counts. A retired source still counts: settling a decision keeps its context.
+    assert "registers no Question: it holds no widget that declares x-awaits" in (
+        " ".join(
+            fragment_errors(
+                '<lf-ask id="decision-empty"><h2>Nothing to answer</h2></lf-ask>',
+                registry,
+            )
+        )
+    )
+    unasked = first.replace(" choose", "")
+    assert (
+        '<lf-options id="g-one"> (line 1) asks only where choose is present'
+        in " ".join(
+            fragment_errors(
+                f'<lf-ask id="decision-unasked"><h2>Choose</h2>{unasked}</lf-ask>',
+                registry,
+            )
+        )
+    )
+    settled = first.replace(" choose", " choose settled")
+    settled_ask = f'<lf-ask id="decision-settled"><h2>Chosen</h2>{settled}</lf-ask>'
+    assert fragment_errors(settled_ask, registry) == []
+    # The registry's `retired` is what says the flag ended an asked Question; a flag
+    # that merely stops a widget asking leaves the context framing nothing.
+    unretired = copy.deepcopy(registry)
+    del unretired["lf-options"]["x-awaits"]["retired"]
+    assert '<lf-options id="g-one"> (line 1) asks only where settled is absent' in (
+        " ".join(fragment_errors(settled_ask, unretired))
+    )
+    # A quoted Ask is a mention, and its widgets ask nothing by design.
     assert (
         fragment_errors(
-            '<lf-ask id="decision-empty"><h2>Nothing to answer</h2></lf-ask>',
+            '<lf-sample id="quoted-ask" label="an Ask">'
+            f'<lf-ask id="decision-quoted"><h2>Choose</h2>{second}</lf-ask>'
+            "</lf-sample>",
             registry,
         )
         == []
@@ -491,16 +524,12 @@ def test_page_fixtures_pass_check(example, tmp_path, monkeypatch, initialized_pa
     refuses it."""
     monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
     fixture = read_fixture(example)
-    d = tmp_path / "page"
-
-    def initialize(target):
-        run_leaf("page", "init", *package_selection_args(fixture.packages), str(target))
+    d = initialized_page(tmp_path / "page", fixture.packages)
 
     def checked(version):
         result = check(d)
         assert result.exit_code == 0, f"{version.name}: {result.output}"
 
-    initialized_page("-".join(["fixture", *fixture.packages]), d, initialize)
     # Every authored version, not only the current one: a fault in a prior
     # version stops preview and the site build, a slow way to hear it.
     prepare_page(
@@ -529,7 +558,7 @@ def test_every_widget_in_the_vocabulary_stands_in_a_corpus_source():
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     # The corpus is generated from the others, so it can only repeat their coverage.
     authored = " ".join(path.read_text() for path in CORPUS_SOURCES)
-    tags = [tag for tag in registry if not tag.startswith("$")]
+    tags = element_declarations(registry)
     assert tags, "no widgets read — an empty vocabulary demonstrates itself"
     undemonstrated = [tag for tag in tags if not re.search(rf"<{tag}[\s>]", authored)]
     assert not undemonstrated, (
@@ -560,11 +589,13 @@ def test_the_feature_gallery_eyebrows_index_literal_code_names():
     """Every showcased element is indexed by a code name, never descriptive prose."""
     authored = FEATURE_GALLERY.read_text(encoding="utf-8")
     gallery_registry = json.loads(
-        (schema_model.BUNDLED_PACKAGES / "gallery" / "registry.json").read_text(
+        (FEATURE_GALLERY.with_suffix(".page") / "registry.json").read_text(
             encoding="utf-8"
         )
     )
-    apparatus = {tag for tag in gallery_registry if tag.startswith("lf-")}
+    apparatus = {
+        tag for tag, entry in gallery_registry.items() if entry.get("x-exhibit")
+    }
     assert apparatus
     eyebrows = re.findall(
         r'<p class="eyebrow bg-feature-elements">(.*?)</p>',
@@ -696,6 +727,7 @@ def test_reply_validates_widget_markup(page_dir):
             [
                 "response",
                 "reply",
+                "--done",
                 response_reference(page_dir, "c1"),
                 "--text",
                 "See:",
@@ -738,6 +770,7 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
             [
                 "response",
                 "reply",
+                "--done",
                 response_reference(page_dir, "c1"),
                 "--text",
                 "Choose:",
@@ -770,7 +803,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
 
     def reply(markup, *, for_event=None, to="c1"):
         route = (
-            ["response", "reply", response_reference(page_dir, for_event)]
+            ["response", "reply", "--done", response_reference(page_dir, for_event)]
             if for_event
             else ["thread", "reply", str(page_dir), to]
         )
@@ -788,15 +821,15 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     def question(decision_id, markup):
         return f'<lf-ask id="{decision_id}"><h2>Pick?</h2>{markup}</lf-ask>'
 
-    # `flow` is the page's lf-diagram id (PAGE fixture) — refused.
+    # `flag-first` is an option on the page (PAGE fixture) — refused.
     clash = reply(
         question(
-            "flow-decision",
-            '<lf-options id="flow" choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
+            "o-decision",
+            '<lf-options id="o" choose><lf-option id="flag-first"><strong>A</strong></lf-option></lf-options>',
         ),
         for_event="c1",
     )
-    assert clash.exit_code != 0 and "flow" in clash.output
+    assert clash.exit_code != 0 and "flag-first" in clash.output
     fresh = reply(
         question(
             "q1-decision",
@@ -873,6 +906,7 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--text",
             "Pick:",
@@ -943,6 +977,7 @@ def test_the_wire_ships_a_message_as_logged(page_dir):
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--text",
             "Fixed in `poll()`.",
@@ -986,7 +1021,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
     answered = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", reference, "--text", "The work is ready."],
+        ["response", "reply", "--done", reference, "--text", "The work is ready."],
     )
     assert answered.exit_code == 0, answered.output
     assert json.loads(answered.output)["responds"] == "c1"
@@ -1076,6 +1111,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
         [
             "response",
             "reply",
+            "--done",
             reference,
             "--text",
             "The schedule works.",
@@ -1109,6 +1145,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, root["id"]),
             "--text",
             "Complete.",
@@ -1123,7 +1160,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
             root["id"],
             "--text",
             "Which store?",
-            "--awaits",
+            "--question",
         ],
     )
     duplicate = CliRunner().invoke(
@@ -1142,7 +1179,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
                 '<lf-option id="store-a"><strong>A</strong></lf-option>'
                 "</lf-options></lf-ask>"
             ),
-            "--awaits",
+            "--question",
         ],
     )
     aggregate = CliRunner().invoke(
@@ -1159,7 +1196,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
                 '<lf-test-tasks id="reply-plan"><lf-test-task id="reply-task" status="review">'
                 "<strong>Review</strong></lf-test-task></lf-test-tasks>"
             ),
-            "--awaits",
+            "--question",
         ],
     )
     assert answered.exit_code == 0, answered.output
@@ -1168,9 +1205,9 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
     assert "reply markup already declares" in duplicate.output
     assert aggregate.exit_code == 0, aggregate.output
     replies = [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
-    assert "awaits" not in replies[0]
-    assert replies[1]["awaits"] is True
-    assert replies[2]["awaits"] is True
+    assert "question" not in replies[0]
+    assert replies[1]["question"] is True
+    assert replies[2]["question"] is True
 
 
 def test_an_agent_edits_predecessor_messages_without_rewriting_history(
@@ -1207,6 +1244,7 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, user["id"]),
             "--text",
             "The crawl is paused.",
@@ -1325,6 +1363,238 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
     assert json.loads(unidentified.output)["message"] == sessionless["id"]
 
 
+def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
+    """The user rewriting their message speaks again, under the edit's id.
+
+    The thread shows the new wording in place of the old, and the agent owes it an
+    answer as it would a reply: addressed to the message the edit rewrote, delivered
+    with the wording it replaced, settled by a reply naming the edit, and reopening a
+    thread the user had closed. Only the words the user wrote are theirs to revise.
+    """
+    from leaf import delivery as delivery_model
+    from leaf.event_log import EventRefused
+
+    publish(page_dir)
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+
+    def reply_for(event_id, text):
+        result = CliRunner().invoke(
+            cli_model.cli,
+            [
+                "response",
+                "reply",
+                "--done",
+                response_reference(page_dir, event_id),
+                "--text",
+                text,
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        return json.loads(result.output)
+
+    def owed_answers():
+        state = state_json(page_dir)
+        standing = set(state["activity"]["obligations"])
+        return [
+            (item["input"], item["message"], item["answer"])
+            for item in state["workflows"]
+            if item["id"] in standing
+        ]
+
+    asked = append_command(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Chart 2024."},
+    )
+    answer = reply_for(asked["id"], "Charted 2024.")
+    assert owed_answers() == []
+
+    edit = append_command(
+        page_dir,
+        {
+            "kind": "edit",
+            "author": "user",
+            "message": asked["id"],
+            "text": "Chart 2025.",
+        },
+    )
+    assert edit["attention"] is True
+    assert owed_answers() == [
+        (
+            edit["id"],
+            asked["id"],
+            {"kind": "reply", "to": asked["id"], "for": edit["id"]},
+        )
+    ]
+    with service_model.PageTransaction(page_dir) as page:
+        stored = next(event for event in page.events if event["id"] == edit["id"])
+        delivered = delivery_model.freeze_delivery(
+            [delivery_model.batch_data(page_dir, page, [stored])]
+        )
+    [batch] = delivered["batches"]
+    [event] = batch["events"]
+    assert (event["text"], event["was"]) == ("Chart 2025.", "Chart 2024.")
+    assert any("rewrote" in batch["handling"][ref] for ref in event["handling"])
+    [thread] = batch["threads"]
+    assert [m["text"] for m in thread["messages"]] == ["Chart 2025.", "Charted 2024."]
+
+    settled = reply_for(edit["id"], "Charted 2025 instead.")
+    assert (settled["parent"], settled["responds"]) == (asked["id"], edit["id"])
+    assert owed_answers() == []
+
+    append_command(
+        page_dir, {"kind": "resolve", "author": "user", "parent": asked["id"]}
+    )
+    again = append_command(
+        page_dir,
+        {
+            "kind": "edit",
+            "author": "user",
+            "message": asked["id"],
+            "text": "Chart both.",
+        },
+    )
+    [thread] = state_json(page_dir)["threads"]
+    assert thread["resolved"] is None
+    assert [item[0] for item in owed_answers()] == [again["id"]]
+
+    # A question asked after the rewritten words stays the user's: a rewrite up the
+    # thread is owed an answer, and answers nothing asked since.
+    asking = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "response",
+            "reply",
+            response_reference(page_dir, again["id"]),
+            "--text",
+            "Which year goes first?",
+            "--question",
+        ],
+    )
+    assert asking.exit_code == 0, asking.output
+    typo = append_command(
+        page_dir,
+        {
+            "kind": "edit",
+            "author": "user",
+            "message": asked["id"],
+            "text": "Chart both!",
+        },
+    )
+    [thread] = state_json(page_dir)["threads"]
+    assert thread["attention"]["kind"] == "needs_user", thread["attention"]
+    assert [item[0] for item in owed_answers()] == [typo["id"]]
+
+    reaction = append_command(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": answer["id"], "token": "keep"},
+    )
+    before = events_model.read_events(page_dir)
+    for target, refusal in [
+        (answer["id"], "is not user-authored"),
+        (reaction["id"], "has no words to revise"),
+        ("no-such-message", "unknown message"),
+    ]:
+        with pytest.raises(EventRefused, match=refusal):
+            append_command(
+                page_dir,
+                {"kind": "edit", "author": "user", "message": target, "text": "x"},
+            )
+    assert events_model.read_events(page_dir) == before
+
+
+def test_a_rewritten_message_stays_out_of_the_suggested_summary(page_dir, monkeypatch):
+    """The newest exchange stays verbatim when the user rewrites its words.
+
+    A long thread's digest suggests folding all but its last two messages; rewriting
+    the newest user message is a turn the agent owes, and it moves no message into
+    that range."""
+    from leaf.revision_artifact import active_enclosing
+    from leaf.thread_context import batch_threads
+
+    publish(page_dir)
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    opened = append_command(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "U1"},
+    )
+    said = opened
+    for n in (1, 2, 3):
+        result = CliRunner().invoke(
+            cli_model.cli,
+            [
+                "response",
+                "reply",
+                "--done",
+                response_reference(page_dir, said["id"]),
+                "--text",
+                f"A{n}",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        if n < 3:
+            said = append_command(
+                page_dir,
+                {
+                    "kind": "reply",
+                    "author": "user",
+                    "parent": opened["id"],
+                    "text": f"U{n + 1}",
+                },
+            )
+
+    def suggested(event):
+        with service_model.PageTransaction(page_dir) as page:
+            [digest] = batch_threads(page.events, [event], active_enclosing(page_dir))
+            text = {item["id"]: item.get("text") for item in page.events}
+        hint = digest["summary_hint"]
+        return text[hint["from"]], text[hint["through"]]
+
+    assert suggested(said) == ("U1", "A2")
+    rewrite = append_command(
+        page_dir,
+        {"kind": "edit", "author": "user", "message": said["id"], "text": "U3 again"},
+    )
+    assert suggested(rewrite) == ("U1", "A2")
+
+
+def test_a_rewrite_lands_only_on_the_words_it_was_written_over(page_dir):
+    """A tab still drawing a message's old words opened its rewrite on them, and its
+    save silently replaced the newer rewrite another tab had made. A rewrite names the
+    revision it was written over, and the door refuses it once that revision is not the
+    message's latest, telling the user to edit again. Words the message already says are
+    no rewrite."""
+    publish(page_dir)
+    said = append_command(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "North."},
+    )
+
+    def rewrite(text, base):
+        return append_command(
+            page_dir,
+            {
+                "kind": "edit",
+                "author": "user",
+                "message": said["id"],
+                "text": text,
+                "base": base,
+            },
+        )
+
+    south = rewrite("South.", said["id"])
+    with pytest.raises(events_model.EventRefused) as stale:
+        rewrite("East.", said["id"])
+    assert stale.value.user == "The message changed while you edited it; edit it again."
+    west = rewrite("West.", south["id"])
+    with pytest.raises(events_model.EventRefused):
+        rewrite("West.", west["id"])
+    thread = event_folds_model.build_threads(events_model.read_events(page_dir), {})[
+        said["id"]
+    ]
+    assert [message["text"] for message in thread["msgs"]] == ["West."]
+    assert thread["msgs"][0]["edited"]["was"] == "South."
+
+
 def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
     page_dir, monkeypatch
 ):
@@ -1383,7 +1653,7 @@ def test_markup_enters_only_through_the_cli_gate(server, page_dir):
 def test_export_prints_threads_and_versions(page_dir):
     # The heading is the page's title as a user sees it, entities and all.
     titled = (
-        PAGE.replace("<title>t</title>", "<title>Cutoff &amp; backfill</title>")
+        FLOW_PAGE.replace("<title>t</title>", "<title>Cutoff &amp; backfill</title>")
         .replace(
             '<lf-diagram id="flow">',
             '<lf-diagram id="flow" parts="node:A node:B">',
@@ -1550,6 +1820,7 @@ def test_reply_markup_uses_the_captured_registry_after_candidate_files_disappear
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, "c1"),
             "--text",
             "plain answer, x < y",
@@ -1734,7 +2005,6 @@ def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
         ("shorten", bare["id"]),
         ("change", answered["id"]),
     ]
-    assert all("means" not in reaction for reaction in state["reactions"])
     assert state["reactions"][0]["anchor"]["quote"] == "Ship dark"
 
     result = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
@@ -1763,6 +2033,7 @@ def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
         [
             "response",
             "reply",
+            "--done",
             response_reference(page_dir, root),
             "--text",
             "The terrace works.",

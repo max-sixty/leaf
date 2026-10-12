@@ -14,10 +14,11 @@
  * quotation. A disconnect releases the child; moving the retained element within a
  * document does not reset its work. */
 import {
-  cancelRender,
-  nextRender,
+  frameFor,
+  whileConnected,
   keeps,
   keepsText,
+  layoutPx,
   mountSample,
   once,
   offer,
@@ -38,8 +39,13 @@ customElements.define(
     #reset;
     #status;
     #heightReading;
-    #fitting = 0;
+    #fit = () => {
+      const frame = this.#frame;
+      frame.style.height = `${this.#heightReading + frame.offsetHeight - frame.clientHeight}px`;
+    };
+    #scheduleFit = frameFor(this, this.#fit);
     #ready;
+    #focusedContent = false;
     #mounting = false;
     #viewOperation;
     #view;
@@ -49,8 +55,30 @@ customElements.define(
       return this.#ready;
     }
 
+    get focusedContent() {
+      return this.#focusedContent;
+    }
+
+    restoreStanding() {
+      return this.#host?.call("restore-standing");
+    }
+
     connectedCallback() {
-      if (once(this)) this.#build();
+      if (!once(this)) return;
+      this.#build();
+      if (!this.#frame) return;
+      whileConnected(this, () => {
+        this.#mount();
+        return () => {
+          this.#viewOperation?.abort();
+          const host = this.#host;
+          this.#host = null;
+          host?.destroy().catch((error) => this.#failure(error));
+        };
+      });
+    }
+
+    #mount() {
       // Removal ends native modality even when a retained widget reconnects before
       // its host is retired. Reconcile the presentation with that platform state.
       if (
@@ -74,8 +102,15 @@ customElements.define(
           }
           this.#host = host;
           host.on("height", ({ height }) => this.#height(height));
-          host.on("loading", () => this.#track(host.ready));
+          host.on("loading", () => {
+            this.#focusedContent = false;
+            this.#track(host.ready);
+          });
+          host.on("standing", ({ focused }) => {
+            this.#focusedContent = focused;
+          });
           host.on("departed", () => {
+            this.#focusedContent = false;
             this.#ready = host.ready;
             keepsText(this.#status, "");
             keeps(this.#reset, "aria-disabled", null);
@@ -93,16 +128,7 @@ customElements.define(
     }
 
     disconnectedCallback() {
-      queueMicrotask(() => {
-        if (this.isConnected) return;
-        if (this.#view?.getAttribute("role") === "dialog") this.#embed();
-        this.#viewOperation?.abort();
-        if (!this.#host) return;
-        const host = this.#host;
-        this.#host = null;
-        cancelRender(this.#fitting);
-        host.destroy().catch((error) => this.#failure(error));
-      });
+      if (this.#view?.getAttribute("role") === "dialog") this.#embed();
     }
 
     #build() {
@@ -119,6 +145,7 @@ customElements.define(
 
       this.#view = document.createElement("dialog");
       this.#view.className = "lf-sample-view";
+      this.#view.dataset.lfGen = "1";
       this.#view.setAttribute("open", "");
       this.#view.setAttribute("role", "presentation");
       this.#view.addEventListener("cancel", (event) => {
@@ -147,7 +174,7 @@ customElements.define(
           const height =
             this.#frame.getBoundingClientRect().bottom -
             controls.getBoundingClientRect().top;
-          this.style.setProperty("--lf-sample-height", `${height}px`);
+          this.style.setProperty("--lf-sample-height", layoutPx(height));
           closeNativeLayer(this.#view);
           this.#view.setAttribute("role", "dialog");
           this.#view.setAttribute("aria-label", this.#frame.title);
@@ -159,7 +186,10 @@ customElements.define(
       });
       actions.append(this.#reset, this.#full, this.#status);
       controls.append(actions);
-      this.#view.append(controls, this.#frame);
+      const exhibit = document.createElement("div");
+      exhibit.className = "lf-sample-exhibit";
+      exhibit.append(this.#frame);
+      this.#view.append(controls, exhibit);
       this.append(this.#view);
     }
 
@@ -197,14 +227,8 @@ customElements.define(
     #height(height, { immediate = false } = {}) {
       if (this.hasAttribute("window") || this.#view.matches(":modal")) return;
       this.#heightReading = height;
-      cancelRender(this.#fitting);
-      const fit = () => {
-        const frame = this.#frame;
-        const next = `${this.#heightReading + frame.offsetHeight - frame.clientHeight}px`;
-        if (frame.style.height !== next) frame.style.height = next;
-      };
-      if (immediate) fit();
-      else this.#fitting = nextRender(fit);
+      if (immediate) this.#fit();
+      else this.#scheduleFit();
     }
 
     #failure(error) {
@@ -275,7 +299,7 @@ customElements.define(
       this.#viewOperation?.abort();
       if (this.#mounting) await this.#ready;
       if (!this.#host) {
-        this.connectedCallback();
+        this.#mount();
         return this.#ready;
       }
       return this.#track(this.#host.reset());

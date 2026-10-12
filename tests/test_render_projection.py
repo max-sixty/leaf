@@ -137,7 +137,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 VISUAL_REVIEW_GALLERY = next(
@@ -186,7 +186,7 @@ def test_page_state_and_browser_share_the_decision_and_bound_sources(browser, se
         assert consumer["widget"] == identity
         stored = data_model.source_file(serve.page_dir, source)
         assert stored == serve.page_dir / inspection["data"]["dir"] / f"{source}.json"
-        assert json.loads(stored.read_text()) == value
+        assert json.loads(stored.read_text())["value"] == value
         widget = page.locator(f"#{identity}")
         expect(widget.locator("code")).to_have_text(value)
         rendered = widget.locator("[data-lf-origin]").evaluate(
@@ -747,7 +747,6 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         {
             "files": [
                 {
-                    "key": "gateway/limits.py",
                     "path": "gateway/limits.py",
                     "kind": "patch",
                     "additions": 4,
@@ -1260,7 +1259,6 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     ) == ["Base · Candidate below", "Candidate"]
     expect(first.locator("lf-shot")).to_have_attribute("data-lf-shot-controls", "off")
     expect(first.locator(".lf-shotflip")).to_be_hidden()
-    expect(first.locator(".lf-shot-toggle")).to_be_hidden()
     expect(first.locator(".lf-shotcap[aria-keyshortcuts]")).to_have_count(0)
     expect(first.locator(".lf-shotflip[aria-keyshortcuts]")).to_have_count(0)
     frames = first.locator(".lf-shotframe")
@@ -1406,8 +1404,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(second.locator(".lf-vr-trace-link")).to_be_hidden()
     expect(scope).to_be_hidden()
     second.get_by_text("Capture details", exact=True).click()
-    expect(second.locator(".lf-vr-detail:has(.lf-vr-focus)")).to_have_count(1)
-    expect(second.locator(".lf-vr-detail:has(.lf-vr-focus)")).to_be_hidden()
+    expect(second.locator(".lf-vr-detail:has(.lf-vr-focus)")).to_have_count(0)
     second.get_by_text("Capture details", exact=True).click()
     expect(widget).to_have_attribute("data-inspection-scope", "full")
     expect(case_select).to_have_js_property("value", "run-detail")
@@ -1998,6 +1995,12 @@ def test_visual_review_discloses_focus_without_distorting_unsupported_browsers(
     host = case.locator(".lf-vr-shot-host")
     expect(widget).to_have_attribute("data-inspection-scope", "full")
     expect(widget.get_by_role("radiogroup", name="Scope")).to_be_hidden()
+    scope = widget.locator(".lf-vr-scope-group")
+    scope.evaluate("""group => {
+      group.value = 'focus';
+      group.dispatchEvent(new Event('change', {bubbles: true}));
+    }""")
+    expect(scope).to_have_js_property("value", "full")
     expect(host.locator("lf-shot")).to_have_attribute("data-lf-shot-focus", "true")
     expect(host.locator("lf-shot")).to_have_attribute("data-lf-shot-crop", "false")
     image = case.locator(".lf-shotframe img").first.evaluate(
@@ -2134,7 +2137,6 @@ def test_a_large_diff_filters_and_navigates_lazy_files(browser, serve):
     manifest = {
         "files": [
             {
-                "key": path,
                 "path": path,
                 "kind": "patch",
                 "additions": 1,
@@ -2420,7 +2422,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
 
     write(page_comment(page), "This comment belongs to the live draft.")
     with sending(page, "the comment on the live draft"):
-        page.locator(".lf-general button").click()
+        page.locator(".lf-general .lf-compose-submit").click()
     assert events_model.read_events(serve.page_dir)[-1]["revision"] == 2
 
 
@@ -2568,6 +2570,108 @@ def test_live_revision_keeps_the_visible_semantic_reading(browser, serve, width)
     rendered(page)
     after = reading.evaluate("node => node.getBoundingClientRect().top")
     assert after == pytest.approx(before, abs=4), (before, after)
+
+
+def test_a_revision_keeps_the_paragraph_under_a_focused_stuck_tab(browser, serve):
+    """A stuck tab strip rides over every paragraph, so it names none of them.
+
+    The reader focused a tab and scrolled the page with no other input, so focus is
+    still their last word on where they are. The strip stays in view, stuck over the
+    panel's paragraphs, and a revision adding paragraphs above keeps that paragraph
+    where it stood rather than the strip, which stays in view by itself.
+    """
+
+    def source(added):
+        paragraphs = "".join(
+            f'<p id="{name}">{name}, long enough to stand as a landmark of its own.</p>'
+            for name in [f"added-{n}" for n in range(added)]
+            + [f"passage-{n}" for n in range(80)]
+        )
+        return leaf_page(
+            f"Stuck tab {added}",
+            "<style>html { overflow-anchor: none; }</style>"
+            f'<lf-tabs id="views"><lf-tab id="first" label="First view">{paragraphs}'
+            '</lf-tab><lf-tab id="second" label="Second view"><p>Other.</p></lf-tab>'
+            "</lf-tabs>",
+        )
+
+    page = open_page(browser, live_url(serve(source(0))))
+    resized(page, 1200, 700)
+    tab = page.get_by_role("tab", name="First view")
+    tab.focus()
+    rendered(page)
+    page.evaluate("document.scrollingElement.scrollTop = 2500")
+    scroll_settled(page)
+    rendered(page)
+    expect(tab).to_be_focused()
+    assert tab.evaluate("""async tab => {
+        const {stuckBox, seenRect} = await window.__lfRuntimeImport('/runtime/geometry.js');
+        return Boolean(stuckBox(tab) && seenRect(tab, new Map()));
+    }"""), "the tab strip did not stick over the panel"
+    landmark = page.evaluate("""() => [...document.querySelectorAll('#first p')].find(
+        p => p.getBoundingClientRect().top >= 200).id""")
+    reading = page.locator(f"#{landmark}")
+    before = reading.evaluate("node => node.getBoundingClientRect().top")
+    (serve.page_dir / "index.html").write_text(source(5))
+    told(page)
+    expect(page).to_have_title("Stuck tab 5")
+    rendered(page)
+    after = reading.evaluate("node => node.getBoundingClientRect().top")
+    assert after == pytest.approx(before, abs=4), (before, after)
+
+
+def test_a_revision_keeps_the_pane_read_over_a_pane_holding_offscreen_focus(
+    browser, serve
+):
+    """Focus left in a pane the reader scrolled away from does not name their region.
+
+    Two panes share the page scroller at a narrow width. The reader typed in the
+    first, then scrolled on into the second; a revision adding paragraphs above keeps
+    the paragraph they read in the second where it stood."""
+
+    def source(added):
+        notes = "".join(f"<p>Note {n}, kept with the draft.</p>" for n in range(12))
+        log = "".join(
+            f'<p id="{name}">{name}, long enough to stand as a landmark of its own.</p>'
+            for name in [f"added-{n}" for n in range(added)]
+            + [f"entry-{n}" for n in range(60)]
+        )
+        return leaf_page(
+            f"Two panes {added}",
+            "<style>html { overflow-anchor: none; }</style>"
+            '<lf-pane id="notes" label="Notes"><div>'
+            '<textarea aria-label="Working draft"></textarea>'
+            f'{notes}</div></lf-pane><lf-pane id="log" label="Log"><div>{log}</div></lf-pane>',
+            layout="workspace",
+        )
+
+    page = open_page(browser, live_url(serve(source(0))))
+    resized(page, 390, 760)
+    field = page.get_by_role("textbox", name="Working draft")
+    field.click()
+    page.keyboard.type("Words kept in the notes")
+    rendered(page)
+    page.locator("#entry-30").evaluate(
+        "node => document.scrollingElement.scrollBy({top: node.getBoundingClientRect().top - 200, behavior: 'instant'})"
+    )
+    box = page.locator("#entry-30").bounding_box()
+    page.mouse.move(box["x"] + 20, box["y"] + 5)
+    page.mouse.wheel(0, 40)
+    scroll_settled(page)
+    rendered(page)
+    expect(field).to_be_focused()
+    expect(field).not_to_be_in_viewport()
+    landmark = page.evaluate("""() => [...document.querySelectorAll('#log p')].find(
+        p => p.getBoundingClientRect().top >= 200).id""")
+    reading = page.locator(f"#{landmark}")
+    before = reading.evaluate("node => node.getBoundingClientRect().top")
+    (serve.page_dir / "index.html").write_text(source(5))
+    told(page)
+    expect(page).to_have_title("Two panes 5")
+    rendered(page)
+    expect(field).to_be_focused()
+    after = reading.evaluate("node => node.getBoundingClientRect().top")
+    assert after == pytest.approx(before, abs=4), (landmark, before, after)
 
 
 def test_a_revision_leaves_root_attributes_it_does_not_change_untouched(browser, serve):
@@ -3782,8 +3886,8 @@ def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, s
 
     assert identities("main > lf-ask", "id") == ["first-ask", "second-ask"]
     assert identities(".lf-queue-row", "data-lf-at") == [
-        "first-ask",
-        "second-ask",
+        "widget:first-options",
+        "widget:second-options",
     ]
 
     stamp_page(serve.page_dir, second, "reverse the questions")
@@ -3791,8 +3895,8 @@ def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, s
 
     assert identities("main > lf-ask", "id") == ["second-ask", "first-ask"]
     assert identities(".lf-queue-row", "data-lf-at") == [
-        "second-ask",
-        "first-ask",
+        "widget:second-options",
+        "widget:first-options",
     ]
 
 
@@ -5579,8 +5683,7 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     # shared rule, which every press in that margin wears: the suggestion family spelled
     # its own once, which is a family stating a fact about a shape the runtime owns.
     #
-    # Reached with real presses, because :focus-visible answers the input device and a
-    # control focused from script wears no ring for any reading to compare.
+    # Real presses verify the keyboard route as well as its focus treatment.
     page.keyboard.press("q")
     suggestion = page.locator("#sug-refill")
     expect(suggestion).to_have_attribute("data-lf-question", "1")
@@ -5643,9 +5746,7 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     # is drawn in while they stand there.
     toggle = page.locator(".lf-threads-toggle")
     toggle.focus()
-    # Back onto it by keyboard, which is what earns the ring: the browser draws
-    # `:focus-visible` off the last input, and a pointer press before this one would
-    # leave the control standing without it.
+    # Return by keyboard to exercise the same focus band through sequential navigation.
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
     expect(toggle).to_be_focused()
@@ -5840,7 +5941,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     """The agent channel, end to end in the browser: a `leaf page report`
     reaches the open page on the next poll and paints as provisional news — the status
     attribute moves, the parent's done-fraction recounts, and Page Map identifies a
-    Reported update rather than the user's change. Task status remains work
+    Reported state rather than the user's change. Task status remains work
     state and never creates a user request. Then the version that answers the report
     by id takes the page back: replay skips a report the note named, so the overruling
     version's own state is what renders, with no provisional mark left on it. Last, the
@@ -5868,7 +5969,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     report_reading = page.get_by_role(
-        "button", name=re.compile(r"^Open reported update: Reported update")
+        "button", name=re.compile(r"^Open reported state: Reported state")
     )
     expect(report_reading).to_be_visible()
     page.keyboard.press("Escape")
@@ -6091,14 +6192,14 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     expect(wren.locator(".lf-cold")).to_have_text("quiet")
 
 
-def test_the_update_feed_reads_reports_by_typed_target(browser, serve):
+def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
     """Worker reports reach widgets through one typed reading. The work the agent has
-    in hand is no update: it is the workflows' Working stage and the tasks' starts."""
+    in hand is no report: it is the workflows' Working stage and the tasks' starts."""
     page = open_page(browser, live_url(serve(ROSTER_PAGE)))
     d = serve.page_dir
     # Event ids and authored element ids belong to different identity spaces. Give
     # the thread and widget the same spelling so only the typed target can separate
-    # their updates; a bare id or target lookup by store would merge them.
+    # their reports; a bare id or target lookup by store would merge them.
     thread = append_carried_log_record(
         d,
         {
@@ -6132,10 +6233,10 @@ def test_the_update_feed_reads_reports_by_typed_target(browser, serve):
     assert started.exit_code == 0, started.output
     told(page)
 
-    updates = page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).updateSequence()"
+    reports = page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).reportSequence()"
     )
-    by_source = {update["source"]: update for update in updates}
+    by_source = {report["source"]: report for report in reports}
     assert set(by_source) == {"report"}
     assert by_source["report"] == {
         "id": by_source["report"]["id"],
@@ -6156,18 +6257,18 @@ def test_the_update_feed_reads_reports_by_typed_target(browser, serve):
         """async () => {
             const feed = await window.__lfRuntimeImport('/runtime/widget-api.js');
             return {
-                widget: feed.updateSequence(document.querySelector('#ag-wren')),
-                thread: feed.updateSequence({kind: 'thread', id: 'ag-wren'}),
+                widget: feed.reportSequence(document.querySelector('#ag-wren')),
+                thread: feed.reportSequence({kind: 'thread', id: 'ag-wren'}),
                 bare: (() => {
-                    try { feed.updateSequence('ag-wren'); }
+                    try { feed.reportSequence('ag-wren'); }
                     catch (error) { return `${error.name}: ${error.message}`; }
                 })(),
             };
         }"""
     )
-    assert [update["source"] for update in targeted["widget"]] == ["report"]
+    assert [report["source"] for report in targeted["widget"]] == ["report"]
     assert targeted["thread"] == []
-    assert targeted["bare"].startswith("TypeError: update target must be")
+    assert targeted["bare"].startswith("TypeError: report target must be")
     expect(page.locator("#ag-wren .lf-doing")).to_have_text("checking the mount prices")
 
     # A version note settles the report.
@@ -6185,10 +6286,10 @@ def test_the_update_feed_reads_reports_by_typed_target(browser, serve):
     stamp_page(d, ROSTER_PAGE, "recorded")
     wait_for_revision(page, 2)
 
-    updates = page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).updateSequence()"
+    reports = page.evaluate(
+        "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).reportSequence()"
     )
-    by_source = {update["source"]: update for update in updates}
+    by_source = {report["source"]: report for report in reports}
     assert by_source["report"]["disposition"] == "settled"
     expect(page.locator("#ag-wren .lf-doing")).to_have_count(0)
 
@@ -6290,9 +6391,9 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
           const owner = document.getElementById('ag-wren');
           window.__proofClock = 0;
           window.__proofReads = [];
-          window.__proofWatching = api.watchUpdates(owner, updates => {
+          window.__proofWatching = api.watchReports(owner, reports => {
             clockValue(() => window.__proofClock);
-            window.__proofReads.push(updates.map(update => update.text));
+            window.__proofReads.push(reports.map(report => report.text));
           });
           window.__proofTick = async () => {
             window.__proofClock += 1;
@@ -6300,7 +6401,7 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
           };
           window.__proofPending = () => {
             const proof = readApplicationPresentation();
-            return api.updateSequence(owner).some(update => update.text === 'held report') &&
+            return api.reportSequence(owner).some(report => report.text === 'held report') &&
               proof.pending.some(region => region.startsWith('widget:ag-wren:')) &&
               !proof.pending.includes('projection:chrome');
           };
@@ -7352,7 +7453,7 @@ def test_replay_signatures_exclude_settlement_and_other_runtime_paint(browser, s
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
 
     signatures = page.evaluate("""async () => {
-        const { shallowSigs } = await window.__lfRuntimeImport("/runtime/widget-api.js");
+        const { shallowSigs } = await window.__lfRuntimeImport("/runtime/check-api.js");
         const widget = document.getElementById("sug-refill");
         const read = () => shallowSigs(document.body).get(widget.id);
         const decided = read();
@@ -7374,7 +7475,7 @@ def test_replay_signatures_exclude_settlement_and_other_runtime_paint(browser, s
         "rendered settlement paint became authored state in the replay signature"
     )
     positions = page.evaluate("""async () => {
-        const { shallowSigs } = await window.__lfRuntimeImport("/runtime/widget-api.js");
+        const { shallowSigs } = await window.__lfRuntimeImport("/runtime/check-api.js");
         const root = document.createElement("div");
         root.id = "signature-root";
         root.innerHTML = '<i></i><div id="first"><b id="nested"></b></div>' +
@@ -9740,7 +9841,7 @@ def test_activity_holds_arrivals_until_the_reader_reveals_them(browser, serve, t
         },
     )
     told(page)
-    expect(control).to_have_text("1 new update")
+    expect(control).to_have_text("Show 1 new")
     expect(page.locator("#feed .lf-activity-row")).to_have_count(2)
     assert line.bounding_box()["y"] == pytest.approx(before["y"], abs=0.5)
     assert control.bounding_box() == trigger
@@ -9785,7 +9886,7 @@ def test_activity_holds_arrivals_until_the_reader_reveals_them(browser, serve, t
     )
     wait_for_revision(page, 2)
     expect(control).to_have_attribute("aria-expanded", "true")
-    expect(control).to_have_text("1 new update")
+    expect(control).to_have_text("Show 1 new")
     assert line.bounding_box()["y"] == pytest.approx(before_revision["y"], abs=0.5)
     # Changing executable inputs replaces the document, rather than patching it.
     page.add_init_script("""
@@ -9862,7 +9963,7 @@ def test_activity_prints_complete_history_even_when_closed_or_held(browser, serv
         },
     )
     told(page)
-    expect(control).to_have_text("1 new update")
+    expect(control).to_have_text("Show 1 new")
     expect(page.locator("#feed .lf-activity-row")).to_have_count(1)
     page.emulate_media(media="print")
     expect(page.locator("#feed .lf-activity-row")).to_have_count(2)
@@ -9870,7 +9971,7 @@ def test_activity_prints_complete_history_even_when_closed_or_held(browser, serv
         "A held record for paper."
     )
     page.emulate_media(media="screen")
-    expect(control).to_have_text("1 new update")
+    expect(control).to_have_text("Show 1 new")
     expect(page.locator("#feed .lf-activity-row")).to_have_count(1)
 
     control.click()

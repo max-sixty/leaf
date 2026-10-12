@@ -59,7 +59,7 @@ function semanticSchema(schema) {
   );
 }
 
-export function detailSchema(entry, spec) {
+function detailSchema(entry, spec) {
   const record = spec.record;
   if (!record) return spec.detail;
   const value =
@@ -71,7 +71,7 @@ export function detailSchema(entry, spec) {
   const properties = { value };
   if (record.kind === "position")
     Object.assign(properties, { unit: { type: "string" }, rank: { type: "string" } });
-  if (spec.update) properties.text = { type: "string", minLength: 1 };
+  if (spec.report) properties.text = { type: "string", minLength: 1 };
   return {
     type: "object",
     properties,
@@ -86,7 +86,6 @@ export function stateDefinition(origin, entry, spec) {
     unit: spec.unit,
     record: spec.record ?? null,
     creates: spec.creates ?? null,
-    update: spec.update ?? false,
     detail: semanticSchema(detailSchema(entry, spec)),
   };
 }
@@ -114,11 +113,16 @@ export function sameStateDefinition(recorded, current) {
   );
 }
 
+// The operation is the fields stateDefinition writes now, detail aside; a field an
+// earlier Leaf recorded beside them never retracts a decision. registry/contract.py's
+// same_state_operation holds the same rule.
 export function sameStateOperation(recorded, current) {
   if (!recorded || !current) return false;
-  const { detail: _recordedDetail, ...recordedOperation } = recorded;
-  const { detail: _currentDetail, ...currentOperation } = current;
-  return sameStateDefinition(recordedOperation, currentOperation);
+  return Object.entries(current).every(
+    ([key, value]) =>
+      key === "detail" ||
+      (Object.hasOwn(recorded, key) && sameStateDefinition(recorded[key], value)),
+  );
 }
 
 export function eventSpec(entry, event) {
@@ -126,3 +130,7 @@ export function eventSpec(entry, event) {
   const writer = { action: "user", report: "agent" }[event.kind];
   return spec && (spec.writer ?? "user") === writer ? spec : null;
 }
+
+// Registry keys share schema.WIDGET_NAME with Python. Exact custom-element names
+// declare widgets; CSS selectors (including lf-options.selected) declare idioms.
+export const isElementName = (name) => /^lf-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name);

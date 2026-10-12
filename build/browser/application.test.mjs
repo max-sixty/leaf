@@ -65,6 +65,7 @@ const state = (taken, events = []) => ({
   taken,
   layer: { generation: "test" },
   active: { revision: 1 },
+  revision_labels: {},
   events,
   workflows: [],
   activity: { phase: "user", held: false },
@@ -72,11 +73,21 @@ const state = (taken, events = []) => ({
   browser: {
     basis: { through_seq: events.length },
     receipts: events,
-    thread: { threads: [], projection: empty(), questions: noQuestions() },
+    tasks: [],
+    ended_tasks: [],
+    thread: {
+      threads: [],
+      projection: empty(),
+      questions: noQuestions(),
+      approval_history: [],
+    },
     views: {
       1: {
         basis: { revision: 1, through_seq: events.length },
         coverage: [],
+        undo: [],
+        reports: [],
+        published_at: null,
         document: {
           questions: noQuestions(),
           projection: {
@@ -112,6 +123,7 @@ const threadWorkflow = (id, { thread = "root", input = thread, ...changes } = {}
   servedWorkflow({
     id,
     input,
+    message: input,
     subject: { kind: "thread", id: thread },
     thread,
     coordinate: ["thread", thread],
@@ -593,6 +605,40 @@ test("local delivery supplies and can override non-Ask thread attention", () => 
   });
 });
 
+test("every thread gesture the ledger holds names the thread it stands in", () => {
+  const gestured = (...events) => {
+    const app = setup();
+    const reading = state(2);
+    reading.browser.thread.threads = [
+      servedThread([
+        {
+          id: "root",
+          kind: "comment",
+          author: "user",
+          ts: "2026-09-22T10:00:00-07:00",
+          text: "First",
+        },
+      ]),
+    ];
+    app.adopt(reading);
+    for (const event of events) app.enqueue(event, "2026-09-22T10:01:00-07:00");
+    return app.read().effective.thread.gestured;
+  };
+  const reaction = { kind: "reply", parent: "root", attempt: "mark", token: "keep" };
+  for (const gesture of [
+    { kind: "reply", parent: "root", attempt: "say", text: "Second", revision: 1 },
+    reaction,
+    { kind: "edit", message: "root", attempt: "rewrite", text: "First, again" },
+    { kind: "resolve", parent: "root", attempt: "close" },
+  ])
+    assert.deepEqual(gestured(gesture), ["root"], gesture.kind);
+  assert.deepEqual(
+    gestured(reaction, { kind: "undo", undoes: "pending:mark", attempt: "unmark" }),
+    ["root"],
+  );
+  assert.deepEqual(gestured(action("move")), []);
+});
+
 test("a refused local message publishes one failed workflow before retirement", () => {
   const app = setup();
   const event = {
@@ -695,7 +741,7 @@ test("semantic epochs include visible revision facts but not transport metadata"
   const revisionFacts = structuredClone(asked);
   revisionFacts.taken = 3;
   revisionFacts.browser.views[1].published_at = "2026-09-12T10:00:00-07:00";
-  revisionFacts.browser.views[1].updates = [
+  revisionFacts.browser.views[1].reports = [
     {
       id: "report-1",
       target: { kind: "widget", id: "choice" },
@@ -901,7 +947,7 @@ test("receipt adoption keeps attempts until presentation proof and preserves dep
   app.present([accepted]);
   app.release(new Set(["first"]));
   assert.equal(decision(app), null);
-  assert.equal(app.nameUndo("undo", [accepted]), true);
+  assert.equal(app.nameUndo("undo"), true);
   assert.equal(app.entry("undo").event.undoes, "e1");
 });
 
@@ -1347,7 +1393,7 @@ test("the publisher carries the server's Ask reading, page asks before thread as
   assert.equal(decision(app), "accept");
 });
 
-test("a standing report supplies desired widget state", () => {
+test("an unsettled report supplies desired widget state", () => {
   const valueSpec = {
     unit: "widget",
     record: { kind: "value", attr: "choice" },
@@ -1426,7 +1472,7 @@ test("a reaction root is not a spoken turn awaiting the user", () => {
 test("a Done this tab sends ends its task at once, and its undo puts the task back", () => {
   // The task the agent put on the user, as the server serves it.
   const task = servedReading("queues on both sides").tasks.find(
-    (candidate) => candidate.ends === "done",
+    (candidate) => candidate.owner === "user",
   );
   const onYou = (app) => app.read().effective.queues.onYou.map(({ id }) => id);
   const done = (app) =>
@@ -1753,6 +1799,45 @@ test("pending undo removes completed empty Question values and refusal restores 
     app.refuse("undo-empty");
     assert.deepEqual(app.read().effective.questions.all[0].answer.value, value);
   }
+});
+
+test("pending undo withdraws a decision an earlier Leaf recorded with another field", () => {
+  const declared = {
+    ...descriptor,
+    declaration: {
+      ...descriptor.declaration,
+      "x-awaits": { value: "decide", answered: { decide: {} } },
+    },
+  };
+  const app = capture([[declared.id, declared]]);
+  // Before #2329 the recorded definition carried `update`, since renamed `report`.
+  const accepted = {
+    ...action("decided"),
+    id: "e1",
+    seq: 1,
+    meaning: {
+      state: {
+        ...stateDefinition("lf-choice", descriptor.declaration, spec),
+        update: false,
+      },
+    },
+  };
+  const reading = state(2, [accepted]);
+  reading.browser.views[1].document.questions = {
+    all: [
+      {
+        ...wireQuestion("choice", "lf-choice"),
+        status: "answered",
+        next_actor: null,
+        answer: { value: { outcome: "accept" }, event: accepted },
+      },
+    ],
+    user: [],
+    unanswered: [],
+  };
+  app.adopt(reading);
+  app.enqueue({ kind: "undo", undoes: accepted.id, attempt: "undo-earlier" }, "now");
+  assert.equal(app.read().effective.questions.all[0].answer, null);
 });
 
 test("pending undo removes a custom Question answer before authoritative completion changes", () => {

@@ -1,7 +1,5 @@
 """Widget structure and interaction contract validation."""
 
-import re
-
 import turbohtml
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
@@ -10,8 +8,6 @@ from leaf.schema import (
     ATTRIBUTE_KEYS,
     DATA_SOURCE_NAME,
     EXTENSION_SCHEMA,
-    WIDGET_NAME,
-    WIDGET_NAME_RULE,
 )
 
 from .contract import (
@@ -29,20 +25,6 @@ from .state import (
     validate_widget_retirement,
     validate_widget_state_relations,
 )
-
-
-def element_declarations(registry: dict, path) -> dict:
-    invalid_names = [
-        tag
-        for tag in registry
-        if not tag.startswith("$") and re.fullmatch(WIDGET_NAME, tag) is None
-    ]
-    if invalid_names:
-        raise RegistryError(
-            f"{path}: invalid element declaration names {json_value(invalid_names)}: "
-            f"{WIDGET_NAME_RULE}"
-        )
-    return {tag: entry for tag, entry in registry.items() if not tag.startswith("$")}
 
 
 def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
@@ -210,17 +192,17 @@ def _validate_widget_structure(
                 f"{path}: <{tag}> x-measured input `{input_name}` source "
                 f"attribute `{source_attr}` must be required"
             )
-        at_attr = measured["at"]
-        at_schema = properties.get(at_attr)
+        run_attr = measured["run"]
+        run_schema = properties.get(run_attr)
         if not (
-            at_attr in entry.get("required", [])
-            and isinstance(at_schema, dict)
-            and at_schema.get("type") == "string"
-            and at_schema.get("format") == "date-time"
+            run_attr in entry.get("required", [])
+            and isinstance(run_schema, dict)
+            and run_schema.get("type") == "string"
+            and run_schema.get("minLength", 0) >= 1
         ):
             raise RegistryError(
-                f"{path}: <{tag}> x-measured timestamp attribute `{at_attr}` "
-                "must be required and declare a date-time string"
+                f"{path}: <{tag}> x-measured run attribute `{run_attr}` "
+                "must be required and declare a nonempty string"
             )
     said = set(entry.get("x-says", {}))
     for role in ("x-awaits", "x-thread-seat"):
@@ -386,10 +368,10 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
             f"{path}: <{tag}> x-data binding attributes are authored, "
             f"but {json_value(dynamic)} are written by value records"
         )
-    if (measured := entry.get("x-measured")) and measured["at"] in mutable_values:
+    if (measured := entry.get("x-measured")) and measured["run"] in mutable_values:
         raise RegistryError(
-            f"{path}: <{tag}> x-measured timestamp attribute "
-            f"`{measured['at']}` is an authored snapshot instant, but is written "
+            f"{path}: <{tag}> x-measured run attribute "
+            f"`{measured['run']}` is an authored source receipt, but is written "
             "by a value record"
         )
     return awaits
@@ -429,6 +411,14 @@ def _validate_widget_interactions(
     if awaits and awaits["value"] not in user_verbs:
         raise RegistryError(
             f"{path}: <{tag}> x-awaits value must name a user-written x-state verb"
+        )
+    # A retired Question was asked and has ended, so the flag that retires it has to be
+    # one registration already reads as stopping the widget asking.
+    retired = awaits.get("retired")
+    if retired and awaits.get("when", {}).get(retired) != [False]:
+        raise RegistryError(
+            f"{path}: <{tag}> x-awaits retires with `{retired}`, but its `when` does not "
+            f"require `{retired}` absent"
         )
     # A blanket answer is one decision per Question, taken through the widget's deciding
     # verb, so it names an outcome that verb declares and the verb answers the Question.

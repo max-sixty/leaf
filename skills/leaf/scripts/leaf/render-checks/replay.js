@@ -1,5 +1,8 @@
-import { shallowSigs } from "/runtime/widget-api.js";
-import { validationWidgetStates } from "/runtime/check-api.js";
+import {
+  exceptionText,
+  shallowSigs,
+  validationWidgetStates,
+} from "/runtime/check-api.js";
 import { at } from "./locate.js";
 
 // The complete renderer must be idempotent. Invoke it directly rather than the
@@ -16,7 +19,10 @@ export function relativeReplays() {
       widget.renderState(state);
     } catch (error) {
       found.push(
-        `${at(widget)} renderState threw when the complete state was rendered a second time: ${error?.message ?? error}`,
+        exceptionText(
+          error,
+          `${at(widget)} renderState threw when the complete state was rendered a second time`,
+        ),
       );
     }
   }

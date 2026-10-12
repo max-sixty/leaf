@@ -1,4 +1,4 @@
-# Conversation handoff
+# Conversation loop
 
 Keep the user informed on the page, and answer delivered updates there using
 each event's `handling` instructions. A chat response alone does not revise the
@@ -15,13 +15,13 @@ The user follows your work on the page:
 | Thread | what you will do, your progress, and your answer to the user's message | the response operation named by delivered `handling` |
 | Page | the revised content in place, and a stamp's changelog | saving `index.html`, `leaf page stamp` |
 
-Leaf itself marks each user move **Sent**, **Queued**, and **Picked up**, including
-a move that owes you nothing, such as a moved card. A pick before the Done its Question
+Leaf itself marks each update **Sent**, **Queued**, and **Picked up**, including
+one that owes you nothing, such as a moved card. A pick before the Done its Question
 waits for is marked with that Done. Your harness
 contract may add its own current step to the banner.
 
 Readings in `leaf page state <page>` describe the user's side between their
-moves. `viewed` says whether they are there: the last time a browser tab had the page
+updates. `viewed` says whether they are there: the last time a browser tab had the page
 visible, in epoch seconds, renewed about every half minute while it stays visible, and
 `null` when nobody has opened the page. Each thread's `unread` says which of your
 messages they have not read yet
@@ -55,15 +55,15 @@ the author decides whether a finding warrants a revision. They do not establish
 that the user saw a finding.
 
 Observation starts after presentation, renews about every ten seconds while visible,
-and follows viewport and preference changes. It creates no user move, agent turn,
+and follows viewport and preference changes. It creates no update, agent turn,
 or automatic edit. A public website page starts observing once the user's interaction
 has activated its private page. The readings are also available through the
 page's authenticated `GET /api/user-view`; captured render previews record none.
 
 ## When to write
 
-Everything you work on for the user is an item on your queue: a user move you owe
-an answer, named by the move's event id as its delivery gives it, or a task you
+Everything you work on for the user is an item on your queue: an update you owe
+an answer, named by the update's event id as its delivery gives it, or a task you
 opened. Take the item in hand before starting its work, with one line saying what
 you are doing.
 
@@ -76,11 +76,11 @@ For a command-written reply, your first command after delivery is:
 leaf response reply <answer.ref> --ephemeral --text "<what you will do, in a line>"
 ```
 
-The user reads it at once, and it takes the move in hand: the move reads
+The user reads it at once, and it takes the update in hand: the update reads
 **Working** with that line beside its thread and in the banner, and the
-update folds into the progress disclosure when your answer arrives
-([progress updates](threads.md#progress-updates)). Take any other item in hand,
-such as a task or a move on a page widget, which has no thread, with a start:
+progress line folds into the progress disclosure when your answer arrives
+([progress messages](threads.md#progress-messages)). Take any other item in hand,
+such as a task or an action on a page widget, which has no thread, with a start:
 
 ```bash
 leaf task start <page> <id> "reading the reconnect traces" && <command>
@@ -88,7 +88,7 @@ leaf task start <page> <id> "reading the reconnect traces" && <command>
 
 Take the item in hand again whenever the user would describe what you are doing
 differently: a new phase such as reading, editing, testing, or waiting on a result.
-Another progress update in the thread says it to the user there; a start changes
+Another progress message in the thread says it to the user there; a start changes
 only the line, and folding it into the command that begins the step costs no extra
 tool call. Name the operation and its subject in one sentence; "Working on it"
 tells the user nothing the banner's dot does not already say.
@@ -111,19 +111,19 @@ nothing and needs no item.
 User input comes before the work in hand, in this order:
 
 1. Where the delivery's `acknowledge` names a receipt command, take it first, so the
-   user's moves read **Picked up**; where it is `null`, your harness has confirmed
+   user's updates read **Picked up**; where it is `null`, your harness has confirmed
    receipt already. Until you start an item, the banner can say only that you are
    working on their update.
-2. Say what you will do in the thread of each move that asks for work, or start
+2. Say what you will do in the thread of each update that asks for work, or start
    it, as above, before starting the work. Each delivered event's `handling`
-   clauses say how, with the reply carrying the result once it lands. A move that
+   clauses say how, with the reply carrying the result once it lands. An update that
    asks for no work, such as a question, is answered by its reply at once.
-3. If the move interrupted other work, start that work's item again once the move's
+3. If the update interrupted other work, start that work's item again once the update's
    own work is done, so the banner describes the work that continues rather than
    the last step before the interruption.
 
 Then do the work, and reply once its revision passes `leaf page check`, the only
-check the main skill's "Operate", step 3, asks before a reply.
+check the main skill's "Quick pages and records" step asks before a reply.
 
 ## Status and handoff
 
@@ -138,7 +138,7 @@ waiting. For an informational page with no Question, leave it empty; the
 banner then invites the user to select text to comment. Name the gesture available
 to the user and hand over by the selected harness contract. From the first handoff
 on, include
-the exact page URL in every turn's final response; intermediate progress updates
+the exact page URL in every turn's final response; intermediate progress messages
 do not repeat it. An export hands over its file URL, and a harness that already
 presents the page uses its own handoff surface.
 
@@ -146,8 +146,8 @@ A `waiting` puts down every item you
 started before it, so the banner shows what you want back; a task stays open on
 you until you end it.
 
-What ends a start depends on its item. Your reply answering a move ends that
-move's start, and so does a stamped version whose markup records a press on an
+What ends a start depends on its item. Your reply answering an update ends that
+update's start, and so does a stamped version whose markup records a press on an
 answered Question. A task's start ends with the task: `leaf task end`, or a stamped
 version that completes its widget, once per completed widget:
 
@@ -156,9 +156,9 @@ leaf page stamp <page> --text "…" --completes <widget-id>
 ```
 
 `--completes` names a widget with an open task, and ends each task on it `done`,
-citing the version. `leaf task open` takes a thread, by any message in it or a
-widget in one of its messages; a page widget that declares `x-work` or holds an
-unsettled move; or `page`. A task on a widget survives unrelated versions, and a
+citing the version. `leaf task open` takes a page widget that declares `x-work` or
+holds an unsettled action, any other element of the page, or `page`; work in a thread
+is opened by the reply that promises it (`--task`). A task on a widget survives unrelated versions, and a
 version cannot drop that widget while the task stands.
 
 ## Long-running work
@@ -178,7 +178,7 @@ You drive the page and your workers do not. The server, the watcher and its
 acknowledgements, replies, starts and status, edits to `index.html`, and stamps stay
 with you, and a worker returns its result to you. A worker touches the page only in a
 role Leaf's instructions give it, and only as those instructions direct: a command hub worker
-(`leaf page instructions <page> worker`), or a Codex watcher task
+(the `worker` value returned by `leaf page instructions <page>`), or a Codex watcher task
 (`references/codex-watcher.md`). Put this in each worker's brief, because a worker that
 inherits your conversation inherits the page with it and may otherwise treat the page
 as its own. Work that needs its own conversation with the user belongs to a session
@@ -188,7 +188,7 @@ A start holds its item for the turn that wrote it. The page is told when that tu
 ends, an interrupted one included, so a start nothing has renewed within a couple of
 minutes of the ending stops being believed: the banner reports that your turn ended,
 and its explanation keeps the start's line. A start nobody renews at all ages out
-after about a quarter of an hour. A move whose answer a worker is producing takes a
+after about a quarter of an hour. An update whose answer a worker is producing takes a
 start while your turn runs; a start written in this turn lets the turn end before the
 answer. In the turn that a worker's result or the user's next comment wakes, start
 the item again or answer it. What holds the work after the turn is a task (below).
@@ -198,14 +198,17 @@ line beside its thread or widget.
 
 A start lasts a turn; a task lasts until you end it. When you take on work a thread
 asked for that can outlast the turn you took it on in, such as a worker's build, a
-wait on CI, or a change you promise for the next version, open a task on that thread:
-`leaf task open <page> <id> "<what you owe>"`. Then reply, saying what is under way:
-the reply answers the user's message, and the task keeps the thread on you, and named
-in the banner, through the user resolving it and the end of your session. When the
-result lands, write its outcome with `leaf task end <page> <task> done "<where the
-result is>"`, or `failed` or `dropped` with the reason, beside the reply that links
-it. While you work on it, start it, so the banner and the thread show your line.
-Work on a move that finishes inside the turn needs no task.
+wait on CI, or a change you promise for the next version, answer with
+`leaf response reply <answer.ref> --task "<what you owe>"`, saying what is under way:
+the reply answers the user's message and opens the task on that thread under the
+reply's id, which keeps the thread on you, and named in the banner, through the user
+resolving it and the end of your session. A turn-written reply carries no task, so
+answer such a promise with this command. Wherever
+the result lands, the task ends there: `leaf task end <page> <task> done "<where the
+result is>"`, or `failed` or `dropped` with the reason, so work that won't come back
+to you takes the page and the task's id in its brief. While you work on it, start it,
+so the banner and the thread show your line.
+Work on an update that finishes inside the turn needs no task.
 
 ## Questions and Tasks
 
@@ -224,14 +227,14 @@ user to send again. Done holds ended items.
 | Request | Register it | What answers it |
 | --- | --- | --- |
 | A decision or input recorded by a widget | Author a decision widget (`authoring-questions.md`); optional `lf-ask` frames its question and evidence | The widget's declared answer; a multiple-choice Question also needs the user's Done |
-| A conversational answer | Open an agent thread with the question, or add `--awaits` to a reply (`threads.md`) | The user's next reply there or a settling reaction |
+| A conversational answer | Open an agent thread with the question, or add `--question` to a reply (`threads.md`) | The user's next reply there or a settling reaction |
 | Required version sign-off | Declare sign-off and stamp the version (`authoring-questions.md`, "Questions and sign-off") | That version's banner approval |
 | An action neither route records, such as trying a build or connecting a browser | `leaf task open <page> <id> "<direct question naming the action>" --on user`, on its widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
 
 A widget Question has id `widget:<widget-id>`, a prose Question has
 `reply:<message-id>`, and a stamped version's sign-off has `approval:v<version>`.
 Explicit user work keeps the id printed by `task open`. A thread takes no explicit
-user task; ask there with `--awaits`.
+user task; ask there with `--question`.
 Keep independently answerable decisions in separate widgets or threads. A thread
 can retain several prose Questions; its latest unanswered one is the current request,
 and the next user reply settles preceding unanswered prose Questions there. Publish
@@ -249,9 +252,9 @@ Page state contains separate canonical `questions` and explicit `tasks`; its
 `queues.on_you` and `queues.on_agent` select those records with response obligations
 and delivery retries for the panel. `jq` only selects these fields; do not reconstruct
 membership from events or widget state. Each queue item names its `id`, `kind`,
-`subject`, and `thread`; work items also say how they end (`ends`). A Question contains
-its prompt, typed answer and lifecycle; widget state owns its answer. Read a thread
-with `leaf page state <page> <message-id>` for its messages. For a page widget, read
+`subject`, and `thread`. A Question contains its prompt, typed answer and lifecycle;
+widget state owns its answer. Read a thread with `leaf page state <page> <message-id>`
+for its messages. For a page widget, read
 `leaf page state <page>`'s `active.file` and the identified widget in that HTML;
 the widget-specific state command reports its state and metadata. The reading
 covers the active document and admitted log, not unsent browser drafts or a tab

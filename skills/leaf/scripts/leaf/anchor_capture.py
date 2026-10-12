@@ -34,6 +34,16 @@ def occurrences(text: str, quote: str, lo: int, hi: int, fences=frozenset()) -> 
     return found
 
 
+def _context(passages, lo: int, hi: int) -> tuple[str, str]:
+    """The trimmed words before `lo` and after `hi`, each reaching only to the nearest
+    passage-cell fence: the file side of `passages.js.neighbourhood`, which capture
+    stores and resolution compares against."""
+    text, fences = passages.text, passages.fences
+    before = text[max([0, *[f for f in fences if f <= lo]]) : lo].strip()
+    after = text[hi : min([len(text), *[f for f in fences if f >= hi]])].strip()
+    return before, after
+
+
 def resolve_quote(passages, anchor: dict) -> int | None:
     """Resolve a stored quote by exact context, or a sole surviving occurrence.
 
@@ -53,13 +63,7 @@ def resolve_quote(passages, anchor: dict) -> int | None:
     hits = occurrences(passages.text, quote, lo, hi, passages.fences)
     exact = []
     for at in hits:
-        before = passages.text[
-            max([0, *[f for f in passages.fences if f <= at]]) : at
-        ].strip()
-        end = at + len(quote)
-        after = passages.text[
-            end : min([len(passages.text), *[f for f in passages.fences if f >= end]])
-        ].strip()
+        before, after = _context(passages, at, at + len(quote))
         prefix, suffix = anchor.get("prefix", ""), anchor.get("suffix", "")
         if (before.endswith(prefix) if prefix else not before) and (
             after.startswith(suffix) if suffix else not after
@@ -198,10 +202,8 @@ def capture_anchor(
     # Both are trimmed before they are cut, since the runtime reads its side back through
     # the same collapse, which trims — a stored space no occurrence produces fails at the
     # first comparison.
-    prefix = text[max([0] + [f for f in fences if f <= lo]) : lo].strip()[-CONTEXT:]
-    suffix = text[hi : min([len(text)] + [f for f in fences if f >= hi])].strip()[
-        :CONTEXT
-    ]
+    before, after = _context(passages, lo, hi)
+    prefix, suffix = before[-CONTEXT:], after[:CONTEXT]
     return {
         "section": section,
         "quote": wanted,

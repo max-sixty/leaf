@@ -110,7 +110,7 @@
   @property --lf-resident { syntax: "*"; inherits: false; }
   /* An empty map-only slot is already in its eventual margin posture: no margin
    * and no formatting context separating the blocks on either side of it. */
-  main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(> lf-toc:only-child:empty) {
+  main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(> [data-lf-resident="map"]:only-child:empty) {
     display: block; margin-block: 0; }
   /* A resident changes its relationship to the flow; anchor the reading to its
    * passage instead of choosing the complementary text as a native scroll anchor. */
@@ -123,12 +123,14 @@
     main.layout-column[data-lf-margin~="sidebar"] {
       --lf-sidebar-posture: margin; --lf-taken-l: calc(var(--lf-beside) + var(--lf-shift));
       --lf-top-outer: var(--lf-top); }
-    /* It scrolls what it holds, so it starts `--lf-top` again for that (theme.css) and
-     * sticks at the value its column met. */
+    /* It scrolls what it holds, so it starts `--lf-top` and its landing band again for
+     * that (theme.css) and sticks at the value its column met. What it holds is not a
+     * stuck header's controls, so a focused link keeps the focus ring's room
+     * (`--lf-head-inset`, shadow.css). */
     main.layout-column[data-lf-margin~="sidebar"] > aside.sidebar:nth-child(1 of aside.sidebar) {
       float: left; clear: left; position: sticky;
       top: calc(var(--lf-top-outer) + var(--sp-4)); --lf-top: 0px;
-      --lf-landing-room: 0px;
+      --lf-top-covered: 0px; --lf-landing-room: 0px; --lf-head-inset: initial;
       width: calc(var(--sidebar) - var(--sp-4));
       max-height: calc(var(--lf-view-height) - 2 * var(--sp-4));
       overflow-y: auto;
@@ -136,24 +138,25 @@
     }
   }
   /* A contents map in that slot rests as a spine a few pixels wide and reveals its labels
-   * over the page; the default package draws it there once this says the slot is in the
-   * margin, as the map alone or in a sidebar standing there. */
+   * over the page; its package draws it there once this says the slot is in the margin,
+   * as the map alone or in a sidebar standing there. A map is whatever declares
+   * `x-resident: map`, which delivery paints as `data-lf-resident`. */
   @media screen and (hover: hover) and (pointer: fine) {
-    main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(lf-toc) {
+    main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has([data-lf-resident="map"]) {
       --lf-resident: sidebar map; }
     /* A sidebar holding only the map has nothing for a float to hold, so the map alone. */
-    main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(> lf-toc:only-child) {
+    main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(> [data-lf-resident="map"]:only-child) {
       --lf-resident: map; }
     main.layout-column[data-lf-margin~="map"] { --lf-sidebar-posture: margin; }
     /* At rest the map is its spine, chrome fixed in the left margin, so a breakout stops
      * short of it (the column's free room, above); its labels reveal over the page. */
     main.layout-column:is([data-lf-margin~="map"], [data-lf-margin~="sidebar"]):has(
-      > aside.sidebar:nth-child(1 of aside.sidebar) lf-toc) { --lf-taken-l: var(--map); }
+      > aside.sidebar:nth-child(1 of aside.sidebar) [data-lf-resident="map"]) { --lf-taken-l: var(--map); }
     /* Standing alone, a map that was all its sidebar held leaves nothing in the flow, so the
      * sidebar takes no room there: without margins or a formatting context of its own, the
      * blocks on either side meet as they do where the sidebar floats. */
     main.layout-column[data-lf-margin~="map"]
-      > aside.sidebar:nth-child(1 of aside.sidebar):has(> lf-toc:only-child) {
+      > aside.sidebar:nth-child(1 of aside.sidebar):has(> [data-lf-resident="map"]:only-child) {
       display: block; margin-block: 0; }
   }
   @media screen {
@@ -479,10 +482,14 @@
      * (`--lf-top`, theme.css): at its own top edge. The theme's answer, the banner's
      * height, is the window's, whose scroller the banner covers; a pane's scrollport
      * starts below the banner already, so that offset pinned a diff's file name 42px
-     * down while the rows it names scrolled past above it. */
+     * down while the rows it names scrolled past above it.
+     *
+     * Each box the workspace scrolls holds the height the window gives it, on purpose,
+     * and says so (`--lf-holds-height`, theme.css), as a bounded block does. */
     main.layout-workspace > :not(header, footer, [data-lf-reading-role="pane"]) {
       overflow: auto;
       --lf-top: 0px;
+      --lf-holds-height: 1;
     }
     /* A pane is already a grid of header, body and footer (theme.css), whose body row
      * takes what a definite height leaves and its content's height otherwise. A pane told
@@ -506,6 +513,7 @@
         --lf-top: var(--lf-top-start);
         overscroll-behavior: contain;
         scrollbar-gutter: stable;
+        --lf-holds-height: 1;
       }
     }
   }

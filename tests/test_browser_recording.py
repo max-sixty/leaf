@@ -15,6 +15,7 @@ from zipfile import ZipFile
 
 import pytest
 from interact_support import STATED_TIMEOUT, running_http_server, wait_for
+from leaf.render_gate.scheme import collect_page_exceptions
 from leaf_dev.arms import environment
 from leaf_dev.recording import write_gif
 from PIL import Image
@@ -125,7 +126,7 @@ def test_trace_handoff_serves_the_native_viewer_without_desktop_launches(
     # Check its loading and uncaught errors without Leaf's runtime diagnostics.
     page = browser.unwatched.new_page()
     errors = []
-    page.on("pageerror", lambda error: errors.append(str(error)))
+    collect_page_exceptions(page, errors)
     page.goto(address)
     expect(page.get_by_text("Click", exact=True).first).to_be_visible()
     assert errors == []

@@ -15,7 +15,6 @@ import socket
 import sys
 import threading
 import time
-import zlib
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
@@ -25,6 +24,7 @@ from .detached import Handshake, StartRefused, starting_detached
 from .files import read_json
 from .harness import Harness, claim_harness, harness_argument, session_harness
 from .leases import page_locked, release_lease, take_lease
+from .refusals import Refused
 from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
     host_key,
@@ -48,19 +48,26 @@ from .state import require_cross_process_locking, write_json
 TEMPORARY_SERVER_NOTE = "server   temporary (stops with this command)"
 
 
-def listening_socket(bind: str, port: int) -> socket.socket:
-    """Open the recorded bind, using IPv4 for `::` when IPv6 is unavailable.
+# Allow TCP cooldown to expire, without waiting forever for an address held
+# by another live process.
+PORT_WAIT_SECONDS = 90
 
-    A literal IPv6 address still fails rather than widening to every interface.
-    The record keeps `::`; each serve chooses the family the current kernel has.
-    A stated host binds the wildcard of both families, so IPV6_V6ONLY is cleared
-    before the bind that a v4 client would otherwise never reach.
+
+def listening_socket(bind: str, port: int) -> socket.socket:
+    """Open an exclusive listener, retaining fixed addresses through TCP cooldown.
+
+    A new service asks the OS for a port with zero; a recorded address waits up
+    to PORT_WAIT_SECONDS for native availability. No address reuse or port lease
+    relaxes the kernel's exclusion of overlapping listeners. Only EADDRINUSE is
+    retried; other failures retain their original error.
+
+    A stated host binds both IP families. Only `::` falls back to IPv4 when IPv6
+    is unavailable; a literal IPv6 address never widens to every interface.
     """
 
     def bound(family: int, host: str) -> socket.socket:
         sock = socket.socket(family, socket.SOCK_STREAM)
         try:
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             if family == socket.AF_INET6:
                 sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
             sock.bind((host, port))
@@ -70,14 +77,25 @@ def listening_socket(bind: str, port: int) -> socket.socket:
             raise
         return sock
 
-    if ":" not in bind:
-        return bound(socket.AF_INET, bind)
-    try:
-        return bound(socket.AF_INET6, bind)
-    except OSError as e:
-        if e.errno != errno.EAFNOSUPPORT or bind != "::":
-            raise
-        return bound(socket.AF_INET, "0.0.0.0")
+    deadline = time.monotonic() + PORT_WAIT_SECONDS
+    while True:
+        try:
+            if ":" not in bind:
+                return bound(socket.AF_INET, bind)
+            try:
+                return bound(socket.AF_INET6, bind)
+            except OSError as error:
+                if error.errno != errno.EAFNOSUPPORT or bind != "::":
+                    raise
+                return bound(socket.AF_INET, "0.0.0.0")
+        except OSError as error:
+            if (
+                not port
+                or error.errno != errno.EADDRINUSE
+                or time.monotonic() >= deadline
+            ):
+                raise
+            time.sleep(0.25)
 
 
 class LeafHTTPServer:
@@ -86,8 +104,10 @@ class LeafHTTPServer:
     The listening socket is opened here rather than by uvicorn, so the address is
     a fact before anything serves on it — a port the caller records, and a taken one
     that raises out of the constructor instead of exiting the process. Serving hands
-    uvicorn a duplicate: the two halves then close their own, and a caller that
-    releases the socket cannot pull it out from under a loop still winding down.
+    uvicorn a duplicate, which it closes when serving ends. The owner closes this
+    server only after that loop returns, or after joining its serving thread; that
+    releases the original socket. Fixed-address preparation can wait for TCP
+    cooldown; a stop waits behind that private preparation before disabling it.
 
     `server_id` names the serving process on every answer. Startup recovery uses it
     to detect a replacement after failure. An ordinary page's durable record survives
@@ -104,8 +124,6 @@ class LeafHTTPServer:
         from .http import page_app
 
         self.endpoint = endpoint
-        self.socket = listening_socket(address[0], address[1])
-        self.server_address = self.socket.getsockname()[:2]
         self.server_id = secrets.token_hex(16)
         # Leaf says what it has to say on its own streams: the URL, the lifetime
         # note, and the page's own errors. A server with a logging voice of its own
@@ -128,6 +146,8 @@ class LeafHTTPServer:
                 ws="none",
             )
         )
+        self.socket = listening_socket(*address)
+        self.server_address = self.socket.getsockname()[:2]
 
     def fileno(self) -> int:
         return self.socket.fileno()
@@ -136,7 +156,11 @@ class LeafHTTPServer:
         """Serve on the current thread until `shutdown` or a handled signal."""
         if self._uvicorn.should_exit:
             return
-        self._uvicorn.run(sockets=[self.socket.dup()])
+        listener = self.socket.dup()
+        try:
+            self._uvicorn.run(sockets=[listener])
+        finally:
+            listener.close()
 
     def shutdown(self) -> None:
         """Ask the serving loop to stop, from any thread."""
@@ -144,7 +168,7 @@ class LeafHTTPServer:
         self._uvicorn.wake()
 
     def server_close(self) -> None:
-        """Release the listening socket this server has kept."""
+        """Release the listening socket after the serving loop has ended."""
         self.socket.close()
         self.samples.close()
 
@@ -335,7 +359,7 @@ def _serve_claim(
     """Validate this launch, for `harness`, against desired state and page
     ownership."""
     if revive and (not service or not service["enabled"]):
-        sys.exit("service was stopped; not reviving")
+        raise Refused("service was stopped; not reviving")
 
     claimed = bool(
         not standing
@@ -343,11 +367,11 @@ def _serve_claim(
         and claimant_matches(page.active_claim, harness)
     )
     if not standing and harness is not None and not claimed:
-        sys.exit(
+        raise Refused(
             f"this harness session no longer owns {page_dir}; the server was not started"
         )
     if revive and service and service["lifetime"] == "session" and not claimed:
-        sys.exit("this session no longer owns the service; not reviving")
+        raise Refused("this session no longer owns the service; not reviving")
     return claimed
 
 
@@ -364,12 +388,12 @@ def _reuse_server(page_dir: Path, host: str | None, standing: bool) -> str | Non
     if not existing:
         return None
     if host and urlsplit(existing["url"]).hostname != host.lower():
-        sys.exit(
+        raise Refused(
             f"already serving at {existing['url']}; "
             "leaf server stop first, then re-run with --host"
         )
     if standing and existing["lifetime"] != "standing":
-        sys.exit(
+        raise Refused(
             f"already serving as a session server at {existing['url']}; "
             "leaf server stop first, then re-run with --standing"
         )
@@ -386,25 +410,7 @@ def _take_server_lease(page_dir: Path):
     lease = take_lease(page_dir / SERVER_LOCK, prepare=clear_identity)
     if lease is not None:
         return lease
-    sys.exit(f"another server run is serving {page_dir}; re-run")
-
-
-def _bind_server(page_dir: Path, access: dict, endpoint, ports: list):
-    """Bind the first available port, preserving a recorded address contract."""
-    for port in ports:
-        try:
-            return LeafHTTPServer((access["bind"], port), endpoint)
-        except OSError as error:
-            if error.errno == errno.EADDRINUSE and "port" not in access:
-                continue
-            sys.exit(
-                f"can't serve {page_dir} on {access['bind']}"
-                f"{':' + str(access['port']) if 'port' in access else ''}: "
-                f"{error}\nthat address is kept in "
-                f"{page_dir / 'service.json'}; delete that file to derive "
-                "the address again from this session, or re-run with --host NAME."
-            )
-    return None
+    raise Refused(f"another server run is serving {page_dir}; re-run")
 
 
 def _service_record(
@@ -480,14 +486,13 @@ def cmd_serve(
                 access = page_access(page_dir, host)
                 token = host_key()
                 endpoint = page_endpoint(page_dir, token)
-                base = 41000 + zlib.crc32(str(page_dir.resolve()).encode()) % 4000
-                ports = (
-                    [access["port"]]
-                    if "port" in access
-                    else [*range(base, base + 10), 0]
-                )
                 lease = _take_server_lease(page_dir)
-                httpd = _bind_server(page_dir, access, endpoint, ports)
+                try:
+                    httpd = LeafHTTPServer(
+                        (access["bind"], access.get("port", 0)), endpoint
+                    )
+                except OSError as error:
+                    raise Refused(f"can't serve {page_dir}: {error}")
                 lease.write(httpd.server_id.encode())
                 lease.flush()
                 rows = RowPublisher(page_dir, httpd.server_id)
@@ -807,19 +812,19 @@ def restarting_server(page_dir: Path):
             page_dir, standing=standing, revive=True, harness=session_harness()
         )
     except StartRefused as error:
-        sys.exit(f"{page_dir}'s server did not start again: {error}")
+        raise Refused(f"{page_dir}'s server did not start again: {error}")
 
 
 def _restarts_for_this_session(page_dir: Path) -> bool:
     """Whether this command may restart a session service: its claim is this
-    session's. False when no live session holds it any more; an exit when
+    session's. False when no live session holds it any more; a refusal when
     another one does."""
     claim = page_claim(page_dir)
     if not claim_is_active(claim):
         return False
     harness = session_harness()
     if harness is None or not claimant_matches(claim, harness):
-        sys.exit(
+        raise Refused(
             f"{page_dir} is served for another session, and only that session can "
             "start its server again; re-vendor it from there, or take the page over "
             f"first with `leaf server start {page_dir}`"

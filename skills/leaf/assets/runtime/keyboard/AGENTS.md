@@ -115,9 +115,12 @@ More. Choosing a match is the soft keyboard's Enter, or selecting the marked wor
 The ⌥ aim names a target, which a finger does by selecting words or through Select
 element. `c` and `e` act on a selection, the item the user stands on, or the page: a
 selection's Comment on selection step, a thread's own controls, and Comment on the page
-in More all take a tap. One gap is accepted for now: the response bar's other responses, Suggest
-and the reactions on a selection or item, open only by key, since the bar shows no
-ellipsis (`composing/selection.js`; `TODO.md` asks whether to restore a route). Question
+in More all take a tap. The comment field has one primary action, Dictate when available while
+empty and Send with words: Suggest and reactions on a
+selection or item open by Tab from the field, or `e` while it is unfocused. Omitting
+the ellipsis and its pointer/touch route is a deliberate product decision, including
+on phones. We can reconsider it with the user through a rendered design comparison;
+its absence is not an implementation defect to repair. Question
 digits duplicate the Decision's own control. The command reference and caret browsing
 describe or extend the keyboard itself.
 
@@ -134,7 +137,7 @@ scopes), `register.js` (scope order, page commands, the Escape ladder),
 (native editing claims), `layer-stack.js` (popovers and dialogs over the page),
 `page.js` (the page's own parts and the foot of the ladder), `go-to-sequence.js`
 (the `g` grammar), `control-keys.js`,
-`presentation.js`, `shortcut-bar.js`, `command-reference.js`, `hints.js`,
+`key-sequence.js`, `shortcut-bar.js`, `command-reference.js`, `hints.js`,
 `command-hints.js` (inline hints from reachable command bindings),
 `key-badge-placement.js`, `chip-seats.js` (where key chips stand), `disclosure.js`,
 and `touch-controls.js` (a finger's stand-ins for the keys).

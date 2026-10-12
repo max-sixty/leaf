@@ -1,17 +1,21 @@
-"""Typed data bindings, registry contracts, inventories, and lag."""
+"""Typed data bindings, registry contracts, inventories, and lag.
+
+Immutable document readings retain only binding records and data declarations.
+Historical inventories therefore survive eviction of their source parses without
+retaining parser nodes, unrelated widget metadata, or a complete vocabulary.
+"""
 
 import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
-import click
 import jmespath
 from jmespath.exceptions import JMESPathError
 from referencing.exceptions import Unresolvable
 
 from .files import list_revisions
+from .refusals import Refused
 from .registry.schema import (
-    aware_instant,
     json_validator,
     json_value,
     schema_error_message,
@@ -22,7 +26,7 @@ from .structure import SourceDocument
 from .thread_context import logged_fragment
 
 
-class DataError(click.ClickException):
+class DataError(Refused):
     """A malformed data store or payload at the page data boundary."""
 
 
@@ -145,7 +149,31 @@ def data_document_readings(
                 registry,
             )
         )
-    readings.append((document.lf_elements, label, registry))
+    declarations = {
+        rec["tag"]: {"x-data": declaration}
+        for rec in document.lf_elements
+        if (declaration := registry.get(rec["tag"], {}).get("x-data"))
+    }
+    records = [
+        {
+            "tag": rec["tag"],
+            "line": rec["line"],
+            "attrs": {
+                key: rec["attrs"][key]
+                for key in {
+                    "id",
+                    *(
+                        spec["source"]
+                        for spec in declarations[rec["tag"]]["x-data"].values()
+                    ),
+                }
+                if key in rec["attrs"]
+            },
+        }
+        for rec in document.lf_elements
+        if rec["tag"] in declarations
+    ]
+    readings.append((records, label, declarations))
     return readings
 
 
@@ -164,9 +192,10 @@ def page_data_document_readings(
         reading = read_revision(page_dir, revision)
         registries[revision] = reading.registry
         documents.append(
-            data_document_readings(
-                reading.document, f"revision r{revision}", reading.registry
-            )
+            [
+                (records, f"revision r{revision}{label}", declarations)
+                for records, label, declarations in reading.inventory.data_documents
+            ]
         )
     active_document = documents.pop() if documents else None
     for event in events:
@@ -280,7 +309,7 @@ def data_binding_inventory(lf_elements: list, registry: dict) -> dict:
 def measurement_lag_entries(lf_elements: list, registry: dict, stored: dict) -> list:
     """Authored measurements whose bound source has completed a later run.
 
-    The widget declaration joins the frozen half (its timestamp attribute) to the live
+    The widget declaration joins the frozen half (its run receipt attribute) to the live
     half (one x-data input). Invalid attributes stay with widget validation, and an
     unset source says only that no later run is known, so neither becomes advice here.
     """
@@ -294,15 +323,10 @@ def measurement_lag_entries(lf_elements: list, registry: dict, stored: dict) -> 
         if not input_spec:
             continue  # registry validation owns the malformed declaration
         source = rec["attrs"].get(input_spec["source"])
-        captured = rec["attrs"].get(measured["at"])
+        captured = rec["attrs"].get(measured["run"])
         snapshot = stored["sources"].get(source) if isinstance(source, str) else None
-        captured_at = aware_instant(captured) if isinstance(captured, str) else None
-        updated_at = (
-            aware_instant(snapshot["updated"])
-            if isinstance(snapshot, dict) and isinstance(snapshot.get("updated"), str)
-            else None
-        )
-        if captured_at is None or updated_at is None or updated_at <= captured_at:
+        current = snapshot.get("run") if isinstance(snapshot, dict) else None
+        if not captured or not current or current == captured:
             continue
         entries.append(
             {
@@ -310,8 +334,8 @@ def measurement_lag_entries(lf_elements: list, registry: dict, stored: dict) -> 
                 "widget": rec["attrs"].get("id"),
                 "line": rec["line"],
                 "source": source,
-                "at": captured,
-                "updated": snapshot["updated"],
+                "run": captured,
+                "current_run": current,
             }
         )
     return entries
@@ -324,8 +348,8 @@ def measurement_lag(lf_elements: list, registry: dict, stored: dict) -> list[str
         identity = f" id={entry['widget']!r}" if entry["widget"] else ""
         lines.append(
             f"<{entry['tag']}{identity}> (line {entry['line']}) pins source "
-            f"{entry['source']!r} at {entry['at']}, but that source was updated at "
-            f"{entry['updated']}"
+            f"{entry['source']!r} run {entry['run']}, but that source now holds "
+            f"run {entry['current_run']}"
         )
     return lines
 
@@ -383,7 +407,7 @@ def payload_error(source: str, contract: str, value, registry: dict) -> str | No
         try:
             resource_urls(value, declaration)
         except DataError as error:
-            return f"source {source!r} contract {contract!r}: {error.message}"
+            return f"source {source!r} contract {contract!r}: {error}"
         records = declaration.get("records")
         items = (
             value.get(records["items"]) if records and isinstance(value, dict) else None

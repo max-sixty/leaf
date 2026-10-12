@@ -1,33 +1,36 @@
 """Whether the page's one user has taken in each piece of agent content.
 
 The log owns the fact, and this module is its one reading. A message's original id and
-each later edit id name distinct content versions; a version stands unread until the
-log holds evidence the user took it in. Two kinds of evidence count:
+each later edit id name distinct content versions. Content needs evidence the user
+took it in unless it is superseded progress. Two kinds of read evidence count:
 
 - a `read` event naming that exact version, which the browser posts when its visible
   body has been shown to the user;
-- a user move made in the version's thread and logged after the version, which is
-  the thread the move names (`thread_context.event_threads`): a reply or reaction,
+- an update made in the version's thread and logged after the version, which is
+  the thread the update names (`thread_context.event_threads`): a reply or reaction,
   a resolve or reopen, an action on a widget a message of that thread
   carries, and an action whose admitted answer closes the thread, such as accepting
   the page suggestion it asked for. Answering, resolving and replying are all things
   a user does with what the thread says, so each implies they have read it as it
   then stood.
 
-Only the thread a move names counts. Delivery also files a move under threads it
+Only the thread an update names counts. Delivery also files an update under threads it
 changes without naming them (`thread_context.thread_memberships`): a later decision
 on a suggestion that had answered a thread, or the `undo` of an answer. Neither
-shows the user what the thread says, so neither is evidence here. A move the user
+shows the user what the thread says, so neither is evidence here. An update the user
 took back is no evidence either, as it is none for every other fold over the
 standing log.
 
-An edit is a new version logged after every earlier move, so it reads as unread again
-until fresh evidence arrives. A summary does not mark read what it covers. Unread is
-independent of turn-taking and of the user's outstanding work: reading never answers
-a Question, and answering one does mark it read.
+The next ordinary agent reply supersedes preceding progress (`progress_completions`),
+so completed progress leaves unread even when its body was never exposed. The reply
+itself still needs read evidence. Edits to completed progress remain superseded; an
+edit to other content is a new version needing fresh evidence. An explicit summary
+does not mark read what it covers. Unread is independent of turn-taking and of the
+user's outstanding work: reading never answers a Question, and answering one does
+mark it read.
 """
 
-from .events import taken_back
+from .events import progress_completions, taken_back
 from .schema import MESSAGE_KINDS
 from .thread_context import event_threads
 
@@ -100,10 +103,12 @@ def unread_content(
     unread = {}
     for thread_id, thread in threads.items():
         moved = latest_move.get(thread_id, 0)
+        completed = progress_completions(thread)
         unread[thread_id] = [
             {"message": message["id"], "version": version}
             for message in thread["msgs"]
             if user_message_content(message)
+            and message["id"] not in completed
             and message.get("edited", {}).get("seq", message["seq"]) > moved
             and (message["id"], version := content_version(message)) not in marked
         ]

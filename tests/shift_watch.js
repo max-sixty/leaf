@@ -17,7 +17,11 @@
 // inline or in their tree's own rules, retain that scroller too; nested CSS
 // expressions, ambiguous names and rules that disagree receive no inferred ownership.
 //
-// Each trusted gesture owns its counted rendering until declared completion.
+// Each trusted gesture owns its counted rendering until declared completion. A widget
+// preparation it began (`observeWidgetPreparations`) works on in a promise the loop
+// cannot see; the gesture owns that preparation's landing, as a rendering from the
+// task that settles it until the loop settles again, and nothing while it waits. It
+// began one only when its declaration carries that input's exact callback source.
 // Native effects it began retain only their sampled displacement within their
 // own subtree; their continued lifetime never owns unrelated page movement.
 // Native scroll effects belong to their retained scroll source, regardless of the
@@ -41,7 +45,7 @@
 // its solver dimensions, not the holder's rendered displacement, supply that credit.
 // Native anchored surfaces read their compositor source pose from an independent,
 // unpainted native anchor; their own displacement never selects that camera.
-// Observed page attachments in the window plane retain their carrying source offsets,
+// Observed source attachments in the window plane retain their carrying source offsets,
 // physical attachment point and written solver point. Source travel bounds physical
 // following, which bounds the solver's constrained movement. Only that written
 // movement is credited; extra holder/child movement still fails.
@@ -73,13 +77,19 @@
 // input, focus, scroll, drag, resize, load, reset and beforetoggle events; the
 // emulated media tests change; this frame's own visibility; and the calls that
 // restyle without a DOM write (custom states, constructed and adopted sheets,
-// form-control values and ranges, animation mutators). Every VERIFY-th unannounced
-// frame, and the first one once the fixture asks for the test's verdict, reads
-// completely and fails the test where any reading differs, naming the innermost
+// form-control values and ranges, animation mutators). A child cannot observe every
+// change in its embedding page, so child-frame readings remain complete. Every
+// VERIFY-th unannounced frame, and the first one once the fixture asks for the test's
+// verdict, reads completely and fails where any reading differs, naming the innermost
 // node that changed, so a source missing from this list is found rather than
 // leaving the readings between entries stale. A page that writes while it is read
 // announces its change by that write. A change to this gate runs the suite with
 // VERIFY = 1, which checks every frame.
+//
+// Movement findings retain the exact comparison and credits that decided them,
+// alongside the sampled scroll/attachment/animation inputs. Only admitted failures
+// serialize that evidence; healthy frames emit nothing. Passive chains keep their
+// individual comparisons instead of inventing an aggregate credit after the fact.
 //
 // Every finding fails the ordinary browser fixture. It installs this sensor after
 // write_watch.js and binds the canonical control and clipping vocabulary.
@@ -124,8 +134,11 @@
   // Native media sources and nodes detached during a reading can have no computed
   // length. Keep that absence stable; NaN would disagree with itself every frame.
   const pixels = (value) => (/^-?[\d.]+px$/.test(value) ? parseFloat(value) : null);
+  // A preparation owns only its source-bound landing below. Waiting for its full
+  // settlement here would give the input every unrelated move while it waits.
   const settled = () =>
-    document.querySelector("script[data-lf-entry]")?.lfRenderingSettled?.() ?? true;
+    document.querySelector("script[data-lf-entry]")?.lfRenderingState?.()
+      .updatesSettled ?? true;
   // An animation that can move a box: one of its keyframes sets a geometric property.
   const moves = (animation) =>
     animation.effect
@@ -797,6 +810,7 @@
     const drawn = drawing();
     const announced =
       unread ||
+      window !== top ||
       drawn !== wasDrawn ||
       running ||
       wasRunning ||
@@ -1128,6 +1142,7 @@
   // and of each element holding it at the key; the animations already moving any of
   // them; and until when the typing rule reads it.
   const renderings = [];
+  const inputRenderings = new WeakMap();
   let open = null;
   // The typing rule stops reading the open rendering, which runs on.
   const unwatch = () => {
@@ -1143,7 +1158,7 @@
     }
     open = null;
   };
-  const begin = (start, typing = null, own = new Set()) => {
+  const begin = (start, typing = null, own = new Set(), event = null) => {
     end();
     open = {
       start,
@@ -1153,9 +1168,52 @@
       told: false,
       last: false,
       typing,
+      event,
     };
     renderings.push(open);
+    if (event) inputRenderings.set(event, open);
   };
+  // The renderings preparations' landings opened, each running until the loop settles
+  // as an input's own does. The canonical callback source identifies the input that
+  // began each preparation; sharing a widget or overlapping its rendering is no cause.
+  const landing = new Set();
+  const preparing = new WeakMap();
+  const prepared = (phase, preparation) => {
+    if (phase === "begin") {
+      const source = window.lfInputWork.current();
+      const owner = source && inputRenderings.get(source.event);
+      if (owner) preparing.set(preparation, owner);
+      return;
+    }
+    const owner = preparing.get(preparation);
+    if (!owner) return;
+    preparing.delete(preparation);
+    const rendering = {
+      start: nativePerformance.now(),
+      first: true,
+      through: Infinity,
+      own: owner.own,
+      told: false,
+      last: false,
+      typing: owner.typing,
+      event: owner.event,
+    };
+    landing.add(rendering);
+    renderings.push(rendering);
+  };
+  // The runtime publishes its observer on its entry script after this script runs.
+  Object.defineProperty(HTMLScriptElement.prototype, "lfObserveWidgetPreparations", {
+    configurable: true,
+    set(observe) {
+      Object.defineProperty(this, "lfObserveWidgetPreparations", {
+        value: observe,
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
+      observe(prepared);
+    },
+  });
   // Shifts whose frame has no reading after it yet.
   const waiting = [];
   const tick = (time) => {
@@ -1171,13 +1229,20 @@
       // callbacks may still move a box, so the rendering runs through the next.
       else open.last = settled();
     }
+    for (const rendering of landing) {
+      if (!rendering.told)
+        for (const animation of begun(rendering.start)) rendering.own.add(animation);
+      if (rendering.last) landing.delete(rendering);
+      else rendering.last = settled();
+    }
     // A gesture owns its counted rendering until canonical completion. News seals
     // that credit; continuing motion retains its separate ownership below. A newer
     // input still leaves the prior gesture its first two frame readings.
     for (const rendering of renderings) {
       if (
         !rendering.first &&
-        (rendering.through === Infinity || (rendering === open && !rendering.told))
+        (rendering.through === Infinity ||
+          ((rendering === open || landing.has(rendering)) && !rendering.told))
       )
         rendering.through = at;
       rendering.first = false;
@@ -1191,31 +1256,36 @@
     nativeFrame(tick);
   };
   nativeFrame(tick);
-  window.lfInputWork.subscribeEdits(({ node: field }) => {
+  window.lfInputWork.subscribeEdits(({ node: field, event }) => {
     const holding = [];
     for (let at = field; at instanceof Element; at = up(at)) holding.push(at);
     const start = nativePerformance.now();
     const at = read(start, false);
-    begin(start, {
-      field,
-      at,
-      found: boxes(
-        holding.filter((node) => {
-          const paint = paintAt(node, at);
-          return (
-            node === field ||
-            paint.reading ||
-            paint.control ||
-            paint.reflow ||
-            paintedHolder(node)
-          );
-        }),
-      ),
-      moving: holding
-        .flatMap((node) => node.getAnimations())
-        .filter((animation) => animation.playState === "running" && moves(animation)),
-      until: Infinity,
-    });
+    begin(
+      start,
+      {
+        field,
+        at,
+        found: boxes(
+          holding.filter((node) => {
+            const paint = paintAt(node, at);
+            return (
+              node === field ||
+              paint.reading ||
+              paint.control ||
+              paint.reflow ||
+              paintedHolder(node)
+            );
+          }),
+        ),
+        moving: holding
+          .flatMap((node) => node.getAnimations())
+          .filter((animation) => animation.playState === "running" && moves(animation)),
+        until: Infinity,
+      },
+      new Set(),
+      event,
+    );
   });
   // A viewport resize is input, and its new size is the fact. Chrome lays out the
   // resized viewport before dispatching resize, which precedes the frame's callbacks,
@@ -1236,6 +1306,7 @@
   new MutationObserver(() => {
     unwatch();
     if (open) open.told = true;
+    for (const rendering of landing) rendering.told = true;
   }).observe(document, { subtree: true, attributeFilter: ["data-lf-reading"] });
   // Press, drag, release and native activation are phases of one pointer gesture.
   // Each phase keeps its own paint boundary while sharing the effects that press
@@ -1245,7 +1316,12 @@
   const heard = (event) => {
     if (!event.isTrusted || (event.type === "pointermove" && !event.buttons)) return;
     if (event.type === "pointerdown") presses.set(event.pointerId, new Set());
-    begin(nativePerformance.now(), null, presses.get(event.pointerId) ?? new Set());
+    begin(
+      nativePerformance.now(),
+      null,
+      presses.get(event.pointerId) ?? new Set(),
+      event,
+    );
     if (event.type === "click") presses.delete(event.pointerId);
   };
   for (let view = window; ; view = view.parent) {
@@ -1270,10 +1346,15 @@
     if (view === view.parent) break;
   }
   const reported = new Set();
-  const report = (what, detail) => {
+  const report = (what, detail, evidence) => {
     if (reported.has(what)) return;
     reported.add(what);
-    console.error(`${what}${detail}`);
+    console.error(
+      `${what}${detail}` +
+        (evidence
+          ? `\nshift evidence: ${JSON.stringify(evidence, (_, value) => (value instanceof Node ? name(value) : value))}`
+          : ""),
+    );
   };
   const box = ({ left, top, width, height }) =>
     `${Math.round(left)},${Math.round(top)} ${Math.round(width)}x${Math.round(height)}`;
@@ -1565,12 +1646,16 @@
   // Chrome signals a changed painted frame; actual reading/control geometry decides
   // motion. A container can grow at one edge while all protected landmarks stand.
   // Null or decorative pseudo sources do not override those landmark readings.
+  const credit = (motion, branch, owner, axis, amount, inputs) => {
+    motion[axis] += amount;
+    motion.terms.push({ branch, owner, axis, amount, inputs });
+  };
   const nativeScrollMotion = (node, from, to) => {
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
     const sticky = ancestryAt(element, to).find(
       (owner) => paintAt(owner, to)?.position === "sticky",
     );
-    const motion = { left: 0, top: 0 };
+    const motion = { left: 0, top: 0, terms: [] };
     if (!sticky) return motion;
     const before = boxAt(sticky, from),
       after = boxAt(sticky, to);
@@ -1585,19 +1670,24 @@
       // A sticky header inside a floating surface is carried by that surface,
       // not by the document scroll outside its fixed containing block.
       const carrying = fixed < 0 ? ancestors : ancestors.slice(0, fixed + 1);
-      const scroll = carrying.reduce((sum, owner) => {
+      const sources = carrying.flatMap((owner) => {
         const prior = scrollAt(owner, from),
           next = scrollAt(owner, to);
-        return (
-          sum +
-          (prior && next
-            ? viewportScroll(owner, to, {
-                left: next.left - prior.left,
-                top: next.top - prior.top,
-              })[axis]
-            : 0)
-        );
-      }, 0);
+        return prior && next
+          ? [
+              {
+                source: owner,
+                before: prior,
+                after: next,
+                viewport: viewportScroll(owner, to, {
+                  left: next.left - prior.left,
+                  top: next.top - prior.top,
+                }),
+              },
+            ]
+          : [];
+      });
+      const scroll = sources.reduce((sum, source) => sum + source.viewport[axis], 0);
       const shifted = after[axis] - before[axis];
       // Scroll carries the sticky owner on that axis, through at most its native
       // scroll delta. Descendants retain their local position relative to it.
@@ -1606,7 +1696,13 @@
         shifted >= Math.min(0, -scroll) - 1 &&
         shifted <= Math.max(0, -scroll) + 1
       )
-        motion[axis] = shifted;
+        credit(motion, "sticky_scroll", sticky, axis, shifted, {
+          before,
+          after,
+          scroll,
+          sources,
+          fixed_boundary: fixed < 0 ? null : ancestors[fixed],
+        });
     }
     return motion;
   };
@@ -1617,6 +1713,8 @@
       : selection.size[axis === "left" ? "width" : "height"]);
   const scrollMotion = (node, from, to) => {
     const motion = nativeScrollMotion(node, from, to);
+    // Rejected credits need their input facts too, including a missing source reading.
+    motion.attachments = [];
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
     const anchored = { left: false, top: false };
     const ancestors = ancestryAt(element, to);
@@ -1638,6 +1736,26 @@
         was.tenure === now.tenure &&
         was.subject === now.subject &&
         was.anchor === now.anchor;
+      if (was || now)
+        motion.attachments.push({
+          owner,
+          before: was ?? null,
+          after: now ?? null,
+          before_origin: readingAt(owner, from)?.nativeOrigin ?? null,
+          after_origin: readingAt(owner, to)?.nativeOrigin ?? null,
+          before_surface: boxAt(owner, from),
+          after_surface: boxAt(owner, to),
+          before_frame: was?.frame && {
+            rect: boxAt(was.frame, from),
+            layout: layoutAt(was.frame, from),
+          },
+          after_frame: now?.frame && {
+            rect: boxAt(now.frame, to),
+            layout: layoutAt(now.frame, to),
+          },
+          crosses_fixed: crossesFixed,
+          same_attachment: sameAttachment,
+        });
       if (
         sameAttachment &&
         was.plane === "window" &&
@@ -1649,6 +1767,7 @@
         )
       ) {
         const reach = { left: [0, 0], top: [0, 0] };
+        const sources = [];
         for (const [i, before] of was.scrollOffsets.entries()) {
           const after = now.scrollOffsets[i];
           if (before.left === after.left && before.top === after.top) continue;
@@ -1656,6 +1775,7 @@
             left: before.left - after.left,
             top: before.top - after.top,
           });
+          sources.push({ source: before.source, before, after, viewport: by });
           for (const axis of ["left", "top"]) {
             reach[axis][0] += Math.min(0, by[axis]);
             reach[axis][1] += Math.max(0, by[axis]);
@@ -1670,7 +1790,15 @@
             placed >= Math.min(0, carried) - 1 &&
             placed <= Math.max(0, carried) + 1
           )
-            motion[axis] += placed;
+            credit(motion, "observed_attachment", owner, axis, placed, {
+              before: was,
+              after: now,
+              crosses_fixed: crossesFixed,
+              reach: reach[axis],
+              carried,
+              placed,
+              sources,
+            });
         }
       }
       if (sameAttachment && was.frame && was.frame === now.frame) {
@@ -1693,7 +1821,17 @@
           const travel = after[axis] - before[axis];
           const placed = writtenPoint(now, axis) - writtenPoint(was, axis) + travel;
           if (placed >= Math.min(0, travel) - 1 && placed <= Math.max(0, travel) + 1) {
-            motion[axis] += placed;
+            credit(motion, "native_camera", owner, axis, placed, {
+              before,
+              after,
+              before_layout: beforeLayout,
+              after_layout: afterLayout,
+              before_selection: was,
+              after_selection: now,
+              crosses_fixed: crossesFixed,
+              travel,
+              placed,
+            });
             anchored[axis] = true;
           }
         }
@@ -1710,6 +1848,8 @@
             source && {
               left: retained?.nativeOrigin?.left ?? source.left,
               top: retained?.nativeOrigin?.top ?? source.top,
+              camera: retained?.nativeOrigin ?? null,
+              frame: source,
             }
           );
         };
@@ -1720,7 +1860,18 @@
             if (anchored[axis]) continue;
             const predicted = (selection, frame) =>
               writtenPoint(selection, axis) + frame[axis];
-            motion[axis] += predicted(now, after) - predicted(was, before);
+            const beforePoint = predicted(was, before),
+              afterPoint = predicted(now, after);
+            credit(motion, "floating_plane", owner, axis, afterPoint - beforePoint, {
+              before: was,
+              after: now,
+              before_origin: before,
+              after_origin: after,
+              crosses_fixed: crossesFixed,
+              same_attachment: sameAttachment,
+              before_point: beforePoint,
+              after_point: afterPoint,
+            });
             anchored[axis] = true;
           }
         }
@@ -1744,10 +1895,24 @@
       ]) {
         if (!prior[held] || !next[held] || anchored[axis]) continue;
         anchored[axis] = true;
-        motion[axis] +=
-          Math.abs(afterLayout[axis] - beforeLayout[axis]) < 1
-            ? after[axis] - before[axis]
-            : carried[axis];
+        const layoutStable = Math.abs(afterLayout[axis] - beforeLayout[axis]) < 1;
+        credit(
+          motion,
+          "native_anchor",
+          owner,
+          axis,
+          layoutStable ? after[axis] - before[axis] : carried[axis],
+          {
+            anchor,
+            pose_at: start,
+            before,
+            after,
+            before_layout: beforeLayout,
+            after_layout: afterLayout,
+            layout_stable: layoutStable,
+            sticky_terms: carried.terms,
+          },
+        );
       }
     }
     return motion;
@@ -1820,12 +1985,21 @@
     const along = (carried.left * source.left + carried.top * source.top) / travel;
     const across = (carried.left * source.top - carried.top * source.left) / travel;
     return Math.abs(across) < 1 && along >= -0.01 && along <= travel + 0.01
-      ? carried
+      ? {
+          motion: carried,
+          rebase,
+          source,
+          travel,
+          along,
+          across,
+          before_scroll: prior,
+          after_scroll: next,
+        }
       : null;
   };
   const animationMotion = (node, from, to, animations) => {
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
-    const motion = { left: 0, top: 0 };
+    const motion = { left: 0, top: 0, terms: [] };
     const seen = new Map();
     for (const animation of new Set(animations)) {
       const target = animation.effect.target;
@@ -1842,20 +2016,80 @@
         const prior = animationTranslation(property, before.values[property]);
         const next = animationTranslation(property, after.values[property]);
         if (!prior || !next) continue;
-        let by = viewportTranslation(property, before, after, {
+        const by = viewportTranslation(property, before, after, {
           left: next.left - prior.left,
           top: next.top - prior.top,
         });
         if (!by) continue;
-        if (before.scroll || after.scroll)
-          by = scrollEffectMotion(property, before, after, from, to, by);
-        if (!by) continue;
-        motion.left += by.left;
-        motion.top += by.top;
+        const scroll =
+          before.scroll || after.scroll
+            ? scrollEffectMotion(property, before, after, from, to, by)
+            : null;
+        if ((before.scroll || after.scroll) && !scroll) continue;
+        const amount = scroll?.motion ?? by;
+        // A timeline binding contains platform objects; the signature already
+        // retains its deciding numeric/CSS configuration in serializable form.
+        const sample = (reading) => ({
+          at: reading.at,
+          values: reading.values,
+          axes: reading.axes,
+          keyframes: reading.keyframes,
+          scroll: reading.scroll
+            ? {
+                source: reading.scroll.source,
+                axis: reading.scroll.axis,
+                signature: reading.scroll.signature,
+              }
+            : null,
+        });
+        const inputs = {
+          property,
+          before: sample(before),
+          after: sample(after),
+          viewport: by,
+          scroll,
+        };
+        for (const axis of ["left", "top"])
+          credit(
+            motion,
+            scroll ? "scroll_animation" : "animation",
+            target,
+            axis,
+            amount[axis],
+            inputs,
+          );
       }
       seen.set(target, properties);
     }
     return motion;
+  };
+  // The credit owners retain their accepted terms. A failing comparison keeps
+  // these exact terms until paint admission; reporting never re-runs the solver.
+  const motionComparison = (
+    from,
+    to,
+    before,
+    after,
+    layoutBefore,
+    layoutAfter,
+    scroll,
+    motion,
+  ) => {
+    const observed = { left: after.left - before.left, top: after.top - before.top };
+    return {
+      before: { at: from, rect: before, layout: layoutBefore },
+      after: { at: to, rect: after, layout: layoutAfter },
+      observed,
+      scroll_credit: { left: scroll.left, top: scroll.top },
+      animation_credit: { left: motion.left, top: motion.top },
+      residual: {
+        left: observed.left - scroll.left - motion.left,
+        top: observed.top - scroll.top - motion.top,
+      },
+      scroll_attachments: scroll.attachments,
+      scroll_terms: scroll.terms,
+      animation_terms: motion.terms,
+    };
   };
   const pendingMotion = [];
   const protectedMotion = (around) => {
@@ -1927,6 +2161,16 @@
               currentRect,
               before: around[before].at,
               after: around[after].at,
+              evidence: motionComparison(
+                around[before].at,
+                around[after].at,
+                previousRect,
+                currentRect,
+                { left: layoutLeft, top: layoutTop },
+                { left: nextLeft, top: nextTop },
+                scroll,
+                motion,
+              ),
             });
         }
       }
@@ -1999,6 +2243,13 @@
           report(
             `${name(node)} moved without input`,
             by(proof.previousRect, proof.currentRect) + beside(entry.sources, node),
+            {
+              kind: "passive",
+              node: name(node),
+              fragment,
+              paint_at: entry.startTime,
+              comparisons: (stable ? chain : [proof]).map((move) => move.evidence),
+            },
           );
       }
     for (let i = pendingMotion.length - 1; i >= 0; i--)
@@ -2030,6 +2281,24 @@
         by(before, after) +
           `; the key found ${box(before)}, the frame painted ${box(after)}` +
           beside(entry.sources, node),
+        {
+          kind: "typing",
+          node: name(node),
+          field: name(typing.field),
+          paint_at: entry.startTime,
+          comparisons: [
+            motionComparison(
+              typing.at,
+              painted,
+              before,
+              after,
+              from,
+              to,
+              scroll,
+              motion,
+            ),
+          ],
+        },
       );
     }
   };
@@ -2133,6 +2402,7 @@
       const rendering = renderings[i];
       if (
         rendering !== open &&
+        !landing.has(rendering) &&
         rendering.through < retainedFrom &&
         (rendering.typing?.until ?? -Infinity) < retainedFrom &&
         ![...rendering.own].some(({ playState }) => playState === "running")

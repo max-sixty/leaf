@@ -7,6 +7,7 @@
    asynchronous presentation. */
 import { reportPageError } from "./layer-client.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
+import { render, replaceChildren } from "./dom-children.js";
 
 const initialized = new WeakSet();
 
@@ -49,7 +50,7 @@ export function failSoft(el, err, source) {
   const owner = widgetOf(el);
   const tag = owner.localName;
   const message = err?.message || err;
-  reportPageError(`<${tag}${owner.id ? ` id="${owner.id}"` : ""}> failed: ${message}`);
+  reportPageError(err, `<${tag}${owner.id ? ` id="${owner.id}"` : ""}> failed`);
   showFailure(el, `<${tag}> failed: ${message}`, source);
 }
 
@@ -75,5 +76,8 @@ function showFailure(el, text, source) {
     pre.textContent = source;
     box.append(pre);
   }
-  el.replaceChildren(box);
+  // A native renderer may have recovered since the previous error, or moved its
+  // error nodes into a shadow stage. Discard that part before starting this fallback.
+  replaceChildren(el);
+  render(box, el);
 }

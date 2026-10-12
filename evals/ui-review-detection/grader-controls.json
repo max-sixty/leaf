@@ -1,0 +1,137 @@
+{
+  "purpose": "Retained semantic controls for live grading against the named frozen fixture's recognition screenshot packet. These expected scores are assertions to calibrate, not evidence of calibration.",
+  "controls": [
+    {
+      "id": "labelled-transition-observation",
+      "privateCase": "recording-stepping",
+      "privateVariant": "shift-defect",
+      "condition": "no-tools",
+      "mode": "recognition",
+      "answer": {
+        "verdict": "needs-work",
+        "findings": [
+          {
+            "title": "The application image moves between the supplied states",
+            "evidence": "In the screenshots labelled Initial view, After enabling Show intermediate frames, and After activating Next once, the application image changes vertical position as checkpoint metadata appears or disappears.",
+            "consequence": "A reader comparing nearby frames must relocate the image before comparing its contents."
+          }
+        ],
+        "uncertainties": [
+          "I have no browser tools; this observation is limited to the supplied labelled sequence."
+        ]
+      },
+      "expected": {
+        "scorable": true,
+        "evidence_sufficient": true,
+        "target_detection": 2,
+        "target_false_alarm": null,
+        "unsupported_observations": 0
+      }
+    },
+    {
+      "id": "unperformed-personal-interaction",
+      "privateCase": "recording-stepping",
+      "privateVariant": "shift-defect",
+      "condition": "no-tools",
+      "mode": "recognition",
+      "answer": {
+        "verdict": "needs-work",
+        "findings": [
+          {
+            "title": "The application image moves between the supplied states",
+            "evidence": "The labelled screenshots show the application image changing vertical position when checkpoint metadata appears or disappears. I also personally clicked Next and Previous twenty times in the browser and measured the movement.",
+            "consequence": "The movement interrupts visual comparison of nearby frames."
+          }
+        ],
+        "uncertainties": []
+      },
+      "expected": {
+        "scorable": true,
+        "evidence_sufficient": true,
+        "target_detection": 2,
+        "target_false_alarm": null,
+        "unsupported_observations": 1
+      }
+    },
+    {
+      "privateCase": "recording-times",
+      "privateVariant": "timeline-defect",
+      "condition": "no-tools",
+      "mode": "recognition",
+      "id": "timing-missing-anchor",
+      "answer": {
+        "verdict": "needs-work",
+        "findings": [
+          {
+            "title": "Event boxes lack a visible time anchor",
+            "evidence": "The supplied timeline shows event labels as boxes whose widths depend on their text, without visible point dots or stems locating each event in time.",
+            "consequence": "The reader cannot tell which position represents the event time or whether the box width represents duration."
+          }
+        ],
+        "uncertainties": []
+      },
+      "expected": {
+        "scorable": true,
+        "evidence_sufficient": true,
+        "target_false_alarm": null,
+        "unsupported_observations": 0,
+        "target_detection": 2
+      },
+      "provenance": {
+        "kind": "constructed canonical positive"
+      }
+    },
+    {
+      "privateCase": "recording-times",
+      "privateVariant": "timeline-defect",
+      "condition": "no-tools",
+      "mode": "recognition",
+      "id": "timing-temporal-extent-concern",
+      "answer": "```json\n{\n  \"verdict\": \"needs-work\",\n  \"findings\": [\n    {\n      \"title\": \"Closely spaced inputs are drawn as label-width boxes stacked in undocumented lanes, so order and spacing inside a cluster must be inferred\",\n      \"evidence\": \"Using the ruler (0 s at x\u2248118, 0.20 s per 80 px), the Escape, g and Shift+g markers are centred at roughly 1.39 s, 1.41 s and 1.44 s, about 25\u201330 ms apart, yet each box is 40\u201360 px wide (equivalent to 100\u2013150 ms) and they overlap horizontally. The viewer resolves the overlap by dropping each successive marker into a lower row (Escape row 2, g row 3, Shift+g row 4); the same happens with moment 2, c and moment 3 (rows 1\u20133). Nothing in the view explains that rows are only collision lanes, and the second screenshot shows box width is driven by the label (Shift+g is widest), not by any timing property.\",\n      \"consequence\": \"A reader asked to compare nearby inputs cannot read the ~30 ms gaps from the picture; they have to rely on a small horizontal offset of overlapping boxes or on the unstated convention that lower rows are later. Rows could also be misread as categories (e.g. keyboard vs. moment), and box width could be misread as press duration. The only exact timing is the status line after selecting a marker, one marker at a time. Uncertainty: there may be hover tooltips or a zoom that were not exercised; the lane rule is inferred from two clusters.\"\n    },\n    {\n      \"title\": \"The playhead and step navigation include checkpoints that have no marker on the timeline\",\n      \"evidence\": \"In the initial view the playhead sits at 0.408 s and the status line reads \\\"0.408 s \u00b7 After checkpoint \u00b7 Frame.goto\\\", but the timeline shows no marker at 0.408 s; only key presses and numbered moments are drawn. After selecting the later t marker the status reads \\\"1.650 s \u00b7 Action checkpoint \u00b7 Press t\\\". The terms \\\"After checkpoint\\\" and \\\"Action checkpoint\\\" are not explained anywhere in the view.\",\n      \"consequence\": \"The reader cannot see from the timeline which positions the \u2039 / \u203a buttons will step through, and may conclude the recording begins with the first t press at ~0.66 s when a navigation event precedes it. This weakens the stated goal of understanding the full sequence. Uncertainty: I did not press \u2039 / \u203a or Play, so I cannot confirm whether stepping visits hidden checkpoints or only drawn markers.\"\n    },\n    {\n      \"title\": \"Moment markers and input markers are only weakly distinguished, and moment 1 precedes the inputs it sits among\",\n      \"evidence\": \"Moments appear as small grey circles (1, 2, 3) in the same grey palette and the same lane-stacking as the key-press boxes; the list above gives their times (1.361 s, 2.277 s, 2.318 s) but no visible link to the timeline beyond the digit. Moment 1 at 1.361 s is drawn immediately left of and above the Escape/g/Shift+g cluster (~1.39\u20131.44 s), and moment 2 (2.277 s) and 3 (2.318 s) bracket the c press (~2.30 s).\",\n      \"consequence\": \"A reader trying to \\\"reach the named outcomes\\\" must decide which inputs produced each moment; the viewer gives only pixel positions to go on, and the circle-vs-box distinction is subtle at this size. Whether the Escape/g/Shift+g presses follow outcome 1 (as the geometry suggests) or are part of reaching it is not something the viewer makes legible. Uncertainty: the ordering reading depends on my pixel measurement; clicking a moment row may navigate the playhead, which was not tested.\"\n    }\n  ],\n  \"uncertainties\": [\n    \"Only two static states were supplied; Play, \u2039 / \u203a stepping, hover, keyboard access, and clicking a Moments row were not observed, so navigation behaviour and any tooltips are unknown.\",\n    \"Marker times were estimated from the ruler scale (\u2248400 px/s); they are consistent with the two status-line values (0.408 s, 1.650 s) and moment times, but are approximate.\",\n    \"Whether marker box width encodes anything beyond label length cannot be confirmed from the screenshots.\",\n    \"The meaning of \\\"After checkpoint\\\" vs \\\"Action checkpoint\\\" and whether other hidden checkpoints exist besides Frame.goto at 0.408 s is not determinable from the supplied evidence.\",\n    \"Selection styling (light blue fill, blue text) looks low-contrast but exact colour values were not measured.\"\n  ]\n}\n```",
+      "expected": {
+        "scorable": true,
+        "evidence_sufficient": true,
+        "target_false_alarm": null,
+        "unsupported_observations": 0,
+        "target_detection": 1
+      },
+      "provenance": {
+        "kind": "retained historical answer",
+        "source": ".tmp/ui-review-detection/experiments/5/run/samples/sample-Y2nZIS/output.txt",
+        "anonymous_id": "answer-827de3c022ed",
+        "historical_target_detection": 2,
+        "independent_target_detection": 1,
+        "automatic_calibration_13_target_detection": 0,
+        "adjudication": "Specific concern that text-dependent box width can suggest press duration; does not identify the missing visible time anchor, so full detection is unsubstantiated."
+      }
+    },
+    {
+      "privateCase": "recording-times",
+      "privateVariant": "timeline-defect",
+      "condition": "no-tools",
+      "mode": "recognition",
+      "id": "timing-generic-clutter",
+      "answer": {
+        "verdict": "needs-work",
+        "findings": [
+          {
+            "title": "The timeline is cluttered",
+            "evidence": "The event labels are crowded and stacked.",
+            "consequence": "More spacing, a taller timeline and different colours could make the labels easier to scan."
+          }
+        ],
+        "uncertainties": []
+      },
+      "expected": {
+        "scorable": true,
+        "evidence_sufficient": true,
+        "target_false_alarm": null,
+        "unsupported_observations": 0,
+        "target_detection": 0
+      },
+      "provenance": {
+        "kind": "constructed negative"
+      }
+    }
+  ]
+}

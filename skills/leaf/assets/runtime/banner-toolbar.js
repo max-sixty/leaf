@@ -45,6 +45,7 @@ import { repaint } from "./repaint.js";
 import { afterScript } from "./rendering.js";
 import {
   deepFocus,
+  drawn,
   focusDestination,
   onStanding,
   readCaret,
@@ -80,6 +81,7 @@ export const BANNER_CONTROL_RANK = Object.freeze({
 
 export const bannerActions = el("div", "lf-banner-actions");
 export const overflowMenu = el("div", "lf-ui lf-banner-menu");
+overflowMenu.id = "lf-banner-menu";
 overflowMenu.setAttribute("popover", "auto");
 overflowMenu.setAttribute("role", "group");
 overflowMenu.setAttribute("aria-label", "More page controls");
@@ -143,6 +145,7 @@ function rowTemplate() {
     <button
       class="lf-btn lf-banner-more"
       type="button"
+      popovertarget="lf-banner-menu"
       aria-expanded=${String(open)}
       aria-label=${name}
       title=${name}
@@ -166,7 +169,6 @@ render(rowTemplate(), bannerActions);
 render(menuTemplate(), overflowMenu);
 
 const overflowBtn = bannerActions.querySelector(".lf-banner-more");
-overflowBtn.popoverTargetElement = overflowMenu;
 overflowMenu.lfInvoker = overflowBtn;
 
 // More temporarily borrows the reader's focus. Context-preserving commands return
@@ -439,15 +441,17 @@ overflowMenu.addEventListener("lf-reveal", (event) => {
 });
 
 // The node a user can actually put focus on to reach this control: the control
-// itself while it stands on the row, and otherwise the More door holding it. A menu
-// control fails `checkVisibility()` inside a shut popover, and `focus()` on it is a
-// no-op, so a caller that hands the user somewhere has to ask this rather than the
-// control. Null means the toolbar offers no way in, which happens only off the banner.
+// itself while it stands on the row, and otherwise the visible More door. A menu
+// control fails `checkVisibility()` inside a shut popover; a row control can also be
+// displaced by a gesture step while its card stays open. Neither can take focus.
+// Null means the toolbar offers no way in, which happens only off the banner.
 export function bannerControlDoor(control = overflowBtn) {
-  if (control.isConnected && control.checkVisibility({ visibilityProperty: true }))
-    return control;
+  if (drawn(control)) return control;
   const menu = control.closest(".lf-banner-menu");
-  return menu?.lfInvoker?.checkVisibility() ? menu.lfInvoker : null;
+  if (menu?.lfInvoker?.checkVisibility()) return menu.lfInvoker;
+  return bannerActions.contains(control) && overflowBtn.checkVisibility()
+    ? overflowBtn
+    : null;
 }
 
 // Escape from a layer that opens from a banner control lands on that control, its parent

@@ -46,9 +46,19 @@
   // more as `lf-startup-fault`, which a served page's bootstrap answers by waiting for
   // a server that can start the page (bootstrap.js); an export has no server to wait
   // for.
-  const fault = (reason, incomplete) => {
+  const fault = (reason, incomplete, error = null) => {
     if (incomplete) root.toggleAttribute("data-lf-interactive", false);
     root.dataset.lfStartupError = reason;
+    // The attribute is the short display reason; this record retains the actual
+    // exception before modules load, including for an opaque sample's private port.
+    root.lfStartupException =
+      error?.message === undefined
+        ? null
+        : {
+            name: error.name,
+            message: error.message,
+            stack: error.stack,
+          };
     window.dispatchEvent(
       new CustomEvent("lf-startup-fault", { detail: { reason, incomplete } }),
     );
@@ -74,12 +84,17 @@
         fault(
           `${event.message || "uncaught error"} (${event.filename || "?"}:${event.lineno ?? "?"})`,
           false,
+          event.error ?? null,
         );
     },
     true,
   );
   window.addEventListener("lf-startup-failed", (event) =>
-    fault(event.detail?.reason || "the page reported it could not start", true),
+    fault(
+      event.detail?.reason || "the page reported it could not start",
+      true,
+      event.detail?.error ?? null,
+    ),
   );
 
   // Which page this document is, as the prefix of what the browser tab keeps for it.
@@ -218,6 +233,29 @@
     runtimeStyles.get(node)?.delete(property);
     if (node.style.getPropertyValue(property)) node.style.removeProperty(property);
   };
+  // What an element wears: attributes and custom properties written as one set, so a
+  // later set removes what the earlier one had and the next does not (dress.js). The
+  // root and body wear theirs as runtime root state, so a revision keeps it; any other
+  // element is no root state, and writes plainly.
+  const worn = new WeakMap();
+  const wear = (node, dress) => {
+    const { documentElement, body } = node.ownerDocument;
+    const owned = node === documentElement || node === body;
+    const previous = worn.get(node);
+    for (const name of Object.keys(previous?.attributes ?? {}))
+      if (!Object.hasOwn(dress.attributes, name))
+        (owned ? setRuntimeRootAttribute : keepsAttribute)(node, name, null);
+    for (const name of Object.keys(previous?.properties ?? {}))
+      if (!Object.hasOwn(dress.properties, name))
+        if (owned) removeRuntimeRootStyle(node, name);
+        else node.style.removeProperty(name);
+    for (const [name, value] of Object.entries(dress.attributes))
+      (owned ? setRuntimeRootAttribute : keepsAttribute)(node, name, value);
+    for (const [name, value] of Object.entries(dress.properties))
+      if (owned) setRuntimeRootStyle(node, name, value);
+      else node.style.setProperty(name, value);
+    worn.set(node, dress);
+  };
   const origins = new WeakMap();
   const parents = new WeakMap();
   // Null/undefined means absent; compare the string an attribute reads back. The
@@ -337,11 +375,12 @@
   const residency = () => {
     const body = document.body;
     if (!body) return false;
-    const main = document.querySelector("main");
+    // The page's `main` (passages.js, `pageDocument`), read here before any module runs.
+    const main = document.querySelector("body > main");
     // CSS declares the column's requested shell, without making the runtime read a
     // Layout class or making a root :has() re-check the whole page on every insertion.
     const tracksRequested =
-      main?.parentElement === body &&
+      Boolean(main) &&
       getComputedStyle(main).getPropertyValue("--lf-column-shell").trim() === "grid";
     const shellChanged = body.hasAttribute("data-lf-column-shell") !== tracksRequested;
     if (!sourceShells.has(body)) sourceShells.set(body, body.cloneNode(false));
@@ -505,6 +544,7 @@
     runtimeRootAttributes: (node) => new Set(runtimeAttributes.get(node) ?? []),
     setRuntimeRootStyle,
     removeRuntimeRootStyle,
+    wear,
     runtimeRootStyles: (node) => new Set(runtimeStyles.get(node) ?? []),
     authoredShell: (node) => sourceShells.get(node) ?? sources.get(node) ?? node,
     residency,
@@ -525,7 +565,12 @@
         if (!parents.has(node)) parents.set(node, node.parentElement);
       rememberSource(authoredCopy(host));
       for (let node = host; node; node = node.parentNode) sourceScopes.add(node);
-      const drawing = render(host, { tabStore, offer, offerElement });
+      const drawing = render(host, {
+        tabStore,
+        offer,
+        offerElement,
+        keeps: keepsAttribute,
+      });
       if (drawing?.then)
         throw new TypeError(
           `initial renderer for <${host.localName}> must be synchronous`,

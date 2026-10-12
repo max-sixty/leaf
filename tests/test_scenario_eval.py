@@ -5,6 +5,7 @@ import os
 
 import click
 import pytest
+from leaf.hook_transport import INLINE_DELIVERY
 from leaf_dev.delivery_eval import expected_checks, grade, score
 
 
@@ -109,7 +110,7 @@ def test_delivery_reads_admitted_progress_and_exact_answers(tmp_path):
             "type": "system",
             "subtype": "hook_response",
             "hook_event": "UserPromptSubmit",
-            "output": "leaf-delivery-v",
+            "output": INLINE_DELIVERY,
             "received_at": "2026-10-02T00:00:04Z",
         },
         {
@@ -231,7 +232,7 @@ def test_settled_requires_context_entry_even_with_a_reply_and_closed_turn(
         page.take_claim(
             EmbeddedHarness(session=session, agent="Reader", pid=os.getpid())
         )
-        comment = append_admitted(
+        comment, _ = append_admitted(
             page,
             {
                 "kind": "comment",

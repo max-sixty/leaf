@@ -1,4 +1,4 @@
-/* Generated from skills/leaf/assets/styles/theme.css by npm run build:styles. */
+/* Generated from skills/leaf/assets/styles/theme.css by build/styles.mjs. */
 /* skills/leaf/assets/styles/theme.css */
 @property --lf-banner-rows { syntax: "<integer>"; inherits: true; initial-value: 1; }
 @property --lf-motion-flash { syntax: "<time>"; inherits: true; initial-value: 1200ms; }
@@ -23,8 +23,8 @@
   --lf-bottom-status-translate: 0 50%;
   --lf-view-height: calc(100dvh - var(--lf-banner-h) - var(--lf-bottom-bar-h));
   --lf-top: var(--lf-banner-h);
-  --lf-landing-gap: 12px;
-  --lf-landing-room: calc(var(--lf-root-headers, 0px) + var(--lf-landing-gap));
+  --lf-top-covered: calc(var(--lf-banner-h) + var(--lf-root-headers, 0px));
+  --lf-landing-room: 12px;
   --lf-tabstrip-h: calc(9px + max(38px, var(--aim-floor)));
   --lf-z-page-paint: 8890;
   --lf-z-margin-raised: 8895;
@@ -203,6 +203,7 @@ html:not([data-lf-live]) {
 @property --lf-frame-start { syntax: "<integer>"; inherits: false; initial-value: 0; }
 @property --lf-frame-end { syntax: "<integer>"; inherits: false; initial-value: 0; }
 @property --lf-holds-edge { syntax: "<integer>"; inherits: false; initial-value: 0; }
+@property --lf-holds-height { syntax: "<integer>"; inherits: false; initial-value: 0; }
 @container style(--lf-block-frame: 1) or style(--lf-block-frame: trim) {
   * {
     --lf-block-frame: 0;
@@ -238,7 +239,7 @@ html {
     height: 100%;
     overflow-x: hidden;
     overflow-y: scroll;
-    scroll-padding-top: calc(var(--lf-banner-h) + var(--lf-landing-room));
+    scroll-padding-top: calc(var(--lf-top-covered) + var(--lf-landing-room));
     scroll-padding-bottom: calc(var(--lf-bottom-bar-h) + max(12px, var(--focus-ring-room)));
     body {
       min-height: 100%;
@@ -347,7 +348,7 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) {
   background: var(--card);
   color: var(--ink);
 }
-:where(select, input:not([type=checkbox], [type=radio], [type=range], [type=color], [type=file], [type=button], [type=submit], [type=reset], [type=image])):is(.lf-ui, .field):focus-visible {
+:where(select, input:not([type=checkbox], [type=radio], [type=range], [type=color], [type=file], [type=button], [type=submit], [type=reset], [type=image])):is(.lf-ui, .field)[data-lf-focus] {
   outline: var(--focus-ring);
   --lf-focus-ring: text-box;
   outline-offset: 0;
@@ -358,8 +359,8 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) {
   color: var(--muted);
   opacity: 1;
 }
-.lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)):is(:focus, .lf-focus),
-:is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)):is(:focus, .lf-focus) {
+.lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input))[data-lf-focus],
+:is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input))[data-lf-focus] {
   outline: var(--focus-ring);
   --lf-focus-ring: text-box;
   outline-offset: 0;
@@ -402,6 +403,7 @@ main {
     max-block-size: var(--lf-bound, 28rem);
     overflow: auto;
     --lf-top: 0px;
+    --lf-holds-height: 1;
   }
 }
 @media screen and (max-width: 640px) {
@@ -908,14 +910,14 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
 .lf-margin-entry:is(button, [role=button]):not([data-lf-behavior=status]):hover:not([aria-disabled=true]) {
   background: var(--lf-entry-tint, var(--chip));
 }
-.lf-margin-entry[data-lf-behavior=disclosure]:is(button, [role=button]):is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded=true]):not([aria-disabled=true]) {
+.lf-margin-entry[data-lf-behavior=disclosure]:is(button, [role=button]):is(:hover, [data-lf-focus], [aria-expanded=true]):not([aria-disabled=true]) {
   border-color: var(--accent);
   color: var(--lf-entry-ink, var(--ink));
 }
 .lf-margin-entry[data-lf-target-selected] {
   border-color: var(--accent);
 }
-.lf-margin-entry:is(:focus-visible, .lf-focus-visible) {
+.lf-margin-entry[data-lf-focus] {
   outline: var(--focus-ring);
   --lf-focus-ring: margin-entry;
   outline-offset: 1px;
@@ -1035,7 +1037,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   left: var(--lf-label-x);
   top: var(--lf-label-y);
 }
-.lf-margin-entry:is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded=true]) > .lf-margin-entry-label {
+.lf-margin-entry:is(:hover, [data-lf-focus]):not([aria-expanded=true]) > .lf-margin-entry-label {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);
@@ -1047,7 +1049,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   transform: translateY(0);
   transition: none;
 }
-.lf-margin-entry:is(:focus-visible, .lf-focus-visible):not([aria-expanded=true]) > .lf-margin-entry-label {
+.lf-margin-entry[data-lf-focus]:not([aria-expanded=true]) > .lf-margin-entry-label {
   transition: none;
 }
 .lf-margin-projection .lf-margin-entry:not([data-lf-label-side]) > .lf-margin-entry-label {
@@ -1089,10 +1091,10 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
     white-space: pre-wrap;
   }
 }
-[data-lf-reading-role=pane] > :not(header, footer):is(:focus-visible, .lf-focus-visible) {
+[data-lf-reading-role=pane] > :not(header, footer)[data-lf-focus] {
   outline: none;
 }
-[data-lf-reading-role=pane]:has(> :not(header, footer):is(:focus-visible, .lf-focus-visible))::after {
+[data-lf-reading-role=pane]:has(> :not(header, footer)[data-lf-focus])::after {
   content: "";
   grid-row: 2;
   grid-column: 1;

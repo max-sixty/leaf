@@ -1,5 +1,7 @@
 """Pure folds over the append-only event model."""
 
+from itertools import groupby
+
 from leaf.schema import MESSAGE_KINDS, UNDOABLE_KINDS
 
 
@@ -55,7 +57,7 @@ def is_reaction(event: dict) -> bool:
 
 
 def spoken_turns(thread: dict) -> list:
-    """Messages with words, including retained ephemeral updates.
+    """Messages with words, including retained progress messages.
 
     Reactions are marks rather than words. Presentation ranges include ephemeral
     messages; semantic turn-taking reads :func:`conversation_turns` instead.
@@ -64,8 +66,27 @@ def spoken_turns(thread: dict) -> list:
 
 
 def conversation_turns(thread: dict) -> list:
-    """Spoken messages that participate in the exchange, excluding progress updates."""
+    """Spoken messages that participate in the exchange, excluding progress messages."""
     return [message for message in spoken_turns(thread) if not message.get("ephemeral")]
+
+
+def exchange(thread: dict) -> list:
+    """The conversation's turns and the user's revisions of its messages, in log order.
+
+    A user's `edit` hands the thread to the agent as a reply would, under the edit's
+    id, while every surface shows it as the message's new wording rather than a
+    message beside it (`build_threads`, ``revisions``). So only who owes the next word
+    reads it (`unanswered_turns`, `workflows`); what a thread says, and what a question
+    asked since a message waits on, read the messages (`conversation_turns`). An
+    agent's edit corrects its own words and hands nothing over, so it is no turn."""
+    return sorted(
+        [*conversation_turns(thread), *thread["revisions"]], key=lambda m: m["seq"]
+    )
+
+
+def turn_message(turn: dict) -> str:
+    """The message a turn is shown as: a revision's message, else the turn's own."""
+    return turn["message"] if turn["kind"] == "edit" else turn["id"]
 
 
 def bare_reaction(thread: dict) -> bool:
@@ -192,7 +213,7 @@ def undo_error(
 
     A reaction is the one message a user takes back rather than answers,
     and only while it still paints: once a turn answers it the withdrawal
-    would orphan those words, and the user's move is in the thread that
+    would orphan those words, and the user's update is in the thread that
     turn opened; once its thread is resolved, resolve being its floor, there
     is nothing left to take back. The browser offers exactly the gestures
     this reading admits (`served_state.document.browser_undo_candidates`).
@@ -217,6 +238,9 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     version rewrote, until a reply chooses the thread's place again.
     A new spoken reply resumes the thread; reactions and failure receipts
     leave its closure standing. A later resolution closes it again.
+    ``revisions`` holds the user's edits in log order, each with ``was``, the words
+    it replaced: each shows as its message's wording and stands in the exchange as a
+    turn of its own (`exchange`), so it resumes the thread as a reply does.
 
     Each thread is keyed by, and carries as ``id``, the id of the message that
     opened it: the name every Question, workflow, summary, and title uses for it.
@@ -257,6 +281,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 "detached_from": None,
                 "rewritten_from": None,
                 "msgs": [message],
+                "revisions": [],
                 "resolved": None,
             }
             threads[e["id"]] = thread
@@ -282,8 +307,22 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             continue
         if e["kind"] == "edit":
             if message := messages.get(e["message"]):
+                # The user rewriting their words speaks again, as a reply would: the
+                # agent owes the new wording an answer, and a closed thread opens. The
+                # revision keeps the words it replaced, which answers already given
+                # were about.
+                if e["author"] != "agent":
+                    thread = thread_for[e["message"]]
+                    thread["revisions"].append({**e, "was": message["text"]})
+                    thread["resolved"] = None
+                # The message says when it was last rewritten, and what it said before,
+                # so a reader of the thread alone sees which answers were about other
+                # words.
+                message["edited"] = {
+                    **{key: e[key] for key in ("id", "seq", "ts")},
+                    "was": message["text"],
+                }
                 message["text"] = e["text"]
-                message["edited"] = {key: e[key] for key in ("id", "seq", "ts")}
             continue
         if e["kind"] == "reply":
             # A reply whose message the log lost opens the thread that message would
@@ -308,6 +347,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                     "detached_from": None,
                     "rewritten_from": None,
                     "msgs": [],
+                    "revisions": [],
                     "resolved": None,
                 }
                 threads[e["parent"]] = thread
@@ -339,7 +379,7 @@ def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
 
     Summaries replace overlapping summaries whole. Editing a covered message
     invalidates a summary containing prose. A fold without prose keeps showing the
-    revised originals. Ephemeral updates acquire a fold when the next ordinary
+    revised originals. Progress messages acquire a fold when the next ordinary
     agent reply arrives. Explicit summaries own any overlap with these derived
     folds; no extra event is written. The original messages remain the authority.
     """
@@ -365,43 +405,58 @@ def active_summaries(events: list, threads: dict) -> dict[str, list[dict]]:
     return result
 
 
-def _ephemeral_ranges(thread: dict, covered: set) -> list[dict]:
-    """Completed contiguous runs of progress, preserving intervening conversation.
+def progress_completions(thread: dict) -> dict[str, dict]:
+    """The ordinary agent reply that supersedes each completed progress message.
 
-    A user message breaks a run but does not complete progress. The next ordinary
-    agent reply completes all pending runs. Its identity is also the presentation
-    dependency: a renderer holding that reply must hold its folds with it.
+    The next non-failure agent reply completes all pending progress in its thread.
+    Reactions and user messages do not complete it. Presentation and unread share
+    this relation independently of explicit summaries and read acknowledgements.
     """
     pending = []
-    run = []
-    ranges = []
+    completed = {}
     for message in spoken_turns(thread):
-        if message.get("ephemeral") and message["id"] not in covered:
-            run.append(message)
+        if message.get("ephemeral"):
+            pending.append(message["id"])
             continue
-        if run:
-            pending.append(run)
-            run = []
         if (
-            message.get("ephemeral")
-            or message["kind"] != "reply"
+            message["kind"] != "reply"
             or message["author"] != "agent"
             or message.get("failure")
         ):
             continue
-        for group in pending:
-            ranges.append(
-                {
-                    "id": f"ephemeral:{group[0]['id']}:{message['id']}",
-                    "seq": message["seq"],
-                    "from": group[0]["id"],
-                    "through": group[-1]["id"],
-                    "text": "",
-                    "label": "Previous updates",
-                    "trigger": message["id"],
-                }
-            )
+        completed.update((identity, message) for identity in pending)
         pending = []
+    return completed
+
+
+def _ephemeral_ranges(thread: dict, covered: set) -> list[dict]:
+    """Contiguous completed progress outside explicit summaries, split by conversation.
+
+    The completing reply is also the presentation dependency: a renderer holding
+    that reply must hold its folds with it.
+    """
+    completed = progress_completions(thread)
+    ranges = []
+    for reply, messages in groupby(
+        spoken_turns(thread),
+        key=lambda message: (
+            None if message["id"] in covered else completed.get(message["id"])
+        ),
+    ):
+        if reply is None:
+            continue
+        group = list(messages)
+        ranges.append(
+            {
+                "id": f"ephemeral:{group[0]['id']}:{reply['id']}",
+                "seq": reply["seq"],
+                "from": group[0]["id"],
+                "through": group[-1]["id"],
+                "text": "",
+                "label": "Previous progress messages",
+                "trigger": reply["id"],
+            }
+        )
     return ranges
 
 
@@ -438,49 +493,6 @@ def _thread_summaries(thread: dict, summaries: list, edits: dict) -> list[dict]:
     return sorted(active, key=lambda summary: positions[summary["from"]])
 
 
-def current_anchors(events: list, within: dict) -> list:
-    """The anchors live threads still bind the page with.
-
-    A thread's target is its latest anchor, so a thread a reply moved or detached
-    binds the page at the new coordinate or at none: the log keeps the opening
-    comment's words and the coordinate they were written at, and nothing resolves
-    that coordinate against the page again. `detached_from` is the same fact read
-    from the thread's side. A closed thread lets its target go on the same
-    terms, and so does a reaction nobody has answered — paint on the page, and no
-    thread yet.
-
-    One rule for every reader that asks whether a written anchor still binds the
-    page, because a page check refusing to drop what a thread has already let
-    go is the same bug as a browser painting a mark there. `within` is the
-    containment the settlement half reads, as every other fold of the threads
-    takes it."""
-    return [
-        t["anchor"]
-        for t in build_threads(events, within).values()
-        if t["anchor"] and not t["resolved"] and not bare_reaction(t)
-    ]
-
-
-def anchored_ids(events: list, within: dict) -> set:
-    """Element ids a live thread still points at — the section half of
-    `current_anchors`, for the ids an author writes."""
-    anchors = current_anchors(events, within)
-    return {anchor.get("section") for anchor in anchors} - {None}
-
-
-def anchored_parts(events: list, within: dict) -> set:
-    """(section, visual part) coordinates a live thread still points at.
-
-    The visual half of `current_anchors`, for the parts an authored inventory
-    declares: a part is addressable markup the way an id is, and a version may
-    retire one the moment no thread points at it."""
-    return {
-        (anchor["section"], anchor["visual"])
-        for anchor in current_anchors(events, within)
-        if anchor.get("visual")
-    }
-
-
 def unanswered_turns(thread: dict) -> list[dict]:
     """The spoken non-agent turns the agent still owes an answer, oldest first.
 
@@ -489,7 +501,7 @@ def unanswered_turns(thread: dict) -> list[dict]:
     settles every input accumulated through it, and a later input starts a fresh
     batch. Until then each input stays owed, and answering an older one removes
     only that input while the newer address stays owed. Mere log order is not
-    settlement: an agent answering an older frozen-widget move after newer user
+    settlement: an agent answering an older frozen-widget action after newer user
     input leaves that newer input with the agent.
 
     Not the agent, rather than the user: `author` is an open string on every message
@@ -500,8 +512,9 @@ def unanswered_turns(thread: dict) -> list[dict]:
     Turns, not marks: a reaction is a mark on a message rather than a word in the
     thread, so an `ok` the user puts on the agent's answer does not hand the thread
     back, and a reaction nobody has replied to is no thread at all. Resolution does
-    not enter here; `awaits_agent` adds it."""
-    turns = conversation_turns(thread)
+    not enter here; `awaits_agent` adds it. A user's revision is a turn here
+    (`exchange`)."""
+    turns = exchange(thread)
     floor = -1
     newest_before = None
     for index, message in enumerate(turns):
@@ -546,9 +559,10 @@ def seat_root(thread: dict) -> str | None:
 
     An element anchor naming that widget and carrying nothing else, which is the
     runtime's `seatRoot` and the anchor `renderSeats` collects into the seat's
-    own view. Narrower than `anchored_ids`, deliberately: a quote anchor points into
-    the widget's words rather than standing in the box it offers, and the user can
-    see the difference — one is a note on a phrase, the other is the cell.
+    own view. Narrower than any anchor naming the widget, deliberately: a quote
+    anchor points into the widget's words rather than standing in the box it offers,
+    and the user can see the difference — one is a note on a phrase, the other is
+    the cell.
 
     A reply whose root the log lost is its own root, so the thread seats where the
     thread's latest anchor points, and nowhere at all when no message carried one."""

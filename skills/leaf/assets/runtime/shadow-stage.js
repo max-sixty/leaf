@@ -13,7 +13,11 @@
    left out: a module that wrote its own children would replace the one thing holding its
    look, and it would look right in exactly the session where someone remembered. Same
    reasoning as renderSaid — a rule each widget has to remember is a rule that gets
-   forgotten, and the forgetting is invisible until a page ships without it. */
+   forgotten, and the forgetting is invisible until a page ships without it.
+
+   The root is infrastructure owned here, not a template render container. Stage a
+   concrete container and render templates inside it; retaining that container across
+   stage updates keeps Lit's markers, native editors, and directive lifetimes intact. */
 import { SHADOW_STARTUP_CSS, shadowRules } from "./shadow.js";
 import {
   annotationMarkSheets,
@@ -30,7 +34,7 @@ import { liveStages, watchArrivalsIn } from "./arrivals.js";
 
 // A third-party stylesheet that arrives with an on-demand bundle belongs wherever that
 // bundle can draw: the document and every declared shadow stage. The vendored Web
-// Awesome bundle calls this as it evaluates (build/webawesome/build.mjs).
+// Awesome bundle calls this as it evaluates (build/vendor.mjs).
 // Keep one constructable sheet per name so a page parses it once, existing stages
 // receive a late-loaded bundle, and stages built after registration inherit the sheet.
 const widgetSheets = new Map();

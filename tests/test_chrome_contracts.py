@@ -11,7 +11,7 @@ from interact_support import append_carried_log_record
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.media import store_uploaded_media
-from leaf.render_checks import rendered
+from leaf.render_checks import SERVED_TIMEOUT_MS, rendered
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -72,6 +72,7 @@ def test_refusal_notice_clears_live_reply_through_wrapping_and_expiry(
     reply = page.locator(".lf-thread[open] > .lf-thread-reply")
     field = reply.locator("leaf-text")
     send = reply.get_by_role("button", name="Send", exact=True)
+    mic = reply.get_by_role("button", name="Dictate", exact=True)
     words = "Keep this reply in the writing box when the server refuses it."
     write(field, words)
     rendered(page)
@@ -85,7 +86,7 @@ def test_refusal_notice_clears_live_reply_through_wrapping_and_expiry(
             if (!status.checkVisibility()) return;
             const r = node => node.getBoundingClientRect().toJSON();
             window.__noticeReplyFrames.push({status:r(status), field:r(field),
-                send:r(field.parentElement.querySelector('.lf-thread-send'))});
+                send:r(field.parentElement.querySelector('button:not([hidden])'))});
         }).observe(field);
     }""")
 
@@ -102,7 +103,9 @@ def test_refusal_notice_clears_live_reply_through_wrapping_and_expiry(
     page.keyboard.press("Enter")
     holding(page, held, 1, "the provisional reply before refusal")
     rendered(page)
-    before = {"field": field.bounding_box(), "send": send.bounding_box()}
+    expect(send).to_be_hidden()
+    expect(mic).to_be_visible()
+    before = {"field": field.bounding_box(), "send": mic.bounding_box()}
     pending = held.pop()
     pending.fulfill(
         status=400,
@@ -119,6 +122,8 @@ def test_refusal_notice_clears_live_reply_through_wrapping_and_expiry(
     expect(notice).to_contain_text("Couldn't send")
     expect(notice).to_be_visible()
     expect(field).to_have_js_property("value", words)
+    expect(send).to_be_visible()
+    expect(mic).to_be_hidden()
     rendered(page)
     restored = field.bounding_box()
     assert send.bounding_box() == before["send"]
@@ -1489,7 +1494,7 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
                 "agent": "Codex",
                 "parent": first,
                 "text": "Which of the two should stay?",
-                "awaits": True,
+                "question": True,
             },
         )
     page = open_page(browser, url)
@@ -1783,11 +1788,12 @@ def test_resolved_thread_has_one_surface_and_reopens_from_its_title(
 def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_header(
     browser, serve, width, scheme
 ):
-    """Submit belongs to the field while Resolve shares the first message's line.
+    """The field action belongs to the field; Resolve shares the first message's line.
 
-    Growing the field leaves Submit at its foot and Resolve fixed. The field
+    Empty fields offer Dictate; typing replaces it with Send in the same slot.
+    Growing the field leaves its action at its foot and Resolve fixed. The field
     puts its words on the messages' reading edge, and keeps their inset as the
-    field grows and scrolls, leaving room for Submit in the same row.
+    field grows and scrolls, leaving room for its action in the same row.
     Resolve stays beside the first header while each message keeps its author and time.
     The same layout holds at narrow and wide panel widths in both palettes."""
     context = browser.new_context(
@@ -1803,23 +1809,26 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_header(
     compose = thread.locator(".lf-thread-reply")
     field_box = compose.locator("leaf-text")
     send = thread.get_by_role("button", name="Send", exact=True)
+    mic = thread.get_by_role("button", name="Dictate", exact=True)
     resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
     close = page.get_by_role("button", name="Close threads", exact=True)
-    expect(send).to_be_visible()
+    expect(mic).to_be_visible()
+    expect(send).to_be_hidden()
     expect(resolve).to_be_visible()
-    expect(send.locator('svg[data-lf-icon="send"]')).to_have_count(1)
+    expect(mic.locator('svg[data-lf-icon="microphone"]')).to_have_count(1)
     expect(resolve.locator('svg[data-lf-icon="check"]')).to_have_count(1)
     expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
     expect(thread.get_by_role("button", name="Close thread", exact=True)).to_have_count(
         0
     )
-    expect(send).to_have_text("")
+    expect(mic).to_have_text("")
     expect(resolve).to_have_text("")
     expect(close).to_have_text("")
 
     def geometry():
         return thread.evaluate(
             """thread => {
+                  const action = '.lf-compose-field > button:not([hidden])';
                   const rect = sel => {
                     const r = thread.querySelector(sel).getBoundingClientRect();
                     return {x: r.x, y: r.y, width: r.width, height: r.height,
@@ -1829,7 +1838,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_header(
                   const inputStyle = getComputedStyle(thread.querySelector('leaf-text'));
                   const messageStyle = getComputedStyle(thread.querySelector('.lf-msg-body'));
                   const padding = parseFloat(inputStyle.paddingInlineEnd);
-                  // Send's room beyond the padding, kept after the last words.
+                  // The action's room beyond the padding, kept after the last words.
                   const room = parseFloat(inputStyle.getPropertyValue('--lf-field-end-room'));
                   const radius = (selector, pseudo = null) => getComputedStyle(
                     selector.startsWith('.lf-thread-panel')
@@ -1840,16 +1849,16 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_header(
                           compose: rect('.lf-thread-reply'), field: rect('.lf-compose-field'),
                           field_box: rect('.lf-thread-reply leaf-text'),
                           metadataActions: rect('.lf-thread-meta-actions'),
-                          send: rect('.lf-thread-send'), resolve: rect('.lf-resolve'),
+                          action: rect(action), resolve: rect('.lf-resolve'),
                           closeBorder: getComputedStyle(document.querySelector(
                             '.lf-thread-panel-head [aria-label="Close threads"]')).borderTopWidth,
                           resolveBorder: getComputedStyle(thread.querySelector(
                             '.lf-resolve'), '::before').borderTopWidth,
-                          sendBorder: getComputedStyle(thread.querySelector(
-                            '.lf-thread-send'), '::before').borderTopWidth,
+                          actionBorder: getComputedStyle(thread.querySelector(
+                            action), '::before').borderTopWidth,
                           radii: {
-                            send: radius('.lf-thread-send'),
-                            sendFill: radius('.lf-thread-send', '::before'),
+                            action: radius(action),
+                            actionFill: radius(action, '::before'),
                             resolve: radius('.lf-resolve'),
                             resolveFill: radius('.lf-resolve', '::before'),
                             close: radius('.lf-thread-panel-head [aria-label="Close threads"]'),
@@ -1878,10 +1887,10 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_header(
         short["thread"]["right"] - short["field"]["right"], abs=1
     )
     assert short["field_box"]["right"] == pytest.approx(short["field"]["right"], abs=1)
-    assert short["send"]["right"] < short["field_box"]["right"]
-    assert short["field_box"]["y"] < short["send"]["y"]
-    assert short["send"]["bottom"] < short["field_box"]["bottom"]
-    assert short["textEnd"] <= short["send"]["x"]
+    assert short["action"]["right"] < short["field_box"]["right"]
+    assert short["field_box"]["y"] < short["action"]["y"]
+    assert short["action"]["bottom"] < short["field_box"]["bottom"]
+    assert short["textEnd"] <= short["action"]["x"]
     assert short["field"]["height"] < 50
     assert short["resolve"]["y"] == pytest.approx(short["header"]["y"], abs=1)
     assert short["metadataActions"]["right"] == pytest.approx(
@@ -1894,28 +1903,32 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_header(
     assert short["header"]["right"] <= short["resolve"]["x"]
     assert float(short["closeBorder"][:-2]) == 0
     assert float(short["resolveBorder"][:-2]) == 0
-    assert float(short["sendBorder"][:-2]) == 0
+    assert float(short["actionBorder"][:-2]) == 0
     assert set(short["radii"].values()) == {button_radius(page)}
     assert short["overflow"] == 0
 
     field_box.focus()
     focused = geometry()
-    assert focused["send"] == short["send"]
+    assert focused["action"] == short["action"]
     assert focused["resolve"] == short["resolve"]
 
     write(field_box, "First line.\nSecond line.\nThird line.\nFourth line.")
+    expect(send).to_be_visible()
+    expect(mic).to_be_hidden()
+    expect(send.locator('svg[data-lf-icon="send"]')).to_have_count(1)
+    expect(send).to_have_text("")
     grown = geometry()
     assert grown["inputFont"] == grown["messageFont"]
     assert grown["textStart"] - grown["field"]["x"] == pytest.approx(text_inset, abs=1)
-    assert grown["textEnd"] <= grown["send"]["x"]
+    assert grown["textEnd"] <= grown["action"]["x"]
     assert grown["padding"] == pytest.approx(short["padding"], abs=1)
-    assert grown["send"]["bottom"] < grown["field_box"]["bottom"]
-    # The short field grows downward and Submit stays at the field's foot.
+    assert grown["action"]["bottom"] < grown["field_box"]["bottom"]
+    # The short field grows downward and its action stays at the field's foot.
     assert grown["field_box"]["y"] == pytest.approx(short["field_box"]["y"], abs=1)
     growth = grown["field_box"]["height"] - short["field_box"]["height"]
     assert growth > 0
-    assert grown["send"]["y"] - short["send"]["y"] == pytest.approx(growth, abs=1)
-    assert grown["send"]["x"] == short["send"]["x"]
+    assert grown["action"]["y"] - short["action"]["y"] == pytest.approx(growth, abs=1)
+    assert grown["action"]["x"] == short["action"]["x"]
     assert grown["metadataActions"] == short["metadataActions"]
     assert grown["resolve"] == short["resolve"]
     assert grown["overflow"] == 0
@@ -1927,11 +1940,44 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_header(
         scrolling = geometry()
         # A scrolled draft carries every line past Send, so each keeps its room.
         assert field_box.evaluate("el => el.endRoom") == "every-line"
-        assert scrolling["send"]["bottom"] < scrolling["field_box"]["bottom"]
+        assert scrolling["action"]["bottom"] < scrolling["field_box"]["bottom"]
         assert scrolling["textStart"] - scrolling["field"]["x"] == pytest.approx(
             text_inset, abs=1
         )
-        assert scrolling["textEnd"] <= scrolling["send"]["x"]
+        assert scrolling["textEnd"] <= scrolling["action"]["x"]
+
+
+def test_a_compact_comment_reserves_only_the_room_send_occupies(browser, serve):
+    """At a narrow allocation, Space must not create a blank line while the
+    words and Send still fit. The text's right inset already clears part of
+    Send's hit box; reserving its full width again wasted eleven pixels."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page("Compact comment", '<p id="passage">A passage to comment on.</p>')
+        ),
+    )
+    resized(page, 346, 900)
+    page.locator("#passage").click(modifiers=["Alt"])
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    page.keyboard.insert_text("this is a nice feature; is it in leaf, or you")
+    rendered(page)
+    before = field.bounding_box()
+    page.keyboard.press("Space")
+    rendered(page)
+    after = field.bounding_box()
+    assert after["height"] == pytest.approx(before["height"], abs=1)
+    assert after["y"] == pytest.approx(before["y"], abs=1)
+    reservation = field.evaluate("""el => {
+      const style = getComputedStyle(el), box = el.getBoundingClientRect();
+      const send = el.parentElement.querySelector('.lf-compose-submit').getBoundingClientRect();
+      return {textEnd: box.right - parseFloat(style.borderInlineEndWidth)
+        - parseFloat(style.paddingInlineEnd)
+        - parseFloat(style.getPropertyValue('--lf-field-end-room')),
+        sendStart: send.left};
+    }""")
+    assert reservation["textEnd"] == pytest.approx(reservation["sendStart"], abs=0.1)
 
 
 def test_opening_a_line_under_a_full_last_line_moves_no_words(browser, serve):
@@ -2810,7 +2856,8 @@ def test_a_traffic_wait_stops_when_repaints_outlive_its_deadline(monkeypatch):
 
     page = BusyPage()
     page.lf_traffic = Traffic(page)
-    times = iter((0, 31, 31, 31))
+    expired = SERVED_TIMEOUT_MS / 1000 + 1
+    times = iter((0, expired, expired, expired))
     monkeypatch.setattr(time, "monotonic", lambda: next(times))
 
     with pytest.raises(AssertionError, match="never reached a false fact"):
@@ -3256,7 +3303,8 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     # answered it, and once its click has passed every listener.
     page.evaluate(
         """() => {
-          const settled = document.querySelector('script[data-lf-entry]').lfRenderingSettled;
+          const state = document.querySelector('script[data-lf-entry]').lfRenderingState;
+          const settled = () => Object.values(state()).every(Boolean);
           window.__lfPress = [];
           const read = () => window.__lfPress.push(settled());
           addEventListener('pointerdown', read, {capture: true, once: true});

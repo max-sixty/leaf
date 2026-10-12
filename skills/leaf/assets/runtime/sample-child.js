@@ -1,5 +1,7 @@
 /* The isolated child's explicit interface to its containing page. Values cross the
  * port; documents, DOM nodes, functions and browser owners remain in this realm. */
+import { canPlaceFocus, focusDestination, onStanding } from "./focus.js";
+import { pagePresented } from "./page-paint.js";
 const child = document.documentElement.lfSample;
 const commands = new Map();
 const observers = new Map();
@@ -26,13 +28,28 @@ if (child)
       const result = await commands.get(method)(detail);
       child.send({ id, result });
     } catch (error) {
-      child.send({ id, error: { name: error.name, message: error.message } });
+      child.send({
+        id,
+        error: { name: error.name, message: error.message, stack: error.stack },
+      });
     }
   });
 
 if (child) {
   let presented = false;
   let height = null;
+  // A parent cannot inspect focus in this opaque document. Report whether a
+  // control holds it, and retain its node while a parent control borrows focus.
+  let standing = null;
+  onStanding((node) => {
+    if (node && node !== document.body) standing = node;
+    sampleNotice("standing", { focused: Boolean(node && node !== document.body) });
+  });
+  registerSampleCommand("restore-standing", () => {
+    if (!standing?.isConnected || !canPlaceFocus()) return false;
+    focusDestination(standing, "return");
+    return document.hasFocus();
+  });
   const measure = () => {
     if (!document.body) return;
     const next = Math.ceil(document.body.getBoundingClientRect().height);
@@ -41,6 +58,11 @@ if (child) {
       sampleNotice("height", { height });
     }
   };
+  // The containing page's image shows this part of the viewport where the frame stands.
+  registerSampleCommand("image", async ({ x, y, width, height }) => {
+    const { pageImage } = await import("./composing/page-image.js");
+    return pageImage({ x: scrollX + x, y: scrollY + y, width, height });
+  });
   registerSampleCommand("window", async ({ window: asWindow }) => {
     child.settings.window = asWindow;
     document.documentElement.lfInitial.setRuntimeRootAttribute(
@@ -53,8 +75,12 @@ if (child) {
   });
   const inspect = () => {
     const error = document.documentElement.dataset.lfStartupError;
-    if (error) sampleNotice("error", { message: error });
-    if (presented || !document.body?.hasAttribute("data-lf-presented")) return;
+    if (error)
+      sampleNotice(
+        "error",
+        document.documentElement.lfStartupException ?? { message: error },
+      );
+    if (presented || !(document.body && pagePresented())) return;
     presented = true;
     child.present();
     measure();

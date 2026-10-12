@@ -23,6 +23,18 @@ Each check has one name in `CHECKS`, which a finding carries:
   behavior and moves nothing (`../../../assets/AGENTS.md`, "Stability"). Its reading is
   `changedBoxes` in `render-checks/widgets.js`, against the box each authored widget had
   at first paint, which the pre-upgrade proof keeps (`scheme.start_with_pre_upgrade_proof`).
+- `grows-with-content`: a box in the widget holds its own height and scrolls inside it,
+  where a widget in ordinary flow grows with what it holds (`../../../assets/AGENTS.md`,
+  "Space and scrolling"). A box that needs a scroll of its own says so with
+  `--lf-holds-height: 1`, as a bounded block does. Its reading is `heldScrollers` in
+  `render-checks/widgets.js`, which names a box that scrolls vertically now, or that
+  asks to and overflows once a tall block is added to it. It writes the page, so it is
+  taken after `changedBoxes`, last on the page.
+- `shows-context-keys`: a command that declares context keys, the aliases a widget
+  offers for pressing a control from elsewhere, also declares a `bindingBadge`, so the
+  page shows the key it adds (`../../references/module-authoring.md`, "Commands and
+  keyboard routes"). Its reading is `unshownContextKeys` in `render-checks/widgets.js`,
+  which reads the declarations rather than the keys reachable now.
 """
 
 import re
@@ -34,7 +46,7 @@ from pathlib import Path
 
 from leaf.layer import LayerComposition, checked_layer_inputs, compose_layer
 from leaf.packages import package_layer_inputs
-from leaf.registry.contract import read_registry_declarations
+from leaf.registry.contract import element_declarations, read_registry_declarations
 from leaf.registry.storage import read_page_registry
 from leaf.render_checks import (
     RENDER_VIEWPORT,
@@ -49,9 +61,13 @@ from leaf.structure import SourceDocument
 from leaf.vendoring import start_throwaway_page
 
 from .preview import preview_server
-from .scheme import arm_interception, served, start_with_pre_upgrade_proof
+from .scheme import (
+    arm_interception,
+    served,
+    start_with_pre_upgrade_proof,
+)
 
-CHECKS = ("example", "keeps-first-box")
+CHECKS = ("example", "keeps-first-box", "grows-with-content", "shows-context-keys")
 
 MEDIA_REFERENCE = re.compile(f"/{MEDIA_DIR}/{DIR_FILES[MEDIA_DIR]}")
 
@@ -79,7 +95,7 @@ class UnreadablePage(Exception):
 def own_tags(package: Path) -> list[str]:
     """The widget tags the package's own `registry.json` declares, in its order."""
     declarations = read_registry_declarations(package / "registry.json") or {}
-    return [tag for tag in declarations if tag.startswith("lf-")]
+    return list(element_declarations(declarations))
 
 
 def example_pages(registry: dict, tags: list[str]) -> list[str]:
@@ -89,7 +105,7 @@ def example_pages(registry: dict, tags: list[str]) -> list[str]:
     for tag in tags:
         if (example := registry[tag].get("x-example")) is None:
             continue
-        own = SourceDocument(example).ids
+        own = SourceDocument(example, fragment=True).ids
         if not pages or own & ids:
             pages.append([])
             ids = set()
@@ -136,8 +152,12 @@ def _size(box: dict) -> str:
     return f"{round(box['width'])}x{round(box['height'])}"
 
 
-def _changed_boxes(browser, url: str) -> list[dict]:
-    """Each widget on the served page whose box changed from first paint to presented."""
+def _readings(
+    browser, url: str, tags: list[str]
+) -> tuple[list[dict], list[dict], list[dict]]:
+    """Each widget on the served page whose box changed from first paint to presented,
+    each command in `tags`' widgets whose context keys the page never shows, and each
+    box in `tags`' widgets that holds its own height and scrolls inside it."""
     from playwright.sync_api import Error as PlaywrightError
 
     page = browser.new_page(viewport=RENDER_VIEWPORT)
@@ -148,18 +168,21 @@ def _changed_boxes(browser, url: str) -> list[dict]:
             raise UnreadablePage("; ".join(faults))
         wait_until_ready(page, served(page, url, "/api/state").json())
         wait_for_probe(page, "pageSettled")
-        return evaluate_probe(page, "changedBoxes")
+        changed = evaluate_probe(page, "changedBoxes")
+        unshown = evaluate_probe(page, "unshownContextKeys", tags)
+        return changed, unshown, evaluate_probe(page, "heldScrollers", tags)
     except (PlaywrightError, RuntimeError, TimeoutError) as error:
-        raise UnreadablePage(str(error).strip().splitlines()[0]) from error
+        raise UnreadablePage(str(error).strip()) from error
     finally:
         page.close()
 
 
-def _changed_box_findings(
+def _page_findings(
     browser, composition: LayerComposition, pages: list[SourceDocument], tags: list[str]
 ) -> list[Finding]:
-    """`keeps-first-box` over each page of examples, served from a page vendored with
-    the package's layer and thrown away after."""
+    """`keeps-first-box`, `shows-context-keys` and `grows-with-content` over each page
+    of examples, served
+    from a page vendored with the package's layer and thrown away after."""
     findings = []
     with tempfile.TemporaryDirectory(prefix="leaf-widgets-") as temporary:
         page_dir = Path(temporary)
@@ -187,7 +210,7 @@ def _changed_box_findings(
             except ArtifactError as error:
                 raise UnreadablePage(str(error)) from error
             with preview_server(page_dir, document, 1, artifact=artifact) as url:
-                changed = _changed_boxes(browser, url)
+                changed, unshown, held = _readings(browser, url, tags)
             findings += [
                 Finding(
                     box["tag"],
@@ -198,6 +221,28 @@ def _changed_box_findings(
                 )
                 for box in changed
                 if box["tag"] in tags
+            ]
+            findings += [
+                Finding(
+                    command["tag"],
+                    "shows-context-keys",
+                    f"{command['command']} declares context keys and no bindingBadge, "
+                    "so its key works with nothing on the page showing it; lend the "
+                    "command a face, or request a corner badge with bindingBadge: null",
+                    command["id"],
+                )
+                for command in unshown
+            ]
+            findings += [
+                Finding(
+                    box["tag"],
+                    "grows-with-content",
+                    f"{box['at']} holds {box['height']}px and scrolls inside it; "
+                    "let it grow with its content, or declare --lf-holds-height: 1 "
+                    "where the task needs its own scroll",
+                    box["id"],
+                )
+                for box in held
             ]
     return findings
 
@@ -218,5 +263,5 @@ def widget_findings(browser, package: Path) -> list[Finding]:
         if tag not in shown
     ]
     if pages:
-        findings += _changed_box_findings(browser, composition, pages, tags)
+        findings += _page_findings(browser, composition, pages, tags)
     return findings

@@ -124,6 +124,10 @@ has tried; settle that before building it.
 
 ### User continuity and mobile access
 
+- **Bring back a rewrite Escape discarded.** Escape drops a rewrite's changed words, as
+  in Slack, Discord and Telegram, so an accidental press loses a long rewrite. Offer a
+  way back, such as `g D` restoring the last discarded rewrite into its editor (the
+  user's suggestion, 2026-10-06).
 - **Decide when a page merits a separate phone composition.** Many pages are
   ephemeral and authored for a user reading on a large screen, so a bespoke phone
   animation may not repay its cost. Decide how the agent weighs the user's viewing
@@ -143,31 +147,23 @@ has tried; settle that before building it.
   handoff and reproduce the interactive-reply crash on a real iPhone. Browser emulation
   covers element targeting, commenting, passage geometry, and viewport sizing, but cannot
   show the native selection menu or software keyboard.
-- **Finish what a phone user still cannot reach.** Give touch users visible passage
-  threads, and remove keyboard-only hints, hover-only reasons, clipped diagram content,
-  and remaining undersized touch targets. Hover-only today: why Approve version is
-  disabled, and "Press z" once approved; a reaction's word before it is sent; a margin
-  marker's label and its status (Sent, Stalled); the diff's line "+"; and the
-  latest-edit error, a dead passage's reason, a disabled More entry's reason, and the
-  compare state. A finger also lacks exits a key has: a mode's or search's steps take
-  Threads off the row until it ends, Android's back gesture closes nothing
-  (the Escape ladder could answer it), Draw mode blocks scrolling and zoom, and an
-  `lf-draft` has no close that keeps the edit.
-- **Decide whether the response bar's reactions and Suggest need a pointer route.**
-  The floating comment bar shows no ellipsis (⋯), so its field spans the bar and a sent
-  message keeps the card's measure. Its other responses, Suggest and the emoji
-  reactions, open only by key: Tab from the field, or `e`. A mouse alone has no
-  route to them, and a finger has none at all. Decide whether to make them more
-  available, such as a banner control under a coarse pointer, a reaction row on the
-  sent card, or a control that keeps the field's measure
-  (`skills/leaf/assets/runtime/composing/selection.js`).
+- **Finish what a phone user still cannot reach.** Remove keyboard-only hints,
+  hover-only reasons, clipped diagram content, and remaining undersized touch targets.
+  Hover-only today: why Approve version is disabled, and "Press z" once approved; a
+  reaction's word before it is sent; a margin marker's label and its status (Sent,
+  Stalled); the diff's line "+"; and the latest-edit error, a dead passage's reason, a
+  disabled More entry's reason, and the compare state. A finger also lacks exits a key
+  has: a mode's or search's steps take Threads off the row until it ends, Android's back
+  gesture closes nothing (the Escape ladder could answer it), Draw mode blocks scrolling
+  and zoom, and an `lf-draft` has no close that keeps the edit.
 - **Reconsider thread navigation.** Decide how the Threads panel should change
   before refining it (`skills/leaf/assets/AGENTS.md`, "Space and scrolling"). The
   redesign also settles how focus stays off page content a panel covers (Max,
   2026-10-10). His rule (2026-10-06): the panels dominate focus, so moving focus never
   closes or changes a standing panel, and focus never lands on content a panel covers.
-  Today Tab still walks onto `annotation-workspace`'s rail under Threads, or under the
-  Questions panel that shares its right edge, at 1440×900. Making covered content inert
+  Tab walked onto page content under Threads, or under the Questions panel that shares
+  its right edge, at 1440×900 on an example since retired; no surviving page has been
+  checked for it. Making covered content inert
   was built and withdrawn: the visible part of a partly covered element went dead to
   clicks and selection, and focus still reached chrome markers, sample frames,
   overflowing children and content an attribute revealed. A comment box already
@@ -230,7 +226,7 @@ and its chrome coordinate.
     growing along it and changed cells outlined. `lf-visual-review` steps through one
     case at a time, so the grid is a new view, in that package or beside it.
   - For comment placement alone, an SVG atlas of the side `comment-placement.js`
-    chooses (`commentSide`) over a grid of inputs, which `npm run test:runtime` can
+    chooses (`commentSide`) over a grid of inputs, which `pnpm run test:runtime` can
     draw without a browser.
 
   How to keep the candidates maintainable is not yet thought through, and comes before
@@ -248,7 +244,12 @@ and its chrome coordinate.
   keeping its comments. They hold if revisions happen by ordinary composition. Include
   a cold agent asked for "a dashboard", the likeliest trigger for over-tiling. Run it
   with the agent-usability baseline (#19), by extending the document, dashboard and
-  queue tasks in `evals/`.
+  queue tasks in `evals/`. For a workspace, also measure what a screenshot of the
+  document cannot show: each pane's contents through its own scroll, how much of each
+  pane is empty, and whether a reader reaches every pane by key. The arrangement
+  judge sees only the first screen of a pane that scrolls and is told not to infer
+  interaction, so no case yet measures whether a workspace works as a screen. The
+  plain-HTML control (`--condition html`) has never run.
 - **Layout values that wait for a task:** a selection-and-detail component whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.
@@ -268,12 +269,12 @@ that changes size after first paint, with its cause.
   a synchronous source reading, or whether a summary can serve the reader who came
   to read it. The activity feed now opens log-sized rows deliberately and holds later
   growth with `HeldReading`.
-- **Decide the contents' form before first paint.** `lf-toc` changes size because the
-  margin pass decides after first paint whether it is the fixed map in the margin or
-  the outline in the flow (`data-lf-margin`, `margin-layout.js`), from the room
-  it measures at that point. A held summary does not answer that cause. Check first whether a
-  container or media query on the space beside the column can make the same decision
-  in CSS.
+- **Draw the contents before first paint.** `lf-toc` is written empty and builds its
+  list from the page's headings as its module upgrades, so it first paints with no box
+  and then takes its full one (`tests/known_widget_findings.py`). Residency
+  (`data-lf-margin`, prepaint.js) already decides its form before that paint; what is
+  left is an initial renderer (`lfInitial.register`) that draws the list from the
+  authored headings.
 - **Check that margin markers paint in place in their first frame.** The shift watch
   exempts the page until it is presented (`tests/shift_watch.js`), and #1603 records
   startup shifts only as diagnostics, so a marker drawn in the wrong place in its first
@@ -367,6 +368,15 @@ on 2026-10-07.
 
 ### Development velocity
 
+- **Make test tiering much simpler.** Cost tiers went in as a stopgap to cut the
+  suite's cost quickly: a test's tier is the later of its `main`/`nightly` marks and
+  the tier its measured CI cost names in `tests/cost_tiers.json` (307 KB), with a
+  `landing` pin, a `leaf-dev cost-tiers` refresh, and a junit property to feed it
+  (`dev/leaf_dev/cost_tiers.py`). That is three encodings of one decision, and a
+  test's tier is invisible where the test is written. Find one encoding a reader can
+  see beside the test, likely by making browser tests cheap enough that fewer need
+  moving, and by decoupling shift watching from tier marks
+  (`render_harness.watches_shifts`), which is what kept these tiers out of source.
 - **Check what handing over on chosen tests costs.** Since 2026-10-04 a handover runs
   the tests the agent picks for its change, and the broad selection runs only at
   landing (`tests/AGENTS.md`, "Run what the change needs"). Before that, 25 of the
@@ -400,21 +410,23 @@ on 2026-10-07.
   into a page by hand. It is an experiment: the alternative is for the command to
   print the samples' rows and leave the chart to the agent writing the page. Keep it
   if it gets used for later readings; otherwise reduce it to the rows.
-- **Consider bundling the browser runtime.** A navigation loads about 220 JS modules
-  over HTTP/1.1's six connections. A prototype bundling `leaf.js` with esbuild cut a
-  widgetless page from 217 requests to 38 and its open from 332–483 ms to 238–258 ms,
-  roughly 10% of browser-test time. The bundle would hold `assets/runtime/` and Leaf's
-  own packages; custom packages stay unbuilt and import only `/runtime/widget-api.js`,
-  a bundle entry, which `page check` would then enforce, since any other runtime import
-  loads a second runtime. **Unconfirmed:** it needs automatic rebuilds on preview, test
-  and merge, since a committed bundle would conflict across concurrent runtime PRs.
-  Untested alternative: `modulepreload` hints.
+- **Consider loading the compiled kernel in previews and tests.** Installs and the
+  website load the kernel `leaf_dev.distribution` compiles, but development previews
+  and the browser tests still load about 220 source modules over HTTP/1.1's six
+  connections. A prototype bundle cut a widgetless page from 217 requests to 38 and
+  its open from 332–483 ms to 238–258 ms, roughly 10% of browser-test time. Untested
+  alternative: `modulepreload` hints.
 
 ## Etc
 
 Revisit these when their stated trigger becomes real; they are not an active queue.
 
 ### Product and harness ideas
+
+- **Link filenames to their repository context.** When a page or thread knows the
+  repository and revision, offer a GitHub source link for a filename such as
+  `AGENTS.md` rather than treating it as a web domain. Establish how that context
+  reaches Markdown before inferring a destination from the filename alone.
 
 - **Assess whether automatic measurement freshness is useful (#7 in the simplification audit).**
   Keep the current `lf-num` source/write-time reminder for now. Look for cases where
@@ -472,8 +484,13 @@ Revisit these when their stated trigger becomes real; they are not an active que
   its active pane and one key moves to the next. In a workspace today the arrow keys
   walk a side list, `q` reaches the next open Question, and a pane body that scrolls is a
   Tab stop, but nothing marks the active pane and no key moves from one pane to the
-  next. Pane focus belongs to the panes and the keyboard layer, not the Layout, so it
-  works the same wherever panes stand. Draw it as a playground before building it.
+  next. The runtime already tracks it: `userReadingRegion` (`reading-regions.js`) is the
+  pane holding focus, or else the last one pressed, wheeled or touched, and `j`/`k`/`d`/`u`
+  scroll it. Until the user picks a pane those keys reach the page, which a workspace
+  doesn't scroll, so they appear to do nothing. The feature is a mark on that region and
+  a key that moves it. Pane focus belongs to the
+  panes and the keyboard layer, not the Layout, so it works the same wherever panes
+  stand. Draw it as a playground before building it.
   Trigger: a user loses track of the active pane, or tabs through a pane to reach the
   next one.
 - **Expand everything waiting with a keypress.** A held notice, a collapsed summary,
@@ -541,6 +558,12 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **#6 — Codex supervision:** separate hosted and local turn supervision only
   if hosted delivery becomes a product priority; the App Server protocol is
   already shared.
+- **Make a leaf.page dispatch survive its container.** The Worker acknowledges an
+  accepted event and hands its Codex turn to `waitUntil` (`worker/src/agent.ts`,
+  `dispatchAgentTask`). Nothing records the event and turn identity in the
+  container's Durable Object, and nothing recovers a dispatch whose container
+  disappears or outlives the `waitUntil` window. Trigger: a hosted answer lost that
+  way.
 - **#7 — Runtime fold tests:** add focused Node tests as rules change; extend
   `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding

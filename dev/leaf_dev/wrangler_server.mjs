@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { resolve } from "node:path";
 
 const [root, config, state] = process.argv.slice(2);
-const require = createRequire(resolve(root, "worker/package.json"));
+const require = createRequire(resolve(root, "package.json"));
 const { unstable_dev } = require("wrangler");
 const server = await unstable_dev(resolve(root, "worker/src/index.ts"), {
   config,

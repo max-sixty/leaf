@@ -1,14 +1,31 @@
 """Readings and derived declarations from a supplied registry vocabulary."""
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
-import click
-
 from leaf.files import read_json
+from leaf.schema import WIDGET_NAME
 
+from ..refusals import Refused
 from .schema import json_value
+
+
+def is_element_name(name: str) -> bool:
+    """Whether a vocabulary key names one Leaf custom element rather than a selector.
+
+    Non-dollar keys are authored vocabulary: exact ``WIDGET_NAME`` keys declare
+    elements; every other key is a CSS selector idiom, including native tags and
+    selectors such as ``lf-options.selected``. Validation admits selectors once
+    at composition; consumers share this classification without parsing CSS.
+    """
+    return re.fullmatch(WIDGET_NAME, name) is not None
+
+
+def element_declarations(registry: dict) -> dict:
+    """The element schemas from one registry's authored vocabulary."""
+    return {name: entry for name, entry in registry.items() if is_element_name(name)}
 
 
 def prepaint_markup(registry, tag: str) -> str | None:
@@ -71,29 +88,37 @@ def visual_part_attribute(entry: dict) -> str | None:
 class VisualParts:
     """The part ids one authored element admits as `anchor.visual`.
 
-    A widget declares them one of two ways: `tokens` authored in its `parts` attribute,
-    or `prefixes` that begin every id its module generates, such as `commit:`, for a
-    picture drawn from data whose parts the author cannot list. A prefix rather than a
-    regex keeps one meaning in Python and the browser. Neither says a part is on screen;
-    the browser resolves that, and an admitted id nothing renders detaches."""
+    A widget admits authored `tokens`, the complete registered inventory through its
+    `all` sentinel, or `prefixes` that begin every generated id, such as `commit:`. A
+    prefix rather than a regex keeps one meaning in Python and the browser. None of
+    these says a part is on screen; the browser resolves that, and an admitted id nothing
+    renders detaches."""
 
     tokens: tuple[str, ...] = ()
     prefixes: tuple[str, ...] = ()
+    all: bool = False
 
     def __contains__(self, part: str) -> bool:
         # A part id is one token, as the browser's registration requires; an authored
         # token already is one, and a prefixed id must be too.
-        return part in self.tokens or (
-            part.split() == [part]
-            and any(
-                part.startswith(prefix) and part != prefix for prefix in self.prefixes
+        return (
+            part in self.tokens
+            or (part.split() == [part] and self.all)
+            or (
+                part.split() == [part]
+                and any(
+                    part.startswith(prefix) and part != prefix
+                    for prefix in self.prefixes
+                )
             )
         )
 
     def __bool__(self) -> bool:
-        return bool(self.tokens or self.prefixes)
+        return bool(self.tokens or self.prefixes or self.all)
 
     def __str__(self) -> str:
+        if self.all:
+            return "the registered visual inventory"
         if self.prefixes:
             return f"ids starting with {' or '.join(map(repr, self.prefixes))}"
         return f"known: {json_value(self.tokens)}"
@@ -107,6 +132,8 @@ def visual_parts(record: dict, registry: dict) -> VisualParts:
     if "prefixes" in visual:
         return VisualParts(prefixes=tuple(visual["prefixes"]))
     value = record.get("attrs", {}).get(visual["parts"])
+    if visual.get("all") and value == visual["all"]:
+        return VisualParts(all=True)
     return VisualParts(tokens=tuple(value.split()) if value else ())
 
 
@@ -144,14 +171,14 @@ def reference_relation_error(
     return f"requires {via} where {expected}, but no declared widget matches"
 
 
-class RegistryError(click.ClickException):
+class RegistryError(Refused):
     """A registry that is not a vocabulary, raised rather than exited because two doors
     read one. The CLI prints the message and stops; the page server owes the browser an
     answer, and `sys.exit` inside its request handler killed the connection mid-POST
     while every other rejection beside it returned a 400 — so a page whose vendored
     stamp had fallen behind the running layer met the user's click with a dead socket
-    and no words. Click renders the exception with its standard Error prefix, while
-    the server can catch the same rejection and answer the request."""
+    and no words. The CLI renders it with Click's standard Error prefix, while the
+    server catches the same rejection and answers the request."""
 
 
 def read_registry_declarations(path: Path):
@@ -193,7 +220,7 @@ def detail_schema(entry: dict, spec: dict) -> dict:
     """The event payload contract: an effect's fixed fields or custom command data.
 
     Recorded values use `value`; positions add `unit` and `rank`, and a report
-    declaring `update` adds required nonempty `text`. Attribute values inherit
+    declaring `report` adds required nonempty `text`. Attribute values inherit
     the destination's exact schema. Derived schemas are readings, never inserted
     into the registry beside the effect that owns them.
     """
@@ -210,7 +237,7 @@ def detail_schema(entry: dict, spec: dict) -> dict:
     properties = {"value": value}
     if kind == "position":
         properties.update(unit={"type": "string"}, rank={"type": "string"})
-    if spec.get("update"):
+    if spec.get("report"):
         properties["text"] = {"type": "string", "minLength": 1}
     return {
         "type": "object",
@@ -328,7 +355,8 @@ def state_definition(origin: str, entry: dict, spec: dict) -> dict:
 
     Later declarations may reuse a verb's name with different meaning or types.
     Recorded definitions distinguish those new operations from history, while
-    descriptive schema annotations remain free to change.
+    descriptive schema annotations remain free to change. A verb's `report` flag
+    is not recorded: all it changes is the required `text` in `detail`.
     """
     from copy import deepcopy
 
@@ -338,7 +366,6 @@ def state_definition(origin: str, entry: dict, spec: dict) -> dict:
             "unit": spec["unit"],
             "record": spec.get("record"),
             "creates": spec.get("creates"),
-            "update": spec.get("update", False),
             "detail": _semantic_schema(detail_schema(entry, spec)),
         }
     )
@@ -365,13 +392,19 @@ def same_state_definition(recorded, current) -> bool:
 
 
 def same_state_operation(recorded, current) -> bool:
-    """The same fold destination and construction, independent of payload domain."""
+    """The same fold destination and construction, independent of payload domain.
+
+    The operation is the fields `state_definition` writes now, `detail` aside. A
+    field an earlier Leaf recorded beside them, such as `update` before it was
+    named `report`, is how that version wrote the definition, not part of the
+    operation, so it never retracts a decision. A missing field still fails."""
     return (
         isinstance(recorded, dict)
         and isinstance(current, dict)
-        and same_state_definition(
-            {key: value for key, value in recorded.items() if key != "detail"},
-            {key: value for key, value in current.items() if key != "detail"},
+        and all(
+            key in recorded and same_state_definition(recorded[key], value)
+            for key, value in current.items()
+            if key != "detail"
         )
     )
 
@@ -392,7 +425,7 @@ def retirement_slots(registry: dict) -> dict:
     fact about this page's vocabulary and never a list in the code."""
     slots = {}
     for tag, entry in registry.items():
-        if not tag.startswith("lf-") or not entry.get("x-retired-when"):
+        if not is_element_name(tag) or not entry.get("x-retired-when"):
             continue
         outcome = entry["x-retired-when"]
         for owner in entry["x-owners"]:
@@ -414,6 +447,6 @@ def stamp_decisions(registry: dict) -> dict:
     registry["$decisions"] = {
         tag: {"verb": verb, "retires": slots.get(tag, {})}
         for tag, entry in registry.items()
-        if tag.startswith("lf-") and (verb := deciding_verb(entry)) is not None
+        if is_element_name(tag) and (verb := deciding_verb(entry)) is not None
     }
     return registry

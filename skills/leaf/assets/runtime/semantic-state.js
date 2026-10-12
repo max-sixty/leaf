@@ -5,7 +5,6 @@ import {
   createPresentationCoordinator,
   createPresentationSchedule,
   createSemanticApplication,
-  describeFailure,
   PRESENTATION_HELD,
 } from "../vendor/browser-runtime.js";
 
@@ -38,10 +37,40 @@ export const selectWidgets = applicationState.selectWidgets;
 export const attachApplicationPresentation = (region, renderer) =>
   presentation.attach(region, renderer);
 const widgetRegion = (widget, kind) => `widget:${widget}:${kind}`;
-export const widgetRegions = (widget) =>
+const widgetRegions = (widget) =>
   ["render", "preparation"].map((kind) => widgetRegion(widget, kind));
-export const attachWidgetPresentation = (widget, kind, renderer) =>
-  presentation.attach(widgetRegion(widget, kind), renderer);
+// A widget preparation is work a widget declared it is still doing in a promise, such
+// as lf-diff loading a file the reader opened, which the rendering loop cannot see.
+// Observers hear each declaration as it is made ("begin") and once its completion
+// settles ("settle"), in the task that committed it, under one frozen identity naming
+// the widget. The declaration runs synchronously in the callback that declared it,
+// so a render check can carry that callback's exact source by this identity across
+// native awaits: the input owns its preparation's landing, and no waiting time.
+const preparationObservers = new Set();
+/** Observe each widget preparation from its declaration to its settlement. */
+export function observeWidgetPreparations(observer) {
+  preparationObservers.add(observer);
+  return () => preparationObservers.delete(observer);
+}
+export const attachWidgetPresentation = (widget, kind, renderer) => {
+  const handle = presentation.attach(widgetRegion(widget, kind), renderer);
+  if (kind !== "preparation") return handle;
+  return Object.freeze({
+    present(value, completion, failSoft) {
+      const observers = [...preparationObservers];
+      if (observers.length) {
+        const preparation = Object.freeze({ widget });
+        for (const observer of observers) observer("begin", preparation);
+        const settle = () => {
+          for (const observer of observers) observer("settle", preparation);
+        };
+        Promise.resolve(completion).then(settle, settle);
+      }
+      return handle.present(value, completion, failSoft);
+    },
+    disconnect: handle.disconnect,
+  });
+};
 
 // Where a document-wide renderer stands in one presentation pass. The projection
 // materializes provenance words and coordinate chrome inside authored elements, the
@@ -138,7 +167,7 @@ export const whenApplicationRegionsPresented = (regions, current) =>
         : null,
     regions,
   );
-export const applicationRegionsPresented = (regions) =>
+const applicationRegionsPresented = (regions) =>
   presentation.currentRegionsPresented(currentApplicationPresentation, regions);
 export const projectionRegionsPresented = (widgets) =>
   applicationRegionsPresented(["projection:chrome", ...widgets.flatMap(widgetRegions)]);
@@ -147,8 +176,7 @@ export const readApplicationPresentation = presentation.read;
 export function setPresentationFailureReporter(report) {
   if (typeof report !== "function")
     throw new TypeError("Presentation failure reporting needs a callback");
-  reportPresentationFailure = (reason) =>
-    report(`Presentation failed: ${describeFailure(reason)}`);
+  reportPresentationFailure = (reason) => report(reason, "Presentation failed");
 }
 export const watchSemantic = (callback) =>
   applicationState

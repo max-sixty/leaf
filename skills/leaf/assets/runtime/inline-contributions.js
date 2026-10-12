@@ -12,7 +12,7 @@ import {
   materializeContributionControls,
 } from "./contribution-controls.js";
 import { compareContributions, spokenSubject } from "./contribution-model.js";
-import { addressableWord } from "./anchor-resolution.js";
+import { addressableWord } from "./addressable-names.js";
 import { inChrome } from "./passages.js";
 import { holdFocus } from "./focus.js";
 import { el } from "./widget-elements.js";
@@ -24,8 +24,7 @@ export function createInlineContributions({ targetPath }) {
   function present() {
     const grouped = new Map();
     for (const offered of contributionEntries()) {
-      const target =
-        typeof offered.target === "function" ? offered.target() : offered.target;
+      const target = offered.target();
       if (
         !target?.isConnected ||
         !inChrome(target) ||

@@ -3,9 +3,9 @@
    The browser orders data readings by when the server took them, independently of
    the log sequence, because overlapping poll and POST responses can order the authorities
    differently. `watchData(widget, input, callback)` delivers a clone of `{source,
-   contract, revision, updated, value, origin}`, or `null` while the bound source has no
+   contract, revision, run, updated, value, origin}`, or `null` while the bound source has no
    readable value. Subscriptions pause while their owner is absent and resume with
-   its newest snapshot. Contract, byte revision, or validity changes redeliver; overlapping
+   its newest snapshot. Contract, publication, or validity changes redeliver; overlapping
    reads await the same in-flight rendering before stamping the version presented. Its
    synchronous time readings refresh independently of data delivery. The returned
    cleanup's `refresh()` repaints the last delivered reading through the same clock
@@ -23,7 +23,7 @@ import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 import { registry } from "./registry.js";
 import { clocked } from "./presence.js";
-import { layerHeaders, reportPageError, admitResponse } from "./layer-client.js";
+import { reportPageError, requestJson } from "./layer-client.js";
 import { watchOwner } from "./arrivals.js";
 
 export function acceptData(candidate, taken) {
@@ -43,14 +43,15 @@ export function acceptData(candidate, taken) {
 const subscriptions = new Set();
 let subscriptionSequence = 0;
 
-// Equality of the accepted source reading, independent of its modification time.
-// Byte revision remains the coordinate for origins and deferred requests; a changed
+// Equality of the accepted publication, including a same-value rerun. Content
+// revision remains the coordinate for origins and deferred requests; a changed
 // contract or validation result also changes what this subscriber can receive.
 function readingIdentity(reading) {
   return reading
     ? JSON.stringify([
         reading.contract,
         reading.revision ?? null,
+        reading.run ?? null,
         reading.error ?? null,
         Object.hasOwn(reading, "value"),
       ])
@@ -101,6 +102,7 @@ export function watchData(element, input, callback) {
   // attribute mutation into an unvalidated rebind. Version activation mounts a new
   // element and therefore establishes a new subscription when authored markup changes.
   const source = element.getAttribute(declaration.source);
+  const failureContext = `data subscriber failed for ${element.localName}#${element.id} input ${input} source ${source}`;
   const paint = clocked(element, callback);
   const selectedSource = applicationState.select((root) =>
     source && Object.hasOwn(root.data.sources, source)
@@ -135,7 +137,7 @@ export function watchData(element, input, callback) {
     disconnect();
   }
   // A null delivery stands until the accepted source reading changes, including
-  // recovery from an incompatible contract without a new byte revision.
+  // recovery from an incompatible contract without a new content revision.
   const deliver = (snapshot, identity, mounting = false) => {
     if (!delivered || deliveredIdentity !== identity) {
       if (snapshot)
@@ -152,7 +154,7 @@ export function watchData(element, input, callback) {
       const mount = presentation;
       const rendering = paint(structuredClone(snapshot));
       completion = Promise.resolve(rendering).catch((error) => {
-        reportPageError(`data subscriber failed: ${error?.message ?? error}`);
+        reportPageError(error, failureContext);
         if (mounting && presentation === mount) stop();
       });
     }
@@ -170,23 +172,13 @@ export function watchData(element, input, callback) {
     // invalid/missing value clears this seat, keeping its subscription for recovery.
     if (incompatible || !source || !sourceStore || !Object.hasOwn(sourceStore, "value"))
       return deliver(null, identity, mounting);
-    return deliver(
-      {
-        source,
-        contract: sourceStore.contract,
-        revision: sourceStore.revision,
-        updated: sourceStore.updated,
-        value: sourceStore.value,
-      },
-      identity,
-      mounting,
-    );
+    return deliver({ source, ...sourceStore }, identity, mounting);
   };
   const updateSafely = (sourceStore) => {
     try {
       return update(sourceStore);
     } catch (error) {
-      reportPageError(`data subscriber failed: ${error?.message ?? error}`);
+      reportPageError(error, failureContext);
     }
   };
   const stage = (sourceStore) => {
@@ -301,17 +293,11 @@ export async function loadDeferred(manifest, key) {
     return structuredClone(matches[0][records.deferred]);
   }
   const params = new URLSearchParams({ source, source_revision: revision, key });
-  const response = await fetch(pageUrl(`api/deferred?${params}`), {
-    headers: layerHeaders(),
-  });
-  if (!admitResponse(response)) {
-    throw new Error("Leaf's data vocabulary changed while loading a deferred value");
-  }
-  const answer = await response.json().catch(() => ({}));
-  if (!response.ok)
-    throw new Error(
-      answer.error || `deferred value failed to load (${response.status})`,
-    );
+  const answer = await requestJson(
+    pageUrl(`api/deferred?${params}`),
+    {},
+    "deferred value",
+  );
   if (
     answer.revision !== revision ||
     answer.source !== source ||

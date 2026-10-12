@@ -92,7 +92,7 @@ from contextlib import ExitStack, contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import NamedTuple
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urljoin
 
 import click
 from leaf.delivery import pickup_receipts
@@ -134,6 +134,9 @@ TURN_PRESENTATION = 120_000
 # How long Threads gets to draw a reply the container has admitted; the runtime's own
 # quiet-stream bound (`SILENCE_MS` in `runtime/state-feed.js`) is the same 30 s.
 VISIBLE_REPLY_PATIENCE = 30_000
+# How long a reply first shown by its row or its notice gets for its own message to
+# come into view, which in an open card is the next frame or two.
+VISIBLE_MESSAGE_PATIENCE = 2
 # How long the page server gets to title the thread after the turn ends: its title
 # request's own limit (`TIMEOUT` in `thread_titles.py`).
 TITLE_PATIENCE = 60
@@ -207,6 +210,7 @@ class AgentProfile:
         self.acknowledged: list[float] = []
         self.visible_reply_s: float | None = None
         self.visible_reply_by: str | None = None
+        self.visible_message_s: float | None = None
         self.activities: list[tuple[float, str, str]] = []
         self.ask_count = 0
         self.reference: str | None = None
@@ -216,6 +220,10 @@ class AgentProfile:
         """Time the reply to the page's reading of when and how it showed it."""
         self.visible_reply_s = (shown["at"] - self.visible_reply_started_ms) / 1000
         self.visible_reply_by = shown["by"]
+        if shown["message"] is not None:
+            self.visible_message_s = (
+                shown["message"] - self.visible_reply_started_ms
+            ) / 1000
 
     def acknowledge(self) -> None:
         self.acknowledged.append(time.monotonic() - self.started)
@@ -384,6 +392,8 @@ def agent_profile(profile: AgentProfile, steps: dict) -> dict:
         "sinceSendMs": {
             "acknowledged": [ms(at) for at in profile.acknowledged],
             "responseVisible": ms(profile.visible_reply_s),
+            # The reply's own message in view, which a visible row precedes.
+            "responseMessageVisible": ms(profile.visible_message_s),
         },
         "responseShownBy": profile.visible_reply_by,
         "activity": [
@@ -692,7 +702,10 @@ def shown_reply(page: Page, answer: dict) -> dict | None:
 
 def await_reply_shown(end: BrowserEnd, answer: dict) -> dict:
     """Hear the session until the page shows the user `answer`, opening any news its
-    thread holds back, within `VISIBLE_REPLY_PATIENCE`; return when and how."""
+    thread holds back, within `VISIBLE_REPLY_PATIENCE`; return when and how. A reply
+    its row or notice showed first is heard a little longer, within
+    `VISIBLE_MESSAGE_PATIENCE`, for when its own message came into view, which a folded
+    card never draws."""
     page = end.session.page
     deadline = time.monotonic() + VISIBLE_REPLY_PATIENCE / 1000
     while (shown := shown_reply(page, answer)) is None:
@@ -704,6 +717,11 @@ def await_reply_shown(end: BrowserEnd, answer: dict) -> dict:
             )
         open_news(page, answer["parent"])
         end.pause(0.5)
+    if shown["message"] is None:
+        deadline = time.monotonic() + VISIBLE_MESSAGE_PATIENCE
+        while shown["message"] is None and time.monotonic() < deadline:
+            end.pause(0.1)
+            shown = shown_reply(page, answer)
     return shown
 
 
@@ -1038,6 +1056,8 @@ class BrowserEnd:
         startup = startup_reading(page)
         # The runtime presents without waiting for its first read, which is what
         # brings the revision back, so that follow gets its own wait and timing.
+        # The revision marker advances as the patch begins; its presentation proof
+        # must finish before the text below is a reading of that revision.
         followed_at = time.monotonic()
         try:
             page.wait_for_function(
@@ -1059,6 +1079,13 @@ class BrowserEnd:
             (shown or "").isdigit() and int(shown) >= published["revision"],
             f"{url} stands on revision {shown} rather than following the published "
             f"{published['revision']}, with the banner reading ‘{banner}’",
+        )
+        check(
+            page.evaluate(
+                "window.__leafVerifier.revisionAtLeast", published["revision"]
+            ),
+            f"{url} reached revision {shown} but did not finish presenting it, "
+            f"with the banner reading ‘{banner}’",
         )
         rendered = page.locator("main").inner_text()
         check(
@@ -1276,9 +1303,7 @@ def local_session(browser, url: str) -> Session:
     response = page.goto(url, wait_until="load", timeout=120_000)
     check(response is not None and response.ok, f"{url} did not load")
     await_presentation(page, url, failures)
-    parts = urlsplit(url)
-    token = re.search(r"[?&]t=([^&]+)", url)[1]
-    state_url = f"{parts.scheme}://{parts.netloc}/api/state?t={token}"
+    state_url = PageClient(url).state_url
     state = answered(context.request.get(state_url), state_url).json()
     return Session(context, page, failures, url, state_url, state, {}, None)
 

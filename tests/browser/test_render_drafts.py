@@ -776,6 +776,33 @@ def top_below(target):
       document.querySelector({target!r}).getBoundingClientRect().top - band"""
 
 
+FIGURE_ABOVE_CAPTION = {
+    "content": "".join(
+        "<p>" + " ".join(f"p{n}w{i}" for i in range(150)) + "</p>" for n in range(6)
+    )
+    + '<svg id="edge" viewBox="0 0 100 120" style="display:block;width:100%;'
+    'height:auto">'
+    + "".join(
+        f'<rect x="0" y="{n * 10}" width="100" height="10"'
+        f' fill="hsl({n * 12} 60% 60%)"/>'
+        for n in range(12)
+    )
+    + "</svg><p>Figure 1. "
+    + " ".join(f"c{i}" for i in range(30))
+    + "</p>",
+    "pointer": "#edge",
+    "distance": f"""async () => {{
+      const box = document.getElementById('edge').getBoundingClientRect();
+      return box.top - ({LANDING_TOP}) + 0.4 * box.height;
+    }}""",
+    "reading": """(step, band) => {
+      const box = document.getElementById('edge').getBoundingClientRect();
+      return (band - box.top) / box.height;
+    }""",
+    "tolerance": 0.01,
+}
+
+
 EDGE_SHAPES = {
     "figure": {
         "content": "".join(
@@ -801,30 +828,27 @@ EDGE_SHAPES = {
         }""",
         "tolerance": 0.01,
     },
-    "figure-above-caption": {
-        "content": "".join(
-            "<p>" + " ".join(f"p{n}w{i}" for i in range(150)) + "</p>" for n in range(6)
-        )
-        + '<svg id="edge" viewBox="0 0 100 120" style="display:block;width:100%;'
-        'height:auto">'
+    "figure-above-caption": FIGURE_ABOVE_CAPTION,
+    # The same figure read from a narrow window, the column at the window's edge, with
+    # the pointer nowhere over the page.
+    "figure-above-caption-from-narrow": {
+        **FIGURE_ABOVE_CAPTION,
+        "pointer": None,
+        "start": 600,
+    },
+    "box-clipping-what-hangs-past-it": {
+        "content": '<div id="article" style="overflow: hidden; position: relative">'
         + "".join(
-            f'<rect x="0" y="{n * 10}" width="100" height="10"'
-            f' fill="hsl({n * 12} 60% 60%)"/>'
-            for n in range(12)
+            "<p>" + " ".join(f"a{n}w{i}" for i in range(120)) + "</p>"
+            for n in range(10)
         )
-        + "</svg><p>Figure 1. "
-        + " ".join(f"c{i}" for i in range(30))
-        + "</p>",
-        "pointer": "#edge",
-        "distance": f"""async () => {{
-          const box = document.getElementById('edge').getBoundingClientRect();
-          return box.top - ({LANDING_TOP}) + 0.4 * box.height;
-        }}""",
-        "reading": """(step, band) => {
-          const box = document.getElementById('edge').getBoundingClientRect();
-          return (band - box.top) / box.height;
-        }""",
-        "tolerance": 0.01,
+        + "<img alt='' style='display: block; height: 40px; width: 40px;"
+        " margin-bottom: -12px' src='data:image/svg+xml,"
+        "%3Csvg xmlns=%22http://www.w3.org/2000/svg%22/%3E'></div>",
+        "pointer": "#article",
+        "distance": landed_at("#article p:nth-of-type(5)", -60),
+        "reading": f"(step, band) => ({edge_word('#article p')})(step, band).below",
+        "tolerance": 3,
     },
     "box-scrolling-alone": {
         "content": "".join(
@@ -910,7 +934,7 @@ def test_a_width_change_keeps_what_stands_at_the_landing_edge(browser, serve, sh
             )
         ),
     )
-    resized(page, 1200, 800)
+    resized(page, case.get("start", 1200), 800)
     rendered(page)
     if "setup" in case:
         page.evaluate(case["setup"])

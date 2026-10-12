@@ -53,7 +53,7 @@ import {
   landingBand,
   shownBox,
   shownWindow,
-  scrollport,
+  userScrollport,
   skipped,
   stuckBox,
 } from "./geometry.js";
@@ -401,8 +401,10 @@ function lineAnchor(segments) {
 }
 // The box that scrolls `node`'s words on its own, outermost first, between it and `box`,
 // the scroller a place is read for: content taller than its own box, under an overflow
-// that scrolls. Where such a box is no reading region of its own, its words move with
-// its scroll as well as the page's, so they name no place in `box`.
+// the reader can scroll. A box that only clips, as `overflow: hidden` around floats or
+// a decoration hanging past its foot does, moves its words only with the page. Where a
+// scrolling box is no reading region of its own, its words move with its scroll as well
+// as the page's, so they name no place in `box`.
 function scrollsAlone(node, box) {
   let alone = null;
   for (
@@ -412,7 +414,7 @@ function scrollsAlone(node, box) {
   )
     if (
       at !== document.body &&
-      scrollport(getComputedStyle(at).overflowY) &&
+      userScrollport(getComputedStyle(at).overflowY) &&
       at.scrollHeight > at.clientHeight
     )
       alone = at;
@@ -577,7 +579,10 @@ export function capturePlace(region = null, blocks = textBlocks()) {
     const across = shownBox(body);
     const left = Math.max(across.left, bounds.left);
     const right = Math.min(across.right, bounds.right);
-    const x = column >= left && column <= right ? column : (left + right) / 2;
+    const x =
+      column !== null && column >= left && column <= right
+        ? column
+        : (left + right) / 2;
     const drawn = drawnAt(body, box, x, boxTop, blocks);
     if (drawn) {
       named = drawn.box;

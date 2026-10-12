@@ -49,8 +49,10 @@ from model.test_codex_adapter import (
 def test_codex_app_server_restart_finishes_an_accepted_batch_without_starting_it_again(
     codex_claimed_page, app_server, under_codex, codex_env, tmp_path, reclaimed
 ):
-    """The App Server twin of the queue case above. The restarted adapter reads back
-    the turn that took the delivery while the page's claim still names the task's
+    """The App Server twin of the queue case,
+    `test_codex_restart_finishes_an_accepted_batch_without_queueing_again` in
+    `tests/model/test_codex_adapter.py`. The restarted adapter reads back the turn
+    that took the delivery while the page's claim still names the task's
     previous generation, before the restart claims it again, or when the restart
     claims another page first. The batch's receipt and the turn's final answer both
     land on the page all the same, so the comment is not started a second time."""

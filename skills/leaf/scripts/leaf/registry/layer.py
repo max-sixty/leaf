@@ -124,10 +124,10 @@ def validate_layer_declarations(registry: dict, path) -> None:
                         f"{path}: $events.{key}.{kind} clause `when` is not a valid "
                         f"JSON Schema: {schema_error_message(error)}"
                     ) from error
-    # $keys documents exactly the x- keys the lint admits, one string per key. The
-    # layer facts already refuse a member for a key that cannot be declared
-    # (`LAYER_FACTS_SCHEMA`), which would be documentation of nothing; here a key with
-    # no member is one an author reads the registry for and finds unsaid. Agents query it and the site's table is
+    # $keys documents exactly the x- keys the lint admits, one string per key: the
+    # keys are closed here (EXTENSION_SCHEMA), so a member for a key that cannot be
+    # declared is documentation of nothing, and a key with no member is one an author
+    # reads the registry for and finds unsaid. Agents query it and the site's table is
     # generated from it, which is what makes the pin worth keeping.
     keys = registry.get("$keys")
     admitted = set(EXTENSION_SCHEMA["properties"])
@@ -136,11 +136,12 @@ def validate_layer_declarations(registry: dict, path) -> None:
         not isinstance(keys, dict)
         or not isinstance(keys.get("description"), str)
         or not all(isinstance(text, str) and text for text in keys.values())
-        or admitted - documented
+        or documented != admitted
     ):
         raise RegistryError(
             f"{path}: $keys must carry a description and one paragraph per x- key the "
-            f"lint admits — missing {json_value(sorted(admitted - documented))}"
+            f"lint admits — missing {json_value(sorted(admitted - documented))}, "
+            f"unadmitted {json_value(sorted(documented - admitted))}"
         )
     # Idioms share author-facing fields with elements; only marks whose readers
     # consume delivery's paint can be declared on selectors. Validate every selector,

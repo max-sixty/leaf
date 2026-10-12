@@ -11,8 +11,8 @@ before a final newline (`"abc\n"` passed `^[a-z]+$`) and which refuses ECMAScrip
 `\p{L}`. It has no option for another engine, so this module points the one call it
 makes, `re.search`, in the modules that make it at regress, an ECMAScript engine; that
 covers `pattern`, `patternProperties` and the `additionalProperties` and
-`unevaluatedProperties` accounting built on it, and `check_schema` compiles patterns
-with the same engine.
+`unevaluatedProperties` accounting built on it, and `check_schema` compiles patterns,
+and the `regex` format checks a value, with the same engine.
 """
 
 import functools
@@ -92,6 +92,8 @@ jsonschema._utils.re = _EcmaSearch
 META_FORMAT_CHECKER = FormatChecker()
 
 
+# A value a schema declares `format: regex` is read as ECMAScript too.
+@FORMAT_CHECKER.checks("regex", raises=regress.RegressError)
 @META_FORMAT_CHECKER.checks("regex", raises=regress.RegressError)
 def is_ecma_regex(value) -> bool:
     return not isinstance(value, str) or bool(_ecma(value))

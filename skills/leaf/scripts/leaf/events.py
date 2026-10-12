@@ -249,7 +249,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     Each thread is keyed by, and carries as ``id``, the id of the comment that
     opened it, its ``root``: the name every ask, workflow, summary, and title
     uses for it. Admission keeps every standing message's parent standing
-    (`event_contracts._parent_error`), so each reply lands in a thread.
+    (`event_contracts._parent_error`), so each reply it admits lands in a thread.
     """
     if withdrawn is None:
         withdrawn = taken_back(events)
@@ -323,8 +323,12 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 message["text"] = e["text"]
             continue
         if e["kind"] == "reply":
+            # Admission keeps a reply's parent standing, but a Leaf older than that
+            # rule could answer a withdrawn message; the reply then stands on nothing
+            # (root `AGENTS.md`, "Stage").
+            if (thread := thread_for.get(e["parent"])) is None:
+                continue
             message = dict(e)
-            thread = thread_for[e["parent"]]
             messages[e["id"]] = message
             thread["msgs"].append(message)
             if thread["title"] is None and "title" in e:

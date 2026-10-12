@@ -759,6 +759,11 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
         "pageLocal = document.querySelector('#page-local'); "
         "pageLocal.controller.dispatch({kind: 'undo', target: 'not-a-candidate'}) === null"
     )
+    # A verb the widget does not send throws rather than vanishing without a word.
+    assert 'cannot dispatch "chose"' in page.evaluate(
+        "(() => { try { pageLocal.controller.dispatch({kind: 'action', verb: 'chose'});"
+        " return ''; } catch (error) { return error.message; } })()"
+    )
     page.locator("#page-local").get_by_role("button", name="Choose").click()
     round_trip(page)
     expect(page.locator("#page-local")).to_have_attribute("data-delivery", "accepted")

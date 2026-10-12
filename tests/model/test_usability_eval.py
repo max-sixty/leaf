@@ -3,7 +3,7 @@
 import json
 
 import pytest
-from leaf.hook_transport import INLINE_DELIVERY
+from leaf.hook_transport import DELIVERY_FIELD
 from leaf_dev import ROOT
 from leaf_dev.usability_eval import (
     CASES,
@@ -173,7 +173,11 @@ def test_live_rounds_use_confirmed_receipts_before_successful_response():
 
     trace = [
         {"type": "eval_post", "round": 1},
-        {"type": "system", "subtype": "hook_response", "output": INLINE_DELIVERY},
+        {
+            "type": "system",
+            "subtype": "hook_response",
+            "output": json.dumps({DELIVERY_FIELD: {"id": "d1", "inline": True}}),
+        },
         {"type": "result", "is_error": False},
     ]
     assert live_rounds(trace)[0]["end"] is None

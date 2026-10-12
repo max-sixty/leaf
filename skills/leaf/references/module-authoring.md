@@ -65,7 +65,9 @@ a visible error box naming the widget, with `source` beneath it when given, and 
 the failure as the page's error, which `page check` fails on. In a container a template
 renders, the box is a template value, so the next `render` there replaces it. On a
 widget with a shadow stage the box stands in the stage, and the next `shadowStage` call
-replaces it.
+replaces it. `reportFailure(element, error)` sends that report alone, for a part the
+widget shows failed its own way while the rest stands, such as a diff file whose patch
+it cannot draw.
 
 ## Connection lifetimes
 
@@ -460,7 +462,8 @@ surfaces keep their own lifetimes.
 
 `dispatch({kind: "action", verb, detail, attempt?})` and
 `dispatch({kind: "undo", target})` return `null` when the newest reading refuses the
-command, otherwise `{reading, delivery}`. The returned reading already holds the
+command, otherwise `{reading, delivery}`; an action whose verb is not one of the
+reading's `actions` throws. The returned reading already holds the
 optimistic result; `delivery` later yields the admitted event or `null`, and a refusal
 restores authoritative state. Undo targets only a stable `id` or `attempt` from the
 current entry's candidates. The server remains final admission for every command.

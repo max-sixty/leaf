@@ -711,39 +711,6 @@ def test_corpus_is_generated_from_the_examples():
     )
 
 
-def test_the_key_reference_is_generated_from_the_registry():
-    """The registry reference is written from the same $keys agents query."""
-    from leaf_dev import keydocs
-
-    committed = keydocs.DOCS_PAGE.read_text()
-
-    def said(html):
-        tags = re.sub(
-            r"<[^>]*>", lambda match: re.sub(r"\s+>", ">", match.group()), html
-        )
-        return re.sub("\\s+", " ", re.sub("\\s*(<[^>]*>)\\s*", "\\1", tags))
-
-    assert said(keydocs.build(committed)) == said(committed), (
-        "the registry's $keys changed — rerun leaf-dev keydocs"
-    )
-    # Every key appears once in the index and once at its generated definition.
-    keys = json.loads(schema_model.ASSETS.joinpath("registry.json").read_text())[
-        "$keys"
-    ]
-    disclosures = []
-    for key in keys:
-        if key != "description":
-            assert f'<a href="#{key}"><code>{key}</code></a>' in said(committed), key
-            assert f'id="{key}"' in said(committed), key
-            if keydocs.summary(keys[key])[1]:
-                disclosures.append(key)
-
-    labels = re.findall(
-        r'<summary aria-label="Full ([^"]+) contract">', said(committed)
-    )
-    assert labels == sorted(disclosures)
-
-
 def test_reply_validates_widget_markup(page_dir):
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}

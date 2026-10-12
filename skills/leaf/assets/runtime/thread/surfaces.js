@@ -54,18 +54,13 @@ function update(registration) {
 export function watchThreadSurfaces(commands) {
   const tags = tagsDeclaring((entry) => entry["x-thread-surface"] === true);
   if (!tags.length) return;
-  const offer = watchArrivals(tags.join(","), [], {
+  watchArrivals(tags.join(","), [], {
     arrive(owner) {
       if (registrations.has(owner)) return;
-      // An element standing before its module defined it is upgraded in that define;
-      // the module's own connection has run by the time the definition resolves. One
-      // still undefined once its definition stands failed to upgrade, which its
-      // module's failure already reports, so it is not waited for again.
-      if (!owner.matches(":defined")) {
-        if (!customElements.get(owner.localName))
-          customElements.whenDefined(owner.localName).then(() => offer(owner));
-        return;
-      }
+      // Every door that brings a tag in imports its module before connecting its
+      // markup (`widget-loader.js`), and this watch starts after startup's upgrade, so
+      // an undefined owner failed to upgrade, which its module's failure reports.
+      if (!owner.matches(":defined")) return;
       register(
         owner,
         (targets, context) => owner.threadOutlets(targets, context),

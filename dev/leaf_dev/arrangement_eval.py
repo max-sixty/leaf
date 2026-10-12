@@ -42,7 +42,6 @@ capture opens the commented item (`Scenario.reveal`), so the judge sees the chan
 import json
 import re
 import shutil
-import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -1054,8 +1053,8 @@ def execute_scenario(
         "phases": {},
     }
     harness_costs = []
-    with tempfile.TemporaryDirectory(prefix="leaf-author-") as temporary:
-        author(run, Path(temporary) / "cwd")
+    with scratch(payload) as child_work:
+        author(run, child_work)
         trace = read_trace(work / "stream.jsonl")
         split = phase_traces(trace)
         order = list(phases(case))

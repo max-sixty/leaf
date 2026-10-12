@@ -434,7 +434,7 @@ records the page's claim under the state home's claims directory; a successor
 arriving before the session server's final recheck keeps that process, and one
 arriving afterward finds the process and lease gone and revives the still-enabled
 service. A revival is a start by the Leaf running the wait, so it is refused as any
-start is for a page vendored at another protocol (`layer.incompatible_layer`): the
+start is for a page this Leaf cannot serve (`layer.incompatible_layer`): the
 wait prints the refusal and reads the page as lost, and the service stays enabled
 until `server stop`. Neither path changes the page's authored work status. A serve
 from a bare shell claims nothing, and a claim on a standing page comes and goes

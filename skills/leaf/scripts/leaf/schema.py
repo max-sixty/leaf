@@ -442,20 +442,9 @@ _CLAUSES = {
 # membership test by substring, and a token without a `glyph` paints nothing. What
 # names another fact, or needs more than a shape (a clause's `when` and a contract's
 # `schema` are JSON Schemas, `resources` are JMESPath), `registry.layer` checks.
-#
-# `$keys` names only x- keys this Leaf admits. Every reader of a vendored layer holds
-# it to that, so a layer vendored before a key was renamed or removed is refused with
-# the re-vendor that repairs it (`registry.storage`) rather than read as declaring
-# nothing under the new name. The rule is one-sided: a key this Leaf added and an older
-# layer lacks forces no re-vendor, and `registry.layer` requires a paragraph for every
-# admitted key only of a vocabulary it validates.
 LAYER_FACTS_SCHEMA = {
     "type": "object",
     "properties": {
-        "$keys": {
-            "type": "object",
-            "propertyNames": {"enum": ["description", *EXTENSION_SCHEMA["properties"]]},
-        },
         "$events": {
             "type": "object",
             "properties": {

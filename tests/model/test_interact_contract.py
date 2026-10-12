@@ -2812,6 +2812,10 @@ def test_patterns_read_as_the_browser_reads_them(page_dir):
     letters = {"type": "string", "pattern": r"^\p{L}+$"}
     registry_schema.check_schema(letters)
     assert registry_schema.schema_error(letters, "héllo") is None
+    # So does a value a schema declares a regular expression.
+    regex = {"type": "string", "format": "regex"}
+    assert registry_schema.schema_error(regex, r"^\p{L}+$") is None
+    assert registry_schema.schema_error(regex, "(?P<id>a)") is not None
 
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-options"]["properties"]["id"]["pattern"] = "^(?P<id>[a-z]+)$"
@@ -4343,8 +4347,7 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
     """$keys documents each x- key an entry may declare, and exactly those: a member
     for a key the lint doesn't admit is documentation of nothing, and one missing is a
     key the registry then leaves unsaid. A project layer overrides a member (its own
-    reading of a key) and adds none — the layer facts close the set
-    (`LAYER_FACTS_SCHEMA`)."""
+    reading of a key) and adds none — the set is closed where the keys are checked."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(
@@ -4360,7 +4363,7 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
         ],
     )
     assert result.exit_code != 0
-    assert '"x-nope" is not one of' in result.output
+    assert 'unadmitted ["x-nope"]' in result.output
 
     (overlay / "registry.json").write_text(
         json.dumps({"$keys": {"x-space": "wider, in this project"}})
@@ -5175,6 +5178,24 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         data=json.dumps({"kind": "undo", "undoes": reaction["id"]}).encode(),
     )
     assert status == 400 and "has been answered" in json.loads(body)["error"]
+    # A Leaf older than the parent rule could have admitted that reply to the
+    # withdrawn mark; the log it left still reads, the reply standing on nothing.
+    logged = events_model.read_events(page_dir)
+    with (page_dir / schema_model.EVENTS_FILE).open("a") as log:
+        log.write(
+            json.dumps(
+                {
+                    **nod,
+                    "id": "older-leaf-reply",
+                    "parent": nod["id"],
+                    "seq": logged[-1]["seq"] + 1,
+                }
+            )
+            + "\n"
+        )
+    assert fetch(f"{server}/api/state")[0] == 200
+    read = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
+    assert read.exit_code == 0, read.output
 
 
 def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(

@@ -2879,6 +2879,38 @@ def test_check_refuses_a_format_no_boundary_checks(page_dir):
     assert "<lf-options> is not a valid JSON Schema: format 'hostname'" in result.output
 
 
+DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema"
+
+
+def test_patterns_read_as_the_browser_reads_them(page_dir):
+    """A schema pattern is an ECMAScript regular expression wherever Leaf reads it, so
+    `$` ends the string rather than also matching before a final newline, and a
+    pattern only Python's `re` reads, such as a `(?P<name>…)` group, is refused when
+    the registry is checked."""
+    name = {"type": "string", "pattern": "^[a-z]+$"}
+    assert registry_schema.schema_error(name, "keep") is None
+    assert registry_schema.schema_error(name, "keep\n") is not None
+    # A subschema naming the 2020-12 dialect keeps the same reading, and so do the
+    # keywords that classify an object's keys by pattern.
+    nested = {"properties": {"id": {"$schema": DRAFT_2020_12, **name}}}
+    assert registry_schema.schema_error(nested, {"id": "keep\n"}) is not None
+    for closed in ("additionalProperties", "unevaluatedProperties"):
+        keyed = {"patternProperties": {"^[a-z]+$": {}}, closed: False}
+        assert registry_schema.schema_error(keyed, {"keep": 1}) is None
+        assert registry_schema.schema_error(keyed, {"keep\n": 1}) is not None
+    # ECMAScript a Python `re` would refuse reads as the browser reads it.
+    letters = {"type": "string", "pattern": r"^\p{L}+$"}
+    registry_schema.check_schema(letters)
+    assert registry_schema.schema_error(letters, "héllo") is None
+
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["properties"]["id"]["pattern"] = "^(?P<id>[a-z]+)$"
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "is not a 'regex'" in result.output
+
+
 @pytest.mark.parametrize(
     ("mutation", "message"),
     [

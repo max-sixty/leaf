@@ -1187,9 +1187,10 @@ def task_start(dir: str, item: str, text: str) -> None:
 def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
     """End TODO with OUTCOME. DETAIL says where the result is, such as the
     version or reply holding it, or why there is none. TODO may be a to-do on
-    either side. A prose ask's id (`reply:<message-id>`)
-    withdraws that request without creating a user answer. Widget asks end
-    through their declared state or an authored withdrawal."""
+    either side. A prose ask's id (`reply:<message-id>`) ends that request
+    without creating a user answer: `done` records it answered elsewhere, DETAIL
+    saying where, and `dropped` records it withdrawn. Widget asks end through
+    their declared state or an authored withdrawal."""
     from leaf.tasks import cmd_end
 
     _print_records(cmd_end(resolve_dir(dir), task_id, outcome, detail))

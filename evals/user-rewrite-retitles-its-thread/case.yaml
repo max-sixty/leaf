@@ -26,14 +26,12 @@ vars:
     each command you would run, with the full text of any thread reply you would post.
     Then end your answer.
 assert:
-- type: regex
+- type: llm-rubric
   metric: answers-the-edit
-  value: >-
-    (?:^|\n)(?![^\n]*--ephemeral\b)[^\n]*\bleaf\s+response\s+reply(?:\s|\\\n)+['"]?e7f1a2c3:0:edit-a\b
-- type: regex
-  metric: retitles
-  value: >-
-    (?:^|\n)[ \t]*(?:\$[ \t]*)?leaf\s+thread\s+edit\b[^\n]*--title\b
+  value: |
+    Pass only if the agent answers the rewrite with an ordinary `leaf response reply`
+    (not `--ephemeral`) naming the edit's reference `e7f1a2c3:0:edit-a`. A progress
+    message before it is fine. Any spelling of the launcher passes.
 - type: llm-rubric
   metric: judgment
   value: |

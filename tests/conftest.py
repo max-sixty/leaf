@@ -358,9 +358,9 @@ def _names_tests(path):
 
 
 def _base_sources(root, since):
-    """Each test function's source, decorators included, where `since` and HEAD part,
-    keyed by its module's name and its own. A test that moved to another tier directory
-    keeps its key, so a move that leaves its source alone is no edit of it."""
+    """Every test function's source, decorators included, where `since` and HEAD part.
+    A source names its function, so a test moved to another module or tier directory
+    with its source left alone is no edit of it."""
 
     def git(*args, stdin=None):
         run = subprocess.run(
@@ -383,7 +383,7 @@ def _base_sources(root, since):
     batch = git(
         "cat-file", "--batch", stdin="".join(f"{base}:{p}\n" for p in paths).encode()
     )
-    sources = {}
+    sources = set()
     for path in paths:
         header, _, batch = batch.partition(b"\n")
         size = int(header.split()[2])
@@ -392,9 +392,7 @@ def _base_sources(root, since):
         for node in ast.parse(text).body:
             if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
                 first = min([node.lineno, *(d.lineno for d in node.decorator_list)])
-                sources[Path(path).stem, node.name] = "".join(
-                    lines[first - 1 : node.end_lineno]
-                )
+                sources.add("".join(lines[first - 1 : node.end_lineno]))
     return sources
 
 
@@ -402,8 +400,7 @@ def _touches(item, base):
     """Whether a change edits the test's own function, decorators included."""
     if base is None:
         return False
-    source = "".join(inspect.getsourcelines(item.function)[0])
-    return base.get((item.path.stem, item.function.__name__)) != source
+    return "".join(inspect.getsourcelines(item.function)[0]) not in base
 
 
 # A harness session states its identity in the environment, under names of its own

@@ -7,7 +7,7 @@
  * weakly retained binding restores that observation when the control returns. */
 import { nearObserver, nearWindow, scrollContainer, shownParts } from "./geometry.js";
 import { hostIn, renderedParent } from "./shadow.js";
-import { nativeLayerHolding } from "./keyboard/layer-stack.js";
+import { nativeLayerHolding } from "./shadow-tree.js";
 import { scrollsContent } from "./scroll-motion.js";
 import { watchArrivals } from "./arrivals.js";
 import { keeps } from "./keeps.js";

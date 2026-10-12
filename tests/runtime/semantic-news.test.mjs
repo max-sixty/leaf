@@ -19,6 +19,8 @@ const message = (id, extra = {}) => ({
   author: "agent",
   agent: "Agent",
   kind: "reply",
+  // The served content version: its latest rewrite's id, else its own.
+  content_version: extra.edited?.id ?? id,
   ...extra,
 });
 const thread = (id, msgs, attention = null, userPrompt = null) =>
@@ -30,7 +32,7 @@ const thread = (id, msgs, attention = null, userPrompt = null) =>
       user_prompt: userPrompt,
       unread: msgs
         .filter((item) => item.unread !== false)
-        .map((item) => ({ message: item.id, version: item.edited?.id ?? item.id })),
+        .map((item) => ({ message: item.id, version: item.content_version })),
     },
   );
 const ask = (id, thread = null) => ({

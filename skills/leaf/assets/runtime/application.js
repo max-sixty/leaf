@@ -17,6 +17,7 @@ import { paintKeys } from "./keyboard/scopes.js";
 import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
 import { createDelivery, deliverBookkeeping } from "./delivery.js";
+import { keepRefusedWords } from "./drafts.js";
 import { createProjectionPresentation } from "./projection/presentation.js";
 import { createUndo } from "./undo.js";
 import { createDataProjection } from "./projection/data.js";
@@ -401,17 +402,20 @@ export function mountApplication(dependencies) {
   delivery = createDelivery({
     ledger,
     applyAcceptedState: receiveState,
+    refusedWords: keepRefusedWords,
     settleRejected: async (entry, state) => {
       if (state)
         await receiveState(state).catch((error) =>
           reportCarried(error, "state in refused event response"),
         );
+      let dependents = [];
       await stateApplication.runSerialized(async () => {
-        ledger.refuse(entry);
+        dependents = ledger.refuse(entry);
         const prepared = invalidateDom();
         releasePendingSafely("rejected event presentation");
         await prepared;
       });
+      return dependents;
     },
     settlementChanged: (entry, accepted) => {
       if (accepted) {

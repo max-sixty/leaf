@@ -69,6 +69,8 @@ html[data-lf-floating-chrome] .lf-chrome {
     place-items: center; width: 32px; min-height: 32px; padding: 0; margin: 2px 0;
     border-radius: 8px; }
   .lf-fp-box .lf-action-icon { width: 16px; height: 16px; }
+  /* Dictation is offered in the field the user is in, not at rest. */
+  .lf-fp-box:not(:has(leaf-text[data-lf-focus])) .lf-compose-dictate { display: none; }
   .lf-fp-quick { flex: none; display: flex; align-items: center; gap: 0; }
   .lf-fp-chip { color: var(--muted); padding-inline: 9px; }
   .lf-fp-chip:hover { color: var(--ink); }

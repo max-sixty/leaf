@@ -154,6 +154,9 @@ html[data-lf-floating-chrome] .lf-chrome {
     width: 16px;
     height: 16px;
   }
+  .lf-fp-box:not(:has(leaf-text[data-lf-focus])) .lf-compose-dictate {
+    display: none;
+  }
   .lf-fp-quick {
     flex: none;
     display: flex;

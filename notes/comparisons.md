@@ -502,7 +502,7 @@ page directory and event log remain the durable record.
   task; frameworks such as CopilotKit provide the application and agent runtime.
 - **Durable hosted collaboration.** leaf.page runs agents in private trial
   containers, but their storage is ephemeral and the site has no durable user
-  identity or state store ([website contract](../worker/README.md)). A standing
+  identity or state store ([website design](../docs/website.html)). A standing
   local server and an offline export do not supply that service either.
 - **Direct document editing.** Leaf's user comments or uses authored controls;
   unrestricted editing of the document calls for an editor rather than an

@@ -19,6 +19,7 @@ from pathlib import Path
 import click
 
 from leaf_dev import LEAF_COMMAND
+from leaf_dev.arms import observed_sum
 from leaf_dev.arrangement_eval import CASES, TASKS, WIDTHS, later_messages, phases
 from leaf_dev.eval_pairs import samples
 
@@ -51,8 +52,8 @@ def measures(sample: dict, subject: str) -> dict:
     session = [recorded[str(p)]["trace"] for p in phases(subject) if str(p) in recorded]
     final = recorded.get(str(phases(subject)[-1]), {})
     return {
-        "minutes": sum(p["minutes"] or 0 for p in session),
-        "cost": sum(p["cost_usd"] or 0 for p in session),
+        "minutes": observed_sum(p["minutes"] for p in session),
+        "cost": observed_sum(p["cost_usd"] for p in session),
         "turns": sum(p["turns"] for p in session),
         "css": final.get("css_lines"),
         "script": final.get("script_lines"),
@@ -178,8 +179,19 @@ def outcome(subject: str, pairs: list[dict]) -> str:
 
 
 def means(subject: str, members: list[dict]) -> dict:
+    """Each measure's mean over the samples, unknown when any sample's is: a Codex
+    turn reports no cost, which is not a cost of zero."""
     values = [measures(m, subject) for m in members]
-    return {k: statistics.mean(v[k] or 0 for v in values) for k in values[0]}
+    return {
+        k: None
+        if any(v[k] is None for v in values)
+        else statistics.mean(v[k] for v in values)
+        for k in values[0]
+    }
+
+
+def shown(value, form: str, unit: str = "") -> str:
+    return "unavailable" if value is None else unit + format(value, form)
 
 
 def overview(found: dict, pairs: list[dict]) -> str:
@@ -190,8 +202,8 @@ def overview(found: dict, pairs: list[dict]) -> str:
         rows.append(
             f"<tr><td><a href='#task-{subject}'>{subject}</a></td>"
             f"<td>{outcome(subject, pairs)}</td>"
-            f"<td class='num'>${cost.get('Leaf', 0):.2f}</td>"
-            f"<td class='num'>${cost.get('HTML', 0):.2f}</td></tr>"
+            f"<td class='num'>{shown(cost.get('Leaf'), '.2f', '$')}</td>"
+            f"<td class='num'>{shown(cost.get('HTML'), '.2f', '$')}</td></tr>"
         )
     return (
         '<table id="overview"><thead><tr><th>Task</th><th>Pairs won</th>'
@@ -208,11 +220,11 @@ def task_section(page: Path, subject: str, columns: dict, pairs: list[dict]) -> 
         mean = means(subject, members)
         rows.append(
             f"<tr><td>{condition(column)}</td><td class='num'>{len(members)}</td>"
-            f"<td class='num'>{mean['minutes']:.1f}</td>"
-            f"<td class='num'>${mean['cost']:.2f}</td>"
-            f"<td class='num'>{mean['turns']:.0f}</td>"
-            f"<td class='num'>{mean['css']:.0f}</td>"
-            f"<td class='num'>{mean['script']:.0f}</td>"
+            f"<td class='num'>{shown(mean['minutes'], '.1f')}</td>"
+            f"<td class='num'>{shown(mean['cost'], '.2f', '$')}</td>"
+            f"<td class='num'>{shown(mean['turns'], '.0f')}</td>"
+            f"<td class='num'>{shown(mean['css'], '.0f')}</td>"
+            f"<td class='num'>{shown(mean['script'], '.0f')}</td>"
             + (
                 f"<td class='num'>{mean['applied']:.0%}</td>"
                 if CASES[subject].decision

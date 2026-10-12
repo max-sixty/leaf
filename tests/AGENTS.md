@@ -293,9 +293,13 @@ over `browser.unwatched`.
 ### Browser errors
 
 The `browser` fixture instruments every page it makes and fails the test on any
-problem left at the end; do not install a second collector. Consume an expected fault
-at its causal point with `consume_browser_errors`, or `reported_browser_errors` when
-its report arrives in parts. For a recurring fault, close the page first and then
+problem left at the end; do not install a second collector. Each problem is a record
+(`render_gate/findings.py`), and the health sensors below hand theirs over as data
+rather than as console sentences. Consume an expected fault at its causal point with
+`consume_browser_errors`, or `reported_browser_errors` when its report arrives in parts,
+naming it by its fields (`{"code": "failed-load", "status": 400}`), or by a fragment of
+what the page itself said where the fault is a console entry or an exception
+(`render_harness.is_problem`). For a recurring fault, close the page first and then
 consume. Otherwise close a page only when closing is part of the journey. Filtering
 the collector is not an assertion.
 

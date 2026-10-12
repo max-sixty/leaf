@@ -27,6 +27,7 @@ from journeys.test_render_read_state import (
 from leaf import event_endpoint as endpoint_model
 from leaf import http as http_model
 from leaf import thread as thread_model
+from leaf.render_gate.findings import Finding
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_harness import (
@@ -298,7 +299,9 @@ def test_automatic_read_refusal_keeps_message_unread(browser, serve):
     }""")
         == response.json()["state"]["taken"]
     )
-    assert take_browser_errors(page) == [f"400 {request.request.url}"]
+    assert take_browser_errors(page) == [
+        Finding("failed-load", values={"status": 400, "url": request.request.url})
+    ]
     page.unroute("**/api/event")
     cut.restore()
     with sending(page, "read on a new visit"):

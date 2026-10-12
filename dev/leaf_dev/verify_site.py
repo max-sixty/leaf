@@ -37,6 +37,7 @@ from urllib.parse import urlencode, urljoin, urlsplit
 
 import click
 import psutil
+from leaf.render_gate.findings import Finding
 from leaf.render_gate.scheme import collect_page_errors
 from playwright.sync_api import APIResponse, BrowserContext, Page
 from playwright.sync_api import Error as PlaywrightError
@@ -90,7 +91,7 @@ class AgentSession(NamedTuple):
 
     context: BrowserContext
     page: Page
-    failures: list[str]
+    failures: list[Finding]
     url: str
     state_url: str
     state: dict
@@ -99,6 +100,11 @@ class AgentSession(NamedTuple):
 def check(condition: bool, message: str) -> None:
     if not condition:
         raise RuntimeError(message)
+
+
+def said(failures: list[Finding]) -> str:
+    """Browser errors in their words, for a failure message."""
+    return "; ".join(map(str, failures)) or "none"
 
 
 def answered(response: APIResponse, url: str) -> APIResponse:
@@ -110,17 +116,17 @@ def answered(response: APIResponse, url: str) -> APIResponse:
     return response
 
 
-def observe_startup(page: Page) -> list[str]:
+def observe_startup(page: Page) -> list[Finding]:
     """Every verifier page records milestones and the errors that stop reaching them."""
     record_startup(page)
     page.add_init_script(path=VERIFIER_SCRIPT)
-    failures: list[str] = []
+    failures: list[Finding] = []
     collect_page_errors(page, failures)
     return failures
 
 
 def await_presentation(
-    page, url: str, failures: list[str], timeout: int = 30_000
+    page, url: str, failures: list[Finding], timeout: int = 30_000
 ) -> None:
     """Wait for presentation; a page that never presents names the startup stamps it
     reached (none: upgrade stalled; `upgraded` alone: the first state read did)."""
@@ -130,7 +136,8 @@ def await_presentation(
         reached = page.evaluate("window.__leafStartup.milestones")
         raise RuntimeError(
             f"{url} never presented, reaching "
-            f"{', '.join(reached) or 'no startup milestone'}; browser errors: {failures}"
+            f"{', '.join(reached) or 'no startup milestone'}; browser errors: "
+            + said(failures)
         ) from None
 
 
@@ -263,7 +270,7 @@ def verify_page(
         media["path"] == expected_media,
         f"{url} scoped private media into the release namespace: {media['path']}",
     )
-    check(not failures, f"{url} reported browser errors: {failures}")
+    check(not failures, f"{url} reported browser errors: {said(failures)}")
     startup = startup_reading(page)
     if not activate:
         context.close()
@@ -343,7 +350,7 @@ def verify_page(
         )
         check(
             not neighbor_failures,
-            f"{neighbor_url} reported browser errors: {neighbor_failures}",
+            f"{neighbor_url} reported browser errors: {said(neighbor_failures)}",
         )
         neighbor.close()
     context.close()

@@ -757,21 +757,28 @@ def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
     failed = run_page_code(RoutedBrowser(fail_helper=True), url)
     # The runtime's own report carries the error's stack; the check's refusal quotes
     # only the reason the page shows.
+    by_code = {}
+    for report in failed:
+        by_code.setdefault(report.code, []).append(report.values)
     assert any(
-        report.startswith("page failed to start:") and "TypeError" in report
-        for report in failed
+        report["text"].startswith("page failed to start:")
+        and "TypeError" in report["text"]
+        for report in by_code["page-report"]
     ), failed
-    assert any(report.startswith("the runtime could not start:") for report in failed)
+    assert by_code["not-ready"][0]["stage"] == "refused", failed
+    assert by_code["not-ready"][0]["error"].startswith("the runtime could not start:")
     assert any(
-        "Browser request failed (Script, net::ERR_FAILED)" in report
-        and f"in {url}:" in report
-        and "/page/helper.js" in report
-        for report in failed
+        report["kind"] == "Script"
+        and report["error"] == "net::ERR_FAILED"
+        and report["frame"] == url
+        and report["url"].endswith("/page/helper.js")
+        for report in by_code["request-failed"]
     ), failed
     assert any(
-        "Browser request returned HTTP 404 (Image)" in report
-        and "/page/missing-image.png" in report
-        for report in failed
+        report["status"] == 404
+        and report["kind"] == "Image"
+        and report["url"].endswith("/page/missing-image.png")
+        for report in by_code["request-status"]
     ), failed
 
     assert run_page_code(RoutedBrowser(fail_helper=False), url) == []

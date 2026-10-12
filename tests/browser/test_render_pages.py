@@ -16,6 +16,7 @@ from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import schema as schema_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_gate.scheme import console_finding
 from PIL import Image, ImageChops, ImageStat
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -352,8 +353,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
                 "text": "candidate root",
             },
         )
-    assert fault.value.text in page.lf_errors
-    page.lf_errors.remove(fault.value.text)
+    page.lf_errors.remove(console_finding(fault.value))
 
     inline = seat.locator(f':scope > .lf-page-thread[data-thread="{root["id"]}"]')
     expect(inline).to_have_count(0)
@@ -424,8 +424,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
             serve.page_dir,
             {"kind": "resolve", "author": "agent", "parent": root["id"]},
         )
-    assert fault.value.text in page.lf_errors
-    page.lf_errors.remove(fault.value.text)
+    page.lf_errors.remove(console_finding(fault.value))
 
     expect(reply).to_have_js_property("value", "keep this inline reply")
     expect(reply).to_be_focused()
@@ -495,8 +494,7 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
             {"kind": "resolve", "author": "agent", "parent": root["id"]},
         )
 
-    assert fault.value.text in page.lf_errors
-    page.lf_errors.remove(fault.value.text)
+    page.lf_errors.remove(console_finding(fault.value))
     expect(page.locator(".lf-thread leaf-text")).to_have_js_property(
         "value", "keep this unfinished reply"
     )
@@ -553,8 +551,7 @@ def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
         nudge(d)
     expect(menu).to_be_visible()
     expect(row).to_be_focused()
-    assert fault.value.text in page.lf_errors
-    page.lf_errors.remove(fault.value.text)
+    page.lf_errors.remove(console_finding(fault.value))
 
     page.unroute("**/api/state*")
     nudge(d)
@@ -3274,7 +3271,7 @@ def test_a_page_refuses_a_browser_that_never_had_the_link(browser, serve):
 
     assert schema_model.NO_KEY in page.locator("body").inner_text()
     # The refusal is the subject: a user without the key is answered 401.
-    consume_browser_errors(page, "401")
+    consume_browser_errors(page, {"code": "failed-load", "status": 401})
 
 
 @pytest.mark.parametrize(
@@ -3557,9 +3554,10 @@ def test_the_write_gate_allows_only_the_column_measurement_property(
     }""",
         bad_write,
     )
-    failures = consume_browser_errors(page, "unchanged write:")
+    failures = consume_browser_errors(page, {"code": "unchanged-write"})
     assert len(failures) == 1
-    assert "style on body" in failures[0]
+    assert failures[0].values["what"] == "style", failures
+    assert failures[0].values["node"].startswith("body"), failures
 
 
 def test_a_control_the_page_writes_takes_leaf_type_and_yields_to_page_css(

@@ -88,9 +88,11 @@ def console_finding(message, *, warnings: bool = True) -> Finding | None:
     nothing listens to responses for it: a response listener has every request of a
     load — a few hundred modules — sent to and built in this process. The browser
     words that entry and nothing else carries the status, so its words are read here,
-    once, into the finding's fields."""
+    once, into the finding's fields. Any other entry keeps its words and the script
+    that wrote it (`url`, empty where the browser names none)."""
+    said = {"text": message.text, "url": message.location["url"]}
     if message.type == "warning" and warnings:
-        return Finding("console-warning", values={"text": message.text})
+        return Finding("console-warning", values=said)
     if message.type != "error":
         return None
     if failed := _FAILED_LOAD.fullmatch(message.text):
@@ -98,7 +100,7 @@ def console_finding(message, *, warnings: bool = True) -> Finding | None:
             "failed-load",
             values={"status": int(failed[1]), "url": message.location["url"]},
         )
-    return Finding("console-error", values={"text": message.text})
+    return Finding("console-error", values=said)
 
 
 def window_finding(error: dict) -> Finding:
@@ -121,19 +123,18 @@ def exception_finding(error) -> Finding:
     return Finding("page-exception", values={"text": message})
 
 
-def collect_page_exceptions(page, errors: list[str]) -> None:
-    """Collect native exceptions from every document, in the words a reader is
-    shown."""
-    page.on("pageerror", lambda error: errors.append(str(exception_finding(error))))
+def collect_page_exceptions(page, errors: list[Finding]) -> None:
+    """Collect native exceptions from every document, as findings."""
+    page.on("pageerror", lambda error: errors.append(exception_finding(error)))
 
 
-def collect_page_errors(page, errors: list[str]) -> None:
+def collect_page_errors(page, errors: list[Finding]) -> None:
     """Collect the page's console errors and native exceptions, from every document,
-    in the words a reader is shown."""
+    as findings."""
 
     def heard(message):
         if (error := console_finding(message, warnings=False)) is not None:
-            errors.append(str(error))
+            errors.append(error)
 
     page.on("console", heard)
     collect_page_exceptions(page, errors)
@@ -313,7 +314,7 @@ def _render_scheme(
         return ended([Finding("probe-failed", values={"error": str(error).strip()})])
 
     page.on("console", console_message)
-    page.on("pageerror", lambda error: errors.append(exception_finding(error)))
+    collect_page_exceptions(page, errors)
     # The runtime writes each report to the console too, which is where this reading
     # takes it.
     answer_reports(page, lambda text: None)

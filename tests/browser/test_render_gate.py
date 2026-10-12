@@ -87,7 +87,6 @@ from render_harness import (
     EXAMPLES,
     INLINE_PAGE,
     LONG_PAGE,
-    RECURRING_RESIZE_NOTICE,
     RELEASE_FOCUS,
     TOKEN,
     _traffic,
@@ -1002,8 +1001,11 @@ def test_page_navigation_classifies_only_its_resize_notices(browser, serve):
 
     page.evaluate(RESIZE_LOOP_EVENT)
     errors = take_browser_errors(page)
-    assert errors == [
-        "window error: ResizeObserver loop completed with undelivered notifications."
+    assert [(e.code, e.values) for e in errors] == [
+        (
+            "resize-loop",
+            {"text": "ResizeObserver loop completed with undelivered notifications."},
+        )
     ], "a notice after the classified navigation was hidden too"
 
 
@@ -1014,7 +1016,9 @@ def test_page_navigation_reports_a_recurring_resize_notice(browser, serve):
     page = open_page(browser, serve(LONG_PAGE), init_script=every_load)
 
     errors = take_browser_errors(page)
-    assert errors == [RECURRING_RESIZE_NOTICE]
+    assert [(e.code, e.values.get("confirmation")) for e in errors] == [
+        ("resize-loop", "recurred")
+    ]
 
 
 def test_the_render_gate_requires_a_declared_threads_host_and_a_defined_element(

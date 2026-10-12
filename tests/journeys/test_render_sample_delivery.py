@@ -15,6 +15,7 @@ from render_harness import (
     consume_browser_errors,
     holding,
     open_page,
+    said,
     take_browser_errors,
 )
 
@@ -283,7 +284,7 @@ def test_sample_release_failure_records_the_retired_allocation(
     assert records[-1]["document"] == next(
         row["document"] for row in records if row["phase"] == "connected"
     )
-    consume_browser_errors(page, "503")
+    consume_browser_errors(page, {"code": "failed-load", "status": 503})
 
 
 @pytest.mark.parametrize("status", [404, 200])
@@ -350,7 +351,11 @@ def test_sample_document_without_bootstrap_retires_and_can_reset(
     assert completed["allocation"] == 2
     assert completed["document"]
     if status == 404:
-        consume_browser_errors(page, "404", "The sample document did not start Leaf")
+        consume_browser_errors(
+            page,
+            {"code": "failed-load", "status": 404},
+            "The sample document did not start Leaf",
+        )
 
 
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
@@ -465,8 +470,7 @@ def test_sample_native_departure_keeps_destination_and_reset(
     )
     departure_errors = take_browser_errors(page)
     assert all(
-        cancellation_error.fullmatch(error.splitlines()[0])
-        for error in departure_errors
+        cancellation_error.fullmatch(said(error)) for error in departure_errors
     ), departure_errors
     # A fresh header forces a new native preflight rather than reusing the old
     # document's cached one. Revocation must remain an HTTP refusal in both engines.
@@ -482,4 +486,6 @@ def test_sample_native_departure_keeps_destination_and_reset(
         )
         == 404
     )
-    consume_browser_errors(page, "404 " + previous + "api/state")
+    consume_browser_errors(
+        page, {"code": "failed-load", "status": 404, "url": previous + "api/state"}
+    )

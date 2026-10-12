@@ -2527,34 +2527,65 @@ RESTYLED = """async ([selector, how]) => {
   await new Promise((resolve) => setTimeout(resolve));
   if (how === 'class') holder.classList.add('deeper');
   else if (how === 'style') holder.style.paddingInlineStart = '64px';
-  else
-    holder.insertAdjacentHTML('beforeend', '<ul><li id="late">Four'
+  else {
+    // As a revision replaces a passage: the list holding the holder, anew, with one
+    // more list inside.
+    const list = holder.closest('main > ul');
+    const copy = list.cloneNode(true);
+    copy.querySelector(selector).insertAdjacentHTML('beforeend', '<ul><li id="late">Four'
       + '<div id="late-wide" data-lf-space="wide">Wide.</div>'
       + '<table id="late-narrow" data-lf-space="available"><tr><th>Plan</th>'
       + '<td>60</td></tr></table></li></ul>');
+    list.replaceWith(copy);
+  }
+  const watched = window.lfWatchedHolder;
   await update();
   const name = how === 'insert' ? 'late' : holder.id;
   return {
     moved: edges(`${name}-narrow`),
     wide: edges(`${name}-wide`),
     control: edges('control-wide'),
+    replaced: watched(holder),
+    current: watched(document.getElementById(name)),
   };
 }"""
+
+
+# Which elements some ResizeObserver watches, kept from before the runtime makes one.
+WATCHED_HOLDERS = """(() => {
+  const watched = new Map();
+  const {observe, unobserve, disconnect} = ResizeObserver.prototype;
+  ResizeObserver.prototype.observe = function (target, options) {
+    if (!watched.has(this)) watched.set(this, new Set());
+    watched.get(this).add(target);
+    return observe.call(this, target, options);
+  };
+  ResizeObserver.prototype.unobserve = function (target) {
+    watched.get(this)?.delete(target);
+    return unobserve.call(this, target);
+  };
+  ResizeObserver.prototype.disconnect = function () {
+    watched.delete(this);
+    return disconnect.call(this);
+  };
+  window.lfWatchedHolder = (target) =>
+    [...watched.values()].some((targets) => targets.has(target));
+})();"""
 
 
 @pytest.mark.parametrize("how", ["class", "style", "insert"])
 def test_a_breakout_moved_in_after_load_re_lands_before_it_paints(browser, serve, how):
     """A breakout whose holder stands further in after load stays on the prose axis
     from the first paint that shows it, without waiting for a frame's margin pass or
-    the next resize: one inserted a list deeper, and a holder a class or an inline
-    style pads anew, which inserts nothing. Each is read again in the rendering update
+    the next resize: one a revision's replacement puts a list deeper, and a holder a
+    class or an inline style pads anew, which inserts nothing. Each is read again in the rendering update
     that lays the change out, before that update paints."""
     source = INDENTED_PAGE.replace(
         " .inset { padding-left: 40px; }",
         " .inset { padding-left: 40px; } .inset.deeper { padding-left: 100px; }",
         1,
     )
-    page = open_page(browser, serve(source))
+    page = open_page(browser, serve(source), init_script=WATCHED_HOLDERS)
     resized(page, 1440, 900)
     margins_laid_out(page)
     holder = "#inset" if how == "class" else "#nested"
@@ -2567,6 +2598,10 @@ def test_a_breakout_moved_in_after_load_re_lands_before_it_paints(browser, serve
     assert at["moved"]["left"] > before + 20, ("the holder was not padded", at)
     for edge in ("left", "right"):
         assert at["wide"][edge] == pytest.approx(at["control"][edge], abs=1), at
+    # The holders watched for a change of width are the ones the reading measured: a
+    # revision's replacement leaves the holder it removed unwatched.
+    assert at["current"], at
+    assert at["replaced"] == (how != "insert"), at
 
 
 def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):

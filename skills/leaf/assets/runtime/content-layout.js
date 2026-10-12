@@ -54,20 +54,30 @@ const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
 const bringsBreakout = (node) =>
   node.nodeType === Node.ELEMENT_NODE &&
   (node.matches(BREAKOUT) || node.querySelector(BREAKOUT) !== null);
-const holderWidths = new WeakMap();
+// The holders the last reading measured, each with the width it last reported: the
+// observer watches exactly these, so a holder a revision removed, or one that no longer
+// holds a breakout drawn, stops delivering.
+const holderWidths = new Map();
 const holderSizes = sizeObserver((entries) => {
   let widened = false;
   for (const { target, contentBoxSize } of entries) {
+    if (!holderWidths.has(target)) continue;
     const width = contentBoxSize[0].inlineSize;
     if (Math.abs(width - holderWidths.get(target)) > 0.5) widened = true;
     holderWidths.set(target, width);
   }
   if (widened) readIndents();
 });
-// A holder is observed once, from the width the reading measured, so its first report
-// is a change only if one came after that reading.
+// A holder is observed from the width the reading measured, so its first report is a
+// change only if one came after that reading.
 function watchHolders() {
-  for (const [holder, width] of document.documentElement.lfInitial.indentHolders()) {
+  const holders = document.documentElement.lfInitial.indentHolders();
+  for (const holder of holderWidths.keys()) {
+    if (holders.has(holder)) continue;
+    holderWidths.delete(holder);
+    holderSizes.unobserve(holder);
+  }
+  for (const [holder, width] of holders) {
     if (holderWidths.has(holder)) continue;
     holderWidths.set(holder, width);
     holderSizes.observe(holder);

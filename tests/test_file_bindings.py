@@ -25,6 +25,7 @@ from leaf.file_bindings import (
     read_file,
     save_file,
 )
+from leaf.served_state.reading import page_reading
 from leaf.state import state_home_path
 
 
@@ -245,3 +246,42 @@ def test_http_file_door_requires_key_origin_and_current_revision(
             )[0]
             == 403
         )
+
+
+def test_a_bound_file_write_moves_the_page_reading_and_its_binding_stamp(
+    server, page_dir, tmp_path
+):
+    """An editor reads its file only when the state answer stamps the binding anew,
+    so a write outside Leaf moves the reading a visible tab polls and that binding's
+    stamp, and an unreadable grants record stamps as no bindings rather than failing
+    the page's reading."""
+    target = tmp_path / "notes.txt"
+    target.write_text("hello\n")
+    bind_file(page_dir, "notes", target)
+
+    def stamps():
+        return json.loads(fetch(f"{server}/api/state")[1])["files"]
+
+    # The first state read activates the page, which moves its reading once.
+    stamped = stamps()
+    reading = page_reading(page_dir)
+    assert set(stamped) == {"notes"}
+    assert (stamps(), page_reading(page_dir)) == (stamped, reading)
+
+    target.write_text("edited outside Leaf\n")
+    assert page_reading(page_dir) != reading
+    assert stamps()["notes"] != stamped["notes"]
+
+    grants = page_dir / "files.json"
+    grants.write_text(
+        json.dumps({"bindings": {"notes": f"{target}\0", "other": "/tmp/\ud800"}})
+    )
+    page_reading(page_dir)
+    assert stamps() == {}
+    grants.write_text("{")
+    page_reading(page_dir)
+    assert stamps() == {}
+    grants.unlink()
+    grants.mkdir()
+    page_reading(page_dir)
+    assert stamps() == {}

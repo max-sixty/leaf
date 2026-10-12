@@ -614,7 +614,8 @@ draw a visual part it shows only in another state, opens its containing disclosu
 the addressed element, updates the fragment, and announces the supplied `success` or
 `missing` message. Commands at that focus use the datum's identity. A lazy target may implement
 `lfRevealDatum(key)` to return its hydration promise and `lfDataDatum(key)` to map a
-semantic key to the rendered projected element. When that key is a source location
+semantic key to the rendered projected element, and `lfDatumLabel(key)` to name a datum
+it has not drawn, as its `projectData` label will once it is. When that key is a source location
 rather than the datum's durable identity, translate it to the durable key and read
 `projectedDatum(widget, key)`: it returns the unique current projected element, or
 `null` when missing or ambiguous, including after a reveal replaced its node.
@@ -982,6 +983,9 @@ bytes}`; `save({revision, text})` checks that exact revision before writing and
 returns the submitted snapshot. A stale save throws an error whose `current`
 holds the newer file. Other errors carry a message and leave the caller's buffer
 alone. `text` uses LF line endings; the host preserves the file's LF or CRLF form.
+`watch(callback)` calls back whenever the page hears that the bound file may have
+changed on disk, including through the widget's own save, and returns a function
+that stops it. Read the file again then; its revision says whether it changed.
 
 The `writable` property is false in captured documents and exports. The transport
 owns page-relative routing and delivery checks; a widget never names a host path.
@@ -1103,7 +1107,9 @@ parts can share an outlet; Leaf retains their nodes and reconciles nomination or
 A shadow outlet displays retained parts through native slots: core nodes stay in
 document light DOM, forwarding through nested shadow boundaries to retain the complete
 layer stylesheet semantics. Leaf retains the generated nodes, message rendering, reactions,
-exact-version read exposure, and shared native reply draft. The package retains
+exact-version read exposure, and shared native reply draft. A nominated message of the
+user's own offers its rewrite in place, and a nominated reply box opens the latest of
+those the reader draws on ↑, as a whole conversation does. The package retains
 layout, ordering, selection, scroll and disclosure. A returned promise delays the
 required presentation; check `parts.signal` before asynchronous layout changes,
 since a newer pass or unregister aborts it.

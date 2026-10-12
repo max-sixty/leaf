@@ -13,15 +13,15 @@ import { watchProjection } from "../projection-watch.js";
 export const readQuestions = () => readApplication().effective.questions;
 
 export const questionEntry = (question) => registry[question?.source.tag]?.["x-awaits"];
+// The Questions approving the shown version waits on, which the server names
+// (`questions.approval_blocking`, the rule its append door refuses a sign-off by).
 // Approval needs an admitted inventory, so its gate never reads unknown as empty: with
 // no admitted reading nothing says which Questions still stand, and this answers null.
 export function approvalBlockingQuestions() {
-  const reading = readQuestions();
-  return reading.phase === "ready"
-    ? reading.unanswered.filter(
-        (question) => question.source.kind === "widget" && question.next_actor !== null,
-      )
-    : null;
+  const { questions, view } = readApplication().effective;
+  if (questions.phase !== "ready" || !view) return null;
+  const blocking = new Set(view.approval_blocking);
+  return questions.all.filter((question) => blocking.has(question.id));
 }
 
 export function watchQuestions(owner, callback) {

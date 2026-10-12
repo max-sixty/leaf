@@ -55,7 +55,7 @@ from leaf.served_state import page as served_page
 from leaf.service import delivery_reply_attempt
 from leaf.state import flocked, open_session_turn, session_record, start_session_turn
 from leaf.structure import SourceDocument
-from leaf.thread import cmd_resolve, post_reply
+from leaf.thread import ProviderFinal, cmd_resolve, post_reply
 from leaf_dev import example_previews, journey, startup, verify_site
 from playwright.sync_api import expect
 from render_harness import (
@@ -1903,10 +1903,8 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
         with pytest.raises(Refused, match="answered by this turn's messages"):
             post_reply(
                 page_dir,
-                comment["id"],
+                {"to": comment["id"], "for": comment["id"]},
                 "Competing tool reply",
-                "",
-                for_event=comment["id"],
                 identity={"agent": "Codex", "session": "hosted-thread"},
             )
         competing_writer_rejected.append(True)
@@ -3457,12 +3455,10 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     assert (
         post_reply(
             page_dir,
-            comment["id"],
+            {"to": comment["id"], "for": comment["id"]},
             "deployment verified",
-            "",
-            for_event=comment["id"],
+            settlement=ProviderFinal("test-final"),
             attempt=answer["attempt"],
-            when_settled="post",
             identity={"session": "hosted-thread"},
         )
         == answer
@@ -3517,10 +3513,8 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
     accept_in_turn("hosted-thread")
     post_reply(
         page_dir,
-        comment["id"],
+        {"to": comment["id"], "for": comment["id"]},
         "Done.",
-        "",
-        for_event=comment["id"],
         identity={"agent": "The agent", "session": "leaf-website-agent"},
     )
     with website_server.PageTransaction(page_dir) as page:
@@ -3882,16 +3876,17 @@ def test_attention_is_recorded_for_each_page_on_a_shared_server(page_dir, tmp_pa
             )
 
 
-def test_the_website_refuses_a_page_another_leaf_vendored(page_dir, tmp_path):
-    """The container serves only pages its own Leaf's runtime vendored, as every page
-    server does; a site built by another Leaf breaks in the browser otherwise."""
+def test_the_website_refuses_a_page_vendored_at_another_protocol(page_dir, tmp_path):
+    """The container serves only pages vendored at its own Leaf's protocol, as every
+    page server does; a site built across a breaking change breaks in the browser
+    otherwise."""
     site = tmp_path / "site"
     published = site / "examples" / "decision"
     published.parent.mkdir(parents=True)
     shutil.copytree(page_dir, published)
     registry_path = published / "registry.json"
     registry = json.loads(registry_path.read_text())
-    registry["$layer"]["runtime"] = f"sha256:{'0' * 64}"
+    registry["$events"]["protocol"] = 999
     registry_path.write_text(json.dumps(registry))
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
     httpd = LeafHTTPServer(("127.0.0.1", 0), website_server.site_endpoint(site))
@@ -3903,7 +3898,7 @@ def test_the_website_refuses_a_page_another_leaf_vendored(page_dir, tmp_path):
         get(f"{root}/api/state")
     assert refused.value.code == 500
     told = json.loads(refused.value.read())["error"]
-    assert "vendored from another Leaf's runtime" in told
+    assert "page protocol 999" in told
 
 
 def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeypatch):
@@ -5359,6 +5354,34 @@ class _Text:
         return self.text
 
 
+def test_release_verifier_waits_for_the_revision_to_finish_presenting(browser):
+    """The revision marker can advance while the live document patch is pending."""
+    page = browser.unwatched.new_page()
+    page.route(
+        "http://release-verifier.test/",
+        lambda route: route.fulfill(
+            content_type="text/html",
+            body=(
+                "<!doctype html><head><meta name='lf-revision' content='2'>"
+                "<script data-lf-entry></script></head><body data-lf-presented='1'>"
+                "<main>Previous release</main></body>"
+            ),
+        ),
+    )
+    page.add_init_script(path=verify_site.VERIFIER_SCRIPT)
+    page.goto("http://release-verifier.test/")
+    page.evaluate(
+        "document.querySelector('script[data-lf-entry]').lfReadiness = "
+        "() => 'presented'"
+    )
+    assert not page.evaluate("window.__leafVerifier.revisionAtLeast(2)")
+    page.evaluate(
+        "document.querySelector('main').textContent = 'Release 3531f4e6'; "
+        "document.querySelector('script[data-lf-entry]').lfReadiness = () => null"
+    )
+    assert page.evaluate("window.__leafVerifier.revisionAtLeast(2)")
+
+
 class _DeployedPage:
     """The page the agent pass opens, reloads after its turn, and reads back."""
 
@@ -5370,6 +5393,7 @@ class _DeployedPage:
         reload_ok: bool = True,
         banner: str | None = None,
         follows_revision: bool = False,
+        presentation_pending: bool = False,
         initial_presented_at: float | None = None,
     ):
         self.recorded = recorded
@@ -5378,6 +5402,7 @@ class _DeployedPage:
         self.reload_ok = reload_ok
         self.banner = banner
         self.follows_revision = follows_revision
+        self.presentation_pending = presentation_pending
         self.initial_presented_at = (
             presented_at if initial_presented_at is None else initial_presented_at
         )
@@ -5405,7 +5430,7 @@ class _DeployedPage:
     ) -> None:
         assert expression == "window.__leafVerifier.revisionAtLeast" and arg is not None
         self.revision_waits.append((arg, timeout))
-        if self.revision >= arg:
+        if self.revision >= arg and not self.presentation_pending:
             return
         if self.follows_revision:
             self.revision = arg
@@ -5453,6 +5478,8 @@ class _DeployedPage:
             return self.presented_at
         if script == "window.__leafVerifier.revision":
             return str(self.revision)
+        if script == "window.__leafVerifier.revisionAtLeast":
+            return self.revision >= arg and not self.presentation_pending
         if script == "window.__leafVerifier.status":
             return self.banner
         return []
@@ -5895,6 +5922,20 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
         )
     assert refused.presentation_waits == [30_000]
     assert refused.revision_waits == []
+
+    pending = _DeployedPage(
+        recorded, revision=2, presented_at=28444.0, presentation_pending=True
+    )
+    with pytest.raises(RuntimeError, match="did not finish presenting it"):
+        run_browser_journey(
+            journey.website_session(
+                _DeployedSite(_DeployedContainer(release, pending)),
+                release,
+                origin="https://leaf.page",
+                direct_agent=False,
+            )
+        )
+    assert pending.revision_waits == [(2, journey.TURN_PRESENTATION)]
 
 
 def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(

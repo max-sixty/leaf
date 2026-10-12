@@ -86,6 +86,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
       var(--lf-comment-frame-bottom);
     pointer-events: none;
   }
+  /* Floating, the bar shows once its placement stands it, and not while it waits for room
+     (floating-response.js). Inline, its outlet shows it. */
+  .lf-fab-bar:not([data-lf-presentation="inline"]):is(:not([data-lf-placement]), [data-lf-withheld]) {
+    visibility: hidden; }
   .lf-fab-bar > * { pointer-events: auto; }
   .lf-fab-bar { position: fixed; width: max-content;
     align-items: flex-end; gap: 4px; white-space: nowrap;
@@ -273,7 +277,11 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-thread .lf-thread-transcript { min-height: 1lh; overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: color-mix(in srgb, var(--ink) 12%, var(--paper)) transparent;
-    scroll-padding-block: var(--focus-ring-room); }
+    scroll-padding-block: var(--focus-ring-room);
+    /* Room past the words for an open progress group's border, taken from the
+       card's inset so the words keep their width and nothing scrolls sideways. */
+    padding-inline-end: var(--lf-group-ring-end);
+    margin-inline-end: calc(-1 * var(--lf-group-ring-end)); }
   /* The field stands at the card's inset; words stand one inset inside it. */
   .lf-margin-thread .lf-page-thread { padding: 0; background: var(--paper); }
   .lf-margin-thread .lf-page-thread::after { content: none; }

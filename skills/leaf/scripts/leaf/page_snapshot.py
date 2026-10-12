@@ -208,6 +208,7 @@ def capture_page_snapshot(
             registry=registry,
             stored_layer=lambda: layer,
             stored_data=lambda: data,
+            bound_files=dict,
             versions=versions,
             presence=copy.deepcopy(present),
             live_stream=copy.deepcopy(live_stream),

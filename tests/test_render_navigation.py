@@ -15,11 +15,14 @@ from playwright.sync_api import expect
 from render_cases_interaction import (
     ASKS_PAGE,
     HOLD_MOTION,
+    NESTED_PROPOSAL_PAGE,
     PANEL_PAGE,
     QUEUE_ROW_SAYS,
     SEATED_ASK_LAYER,
     SEATED_ASK_WIDGETS,
     SEATED_QUESTION_PAGE,
+    WORKSHOP_THREAD_EVENTS,
+    WORKSHOP_THREADS_PAGE,
     executable_revision,
     live_url,
     panel_comment,
@@ -1580,6 +1583,39 @@ def test_a_nested_pane_footer_travels_in_the_outer_region_that_contains_it(
     assert sibling.evaluate("el => el.scrollTop") == 0
 
 
+def test_a_choice_inside_a_proposal_survives_its_undo(browser, serve):
+    """Accepting a block proposal hides the slot its decision retired, and the page
+    keeps nested user work through an outer undo and reload."""
+    url = serve(NESTED_PROPOSAL_PAGE)
+    page = open_page(browser, url)
+    old = page.locator("#nested-change > lf-old")
+    expect(old).to_be_visible()
+    page.locator("#route-river").click()
+    round_trip(page)
+    suggestion_control(page, "nested-change", "accept").click()
+    round_trip(page)
+    expect(page.locator("#nested-change")).to_have_attribute("data-lf-state", "accept")
+    expect(old).to_be_hidden()
+
+    suggestion_control(page, "nested-change", "undo").click()
+    round_trip(page)
+
+    expect(page.locator("#nested-change")).not_to_have_attribute(
+        "data-lf-state", "accept"
+    )
+    expect(page.locator("#nested-change > lf-old")).to_be_visible()
+    expect(page.locator("#route lf-option[chosen]")).to_have_attribute(
+        "id", "route-river"
+    )
+    page.close()
+
+    page = open_page(browser, url)
+    expect(page.locator("#nested-change > lf-old")).to_be_visible()
+    expect(page.locator("#route lf-option[chosen]")).to_have_attribute(
+        "id", "route-river"
+    )
+
+
 # The gallery sections a preview may name, and the page tab each opens.
 GALLERY_DESTINATIONS = {
     "bg-core-surfaces": "Decisions",
@@ -1599,9 +1635,9 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     it, and the same page answers which tab holds every other destination. Each core
     surface then opens and shows the gallery's own content: its Ask in Questions, its
     open, resolved, and media threads in Threads, its earlier version, the other open
-    page, and at phone width its Page Map. Live external data, overflowing tabs, the
-    Threads tab's presets operating a sample's panel, sign-off gating, design comments
-    and transport refusal are real journeys on it too.
+    page, and at phone width its Page Map. Live external data, the Threads tab's
+    presets operating a sample's panel, sign-off gating, design comments and transport
+    refusal are real journeys on it too.
 
     One page carries all of them because opening the gallery is most of their cost;
     how each surface behaves belongs to that surface's own tests."""
@@ -1665,34 +1701,6 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     expect(page.locator("#bg-measurement-guide")).to_contain_text(
         "measurement is behind its source"
     )
-
-    # The overflowing tab set, with working pointer and key routes at desktop width.
-    resized(page, 1200, 900)
-    gallery_tab("tab", name="Page & layout").click()
-    tabs = page.locator("#bg-rollout-tabs")
-    strip = tabs.locator(":scope > .lf-tabstrip")
-    tabs.scroll_into_view_if_needed()
-    choices = tabs.get_by_role("tab")
-    expect(choices).to_have_count(6)
-    expect(choices.first).to_have_attribute("aria-selected", "true")
-    assert strip.evaluate("el => el.scrollWidth > el.clientWidth")
-    strip.locator('.lf-tabstrip-scroll[data-to="end"] > span').click()
-    page.wait_for_function(
-        "document.querySelector('#bg-rollout-tabs > .lf-tabstrip').scrollLeft > 0"
-    )
-    expect(choices.first).to_have_attribute("aria-selected", "true")
-    # The keyboard reaches a tab from the pointer control without requiring that
-    # control to take a separate stop; End then brings the last section into view.
-    choices.first.click()
-    page.keyboard.press("End")
-    expect(choices.last).to_be_focused()
-    expect(choices.last).to_have_attribute("aria-selected", "true")
-    expect(page.locator("#bg-rollout-handoff-text")).to_be_visible()
-    page.keyboard.press("Home")
-    page.keyboard.press("ArrowRight")
-    expect(choices.nth(1)).to_be_focused()
-    expect(choices.nth(1)).to_have_attribute("aria-selected", "true")
-    expect(page.locator("#bg-rollout-scope-text")).to_be_visible()
 
     # The core chrome, each surface showing the gallery's own content.
     resized(page, 1600, 900)
@@ -1956,59 +1964,6 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     expect(retry).to_have_count(0)
 
     consume_browser_errors(page, "400")
-
-
-# A proposal whose new text carries a Question of its own.
-NESTED_PROPOSAL_PAGE = leaf_page(
-    "nested proposal",
-    """<h1 id="t">Practice walk</h1>
-<lf-suggestion id="walk-change">
-  <lf-old><p>Keep the practice walk indoors.</p></lf-old>
-  <lf-new>
-    <p>Take the practice walk outside.</p>
-    <lf-ask id="route-ask">
-      <h2>Which route should the walk follow?</h2>
-      <lf-options id="route" choose>
-        <lf-option id="route-garden">Through the garden</lf-option>
-        <lf-option id="route-river">Along the river</lf-option>
-      </lf-options>
-    </lf-ask>
-  </lf-new>
-</lf-suggestion>""",
-)
-
-
-def test_undoing_a_proposal_keeps_the_choice_made_inside_it(browser, serve):
-    """An accepted block proposal hides the slot its decision retires, and undoing it
-    brings the slot back while the choice made inside the proposal stands, through a
-    reload."""
-    url = serve(NESTED_PROPOSAL_PAGE)
-    page = open_page(browser, url)
-    old = page.locator("#walk-change > lf-old")
-    expect(old).to_be_visible()
-    page.locator("#route-river").click()
-    round_trip(page)
-    suggestion_control(page, "walk-change", "accept").click()
-    round_trip(page)
-    expect(page.locator("#walk-change")).to_have_attribute("data-lf-state", "accept")
-    expect(old).to_be_hidden()
-
-    suggestion_control(page, "walk-change", "undo").click()
-    round_trip(page)
-    expect(page.locator("#walk-change")).not_to_have_attribute(
-        "data-lf-state", "accept"
-    )
-    expect(old).to_be_visible()
-    expect(page.locator("#route lf-option[chosen]")).to_have_attribute(
-        "id", "route-river"
-    )
-    page.close()
-
-    page = open_page(browser, url)
-    expect(page.locator("#walk-change > lf-old")).to_be_visible()
-    expect(page.locator("#route lf-option[chosen]")).to_have_attribute(
-        "id", "route-river"
-    )
 
 
 def test_a_render_that_keeps_an_external_link_gives_back_the_mark_it_dropped(
@@ -2323,19 +2278,56 @@ def test_an_offscreen_thread_card_arrives_with_its_anchor(
     expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
 
 
-def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
-    """A contextual thread has one side, and leaves and returns with its anchor.
+def test_thread_navigation_lands_after_resizing_an_open_reply(browser, serve):
+    """A fixed card cannot reveal itself by scrolling its already-visible passage away."""
+    page = open_page(
+        browser,
+        live_url(serve(WORKSHOP_THREADS_PAGE, events=WORKSHOP_THREAD_EVENTS)),
+    )
+    resized(page, 1280, 720)
+    card = page.locator(".lf-margin-preview")
+    thread = card.get_by_role("group", name="Thread, Is lunch provided", exact=False)
+    # The walk reaches the lunch thread wherever the walk's order puts it.
+    for _ in range(3):
+        page.keyboard.press("t")
+        scroll_settled(page)
+        if thread.count() and thread.evaluate("el => el === document.activeElement"):
+            break
+    expect(thread).to_be_focused()
+    page.keyboard.press("t")
+    expect(
+        card.get_by_role("group", name="Thread, Workshop room photo")
+    ).to_be_focused()
+    scroll_settled(page)
+    page.keyboard.press("Enter")
+    expect(page.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
+    resized(page, 390, 844)
+    scroll_settled(page)
+    page.keyboard.press("Escape")
+    page.keyboard.press("Shift+t")
+    expect(thread).to_be_focused()
+    scroll_settled(page)
+    expect(thread).to_be_in_viewport(ratio=1)
+    page.keyboard.press("c")
+    reply = page.get_by_role("textbox", name="Reply", exact=True)
+    expect(reply).to_be_focused()
+    scroll_settled(page)
+    expect(reply).to_be_in_viewport(ratio=1)
 
-    The same gallery then holds the walk through a resize: a fixed card cannot reveal
-    itself by scrolling its already-visible passage away."""
-    page = open_page(browser, live_url(serve(FEATURE_GALLERY)))
+
+def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
+    """A contextual thread has one side, and leaves and returns with its anchor."""
+    page = open_page(
+        browser,
+        live_url(serve(WORKSHOP_THREADS_PAGE, events=WORKSHOP_THREAD_EVENTS)),
+    )
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1440, 900)
 
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("t")
     card = page.locator(".lf-margin-preview")
-    # Whichever thread the walk reaches first; the gallery's order decides that.
+    # Whichever thread the walk reaches first; the page's order decides that.
     expect(card.locator(".lf-page-thread")).to_be_focused()
     walked = card.locator(".lf-page-thread").get_attribute("data-thread")
     owner = page.locator(
@@ -2456,41 +2448,6 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     page.keyboard.press("c")
     expect(reply).to_be_focused()
     page.wait_for_function(shown)
-
-    # Let go of the card and start the next walk from the top of the page.
-    for _ in range(3):
-        page.keyboard.press("Escape")
-    page.evaluate(RELEASE_FOCUS)
-    page.evaluate("() => scrollTo(0, 0)")
-    resized(page, 1280, 720)
-    card = page.locator(".lf-margin-preview")
-    thread = card.get_by_role("group", name="Thread, Is lunch provided", exact=False)
-    # The walk reaches the lunch thread wherever the gallery's order puts it.
-    for _ in range(4):
-        page.keyboard.press("t")
-        scroll_settled(page)
-        if thread.count() and thread.evaluate("el => el === document.activeElement"):
-            break
-    expect(thread).to_be_focused()
-    page.keyboard.press("t")
-    expect(
-        card.get_by_role("group", name="Thread, Workshop room photo")
-    ).to_be_focused()
-    scroll_settled(page)
-    page.keyboard.press("Enter")
-    expect(page.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
-    resized(page, 390, 844)
-    scroll_settled(page)
-    page.keyboard.press("Escape")
-    page.keyboard.press("Shift+t")
-    expect(thread).to_be_focused()
-    scroll_settled(page)
-    expect(thread).to_be_in_viewport(ratio=1)
-    page.keyboard.press("c")
-    reply = page.get_by_role("textbox", name="Reply", exact=True)
-    expect(reply).to_be_focused()
-    scroll_settled(page)
-    expect(reply).to_be_in_viewport(ratio=1)
 
 
 def test_a_pane_frame_comment_preview_is_not_confined_to_its_body(browser, serve):
@@ -2988,6 +2945,55 @@ def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
         expect(tabs.get_by_role("tab").nth(1)).to_have_attribute(
             "aria-selected", "true"
         )
+
+
+def test_overflowing_section_tabs_reveal_and_open_their_sections(browser, serve):
+    """A tabbed section whose names overflow its column at desktop width offers
+    working pointer and key routes."""
+    sample = re.search(
+        r'<lf-tabs id="bg-rollout-tabs">.*?</lf-tabs>',
+        FEATURE_GALLERY.read_text(),
+        re.DOTALL,
+    )
+    assert sample is not None
+    body = (
+        "<header><h1>Search rollout</h1></header>"
+        '<section id="bg-tab-set"><h2>A rollout review in a narrow column</h2>'
+        + sample[0]
+        + "</section>"
+    )
+    # The gallery's own rule narrows the column, so six names overflow at desktop.
+    narrow = "<style>#bg-rollout-tabs { max-inline-size: 26rem; }</style>"
+    page = open_page(
+        browser,
+        live_url(serve(leaf_page("Rollout review", body, head=narrow))) + "#bg-tab-set",
+    )
+    resized(page, 1200, 900)
+    tabs = page.locator("#bg-rollout-tabs")
+    strip = tabs.locator(":scope > .lf-tabstrip")
+    tabs.scroll_into_view_if_needed()
+    choices = tabs.get_by_role("tab")
+    expect(choices).to_have_count(6)
+    expect(choices.first).to_have_attribute("aria-selected", "true")
+    assert strip.evaluate("el => el.scrollWidth > el.clientWidth")
+
+    strip.locator('.lf-tabstrip-scroll[data-to="end"] > span').click()
+    page.wait_for_function(
+        "document.querySelector('#bg-rollout-tabs > .lf-tabstrip').scrollLeft > 0"
+    )
+    expect(choices.first).to_have_attribute("aria-selected", "true")
+    # The keyboard reaches a tab from the pointer control without requiring that
+    # control to take a separate stop; End then brings the last section into view.
+    choices.first.click()
+    page.keyboard.press("End")
+    expect(choices.last).to_be_focused()
+    expect(choices.last).to_have_attribute("aria-selected", "true")
+    expect(page.locator("#bg-rollout-handoff-text")).to_be_visible()
+    page.keyboard.press("Home")
+    page.keyboard.press("ArrowRight")
+    expect(choices.nth(1)).to_be_focused()
+    expect(choices.nth(1)).to_have_attribute("aria-selected", "true")
+    expect(page.locator("#bg-rollout-scope-text")).to_be_visible()
 
 
 def color_cue_markup():
@@ -5241,13 +5247,11 @@ CARD_ROUTES = {
 
 @pytest.mark.parametrize("route", CARD_ROUTES.values(), ids=CARD_ROUTES.keys())
 def test_c_lands_where_its_badge_is_and_in_the_card_on_screen(browser, serve, route):
-    """One box wears `c`, and `c` lands in it; while a card is up, that box is its reply.
+    """A card's reply wears `c`; after letting go, the page control opens its box.
 
-    The badge and the press read the same destination, and the card's being up is part
-    of that destination rather than a second reading of where the user stands, so no
-    route may leave a card on screen whose reply `c` does not reach. The badge is read
-    where the user reads it, as a drawn key: the box's placeholder attribute is the
-    runtime's own record of the hint and says nothing about whether it shows.
+    The card's being up decides the reply destination. When it is gone, the banner's
+    page-comment control advertises `c` and creates its editor when pressed. The box's
+    placeholder is the runtime's own record of the hint, even while it is not drawn.
     """
     page = open_page(
         browser,
@@ -5267,15 +5271,23 @@ def test_c_lands_where_its_badge_is_and_in_the_card_on_screen(browser, serve, ro
         rendered(page)
 
     badged = page.locator("leaf-text[placeholder$=' c']")
+    card = page.locator(".lf-margin-preview")
+    if route == CARD_ROUTES["walk, let go"]:
+        expect(card).to_be_hidden()
+        expect(badged).to_have_count(0)
+        expect(page.locator(".lf-page-comment")).to_have_attribute(
+            "title", "Comment on the page (c)"
+        )
+        page.keyboard.press("c")
+        rendered(page)
+        expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
+        return
+
+    expect(card).to_be_visible()
     expect(badged).to_have_count(1)
     box = badged.element_handle()
-    card = page.locator(".lf-margin-preview")
-    card_up = card.is_visible()
-    assert box.evaluate("box => Boolean(box.closest('.lf-margin-preview'))") == card_up
-    if card_up:
-        expect(
-            badged.locator(".lf-compose-placeholder > .lf-key-badge")
-        ).to_be_visible()
+    assert box.evaluate("box => Boolean(box.closest('.lf-margin-preview'))")
+    expect(badged.locator(".lf-compose-placeholder > .lf-key-badge")).to_be_visible()
     page.keyboard.press("c")
     rendered(page)
     assert box.evaluate("box => box === document.activeElement")
@@ -16484,49 +16496,48 @@ def test_an_ask_in_a_reply_is_where_the_user_stands_once_answered(browser, serve
     expect(page.locator("#cache-disk")).not_to_have_attribute("chosen", "")
 
 
-# A Question, a link for the target picker, and a sample that declares its own digit,
-# the three kinds of key the quick-shortcut preference covers.
-QUICK_SHORTCUTS_PAGE = leaf_page(
-    "quick shortcuts",
-    """<h1 id="t">Quick shortcuts</h1>
+# A Question's digits beside a page-scoped command with a context key of its own,
+# registered the way an authored module does.
+QUICK_KEYS_PAGE = leaf_page(
+    "quick keys",
+    """
+<h1 id="title">Field day</h1>
 <lf-ask id="map-ask">
-  <h2>Which map should the team carry?</h2>
+  <h3>Which map should the sample team carry?</h3>
   <lf-options id="map" choose>
     <lf-option id="map-street">Street map</lf-option>
     <lf-option id="map-trail">Trail map</lf-option>
   </lf-options>
 </lf-ask>
-<p id="lead">Read <a href="#t">the title</a> before choosing.</p>
-<div id="note-sample" tabindex="0">
-  <button id="note-focus" type="button">Write sample note</button>
-  <label>Sample note <input id="note" type="text" /></label>
-</div>""",
+<div id="local-shortcuts" tabindex="0">
+  <button id="shortcut-focus-note" type="button">Write sample note</button>
+  <label>Sample note <input id="shortcut-note" type="text" /></label>
+</div>
+""",
     head="""<script type="module">
-  import { commands } from "/runtime/widget-api.js";
-  const note = document.querySelector("#note");
-  commands(document.querySelector("#note-sample"), "In the note sample", [
-    {
-      id: "note.focus",
-      contextKeys: ["1"],
-      control: document.querySelector("#note-focus"),
-      bindingBadge: null,
-      title: "Write note",
-      description: "Focus the sample note",
-      run: () => note.focus(),
-    },
-  ]);
+import { commands } from "/runtime/widget-api.js";
+const note = document.querySelector("#shortcut-note");
+commands(document.querySelector("#local-shortcuts"), "In the note sample", [{
+  id: "note.focus",
+  contextKeys: ["1"],
+  control: document.querySelector("#shortcut-focus-note"),
+  bindingBadge: null,
+  title: "Write note",
+  description: "Focus the sample note",
+  run: () => note.focus(),
+}]);
 </script>""",
 )
 
 
 def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, serve):
     """One persistent policy covers page keys, contextual digits and their hints."""
-    page = open_page(browser, serve(QUICK_SHORTCUTS_PAGE))
+    page = open_page(browser, serve(QUICK_KEYS_PAGE))
     reference = page.locator(".lf-command-reference")
     setting = page.get_by_role("checkbox", name="Quick keyboard shortcuts", exact=True)
-    note = page.locator("#note")
-    button = page.locator("#note-focus")
-    sample = page.locator("#note-sample")
+    note = page.locator("#shortcut-note")
+    button = page.locator("#shortcut-focus-note")
+    sample = page.locator("#local-shortcuts")
 
     def settings():
         page.locator(".lf-banner-more").click()
@@ -16559,10 +16570,8 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     page.keyboard.type("Sent with quick shortcuts off")
     page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-page-comment-card")).to_be_hidden()
-    # Send closing the card hands focus to the card's own door.
-    expect(
-        page.get_by_role("button", name="Comment on the page", exact=True)
-    ).to_be_focused()
+    # Send closes the card onto the row's visible Comment control.
+    expect(page.locator(".lf-banner .lf-page-comment")).to_be_focused()
     told(page)
     assert any(
         event.get("text") == "Sent with quick shortcuts off"

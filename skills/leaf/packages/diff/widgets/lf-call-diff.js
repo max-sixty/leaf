@@ -7,7 +7,10 @@
  * native link's separate-tab, separate-window and context-menu routes. CallDiff
  * locations name the after tree for added and unchanged rows, and the before tree
  * for removed rows (calldiff's diffNode/pickLoc contract). Source navigation keeps
- * that side even when the same number names a different line on the other side. */
+ * that side even when the same number names a different line on the other side.
+ * Rows are keyed by call and placed with setChildren rather than a Lit repeat per root:
+ * a capture can move a call under another root, and a row leaving one repeat list
+ * for another is recreated, which would drop the focus of a user standing on it. */
 import {
   announce,
   html,

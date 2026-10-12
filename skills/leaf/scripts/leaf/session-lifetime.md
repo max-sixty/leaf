@@ -14,7 +14,7 @@ second fold.
 | page declaration: `waiting` or `idle`, detail | `status.json` | `leaf status`, which first writes a `put_down` to the log when a start stands | stands until the next declaration, and its age dates the page's other readings |
 | the item in hand: an update's event id or an open to-do's id, the line, and the claimant turn that wrote it, or none for another session's | an explicit `start` or an addressed progress reply's `start` metadata in `events.jsonl`, read by `tasks.start_reading` | `leaf task start`, or `leaf response reply --ephemeral` on an update owed, from a turn of the session driving the page | the item ending: an update's answer, or a to-do's end; a later `put_down` event, which `leaf status waiting` and `idle` write; and as a belief, a short grace after the turn that wrote it closes, about a quarter of an hour with no renewal, or at once when the claimant's lifetime has ended |
 | live App Server activity: session, turn, typed kind, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's task connection | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
-| live App Server reply: one displayed reply plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's reply; explicit `response reply` writes directly to the event log | the draft joins its thread once it has words, drawn under its response address, which the durable answer to that input shares, and remains on failure or disconnect until a logged event naming its delivery attempt or its response address retires it; each binding names the claim turn it belongs to (the delivery's turn once its reply opens, the turn standing at reservation before then), clears after durable commit or terminal failure, and survives a lost connection; it stands only while that is still the claim's turn and the turn is open (`activity.reply_binding_stands`), and a turn's answer committed after its binding lapsed yields to a reply another writer already gave |
+| live App Server reply: one displayed reply plus reply reservations by response address | optional `stream.reply` and `stream.reply_reservations` in `status.json` | an App Server connection bound to a delivery's reply; explicit `response reply` writes directly to the event log | the draft joins its thread once it has words, drawn under its response address, which the durable answer to that input shares, and remains on failure or disconnect until a logged event naming its delivery attempt or its response address retires it; each reply reservation names the claim turn it belongs to (the delivery's turn once its reply opens, the turn standing at reservation before then), clears after durable commit or terminal failure, and survives a lost connection; it stands only while that is still the claim's turn and the turn is open (`activity.reply_reservation_stands`), and a turn's answer committed after its reservation lapsed yields to a reply another writer already gave |
 | turn identity, when it last opened or took a prompt, and open or closed state | the session lifecycle record | a prompt, an explicit reader acknowledgement for an unnamed harness turn, the queue adapter observing Codex’s native transcript, or an App Server client following a provider turn opens `turn` and stamps `turn_opened`, or renews that stamp on a turn still open; the id is the harness's where it names one (Codex's hooks and App Server name the same turn) and one Leaf mints otherwise; the Stop hook stamps `turn_closed` on whatever turn is open, and an App Server client on the turn it follows | the next opening of another id; the next closing stamps it, and a closed id never reopens |
 | the harness's own word on the claimant's session: `idle`, `waiting` on a dialog, or `busy`, dated by its last change | the harness's record, read at each state read (`Harness.live_turn`): for Claude Code, the `status` of the session's newest registry record whose process runs | the harness | read live, so it moves with the harness; absent where the harness publishes nothing, as for a background job whose worker has retired |
 | the turn ending this page nudged its session after | `messaged_ending` in the page's claim record: the turn id and its close stamp, or for an interrupted turn its last opening | browser-event admission, once the harness's nudge lands | a later ending, a close under a new id or an interrupt after a new prompt renewed the same one, differs |
@@ -145,8 +145,8 @@ A current authored work declaration keeps the page's sentence and date. The
 observed step remains separately available as `observed` and `observed_kind`,
 with `awaiting` saying whether that step waits on the user in the agent's own window;
 where the declaration has no authored sentence, the observation supplies it.
-Only current observed work supplies a live subtype. Delivery floors and exact
-response bindings continue to govern local workflows and settlement, without
+Only current observed work supplies a live subtype. Delivery floors and reply
+reservations continue to govern local workflows and settlement, without
 making newer input erase overall page work. A page-wide observation alone never
 refines a message workflow. Thinking and tool activity stay page-wide until a harness
 provides an explicit input or subject binding; the current harness contract does not.
@@ -270,8 +270,8 @@ before planning or printing context, and a newer prompt protects its generation
 and turn.
 The App Server adapter presents at most one thread reply in each turn's
 chronological delivery slice, with an exact response reference and `writer: "turn"`;
-once the turn binds it, its workflow keeps the same reply operation and records
-that writer custody too. Its completed final-answer item finishes that
+once the turn's reply reservation holds it, its workflow keeps the same reply
+operation and records that writer too. Its completed final-answer item finishes that
 exact response; the hook lets the provider turn close, and the observer commits
 provider text through the canonical reply writer when the terminal notification
 arrives. An explicit addressed reply commits immediately through that same writer,
@@ -487,15 +487,15 @@ continues to handle approvals and user-input requests.
 
 The delivery record marks `starting` before a start request is sent. If its response
 is lost, the offer is never blindly sent again, including after adapter restart or
-when no streamed reply seat exists. Resuming reconciles the exact delivery identity
+when no reply reservation exists. Resuming reconciles the exact delivery identity
 in the provider transcript. Losing the subscription disconnects its reply and clears
 live activity without inventing an ending or releasing a running turn's reservation.
-A later provider completion settles it; a later session turn withdraws the old reply
-binding, so an explicit reply wins over a recovered final message. An uncertain start
-is never blindly repeated. Recovery exhausts full, paginated provider history;
+A later provider completion settles it; a later session turn withdraws the old
+reply reservation, so an explicit reply wins over a recovered final message. An
+uncertain start is never blindly repeated. Recovery exhausts full, paginated provider history;
 summary and unloaded items cannot settle an answer or prove absence. When complete
 history and a fresh idle reading show no matching delivery, Leaf abandons its own
-attempt, releases its reply seat and reports that delivery could not be confirmed
+attempt, releases its reply reservation and reports that delivery could not be confirmed
 and is not retried automatically. This does not assert that a provider turn failed.
 The archived immutable identity retains correlation for late provider evidence;
 a successful manual reply still wins. Accepted or abandoned deliveries without a
@@ -526,7 +526,7 @@ recovers the same binding — one resuming a task after the fact, or reading the
 task opened for a queued pointer. An embedded harness owns the provider task and
 interrupts its turn when its initiating stream fails; a terminal adapter observes a
 user-owned task and reconnects without interrupting it.
-Reply binding is the hook's contract above and, for the agent,
+The reply reservation follows the hook's contract above and, for the agent,
 `../../references/harness-codex-app-server.md`, "Replies". This is another transport over
 the same delivery, page claim, event log, and activity projection, not another
 thread store or response policy.

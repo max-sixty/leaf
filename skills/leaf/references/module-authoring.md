@@ -20,6 +20,8 @@ Rendering work that reaches a resting state uses `nextRender`, `nextFrame` and
 when the element leaves ("Connection lifetimes"). Continuous mechanical motion, such as recording playback, uses
 `nextAnimation` and `cancelAnimation`: it schedules browser frames without holding
 page readiness open. Cancel it when the motion stops or its owner leaves.
+Work that races its own cancellation awaits `aborted(signal)`, which resolves once the
+signal aborts: `Promise.race([work, aborted(signal)])`.
 
 `/runtime/widget-api.js` is the whole Leaf API a behavior module gets: a module imports
 only that public helper surface, and does not reach into the runtime's private owners,
@@ -160,6 +162,8 @@ that box. It also supports native recovery and repeated failures.
 `shadowStage(host, nodes)` owns the shadow root's structure and styles. For a
 template, stage a concrete container with `shadowStage(host, [container])` and
 call `render(template, container)`. Retain that container on later stage updates.
+`failSoft` on a staged host stages its error box in place of your nodes; your next
+`shadowStage` call replaces it.
 
 ## What a behavior module owes
 

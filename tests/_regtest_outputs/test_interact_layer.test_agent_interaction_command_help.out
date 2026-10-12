@@ -17,8 +17,10 @@ Options:
 ## leaf delivery read --help
 Usage: leaf delivery read [OPTIONS] DELIVERY_ID
 
-  Read input without confirming it. Follow its next and acknowledgement
-  instructions.
+  Print DELIVERY_ID, or one part of a large one, without confirming it.
+
+  Each part except the last gives the command for the next part in `next`; the
+  last gives in `acknowledge` how to confirm the delivery.
 
 Options:
   --part INTEGER RANGE  Read this numbered part of a large delivery.  [x>=1]
@@ -27,7 +29,8 @@ Options:
 ## leaf delivery ack --help
 Usage: leaf delivery ack [OPTIONS] DELIVERY_ID
 
-  Attest complete receipt after reading every part of DELIVERY_ID.
+  Confirm that every part of DELIVERY_ID is in your context, so its updates read
+  Picked up. Reread any part whose output is missing first.
 
 Options:
   --help  Show this message and exit.
@@ -35,16 +38,16 @@ Options:
 ## leaf page state --help
 Usage: leaf page state [OPTIONS] PAGE [ID]
 
-  Fold the log onto the active revision and print the result as one JSON object:
-  the active revision's file, standing state, reports, the Questions and Tasks
+  Print the page as it is now, as one JSON object: the active revision's file,
+  the current widget actions and workers' reports, the Questions and Tasks
   lists, thread summaries, versions, presence, and bound data. Read the active
   revision's HTML beside it for the document.
 
-  ID narrows the reading to what it names. A message, or a widget frozen into
-  one, names its thread: the reading is that thread with a page of its messages,
-  their frozen markup, and the state on its widgets, paged by --after and
-  --limit. A widget on the page names itself: its element, the actions and
-  reports standing on it, its asks and to-dos, and its workflows.
+  ID narrows the output to what it names. A message, or a widget frozen into
+  one, names its thread: the output is that thread with a page of its messages,
+  their frozen markup, and the state of its widgets, paged by --after and
+  --limit. A widget on the page names itself: its element, its current actions
+  and reports, its asks and to-dos, and its workflows.
 
 Options:
   --after SEQ            a thread's history after this sequence (default: from
@@ -76,10 +79,12 @@ Usage: leaf status [OPTIONS] PAGE {waiting|idle} [DETAIL]
   Say the page waits on its user, or that you are done with it.
 
   Use waiting with DETAIL naming the answer you want from the user; waiting
-  without DETAIL invites text comments. Either puts down every item you started
-  before it. Use idle when finished; unacknowledged input, unanswered user
-  updates and open to-dos prevent it. Work in hand is no status: name it with
-  `leaf task start`.
+  without DETAIL invites text comments. Use idle when you are finished; it is
+  refused while the page has updates, workers' reports or page errors nobody has
+  picked up, updates you owe an answer, or to-dos of yours still open. Either
+  one clears every `leaf task start` you made, so no update or to-do reads
+  Working; your to-dos stay open. Status has no working state: to show what you
+  are working on, run `leaf task start`.
 
 Options:
   --help  Show this message and exit.
@@ -109,9 +114,9 @@ Usage: leaf thread reply [OPTIONS] PAGE THREAD
 
   Post a new agent message to THREAD (--text or stdin).
 
-  A message is refused while the thread owes a response; answer its delivery
-  reference with `leaf response reply`. --ephemeral posts progress. Saved page
-  edits are validated and activated before posting.
+  A message is refused while the thread owes a response; answer it with `leaf
+  response reply <answer.ref>`. --ephemeral posts progress. Saved page edits are
+  validated and activated before posting.
 
 Options:
   --title TEXT   name the thread for the panel unless it has a name: a few
@@ -132,23 +137,25 @@ Options:
 ## leaf response reply --help
 Usage: leaf response reply [OPTIONS] REFERENCE
 
-  Answer the exact REFERENCE printed in a delivery's answer.ref.
+  Reply to the update REFERENCE names: the `answer.ref` its delivery printed.
 
   An answer says what it leaves the thread with: --done when it delivers what
   the message asked for, --ask when it asks the user something back, or --todo
   TITLE when it promises work it doesn't deliver, which stays on you as a to-do.
   Progress (--ephemeral) and failure receipts (--failure) take none of them.
 
-  Text, frozen HTML, titles and anchor moves share this command. It validates
-  and activates saved page edits, then commits the reply immediately. A
-  provider's later final yields to the recorded answer; failure receipts are
-  refused while that provider still owns the answer. Repeating a committed
-  reply's reference returns its earlier record; --attempt names retries of
-  progress.
+  The same command sets text, frozen HTML, the thread's title and a new anchor.
+  It validates and activates saved page edits, then posts the reply at once.
+  Once an answer posts, your turn's final message is not posted as a second
+  reply; progress (--ephemeral) does not stop that. Rerunning a reply that
+  posted prints the earlier reply instead of posting again; give a retried
+  --ephemeral progress line an --attempt so it posts once.
 
 Options:
-  --attempt TEXT  retry identity (ordinary replies default to the reference)
-  --failure TEXT  failure code when no answer is coming
+  --attempt TEXT  retry key: a rerun with the same key posts nothing new
+                  (default: the reference, except with --ephemeral)
+  --failure TEXT  failure code when no answer is coming; refused while your
+                  turn's final message is to be the reply
   --done          the reply delivers what the message asked for
   --title TEXT    name the thread for the panel unless it has a name: a few
                   words, at most 80 characters

@@ -528,8 +528,7 @@ dd {
 figcaption,
 caption,
 th:not([scope=row]),
-.facts dt,
-.lf-error {
+.facts dt {
   font-family: var(--sans);
   font-variant-numeric: tabular-nums;
 }
@@ -1071,25 +1070,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   color: var(--paper);
   font: 600 10px/14px var(--sans);
   text-align: center;
-}
-.lf-error {
-  border: 1px solid var(--danger);
-  background: var(--danger-tint);
-  color: var(--danger-ink);
-  border-radius: var(--r);
-  padding: 8px 12px;
-  font-size: var(--t-5);
-  white-space: normal;
-  --lf-block-frame: 1;
-}
-.lf-error pre {
-  margin: 8px 0 0;
-  white-space: pre;
-}
-@media print {
-  .lf-error pre {
-    white-space: pre-wrap;
-  }
 }
 [data-lf-reading-role=pane] > :not(header, footer)[data-lf-focus] {
   outline: none;

@@ -11,8 +11,9 @@ import {
   overlapsAcross,
   union,
 } from "./rect.js";
-import { cancelRender, nextRender } from "./rendering.js";
+import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
 import { watchScrolls } from "./arrivals.js";
+import { sampleVisibility } from "./sample-visibility.js";
 
 /* Shared readings of the boxes the page actually shows.
 
@@ -45,9 +46,9 @@ import { watchScrolls } from "./arrivals.js";
      of the box it belongs to;
    - `clippedContents` when the subject has no element box of its own;
    - `placeBox` and `clippedPlace` for a destination that is an element or a Range;
-   - `presented`, `frameView`, `containingView` and `holdingFrames` for whether the
-     page puts a box before the user at all, what the pages holding this one show of
-     its window, and which frames hold it.
+   - `presented`, `frameView` and `containingView` for whether the page puts a box
+     before the user at all and what the pages holding this one show of its window, and
+     `watchRoom` for when any of those readings may have changed.
 
    `skipped` is asked first by a reading that can leave out a box the browser is not
    drawing, since reading one in skipped content forces that content's style and layout.
@@ -85,13 +86,23 @@ export const shellRight = () => document.body.getBoundingClientRect().right;
 // each of its edges. `viewport: "layout"` reads the room in the layout viewport instead,
 // the window the page scrolls through, for a caller asking whether a scroll has carried
 // something out of the page's room rather than whether the user can see it.
+//
+// Each bar's owner also hands over the elements it draws, and a change of their size is
+// announced as `ROOM_MOVED` (`watchRoom`), as is an occluder's (`declareOccluder`): a
+// coarse pointer arriving deepens the banner's rows, the shortcut bar wraps as its hints
+// change, and a panel opens, shuts or is dragged wider, each with no scroll or resize
+// for a reader to hear.
 let banner = null;
 let bottomBar = () => [];
+const chromeSizes = sizeObserver(() => announceRoom(document));
+const watchChrome = (element) => chromeSizes.observe(element, { box: "border-box" });
 export const declareBanner = (element) => {
   banner = element;
+  watchChrome(element);
 };
-export const declareBottomBar = (boxes) => {
+export const declareBottomBar = (boxes, elements) => {
   bottomBar = boxes;
+  elements.forEach(watchChrome);
 };
 export const bannerFoot = () => banner?.getBoundingClientRect().bottom ?? 0;
 // The layout viewport's box, less the scrollbars the root draws at its edges, where
@@ -735,16 +746,57 @@ Object.defineProperty(document, FRAME_VIEW, {
   },
 });
 // The frames holding this page, innermost first, as far as same-origin holders reach.
-export function* holdingFrames() {
+// An isolated sample's holder is another origin, which answers over the sample's port,
+// and WebKit reports even reading `frameElement` there as a sandbox violation.
+function* holdingFrames() {
+  if (sampleVisibility()) return;
   for (let frame = window.frameElement; frame;) {
     yield frame;
     frame = frame.ownerDocument.defaultView.frameElement;
   }
 }
 export function containingView() {
-  const frame = window.frameElement;
+  const [frame] = holdingFrames();
   if (!frame) return window === window.top ? layoutWindow() : null;
   return frame.ownerDocument[FRAME_VIEW]?.(frame) ?? null;
+}
+// Everything besides a reader's own boxes that changes what `seenRect` and
+// `containingView` read, so a reader of what the user sees watches it here rather than
+// keeping its own list: a scroll, a shadow stage's included (`watchScrolls`), or a resize
+// of this window or of any page holding it,
+// their visual viewports, which a soft keyboard or a pinch-pan moves without either, a
+// layer closing, chrome the room is measured against changing size or ending a slide
+// (`ROOM_MOVED`), and each holding frame moving in its holder's viewport, which no event
+// in either page announces. Returns the call that stops watching.
+export const ROOM_MOVED = "lf-room-moved";
+export const announceRoom = (target) =>
+  target.dispatchEvent(new Event(ROOM_MOVED, { bubbles: true, composed: true }));
+export function watchRoom(callback) {
+  const stops = [];
+  const watch = (win) => {
+    const listen = (target, type, capture) => {
+      target?.addEventListener(type, callback, capture);
+      stops.push(() => target?.removeEventListener(type, callback, capture));
+    };
+    if (win === window) stops.push(watchScrolls(callback));
+    else listen(win, "scroll", true);
+    listen(win, "resize", false);
+    listen(win.visualViewport, "scroll", false);
+    listen(win.visualViewport, "resize", false);
+    listen(win.document, "close", true);
+    listen(win.document, ROOM_MOVED, true);
+  };
+  watch(window);
+  for (const frame of holdingFrames()) {
+    const owner = frame.ownerDocument.defaultView;
+    const moves = new owner.IntersectionObserver(callback, { threshold: [0, 1] });
+    moves.observe(frame);
+    stops.push(() => moves.disconnect());
+    watch(owner);
+  }
+  return () => {
+    for (const stop of stops) stop();
+  };
 }
 // Where, in the window's coordinates, a change of size at `item` would move what the
 // user sees, as `{top, bottom}`, or null where it would move nothing seen. A change
@@ -1091,7 +1143,12 @@ const standingBox = (surface) => ({
 });
 export const declareOccluder = (surface) => {
   occluders.add(surface);
-  return () => occluders.delete(surface);
+  watchChrome(surface);
+  return () => {
+    occluders.delete(surface);
+    chromeSizes.unobserve(surface);
+    announceRoom(document);
+  };
 };
 // Where the surface standing at the window's right edge begins, or Infinity where none
 // stands: the side panel, Threads or Questions, whichever is open (drawers.js). What is

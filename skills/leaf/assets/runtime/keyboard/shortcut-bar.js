@@ -218,7 +218,7 @@ export const bottomChromeBoxes = () => [
   ...boxesOf([shortcutBarEl]),
   ...standingStatusBoxes(),
 ];
-declareBottomBar(bottomChromeBoxes);
+declareBottomBar(bottomChromeBoxes, [shortcutBarEl, bottomStatusEl]);
 
 // ---------- the shortcut bar ----------
 // The rows the line shows, innermost scope first: the ones carrying a word for it. Each

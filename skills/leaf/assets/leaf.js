@@ -283,10 +283,9 @@ const auxiliarySurfaces = createAuxiliarySurfaces({
     repaint();
     anchorPaint?.refreshHover();
   },
-  // Auxiliary reach changes exposure without moving the retained message bodies.
-  // A comment box displaced by that reading also asks presentation for its new seat.
+  // A comment box displaced by what stands over the page asks presentation for its
+  // new seat.
   reachChanged: () => {
-    app.read.exposureChanged();
     if (responseSurface.fabAnchorAt()) void app.invalidateDom();
   },
 });

@@ -718,7 +718,9 @@ nothing, and the exit status ignores it. The command fails only where the packag
 check does or the examples cannot be drawn; where no browser launches, it says the
 examples were not drawn. Examples share a
 page where their ids allow, so one example may point at an element another declares,
-and a blank image stands in for any media an example names. The checks:
+and a blank image stands in for any media an example names. `--json` prints the
+result as one object in the shape `page check --json` prints, each finding a record
+with its `code`, the element it names as `at`, and the measured `values`. The checks:
 
 - `example`: no worked example shows the tag, so no other check reads it.
 - `keeps-first-box`: the widget's box once the page presents differs from its box at

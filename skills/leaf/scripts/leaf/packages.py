@@ -428,14 +428,37 @@ def cmd_package_init(package: Path, widget: str | None = None) -> Path:
         return package
 
 
-def cmd_package_check(package: Path, render: bool = False) -> int:
+def cmd_package_check(
+    package: Path, render: bool = False, as_json: bool = False
+) -> int:
+    """Check the package, and with `render` its widgets' worked examples in the
+    host's browser. With `as_json`, print one object in `page check --json`'s shape:
+    `status`, the exit status; `findings`, each widget quality finding as a record;
+    and `browser`, what the browser gate ran in or why none could, null without
+    `render`. A package that fails its check raises, as it does without `as_json`."""
     package, _, _ = check_package(package, require_exists=True)
-    print(f"checked {package}", flush=True)
+    if not as_json:
+        print(f"checked {package}", flush=True)
     if not render:
+        if as_json:
+            print(json.dumps({"status": 0, "findings": [], "browser": None}))
         return 0
-    from .render_gate.command import widget_quality_report
+    from .render_gate.command import print_widget_quality, widget_quality
 
-    return widget_quality_report(package)
+    check = widget_quality(package)
+    if not as_json:
+        return print_widget_quality(check)
+    print(
+        json.dumps(
+            {
+                "status": check.status,
+                "findings": [finding.json() for finding in check.findings],
+                "browser": check.json(),
+            },
+            ensure_ascii=False,
+        )
+    )
+    return check.status
 
 
 def cmd_package_install(source: Path) -> Path:

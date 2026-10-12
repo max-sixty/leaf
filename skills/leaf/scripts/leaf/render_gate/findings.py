@@ -408,6 +408,9 @@ _TEXT = {
         f" page misbehaves, `leaf page init {v['page']}` re-vendors it."
     ),
     # The widget quality report, for a widget's author.
+    "unreadable-examples": lambda at, v: (
+        f"widget examples could not be drawn: {v['error']}"
+    ),
     "example": lambda at, v: f"{at} example: no worked example shows it",
     "keeps-first-box": lambda at, v: (
         f"{at} keeps-first-box: first painted {_size(v['first'])},"

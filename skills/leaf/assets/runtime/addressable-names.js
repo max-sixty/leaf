@@ -46,7 +46,7 @@ export function addressableWord(addressable) {
     const own = addressable.lfWord?.();
     if (own) return own;
   }
-  if (registry[tag]?.["x-question-context"]) return "question";
+  if (registry[tag]?.["x-ask-context"]) return "question";
   if (tag.startsWith("lf-")) return tag.slice(3);
   if (tag === "pre")
     return addressable.querySelector(":scope > code") ? "code" : "block";

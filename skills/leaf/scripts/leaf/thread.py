@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from leaf.activity import answer_command, reply_command
+from leaf.asks import asking, local_ask_entry, quoted_in
 from leaf.delivery import (
     ReceiptRefused,
     current_responses,
@@ -30,7 +31,6 @@ from leaf.projection import (
     retirement_outcomes,
     rewritten_bodies,
 )
-from leaf.questions import asking, local_question_entry, quoted_in
 from leaf.refusals import Refused
 from leaf.registry.schema import json_value
 from leaf.revision_artifact import active_enclosing, read_revision
@@ -376,13 +376,13 @@ def post_reply(
 
     ``ask`` makes the reply a prose ask on the user (`questions`).
     ``todo`` titles work the reply promises and does not deliver: the reply opens
-    that to-do on its thread, under the reply's own id (`tasks.task_reading`), so
+    that to-do on its thread, under the reply's own id (`todos.todo_reading`), so
     the user's message is answered and the work stays on the agent in one write.
 
     ``ephemeral`` posts progress at the same response address without answering it.
     It remains content, and cannot carry an ask, a to-do, widgets, failure or relocation.
     Progress on an update the agent owes says what it has in hand, so it also takes that
-    update in hand with its text as the line (`tasks.start_reading`), which is why that
+    update in hand with its text as the line (`todos.start_reading`), which is why that
     text is one line: the update reads Working beside its thread and in the banner, and
     the user's message gets the agent's first words and its Working line from one
     write.
@@ -703,7 +703,7 @@ def _compose_and_append(
             {
                 rec["tag"]
                 for rec in fragment.lf_elements
-                if local_question_entry(registry.get(rec["tag"]) or {})
+                if local_ask_entry(registry.get(rec["tag"]) or {})
                 and asking(rec["attrs"], registry[rec["tag"]]["x-awaits"].get("when"))
                 and not quoted_in(rec, registry)
             }

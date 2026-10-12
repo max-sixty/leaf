@@ -48,16 +48,16 @@ function unreadContent(threadView) {
 
 function userObligations(page, threadView) {
   const held = new Map();
-  for (const question of page.asks.user)
-    held.set(JSON.stringify(["page", question.id]), {
-      source: question.id,
+  for (const ask of page.asks.user)
+    held.set(JSON.stringify(["page", ask.id]), {
+      source: ask.id,
       thread: null,
     });
-  for (const question of threadView.asks.user) {
-    const version = question.source.kind === "reply" ? question.source.version : null;
-    held.set(JSON.stringify(["thread", question.thread, question.id, version]), {
-      source: question.id,
-      thread: question.thread,
+  for (const ask of threadView.asks.user) {
+    const version = ask.source.kind === "reply" ? ask.source.version : null;
+    held.set(JSON.stringify(["thread", ask.thread, ask.id, version]), {
+      source: ask.id,
+      thread: ask.thread,
     });
   }
   return held;

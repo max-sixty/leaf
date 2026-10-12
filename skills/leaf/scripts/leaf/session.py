@@ -57,11 +57,11 @@ STOP_HOOK_S = 20
 
 def cmd_waiting(page_dir: Path, detail: str) -> tuple[dict, list[dict]]:
     """Declare the page waiting on its user, putting down every start that stands
-    (`tasks.put_down`), and return the declaration, with the updates still owed an
+    (`todos.put_down`), and return the declaration, with the updates still owed an
     answer, which the page goes on showing over it."""
     from .revisioning import activate_source
     from .served_state.context import read_page
-    from .tasks import put_down
+    from .todos import put_down
 
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, transaction=page)
@@ -85,7 +85,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
     or an acknowledgement advancing the cursor orders against them."""
     from .activity import blocking_obligations, unanswered
     from .served_state.context import read_page
-    from .tasks import put_down
+    from .todos import put_down
 
     with PageTransaction(page_dir) as page:
         events = page.events
@@ -116,10 +116,10 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
             )
         # A task is work the agent still owes, which closing the page would leave
         # standing on a page nobody holds.
-        if tasks := work.durable.log.owed:
-            named = "; ".join(f"{task['id']} ({task['title']})" for task in tasks)
+        if todos := work.durable.log.owed:
+            named = "; ".join(f"{todo['id']} ({todo['title']})" for todo in todos)
             raise Refused(
-                f"{len(tasks)} open to-do{'s' if len(tasks) != 1 else ''}: {named}. "
+                f"{len(todos)} open to-do{'s' if len(todos) != 1 else ''}: {named}. "
                 "End each before idling with "
                 '`leaf task end <page> <id> done "<where the result is>"`, or '
                 '`dropped "<why>"`.'

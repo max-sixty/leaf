@@ -1,7 +1,7 @@
 """Registry-declared markup instance validation."""
 
+from leaf.asks import asking, local_ask_entry, quoted_in
 from leaf.projection import enclosing_widgets
-from leaf.questions import asking, local_question_entry, quoted_in
 from leaf.registry.contract import (
     is_element_name,
     registry_path,
@@ -174,7 +174,7 @@ def unasked(rec: dict, entry: dict) -> str:
     )
 
 
-def question_context_errors(lf_elements: list, registry: dict) -> list:
+def ask_context_errors(lf_elements: list, registry: dict) -> list:
     """A context supplies a leading title and arrival region for nested Questions.
 
     Context never owns Question identity or registration. Any number of sources
@@ -189,7 +189,7 @@ def question_context_errors(lf_elements: list, registry: dict) -> list:
             (
                 holder
                 for holder in enclosing_widgets(rec)
-                if registry.get(holder["tag"], {}).get("x-question-context")
+                if registry.get(holder["tag"], {}).get("x-ask-context")
             ),
             None,
         )
@@ -198,15 +198,13 @@ def question_context_errors(lf_elements: list, registry: dict) -> list:
         return f"id={json_value(rec['attrs']['id'])}" if "id" in rec["attrs"] else ""
 
     regions = [
-        rec
-        for rec in lf_elements
-        if registry.get(rec["tag"], {}).get("x-question-context")
+        rec for rec in lf_elements if registry.get(rec["tag"], {}).get("x-ask-context")
     ]
     framed = {id(region): [] for region in regions}
     for rec in lf_elements:
         entry = registry.get(rec["tag"], {})
         region = context_of(rec)
-        if local_question_entry(entry) and region and not quoted_in(rec, registry):
+        if local_ask_entry(entry) and region and not quoted_in(rec, registry):
             framed[id(region)].append((rec, unasked(rec, entry)))
     errors = []
     for region in regions:
@@ -505,7 +503,7 @@ def instance_errors(lf_elements: list, registry: dict) -> list:
         + layout_errors(lf_elements, registry)
         + visual_part_errors(lf_elements, registry)
         + addressable_instance_errors(lf_elements, registry)
-        + question_context_errors(lf_elements, registry)
+        + ask_context_errors(lf_elements, registry)
         + declared_word_errors(lf_elements, registry)
         + unique_errors(lf_elements, registry)
     )

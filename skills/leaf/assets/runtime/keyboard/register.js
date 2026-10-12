@@ -61,7 +61,7 @@ const STACK = [
   // themselves.
   "standing",
   // A task on the user that the walk stands on, whose Done this scope carries.
-  "task",
+  "todo",
   "versions",
   "composer",
   "text entry",

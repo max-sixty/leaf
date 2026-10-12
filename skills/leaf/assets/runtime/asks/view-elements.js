@@ -6,4 +6,4 @@
 
 // Focusable offered chrome: native buttons carry their tab stop implicitly, while the
 // selectable-control exception states one explicitly.
-export const QUESTION_CONTROL = ":is(button[data-lf-offer], [data-lf-offer][tabindex])";
+export const ASK_CONTROL = ":is(button[data-lf-offer], [data-lf-offer][tabindex])";

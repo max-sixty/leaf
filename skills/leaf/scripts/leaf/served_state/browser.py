@@ -2,6 +2,7 @@
 
 from typing import NamedTuple
 
+from ..asks import approval_blocking, collection
 from ..document_reading import DocumentReading
 from ..events import UndoReading, is_reaction
 from ..files import stamped_version
@@ -13,7 +14,6 @@ from ..projection import (
     canonical_reports,
     page_reading,
 )
-from ..questions import approval_blocking, collection
 from ..schema import WIDGET_KINDS
 from ..thread_context import thread_memberships
 from ..work_reading import WorkReading
@@ -204,7 +204,7 @@ def _apply_thread_attention(
     the page's, enriched with delivery liveness."""
     for thread in threads:
         thread["after"] = {}
-    current = _readings(threads, durable.questions, workflows, todos)
+    current = _readings(threads, durable.asks, workflows, todos)
     for thread in threads:
         thread["attention"] = current[thread["id"]][0]
     base = durable.events[-1]["seq"] if durable.events else 0
@@ -213,7 +213,7 @@ def _apply_thread_attention(
     settling = tuple(name for name, token in tokens.items() if token.get("settles"))
     prompts = {
         identity: reading.prompt["message"] if reading.prompt else None
-        for identity, reading in durable.thread_questions.items()
+        for identity, reading in durable.thread_asks.items()
     }
     for kind in _SUPPOSED:
         supposed = {
@@ -232,7 +232,7 @@ def _apply_thread_attention(
             continue
         reading = durable.supposing(list(supposed.values()))
         workflows = served_workflows(reading.workflows, reading.thread)
-        after = _readings(reading.threads.values(), reading.questions, workflows, todos)
+        after = _readings(reading.threads.values(), reading.asks, workflows, todos)
         for thread in threads:
             gesture = supposed.get(thread["id"])
             if gesture is None:
@@ -294,7 +294,7 @@ def browser_state(
         absorbed=active_page.projection.absorbed,
     )
     workflows = work.workflows
-    todos, ended_todos = durable.page_tasks(work.activity["tasks"])
+    todos, ended_todos = durable.page_todos(work.activity["todos"])
     agent_todos = [todo for todo in todos if todo["owner"] == "agent"]
 
     views = {}
@@ -375,7 +375,7 @@ def browser_state(
     activity = {
         key: value
         for key, value in work.activity.items()
-        if key not in {"workflows", "tasks"}
+        if key not in {"workflows", "todos"}
     }
     if wants_history(readings[revision] for revision in view_revisions):
         words = GestureWords(events, active_registry, revisions or readings.__getitem__)

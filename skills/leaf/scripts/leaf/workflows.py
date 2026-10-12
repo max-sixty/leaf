@@ -68,8 +68,8 @@ from .projection import (
     generated_children,
     recorded_state,
 )
-from .tasks import (
-    TaskReading,
+from .todos import (
+    TodoReading,
 )
 
 
@@ -87,16 +87,16 @@ def obligation_reading(readings) -> dict:
     page = work.page
     thread = work.thread
     workflows = work.workflows
-    thread_questions = work.widget_questions
+    thread_asks = work.widget_asks
     prompts = work.prompts
     in_hand = [
         (item["id"], item["subject"])
         for item in workflows
         if item["stage"] == "working"
     ] + [
-        (task["id"], task["subject"])
-        for task in work.log.owed
-        if task["subject"]["kind"] != "page"
+        (todo["id"], todo["subject"])
+        for todo in work.log.owed
+        if todo["subject"]["kind"] != "page"
     ]
     inputs = [
         source
@@ -108,25 +108,25 @@ def obligation_reading(readings) -> dict:
     return {
         "questions": {
             "page": [
-                question["id"]
-                for question in work.document.questions["unanswered"]
-                if question["next_actor"] is not None
+                ask["id"]
+                for ask in work.document.asks["unanswered"]
+                if ask["next_actor"] is not None
             ]
             if page is not None
             else [],
             "thread": [
-                question["id"]
-                for question in thread_questions["unanswered"]
-                if question["next_actor"] is not None
+                ask["id"]
+                for ask in thread_asks["unanswered"]
+                if ask["next_actor"] is not None
             ],
             "prompts": {
                 identity: prompt["message"] for identity, prompt in prompts.items()
             },
             # The tasks the agent put on the user, which their Done ends.
-            "tasks": [
-                task["id"]
-                for task in work.log.tasks
-                if task["owner"] == "user" and task["state"] == "open"
+            "todos": [
+                todo["id"]
+                for todo in work.log.todos
+                if todo["owner"] == "user" and todo["state"] == "open"
             ],
         },
         "answers": [item["answer"] for item in workflows if item["answer"] is not None],
@@ -212,12 +212,12 @@ def canonical_workflows(
     *,
     page: PageReading | None = None,
     events: list | None = None,
-    task_reading: TaskReading | None = None,
-    questions: dict,
+    todo_reading: TodoReading | None = None,
+    asks: dict,
 ) -> list[dict]:
     """The unsettled user inputs and strongest evidence held for each.
 
-    A standing start (`tasks.item_starts`) holds an update it names, and a start running
+    A standing start (`todos.item_starts`) holds an update it names, and a start running
     on an open task over a widget holds that widget's actions delivered before it, as
     the work the task answers. A `put_down` in the log, which `leaf status waiting`
     and `idle` write, ends every start before it, so the updates they named are no
@@ -227,7 +227,7 @@ def canonical_workflows(
     This is one interaction-scoped projection over the document and log: append
     means Sent, queue acceptance means Queued, entry into an exact agent turn
     means Picked up, and a `start` naming the update means Working
-    (`tasks.item_starts`). Replies
+    (`todos.item_starts`). Replies
     and authored state settle the source update, so the workflow disappears instead
     of becoming a second outcome surface; a failed response instead keeps an
     answered workflow whose next actor is the user. Consecutive inputs retain distinct
@@ -263,12 +263,12 @@ def canonical_workflows(
         for event_id, ref in event.get("refs", {}).items():
             refs.setdefault(event_id, {})[ref["claim"]] = ref["ref"]
 
-    log = task_reading or TaskReading(events)
+    log = todo_reading or TodoReading(events)
     starts = log.starts
     widget_starts: dict[str, list[dict]] = {}
-    for task in log.owed:
-        if task["running"] and task["subject"]["kind"] == "widget":
-            widget_starts.setdefault(task["subject"]["id"], []).append(task["running"])
+    for todo in log.owed:
+        if todo["running"] and todo["subject"]["kind"] == "widget":
+            widget_starts.setdefault(todo["subject"]["id"], []).append(todo["running"])
 
     def delivered_at(source: dict) -> int:
         delivery = deliveries.get(source["id"], {})
@@ -496,10 +496,10 @@ def canonical_workflows(
             {"kind": "reply", "to": thread_id, "for": source["id"]} if owed else None
         )
 
-    question_by_source = {
-        question["source"]["id"]: question
-        for question in questions["all"]
-        if question["source"]["kind"] == "widget"
+    ask_by_source = {
+        ask["source"]["id"]: ask
+        for ask in asks["all"]
+        if ask["source"]["kind"] == "widget"
     }
     documents = []
     if page is not None:
@@ -516,10 +516,10 @@ def canonical_workflows(
         for coordinate, (source, spec) in projection.actions.items():
             if source["author"] != "user":
                 continue
-            question = question_by_source.get(source["widget"])
-            if question is not None and question["status"] == "open":
+            ask = ask_by_source.get(source["widget"])
+            if ask is not None and ask["status"] == "open":
                 continue
-            owed = question is not None and question["status"] == "answered"
+            owed = ask is not None and ask["status"] == "answered"
             unsettled, answer = settlement(coordinate, source, spec, owed)
             actions.append(
                 (

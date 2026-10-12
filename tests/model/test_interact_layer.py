@@ -742,7 +742,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "hooks/codex.json",
         "hooks/scripts/background-watch.py",
         "skills/leaf/SKILL.md",
-        "skills/leaf/references/authoring-questions.md",
+        "skills/leaf/references/authoring-asks.md",
         "skills/leaf/references/authoring-evidence.md",
         "skills/leaf/references/authoring-revisions.md",
         "skills/leaf/references/codex-watcher.md",
@@ -1636,7 +1636,7 @@ def test_layer_style_sources_consume_the_runtime_layout_names():
         "--lf-" + constant(r'getPropertyValue\("--lf-([a-z-]+)"\)', surfaces) + ":",
         "var(" + constant(r'^const THREAD_PANEL_PROP = "([^"]+)";', edges) + ")",
         "var(" + constant(r'^const DRAWER_SLOT_PROP = "([^"]+)";', edges) + ")",
-        "[" + constant(r'^  question: "([^"]+)",', page_paint) + "]",
+        "[" + constant(r'^  ask: "([^"]+)",', page_paint) + "]",
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
     for spelling in (

@@ -9,7 +9,7 @@
 # listing them as page media, or naming `leaf page media`, made base embed them 3/3.
 # Across 9 base and 12 candidate runs at 35c660aee and 3fe3eb0af, base passed 0/9
 # and never put a picture of today in the ask; the shape-shown-inside-the-ask rule
-# in authoring-questions.md passed about half. Its misses put the figure just before
+# in authoring-asks.md passed about half. Its misses put the figure just before
 # the lf-ask or skipped one defect. The wording guardrail failed in 2 of 18
 # candidate runs, each on a flow diagram of the agent's recovery path.
 description: proposals-show-what-they-change

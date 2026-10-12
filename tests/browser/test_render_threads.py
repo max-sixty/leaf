@@ -38,8 +38,8 @@ from render_cases_interaction import (
     PHOTO_THREAD,
     PROJECTOR_THREAD,
     SEATED_ASK_LAYER,
+    SEATED_ASK_PAGE,
     SEATED_ASK_WIDGETS,
-    SEATED_QUESTION_PAGE,
     THREAD_DIFF_PAGE,
     WORKSHOP_THREAD_EVENTS,
     WORKSHOP_THREADS_PAGE,
@@ -978,7 +978,7 @@ def test_an_inline_reply_link_reveals_its_thread(browser, serve, resolved):
     """A direct reply link opens and cues the exact message, even in a long thread or
     in the Resolved state. The surrounding card can span more than a viewport,
     so using it as the arrival flash obscures the destination the link named."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
     )
@@ -1063,7 +1063,7 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     The messages before and after the range are controls: hiding either would mean the
     presentation collapsed by position rather than by the summary's declared ids.
     """
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = panel_comment(
         serve.page_dir, "Keep the opening question visible.", {"section": "jobs"}
     )
@@ -1172,7 +1172,7 @@ def test_previous_progress_messages_can_fold_without_summary_prose(browser, serv
     """The same disclosure keeps progress available without an authored digest."""
     # The disclosure is the same at any width; the narrow one has the least room.
     width = 390
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = panel_comment(
         serve.page_dir, "Please check the schedule.", {"section": "jobs"}
     )
@@ -1217,7 +1217,7 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     browser, serve, surface, interleaved
 ):
     """The answer and its fold arrive together; originals remain a keyboard route."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = panel_comment(serve.page_dir, "Check the schedule.", {"section": "jobs"})
     progress = thread_model.post_reply(
         serve.page_dir,
@@ -1729,9 +1729,9 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     expect(card.locator(f'.lf-msg[data-mid="{third["id"]}"]')).to_be_visible()
 
 
-def test_a_summary_cannot_hide_an_active_question(browser, serve):
+def test_a_summary_cannot_hide_an_active_ask(browser, serve):
     """A checkpoint with a user obligation is context, never a closed cover."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
     )
@@ -1777,7 +1777,7 @@ def test_a_summary_cannot_hide_an_active_question(browser, serve):
 
 def test_a_held_inline_reply_reveal_yields_to_new_user_focus(browser, serve):
     """The production reply link cannot retake focus after its list reveal settles."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
     )
@@ -1999,7 +1999,7 @@ def test_z_leaves_the_user_in_a_seated_thread_they_resolved(browser, serve):
     """A thread seated on the page folds where it stands when resolved, so the user
     never left it, and taking the resolve back moves them nowhere either: not to
     Threads, and not to a margin card for the same thread."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -2390,7 +2390,7 @@ def test_settlement_controls_share_one_request_across_page_and_panel(
 ):
     """Mirrored controls share optimistic resolution, delivery, and reopening."""
     browser, held = held_events
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -2456,7 +2456,7 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
     tick or state read.
     """
     browser, held = held_events
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -5443,7 +5443,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     # The card the narrowing hides keeps its node. A widget an agent sent in a reply is
     # instantiated once, in that card, and the Ask reading and the Questions panel find it by
     # id in the document — hidden is the list's business, gone would be a claim about the
-    # log (test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page).
+    # log (test_a_narrowing_hides_a_thread_without_taking_its_ask_off_the_page).
     expect(
         page.locator(f'.lf-threads > .lf-thread[hidden][data-id="{mine}"]')
     ).to_have_count(1)
@@ -6535,7 +6535,7 @@ def test_an_external_resolution_keeps_a_panel_reply_until_it_is_sent(
 
 def test_an_inline_reply_link_finishes_a_resolution_fold(browser, serve):
     """A direct jump uses the resolved card, even before its outgoing fold ends."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
     reply = thread_model.post_reply(
         serve.page_dir,
@@ -8302,9 +8302,7 @@ def test_the_line_offers_the_thread_g_t_lands_on_its_own_keys(browser, serve):
     expect(card.locator("leaf-text")).to_be_focused()
 
 
-def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
-    browser, serve
-):
+def test_a_narrowing_hides_a_thread_without_taking_its_ask_off_the_page(browser, serve):
     """Thread narrowing changes presentation, not the admitted Question inventory.
 
     After both Questions are answered, hiding a thread with the On you filter keeps
@@ -10334,7 +10332,7 @@ def test_a_wheel_during_a_resolution_fold_outranks_the_landing_after_it(browser,
     assert threads.evaluate("list => list.scrollTop") == pytest.approx(wheeled, abs=2)
 
 
-def test_a_walk_to_a_question_the_narrowing_hides_widens_the_list(browser, serve):
+def test_a_walk_to_an_ask_the_narrowing_hides_widens_the_list(browser, serve):
     """A card the narrowing hid keeps its node, so the `q` walk can still name the
     question in it — and arriving there has to show it, the way showThread does:
     focus on a card with no box is a no-op and the announcement would say "1 of 2"

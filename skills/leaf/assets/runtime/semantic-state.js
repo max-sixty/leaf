@@ -83,7 +83,7 @@ export const attachWidgetPresentation = (widget, kind, renderer) => {
 export const PRESENTATION_ORDER = Object.freeze({
   projection: 0,
   thread: 1,
-  questions: 2,
+  asks: 2,
   queue: 3,
 });
 

@@ -27,11 +27,11 @@ import {
   registerNoticePresentation,
 } from "./notifications.js";
 import { watchProjection } from "./projection-watch.js";
-import { readQuestions } from "./questions/model.js";
+import { readAsks } from "./asks/model.js";
 import { createBannerStatusView } from "./banner-status-view.js";
 import { declareBanner } from "./geometry.js";
 import { agentName, watchSemantic } from "./semantic-state.js";
-import { taskNoun } from "./queues.js";
+import { itemNoun } from "./queues.js";
 import { readQueues } from "./queue-api.js";
 
 export const banner = el("header", "lf-ui lf-banner");
@@ -332,10 +332,10 @@ const QUEUE_WORDS = Object.freeze({
 function queueKinds(items) {
   const byKind = new Map();
   for (const item of items)
-    byKind.set(taskNoun(item), [...(byKind.get(taskNoun(item)) ?? []), item]);
+    byKind.set(itemNoun(item), [...(byKind.get(itemNoun(item)) ?? []), item]);
   return [...byKind].map(([kind, all]) => {
     const words = `${all.length} ${QUEUE_WORDS[kind][all.length === 1 ? 0 : 1]}`;
-    // A to-do outlasts the turns and the thread that opened it (`tasks.py`), so each
+    // A to-do outlasts the turns and the thread that opened it (`todos.py`), so each
     // open one is named, including one on a thread the user has resolved.
     return kind === "todo"
       ? `${words} (${all.map((todo) => todo.title).join(" · ")})`
@@ -969,11 +969,11 @@ function reserveBannerControls() {
 
 let approving = false;
 
-// `blockingQuestions` is the unanswered asks that hold approval, or null before the page has
+// `blockingAsks` is the unanswered asks that hold approval, or null before the page has
 // read the log and so cannot say which those are.
-export function paintApproval(blockingQuestions) {
-  const approved = readQuestions().all.some(
-    (question) => question.source.kind === "approval" && question.status === "answered",
+export function paintApproval(blockingAsks) {
+  const approved = readAsks().all.some(
+    (ask) => ask.source.kind === "approval" && ask.status === "answered",
   );
   // The word and the title turn over together. The title read "Approve this work; the
   // page stays open for follow-up" whether or not the work had been approved, so the one
@@ -986,9 +986,9 @@ export function paintApproval(blockingQuestions) {
     ? "Approved. Press z to undo while approval is still your latest update"
     : runtime.currentStamp === null
       ? "There is no stamped version to approve yet"
-      : !signoff || !pagePresented() || blockingQuestions === null
+      : !signoff || !pagePresented() || blockingAsks === null
         ? AWAITING_STATE
-        : blockingQuestions.length
+        : blockingAsks.length
           ? "Answer every ask before approving this work"
           : null;
   presentApproval({

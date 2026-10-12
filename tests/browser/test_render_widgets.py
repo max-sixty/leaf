@@ -1274,7 +1274,7 @@ def test_a_side_list_workspace_scrolls_its_list_and_its_item_apart(browser, serv
     assert stacked["page"] <= 0 and stacked["item"][1] > 0, stacked
 
 
-def test_side_tabs_distinguish_withdrawn_questions_from_answers(browser, serve):
+def test_side_tabs_distinguish_withdrawn_asks_from_answers(browser, serve):
     """A row's mark says its item's asks are open until every one is answered, and
     withdrawal retires a request without claiming the user answered it: a row whose
     only ask was withdrawn shows no mark, and one whose other ask is answered shows
@@ -5503,10 +5503,10 @@ def test_the_ask_walk_lands_on_a_suggestion_the_reveal_just_opened(browser, serv
     had already seen."""
     page = open_page(browser, serve(COLLAPSED_PAGE))
     page.keyboard.press("q")
-    expect(page.locator("#sug-now[data-lf-question]")).to_have_count(1)
+    expect(page.locator("#sug-now[data-lf-ask]")).to_have_count(1)
     page.keyboard.press("q")
     expect(page.locator("#later")).to_have_attribute("open", "")
-    expect(page.locator("#sug-boxes[data-lf-question]")).to_have_count(1)
+    expect(page.locator("#sug-boxes[data-lf-ask]")).to_have_count(1)
     # The arrival stands on the suggestion; what the reveal has to have done is leave the
     # control that answers it a thing the user can reach, which a display:none control
     # is not.
@@ -6148,7 +6148,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         # The ring is painted from the focus, in the frame after the press, so waiting
         # for it on the Ask this press stepped to is both the wait and the assertion —
         # a bare count would pass on the ring an earlier press left standing.
-        expect(page.locator(f"#{expected}[data-lf-question]")).to_have_count(1)
+        expect(page.locator(f"#{expected}[data-lf-ask]")).to_have_count(1)
         # And exactly one decision wears it, the user standing in one place at a time.
         expect(page.locator(STANDING_ASK)).to_have_count(1)
         # Walking changes the ring and not the durable progress count.
@@ -6166,7 +6166,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     # standing on.
     for expected in reversed(ASKS_IN_ORDER):
         page.keyboard.press("Shift+q")
-        expect(page.locator(f"#{expected}[data-lf-question]")).to_have_count(1)
+        expect(page.locator(f"#{expected}[data-lf-ask]")).to_have_count(1)
         expect(page.locator(STANDING_ASK)).to_have_count(1)
         expect_asks_answered(page, "1/5")
 
@@ -6180,7 +6180,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         page.evaluate(
             "ids => ids.filter(id => {"
             "  const ask = document.getElementById(id);"
-            "  return ask.hasAttribute('tabindex') && !ask.hasAttribute('data-lf-question');"
+            "  return ask.hasAttribute('tabindex') && !ask.hasAttribute('data-lf-ask');"
             "})",
             ASKS_IN_ORDER,
         )
@@ -6209,7 +6209,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
     expect_asks_answered(page, "2/5")
     page.keyboard.press("q")
-    expect(page.locator("#t-baffles-decision[data-lf-question]")).to_have_count(1)
+    expect(page.locator("#t-baffles-decision[data-lf-ask]")).to_have_count(1)
     expect(page.locator("#t-baffles-decision")).to_be_focused()
     expect_asks_answered(page, "2/5")
 
@@ -6283,10 +6283,8 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
 
     page.keyboard.press("q")
     expect(page.locator("#storage-decision")).to_be_focused()
-    expect(page.locator("#storage-decision")).to_have_attribute("data-lf-question", "1")
-    expect(page.locator("#storage-options")).not_to_have_attribute(
-        "data-lf-question", "1"
-    )
+    expect(page.locator("#storage-decision")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#storage-options")).not_to_have_attribute("data-lf-ask", "1")
     scroll_settled(page)
     # Where the user was left is on the screen the walk has just arranged, and the pick
     # the walk used to stand them on is the measurement that says the two cannot both be.
@@ -6852,7 +6850,7 @@ def test_an_ask_that_cannot_name_itself_arrives_on_the_words_that_explain_it(
 ):
     """A change to a phrase has no region to declare, so the document supplies one.
 
-    An x-question-context widget states its own arrival region: a heading, the context, then the
+    An x-ask-context widget states its own arrival region: a heading, the context, then the
     control. A suggestion can stand mid-sentence, so it can never satisfy "an ask must
     name itself without context outside the ask" and no region can be written round it.
     Arriving on the change alone put its own top edge under the banner and took the
@@ -7087,7 +7085,7 @@ def test_an_ask_already_in_front_of_the_user_is_not_travelled_to(browser, serve)
     held = page.evaluate("() => document.scrollingElement.scrollTop")
     assert held == arrived - 40, "the page did not take the user's own adjustment"
 
-    # The press's own announcement is the edge this absence stands behind. `goToQuestion`
+    # The press's own announcement is the edge this absence stands behind. `goToAsk`
     # travels before it announces, so a live region that has spoken again is a press whose
     # travel has already been decided and begun. Waiting on the scroll alone cannot say
     # that: frames held still before a glide starts read the same as a page that never
@@ -7131,9 +7129,7 @@ def test_the_ask_walk_starts_from_where_the_user_is(browser, serve):
     # why it is the decision they step off rather than the one they step to.
     page.locator("#refill-now").evaluate("el => el.scrollIntoView({block: 'center'})")
     page.keyboard.press("q")
-    expect(page.locator("#t-baffles-decision")).to_have_attribute(
-        "data-lf-question", "1"
-    )
+    expect(page.locator("#t-baffles-decision")).to_have_attribute("data-lf-ask", "1")
 
     # The banner's press opens the drawer and keeps the focus, so the walk after it
     # measures from where the user stands in the page and steps on rather than
@@ -7146,7 +7142,7 @@ def test_the_ask_walk_starts_from_where_the_user_is(browser, serve):
     # walk's, so the helper opens the door where it has to.
     banner_control(page, ".lf-queue").click()
     page.keyboard.press("q")
-    expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-question", "1")
+    expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
 
 
 def test_the_questions_panel_names_an_ask_a_message_carries(browser, serve):
@@ -7268,9 +7264,7 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
         )
 
 
-def test_a_drag_across_a_question_in_a_reply_is_not_a_passage_of_the_page(
-    browser, serve
-):
+def test_a_drag_across_an_ask_in_a_reply_is_not_a_passage_of_the_page(browser, serve):
     """A selection made in the panel is not the page's words, whatever it looks like.
 
     `leaf thread open --section` refuses to anchor on a widget an agent sent, and it is the
@@ -8034,7 +8028,7 @@ def test_failed_ask_paints_report_once_and_retain_their_prior_faces(browser, ser
           const list = document.querySelector('lf-queue-list');
           window.__lfAskRows = [...list.querySelectorAll('button.lf-queue-row')];
           window.__lfAskBulk = document.querySelector('.lf-answer-all');
-          const bulkFace = window.__lfAskBulk.querySelector('lf-question-banner-face');
+          const bulkFace = window.__lfAskBulk.querySelector('lf-ask-banner-face');
           for (const [face, name] of [[list, 'Queue list'], [bulkFace, 'Ask banner']]) {
             const render = face.render.bind(face);
             face.render = () => {
@@ -8276,13 +8270,13 @@ def test_a_row_stands_the_user_on_the_ask_it_names(browser, serve):
     expect(page.locator(".lf-queue-panel")).to_be_hidden()
     page.wait_for_function(on_screen)
     expect(page.locator("#t-bath-decision")).to_be_focused()
-    expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-question", "1")
+    expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
     page.keyboard.press("Tab")
     expect(page.locator("#t-bath-decision .lf-pick").first).to_be_focused()
     # The covering drawer has gone, so its projected rows go with it. The page carries the
     # one standing mark rather than leaving a second, hidden authority in the closed drawer.
     marked = page.evaluate(
-        """() => [...document.querySelectorAll('[data-lf-question]')]
+        """() => [...document.querySelectorAll('[data-lf-ask]')]
              .map((e) => e.id || e.getAttribute('data-lf-at'))"""
     )
     assert sorted(set(marked)) == ["t-bath-decision"], marked
@@ -8416,7 +8410,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
 
     page.keyboard.press("q")
     expect(page.locator("#live-question-decision")).to_have_attribute(
-        "data-lf-question", "1"
+        "data-lf-ask", "1"
     )
     # Where the user now stands, which is what the next press is measured against. The
     # bug takes them to the document's origin, so a scroll that ends *below* where they
@@ -8431,7 +8425,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     assert was > 0, "the user must have somewhere to have come from"
 
     page.keyboard.press("q")
-    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-question", "1")
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
 
     # The condition everything below rests on, stated rather than assumed: put
     # display: contents back on the wrapper and it measures (0,0), the mark paints
@@ -8456,7 +8450,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     # asks after. Not the slots, and not the empty span the widget prepends to itself to
     # anchor its controls from — a 2px mark of its own beside the change is not the
     # promise.
-    marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-question]')].map(e => {
+    marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-ask]')].map(e => {
       return { what: e.id || e.tagName, fragments: e.getClientRects().length,
                ring: getComputedStyle(e).outlineStyle !== 'none' };
     })""")
@@ -8506,14 +8500,14 @@ def test_the_walk_travels_to_an_ask_a_page_left_boxless(browser, serve):
 
     page.keyboard.press("q")
     expect(page.locator("#live-question-decision")).to_have_attribute(
-        "data-lf-question", "1"
+        "data-lf-ask", "1"
     )
     scroll_settled(page)
     was = page.evaluate("() => document.scrollingElement.scrollTop")
     assert was > 0, "the user must have somewhere to have come from"
 
     page.keyboard.press("q")
-    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-question", "1")
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
     assert page.evaluate(
         "() => { const r = document.getElementById('sug-refill').getBoundingClientRect();"
         " return [r.width, r.height]; }"
@@ -8526,7 +8520,7 @@ def test_the_walk_travels_to_an_ask_a_page_left_boxless(browser, serve):
 
     # The decision and the boxes it shows through wear the mark, the decision outermost — one
     # place to stand, painted where the user can see it.
-    marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-question]')]
+    marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-ask]')]
       .map(e => e.id || e.tagName)""")
     assert marks == [
         "sug-refill",
@@ -8578,12 +8572,12 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
 
     page.keyboard.press("q")
     page.keyboard.press("q")
-    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-question", "1")
+    expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
 
     # By tag rather than by class: the slots are wearing the comment's own outline too,
     # this decision being the one that carries the comment, and a class would read that back
     # instead of naming the element.
-    marks = page.evaluate("""() => [...document.querySelectorAll('[data-lf-question]')]
+    marks = page.evaluate("""() => [...document.querySelectorAll('[data-lf-ask]')]
       .map(e => e.id || e.tagName)""")
     assert marks == [
         "sug-refill",

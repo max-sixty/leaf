@@ -32,7 +32,7 @@ def project_activity(
     if browser is not None:
         return browser.pop("activity")
     return {
-        key: value for key, value in context.work.activity.items() if key != "tasks"
+        key: value for key, value in context.work.activity.items() if key != "todos"
     }
 
 

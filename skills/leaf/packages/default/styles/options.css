@@ -689,9 +689,9 @@
    * The decision is an ancestor of the control, so it is matched as a widget root
    * (an lf-ask) as well as a descendant of one: a bare selector here reaches only
    * descendants, and a Question standing at the page's top level kept its ring. */
-  :is(:scope, :scope *)[data-lf-question]:has(
+  :is(:scope, :scope *)[data-lf-ask]:has(
     lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus]
-  ) { --lf-question-ring: none; }
+  ) { --lf-ask-ring: none; }
   /* A ringed row stands above its neighbours, so the line the next cell draws over its
    * edge does not cut its ring. */
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *)

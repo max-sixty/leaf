@@ -17,7 +17,7 @@ from leaf.projection import folded_value, markup_value, page_reading
 from leaf.refusals import Refused
 from leaf.revisioning import planned_activation, publish_checked_event
 from leaf.service import PageTransaction
-from leaf.tasks import owed_tasks
+from leaf.todos import owed_todos
 from leaf.validation.admission import read_text_arg
 from leaf.validation.source import check_source
 
@@ -95,23 +95,23 @@ def _completed_tasks(
     """
     if len(set(completes)) != len(completes):
         raise Refused("--completes names each widget at most once")
-    tasks = owed_tasks(events)
-    on_widgets = [task for task in tasks if task["subject"]["kind"] == "widget"]
-    unearned = sorted(set(completes) - {task["subject"]["id"] for task in on_widgets})
+    todos = owed_todos(events)
+    on_widgets = [todo for todo in todos if todo["subject"]["kind"] == "widget"]
+    unearned = sorted(set(completes) - {todo["subject"]["id"] for todo in on_widgets})
     if unearned:
         raise Refused(
             "no open to-do on " + ", ".join(repr(widget) for widget in unearned)
         )
-    completed = [task for task in on_widgets if task["subject"]["id"] in completes]
+    completed = [todo for todo in on_widgets if todo["subject"]["id"] in completes]
     not_later = sorted(
-        {task["subject"]["id"] for task in completed if revision <= task["revision"]}
+        {todo["subject"]["id"] for todo in completed if revision <= todo["revision"]}
     )
     if not_later:
         raise Refused(
             f"revision r{revision} is not later than the open to-do on "
             + ", ".join(repr(widget) for widget in not_later)
         )
-    return sorted(task["id"] for task in completed)
+    return sorted(todo["id"] for todo in completed)
 
 
 def _settled_reports(projection, parser, spk: dict, registry: dict) -> list[str]:

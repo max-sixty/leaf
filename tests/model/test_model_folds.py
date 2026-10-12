@@ -464,7 +464,7 @@ def test_gesture_sequence_keeps_surviving_edits_and_durable_retractions():
     ]
 
 
-def test_question_lifecycle_selects_current_prompt_and_preserves_first_settlement():
+def test_ask_lifecycle_selects_current_prompt_and_preserves_first_settlement():
     """Only the latest question is on the user; a settled later question uncovers
     an older one, and a reply after a task end does not change that end."""
     events = []
@@ -482,11 +482,11 @@ def test_question_lifecycle_selects_current_prompt_and_preserves_first_settlemen
         "version": "second",
     }
     assert state["todos"] == []
-    assert [question["id"] for question in served_thread(state)["asks"]["all"]] == [
+    assert [ask["id"] for ask in served_thread(state)["asks"]["all"]] == [
         "reply:first",
         "reply:second",
     ]
-    assert [question["id"] for question in served_thread(state)["asks"]["user"]] == [
+    assert [ask["id"] for ask in served_thread(state)["asks"]["user"]] == [
         "reply:second"
     ]
     state = add("reply", "reaction", "user", parent="second", token="keep")
@@ -494,7 +494,7 @@ def test_question_lifecycle_selects_current_prompt_and_preserves_first_settlemen
         "message": "first",
         "version": "first",
     }
-    assert [question["id"] for question in served_thread(state)["asks"]["user"]] == [
+    assert [ask["id"] for ask in served_thread(state)["asks"]["user"]] == [
         "reply:first"
     ]
     assert served_thread(state)["asks"]["all"][1]["answer"]["event"]["id"] == "reaction"
@@ -518,7 +518,7 @@ def test_question_lifecycle_selects_current_prompt_and_preserves_first_settlemen
     assert state["todos"] == []
     assert model.threads(state)["first"]["user_prompt"] is None
     state = add("unresolve", "reopen", "user", parent="first")
-    assert [question["id"] for question in served_thread(state)["asks"]["user"]] == [
+    assert [ask["id"] for ask in served_thread(state)["asks"]["user"]] == [
         "reply:third"
     ]
     assert model.threads(state)["first"]["user_prompt"] == {
@@ -549,9 +549,9 @@ def test_frozen_ask_attention_comes_from_its_widget_without_a_prose_task():
         "workflow": None,
     }
     assert state["todos"] == []
-    [question] = served_thread(state)["asks"]["all"]
-    assert question["id"] == "widget:routes"
-    assert question["next_actor"] == "user"
+    [ask] = served_thread(state)["asks"]["all"]
+    assert ask["id"] == "widget:routes"
+    assert ask["next_actor"] == "user"
     events.append(
         {
             "kind": "action",
@@ -564,8 +564,8 @@ def test_frozen_ask_attention_comes_from_its_widget_without_a_prose_task():
     assert model.threads(state)["e1"]["user_prompt"] is None
     assert state["todos"] == []
     assert state["ended_todos"] == []
-    [question] = served_thread(state)["asks"]["all"]
-    assert (question["status"], question["answer"]["value"]) == (
+    [ask] = served_thread(state)["asks"]["all"]
+    assert (ask["status"], ask["answer"]["value"]) == (
         "answered",
         ["route-a"],
     )
@@ -658,9 +658,9 @@ def test_after_is_what_each_gesture_leaves_the_thread_as_the_log_reads_it():
 
     def owed(state):
         return [
-            question["id"]
-            for question in served_thread(state)["asks"]["user"]
-            if question["thread"] == "e1"
+            ask["id"]
+            for ask in served_thread(state)["asks"]["user"]
+            if ask["thread"] == "e1"
         ]
 
     for name, events in cases.items():
@@ -718,7 +718,7 @@ def test_after_is_what_each_gesture_leaves_the_thread_as_the_log_reads_it():
             )
 
 
-def test_summary_protects_the_unanswered_question_after_later_agent_messages():
+def test_summary_protects_the_unanswered_ask_after_later_agent_messages():
     """A summary cannot hide the question the user owes merely because a newer
     agent message is the last turn. Protection selects the canonical prompt."""
     state = model.reading(

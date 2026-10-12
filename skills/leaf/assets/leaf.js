@@ -26,7 +26,7 @@ import { PAGE_PAINT_ATTRIBUTE, pagePresented } from "./runtime/page-paint.js";
 import { nextFrame, renderingState } from "./runtime/rendering.js";
 import { observeQueuedWork } from "./runtime/queued-work.js";
 import { mountApplication } from "./runtime/application.js";
-import { approvalBlockingQuestions } from "./runtime/questions/model.js";
+import { approvalBlockingAsks } from "./runtime/asks/model.js";
 import { beginRead } from "./runtime/state-feed.js";
 import {
   applicationState,
@@ -92,10 +92,10 @@ import { createThreadListController } from "./runtime/thread/thread-list.js";
 import { createThreadNarrowing } from "./runtime/thread/narrowing.js";
 import { createThreadPanelElements } from "./runtime/thread/panel-elements.js";
 import { createPageMapDialog } from "./runtime/page-map-dialog.js";
-import { createQuestionView } from "./runtime/questions/view.js";
+import { createAskView } from "./runtime/asks/view.js";
 import { createQueueWalk } from "./runtime/queue-walk.js";
 import { createQueuePanel } from "./runtime/queue-panel.js";
-import { QUESTION_CONTROL } from "./runtime/questions/view-elements.js";
+import { ASK_CONTROL } from "./runtime/asks/view-elements.js";
 import {
   commandHintLayer,
   createCommandHints,
@@ -229,13 +229,13 @@ const narrowing = createThreadNarrowing({
   ready: () => runtime.statePhase === "ready",
   repaint: () => app.presentThread(),
 });
-const paintVersionApproval = () => paintApproval(approvalBlockingQuestions());
+const paintVersionApproval = () => paintApproval(approvalBlockingAsks());
 let threadPanelController;
 let drawers;
 let layout;
 let landing;
 let pageMapDialog;
-let questions;
+let asks;
 let panelKeys;
 let pageComment;
 let responseSurface;
@@ -414,8 +414,8 @@ const version = createVersionController({
   captureRetainedStanding: () => app?.overlay?.captureStanding() ?? null,
   restoreRetainedStanding: (standing) =>
     app?.overlay?.restoreStanding(standing) ?? false,
-  captureQuestionStanding: () => questions.captureStanding(),
-  restoreQuestionStanding: (standing) => questions.restoreStanding(standing),
+  captureAskStanding: () => asks.captureStanding(),
+  restoreAskStanding: (standing) => asks.restoreStanding(standing),
 });
 
 const inputs = createCompositionInputs({
@@ -425,7 +425,7 @@ const inputs = createCompositionInputs({
 
 app = mountApplication({
   arriveAtQueueItem: (item) => queueWalk.arriveAtItem(item),
-  nextQuestionWithin: (options) => queueWalk.nextWithin(options),
+  nextAskWithin: (options) => queueWalk.nextWithin(options),
   panel,
   firstUnreadBtn: panelElements.firstUnreadBtn,
   accompaniedThread: (...args) => landing.accompaniedThread(...args),
@@ -475,7 +475,7 @@ app = mountApplication({
     pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
     renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
     scrollThreadIntoView,
-    goToQuestion: (...args) => questions.goToQuestion(...args),
+    goToAsk: (...args) => asks.goToAsk(...args),
   },
   state: {
     prepareActivation: (state) => version.prepareActivation(state),
@@ -542,7 +542,7 @@ pageMapDialog = createPageMapDialog({
 });
 
 // Question view is constructed below by its owner factory; all accesses above are inert closures.
-questions = createQuestionView({
+asks = createAskView({
   focusForNavigation,
   presentedControl: app.overlay?.presentedControl,
   prepareTrip: anchorTravel.prepareTrip,
@@ -553,7 +553,7 @@ questions = createQuestionView({
 });
 const queueWalk = createQueueWalk({
   actions: app.queueActions,
-  arriveAtQuestion: questions.arriveAtQuestion,
+  arriveAtAsk: asks.arriveAtAsk,
   arriveAtThread: navigation.arriveAtThread,
   threadHere: () => app.threadDestinations.threadHere(),
   threadTarget: (id) => app.threadDestinations.threadTarget(id),
@@ -573,8 +573,8 @@ const commandHints = createCommandHints({
 });
 
 const standingTarget = createStandingTarget({
-  isQuestionControl: (node) => node?.matches?.(QUESTION_CONTROL),
-  standingIn: questions.standingIn,
+  isAskControl: (node) => node?.matches?.(ASK_CONTROL),
+  standingIn: asks.standingIn,
 });
 
 panelKeys = createThreadPanelKeys({
@@ -601,9 +601,9 @@ const floatingPanel =
         wireInput: inputs.wireInput,
         threadActions: app.threadActions,
         registerThreadPresentation: app.registerThreadPresentation,
-        questions: {
-          choicesOf: questions.choicesOf,
-          open: (id) => app.openQuestion(id),
+        asks: {
+          choicesOf: asks.choicesOf,
+          open: (id) => app.openAsk(id),
         },
         queueActions: app.queueActions,
         withdraw: app.withdraw,
@@ -805,11 +805,11 @@ goToSequence = createGoToSequence({
   coveringAuxiliarySurface: auxiliarySurfaces.coveringSurface,
 });
 const standingPainters = {
-  markHere: questions.markHere,
+  markHere: asks.markHere,
   paintStanding: anchorPaint?.paintStanding,
   paintSelectedMarginEntries: () =>
     app.overlay?.paintSelectedMarginEntries([
-      { kind: "ask", target: questions.standingIn() },
+      { kind: "ask", target: asks.standingIn() },
       {
         kind: "comment",
         target: anchorPlacement.placedAt(standingThreadId())?.place,
@@ -894,7 +894,7 @@ if (!offlineInteractive) {
   anchorControls.mount();
   pageGeometry.mount();
   pageMapDialog.mount(chromeForeground);
-  questions.mount();
+  asks.mount();
   queueWalk.mount();
   queue.mount();
   commandHints.mount();
@@ -1052,8 +1052,8 @@ async function startPage() {
   openResidency({ onRead: annotationRenderer?.syncMarginResidency });
   if (!offlineInteractive) {
     layout.syncLayout();
-    questions.buildBulkAnswers();
-    questions.syncQuestions();
+    asks.buildBulkAnswers();
+    asks.syncAsks();
   }
   await settlePageInterface();
   landFragment();

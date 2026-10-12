@@ -50,7 +50,7 @@ import {
 import { textField } from "./composing/text-field.js";
 import { queueItemKey, readQueues, watchQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
-import { questionWords } from "./questions/answer.js";
+import { askWords } from "./asks/answer.js";
 import { versionMenu, versionPicker } from "./version-picker.js";
 import { reducedMotion } from "./motion.js";
 import { pagePresented } from "./page-paint.js";
@@ -93,7 +93,7 @@ export function createFloatingPanel({
   wireInput,
   threadActions,
   registerThreadPresentation,
-  questions: questionView,
+  asks: askView,
   queueActions,
   withdraw,
 }) {
@@ -716,9 +716,7 @@ export function createFloatingPanel({
     const prompt = said && said.trim() !== title.trim() ? said : "";
     const answered = ask && ask.status !== "open";
     const choices =
-      ask && !answered && ask.source.kind === "widget"
-        ? questionView.choicesOf(ask)
-        : null;
+      ask && !answered && ask.source.kind === "widget" ? askView.choicesOf(ask) : null;
     const gesture = answered ? answerGesture(ask) : null;
     const discuss = thread
       ? html`<button
@@ -734,7 +732,7 @@ export function createFloatingPanel({
       class="lf-fp-quiet"
       @click=${() => {
         close();
-        void (ask ? questionView.open(ask.id) : queueActions.open(queueItemKey(item)));
+        void (ask ? askView.open(ask.id) : queueActions.open(queueItemKey(item)));
       }}
     >
       Show
@@ -746,7 +744,7 @@ export function createFloatingPanel({
         >${thread ? discuss : nothing}`;
     else if (answered)
       answers = html`<span class="lf-fp-said"
-          >${ask.status === "withdrawn" ? "Withdrawn" : `Answered ${questionWords(ask) ?? ""}`.trim()}</span
+          >${ask.status === "withdrawn" ? "Withdrawn" : `Answered ${askWords(ask) ?? ""}`.trim()}</span
         >${
           gesture
             ? html`<button

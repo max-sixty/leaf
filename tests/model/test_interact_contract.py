@@ -3467,9 +3467,7 @@ def test_check_refuses_a_predicate_no_page_could_carry(
         ({"value": "answer"}, "answered"),
     ],
 )
-def test_a_local_question_declares_its_answered_condition(
-    page_dir, declaration, message
-):
+def test_a_local_ask_declares_its_answered_condition(page_dir, declaration, message):
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-test-task"]["x-awaits"] = declaration
     (page_dir / "registry.json").write_text(json.dumps(registry))

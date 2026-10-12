@@ -7,6 +7,7 @@ referenced element still changes containment without changing an old event.
 
 from functools import cached_property
 
+from leaf.asks import answer_verbs, answering_action, asking, replayed_attrs
 from leaf.events import event_document
 from leaf.projection import (
     authored_positions,
@@ -14,7 +15,6 @@ from leaf.projection import (
     page_reading,
     with_action,
 )
-from leaf.questions import answer_verbs, answering_action, asking, replayed_attrs
 from leaf.registry.contract import state_definition
 from leaf.thread_context import thread_structure
 
@@ -33,9 +33,9 @@ class AdmissionReadings:
 
     @cached_property
     def log(self):
-        from .tasks import TaskReading
+        from .todos import TodoReading
 
-        return TaskReading(self.events)
+        return TodoReading(self.events)
 
     @cached_property
     def work(self):
@@ -148,9 +148,9 @@ def answer_meaning(
             reading.spoken,
             registry,
             registered=any(
-                question["source"]["kind"] == "widget"
-                and question["source"]["id"] == event["widget"]
-                for question in readings.work.all_questions["all"]
+                ask["source"]["kind"] == "widget"
+                and ask["source"]["id"] == event["widget"]
+                for ask in readings.work.all_asks["all"]
             ),
         ),
         record["attrs"].get("resolves")

@@ -3719,9 +3719,7 @@ def test_held_revision_readings_stay_within_their_source_budget(page_dir, monkey
         assert artifact_model.read_revision(page_dir, revisions[0]) is not readings[0]
 
 
-def test_question_history_survives_parse_eviction_and_new_revisions(
-    page_dir, monkeypatch
-):
+def test_ask_history_survives_parse_eviction_and_new_revisions(page_dir, monkeypatch):
     """A retry or new version reuses completed historical registration work.
 
     A history larger than the parse cache used to parse every predecessor on every
@@ -3762,7 +3760,7 @@ def test_question_history_survives_parse_eviction_and_new_revisions(
                 page_dir, revision
             ),
         )
-        return WorkReading(events, reading.registry, page).document.questions
+        return WorkReading(events, reading.registry, page).document.asks
 
     with fresh_process():
         initial = read()

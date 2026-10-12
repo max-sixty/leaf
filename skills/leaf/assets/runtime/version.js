@@ -164,7 +164,7 @@ import { ADDRESSABLE, anchoringIsReady, fragmentTarget } from "./anchor-resoluti
 import { scrollToFragment } from "./anchor-travel.js";
 import { rowWalk } from "./walk-position.js";
 import { rememberAuthoredParents, stageAuthoredStates } from "./projection/authored.js";
-import { foldWidgetStates, questionValue } from "./projection/model.js";
+import { foldWidgetStates, askValue } from "./projection/model.js";
 import { runtimeRootState } from "./root-state.js";
 import {
   commitWidgetDescriptors,
@@ -671,11 +671,8 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
         }
         continue;
       }
-      const { value } = questionValue(now, verb, true);
-      if (
-        JSON.stringify(value) ===
-        JSON.stringify(questionValue(before, verb, true).value)
-      )
+      const { value } = askValue(now, verb, true);
+      if (JSON.stringify(value) === JSON.stringify(askValue(before, verb, true).value))
         continue;
       // The option now picked is where a pick reads; anything else reads on its
       // widget.
@@ -1006,8 +1003,8 @@ export function createVersionController({
   syncLayout,
   captureRetainedStanding = () => null,
   restoreRetainedStanding = () => false,
-  captureQuestionStanding = () => null,
-  restoreQuestionStanding = () => {},
+  captureAskStanding = () => null,
+  restoreAskStanding = () => {},
 }) {
   let {
     authoredBodyAttributes,
@@ -1413,7 +1410,7 @@ export function createVersionController({
       replyInView: focusedInView() !== null,
       // Question standing is the fallback for unnamed controls. An exact editor already
       // has a replacement identity, so its parent Question does not also own focus.
-      questionStanding: draftEditing ? null : captureQuestionStanding(),
+      askStanding: draftEditing ? null : captureAskStanding(),
     };
   }
 
@@ -1430,8 +1427,8 @@ export function createVersionController({
 
   async function restoreEditingContinuity(continuity, currentIntent) {
     if (!currentIntent()) return;
-    const { draftEditing, replyThread, replyInView, questionStanding } = continuity;
-    restoreQuestionStanding(questionStanding);
+    const { draftEditing, replyThread, replyInView, askStanding } = continuity;
+    restoreAskStanding(askStanding);
     const mayRestore = restrictUserIntent(currentIntent, () =>
       draftEditingStands(draftEditing),
     );

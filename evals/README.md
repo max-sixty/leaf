@@ -13,7 +13,7 @@ in [UI review detection](ui-review-detection/README.md).
 pnpm install --frozen-lockfile
 uv run leaf-dev eval brief-document-needs-no-outline --harness claude-code
 uv run leaf-dev eval reading document/resume --harness codex
-uv run leaf-dev eval task-outlasts-the-turn --harness claude-code --base
+uv run leaf-dev eval todo-outlasts-the-turn --harness claude-code --base
 uv run leaf-dev eval document --harness both --condition both --repeat 3
 pnpm run eval:view
 ```

@@ -127,7 +127,7 @@ import {
 import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
 import { under, upFrom } from "../shadow.js";
 import { nativeLayers } from "../keyboard/layer-stack.js";
-import { heldQuestion } from "../standing-target.js";
+import { heldAsk } from "../standing-target.js";
 
 import { coarsePointer, pointerAt } from "../pointer.js";
 import { anchorLabel } from "../thread/messages.js";
@@ -1247,12 +1247,12 @@ export function createResponseSurface({
       (inline.dataset.thread ?? inline.dataset.id) === threadId &&
       (!here ||
         inline.contains(focused()) ||
-        (target && under(target, heldQuestion() ?? here.element))) &&
+        (target && under(target, heldAsk() ?? here.element))) &&
       threadInput(inline);
     const said =
       standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
     const subject =
-      threadId && (!here || (target && under(target, heldQuestion() ?? here.element)));
+      threadId && (!here || (target && under(target, heldAsk() ?? here.element)));
     const replySubject = subject && replyId;
     // A captured passage outranks the focus it preceded, but a kept draft is not a
     // standing target. Read both page and thread standing before choosing the aim.

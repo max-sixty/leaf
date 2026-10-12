@@ -275,7 +275,7 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
         "This revision incorporates both answers"
     )
     # The revision settles both questions; the Question inventory retains answers
-    # after an authored revision settles their sources (`questions.py`).
+    # after an authored revision settles their sources (`asks.py`).
     expect_asks_answered(page, "2/2")
 
     actions = [
@@ -387,7 +387,7 @@ def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, 
     )
     expect(page.locator("#comparison-policy")).to_have_attribute("settled", "")
     # The Ask reading keeps an Ask the user answered after a later version settles it
-    # (`questions.py`, the retained answered inventory).
+    # (`asks.py`, the retained answered inventory).
     expect_asks_answered(page, "1/1")
 
     actions = [
@@ -1135,7 +1135,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
     expect(heading).to_be_focused()
     page.keyboard.press("q")
-    expect(page.locator(".lf-thread lf-ask[data-lf-question]")).to_be_focused()
+    expect(page.locator(".lf-thread lf-ask[data-lf-ask]")).to_be_focused()
     expect(line).to_contain_text("close threads")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
@@ -1289,7 +1289,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     ask_code = address_code(page, "Margin entry", "opts-decision", ask_key)
     page.keyboard.type(ask_code)
     expect(page.locator("#opts-decision")).to_be_focused()
-    expect(page.locator("#opts-decision")).to_have_attribute("data-lf-question", "1")
+    expect(page.locator("#opts-decision")).to_have_attribute("data-lf-ask", "1")
 
     # Scroll past the links to give the hyperlinks filter no members. An empty
     # filter stays empty through resize; Escape restores the complete map.

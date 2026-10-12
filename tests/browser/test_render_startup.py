@@ -5319,7 +5319,7 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
           };
           const failed = {};
           const stops = [];
-          for (const name of ['watchQuestions', 'watchReports', 'watchHistory']) {
+          for (const name of ['watchAsks', 'watchReports', 'watchHistory']) {
             const owner = owned(`failing-${name}`);
             failed[name] = 0;
             stops.push(api[name](owner, () => {
@@ -5336,7 +5336,7 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
           let paints = 0;
           let finish;
           const finished = new Promise((resolve) => { finish = resolve; });
-          stops.push(api.watchQuestions(owner, () => {
+          stops.push(api.watchAsks(owner, () => {
             paints += 1;
             return finished;
           }));
@@ -5352,7 +5352,7 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
         }"""
     )
     assert result == {
-        "failed": {"watchQuestions": 1, "watchReports": 1, "watchHistory": 1},
+        "failed": {"watchAsks": 1, "watchReports": 1, "watchHistory": 1},
         "interrupted": 2,
         "kept": 2,
     }
@@ -5360,7 +5360,7 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
     reported = sorted(error.splitlines()[0] for error in errors)
     assert reported == sorted(
         f"leaf: paint failed for div#failing-{name}: {name} paint failed"
-        for name in ["watchQuestions", "watchReports", "watchHistory"]
+        for name in ["watchAsks", "watchReports", "watchHistory"]
     )
 
 
@@ -5381,7 +5381,7 @@ def test_a_held_reading_shows_once_unseen_after_its_owner_returns(browser, serve
           let shown = null;
           let watching;
           const held = new api.HeldReading(owner, () => [region], () => watching.refresh());
-          watching = api.watchQuestions(owner, () => { shown = held.hold(current); });
+          watching = api.watchAsks(owner, () => { shown = held.hold(current); });
           await settle();
           current = 'second';
           watching.refresh();

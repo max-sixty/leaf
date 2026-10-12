@@ -73,17 +73,17 @@ def _down_the_page(page, into: Path, stem: str) -> tuple[list[Path], int]:
 # kinds of stop (queue-walk.js), which the screens pass, so each is read only to step
 # past it.
 STANDING_ITEM = """() => {
-  const question = [...document.querySelectorAll('[data-lf-question]:not(.lf-queue-row)')]
-    .find((el) => !el.parentElement?.closest('[data-lf-question]'))?.id;
-  if (question) return {question: true, id: question};
+  const ask = [...document.querySelectorAll('[data-lf-ask]:not(.lf-queue-row)')]
+    .find((el) => !el.parentElement?.closest('[data-lf-ask]'))?.id;
+  if (ask) return {ask: true, id: ask};
   let held = document.activeElement;
   while (held?.shadowRoot?.activeElement) held = held.shadowRoot.activeElement;
   const thread = held?.closest?.('.lf-thread, .lf-page-thread');
   const id = thread?.dataset.id ?? thread?.dataset.thread;
-  if (id) return {question: false, id};
+  if (id) return {ask: false, id};
   const page = document.activeElement;
   const widget = page?.closest?.('.lf-chrome') ? null : page?.closest?.('[id]');
-  return widget ? {question: false, id: widget.id} : null;
+  return widget ? {ask: false, id: widget.id} : null;
 }"""
 
 
@@ -98,14 +98,14 @@ def _questions_in_turn(page, into: Path) -> tuple[list[Path], bool]:
         page.keyboard.press("q")
         rendered(page)
         here = page.evaluate(STANDING_ITEM)
-        if here is None or (here["question"], here["id"]) in seen:
+        if here is None or (here["ask"], here["id"]) in seen:
             return shots, False
-        seen.add((here["question"], here["id"]))
-        if not here["question"]:
+        seen.add((here["ask"], here["id"]))
+        if not here["ask"]:
             continue
         if len(shots) == MOST_SCREENS:
             return shots, True
-        shot = into / f"{page.viewport_size['width']}px-question-{len(shots) + 1}.png"
+        shot = into / f"{page.viewport_size['width']}px-ask-{len(shots) + 1}.png"
         page.screenshot(path=shot)
         shots.append(shot)
 

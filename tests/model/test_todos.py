@@ -20,7 +20,7 @@ from interact_support import (
 from leaf import cli as cli_model
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
-from leaf import tasks as tasks_model
+from leaf import todos as todos_model
 from leaf.served_state.page import full_state
 
 
@@ -95,7 +95,7 @@ def test_page_state_tracks_questions_and_tasks_until_they_are_settled(page_dir):
     assert ("todo", mine["id"]) not in kinds(state_json(page_dir)["queues"]["tasks"])
 
 
-def test_required_approval_is_a_question_for_its_exact_stamp_until_approved(page_dir):
+def test_required_approval_is_an_ask_for_its_exact_stamp_until_approved(page_dir):
     """Required sign-off is one Question with a typed answer for its exact stamp.
 
     It cannot block its own approval, and neither drafts nor another version
@@ -154,9 +154,9 @@ def test_required_approval_is_a_question_for_its_exact_stamp_until_approved(page
     assert state_json(page_dir)["queues"]["questions"] == []
     served = full_state(page_dir, events_model.read_events(page_dir))
     [ended] = [
-        question
-        for question in served["browser"]["views"]["1"]["document"]["asks"]["all"]
-        if question["source"]["kind"] == "approval"
+        ask
+        for ask in served["browser"]["views"]["1"]["document"]["asks"]["all"]
+        if ask["source"]["kind"] == "approval"
     ]
     assert (
         ended["status"],
@@ -183,7 +183,7 @@ def test_required_approval_is_a_question_for_its_exact_stamp_until_approved(page
     )
 
 
-def test_a_task_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
+def test_a_todo_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
     """A reply that promises work answers the comment and, with `--todo`, opens that
     work on its thread under the reply's id in the same write. Resolving the thread
     closes it, but the task stays on the agent's queue until the agent ends it: the
@@ -201,7 +201,7 @@ def test_a_task_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
     state = state_json(page_dir)
     assert kinds(state["queues"]["tasks"]) == [("answer", comment["id"])]
 
-    task = written(
+    todo = written(
         leaf(
             "response",
             "reply",
@@ -212,26 +212,26 @@ def test_a_task_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
             "Rebuild the banner quieter",
         )
     )
-    assert (task["kind"], task["todo"]) == ("reply", "Rebuild the banner quieter")
+    assert (todo["kind"], todo["todo"]) == ("reply", "Rebuild the banner quieter")
     state = state_json(page_dir)
     [item] = state["todos"]
     assert (item["id"], item["subject"]) == (
-        task["id"],
+        todo["id"],
         {"kind": "thread", "id": comment["id"]},
     )
-    assert kinds(state["queues"]["tasks"]) == [("todo", task["id"])]
+    assert kinds(state["queues"]["tasks"]) == [("todo", todo["id"])]
     assert state["queues"]["questions"] == []
     assert state["threads"][0]["attention"] == {
         "kind": "waiting",
         "reason": "todo",
         "workflow": None,
         "todo": {
-            "id": task["id"],
+            "id": todo["id"],
             "title": "Rebuild the banner quieter",
             "line": None,
         },
     }
-    assert [item["id"] for item in state["todos"]] == [task["id"]]
+    assert [item["id"] for item in state["todos"]] == [todo["id"]]
 
     append_command(
         page_dir,
@@ -241,18 +241,18 @@ def test_a_task_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
     # banner names it from the served `todos`.
     state = state_json(page_dir)
     assert state["threads"][0]["attention"] is None
-    assert kinds(state["queues"]["tasks"]) == [("todo", task["id"])]
+    assert kinds(state["queues"]["tasks"]) == [("todo", todo["id"])]
     served = full_state(page_dir, events_model.read_events(page_dir))
     assert [item["title"] for item in served["browser"]["todos"]] == [
         "Rebuild the banner quieter"
     ]
     thread = leaf("page", "state", page_dir, comment["id"])
     assert thread.exit_code == 0, thread.output
-    assert [item["id"] for item in json.loads(thread.output)["todos"]] == [task["id"]]
+    assert [item["id"] for item in json.loads(thread.output)["todos"]] == [todo["id"]]
 
-    end = written(leaf("task", "end", page_dir, task["id"], "done", "version 2"))
+    end = written(leaf("task", "end", page_dir, todo["id"], "done", "version 2"))
     assert (end["todo"], end["outcome"], end["detail"]) == (
-        task["id"],
+        todo["id"],
         "done",
         "version 2",
     )
@@ -265,7 +265,7 @@ def test_a_task_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
     assert served["browser"]["todos"] == []
     [ended] = served["browser"]["ended_todos"]
     assert (ended["id"], ended["state"], ended["outcome"]["detail"]) == (
-        task["id"],
+        todo["id"],
         "done",
         "version 2",
     )
@@ -304,7 +304,7 @@ def test_an_answer_says_what_it_leaves_the_thread_with(page_dir):
     assert state_json(page_dir)["queues"] == {"questions": [], "tasks": []}
 
 
-def test_the_door_refuses_a_task_off_the_page_and_an_outcome_twice(page_dir):
+def test_the_door_refuses_a_todo_off_the_page_and_an_outcome_twice(page_dir):
     publish(page_dir)
     comment = append_carried_log_record(
         page_dir,
@@ -322,9 +322,9 @@ def test_the_door_refuses_a_task_off_the_page_and_an_outcome_twice(page_dir):
     assert threaded.exit_code != 0
     assert "event is invalid" in threaded.output
 
-    task = written(leaf("task", "open", page_dir, "page", "Look into it"))
-    written(leaf("task", "end", page_dir, task["id"], "dropped", "not needed"))
-    again = leaf("task", "end", page_dir, task["id"], "done")
+    todo = written(leaf("task", "open", page_dir, "page", "Look into it"))
+    written(leaf("task", "end", page_dir, todo["id"], "dropped", "not needed"))
+    again = leaf("task", "end", page_dir, todo["id"], "done")
     assert again.exit_code != 0
     assert "already ended (dropped)" in again.output
 
@@ -353,7 +353,7 @@ def test_the_door_refuses_a_task_off_the_page_and_an_outcome_twice(page_dir):
     assert events_model.read_events(page_dir) == before
 
 
-def test_user_queue_selects_widget_and_prose_questions(page_dir, sessionless):
+def test_user_queue_selects_widget_and_prose_asks(page_dir, sessionless):
     """Widget and prose Questions enter the user queue without becoming Tasks.
     Answering prose retains its typed answer and hands the thread to the agent."""
     publish(page_dir)
@@ -409,7 +409,7 @@ def test_user_queue_selects_widget_and_prose_questions(page_dir, sessionless):
     )
     state = state_json(page_dir)
     assert kinds(state["queues"]["questions"]) == asks
-    assert question["id"] not in [task["id"] for task in state["todos"]]
+    assert question["id"] not in [todo["id"] for todo in state["todos"]]
     assert [item["id"] for item in state["queues"]["tasks"]] == [warm["id"]]
     served = full_state(page_dir, events_model.read_events(page_dir))
     [answered] = [
@@ -424,9 +424,7 @@ def test_user_queue_selects_widget_and_prose_questions(page_dir, sessionless):
 
 
 @pytest.mark.parametrize("answer_kind", ["reply", "reaction"])
-def test_an_opening_question_retains_its_answer_in_the_question_inventory(
-    page_dir, answer_kind
-):
+def test_an_opening_ask_retains_its_answer_in_the_ask_inventory(page_dir, answer_kind):
     """An implicit opening Question retains its answer across edits and updates."""
     publish(page_dir)
     question = append_carried_log_record(
@@ -491,7 +489,7 @@ def test_an_opening_question_retains_its_answer_in_the_question_inventory(
         assert served["browser"]["ended_todos"] == []
 
 
-def test_a_question_ends_at_the_reaction_that_settles_it(page_dir):
+def test_an_ask_ends_at_the_reaction_that_settles_it(page_dir):
     """A reaction answers a question only when its token settles (`$reactions`): one
     that doesn't leaves the question on the user, and the one that does is the
     outcome the ended question records."""
@@ -593,7 +591,7 @@ def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
     assert state["queues"]["tasks"] == []
 
 
-def test_working_names_a_move_until_its_answer_and_a_task_until_its_end(page_dir):
+def test_working_names_a_move_until_its_answer_and_a_todo_until_its_end(page_dir):
     """`task start` takes an item on the agent's queue in hand with the banner's line:
     the user's move, by its event id, reads Working until the reply that answers it,
     and a task runs until it ends. An id that is neither is refused at the door."""
@@ -641,22 +639,22 @@ def test_working_names_a_move_until_its_answer_and_a_task_until_its_end(page_dir
 
     # A task the agent opens on the page, for work no move asked for, runs under its
     # start's line until the task ends; the banner shows that line.
-    task = written(leaf("task", "open", page_dir, "page", "Add a glossary"))
-    assert task["subject"] == {"kind": "page"}
-    written(leaf("task", "start", page_dir, task["id"], "Drafting the glossary"))
+    todo = written(leaf("task", "open", page_dir, "page", "Add a glossary"))
+    assert todo["subject"] == {"kind": "page"}
+    written(leaf("task", "start", page_dir, todo["id"], "Drafting the glossary"))
     state = state_json(page_dir)
     [served] = state["todos"]
     assert served["running"]["text"] == "Drafting the glossary"
     assert state["activity"]["detail"] == "Drafting the glossary"
     [item] = state["queues"]["tasks"]
     assert (item["kind"], item["subject"]) == ("todo", {"kind": "page"})
-    written(leaf("task", "end", page_dir, task["id"], "done", "the glossary section"))
+    written(leaf("task", "end", page_dir, todo["id"], "done", "the glossary section"))
     state = state_json(page_dir)
     assert state["todos"] == []
     assert state["activity"]["kind"] != "working"
 
 
-def test_a_thread_task_runs_under_its_start_line(page_dir):
+def test_a_thread_todo_runs_under_its_start_line(page_dir):
     """A started task on a thread reads Working with its line in the thread's
     attention, and Task open with its title once nothing runs on it."""
     publish(page_dir)
@@ -664,7 +662,7 @@ def test_a_thread_task_runs_under_its_start_line(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Rebuild it."},
     )
-    task = written(
+    todo = written(
         leaf(
             "response",
             "reply",
@@ -675,10 +673,10 @@ def test_a_thread_task_runs_under_its_start_line(page_dir):
             "Rebuild the chart",
         )
     )
-    written(leaf("task", "start", page_dir, task["id"], "Waiting on the build"))
+    written(leaf("task", "start", page_dir, todo["id"], "Waiting on the build"))
     [thread] = state_json(page_dir)["threads"]
     assert thread["attention"]["todo"] == {
-        "id": task["id"],
+        "id": todo["id"],
         "title": "Rebuild the chart",
         "line": "Waiting on the build",
     }
@@ -693,7 +691,7 @@ WORK_PAGE = FLOW_PAGE.replace(
 )
 
 
-def test_a_widget_task_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
+def test_a_widget_todo_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
     """A task on a page widget needs a widget that declares `x-work` or holds an
     unsettled move. A version that drops its widget without completing it is refused;
     `page stamp --completes` ends it done, citing that version."""
@@ -703,10 +701,10 @@ def test_a_widget_task_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
     assert no_seat.exit_code != 0
     assert "has no work seat" in no_seat.output
 
-    task = written(leaf("task", "open", page_dir, "rollout-card", "Check the rollout"))
-    assert task["subject"] == {"kind": "widget", "id": "rollout-card"}
-    assert task["revision"] == 1
-    written(leaf("task", "start", page_dir, task["id"], "Checking the fallback"))
+    todo = written(leaf("task", "open", page_dir, "rollout-card", "Check the rollout"))
+    assert todo["subject"] == {"kind": "widget", "id": "rollout-card"}
+    assert todo["revision"] == 1
+    written(leaf("task", "start", page_dir, todo["id"], "Checking the fallback"))
     [served] = state_json(page_dir)["todos"]
     assert served["running"]["text"] == "Checking the fallback"
 
@@ -716,20 +714,20 @@ def test_a_widget_task_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
         WORK_PAGE.replace("<title>t</title>", "<title>t · v2</title>")
     )
     assert stamp(page_dir, "Elsewhere").exit_code == 0
-    assert [item["id"] for item in state_json(page_dir)["todos"]] == [task["id"]]
+    assert [item["id"] for item in state_json(page_dir)["todos"]] == [todo["id"]]
     (page_dir / "index.html").write_text(FLOW_PAGE)
     dropped = stamp(page_dir, "Card gone")
     assert dropped.exit_code == 0, dropped.output
-    assert [item["id"] for item in state_json(page_dir)["todos"]] == [task["id"]]
+    assert [item["id"] for item in state_json(page_dir)["todos"]] == [todo["id"]]
     (page_dir / "index.html").write_text(
         WORK_PAGE.replace("<title>t</title>", "<title>t · v3</title>")
     )
     done = stamp(page_dir, "Rollout checked", completes=("rollout-card",))
     assert done.exit_code == 0, done.output
     note = events_model.read_events(page_dir)[-1]
-    assert note["settles"] == [{"kind": "todo", "id": task["id"]}]
+    assert note["settles"] == [{"kind": "todo", "id": todo["id"]}]
     assert state_json(page_dir)["todos"] == []
-    [ended] = tasks_model.TaskReading(events_model.read_events(page_dir)).tasks
+    [ended] = todos_model.TodoReading(events_model.read_events(page_dir)).todos
     assert (ended["state"], ended["outcome"]["detail"]) == ("done", "v4")
     (page_dir / "index.html").write_text(
         WORK_PAGE.replace("<title>t</title>", "<title>t · v4</title>")
@@ -745,9 +743,9 @@ def test_a_start_reopens_a_page_its_agent_closed(page_dir):
     publish(page_dir)
     written(leaf("status", page_dir, "idle"))
     assert state_json(page_dir)["activity"]["kind"] == "closed"
-    task = written(leaf("task", "open", page_dir, "page", "Add a glossary"))
+    todo = written(leaf("task", "open", page_dir, "page", "Add a glossary"))
     start = written(
-        leaf("task", "start", page_dir, task["id"], "Drafting the glossary")
+        leaf("task", "start", page_dir, todo["id"], "Drafting the glossary")
     )
     assert events_model.read_events(page_dir)[-1] == start
     state = state_json(page_dir)
@@ -769,8 +767,8 @@ def test_a_waiting_declaration_puts_down_every_start_before_it(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Tighten it."},
     )
-    task = written(leaf("task", "open", page_dir, "page", "Draft the plan"))
-    written(leaf("task", "start", page_dir, task["id"], "Drafting the plan"))
+    todo = written(leaf("task", "open", page_dir, "page", "Draft the plan"))
+    written(leaf("task", "start", page_dir, todo["id"], "Drafting the plan"))
     written(leaf("task", "start", page_dir, comment["id"], "Tightening it"))
     assert state_json(page_dir)["activity"]["kind"] == "working"
 
@@ -784,27 +782,27 @@ def test_a_waiting_declaration_puts_down_every_start_before_it(page_dir):
     assert state["activity"]["kind"] not in {"working", "stalled"}
     assert [item["stage"] for item in state["workflows"]] == ["sent"]
     [served] = state["todos"]
-    assert (served["id"], served["running"]) == (task["id"], None)
+    assert (served["id"], served["running"]) == (todo["id"], None)
 
-    written(leaf("task", "start", page_dir, task["id"], "Drafting the second plan"))
+    written(leaf("task", "start", page_dir, todo["id"], "Drafting the second plan"))
     state = state_json(page_dir)
     assert state["activity"]["detail"] == "Drafting the second plan"
 
 
-def test_idle_refuses_over_an_open_task(page_dir):
+def test_idle_refuses_over_an_open_todo(page_dir):
     """Closing the page discharges no task: idle names each open one and how to end
     it, and goes through once they have ended."""
     publish(page_dir)
-    task = written(leaf("task", "open", page_dir, "page", "Add a glossary"))
+    todo = written(leaf("task", "open", page_dir, "page", "Add a glossary"))
     refused = leaf("status", page_dir, "idle")
     assert refused.exit_code != 0
-    assert f"1 open to-do: {task['id']} (Add a glossary)" in refused.output
+    assert f"1 open to-do: {todo['id']} (Add a glossary)" in refused.output
     assert "leaf task end <page> <id> done" in refused.output
-    written(leaf("task", "end", page_dir, task["id"], "dropped", "not needed"))
+    written(leaf("task", "end", page_dir, todo["id"], "dropped", "not needed"))
     written(leaf("status", page_dir, "idle"))
 
 
-def test_a_start_on_a_widget_task_holds_the_moves_delivered_before_it(page_dir):
+def test_a_start_on_a_widget_todo_holds_the_moves_delivered_before_it(page_dir):
     """A task on a widget answers the moves on it: once started, the move the user
     made there reads Working and lets the turn that started it end over it. A move
     made after the start is not in hand."""
@@ -823,15 +821,15 @@ def test_a_start_on_a_widget_task_holds_the_moves_delivered_before_it(page_dir):
             "detail": {"value": ["flag-first"]},
         },
     )
-    task = written(leaf("task", "open", page_dir, "choice", "Build the chosen plan"))
-    start = written(leaf("task", "start", page_dir, task["id"], "Building flag first"))
+    todo = written(leaf("task", "open", page_dir, "choice", "Build the chosen plan"))
+    start = written(leaf("task", "start", page_dir, todo["id"], "Building flag first"))
     [workflow] = state_json(page_dir)["workflows"]
     assert (workflow["input"], workflow["stage"], workflow["detail"]) == (
         pick["id"],
         "working",
         "Building flag first",
     )
-    assert [held["item"] for held in workflow["started_by"]] == [task["id"]]
+    assert [held["item"] for held in workflow["started_by"]] == [todo["id"]]
     assert workflow["started_by"][0]["seq"] == start["seq"]
 
     later = append_command(
@@ -855,9 +853,9 @@ def test_a_start_on_a_widget_task_holds_the_moves_delivered_before_it(page_dir):
 
 def test_a_start_line_is_one_sentence(page_dir):
     publish(page_dir)
-    task = written(leaf("task", "open", page_dir, "page", "Add a glossary"))
+    todo = written(leaf("task", "open", page_dir, "page", "Add a glossary"))
     for line in ("", "   ", "two\nlines"):
-        refused = leaf("task", "start", page_dir, task["id"], line)
+        refused = leaf("task", "start", page_dir, todo["id"], line)
         assert refused.exit_code != 0
         assert "start event is invalid" in refused.output
 
@@ -870,50 +868,50 @@ def asking(page_dir):
     publish(page_dir)
 
 
-def done(page_dir, task: str) -> tuple[int, dict]:
+def done(page_dir, todo: str) -> tuple[int, dict]:
     """The user's Done on `task`, posted as the Questions panel posts it."""
     return endpoint_model.accept_event(
-        page_dir, {"kind": "todo_end", "todo": task, "outcome": "done"}, dict
+        page_dir, {"kind": "todo_end", "todo": todo, "outcome": "done"}, dict
     )
 
 
-def test_a_task_on_the_user_stands_on_any_element_until_their_done(page_dir):
+def test_a_todo_on_the_user_stands_on_any_element_until_their_done(page_dir):
     """`--on user` puts a task on the user's queue, about any element of the page by
     its id, and their Done ends it: an event the agent hears of, on the one door."""
     publish(page_dir)
-    task = written(
+    todo = written(
         leaf("task", "open", page_dir, "plan", "Is the plan enough?", "--on", "user")
     )
-    assert (task["owner"], task["subject"]) == (
+    assert (todo["owner"], todo["subject"]) == (
         "user",
         {"kind": "element", "id": "plan"},
     )
     state = state_json(page_dir)
     asks = [("ask", ask["id"]) for ask in asks_on_user(state)]
-    assert kinds(state["queues"]["questions"]) == asks + [("todo", task["id"])]
+    assert kinds(state["queues"]["questions"]) == asks + [("todo", todo["id"])]
     assert state["queues"]["tasks"] == []
-    assert [item["owner"] for item in state["todos"] if item["id"] == task["id"]] == [
+    assert [item["owner"] for item in state["todos"] if item["id"] == todo["id"]] == [
         "user"
     ]
 
-    status, answer = done(page_dir, task["id"])
+    status, answer = done(page_dir, todo["id"])
     assert status == 200, answer
     end = events_model.read_events(page_dir)[-1]
     assert (end["kind"], end["author"], end["todo"], end["attention"]) == (
         "todo_end",
         "user",
-        task["id"],
+        todo["id"],
         True,
     )
     state = state_json(page_dir)
     assert kinds(state["queues"]["questions"]) == asks
-    assert task["id"] not in [item["id"] for item in state["todos"]]
+    assert todo["id"] not in [item["id"] for item in state["todos"]]
     served = full_state(page_dir, events_model.read_events(page_dir))
     [ended] = [
-        item for item in served["browser"]["ended_todos"] if item["id"] == task["id"]
+        item for item in served["browser"]["ended_todos"] if item["id"] == todo["id"]
     ]
     assert (ended["state"], ended["outcome"]["author"]) == ("done", "user")
-    assert done(page_dir, task["id"])[0] == 400
+    assert done(page_dir, todo["id"])[0] == 400
 
     # Done is a gesture the user can take back, which puts the task on them again.
     status, answer = endpoint_model.accept_event(
@@ -921,11 +919,11 @@ def test_a_task_on_the_user_stands_on_any_element_until_their_done(page_dir):
     )
     assert status == 200, answer
     state = state_json(page_dir)
-    assert kinds(state["queues"]["questions"]) == asks + [("todo", task["id"])]
-    assert done(page_dir, task["id"])[0] == 200
+    assert kinds(state["queues"]["questions"]) == asks + [("todo", todo["id"])]
+    assert done(page_dir, todo["id"])[0] == 200
 
 
-def test_a_thread_question_remains_distinct_from_explicit_user_work(page_dir):
+def test_a_thread_ask_remains_distinct_from_explicit_user_work(page_dir):
     """A prose Question ends at a reply, without a Task or separate Done action."""
     publish(page_dir)
     comment = append_carried_log_record(
@@ -969,20 +967,20 @@ def test_a_thread_question_remains_distinct_from_explicit_user_work(page_dir):
     assert question["id"] not in [item["id"] for item in state_json(page_dir)["todos"]]
 
 
-def test_the_user_ends_only_explicit_user_work_and_not_a_question(page_dir):
+def test_the_user_ends_only_explicit_user_work_and_not_an_ask(page_dir):
     """Done ends explicit user work; widget Questions retain their source lifecycle."""
     asking(page_dir)
     mine = written(leaf("task", "open", page_dir, "page", "Add a glossary"))
     [ask] = asks_on_user(state_json(page_dir))
-    for task in (mine["id"], ask["id"]):
-        status, answer = done(page_dir, task)
+    for todo in (mine["id"], ask["id"]):
+        status, answer = done(page_dir, todo)
         assert status == 400, answer
     refused = leaf("task", "start", page_dir, ask["id"], "Answering it myself")
     assert refused.exit_code != 0
     assert state_json(page_dir)["todos"][-1]["id"] == mine["id"]
 
 
-def test_widget_question_ends_through_its_source_and_prose_end_withdraws_request(
+def test_widget_ask_ends_through_its_source_and_prose_end_withdraws_request(
     page_dir,
 ):
     """Widget Questions follow source state; an agent can withdraw prose without answering."""
@@ -1041,18 +1039,18 @@ def test_widget_question_ends_through_its_source_and_prose_end_withdraws_request
     assert "is a widget ask; its source owns the answer" in answered.output
 
 
-def test_user_work_cannot_duplicate_a_widget_question(page_dir):
+def test_user_work_cannot_duplicate_a_widget_ask(page_dir):
     """A Question owns the request; opening user work must name that canonical id."""
     asking(page_dir)
-    [question] = asks_on_user(state_json(page_dir))
+    [ask] = asks_on_user(state_json(page_dir))
     result = leaf("task", "open", page_dir, "choice", "Check evidence", "--on", "user")
     assert result.exit_code != 0
     assert "already has ask 'widget:choice'" in result.output
     assert state_json(page_dir)["todos"] == []
-    assert asks_on_user(state_json(page_dir)) == [question]
+    assert asks_on_user(state_json(page_dir)) == [ask]
 
 
-def test_a_task_an_earlier_leaf_wrote_without_an_owner_is_absent(page_dir):
+def test_a_todo_an_earlier_leaf_wrote_without_an_owner_is_absent(page_dir):
     """A record missing a field this version reads is ignored where it is loaded: the
     page still reads, and the task is on neither queue."""
     publish(page_dir)
@@ -1072,7 +1070,7 @@ def test_a_task_an_earlier_leaf_wrote_without_an_owner_is_absent(page_dir):
     assert served["browser"]["todos"] == []
 
 
-def test_a_version_can_remove_a_target_while_its_tasks_stay_open(page_dir):
+def test_a_version_can_remove_a_target_while_its_todos_stay_open(page_dir):
     """Removing a page subject does not silently settle either side's tasks."""
     (page_dir / "index.html").write_text(WORK_PAGE)
     publish(page_dir)
@@ -1085,10 +1083,10 @@ def test_a_version_can_remove_a_target_while_its_tasks_stay_open(page_dir):
     )
     dropped = stamp(page_dir, "Plan renamed")
     assert dropped.exit_code == 0, dropped.output
-    assert {task["id"] for task in state_json(page_dir)["todos"]} == {
+    assert {todo["id"] for todo in state_json(page_dir)["todos"]} == {
         mine["id"],
         theirs["id"],
     }
-    for task in (theirs, mine):
-        written(leaf("task", "end", page_dir, task["id"], "dropped", "Renamed"))
+    for todo in (theirs, mine):
+        written(leaf("task", "end", page_dir, todo["id"], "dropped", "Renamed"))
     assert state_json(page_dir)["todos"] == []

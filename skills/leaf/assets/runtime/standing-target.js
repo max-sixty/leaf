@@ -28,8 +28,8 @@
 import { documentFocused } from "./keyboard/scopes.js";
 import { standingNodes } from "./focus.js";
 import { inChrome } from "./passages.js";
-import { readQuestions } from "./questions/model.js";
-import { questionPlace } from "./questions/place.js";
+import { readAsks } from "./asks/model.js";
+import { askPlace } from "./asks/place.js";
 import { hostIn, under } from "./shadow.js";
 import { pageReadingBlock } from "./reading-place.js";
 
@@ -43,16 +43,16 @@ export function declareSide(bridge) {
 
 // Source containment identifies the Question before its context does. A context
 // shared by several sources cannot identify one of them on its own.
-export function questionHolding(questions, node) {
+export function askHolding(asks, node) {
   if (!node) return null;
-  const places = questions
-    .filter((question) => question.source.kind === "widget")
-    .map((question) => ({ question, ...questionPlace(question, questions) }));
+  const places = asks
+    .filter((ask) => ask.source.kind === "widget")
+    .map((ask) => ({ ask, ...askPlace(ask, asks) }));
   const holds = (element) => element && (element === node || under(node, element));
   const source = places.findLast((place) => holds(place.source));
-  if (source) return source.question;
+  if (source) return source.ask;
   const contexts = places.filter((place) => holds(place.node));
-  return contexts.length === 1 ? contexts[0].question : null;
+  return contexts.length === 1 ? contexts[0].ask : null;
 }
 
 // The source target a presentation node shows, by its owner's declaration, or null
@@ -70,13 +70,11 @@ export function placeOf(node) {
   if (!at || at === document.body) return null;
   // A Question is the user's current action wherever it is rendered. A source-linked
   // presentation may otherwise stand in authored flow as well as fixed chrome.
-  if (questionHolding(readQuestions().all, at)) return at;
+  if (askHolding(readAsks().all, at)) return at;
   for (const side of sides) {
     const place = side(at);
     if (place)
-      return inChrome(place) && !questionHolding(readQuestions().all, place)
-        ? null
-        : place;
+      return inChrome(place) && !askHolding(readAsks().all, place) ? null : place;
   }
   return inChrome(at) ? null : at;
 }
@@ -97,7 +95,7 @@ export const walkOrigin = () => hostIn(standingPlace() ?? pageReadingBlock(), do
 
 // The Question the user stands in, answered or not: where letting go lands, and the extent
 // of what `c` counts as the element they stand at.
-export function heldQuestion(node = documentFocused()) {
-  const question = questionHolding(readQuestions().all, placeOf(node));
-  return questionPlace(question).node;
+export function heldAsk(node = documentFocused()) {
+  const ask = askHolding(readAsks().all, placeOf(node));
+  return askPlace(ask).node;
 }

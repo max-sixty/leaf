@@ -8,7 +8,7 @@
    the rows by item and keeps their light-DOM buttons stable across presentations. A row
    standing at an element, a Question's or a widget's the user must act on, names it in
    `data-lf-at`, so the row stands at that element (`declareSide`, queue-panel.js) and
-   mirrors the ring of the Question the user stands in (questions/view.js, `markHere`). The fold's
+   mirrors the ring of the Question the user stands in (asks/view.js, `markHere`). The fold's
    open state is the disclosure's own, a browser fact the reading never holds.
 
    A row whose task the user ends with Done carries a Done button beside it, which Tab

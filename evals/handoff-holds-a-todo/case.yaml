@@ -8,7 +8,7 @@
 # lands, the task ends there" passed 4 of 4, each brief ending the task from the
 # dispatched session, as did a longer edit that also listed hand-offs as a worker role.
 # Reworded by #2506 (`--task` to `--todo`); at 3fe3eb0af it passed 1/1 on Claude Code.
-description: handoff-holds-a-task
+description: handoff-holds-a-todo
 metadata:
   purpose: 'Conversation loop: work the agent hands to another session still gets a
     to-do on the thread that asked for it, and the brief lets that session end

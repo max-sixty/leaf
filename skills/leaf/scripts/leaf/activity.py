@@ -256,7 +256,7 @@ def blocking_obligations(state: dict, *, watched: bool) -> list[dict]:
 
 
 def started_in_turn(obligation: dict, state: dict) -> bool:
-    """Whether the claimant's open turn took this update in hand (`tasks.take_in_hand`)
+    """Whether the claimant's open turn took this update in hand (`todos.take_in_hand`)
     after it was delivered: a start covering the update
     (`workflows.canonical_workflows`, `started_by`) that turn wrote since the update's
     pickup.
@@ -358,8 +358,8 @@ def claimant_turn(
 
 def declared_at(present: dict, events: list) -> str | None:
     """When the agent last declared anything about the page: its newest status, or
-    the newest start in the log (`tasks.last_start`)."""
-    from .tasks import last_start
+    the newest start in the log (`todos.last_start`)."""
+    from .todos import last_start
 
     moments = [
         moment
@@ -456,8 +456,8 @@ def _canonical_workflows(
     return result, aging
 
 
-def _canonical_tasks(
-    tasks: list[dict], present: dict, now: datetime, *, held: bool, turn: Turn
+def _canonical_todos(
+    todos: list[dict], present: dict, now: datetime, *, held: bool, turn: Turn
 ) -> tuple[list[dict], dict[str, tuple[dict, bool, bool]]]:
     """Age the start running on each open task as a Working update's is aged, and
     return beside them, for each task a start ran on, that start and how quiet and
@@ -468,17 +468,17 @@ def _canonical_tasks(
     nothing."""
     result = []
     aging = {}
-    for raw in tasks:
-        task = dict(raw)
-        start = task["running"]
+    for raw in todos:
+        todo = dict(raw)
+        start = todo["running"]
         if start is not None and held:
             quiet, dropped = _start_age(start, present, now, turn)
-            aging[task["id"]] = (start, quiet, dropped)
+            aging[todo["id"]] = (start, quiet, dropped)
             if quiet:
-                task["running"] = None
+                todo["running"] = None
         else:
-            task["running"] = None
-        result.append(task)
+            todo["running"] = None
+        result.append(todo)
     return result, aging
 
 
@@ -491,22 +491,22 @@ def canonical_activity(
     reply: dict | None = None,
     reservations: dict | None = None,
     *,
-    task_reading=None,
+    todo_reading=None,
 ) -> dict:
     """Return the one current reading of agent activity for a page snapshot.
 
     `interaction_evidence` are the page's workflows (`workflows.canonical_workflows`)
     and `events` the log they were read from, which holds the agent's open tasks and
-    the starts running on them (`tasks.TaskReading`). Both come back aged, as
+    the starts running on them (`todos.TodoReading`). Both come back aged, as
     `workflows` and `tasks`.
 
     `reservations` reserve automatic replies from the claimant's exact App Server
     turn (`reply_reservation_stands`). Their workflows keep the `reply` answer kind
     and add `writer: "turn"` and the reservation's attempt. An explicit addressed
     answer may commit first; the automatic final then yields to it."""
-    from .tasks import TaskReading
+    from .todos import TodoReading
 
-    log = task_reading or TaskReading(events)
+    log = todo_reading or TodoReading(events)
     now = datetime.fromisoformat(now_iso)
     status = present["status"]
     declared = declared_at(present, events)
@@ -529,7 +529,7 @@ def canonical_activity(
     workflows, aging = _canonical_workflows(
         interaction_evidence, present, now, held=held, turn=turn
     )
-    tasks, task_aging = _canonical_tasks(log.owed, present, now, held=held, turn=turn)
+    todos, todo_aging = _canonical_todos(log.owed, present, now, held=held, turn=turn)
     _bind_receipt_refs(workflows, present)
     _bind_reply(workflows, reply)
     for item in workflows:
@@ -557,7 +557,7 @@ def canonical_activity(
         (aging[item["id"]][0], aging[item["id"]][1:])
         for item in workflows
         if item["stage"] == "working"
-    ] + [(start, age) for start, *age in task_aging.values()]
+    ] + [(start, age) for start, *age in todo_aging.values()]
 
     # Every moment at which some belief above lapses, each as a moment and the
     # grace that runs from it. Status age and the turn's ending can change ownership
@@ -718,7 +718,7 @@ def canonical_activity(
         "ts": ts,
         "next_transition_at": min(deadlines).isoformat() if deadlines else None,
         "workflows": workflows,
-        "tasks": tasks,
+        "todos": todos,
         "obligations": obligations,
         **({"reply": _reply_evidence(reply)} if reply is not None else {}),
     }

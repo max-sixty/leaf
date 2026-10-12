@@ -40,7 +40,7 @@ from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
-from leaf import tasks as tasks_model
+from leaf import todos as todos_model
 from leaf.refusals import Refused
 from leaf.registry import storage as registry_storage
 from leaf.registry.contract import element_declarations
@@ -266,7 +266,7 @@ def test_sample_admits_interactive_widgets(page_dir):
     assert errs == []
 
 
-def test_question_context_frames_any_number_of_independent_sources(page_dir):
+def test_ask_context_frames_any_number_of_independent_sources(page_dir):
     """Context supplies one title without imposing source count or identity."""
     registry = registry_storage.load_registry(page_dir)
     first = (
@@ -1124,7 +1124,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     assert posted.exit_code == 0, posted.output
     update = json.loads(posted.output)
     assert update["ephemeral"] is True and "responds" not in update
-    start = tasks_model.start_reading(update)
+    start = todos_model.start_reading(update)
     assert (start["item"], start["text"]) == (root["id"], "Checking the camera.")
     assert events_model.read_events(claimed)[-1] == update
     [working] = page_state(claimed)["workflows"]
@@ -1163,7 +1163,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     assert [json.loads(line)["kind"] for line in later.output.splitlines()] == ["reply"]
 
 
-def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir):
+def test_an_agent_reply_records_only_an_ask_it_leaves_with_the_user(page_dir):
     published(page_dir)
     root = append_carried_log_record(
         page_dir,

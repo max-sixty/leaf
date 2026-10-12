@@ -923,9 +923,7 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
     expect(result).to_have_text("Replacement applied")
 
 
-def test_restoring_question_focus_can_execute_its_command_in_the_same_turn(
-    browser, serve
-):
+def test_restoring_ask_focus_can_execute_its_command_in_the_same_turn(browser, serve):
     """Focus determines forwarded scopes synchronously, without a paint registering them."""
     page = open_page(
         browser,
@@ -1913,7 +1911,7 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
 
 
 @pytest.mark.parametrize("width", [1200, 390])
-def test_required_approval_is_a_question_until_approved(browser, serve, width):
+def test_required_approval_is_an_ask_until_approved(browser, serve, width):
     """Sign-off belongs to Questions and leads to the real approval control,
     including its phone overflow seat. A task's Done cannot substitute for it."""
     html = LONG_PAGE.replace(
@@ -1927,10 +1925,10 @@ def test_required_approval_is_a_question_until_approved(browser, serve, width):
     )
     expect(questions).to_be_attached()
     target = page.evaluate("""async () => {
-      const {readQuestions, questionActions} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-      const question = readQuestions().all.find(q => q.source.kind === 'approval');
+      const {readAsks, askActions} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const question = readAsks().all.find(q => q.source.kind === 'approval');
       const target = document.getElementById(question.prompt.target);
-      await questionActions.open(question.id);
+      await askActions.open(question.id);
       return target === document.querySelector('.lf-signoff') && document.activeElement === target;
     }""")
     assert target, (
@@ -2825,7 +2823,7 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     resized(page, 390, 900)
     expect(page.locator(".lf-banner-menu > .lf-answer-all")).to_have_count(1)
     assert answer_all.evaluate("button => button === window.__lfBulkControl")
-    assert answer_all.locator(":scope > lf-question-banner-face").count() == 1
+    assert answer_all.locator(":scope > lf-ask-banner-face").count() == 1
     order = page.evaluate(
         """() => [...document.querySelector('.lf-banner-menu').children,
                     ...document.querySelector('.lf-banner-actions').children]

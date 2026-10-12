@@ -1804,7 +1804,7 @@ def test_an_arrival_lands_where_the_url_aimed(browser, serve):
     page.wait_for_function(onscreen, arg="tail-end")
 
 
-def test_a_thread_question_asks_until_answered(browser, serve):
+def test_a_thread_ask_waits_until_answered(browser, serve):
     """A question in a thread is one of the page's asks — an obligation for the user
         wherever it stands — and `q` reaches it. A single-answer group
     is answered by its pick, as on the page; a `multiple` group's toggles each

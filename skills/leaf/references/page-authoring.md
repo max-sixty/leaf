@@ -546,9 +546,9 @@ particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-
 rules keep authored controls correct after reconnection and thread quoting.
 
 A page module that shows the state of the asks in each card, section or item of its
-own layout reads them from Leaf rather than keeping a copy: `watchQuestions()` with
+own layout reads them from Leaf rather than keeping a copy: `watchAsks()` with
 `asksIn(region)` selects each region's asks, answered or open, by the rule `lf-tabs`
-rows and `lf-tally` read, and `questionActions.next({within})` steps to the next one
+rows and `lf-tally` read, and `askActions.next({within})` steps to the next one
 waiting on the user (`references/module-authoring.md`, "Reading asks and obligation
 queues").
 

@@ -10,20 +10,20 @@ import { readApplication } from "../semantic-state.js";
 import { registry } from "../registry.js";
 import { watchProjection } from "../projection-watch.js";
 
-export const readQuestions = () => readApplication().effective.asks;
+export const readAsks = () => readApplication().effective.asks;
 
-export const questionEntry = (question) => registry[question?.source.tag]?.["x-awaits"];
+export const askEntry = (ask) => registry[ask?.source.tag]?.["x-awaits"];
 // The Questions approving the shown version waits on, which the server names
-// (`questions.approval_blocking`, the rule its append door refuses a sign-off by).
+// (`asks.approval_blocking`, the rule its append door refuses a sign-off by).
 // Approval needs an admitted inventory, so its gate never reads unknown as empty: with
 // no admitted reading nothing says which Questions still stand, and this answers null.
-export function approvalBlockingQuestions() {
-  const { asks: questions, view } = readApplication().effective;
-  if (questions.phase !== "ready" || !view) return null;
+export function approvalBlockingAsks() {
+  const { asks, view } = readApplication().effective;
+  if (asks.phase !== "ready" || !view) return null;
   const blocking = new Set(view.approval_blocking);
-  return questions.all.filter((question) => blocking.has(question.id));
+  return asks.all.filter((ask) => blocking.has(ask.id));
 }
 
-export function watchQuestions(owner, callback) {
-  return watchProjection(owner, () => callback(readQuestions()));
+export function watchAsks(owner, callback) {
+  return watchProjection(owner, () => callback(readAsks()));
 }

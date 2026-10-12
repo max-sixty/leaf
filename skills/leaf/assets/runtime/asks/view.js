@@ -6,7 +6,7 @@
    Questions navigate through their thread owner instead.
 
    A Question keeps its source identity. Its prompt.target names the context the user
-   arrives at: an optional lf-ask or other declared x-question-context region, otherwise
+   arrives at: an optional lf-ask or other declared x-ask-context region, otherwise
    the widget itself. The source owns the answer and the explicit context bindings.
    Adding a context wrapper changes neither the Question nor its answer.
 
@@ -31,7 +31,7 @@
 
 import { landingRoom, scrollIntoView } from "../landing-scroll.js";
 import { landingBand, shownBox, shownParts } from "../geometry.js";
-import { createQuestionBannerControls } from "./banner-controls.js";
+import { createAskBannerControls } from "./banner-controls.js";
 import { decisionControls } from "../keyboard/bindings.js";
 import { closestAcross, inChrome, showsWords } from "../passages.js";
 import { TEXT_BLOCK } from "../passage-facts.js";
@@ -40,7 +40,7 @@ import { reserve } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
 import { queueList } from "../drawers.js";
 import { decisionFor, registry, tagsDeclaring } from "../registry.js";
-import { questionEntry, readQuestions } from "./model.js";
+import { askEntry, readAsks } from "./model.js";
 import { walkPositionLabel } from "../walk-position.js";
 import { focused } from "../focus.js";
 import {
@@ -51,10 +51,10 @@ import {
 } from "../keyboard/scopes.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { scrollBehavior } from "../motion.js";
-import { QUESTION_CONTROL } from "./view-elements.js";
-import { ownedQuestionControl } from "./answer.js";
+import { ASK_CONTROL } from "./view-elements.js";
+import { ownedAskControl } from "./answer.js";
 import { rowAt } from "../queue-list.js";
-import { questionHolding, placeOf, sideOf } from "../standing-target.js";
+import { askHolding, placeOf, sideOf } from "../standing-target.js";
 import { PRESENTATION } from "../presentation.js";
 import { retainUserIntent } from "../user-intent.js";
 import { bindQueuedWork } from "../queued-work.js";
@@ -68,10 +68,10 @@ import {
 } from "../semantic-state.js";
 import { hostIn, under, upFrom } from "../shadow.js";
 import { showHeld } from "../thread/held-news.js";
-import { questionPlace } from "./place.js";
+import { askPlace } from "./place.js";
 
 // Question owns contextual action routes and navigation; the keyboard presenter owns their hints.
-export function createQuestionView({
+export function createAskView({
   prepareTrip,
   arrive,
   openPageThread,
@@ -80,12 +80,12 @@ export function createQuestionView({
   announce,
   repaint,
 }) {
-  const questionNode = (question) => questionPlace(question).node;
-  const questionRow = (question) => (question ? rowAt(queueList, question.id) : null);
-  const sourceNode = (question) => questionPlace(question).source;
-  const hasQuestion = (questions, candidate) =>
-    Boolean(candidate && questions.some((question) => question.id === candidate.id));
-  const unansweredIds = () => new Set(readQuestions().unanswered.map(({ id }) => id));
+  const askNode = (ask) => askPlace(ask).node;
+  const askRow = (ask) => (ask ? rowAt(queueList, ask.id) : null);
+  const sourceNode = (ask) => askPlace(ask).source;
+  const hasAsk = (asks, candidate) =>
+    Boolean(candidate && asks.some((ask) => ask.id === candidate.id));
+  const unansweredIds = () => new Set(readAsks().unanswered.map(({ id }) => id));
 
   // A thread Question is part of the application reading before its frozen markup has a
   // live reader node. Navigation and activation are the two boundaries that need that
@@ -98,57 +98,54 @@ export function createQuestionView({
   //
   // A Question a held turn carries has no node until its thread shows what it holds
   // (held-news.js), and that release draws before `showHeld` returns.
-  const questionNodes = (question) => ({
-    target: questionNode(question),
-    source: sourceNode(question),
+  const askNodes = (ask) => ({
+    target: askNode(ask),
+    source: sourceNode(ask),
   });
-  const reachQuestion = (question) => {
-    if (question.thread && !questionNode(question)) showHeld(question.thread);
-    return questionNodes(question);
+  const reachAsk = (ask) => {
+    if (ask.thread && !askNode(ask)) showHeld(ask.thread);
+    return askNodes(ask);
   };
-  const unbuilt = (question, { target, source }) =>
-    (!target || !source) && question.thread;
-  async function materializeQuestion(question, intent = null) {
-    reachQuestion(question);
-    await openPageThread(question.message, {
+  const unbuilt = (ask, { target, source }) => (!target || !source) && ask.thread;
+  async function materializeAsk(ask, intent = null) {
+    reachAsk(ask);
+    await openPageThread(ask.message, {
       part: "message",
       focus: false,
       travel: false,
       ...(intent && { intent }),
     });
-    return questionNodes(question);
+    return askNodes(ask);
   }
   const presentedActionControl = (control) => presentedControl?.(control) ?? control;
   const answeringAll = new Set();
   const bulkAnswers = new Map();
-  const bannerControls = createQuestionBannerControls(async (outcome) => {
+  const bannerControls = createAskBannerControls(async (outcome) => {
     if (answeringAll.has(outcome)) return;
     answeringAll.add(outcome);
-    void syncQuestions();
+    void syncAsks();
     try {
       // Resolve the current open inventory at activation. A control can survive several
       // publications and toolbar moves; it never captures an earlier Question or DOM node.
-      for (const question of readQuestions().user) {
-        if (questionEntry(question)?.all !== outcome) continue;
-        const nodes = reachQuestion(question);
-        const { source } = unbuilt(question, nodes)
-          ? await materializeQuestion(question)
-          : nodes;
-        await source?.[decisionFor(question.source.tag)?.verb]?.(outcome);
+      for (const ask of readAsks().user) {
+        if (askEntry(ask)?.all !== outcome) continue;
+        const nodes = reachAsk(ask);
+        const { source } = unbuilt(ask, nodes) ? await materializeAsk(ask) : nodes;
+        await source?.[decisionFor(ask.source.tag)?.verb]?.(outcome);
       }
     } finally {
       answeringAll.delete(outcome);
-      void syncQuestions();
+      void syncAsks();
     }
   });
-  const questionsRenderer = Object.freeze({ banner: bannerControls });
+  const asksRenderer = Object.freeze({ banner: bannerControls });
   const presenter = applicationPresenter({
-    region: "questions",
-    renderer: questionsRenderer,
-    order: PRESENTATION_ORDER.questions,
+    region: "asks",
+    renderer: asksRenderer,
+    order: PRESENTATION_ORDER.asks,
     current: () => (mounted ? readApplication().semanticEpoch : null),
-    failSoft: failSoftAfterRetention(questionsRenderer),
-    paint: (epoch, current) => paintQuestions(current),
+    failSoft: failSoftAfterRetention(asksRenderer),
+    paint: (epoch, current) => paintAsks(current),
   });
 
   // One blanket answer per outcome a widget declares one for (x-awaits.all), each
@@ -170,7 +167,7 @@ export function createQuestionView({
       const btn = bannerControls.registerBulk(outcome, label);
       bulkAnswers.set(outcome, label);
       // In the row now, so it holds the widest it reaches below a thousand — the same
-      // words syncQuestions writes, measured in the face it will render in (see reserve).
+      // words syncAsks writes, measured in the face it will render in (see reserve).
       reserve(btn, [`${label} all (999)`]);
     }
   }
@@ -178,11 +175,9 @@ export function createQuestionView({
   // Each blanket answer with the questions it would take, from the list above. The banner
   // writes its controls and counts from this one reading, without naming an outcome in
   // core; which outcomes exist is the registry's answer.
-  function blanketAnswers(questions) {
+  function blanketAnswers(asks) {
     return [...bulkAnswers].map(([outcome, label]) => {
-      const n = questions.filter(
-        (question) => questionEntry(question)?.all === outcome,
-      ).length;
+      const n = asks.filter((ask) => askEntry(ask)?.all === outcome).length;
       return Object.freeze({
         busy: answeringAll.has(outcome),
         offered: Boolean(n),
@@ -195,9 +190,9 @@ export function createQuestionView({
   // The banner's reading of that one list. Every semantic publication refreshes it,
   // and a publication is where the server's Question reading changes, so a send moves
   // these counts once the state its POST returns has been adopted.
-  async function paintQuestions(current) {
+  async function paintAsks(current) {
     const bannerModel = Object.freeze({
-      bulk: Object.freeze(blanketAnswers(readQuestions().user)),
+      bulk: Object.freeze(blanketAnswers(readAsks().user)),
     });
     repaint();
     try {
@@ -224,7 +219,7 @@ export function createQuestionView({
   // deferred read. Package subscribers therefore finish their own synchronous updates
   // first, while the application barrier already knows this inherited Question paint is stale.
   // The pass runs this reading after the thread whose markup its rows stand on.
-  function syncQuestions() {
+  function syncAsks() {
     return presenter.present();
   }
 
@@ -243,7 +238,7 @@ export function createQuestionView({
   // inventory: the source or unambiguous context holding where `node` stands
   // (standing-target.js). DOM containment says where focus is; it never decides whether
   // the Question belongs to that inventory.
-  const questionAt = (questions, node) => questionHolding(questions, placeOf(node));
+  const askAt = (asks, node) => askHolding(asks, placeOf(node));
   // The question the user is standing in: the one holding the focus, or the one a control
   // hoisted into the margin decides, or the one a thread about it holds the focus for.
   //
@@ -260,26 +255,25 @@ export function createQuestionView({
   //
   // Document focus rather than the inner control: a control staged in a shadow tree
   // retargets to its host, and the host is the place in the document this wants.
-  function standingQuestion(held = documentFocused()) {
+  function standingAsk(held = documentFocused()) {
     if (!held || held === document.body) return null;
-    const record = questionAt(readQuestions().all, held);
+    const record = askAt(readAsks().all, held);
     if (!record) return null;
-    if (readQuestions().unanswered.some((question) => question.id === record.id))
-      return record;
+    if (readAsks().unanswered.some((ask) => ask.id === record.id)) return record;
     // An answered Question is standing only on an explicit review route: the question element,
     // or chrome whose owner declares it stands at that element (`sideOf`), as a Queue
     // row does. A widget host can be the document's retargeted focus without being the
     // question itself; treating that as an arrival would make an ordinary click on a chosen
     // option steal the option's own semantics.
     const answered = record;
-    const question = questionNode(answered);
-    return held === question ||
-      (inChrome(held) && sideOf(held) === question) ||
+    const ask = askNode(answered);
+    return held === ask ||
+      (inChrome(held) && sideOf(held) === ask) ||
       hasReviewedFocus()
       ? answered
       : null;
   }
-  const standingIn = () => questionNode(standingQuestion());
+  const standingIn = () => askNode(standingAsk());
 
   // Widgets own context aliases. Question selects declarations through the same standing
   // relation that maps a margin entry or thread back to its source; the generic
@@ -287,11 +281,11 @@ export function createQuestionView({
   const actionsFor = (source) =>
     decisionControls(commandsWithin(source), `Ask ${source.id}`).filter(
       ({ source: commandSource, control }) =>
-        ownedQuestionControl(source, commandSource) &&
+        ownedAskControl(source, commandSource) &&
         control.getAttribute("aria-busy") !== "true",
     );
-  const actionsOf = (question) => {
-    const source = question && sourceNode(question);
+  const actionsOf = (ask) => {
+    const source = ask && sourceNode(ask);
     return source ? actionsFor(source) : [];
   };
   // The answers an ask offers, for a surface that answers it away from where it stands,
@@ -299,8 +293,8 @@ export function createQuestionView({
   // its own press, so the answer is the widget's, recorded as a press there would be.
   // Null while the ask's source has no node, as in a thread turn not yet drawn; the
   // caller then offers the arrival instead.
-  function choicesOf(question) {
-    const source = sourceNode(question);
+  function choicesOf(ask) {
+    const source = sourceNode(ask);
     if (!source) return null;
     return actionsFor(source).map(({ id, label, control }) =>
       Object.freeze({
@@ -313,13 +307,13 @@ export function createQuestionView({
       }),
     );
   }
-  function questionContext(origin) {
-    const record = questionAt(readQuestions().all, hostIn(origin, document));
+  function askContext(origin) {
+    const record = askAt(readAsks().all, hostIn(origin, document));
     let root = null;
     // Keep the projection outside any nearer widget scope, but inside the
     // keyboard boundary of a thread. Native input claims precede context scopes.
     for (let node = origin; record && node; node = upFrom(node)) {
-      if (questionAt(readQuestions().all, node)?.id !== record.id) break;
+      if (askAt(readAsks().all, node)?.id !== record.id) break;
       root = node;
       if (node.hasAttribute("data-lf-thread-surface")) break;
     }
@@ -330,7 +324,7 @@ export function createQuestionView({
         const source = sourceNode(record);
         return source
           ? commandDeclarationsWithin(source).filter(({ source: commandSource }) =>
-              ownedQuestionControl(source, commandSource),
+              ownedAskControl(source, commandSource),
             )
           : [];
       },
@@ -358,21 +352,19 @@ export function createQuestionView({
   //
   // The Questions panel's row for the question is a second surface showing this one fact, so it
   // is painted from this one reading rather than from a mark the panel keeps for itself —
-  // and the ring is the chrome's as much as the page's (the [data-lf-question] rule in the
+  // and the ring is the chrome's as much as the page's (the [data-lf-ask] rule in the
   // stylesheet is written against the attribute, not against the page), so wearing the
   // attribute is the whole of what the row needs.
   function markHere() {
-    const record = standingQuestion();
-    const here = questionNode(record);
-    const row = questionRow(record);
+    const record = standingAsk();
+    const here = askNode(record);
+    const row = askRow(record);
     const wearing = new Set(
       here ? [here, ...shownParts(here), ...(row ? [row] : [])] : [],
     );
-    for (const marked of document.querySelectorAll(
-      `[${PAGE_PAINT_ATTRIBUTE.question}]`,
-    ))
-      if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.question);
-    for (const marked of wearing) keeps(marked, PAGE_PAINT_ATTRIBUTE.question, "1");
+    for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
+      if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
+    for (const marked of wearing) keeps(marked, PAGE_PAINT_ATTRIBUTE.ask, "1");
   }
   // Where an arrival lands: on the question, which is what the scroll has just brought to
   // the top of the window and what the ring is about to name. Its controls are then the
@@ -383,16 +375,14 @@ export function createQuestionView({
   // The shared arrival owns focus and its temporary tab stop. Question owns which node
   // means standing here, including the visible answering control of a boxless Question.
   function arrivalFocus(record, review = false) {
-    const question = questionNode(record);
+    const ask = askNode(record);
     const source = sourceNode(record);
-    if (!question || !source) return null;
+    if (!ask || !source) return null;
     // A boxless decided Question can retain a zero-height layout rect after its
     // content retires. It has no visible surface to receive the return focus.
-    const target = [...question.getClientRects()].some(
-      (rect) => rect.width && rect.height,
-    )
-      ? question
-      : (source.querySelector(QUESTION_CONTROL) ??
+    const target = [...ask.getClientRects()].some((rect) => rect.width && rect.height)
+      ? ask
+      : (source.querySelector(ASK_CONTROL) ??
         actionsFor(source).map(({ control }) => presentedActionControl(control))[0] ??
         source);
     reviewedThrough = review ? target : null;
@@ -421,16 +411,16 @@ export function createQuestionView({
   function captureStanding() {
     const held = documentFocused();
     if (!held || held === document.body || inChrome(held)) return null;
-    return standingQuestion()?.id ?? null;
+    return standingAsk()?.id ?? null;
   }
 
   // Put the user back, once the arriving document has been upgraded and presented.
   // Standing is restored rather than asserted: a user the revision left where they were
   // is already standing there, and a Question the revision took away is nowhere to stand, so
   // each of those returns and `body` keeps the focus the replacement gave it.
-  function restoreStanding(question) {
-    if (!question || standingQuestion()?.id === question) return;
-    const record = readQuestions().all.find((candidate) => candidate.id === question);
+  function restoreStanding(ask) {
+    if (!ask || standingAsk()?.id === ask) return;
+    const record = readAsks().all.find((candidate) => candidate.id === ask);
     const target = record && arrivalFocus(record);
     if (target) focusForNavigation(target, "return");
   }
@@ -438,14 +428,14 @@ export function createQuestionView({
   const HEADING = "h1,h2,h3,h4,h5,h6";
 
   // Where the user arrives at a page question: the region whose start has to be in front
-  // of them for the question to make sense. A widget declaring x-question-context states its own —
+  // of them for the question to make sense. A widget declaring x-ask-context states its own —
   // one heading, then the context and evidence, then the control — and this walk is handed
   // that region rather than the widget inside it, so its arrival is simply its start.
   //
   // The kind that most needs a region is the kind that cannot declare one. A suggestion is
   // an edit to a phrase, and what explains it is the sentence it stands in and the heading
   // over that — so it can never satisfy "a question must name itself without context outside
-  // the question", and no x-question-context can be written round it. Landing on the change alone put
+  // the question", and no x-ask-context can be written round it. Landing on the change alone put
   // its own top edge under the banner and took that sentence with it: the user arrived
   // at ✓ Accept with nothing on screen saying what they were accepting. So where the
   // author has not declared a region, the document supplies one in the shape a declared
@@ -458,12 +448,12 @@ export function createQuestionView({
   // that fits keeps the landing this walk always gave it. That bound is what lets the
   // widest candidate go first: a heading a long way up fails to fit, rather than needing a
   // rule about how far up is too far.
-  function arrivalRegion(question, context, standing) {
+  function arrivalRegion(ask, context, standing) {
     // A unique declared context names the region even when taller than the screen:
     // the reader arrives at its opening and reads down to the answering controls.
     // Shared context must fit above this source; otherwise use its nearby words.
     // With only the default source target, infer the words preceding it instead.
-    const declared = context && registry[context.localName]?.["x-question-context"];
+    const declared = context && registry[context.localName]?.["x-ask-context"];
     if (declared && context === standing) return context;
     // A region has to be somewhere the user can be taken. An element generating no box
     // measures (0,0) at the document's origin, which is not a degenerate answer but a
@@ -481,11 +471,11 @@ export function createQuestionView({
     const fits = (region) => {
       if (!region) return false;
       const start = shownBox(region);
-      const target = shownBox(question);
+      const target = shownBox(ask);
       return (
         start.height > 0 &&
         start.top <= target.top &&
-        target.bottom - start.top <= landingRoom(region, question).height
+        target.bottom - start.top <= landingRoom(region, ask).height
       );
     };
     // The blocks before this one that are about the same part of the document: the two
@@ -519,16 +509,16 @@ export function createQuestionView({
     // filter therefore kept the blocks after such a question too, and the last heading in
     // the container won — the wrong-question arrival this bound exists to remove, in the
     // one shape the crossing above was written to serve.
-    const seenBy = (block) => hostIn(question, block.getRootNode());
+    const seenBy = (block) => hostIn(ask, block.getRootNode());
     const before = [...document.querySelectorAll(TEXT_BLOCK)].filter((block) => {
       const from = seenBy(block);
       return (
         from &&
         !inChrome(block) &&
         showsWords(block) &&
-        !under(question, block) &&
+        !under(ask, block) &&
         block.parentElement &&
-        under(question, block.parentElement) &&
+        under(ask, block.parentElement) &&
         from.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_PRECEDING
       );
     });
@@ -537,8 +527,8 @@ export function createQuestionView({
       [
         declared ? context : null,
         heading,
-        closestAcross(question, TEXT_BLOCK) ?? before.at(-1),
-      ].find(fits) ?? question
+        closestAcross(ask, TEXT_BLOCK) ?? before.at(-1),
+      ].find(fits) ?? ask
     );
   }
 
@@ -552,9 +542,9 @@ export function createQuestionView({
   // user for having a box inside the window. This adds the one thing that reading
   // cannot know: the arrival is the region's start, so the start has to be standing
   // clear of the banner too.
-  function framed(record, region, question, box, readable) {
+  function framed(record, region, ask, box, readable) {
     return (
-      readable(question) &&
+      readable(ask) &&
       shownBox(region).top >= landingBand(box).top &&
       actionsOf(record).every(({ control }) =>
         readable(presentedActionControl(control)),
@@ -569,18 +559,18 @@ export function createQuestionView({
   // the user on a question", and the two would drift the first time either the reveal or the
   // focus rule changed. It answers whether the user arrived; the caller announces where,
   // since it is the one that knows which list it walked.
-  async function arriveAtQuestionNow(next) {
+  async function arriveAtAskNow(next) {
     const mayArrive = retainUserIntent({
-      available: () => hasQuestion(readQuestions().all, next),
+      available: () => hasAsk(readAsks().all, next),
     });
     // Materializing a Question can yield before its destination opens a narrowed thread.
     // The arrival is this walk's deferred invocation; its returned tail is separate.
-    const arriveAtQuestion = bindQueuedWork(arrive);
+    const arriveAtAsk = bindQueuedWork(arrive);
     // A thread Question uses the same retained destination as every other thread
     // arrival. The selected reader may need to disclose a different conversation.
     const { target } = next.thread
-      ? await materializeQuestion(next, mayArrive)
-      : reachQuestion(next);
+      ? await materializeAsk(next, mayArrive)
+      : reachAsk(next);
     if (!mayArrive() || !target) return false;
     // A page Question starts below the banner so its context comes before its control, and
     // what counts as its context is arrivalRegion's answer: the region an author declared,
@@ -595,7 +585,7 @@ export function createQuestionView({
     // trip. Which box either travel moves is the travel's own question (scrollerFor)
     // rather than a second one asked here.
     const destination = () => {
-      const { node: target, source, context } = questionPlace(next);
+      const { node: target, source, context } = askPlace(next);
       if (!target || !source) return null;
       const box = !inChrome(target) && scrollerFor(target);
       return {
@@ -608,7 +598,7 @@ export function createQuestionView({
     const initial = destination();
     if (!initial) return false;
     const departure = prepareTrip({
-      landing: () => questionNode(next),
+      landing: () => askNode(next),
       intent: mayArrive,
     });
     const moving = Boolean(
@@ -619,7 +609,7 @@ export function createQuestionView({
           framed(next, initial.region, initial.target, initial.box, readable),
       }),
     );
-    const arrived = await arriveAtQuestion(
+    const arrived = await arriveAtAsk(
       () => {
         const here = destination();
         if (!here) return null;
@@ -651,25 +641,25 @@ export function createQuestionView({
       },
     );
     if (!arrived) return false;
-    scrollIntoView(questionRow(next), { block: "nearest" });
+    scrollIntoView(askRow(next), { block: "nearest" });
     return true;
   }
 
-  function arriveAtQuestion(next) {
+  function arriveAtAsk(next) {
     if (next.source.kind !== "widget") return Promise.resolve(false);
-    const ready = arriveAtQuestionNow(next);
+    const ready = arriveAtAskNow(next);
     void ready.catch(() => {});
     return ready;
   }
 
   // A press naming a Question outright, as a Page Map entry does: the arrival, then its
   // place in the list the caller names.
-  function goToQuestion(next, questions) {
-    const ready = arriveAtQuestion(next).then((arrived) => {
+  function goToAsk(next, asks) {
+    const ready = arriveAtAsk(next).then((arrived) => {
       if (!arrived) return false;
       const state = unansweredIds().has(next.id) ? "waiting on you" : "answered";
-      const index = questions.findIndex((question) => question.id === next.id);
-      announce(walkPositionLabel("Ask", index + 1, questions.length, state));
+      const index = asks.findIndex((ask) => ask.id === next.id);
+      announce(walkPositionLabel("Ask", index + 1, asks.length, state));
       return true;
     });
     void ready.catch(() => {});
@@ -679,12 +669,12 @@ export function createQuestionView({
   let mounted = false;
   let stopActionChanges = null;
   let stopContextScopes = null;
-  const actionsChanged = () => mounted && void syncQuestions();
+  const actionsChanged = () => mounted && void syncAsks();
 
   function mount() {
     if (mounted) return;
     mounted = true;
-    stopContextScopes = contextScopes("In this question", questionContext);
+    stopContextScopes = contextScopes("In this question", askContext);
     stopActionChanges = watchSemantic(actionsChanged);
     document.addEventListener(PRESENTATION, actionsChanged);
     addEventListener("resize", repaint);
@@ -701,23 +691,21 @@ export function createQuestionView({
     stopContextScopes?.();
     stopContextScopes = null;
     presenter.disconnect();
-    for (const marked of document.querySelectorAll(
-      `[${PAGE_PAINT_ATTRIBUTE.question}]`,
-    ))
-      marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.question);
+    for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
+      marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
   }
 
   return {
     mount,
     destroy,
     buildBulkAnswers,
-    syncQuestions,
+    syncAsks,
     standingIn,
     captureStanding,
     restoreStanding,
     markHere,
-    arriveAtQuestion,
-    goToQuestion,
+    arriveAtAsk,
+    goToAsk,
     choicesOf,
   };
 }

@@ -284,7 +284,7 @@ _ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
 EXTENSION_SCHEMA = {
     "type": "object",
     "properties": {
-        "x-question-context": {"const": True},
+        "x-ask-context": {"const": True},
         "x-awaits": AWAITS_SCHEMA,
         "x-thread-seat": {
             "type": "object",

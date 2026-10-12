@@ -4,19 +4,19 @@
 import { closestAcross, elementById } from "../passages.js";
 import { tagsDeclaring } from "../registry.js";
 
-export function ownedQuestionControl(source, commandSource) {
+export function ownedAskControl(source, commandSource) {
   const selector = tagsDeclaring((entry) => entry["x-awaits"]).join(",");
   return !selector || closestAcross(commandSource, selector) === source;
 }
 
-export function questionWords(question) {
-  if (question.answer === null) return "";
-  if (question.source.kind === "approval") return "Approved";
-  if (question.source.kind === "reply")
-    return question.answer.value.text ?? question.answer.value.token ?? "";
-  const source = elementById(question.source.id);
-  const formatter = customElements.get(question.source.tag)?.answerWords;
-  return String(source && formatter ? formatter(question.answer.value, source) : "")
+export function askWords(ask) {
+  if (ask.answer === null) return "";
+  if (ask.source.kind === "approval") return "Approved";
+  if (ask.source.kind === "reply")
+    return ask.answer.value.text ?? ask.answer.value.token ?? "";
+  const source = elementById(ask.source.id);
+  const formatter = customElements.get(ask.source.tag)?.answerWords;
+  return String(source && formatter ? formatter(ask.answer.value, source) : "")
     .replace(/\s+/g, " ")
     .trim();
 }

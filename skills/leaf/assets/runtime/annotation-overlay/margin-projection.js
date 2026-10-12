@@ -116,8 +116,8 @@ import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
 import { repaint } from "../repaint.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
 import { versionBtn } from "../version-picker.js";
-import { questionHolding, declareSide, placeOf } from "../standing-target.js";
-import { readQuestions } from "../questions/model.js";
+import { askHolding, declareSide, placeOf } from "../standing-target.js";
+import { readAsks } from "../asks/model.js";
 import { closestAcross, inChrome } from "../passages.js";
 import { visualAt } from "../anchor-resolution.js";
 import { paintTrace } from "../target-paint.js";
@@ -1606,7 +1606,7 @@ export function createMarginProjection({
       return;
     const host = closestAcross(active, "[data-lf-margin-for]");
     // Working a Question keeps its decisions clear; explicit discussion remains open.
-    if (questionHolding(readQuestions().all, placeOf(active))) {
+    if (askHolding(readAsks().all, placeOf(active))) {
       const entry = threadEntryAt(active);
       if (
         previewOpen() &&

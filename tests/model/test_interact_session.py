@@ -99,10 +99,10 @@ from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
-from leaf import tasks as tasks_model
 from leaf import thread as thread_model
 from leaf import thread_context as thread_context_model
 from leaf import thread_titles
+from leaf import todos as todos_model
 from leaf import vendoring as vendoring_model
 from leaf.detached import StartRefused
 from leaf.refusals import Refused
@@ -2187,7 +2187,7 @@ def test_a_weaker_old_receipt_does_not_duplicate_a_thread_claim(page_dir):
     ]
 
 
-def test_a_widget_task_outlives_its_seat_and_its_widget(page_dir):
+def test_a_widget_todo_outlives_its_seat_and_its_widget(page_dir):
     """An admitted task stays open when its widget or work seat disappears."""
     work_page = PAGE.replace(
         "</section>",
@@ -5805,7 +5805,7 @@ def test_idle_activity_refreshes_when_its_interaction_ownership_expires(
     assert after["next_transition_at"] is None
 
 
-def test_revendoring_can_change_x_work_while_the_target_holds_a_task(page_dir):
+def test_revendoring_can_change_x_work_while_the_target_holds_a_todo(page_dir):
     """x-work admits a task on a widget; it is not the task's only later seat.
 
     Re-vendoring can remove that declaration while the live widget remains, because
@@ -19783,7 +19783,7 @@ def test_addressed_progress_is_one_atomic_message_and_work_start(page_dir):
     events = events_model.read_events(page_dir)
     assert [event["kind"] for event in events] == ["comment", "reply"]
     assert progress["start"]["item"] == comment["id"]
-    assert tasks_model.item_starts(events)[comment["id"]]["id"] == progress["id"]
+    assert todos_model.item_starts(events)[comment["id"]]["id"] == progress["id"]
     assert comment["id"] in delivery_model.current_responses(page_dir, events)
     # A proactive command cannot infer which pending input this progress means.
     with pytest.raises(Refused, match="requires a response"):
@@ -19977,7 +19977,7 @@ def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_d
         with pytest.raises(Refused, match="requires.*not a reply"):
             thread_model.post_response(reference, "This is not a revision.", **options)
         assert events_model.read_events(page_dir) == before
-    started = tasks_model.cmd_start(
+    started = todos_model.cmd_start(
         page_dir, action["id"], "Recording the selected plan."
     )
     assert started["item"] == action["id"]

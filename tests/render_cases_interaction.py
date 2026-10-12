@@ -212,7 +212,7 @@ mornings last winter.</p></section>
 # cell in the page and the row in the panel — which is the whole of what those tests
 # compare. `jobs` names the seat, so the `say:jobs` draft key and a comment anchored to
 # `{section: "jobs"}` are the one coordinate the panel and the page share.
-SEATED_QUESTION_PAGE = leaf_page(
+SEATED_ASK_PAGE = leaf_page(
     "seated question",
     """
 <h1 id="h">Three jobs</h1>
@@ -649,7 +649,7 @@ ASK_IN_A_CARD_PAGE = leaf_page(
 # hangs it on the boxes its contents make — so what says the walk is in one place is
 # the outermost page element wearing it, never the count of elements that do. Scoped to
 # main because the Questions panel's row mirrors the same fact in the chrome.
-STANDING_ASK = "main [data-lf-question]:not([data-lf-question] [data-lf-question])"
+STANDING_ASK = "main [data-lf-ask]:not([data-lf-ask] [data-lf-ask])"
 # The shipped board measures its grip from a live box. Author it into the page and
 # send it in a reply with the same words, so the two readings can be compared.
 ROOM_WIDGETS = """<lf-board id="{id}-b">

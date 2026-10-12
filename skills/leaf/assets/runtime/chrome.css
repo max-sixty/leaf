@@ -824,9 +824,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   background: var(--del-tint);
   color: var(--danger-ink);
 }
-[data-lf-question] {
-  outline: var(--lf-question-ring, var(--focus-ring));
-  --lf-focus-ring: question;
+[data-lf-ask] {
+  outline: var(--lf-ask-ring, var(--focus-ring));
+  --lf-focus-ring: ask;
   outline-offset: var(--focus-ring-gap);
   scroll-margin-block: var(--focus-ring-room);
 }
@@ -1679,7 +1679,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     flex: none;
     margin: 4px 6px 0 0;
   }
-  .lf-queue-row:is([data-lf-focus], [data-lf-question]),
+  .lf-queue-row:is([data-lf-focus], [data-lf-ask]),
   .lf-queue-done > summary[data-lf-focus] {
     outline: var(--focus-ring);
     --lf-focus-ring: queue-row;

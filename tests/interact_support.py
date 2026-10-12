@@ -1486,14 +1486,14 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
     the page has none, dated `ts` (now by default) and spoken in `voice` (`agent`,
     `session`, `turn`). Raw, so a test can date it in the past; `working` is the
     command an agent runs."""
-    from leaf.tasks import owed_tasks
+    from leaf.todos import owed_todos
 
     if item is None:
         item = (
             next(
                 (
                     task["id"]
-                    for task in owed_tasks(events_model.read_events(page_dir))
+                    for task in owed_todos(events_model.read_events(page_dir))
                     if task["subject"] == {"kind": "page"}
                 ),
                 None,
@@ -1526,9 +1526,9 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
 def end_work(page_dir):
     """End every open task on the page as a whole, `declare_work`'s and `working`'s,
     so nothing the agent opened for itself is in hand any more."""
-    from leaf.tasks import owed_tasks
+    from leaf.todos import owed_todos
 
-    for task in owed_tasks(events_model.read_events(page_dir)):
+    for task in owed_todos(events_model.read_events(page_dir)):
         if task["subject"] == {"kind": "page"}:
             append_carried_log_record(
                 page_dir,
@@ -1543,11 +1543,11 @@ def end_work(page_dir):
 
 def end_work_on(page_dir, subject):
     """End the open tasks on the thread or widget `subject` names, done."""
-    from leaf.tasks import owed_tasks
+    from leaf.todos import owed_todos
     from leaf.work import page_subject
 
     named = page_subject(page_dir, events_model.read_events(page_dir), subject)
-    for task in owed_tasks(events_model.read_events(page_dir)):
+    for task in owed_todos(events_model.read_events(page_dir)):
         if task["subject"] == named:
             ended = CliRunner().invoke(
                 cli_model.cli, ["task", "end", str(page_dir), task["id"], "done"]
@@ -1579,7 +1579,7 @@ def working(page_dir, line, subject="page"):
     page's open task on that subject, so a test can say what it does next. Returns the
     start's record."""
     from leaf import event_log as log_model
-    from leaf.tasks import owed_tasks
+    from leaf.todos import owed_todos
     from leaf.work import page_subject
 
     named = (
@@ -1590,7 +1590,7 @@ def working(page_dir, line, subject="page"):
     task = next(
         (
             task
-            for task in owed_tasks(log_model.read_events(page_dir))
+            for task in owed_todos(log_model.read_events(page_dir))
             if task["subject"] == named
         ),
         None,

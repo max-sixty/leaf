@@ -5,7 +5,7 @@ type: the markup checks, the page-code run, the render gate in each color scheme
 viewport, its width sweep and advice, and the widget quality report. Each is produced
 where it is detected, the browser probes included, which return records rather than
 sentences, and its words are written here and nowhere else. The command boundary
-prints `str(finding)` for a reader and `finding.json()` for `page check --json`; every
+prints `str(finding)` for a reader and `finding.json()` for `--json`; every
 other reader, the gate's retry policy and the suite among them, reads the fields.
 
 - `code` names what was found, and decides the words (`_TEXT`).
@@ -772,11 +772,16 @@ _TEXT = {
             else "a detached thread"
         )
     ),
+    # The package check's refusal.
+    "package": lambda at, v: v["text"],
     "leaf-version": lambda at, v: (
         f"Leaf {v['vendored']} vendored this page; this is Leaf {v['running']}. If the"
         f" page misbehaves, `leaf page init {v['page']}` re-vendors it."
     ),
     # The widget quality report, for a widget's author.
+    "unreadable-examples": lambda at, v: (
+        f"widget examples could not be drawn: {v['error']}"
+    ),
     "example": lambda at, v: f"{at} example: no worked example shows it",
     "keeps-first-box": lambda at, v: (
         f"{at} keeps-first-box: first painted {_size(v['first'])},"

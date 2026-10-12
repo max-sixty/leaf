@@ -355,8 +355,10 @@
   // far it gets, so the notice stands until a server that can start the page replaces
   // this one. An uncaught error in code that did load leaves nothing to wait for: the
   // same server would serve the same bytes, so if the page presents it has started
-  // with everything it is going to get.
-  function recover(reason, awaits) {
+  // with everything it is going to get. A fault that is the page's own (`page`) is
+  // answered by no server: the page holds what its author wrote, so the notice says
+  // the page has a problem and waits for nothing.
+  function recover(reason, awaits, page) {
     recordStartupFault(reason);
     stopHoldingKeys();
     if (recovering) return;
@@ -366,12 +368,15 @@
     status.className = "lf-chrome";
     status.setAttribute("data-lf-runtime", "");
     status.setAttribute("role", "status");
-    status.textContent = "Leaf couldn't start. Waiting for the server to update.";
+    status.textContent = page
+      ? "Leaf couldn't start: this page has a problem its author needs to fix."
+      : "Leaf couldn't start. Waiting for the server to update.";
     const show = () => {
       if (!started) document.body.prepend(status);
     };
     if (document.body) show();
     else document.addEventListener("DOMContentLoaded", show, { once: true });
+    if (page) return;
 
     // The notice says the page has not started, and a page that presents has started,
     // so a user who is using the page would otherwise be reading that Leaf could not
@@ -436,7 +441,7 @@
 
   // The prepaint names each startup fault and marks the page for it (prepaint.js).
   window.addEventListener("lf-startup-fault", (event) =>
-    recover(event.detail.reason, event.detail.incomplete),
+    recover(event.detail.reason, event.detail.incomplete, event.detail.page),
   );
   holdEarlyKeys();
   try {

@@ -2129,7 +2129,9 @@ def test_gallery_reports_sample_document_without_leaf(serve, browser, document_s
     allocation = sample_allocation(page, url, "bg-motion-comment-page")
 
     def fail_inner_document(route):
-        if route.request.url == allocation["url"]:
+        # The first allocation fails; Reset's replacement starts.
+        url = route.request.url
+        if url == allocation["url"] and allocation.setdefault("failed", url) == url:
             route.fulfill(
                 status=document_status,
                 content_type="text/html",
@@ -2145,6 +2147,11 @@ def test_gallery_reports_sample_document_without_leaf(serve, browser, document_s
     gallery.get_by_role("tab", name="Send a comment").click()
     expect(gallery.locator("[data-interaction-status]")).to_have_text("Could not play")
     expect(gallery.locator("[data-interaction-toggle]")).to_be_disabled()
+    # Reset allocates a fresh document, which this route lets through.
+    reset = gallery.get_by_role("button", name="Reset Send a comment animation")
+    reset.click()
+    expect(gallery.locator("[data-interaction-toggle]")).to_be_enabled()
+    expect(reset).to_have_count(0)
     gallery.get_by_role("tab", name="Move a card").click()
     status = gallery.locator("[data-interaction-status]")
     toggle = gallery.locator("[data-interaction-toggle]")

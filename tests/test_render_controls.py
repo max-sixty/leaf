@@ -91,6 +91,7 @@ from render_harness import (
     any_draft_control,
     any_owner_entry,
     any_suggestion_control,
+    consume_browser_errors,
     expect_asks_answered,
     expect_comment_notes,
     held_frames,
@@ -3077,6 +3078,66 @@ def test_gallery_reconfigures_a_sample_document_that_reloads(browser, serve):
         expect(toggle, moment).to_be_enabled()
         toggle.click()
         expect(status, moment).to_have_text(re.compile("Playing|Complete"))
+
+
+def test_gallery_arrives_once_its_reloaded_sample_is_configured(browser, serve):
+    """A reload during the gallery's load leaves the page arriving, not arrived."""
+    page = browser.new_page(reduced_motion="reduce")  # Play waits for the press.
+    held = []
+    page.route("**/api/samples/*/api/state*", lambda route: held.append(route))
+    page.goto(serve(INTERACTION_PLAYBACK_PAGE))
+    holding(page, held, 1, "the first sample document's state read")
+    page.evaluate("""async () => {
+        const {whenArrived} = await window.__lfRuntimeImport('/runtime/presentation.js');
+        whenArrived().then(() => (window.galleryArrived = true));
+    }""")
+    child = page.locator("[data-interaction-frame]").element_handle().content_frame()
+    with child.expect_navigation(wait_until="domcontentloaded"):
+        child.evaluate("location.reload()")
+    held[0].abort()
+    holding(page, held, 2, "the reloaded sample document's state read")
+    toggle = page.get_by_role("button", name="Loading… Accept a suggestion animation")
+    expect(toggle).to_be_disabled()
+    assert not page.evaluate("window.galleryArrived ?? false")
+    held[1].continue_()
+    page.wait_for_function("window.galleryArrived")
+    expect(
+        page.get_by_role("button", name="Play Accept a suggestion animation")
+    ).to_be_enabled()
+
+
+def test_gallery_offers_reset_when_its_sample_document_is_gone(browser, serve):
+    """A reload that reaches no Leaf document leaves Reset, which plays again."""
+    page = browser.new_page(reduced_motion="reduce")  # Play waits for the press.
+    page.goto(serve(INTERACTION_PLAYBACK_PAGE))
+    toggle = page.get_by_role("button", name="Play Accept a suggestion animation")
+    expect(toggle).to_be_enabled()
+    child = page.locator("[data-interaction-frame]").element_handle().content_frame()
+    gone = child.url
+    page.route(
+        lambda url: url == gone,
+        lambda route: route.fulfill(
+            status=503, content_type="text/html", body="<h1>Restarting</h1>"
+        ),
+    )
+    with child.expect_navigation():
+        child.evaluate("location.reload()")
+    expect(child.get_by_role("heading")).to_have_text("Restarting")
+    consume_browser_errors(page, "503")
+    reset = page.get_by_role("button", name="Reset Accept a suggestion animation")
+    expect(reset).to_be_enabled()
+    expect(
+        page.get_by_role("button", name="Loading… Accept a suggestion animation")
+    ).to_be_disabled()
+    reset.focus()
+    page.keyboard.press("Enter")
+    expect(toggle).to_be_enabled()
+    expect(reset).to_have_count(0)
+    expect(toggle).to_be_focused()  # Taking Reset away hands its keyboard user on.
+    toggle.click()
+    expect(page.locator(".lf-interaction-status")).to_have_text(
+        re.compile("Playing|Complete")
+    )
 
 
 SIGNOFF_STABILITY_PAGE = LONG_PAGE.replace(

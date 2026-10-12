@@ -656,18 +656,19 @@ suppress referrers; external requests retain the browser's opaque-origin CORS ru
 Reload reconnects the child; Reset replaces it with a fresh copy of its initial state.
 Initial document admission failures reject `ready` after releasing the failed
 allocation; the sample keeps its error and Reset control. Later native navigation
-keeps the destination in the frame and Reset available. While that document has no
-Leaf connection, `ready` and presentation commands reject with
-`SampleDepartedError`; a valid Leaf reload reconnects and announces
-`lf-sample-ready` again. The containing page cannot distinguish an external
-destination from a failed reload inside the opaque frame.
+keeps the destination in the frame and Reset available. Once the child leaves,
+`ready` waits for the next Leaf document, which a reload brings and announces with
+`lf-sample-ready`. The containing page cannot distinguish an external destination
+from a failed reload inside the opaque frame, so that wait lasts until Reset, which
+rejects it with `AbortError`.
 To select a conversation, call `await sample.showThread(id)` with its root event id;
 this shows the same page destination as its marker. To inspect it in Threads,
 call `await sample.showThread(id, {surface: "panel"})`. The panel view accepts
 `status: "open" | "resolved" | "all"` and `waiting: "user" | "agent" | "all"`;
 omitted values restore Open and unrestricted waiting. A panel view may omit the
 id to show its list. Completion means the selected view has presented; it returns
-false when a newer selection or Reset supersedes it. Outer controls keep keyboard
+false when a newer selection or Reset supersedes it. A selection the child leaves
+before presenting waits for the next document, as `ready` does. Outer controls keep keyboard
 focus. Use this method instead of clicking the child's private chrome or observing
 its DOM. Reapply the selected view on `lf-sample-ready` after Reset or reload.
 Author child content in the

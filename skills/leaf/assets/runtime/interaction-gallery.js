@@ -4,14 +4,20 @@
  * cloneable configuration, commands and state notices over the sample bridge. It
  * never reads a child DOM or calls functions across browsing contexts. Each child
  * document starts unconfigured, so the gallery configures every one the sample
- * presents: the first, and each that a reload brings. A command its document
- * departed under needs no answer, since the next document starts from rest. */
+ * presents: the first, and each that a reload brings. A departure and the reload
+ * after it present one `ready`, configured once; the page arrives when the first
+ * configuration ends, however many documents it waited through. A command its
+ * document departed under needs no answer, since the next document starts from rest.
+ * While a demo has no document to play, because it departed or failed, the row
+ * offers Reset, as `lf-sample` does: a button that replaces the sample's allocation
+ * and stays, unpressable, until the new document plays. */
 
 import { afterScript } from "./rendering.js";
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 import { mountSample } from "./sample.js";
 import { deferredArrival } from "./presentation.js";
 import { reportPageError } from "./layer-client.js";
+import { focusDestination } from "./focus.js";
 import { offer, offered, reserve } from "./widget-elements.js";
 import { html, render, nothing, createRef, ref } from "../vendor/browser-runtime.js";
 
@@ -31,9 +37,6 @@ const TOGGLE_WORDS = {
 
 const VIEWPORT_SIZES = ["1", "2", "4"];
 
-const departedOrCancelled = ({ name }) =>
-  name === "AbortError" || name === "SampleDepartedError";
-
 class Demo {
   constructor(panel, changed, configured) {
     this.panel = panel;
@@ -48,6 +51,8 @@ class Demo {
     this.loadState = "loading";
     this.state = "idle";
     this.pausedByView = false;
+    this.offersReset = false;
+    this.configuring = null;
   }
 
   load() {
@@ -61,47 +66,63 @@ class Demo {
         this.pausedByView = pausedByView;
         this.setState(state);
       }),
-      this.sample.on("departed", () => this.markLoading()),
+      this.sample.on("departed", () => void this.configure("departed")),
       this.sample.on("loading", () => void this.configure()),
     ];
     this.stopNotices = () => stops.forEach((stop) => stop());
     return this.configure();
   }
 
-  markLoading() {
-    this.frameElement.toggleAttribute("data-interaction-ready", false);
-    this.loadState = "loading";
-    this.setState("idle");
+  reset() {
+    void this.sample.reset(); // Its failure reaches configure through `ready`.
+    return this.configure();
   }
 
-  async configure() {
-    this.markLoading();
-    const ready = this.sample.ready;
-    try {
-      await ready;
-      // A newer document's `loading` notice configures that document itself.
-      if (ready !== this.sample.ready) return;
-      await this.sample.call("gallery.configure", {
-        name: this.figure.dataset.interactionDemo,
-        target: this.figure.dataset.interactionTarget,
-        threadId: this.figure.dataset.interactionThreadId,
-        keypress: this.figure.dataset.interactionKeypress,
-        viewport: Number(
-          this.figure.closest("[data-interaction-gallery]").dataset.interactionViewport,
-        ),
-      });
-      this.frameElement.toggleAttribute("data-interaction-ready", true);
-      this.loadState = "ready";
-    } catch (error) {
-      // Destruction is the gallery's own, and a departed document's successor
-      // announces itself with `loading`, which configures it.
-      if (!departedOrCancelled(error)) {
+  // Marks the demo as waiting for a document, "departed" while none follows yet, and
+  // configures the one the sample presents next. One configuration runs at a time.
+  configure(loadState = "loading") {
+    this.frameElement.toggleAttribute("data-interaction-ready", false);
+    this.loadState = loadState;
+    this.offersReset ||= loadState === "departed";
+    this.setState("idle");
+    this.configuring ??= this.#configureNext().finally(() => {
+      this.configuring = null;
+      this.configured();
+    });
+    return this.configuring;
+  }
+
+  async #configureNext() {
+    for (;;) {
+      const ready = this.sample.ready;
+      try {
+        await ready;
+        await this.sample.call("gallery.configure", {
+          name: this.figure.dataset.interactionDemo,
+          target: this.figure.dataset.interactionTarget,
+          threadId: this.figure.dataset.interactionThreadId,
+          keypress: this.figure.dataset.interactionKeypress,
+          viewport: Number(
+            this.figure.closest("[data-interaction-gallery]").dataset
+              .interactionViewport,
+          ),
+        });
+        this.frameElement.toggleAttribute("data-interaction-ready", true);
+        this.loadState = "ready";
+        this.offersReset = false;
+        return;
+      } catch (error) {
+        // A departure or Reset that interrupted it has promised the next document.
+        if (ready !== this.sample.ready) continue;
+        // Destruction is the gallery's own.
+        if (error.name === "AbortError") return;
         reportPageError(error, "interaction demo failed to load");
         this.loadState = "error";
+        this.offersReset = true;
         this.setState("error");
+        return;
       }
     }
-    this.configured();
   }
 
   setState(state) {
@@ -111,8 +132,9 @@ class Demo {
 
   command(method, detail) {
     return this.sample.call(`gallery.${method}`, detail).catch((error) => {
-      if (departedOrCancelled(error)) return;
+      if (error.name === "AbortError" || error.name === "SampleDepartedError") return;
       reportPageError(error, `interaction demo ${method} failed`);
+      this.offersReset = true;
       this.setState("error");
     });
   }
@@ -167,6 +189,7 @@ export function installInteractionGallery() {
   tabs.before(controls);
   const loop = createRef();
   const toggle = createRef();
+  const reset = createRef();
   let active = null;
   let onScreen = false;
 
@@ -200,6 +223,7 @@ export function installInteractionGallery() {
   }
 
   function renderControls() {
+    const resetHeld = reset.value?.matches(":focus");
     const state = active?.state ?? "idle";
     const label = active?.panel.getAttribute("label") ?? "";
     const states = {
@@ -253,6 +277,19 @@ export function installInteractionGallery() {
             )}
           </select></label
         >
+        ${
+          active?.offersReset
+            ? html`<button
+                ${offered("lf-btn lf-interaction-control")}
+                aria-label=${`Reset ${label} animation`}
+                aria-disabled=${String(active.loadState === "loading")}
+                @click=${resetActive}
+                ${ref(reset)}
+              >
+                Reset
+              </button>`
+            : nothing
+        }
         <span
           ${offered("lf-interaction-status")}
           data-interaction-status
@@ -261,6 +298,9 @@ export function installInteractionGallery() {
         >`,
       controls,
     );
+    // A demo that plays again takes Reset away; the user goes on from its toggle.
+    if (resetHeld && !reset.value?.isConnected)
+      focusDestination(toggle.value, "return");
     if (active?.state === "finished" && loop.value.checked && onScreen) {
       const completed = active;
       queueMicrotask(() => {
@@ -299,6 +339,10 @@ export function installInteractionGallery() {
     else if (active?.state === "paused") active.resume();
     else if (active?.state === "finished") void active.replay();
     else void active?.play();
+  };
+  const resetActive = (event) => {
+    if (event.currentTarget.ariaDisabled === "true") return;
+    void active.reset();
   };
   const changeLoop = () => {
     if (loop.value.checked && active?.state === "finished" && onScreen)

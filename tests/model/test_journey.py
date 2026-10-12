@@ -180,15 +180,13 @@ PROMPT = """
         "Do you want to create notes.md?",
     ],
 )
-def test_a_permission_prompt_is_read_from_its_question_and_options(question):
-    """Claude Code's prompts for a command, an edit and a new file share one shape,
-    the question above "1. Yes" and "Esc to cancel"; the question alone, as the
-    agent's own words may ask it, is not a prompt."""
-    screen = PROMPT.replace("Do you want to proceed?", question)
-    assert journey_claude_code.permission_prompt(screen) == question
-    asked = f"⏺ {question} I can make the change once you say so.\n\n❯ \n"
-    assert journey_claude_code.permission_prompt(asked) is None
-    assert journey_claude_code.permission_prompt("❯ Try again\n") is None
+def test_an_approved_prompt_is_recorded_by_its_question(question):
+    """Claude Code's record says when a dialog is open; the step records which one by
+    the question its prompts for a command, an edit and a new file ask, the last on
+    the screen, below any the agent's own words asked."""
+    earlier = "⏺ I can make the change.\n  Do you want to rename it too?\n"
+    screen = earlier + PROMPT.replace("Do you want to proceed?", question)
+    assert journey_claude_code.asked(screen) == question
 
 
 def test_the_users_command_is_found_only_among_the_panes_own_processes(spawn):

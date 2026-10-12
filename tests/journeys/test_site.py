@@ -119,11 +119,15 @@ def pages_under(directory):
     return pages
 
 
+def heading(source: str) -> str:
+    """The words of the h1 an authored source carries, as the parser reads them."""
+    return " ".join(SourceDocument(source).tree.select_one("h1").text.split())
+
+
 def example_title(stem: str) -> str:
     """The h1 an example's own source carries, so a retitled example cannot strand a
     test on its old words."""
-    source = (EXAMPLES / f"{stem}.html").read_text(encoding="utf-8")
-    return re.search(r"<h1>(.*?)</h1>", source, re.DOTALL).group(1).strip()
+    return heading((EXAMPLES / f"{stem}.html").read_text(encoding="utf-8"))
 
 
 def authored_examples():
@@ -1068,11 +1072,10 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
         wait_until_ready(page)
         assert page.evaluate("document.compatMode") == "CSS1Compat", name
         source = (DOCS / name).read_text(encoding="utf-8")
-        expected_title = re.search(r"<title>(.*?)</title>", source, re.DOTALL)
-        expected_h1 = re.search(r"<h1>(.*?)</h1>", source, re.DOTALL)
-        assert expected_title and expected_h1
-        assert page.title() == expected_title.group(1).strip(), name
-        expect(page.locator("h1")).to_have_text(expected_h1.group(1).strip())
+        expected_title = SourceDocument(source).title.strip()
+        assert expected_title
+        assert page.title() == expected_title, name
+        expect(page.locator("h1")).to_have_text(heading(source))
         expect(page.locator(".lf-chrome")).to_have_count(1)
         expect(page.locator("script[data-lf-server]")).to_have_count(1)
         expect(page.locator('link[rel="stylesheet"]')).to_have_count(1)

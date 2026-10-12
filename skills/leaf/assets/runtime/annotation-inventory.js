@@ -30,6 +30,7 @@ import {
   isPageWidgetWorkflow,
   isWorkflowProgress,
   strongestWorkflow,
+  todoLabel,
   workflowLabel,
 } from "./thread/workflow.js";
 import { renderedParent, shadowHost, under } from "./shadow.js";
@@ -437,7 +438,7 @@ export function createAnnotationInventory({
       if (activityAlreadyShown.has(`widget:${task.subject.id}`)) continue;
       const target = elementById(task.subject.id);
       const { running } = task;
-      const label = running ? "Working" : "To-do open";
+      const label = todoLabel(running);
       const account = [task.agent, running?.text ?? task.title]
         .filter(Boolean)
         .join(" · ");

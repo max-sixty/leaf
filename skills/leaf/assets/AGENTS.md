@@ -420,7 +420,7 @@ keeps its own test says why beside it. Rows marked *lint* are enforced in
 | Paint on the next frame, or watch a size | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (*lint*) |
 | Write a DOM value only when it changed | `keeps.js` `keeps` |
 | Threads, workflow, attention, asks, settlement | the server's folds, under "One writer for each fact" |
-| A workflow's word, and its progress face on a control | `thread/workflow.js` `workflowLabel`, `progressFace` |
+| A workflow's word, and its progress face on a control; an open to-do's word | `thread/workflow.js` `workflowLabel`, `progressFace`, `todoLabel` |
 | A thread's word, which Threads states as its status | `thread/workflow.js` `threadAttention` |
 | What a thread's margin entry and Page Map row say of it: its line, turn and receipt | `margin-model.js` `threadMarks` |
 | A thread's name, on every surface that names it | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages) |

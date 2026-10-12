@@ -87,6 +87,9 @@ export function strongestWorkflow(workflows) {
   return strongest;
 }
 
+// An open to-do's word, wherever it stands: Working while a start runs on it.
+export const todoLabel = (running) => (running ? "Working" : "To-do open");
+
 export function threadAttention(thread) {
   if (thread.resolved) return null;
   const workflow = thread.attention?.workflow
@@ -125,7 +128,7 @@ export function threadAttention(thread) {
     const { title, line } = thread.attention.todo;
     return Object.freeze({
       kind: "waiting",
-      label: line ? "Working" : "To-do open",
+      label: todoLabel(line),
       workflow: null,
       secondary: line ?? title,
     });

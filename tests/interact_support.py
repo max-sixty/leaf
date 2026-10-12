@@ -118,7 +118,7 @@ def append_command(page_dir, command):
     event, including meaning and attention, to event_log.append_event instead.
     """
     with service_model.PageTransaction(page_dir) as page:
-        return event_contracts_model.append_admitted(page, command)
+        return event_contracts_model.append_admitted(page, command)[0]
 
 
 def response_reference(page_dir, event):

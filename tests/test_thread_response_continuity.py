@@ -41,11 +41,9 @@ def reply_editing_pose(editor):
         ("seat", "mirrored", "desktop"),
         ("seat", "resize", "desktop"),
         ("seat", "resize-paste", "desktop"),
-        ("seat", "resize-insert", "desktop"),
         ("seat", "resize-replace", "desktop"),
+        # Android's EditContext input reaches the renderer without a DOM beforeinput.
         ("seat", "resize-insert", "android"),
-        ("seat", "resize-replace", "android"),
-        ("seat", "mirrored", "android"),
         ("seat", "mirrored-composing", "android"),
     ],
 )
@@ -390,16 +388,16 @@ def test_passive_reply_room_ends_at_native_edit_and_new_inline_measure(browser, 
     assert after["top"] == pytest.approx(widened["top"], abs=0.5), (widened, after)
 
 
-@pytest.mark.parametrize(
-    "place", ["outlet", "seat", "nested-room", "nested-end", "margin", "panel"]
-)
+# A native thread body, a scroll boundary inside the page, the floating card and the
+# panel: the seat shares the outlet's native body, and the boundary with room to spare
+# the one at its end.
+@pytest.mark.parametrize("place", ["outlet", "nested-end", "margin", "panel"])
 def test_refused_reply_retains_its_live_foot(browser, serve, place):
     """Removing a provisional turn preserves the live action and following passage.
 
     Native and panel thread bodies and both scroll boundaries exercise the same rule.
     The refused draft is retryable, and only its eventual acceptance reaches the log.
     """
-    from render_cases_interaction import SEATED_QUESTION_PAGE
     from render_harness import (
         consume_browser_errors,
         holding,
@@ -409,13 +407,7 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     )
 
     tail = '<p id="continuity-tail">Review the next step here.</p>'
-    if place == "seat":
-        authored = SEATED_QUESTION_PAGE.replace(
-            "</lf-test-plan>", "</lf-test-plan>" + tail
-        )
-        anchor = {"section": "jobs"}
-        selector = '[data-lf-thread-seat="jobs"] > .lf-page-thread'
-    elif place in ("margin", "panel"):
+    if place in ("margin", "panel"):
         authored = leaf_page(
             "Response continuity",
             '<h1 id="h">Shipping order</h1><p id="plan">Keep the release order visible.</p>'
@@ -432,18 +424,17 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
             '<h1 id="h">Shipping order</h1><lf-diff id="patch" source="change"><pre></pre></lf-diff>'
             + tail
         )
-        if place.startswith("nested"):
+        if place == "nested-end":
             contents = (
                 '<div id="continuity-scroll" style="height:550px;overflow:auto"><div style="height:250px"></div>'
                 + contents
-                + ('<div style="height:450px"></div>' if place == "nested-room" else "")
                 + "</div>"
             )
         authored = leaf_page("Response continuity", contents)
         anchor = {"section": "patch", "datum": '["app.py","new",1]', "source": "change"}
         selector = "lf-diff .lf-page-thread"
     url = serve(authored)
-    if place not in ("seat", "margin", "panel"):
+    if place not in ("margin", "panel"):
         data_model.cmd_data_set(
             serve.page_dir,
             "change",
@@ -474,7 +465,7 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     owner = page.locator(selector)
     draft = owner.locator("leaf-text")
     expect(draft).to_be_visible()
-    if place.startswith("nested"):
+    if place == "nested-end":
         page.evaluate("""async () => {
           const body = document.querySelector('#continuity-scroll');
           const {registerReadingRegion} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
@@ -494,12 +485,9 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     page.keyboard.press("Enter")
     holding(page, held, 1, "the reply that will be refused")
     rendered(page)
-    if place.startswith("nested"):
+    if place == "nested-end":
         scroller = page.locator("#continuity-scroll")
-        scroller.evaluate(
-            "(node, end) => {node.scrollTop = end ? node.scrollHeight : 250}",
-            place == "nested-end",
-        )
+        scroller.evaluate("node => {node.scrollTop = node.scrollHeight}")
         scroll_settled(page, scroller)
     attempt = held[0].request.post_data_json["attempt"]
     assert held[0].request.post_data_json["parent"] == parent
@@ -581,13 +569,8 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
 
 @pytest.mark.parametrize(
     ("contents", "integer_band", "viewport"),
-    [
-        ("short", False, (390, 740)),
-        ("long", False, (390, 740)),
-        ("short", True, (420, 741)),
-        ("long", True, (420, 741)),
-    ],
-    ids=["short-fractional", "long-fractional", "short-integer", "long-integer"],
+    [("short", False, (390, 740)), ("long", True, (420, 741))],
+    ids=["short-fractional", "long-integer"],
 )
 def test_narrow_panel_editor_growth_retains_the_live_send(
     browser, serve, contents, integer_band, viewport

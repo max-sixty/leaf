@@ -570,9 +570,9 @@
     while (holder !== main && getComputedStyle(holder).display === "contents");
     return holder;
   };
-  // The holders the last reading measured, with the width of each one's content box,
-  // which content-layout.js watches for a change: a class or style that pads a holder
-  // moves its breakout without inserting anything.
+  // The holders the last reading measured, each with the width of its content box and
+  // the breakouts it holds, which content-layout.js watches for a change: a class or
+  // style that pads a holder moves its breakout without inserting anything.
   const indentHolders = new Map();
   const indents = () => {
     indentHolders.clear();
@@ -591,7 +591,13 @@
       column ??= contentEdges(main);
       const holder = holderOf(breakout, main);
       const edges = contentEdges(holder);
-      indentHolders.set(holder, edges.right - edges.left);
+      const held = indentHolders.get(holder);
+      if (held) held.breakouts.push(breakout);
+      else
+        indentHolders.set(holder, {
+          width: edges.right - edges.left,
+          breakouts: [breakout],
+        });
       readings.push([
         breakout,
         Math.max(0, Math.round(edges.left - column.left)),

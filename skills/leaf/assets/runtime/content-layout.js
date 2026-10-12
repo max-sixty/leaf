@@ -54,11 +54,11 @@ const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
 const bringsBreakout = (node) =>
   node.nodeType === Node.ELEMENT_NODE &&
   (node.matches(BREAKOUT) || node.querySelector(BREAKOUT) !== null);
-// The holders the last reading measured and the page still holds, each with the width
-// it last reported: the observer watches exactly these, so a holder a revision removed,
-// or one that no longer holds a breakout drawn, stops delivering. A removal alone moves
-// no breakout that stays, so it reconciles the watch without a reading, in the
-// microtask the removal queues, before the removed box could report its zero width.
+// The holders the last reading measured that still hold one of the breakouts it read
+// there, each with the width it last reported: the observer watches exactly these, so a
+// holder a revision removed, or one whose breakouts went, stops delivering. A removal
+// alone moves no breakout that stays, so it reconciles the watch without a reading, in
+// the microtask the removal queues, before the removed box could report its zero width.
 const holderWidths = new Map();
 const holderSizes = sizeObserver((entries) => {
   let widened = false;
@@ -70,18 +70,23 @@ const holderSizes = sizeObserver((entries) => {
   }
   if (widened) readIndents();
 });
+// A breakout moved elsewhere arrives there too, and that arrival takes a reading, so a
+// breakout the reading saw still connected is still its holder's.
+const holds = (holder, held) =>
+  holder.isConnected && held.breakouts.some((breakout) => breakout.isConnected);
 // A holder is observed from the width the reading measured, so its first report is a
 // change only if one came after that reading.
 function watchHolders() {
   const holders = document.documentElement.lfInitial.indentHolders();
   for (const holder of holderWidths.keys()) {
-    if (holders.has(holder) && holder.isConnected) continue;
+    const held = holders.get(holder);
+    if (held && holds(holder, held)) continue;
     holderWidths.delete(holder);
     holderSizes.unobserve(holder);
   }
-  for (const [holder, width] of holders) {
-    if (holderWidths.has(holder) || !holder.isConnected) continue;
-    holderWidths.set(holder, width);
+  for (const [holder, held] of holders) {
+    if (holderWidths.has(holder) || !holds(holder, held)) continue;
+    holderWidths.set(holder, held.width);
     holderSizes.observe(holder);
   }
 }

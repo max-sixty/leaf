@@ -2527,10 +2527,13 @@ RESTYLED = """async ([selector, how]) => {
   await new Promise((resolve) => setTimeout(resolve));
   if (how === 'class') holder.classList.add('deeper');
   else if (how === 'style') holder.style.paddingInlineStart = '64px';
-  else if (how === 'remove') {
+  else if (how === 'remove' || how === 'unhold') {
     // Unwatched by the removal itself, in the microtask it queues, before a rendering
-    // update could report the removed box's size.
-    holder.closest('main > ul').remove();
+    // update could report the removed box's size: the holder's list, or only the
+    // breakouts it held, leaving the holder in place.
+    if (how === 'remove') holder.closest('main > ul').remove();
+    else for (const breakout of holder.querySelectorAll(':scope > [data-lf-space]'))
+      breakout.remove();
     await null;
     return {replaced: window.lfWatchedHolder(holder)};
   }
@@ -2580,13 +2583,14 @@ WATCHED_HOLDERS = """(() => {
 })();"""
 
 
-@pytest.mark.parametrize("how", ["class", "style", "insert", "remove"])
+@pytest.mark.parametrize("how", ["class", "style", "insert", "remove", "unhold"])
 def test_a_breakout_moved_in_after_load_re_lands_before_it_paints(browser, serve, how):
     """A breakout whose holder stands further in after load stays on the prose axis
     from the first paint that shows it, without waiting for a frame's margin pass or
     the next resize: one a revision's replacement puts a list deeper, and a holder a
     class or an inline style pads anew, which inserts nothing. A holder a revision
-    removes, with or without a replacement, is no longer watched. Each is read again in the rendering update
+    removes, with or without a replacement, or one whose breakouts a revision removes,
+    is no longer watched. Each is read again in the rendering update
     that lays the change out, before that update paints."""
     source = INDENTED_PAGE.replace(
         " .inset { padding-left: 40px; }",
@@ -2607,9 +2611,10 @@ def test_a_breakout_moved_in_after_load_re_lands_before_it_paints(browser, serve
     with held_frames(page):
         at = page.evaluate(RESTYLED, [holder, how])
     # The holders watched for a change of width are the ones the reading measured: a
-    # revision's replacement, or a removal alone, leaves the holder it removed unwatched.
+    # revision's replacement, or a removal alone, leaves a holder it removed, or one
+    # that holds no breakout now, unwatched.
     assert at["replaced"] == (how in ("class", "style")), at
-    if how == "remove":
+    if how in ("remove", "unhold"):
         return
     assert at["current"], at
     assert at["moved"]["left"] > before + 20, ("the holder was not padded", at)

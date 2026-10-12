@@ -85,7 +85,7 @@
       "derived": ["meaning", "attention"],
       "browser_discard": ["id", "author", "agent", "session", "ts", "seq", "attention"]
     },
-    "description": "Leaf's fixed kernel event contract. Each kind carries the closed `record` schema for the complete event read from the log. Admission stamps the server-owned boolean `attention` from the change to canonical answers, work in hand (a started update or an open to-do on a thread or widget) and its inputs, or sign-off approval; reports and errors always carry it. Carriers select this recorded meaning rather than classifying event kinds. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions. `ownership.derived` names fields admission supplies; `ownership.browser_discard` names fields browser ingress removes before validation. Layers extend widget behavior through x-state; they cannot change transport kinds or field ownership. `protocol` numbers this contract together with the reading the server serves the page's runtime. A Leaf serves and writes only a page whose vendored `protocol` is its own, admitting the page's events against its own kinds, so a change a page vendored at the same number would break on, such as a dropped or newly required field, bumps it. A kind declaring `bookkeeping` records a fact about the user's view of the page rather than an update: it never asks the agent for anything, and the browser sends it outside the ordered gesture queue, so it neither waits behind a gesture nor holds one back. A `pickup` is the page-owned durable transport fact that named attention-bearing inputs reached their next consumer, or with phase `failed` and a harness `failure` code that the harness gave up on them with no answer coming; it is never a claim that work has begun. A `comment` or `reply` carrying `token` instead of `text` is a reaction — one word from $reactions, aimed where the comment's anchor or the reply's parent points, or with neither at the page whole. It starts as a mark rather than a thread: no thread opens until someone replies to it, `resolve` on it is the floor after which it stops painting, and while nothing has answered it the user takes it back with an ordinary `undo` naming it. `handling` and `answering` remain layer-owned. `handling` holds, per kernel kind, an ordered list of clauses, each a `text` and an optional `when` JSON Schema; `answering` holds the same per answer kind (`reply`, `markup`), for the event that owes that answer. A `when` matches the delivered event: its record plus the `answer` it owes and its `thread`'s entry in the batch's digest, each if any, so a clause states one case plainly rather than naming a condition the delivery already settles. What differs by route is not a clause: the delivery states once who acknowledges it, and names its `writer` as `turn` where the turn carrying it writes the reply. Each delivered event carries its kind's matching clauses and then its answer's, so an event is told only its own case and only the answer it owes, and a later layer may restate one kind at a time.",
+    "description": "Leaf's fixed kernel event contract. Each kind carries the closed `record` schema for the complete event read from the log. Admission stamps the server-owned boolean `attention` from the change to canonical answers, work in hand (a started update or an open to-do on a thread or widget) and its inputs, or sign-off approval; reports and errors always carry it. Carriers select this recorded meaning rather than classifying event kinds. A `browser` schema opts that kind into POST /api/event and adds the browser writer's assertions. `ownership.derived` names fields admission supplies; `ownership.browser_discard` names fields browser ingress removes before validation. Layers extend widget behavior through x-state; they cannot change transport kinds or field ownership. `protocol` numbers this contract together with the reading the server serves the page's runtime. A Leaf serves and writes only a page whose vendored `protocol` is its own, admitting the page's events against its own kinds, so a change a page vendored at the same number would break on, such as a dropped or newly required field, bumps it. A kind declaring `bookkeeping` records a fact about the user's view of the page rather than an update: it never asks the agent for anything, and the browser sends it outside the ordered gesture queue, so it neither waits behind a gesture nor holds one back. A `pickup` is the page-owned durable transport fact that named attention-bearing inputs reached their next consumer, or with phase `failed` and a harness `failure` code that the harness gave up on them with no answer coming; it is never a claim that work has begun. Its optional `refs` maps each input its delivery owed an answer to the exact `answer.ref` that delivery gave it and the `claim` the delivery was captured under. A `comment` or `reply` carrying `token` instead of `text` is a reaction — one word from $reactions, aimed where the comment's anchor or the reply's parent points, or with neither at the page whole. It starts as a mark rather than a thread: no thread opens until someone replies to it, `resolve` on it is the floor after which it stops painting, and while nothing has answered it the user takes it back with an ordinary `undo` naming it. `handling` and `answering` remain layer-owned. `handling` holds, per kernel kind, an ordered list of clauses, each a `text` and an optional `when` JSON Schema; `answering` holds the same per answer kind (`reply`, `markup`), for the event that owes that answer. A `when` matches the delivered event: its record plus the `answer` it owes and its `thread`'s entry in the batch's digest, each if any, so a clause states one case plainly rather than naming a condition the delivery already settles. What differs by route is not a clause: the delivery states once who acknowledges it, and names its `writer` as `turn` where the turn carrying it writes the reply. Each delivered event carries its kind's matching clauses and then its answer's, so an event is told only its own case and only the answer it owes, and a later layer may restate one kind at a time.",
     "handling": {
       "comment": [
         {
@@ -359,7 +359,7 @@
               }
             ]
           },
-          "text": "When you write it into the markup, the added option becomes an ordinary lf-option in the group, keeping the id and words the event gives."
+          "text": "Every later version keeps the added option in its group where the user put it, after the authored options, so leave it out of the markup."
         },
         {
           "when": {
@@ -479,7 +479,7 @@
       ],
       "markup": [
         {
-          "text": "It answers the page's ask, so the page shows it as waiting on you until the markup records it. Name the work it selects or unblocks with `leaf task start <page> <event-id> \"<the work, in a line>\"` before starting it, then do it, write it in, and stamp a version."
+          "text": "It answers the page's ask, so the page shows it as waiting on you until the markup records it. Name the work it selects or unblocks with `leaf task start <page> <event-id> \"<the work, in a line>\"` before starting it, then do it, write it in, and stamp a version. An option the user added needs no writing in: the page keeps it where the user put it."
         }
       ]
     },
@@ -1087,7 +1087,20 @@
             "phase": {"enum": ["queued", "opened", "failed"]},
             "session": {"type": ["string", "null"], "minLength": 1},
             "turn": {"type": ["string", "null"], "minLength": 1},
-            "failure": {"type": "string", "minLength": 1}
+            "failure": {"type": "string", "minLength": 1},
+            "refs": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "ref": {"type": "string", "minLength": 1},
+                  "claim": {"type": ["string", "null"], "minLength": 1}
+                },
+                "required": ["ref", "claim"],
+                "additionalProperties": false
+              },
+              "minProperties": 1
+            }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "events", "phase", "session", "turn"],
           "if": {"properties": {"phase": {"const": "failed"}}},

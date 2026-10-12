@@ -37,6 +37,17 @@ from leaf.delivery import current_responses
 from leaf.events import build_threads
 
 
+def undelivered(page_dir, input_id: str) -> str:
+    """How a refusal names the answer to an input no receipt has carried, on a page
+    this session has not claimed: no reference exists yet, so it names the wait that
+    delivers one, after the claim that wait's receipt needs."""
+    return (
+        "`leaf response reply <answer.ref>` with the `answer.ref` that "
+        f"`leaf wait {page_dir}` delivers for {input_id} (`leaf page claim "
+        f"{page_dir}` first, since this session does not hold the page)"
+    )
+
+
 def test_an_explicit_line_break_separates_quoted_words():
     document = structure_model.SourceDocument(
         "<main><p id='line'>Short label here<br>Then a second line.</p></main>"
@@ -269,7 +280,7 @@ def test_a_section_handed_a_message_id_is_sent_to_the_option_that_takes_one(page
     assert f"no element id {root['id']!r}" in mistaken.output
     assert (
         f"{root['id']} is a comment in this page's log — "
-        f"`leaf response reply <answer.ref>` for {root['id']} answers it"
+        f"{undelivered(page_dir, root['id'])} answers it"
     ) in mistaken.output
     assert all(event["kind"] != "reply" for event in events_model.read_events(page_dir))
 
@@ -313,7 +324,7 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_its_delivery_reference(
     assert mistaken.exit_code != 0
     assert (
         f"{own['id']} is a comment in this page's log, and its thread is owed "
-        f"a reply — `leaf response reply <answer.ref>` for {asked['id']} answers it"
+        f"a reply — {undelivered(page_dir, asked['id'])} answers it"
     ) in mistaken.output
 
     # The writer the refusal names takes it, and the one it passed over says so too.
@@ -322,10 +333,7 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_its_delivery_reference(
         ["thread", "reply", str(page_dir), own["id"], "--text", "more"],
     )
     assert posted.exit_code != 0
-    assert (
-        f"`leaf response reply <answer.ref>` for {asked['id']} answers it"
-        in posted.output
-    )
+    assert f"{undelivered(page_dir, asked['id'])} answers it" in posted.output
     answered = CliRunner().invoke(
         cli_model.cli,
         [
@@ -450,7 +458,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     assert mistaken.exit_code != 0
     assert (
         f"{pressed['id']} is an action in this page's log — "
-        f"`leaf response reply <answer.ref>` for {pressed['id']} answers it"
+        f"{undelivered(page_dir, pressed['id'])} answers it"
     ) in mistaken.output
     assert "`leaf thread reply <page> <id>`" not in mistaken.output
 

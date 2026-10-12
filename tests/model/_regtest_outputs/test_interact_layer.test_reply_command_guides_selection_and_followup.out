@@ -5,6 +5,10 @@ Try 'leaf thread reply --help' for help.
 
 Error: Missing argument 'THREAD'.
 
+$ leaf thread reply /page user-1 --text Answer
+exit: 1
+Error: thread 'user-1' currently requires a response; `leaf response reply <answer.ref>` with the `answer.ref` that `leaf wait /page` delivers for user-1 answers it
+
 $ leaf thread reply /page --text Answer
 exit: 2
 Usage: leaf thread reply [OPTIONS] PAGE THREAD
@@ -14,7 +18,7 @@ Error: Missing argument 'THREAD'.
 
 $ leaf thread reply /page user-1 --text Answer
 exit: 1
-Error: thread 'user-1' currently requires a response; `leaf response reply <answer.ref>` for user-1 answers it
+Error: thread 'user-1' currently requires a response; `leaf response reply response-ref` answers it
 
 $ leaf response reply response-ref --text Answer --done
 exit: 0

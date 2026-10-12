@@ -74,11 +74,12 @@ revise it.
 
 Take in a user's answer to a page ask in a stamped version. Where the widget's
 `x-state` declares a `record` form, show that form when incorporating the answer:
-`chosen` on exactly the picked `lf-option` elements, with user-added options under
-their original ids and words, or the user's words as the body of a `needed`
-`lf-draft`. Where it declares no form, such as an accepted suggestion or submitted
-playground settings, the next stamp takes in the answer. Until then the answer
-waits on you, as its delivered `handling` says.
+`chosen` on exactly the picked authored `lf-option` elements, or the user's words as
+the body of a `needed` `lf-draft`. A user-added option stays in its group from the
+log, where the user put it, so leave it out of the markup; the stamped version
+takes in a pick of it. Where it declares no form, such as an accepted suggestion or
+submitted playground settings, the next stamp takes in the answer. Until then the
+answer waits on you, as its delivered `handling` says.
 
 When incorporating a decided suggestion into surrounding prose, retain its
 surviving branch and ids. A worker report also stays provisional until the

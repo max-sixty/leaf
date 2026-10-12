@@ -14,9 +14,6 @@ directory = "../.tmp/site-assets"
 binding = "ASSETS"
 run_worker_first = true
 
-[vars]
-AGENT_PREWARM = "true"
-
 [secrets]
 required = ["OPENAI_API_KEY"]
 
@@ -39,8 +36,8 @@ image = "../Dockerfile.website"
 max_instances = 5900
 instance_type = "basic"
 # A visible tab's freshness requests keep an active session alive. During a release,
-# Cloudflare may still replace it after this bounded drain window; website state is
-# explicitly ephemeral until it has a durable page-directory store.
+# Cloudflare may replace it after this bounded drain window; the session Durable
+# Object retains the canonical page record across container replacement.
 rollout_active_grace_period = 600
 
 [[durable_objects.bindings]]
@@ -88,9 +85,6 @@ routes = []
   directory = "../.tmp/site-assets"
   binding = "ASSETS"
   run_worker_first = true
-
-  [env.dev.vars]
-  AGENT_PREWARM = "true"
 
   [env.dev.secrets]
   required = ["OPENAI_API_KEY"]

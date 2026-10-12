@@ -111,13 +111,15 @@ export function clocked(owner, paint, invalidate) {
 export function readingPaint(owner, draw, invalidate) {
   let painted = false;
   let key;
+  // The latest draw still running, which a departure leaves owed, and every draw still
+  // running, which a departure cuts short.
   let pending = null;
+  const running = new Set();
   let stopped = false;
   const stopLifetime = watchOwner(owner, {
     disconnect() {
-      if (!pending) return;
-      painted = false;
-      pending.cut = true;
+      for (const mark of running) mark.cut = true;
+      if (pending) painted = false;
       pending = null;
     },
   });
@@ -141,7 +143,9 @@ export function readingPaint(owner, draw, invalidate) {
       }
       if (typeof result?.then === "function") {
         const mark = (pending = {});
+        running.add(mark);
         const settled = (reason, rejected) => {
+          running.delete(mark);
           mark.cut ||= !owner.isConnected;
           if (pending === mark) {
             pending = null;

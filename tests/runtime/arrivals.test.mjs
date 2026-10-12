@@ -302,6 +302,11 @@ test("a returning owner draws a reading again only where its paint did not finis
     abandon(new Error("abandoned on departure"));
     await mutate(() => document.body.append(owner));
     paint("abandoned", "abandoned again");
+    // So is one a later draw overtook before the departure.
+    paint("slow", "overtaking");
+    await leaveAndReturn();
+    abandon(new Error("overtaken, then abandoned on departure"));
+    await Promise.resolve();
     assert.deepEqual(drawn, [
       "refused",
       "slow",
@@ -310,6 +315,7 @@ test("a returning owner draws a reading again only where its paint did not finis
       "refreshed on return",
       "abandoned",
       "abandoned again",
+      "overtaking",
     ]);
     assert.deepEqual(reports, ["leaf: paint failed for section: refused"]);
   } finally {
@@ -335,7 +341,9 @@ test("a reading paint's clock repaint fails by the same rule, reported once", as
     paint("reading");
     clock = 1;
     await tickClock(reportCarried);
-    assert.deepEqual(reports, ["leaf: paint failed for section#clocked: clock refused"]);
+    assert.deepEqual(reports, [
+      "leaf: paint failed for section#clocked: clock refused",
+    ]);
   } finally {
     console.error = consoleError;
     paint.stop();

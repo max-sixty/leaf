@@ -31,6 +31,7 @@ export function createDelivery({
   applyAcceptedState,
   settleRejected,
   settlementChanged,
+  refusedWords,
 }) {
   let draining = false;
 
@@ -135,9 +136,18 @@ export function createDelivery({
           else {
             entry.resolve(accepted);
             // Answer listeners restore their draft and other rejected mechanical state.
-            // Present feedback at this script's checkpoint, after those listeners,
-            // so its geometry reads the foreground the user will actually see.
-            if (refusal) afterScript(() => notice(refusal));
+            // The sender registered them on this answer when it sent, so a reaction
+            // registered now runs after every one of them (promise reactions run in
+            // registration order): the notice reads where the words ended up, and says
+            // so where that is out of view. It is presented at that script's
+            // checkpoint, so its geometry reads the foreground the user will see.
+            if (refusal)
+              void entry.answer.then(() =>
+                afterScript(() => {
+                  const kept = refusedWords(entry.event.attempt);
+                  notice(kept ? `${refusal}. ${kept}` : refusal);
+                }),
+              );
           }
         }
       }

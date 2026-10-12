@@ -50,7 +50,8 @@
    masks its generation here at the gesture (`standGesture`) and the box the words were
    typed in reads empty, while the record stands unsettled until the answer accepts it
    or a refusal gives the words back. The mask is this document's; the record is every
-   tab's.
+   tab's. Words a refusal gives back to a box out of view become the Resume writing
+   destination, and the refusal's notice names that address (`keepRefusedWords`).
 
    `base` records the durable shared generation a local edit descends from. A chain of
    nondurable local writes keeps that base. Storage news from the base cannot erase the
@@ -518,6 +519,26 @@ export function forgetWritingPlace(ctx) {
     if (draftHasContent(place.context)) writingPlace = place;
   }
   storeWritingPlace();
+}
+// What a refusal of `attempt` left the user, read once the sender's own answer has
+// returned the words (`standGesture`) and any owner has reopened its box for them. Words
+// back in a box on screen need no sentence. Words back only in a box out of view are
+// the ones a refusal otherwise appears to lose, so they become the Resume writing
+// destination, a content change to that draft like any other, and the refusal's notice
+// carries the sentence naming that address (delivery.js).
+export function keepRefusedWords(attempt) {
+  const ctx = [...draftContexts()].find(
+    (context) => activeDraftRecord(context)?.attempt === attempt,
+  );
+  if (ctx === undefined) return null;
+  const shown = [...draftEditors].some((view) => {
+    const input = view.ctx === ctx && editorInput(view);
+    return Boolean(input?.isConnected && input.checkVisibility());
+  });
+  if (shown) return null;
+  if (writingPlace?.context !== ctx)
+    keepWritingPlace({ context: ctx, selection: [0, 0], generation: randomId() });
+  return "Draft kept — g i resumes writing";
 }
 const writingEditor = () =>
   [...draftEditors].find((editor) => editorInput(editor) === focused());

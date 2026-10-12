@@ -2652,6 +2652,10 @@ def test_a_sent_page_comment_closes_and_a_refusal_restores_its_draft(browser, se
     expect(box).to_be_focused()
     expect(box).to_have_js_property("value", draft)
     expect(card.locator(".lf-composer-media img")).to_be_visible()
+    # The words are back in front of the user, so the refusal names no address for them.
+    expect(page.locator(".lf-notice")).to_have_text(
+        "Couldn't send — refused before append"
+    )
     page.unroute("**/api/event", hold)
     assert all("400" in error for error in take_browser_errors(page))
 

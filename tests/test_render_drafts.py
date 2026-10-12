@@ -1733,7 +1733,10 @@ def test_a_refused_selection_comment_leaves_the_words_on_their_passage(
                 "final": True,
             },
         )
-    expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
+    # The words went back to a box out of view, so the refusal says where they are.
+    expect(page.locator(".lf-notice")).to_have_text(
+        "Couldn't send — refused before append. Draft kept — g i resumes writing"
+    )
 
     # Their passage still holds their draft, so opening it again finds the words.
     page.locator("h1").click()
@@ -1775,9 +1778,54 @@ def test_a_refused_selection_comment_reopens_its_words_while_the_send_owns_inten
                 "final": True,
             },
         )
-    expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
     expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-fab-input")).to_have_js_property("value", words)
+    # The box is back with the words, so the refusal names no address for them.
+    expect(page.locator(".lf-notice")).to_have_text(
+        "Couldn't send — refused before append"
+    )
+    consume_browser_errors(page, "400")
+
+
+def test_a_refused_selection_comment_written_past_is_where_resume_writing_goes(
+    held_events, serve
+):
+    """The user has gone on to write somewhere else when the refusal lands. Their
+    refused words go back to the passage's box, which is out of view, so the notice says
+    they are kept and Resume writing takes the user to them, rather than to the box they
+    can already see."""
+    browser, held = held_events
+    page = open_page(browser, serve(LONG_PAGE))
+    words = "The selection comment the server will refuse."
+    compose(page, "#p3", words)
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the selection comment")
+    later = "A page comment written while the first was in flight."
+    write(page_comment(page), later)
+
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held.pop(0).fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+    expect(page.locator(".lf-notice")).to_have_text(
+        "Couldn't send — refused before append. Draft kept — g i resumes writing"
+    )
+    expect(page.locator(".lf-fab-input")).not_to_be_visible()
+
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-page-comment-card")).not_to_be_visible()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).to_have_js_property("value", words)
+    assert stored_draft_text(page, "general") == later
     consume_browser_errors(page, "400")
 
 
@@ -1863,7 +1911,11 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     expect(page.locator(".lf-threads")).to_be_focused()
     expect(box).not_to_be_focused()
     expect(box).to_have_js_property("value", words)
-    expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
+    # The card the box stands in closed with the send, so the words are back out of
+    # view, and the refusal names the address that opens it again.
+    expect(page.locator(".lf-notice")).to_have_text(
+        "Couldn't send — refused before append. Draft kept — g i resumes writing"
+    )
     assert stored_draft_text(page, "general") == words
     assert not [
         event

@@ -127,6 +127,8 @@ def worker_cpu() -> float | None:
         _cgroup = Path(parent) / str(os.getpid())
         _cgroup.mkdir()
         (_cgroup / "cgroup.procs").write_text(str(os.getpid()))
+        # A suite a test runs makes its cgroups inside this one, which still counts them.
+        os.environ["SUITE_PROFILE_CGROUP"] = str(_cgroup)
     stat = dict(
         line.split() for line in (_cgroup / "cpu.stat").read_text().splitlines()
     )

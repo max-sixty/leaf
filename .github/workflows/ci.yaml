@@ -149,7 +149,6 @@ jobs:
             --function --rate "$PY_SPY_RATE" --format raw --output .tmp/test-results/stacks.txt &
           profiler=$!
           wait "$tests" && status=0 || status=$?
-          grep -H usage_usec "$SUITE_PROFILE_CGROUP"/cpu.stat "$SUITE_PROFILE_CGROUP"/*/cpu.stat  # TEMP: validation
           # A profile that failed fails the job, keeping pytest's own failure status.
           wait "$profiler" && profiled=0 || profiled=$?
           if [ "$profiled" -ne 0 ]; then

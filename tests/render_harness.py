@@ -1228,7 +1228,8 @@ _TEST = None
 
 
 def watches_shifts(test):
-    """Unmarked tests watch shifts; surveyed journeys in a marked tier opt in.
+    """Unmarked tests watch shifts, whatever tier their cost runs them in; surveyed
+    journeys marked with a tier opt in.
 
     This selection does not lift the watcher's first-presentation exemption.
     """

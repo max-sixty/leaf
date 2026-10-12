@@ -43,6 +43,7 @@ from leaf_dev.arms import (
     TURN_LIMIT,
     URL,
     LiveChild,
+    LiveSession,
     PageClient,
     blocks,
     commands,
@@ -512,40 +513,41 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
     prompt = case.prompts[0].replace("{page}", str(page))
     (run.dir / "prompt-1.txt").write_text(prompt)
     closing: threading.Timer | None = None
-    url, posted, delivered = None, 0, 0
+    posted, delivered = 0, 0
     observed_tool_round = 0
     pending_events: set[str] = set()
     attempts: set[str] = set()
     try:
         with (
-            LiveChild(
-                work,
-                prompt,
-                "--plugin-dir",
-                str(run.payload),
-                stderr=run.dir / "err-1.txt",
-                limit=TURN_LIMIT,
-                timed_out=run.dir / "timed-out",
-                dirs=[run.payload],
-                env={"XDG_STATE_HOME": str(run.state)},
-                harness=run.harness,
-            ) as child,
-            (run.dir / "stream-1.jsonl").open("w") as stream,
+            LiveSession(
+                LiveChild(
+                    work,
+                    prompt,
+                    "--plugin-dir",
+                    str(run.payload),
+                    stderr=run.dir / "err-1.txt",
+                    limit=TURN_LIMIT,
+                    timed_out=run.dir / "timed-out",
+                    dirs=[run.payload],
+                    env={"XDG_STATE_HOME": str(run.state)},
+                    harness=run.harness,
+                ),
+                run.dir / "stream-1.jsonl",
+                watch=(run.payload, run.state, page),
+            ) as live,
             ExitStack() as deadlines,
         ):
 
-            def note(record: dict) -> None:
-                stream.write(json.dumps(record) + "\n")
-                stream.flush()
-
-            for record in child.records():
+            def received(record: dict) -> None:
+                """Record a posted round's receipt ahead of the record that shows it."""
+                nonlocal delivered
                 if delivered < posted:
                     events = page_events(page)
                     if inputs_received(
                         events, attempts
                     ) and pending_events <= opened_input_ids(events):
                         delivered = posted
-                        note(
+                        live.note(
                             {
                                 "type": "eval_received",
                                 "round": posted,
@@ -553,12 +555,13 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                                 "received_at": now(),
                             }
                         )
-                note(record)
+
+            for record in live.records(before=received):
                 if delivered > observed_tool_round and any(
                     block.get("type") == "tool_use" for block in blocks([record])
                 ):
                     observed_tool_round = delivered
-                    note(
+                    live.note(
                         {
                             "type": "eval_first_tool_state",
                             "round": delivered,
@@ -566,21 +569,7 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                             "received_at": now(),
                         }
                     )
-                if not url and record.get("type") in ("user", "result"):
-                    server = page_state(run, page)["server"]
-                    if server:
-                        url = server["url"]
-                        note({"type": "eval_served", "url": url, "received_at": now()})
-                if record.get("type") == "result":
-                    state = page_state(run, page)
-                    note(
-                        {
-                            "type": "eval_status",
-                            "status": state.get("status"),
-                            "listening": state["listening"],
-                            "received_at": now(),
-                        }
-                    )
+                url = live.url
                 # Posting the next running round cannot replace an undelivered
                 # round's evidence.
                 if delivered < posted:
@@ -589,7 +578,7 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                     if record.get("type") == "result":
                         if closing is not None:
                             closing.cancel()
-                        closing = threading.Timer(GRACE, child.close)
+                        closing = threading.Timer(GRACE, live.close)
                         deadlines.callback(closing.join)
                         deadlines.callback(closing.cancel)
                         closing.start()
@@ -603,7 +592,7 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                     continue
                 if injection == "idle":
                     time.sleep(3)
-                active_turn = observed_active_turn(run, page, child)
+                active_turn = observed_active_turn(run, page, live.child)
                 if run.case == "elided" and posted == 0:
                     append_elided_history(run, page)
                 pending_events = post_round(
@@ -615,7 +604,7 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                     if move["kind"] != "error"
                 )
                 posted += 1
-                note(
+                live.note(
                     {
                         "type": "eval_post",
                         "round": posted,
@@ -1460,7 +1449,7 @@ def execute_scenario(
     `metadata.checks` answers each fixed check; `metadata.texts` holds each text a
     YAML assertion reads: every phase's final message, and what the scorer read."""
     run = Run(case, payload, work, harness)
-    with scratch() as child_work:
+    with scratch(payload, state=run.state) as child_work:
         execute(run, child_work)
         traces = run.traces()
         phases = resumed([trace_scores(t) for t in traces])

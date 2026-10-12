@@ -976,6 +976,7 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
     }""")
     # The bar the last drag raised stands over the line this one starts on.
     page.locator("#t").click()
+    page.locator("#p2").scroll_into_view_if_needed()
     select(page, spot("#p2", "flagged", 3), spot("#p2", "them", 1))
     assert captured() == "flagged between them"
 
@@ -2255,14 +2256,19 @@ DIFF_EMPTY_CONTEXT_MARKUP = """diff --git a/example.txt b/example.txt
 
 
 def test_the_widget_reads_the_diff_patch_table(browser, serve):
-    """`diff_patch_cases.json` states what lf-diff can present, for both of its
-    readers (`test_interact_document.py`, "the manifest reads the diff patch table").
-    The widget draws each accepted patch, under the row's paths, as inline text and
-    as the manifest `patch_manifest.py` builds from it, and refuses each row with a
-    `widget` message without hiding evidence, quoting the patch it could not draw.
+    """`diff_patch_cases.json` states what lf-diff can present, which it alone
+    judges. The widget draws each accepted patch, under the row's paths, as inline
+    text and as the manifest `patch_manifest.py` builds from it (whose paths
+    `test_interact_document.py` checks), and refuses each row with a `widget` message
+    without hiding evidence: inline, quoting the patch it could not draw, and in a
+    stored manifest, in the file it cannot draw. Every refusal reaches the author.
     The same page draws the samples above, which the table's rows do not reach."""
     accepted = [case for case in DIFF_PATCH_CASES if "files" in case]
     refused = [case for case in DIFF_PATCH_CASES if "widget" in case]
+    # The manifest stores what it is given, so the widget alone refuses a stored
+    # file's patch, in that file. The contract itself refuses an empty manifest and a
+    # repeated path at `data set`.
+    stored = [case for case in refused if case["id"] not in {"empty", "repeated-path"}]
     markup = "".join(
         [
             *(
@@ -2271,7 +2277,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
             ),
             *(
                 f'<lf-diff id="files-{case["id"]}" source="files-{case["id"]}"><pre></pre></lf-diff>'
-                for case in accepted
+                for case in [*accepted, *stored]
             ),
             f'<lf-diff id="inert-diff"><pre>{escape(DIFF_INERT_SOURCE)}</pre></lf-diff>',
             (
@@ -2285,7 +2291,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
         ]
     )
     url = serve(leaf_page("diff patch table", f'<h1 id="cases">Cases</h1>{markup}'))
-    for case in accepted:
+    for case in [*accepted, *stored]:
         data_model.cmd_data_set(
             serve.page_dir, f"files-{case['id']}", patch_manifest(case["patch"])
         )
@@ -2315,11 +2321,19 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
             "errors": [f"<lf-diff> failed: {case['widget']}"],
             "source": case["patch"].rstrip("\n") or None,
         }, case["id"]
+    for case in stored:
+        reading = readings[f"files-{case['id']}"]
+        assert reading["rendered"], (case["id"], reading)
+        assert reading["errors"] == [
+            f"That file's diff cannot be shown: {case['widget']}"
+        ], (case["id"], reading)
     # Each refusal reaches the author too, naming the diff that could not draw.
     reported = consume_browser_errors(
-        page, *(f'<lf-diff id="text-{case["id"]}"> failed: ' for case in refused)
+        page,
+        *(f'<lf-diff id="text-{case["id"]}"> failed: ' for case in refused),
+        *(f'<lf-diff id="files-{case["id"]}"> failed: ' for case in stored),
     )
-    assert len(reported) == len(refused), reported
+    assert len(reported) == len(refused) + len(stored), reported
 
     result = page.evaluate("""() => {
       const host = document.querySelector('#inert-diff');

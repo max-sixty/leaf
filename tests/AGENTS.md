@@ -115,8 +115,8 @@ Broad discovery skips both later tiers; `--run-main` adds `browser/` and
 `--run-nightly` runs every tier. An explicit tier directory, file, node id, `-k`, `-m`,
 or `--lf` runs what it names.
 Both landing gates pass `--changed-since`, which adds the tests of either later tier
-whose own source the change edits; a test moved between directories unchanged is no
-edit.
+whose own source the change edits; a test moved to another module or directory
+unchanged is no edit.
 
 Before handing over, run the tests that hold the behavior you changed, in any file and
 any tier, named by node id or `-k`; find them by reading which tests

@@ -59,6 +59,7 @@ export function createPassageSelection({ restore }) {
       title: "Restore selection",
       description: "Restore the last selected passage",
       touch: "Restore selection",
+      menu: "navigate",
       covering: true,
       when: () => previous !== null,
       run: async () => {

@@ -798,15 +798,6 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
 def test_trace_play_press_belongs_to_its_pointer_click(browser, serve):
     """A held Pause keeps its meaning; a canceled press leaves keyboard Play free."""
     source = ROOT / "examples/developer/playwright-trace-gallery.html"
-    record = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]
-    duration = max(
-        [image["timestamp"] for image in record["images"]]
-        + [
-            phase["timestamp"]
-            for action in record["actions"]
-            for phase in action["phases"].values()
-        ]
-    ) - min(action["startTime"] for action in record["actions"])
     user = browser.new_page()
     user.goto(serve(source))
     wait_until_ready(user)
@@ -829,8 +820,11 @@ def test_trace_play_press_belongs_to_its_pointer_click(browser, serve):
         if canceled:
             user.mouse.move(box["x"] + box["width"] + 60, box["y"] + 100)
             user.mouse.up()
-        user.clock.run_for(round(duration) + 100)
+        # Playback may wait for an image to decode. Let its clock continue after
+        # that asynchronous work instead of advancing a fixed span while paused.
+        user.clock.resume()
         expect(play).to_be_visible()
+        user.clock.pause_at(user.evaluate("() => Date.now() / 1000") + 1)
         if not canceled:
             user.mouse.up()
             expect(play).to_be_visible()

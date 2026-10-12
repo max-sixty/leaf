@@ -7,7 +7,7 @@ its two columns in the order they ran, and asks a judge which final version serv
 the request better. A judge favors one position, so each pair is judged in both
 orders and only a winner both orders name counts; a disagreement is recorded as
 such. The judge is a Claude Code child that can use only Read, shown the request,
-the later preference and comment, and each page's screenshots as A and B.
+the later messages, and each page's screenshots as A and B.
 Verdicts go to `pairs.json` in the first run's directory.
 """
 
@@ -19,7 +19,15 @@ from pathlib import Path
 import click
 
 from leaf_dev.arms import run_agent, trace_result
-from leaf_dev.arrangement_eval import CASES, PREFERENCE, TASKS, WIDTHS, listing, phases
+from leaf_dev.arrangement_eval import (
+    CASES,
+    REACHABLE,
+    TASKS,
+    WIDTHS,
+    later_messages,
+    listing,
+    phases,
+)
 from leaf_dev.eval_cases import definition
 
 DEFINITION = definition("eval_pairs")
@@ -42,6 +50,9 @@ def samples(runs: list[Path]) -> dict[str, dict[str, list[dict]]]:
             found[subject][result["provider"]["label"]].append(
                 {
                     "sample": work.name,
+                    "work": work,
+                    "diagnostics": metadata["diagnostics"],
+                    "checks": metadata.get("checks") or {},
                     "shots": run / "screenshots" / work.name,
                     "started": (work / "prompt-1.txt").stat().st_mtime,
                 }
@@ -71,23 +82,11 @@ def brief(subject: str, a: dict, b: dict) -> str:
     lines = [
         f"<request>\n{(TASKS / subject / 'request.md').read_text()}</request>",
         "",
-        f"After the first version, the user added a standing preference: {PREFERENCE}",
+        *later_messages(subject, "the first version"),
     ]
-    if comment := CASES[subject].comment:
-        lines += [
-            "",
-            (
-                "After the second version, the user commented: "
-                f'"On {comment.target}: {comment.text}"'
-            ),
-        ]
     lines += [
         "",
-        (
-            "Pages A and B were each built for this request, then revised for each "
-            "later message. Below are screenshots of each final page at four window "
-            "sizes, top to bottom with overlap."
-        ),
+        DEFINITION["brief_intro"],
     ]
     for label, sample in (("A", a), ("B", b)):
         lines += ["", f"Page {label}:", *listing(final_shots(sample, subject))]
@@ -103,7 +102,7 @@ def judge(subject: str, a: dict, b: dict, evidence: Path) -> dict | None:
         cwd.mkdir()
         trace = run_agent(
             cwd,
-            JUDGE.format(brief=evidence / "brief.md"),
+            JUDGE.format(brief=evidence / "brief.md", reachable=REACHABLE),
             "--tools",
             "Read",
             "--json-schema",

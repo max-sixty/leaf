@@ -130,6 +130,66 @@ def test_library_cases_supply_a_task_and_native_promptfoo_assertions(address):
     assert all(assertion["type"] and assertion["value"] for assertion in case["assert"])
 
 
+def test_catalog_rejects_execution_modes_conflicting_after_variant_inheritance(
+    tmp_path, monkeypatch
+):
+    from leaf_dev import eval as module
+
+    path = tmp_path / "evals" / "example" / "case.yaml"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "metadata": {"authoring": True},
+                "variants": {
+                    "workflow": {"metadata": {"executor": "leaf_dev.arrangement_eval"}}
+                },
+            }
+        )
+    )
+    monkeypatch.setattr(module, "ROOT", tmp_path)
+    with pytest.raises(
+        click.ClickException, match="eval case example/workflow:.*declare only one"
+    ):
+        catalog()
+
+
+def test_authoring_instruction_sources_stay_per_sample_with_the_task(
+    tmp_path, monkeypatch
+):
+    from leaf_dev import eval as module
+
+    sources = {
+        "first": ".claude/skills/developing-leaf/SKILL.md",
+        "second": ".claude/skills/ui-sweep/SKILL.md",
+    }
+    monkeypatch.setattr(
+        module,
+        "catalog",
+        lambda: {
+            address: {
+                "metadata": {"authoring": True, "instructions": source},
+                "vars": {"prompt": f"{address} task"},
+                "assert": [{"type": "javascript", "value": "true"}],
+            }
+            for address, source in sources.items()
+        },
+    )
+    config = prepare(
+        list(sources),
+        {"candidate": tmp_path / "arm"},
+        tmp_path / "scratch",
+        ("claude-code",),
+        ("leaf",),
+        tmp_path / "samples",
+    )
+    assert len(config["providers"]) == 1
+    for test in config["tests"]:
+        address = test["metadata"]["case"]
+        assert test["metadata"]["instructions"] == sources[address]
+        assert test["vars"]["prompt"] == f"{address} task"
+
+
 @pytest.mark.usefixtures("codex_cli")
 def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch):
     login = tmp_path / "harness-login"
@@ -144,7 +204,7 @@ def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "must-not-enter-config")
     payloads = arms(tmp_path, "base", "candidate")
     config = prepare(
-        ["brief-document-needs-no-outline", "shot-pair-outlined"],
+        ["brief-document-needs-no-outline", "options-stay-words-for-wording"],
         payloads,
         tmp_path / "scratch",
         ("claude-code", "codex"),
@@ -163,10 +223,7 @@ def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch):
     for provider in config["providers"]:
         harness, arm = provider["label"].split("/")
         settings = provider["config"]
-        # Cases that show images find them under the column's own workspace.
-        assert (
-            Path(settings["working_dir"]) / "evals/shot-pair-outlined/captures"
-        ).is_dir()
+        assert Path(settings["working_dir"]).is_dir()
         if harness == "claude-code":
             homes.append(settings["env"]["HOME"])
             assert settings["plugins"][0]["path"] == str(payloads[arm])
@@ -184,10 +241,72 @@ def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch):
     brief = config["tests"][0]
     assert brief["description"] == "brief-document-needs-no-outline"
     assert brief["vars"]["prompt"].startswith("Use the Leaf skill")
-    assert [assertion["metric"] for assertion in brief["assert"]] == [
-        "no-outline",
-        "judgment",
+    assert [assertion["metric"] for assertion in brief["assert"]] == ["judgment"]
+
+
+@pytest.mark.usefixtures("codex_cli")
+def test_authoring_columns_keep_case_assertions_and_create_no_shared_workspace(
+    tmp_path,
+    monkeypatch,
+):
+    """Authoring scores saved pages through each arm, retaining the case's criteria."""
+    addresses = ["proposals-show-what-they-change", "visual-change-uses-captures"]
+    payloads = arms(tmp_path, "base", "candidate")
+    login = tmp_path / "login"
+    login.mkdir()
+    (login / "auth.json").write_text("{}")
+    monkeypatch.setenv("CODEX_HOME", str(login))
+    scratch = tmp_path / "scratch"
+    config = prepare(
+        addresses,
+        payloads,
+        scratch,
+        ("claude-code", "codex"),
+        ("leaf",),
+        tmp_path / "samples",
+    )
+    labels = [
+        "claude-code/base/authoring",
+        "claude-code/candidate/authoring",
+        "codex:app-server/base/authoring",
+        "codex:app-server/candidate/authoring",
     ]
+    assert [provider["label"] for provider in config["providers"]] == labels
+    for provider in config["providers"]:
+        settings = provider["config"]
+        harness, arm, _ = provider["label"].split("/")
+        assert settings["harness"] == harness.split(":")[0]
+        assert settings["payload"] == str(payloads[arm])
+        assert "working_dir" not in settings
+    assert not (scratch / "work").exists()
+    for address, test in zip(addresses, config["tests"], strict=True):
+        assert test["providers"] == labels
+        assert test["metadata"]["authoring"] is True
+        assert [check["metric"] for check in test["assert"][:2]] == [
+            "completed",
+            "page-valid",
+        ]
+        # File helpers are resolved for Promptfoo; that does not change the criteria.
+        asset_prefix = f"file://{Path(__file__).parents[2] / 'evals'}/"
+        assertions = [
+            {
+                **{key: value for key, value in check.items() if key != "provider"},
+                "value": check["value"].replace(asset_prefix, "file://", 1),
+            }
+            for check in test["assert"][2:]
+        ]
+        assert assertions == catalog()[address]["assert"]
+        for check in test["assert"][2:]:
+            if check["type"].endswith("agent-rubric"):
+                judge = check["provider"]["config"]
+                profile = (
+                    Path(judge["cli_env"]["CODEX_HOME"]) / "config.toml"
+                ).read_text()
+                assert f'"{tmp_path / "screenshots"}/**" = "read"' in profile
+                assert str(tmp_path / "samples") not in profile
+            else:
+                assert "provider" not in check
+        assert test["vars"]["prompt"].endswith(catalog()[address]["vars"]["prompt"])
 
 
 @pytest.mark.parametrize(
@@ -529,6 +648,51 @@ def test_python_provider_gives_each_call_its_own_evidence(tmp_path, monkeypatch)
             observed[-1]
             == tmp_path / "screenshots" / Path(response["metadata"]["work"]).name
         )
+
+
+def test_authoring_provider_preserves_per_call_evidence_and_the_original_prompt(
+    tmp_path, monkeypatch
+):
+    from leaf_dev import authoring_eval, scenario_provider
+
+    observed = []
+
+    def execute(prompt, payload, evidence, metadata, *, harness, shots):
+        # Replace only the executor here; the integration test runs its real tools.
+        observed.append((prompt, payload, evidence, metadata, harness, shots))
+        (evidence / "authored.html").write_text(prompt)
+        return {"output": prompt, "metadata": {"checks": {"page-valid": True}}}
+
+    monkeypatch.setattr(authoring_eval, "execute", execute)
+    options = {
+        "config": {
+            "payload": str(tmp_path / "payload"),
+            "samples": str(tmp_path / "samples"),
+            "screenshots": str(tmp_path / "screenshots"),
+            "claude_config_dir": str(tmp_path / "login"),
+            "harness": "claude-code",
+        }
+    }
+    metadata = {"authoring": True, "case": "visual-change-uses-captures"}
+    context = {"test": {"metadata": metadata}}
+    prompt = "Use the captures and write the Leaf page."
+    responses = [scenario_provider.call_api(prompt, options, context) for _ in range(2)]
+    assert observed[0][2] != observed[1][2]
+    for observed_call, response in zip(observed, responses, strict=True):
+        request, payload, evidence, received_metadata, harness, shots = observed_call
+        assert (request, payload, received_metadata, harness) == (
+            prompt,
+            tmp_path / "payload",
+            metadata,
+            "claude-code",
+        )
+        assert evidence.parent == tmp_path / "samples"
+        assert shots == tmp_path / "screenshots" / evidence.name
+        assert (evidence / "authored.html").read_text() == prompt
+        assert response["metadata"] == {
+            "checks": {"page-valid": True},
+            "work": str(evidence),
+        }
 
 
 def test_command_passes_promptfoo_options_and_status_without_api_keys(

@@ -49,7 +49,7 @@ def execute_scenario(
     condition: str = "leaf",
 ) -> dict:
     """Run the arm's hosted adapter against the local login and a seeded page."""
-    with scratch() as cwd:
+    with scratch(payload) as cwd:
         state, page = cwd / "state", cwd / "page"
         build_source(payload, state, ROOT / "evals/website-replies/page.html", page)
         home = cwd.parent / "home"

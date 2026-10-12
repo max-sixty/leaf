@@ -480,9 +480,13 @@ export function mountApplication(dependencies) {
   const mountThreadViews = (owner, render) =>
     registerMirrorConsumer(owner, render, { commands: inlineView });
 
-  const registerThreadPresentation = (owner, { render, reveal }) => {
-    const reader = createPrimaryReader(owner, render, inlineView, () =>
-      threadPresenter.present(),
+  const registerThreadPresentation = (owner, { render, reveal, replyBox = null }) => {
+    const reader = createPrimaryReader(
+      owner,
+      render,
+      inlineView,
+      () => threadPresenter.present(),
+      replyBox,
     );
     const detachDestination = threadDestinations.register(owner, reveal, reader);
     let detachPresentation;

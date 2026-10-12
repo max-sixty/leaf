@@ -2752,15 +2752,12 @@ def test_trace_play_press_belongs_to_its_pointer_click(browser, serve):
     widget = user.locator("lf-trace")
     play = widget.get_by_role("button", name="Play", exact=True)
     pause = widget.get_by_role("button", name="Pause", exact=True)
-    # Settle normal playback before holding the clock across pointer release. Play
-    # from the start: from the initial selection, real-time playback can end
-    # before a loaded runner's next click reaches Pause.
-    widget.get_by_role("button", name="Start", exact=True).click()
-    play.click()
-    pause.click()
-    rendered(user)
+    # Hold the recording clock first: on the wall clock, playback can end before
+    # a loaded runner's next click reaches Pause.
     user.clock.install(time=0)
     user.clock.pause_at(1)
+    play.click()
+    pause.click()
     for canceled in (True, False):
         widget.get_by_role("button", name="Start", exact=True).click()
         play.click()
@@ -2914,13 +2911,7 @@ def test_trace_pointer_annotation_stays_inside_the_panned_image_viewport(
 def test_trace_comparison_prepaint_shows_only_its_opening_recording(browser, serve):
     """Holding the chooser module cannot expose a second recording before upgrade."""
     source = ROOT / "tests/fixtures/pages/playwright-paired-results.html"
-    records = json.loads(source.with_suffix(".data.json").read_text())
-    media = {
-        image["url"]: (example_media() / Path(image["url"]).name).read_bytes()
-        for record in records.values()
-        for image in record["images"]
-    }
-    url = serve(source, packages=("playwright",), media=media)
+    url = serve(source, packages=("playwright",))
     user = browser.new_page()
     held = []
     user.route("**/widgets/lf-trace-compare.js", lambda route: held.append(route))

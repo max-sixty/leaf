@@ -363,7 +363,7 @@ def test_a_shot_compares_pixels_inside_an_opaque_live_sample(browser, serve):
     reading = shot.evaluate("async shot => await shot.difference")
     assert reading["regions"]
     expect(shot.get_by_role("button", name="Changes", exact=True)).to_have_attribute(
-        "title", "1 changed area"
+        "aria-description", "1 changed area"
     )
     expect(shot.locator(".lf-shotdiff > span").first).to_be_visible()
 
@@ -679,7 +679,7 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
     changes = page.locator("#shot-patch").get_by_role(
         "button", name="Changes", exact=True
     )
-    expect(changes).to_have_attribute("title", "1 changed area")
+    expect(changes).to_have_attribute("aria-description", "1 changed area")
     expect(changes).to_have_attribute("aria-pressed", "true")
     expect(
         page.locator("#shot-patch").get_by_role("button", name="Pixels", exact=True)
@@ -715,7 +715,42 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
     expect(quiet.locator(".lf-shotdiff > span")).to_have_count(1)
     expect(quiet.locator(".lf-shotdiff").first).to_be_hidden()
     expect(quiet.get_by_role("button", name="Changes", exact=True)).to_have_count(0)
-    changes.click()
+    # The count stays out of the resting rail, but keyboard arrival and a held
+    # pointer show the full reading. Releasing off the control cancels the toggle;
+    # releasing on it commits once, including the browser's subsequent click.
+    changes.scroll_into_view_if_needed()
+    page.mouse.move(0, 0)
+    changes.press("Shift+Tab")
+    assert (
+        changes.evaluate("node => getComputedStyle(node, '::after').content") == "none"
+    )
+    page.keyboard.press("Tab")
+    expect(changes).to_be_focused()
+    expect(changes).to_have_attribute("data-lf-focus", "")
+    assert (
+        changes.evaluate("node => getComputedStyle(node, '::after').content")
+        == '"1 changed area"'
+    )
+    page.keyboard.press("Shift+Tab")
+    box = changes.bounding_box()
+    point = {"x": box["x"] + box["width"] / 2, "y": box["y"] + box["height"] / 2}
+    page.mouse.move(**point)
+    page.mouse.down()
+    expect(changes).to_have_attribute("data-lf-held-word", "")
+    assert (
+        changes.evaluate("node => getComputedStyle(node, '::after').content")
+        == '"1 changed area"'
+    )
+    expect(changes).to_have_attribute("aria-pressed", "true")
+    page.mouse.move(0, 0)
+    page.mouse.up()
+    expect(changes).not_to_have_attribute("data-lf-held-word", "")
+    expect(changes).to_have_attribute("aria-pressed", "true")
+    page.mouse.move(**point)
+    page.mouse.down()
+    expect(changes).to_have_attribute("data-lf-held-word", "")
+    page.mouse.up()
+    expect(changes).not_to_have_attribute("data-lf-held-word", "")
     expect(changes).to_have_attribute("aria-pressed", "false")
     expect(page.locator("#shot-patch .lf-shotdiff").last).to_be_hidden()
     changes.press("Space")
@@ -767,7 +802,7 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
     both = page.locator("#shot-both")
     outlines = both.get_by_role("button", name="Changes", exact=True)
     pixels = both.get_by_role("button", name="Pixels", exact=True)
-    expect(outlines).to_have_attribute("title", "1 changed area")
+    expect(outlines).to_have_attribute("aria-description", "1 changed area")
     outlines.click()
     expect(outlines).to_have_attribute("aria-pressed", "false")
     pixels.click()

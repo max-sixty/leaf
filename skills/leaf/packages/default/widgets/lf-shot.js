@@ -16,11 +16,11 @@
  * Once the page has presented, the widget compares the two images pixel for pixel
  * (`runtime/image-difference.js` owns what counts as a difference) and puts its
  * `describeDifference` reading in the rail or Changes tooltip. Every pair says when
- * it is identical, only slightly changed, or changed throughout, so a reader of one side of the divider,
- * or of a screenshot of the page, still learns it. With `outlines`, each frame also
+ * it is identical, only slightly changed, or changed throughout, so a reader of one
+ * side of the divider, or of a screenshot of the page, still learns it. With `outlines`, each frame also
  * outlines its own regions, what changed and what moved, where they sit in that frame,
- * and Changes toggles them together, with the full count on hover. `difference` is
- * that reading, in the images' own pixels, or null for a pair the widget refused;
+ * and Changes toggles them together, with the full count on hover, focus or a held
+ * press. `difference` is that reading, in the images' own pixels, or null for a pair the widget refused;
  * a parent that hides the rail states it from there. With `pixels`, a separate
  * Pixels action opens the after image greyed with each changed pixel painted
  * through `changedPixels`' mask in the theme's warning colour. The mask is built
@@ -51,6 +51,7 @@
  * comparison choice and its focused control. A different image pair is a new shot.
  * Commentary about the change belongs in authored prose around the widget. */
 import {
+  HOLDS_WORD,
   PRESS,
   afterPresentation,
   announce,
@@ -515,8 +516,8 @@ customElements.define(
       const description = describeDifference(reading);
       if (kind !== "areas") relabel(count, description, { says: false });
       if (this.hasAttribute("outlines") && kind === "areas") {
-        const changes = offer("button", "lf-shotchanges", "Changes");
-        changes.title = description;
+        const changes = offer("button", `lf-shotchanges ${HOLDS_WORD}`, "Changes");
+        keeps(changes, "aria-label", "Changes");
         keeps(changes, "aria-description", description);
         changes.addEventListener("click", () => {
           this.#changesShown = !this.#changesShown;

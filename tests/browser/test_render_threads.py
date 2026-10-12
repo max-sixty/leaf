@@ -9951,6 +9951,46 @@ def test_a_reply_box_whose_thread_leaves_the_diff_takes_the_user_to_its_card(
     expect(reply).to_have_js_property("value", "")
 
 
+def test_a_reply_box_whose_thread_returns_to_the_diff_takes_the_user_back(
+    browser, serve
+):
+    """The patch a thread was written on comes back while the user types in its
+    margin card, and the thread takes its seat on the diff line again. The card
+    closing under the user landed them on the banner, so the next letters ran page
+    commands. They go on in the same editor on the diff line, at the same caret, with
+    its undo history."""
+    url, root = seated_thread(serve, "diff", 2)
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    inline = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    box = inline.locator(":scope > .lf-thread-reply leaf-text")
+    box.scroll_into_view_if_needed()
+    write(box, "Half a thought")
+    data_model.cmd_data_set(
+        serve.page_dir, "review-patch", SEAT_DIFF + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
+    )
+    told(page)
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    reply = card.locator(":scope > .lf-thread-reply leaf-text")
+    expect(reply).to_be_focused()
+    page.keyboard.type(" more")
+    reply.evaluate("box => box.setSelectionRange(4, 4)")
+    data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+    told(page)
+    expect(card).to_be_hidden()
+    expect(box).to_be_focused()
+    expect(box).to_have_js_property("value", "Half a thought more")
+    assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [4, 4]
+    page.keyboard.type(" tr")
+    expect(box).to_have_js_property("value", "Half tr a thought more")
+    expect(box).to_be_focused()
+    # The same editor came back, so undo walks back through the card's typing too.
+    page.keyboard.press("ControlOrMeta+z")
+    expect(box).to_have_js_property("value", "Half a thought more")
+    page.keyboard.press("ControlOrMeta+z")
+    expect(box).to_have_js_property("value", "Half a thought")
+
+
 @pytest.mark.parametrize(
     ("kind", "finish"),
     # Each seat once, and each way the written reply ends.

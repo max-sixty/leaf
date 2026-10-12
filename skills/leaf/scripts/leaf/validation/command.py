@@ -2,7 +2,7 @@
 
 `page check` prints its findings for a reader, or with `--json` one JSON object on
 stdout: `status`, the exit status; `findings`, every finding as
-`render_gate.findings.Finding.json` gives it, the markup checks' first; and `browser`,
+`findings.Finding.json` gives it, the markup checks' first; and `browser`,
 the browser gates `asked` for and those that `ran` (failing page code ends the check
 before the render gate reads anything), in which browser or why none could, with the
 render gate's margin widths and saved screens where it passed. `browser` is null where
@@ -14,11 +14,11 @@ import sys
 from pathlib import Path
 
 from leaf.event_log import read_events
+from leaf.findings import Finding
 from leaf.layer import payload_provenance, provenance_label, same_leaf
 from leaf.leases import page_locked
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import layer_metadata
-from leaf.render_gate.findings import Finding
 
 from .source import check_source
 
@@ -59,14 +59,8 @@ def leaf_versions(page_dir: Path) -> list[Finding]:
 def _check(page_dir: Path, render: bool, as_json: bool) -> int:
     events = read_events(page_dir)
     result = check_source(page_dir, events)
-    errors = [Finding("markup", values={"text": error}) for error in result.errors]
-    advice = [
-        *(
-            Finding("markup", values={"text": line}, severity="advice")
-            for line in result.advice
-        ),
-        *leaf_versions(page_dir),
-    ]
+    errors = result.errors
+    advice = [*result.advice, *leaf_versions(page_dir)]
 
     def reported(status, browser=None):
         print(

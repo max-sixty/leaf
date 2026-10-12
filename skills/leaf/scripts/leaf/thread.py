@@ -653,7 +653,7 @@ def _compose_and_append(
             operation = "reply" if validate_source or markup else "detach"
             raise Refused(
                 f"cannot {operation} while index.html is invalid: "
-                f"{'; '.join(checked.errors)}"
+                f"{'; '.join(map(str, checked.errors))}"
             )
         prospective_reading = checked.reading
         if moving:
@@ -667,7 +667,14 @@ def _compose_and_append(
                 (active or 0) + 1,
             )
     fragment = (
-        check_markup(page_dir, "reply", markup, events, reading=prospective_reading, thread=thread_id)
+        check_markup(
+            page_dir,
+            "reply",
+            markup,
+            events,
+            reading=prospective_reading,
+            thread=thread_id,
+        )
         if markup
         else None
     )

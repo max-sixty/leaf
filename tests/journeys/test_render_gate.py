@@ -8,9 +8,9 @@ from interact_support import (
     add_test_widget,
 )
 from leaf import render_checks as render_checks_model
+from leaf.findings import Finding
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
-from leaf.render_gate.findings import Finding
 from playwright.sync_api import expect
 from render_cases_interaction import (
     CHANGE_SHAPES_PAGE,

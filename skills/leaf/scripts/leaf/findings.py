@@ -17,6 +17,12 @@ other reader, the gate's retry policy and the suite among them, reads the fields
 - `scheme`, `viewports` and `widths` say where it was read: one color scheme, or none
   where the reading is scheme-blind; the fixed viewports it was read at, empty where it
   holds at every one; the swept widths a run spans, lowest and highest.
+- `samples` says which document a markup check read: the page's own, where it is
+  empty, or the live sample child these template ids name, outermost first (None for
+  a template without one).
+
+A markup finding names its element by the tag the author reads in the file, with its
+id where the words name one, and keeps the line it opens on in `values`.
 
 A record compares by all of these, so two readings of one fault in one place are one
 finding and the same fault at another width is another.
@@ -25,6 +31,7 @@ finding and the same fault at another width is another.
 import json
 from dataclasses import dataclass, field, replace
 
+from leaf.refusals import Refused
 from leaf.registry.schema import json_value
 
 SEVERITIES = ("error", "advice")
@@ -39,6 +46,7 @@ class Finding:
     scheme: str | None = None
     viewports: tuple[str, ...] = ()
     widths: tuple[int, int] | None = None
+    samples: tuple[str | None, ...] = ()
 
     def __post_init__(self):
         if self.code not in _TEXT:
@@ -61,7 +69,7 @@ class Finding:
             text = f"[{self.scheme}] {text}"
         if self.viewports:
             text = f"{text} (at {', '.join(self.viewports)})"
-        return text
+        return "".join(f"sample {s or '<unnamed>'!r}: " for s in self.samples) + text
 
     @classmethod
     def read(cls, record: dict, **where) -> "Finding":
@@ -80,6 +88,7 @@ class Finding:
             found.get("scheme"),
             tuple(found.get("viewports", ())),
             tuple(found["widths"]) if "widths" in found else None,
+            tuple(found.get("samples", ())),
         )
 
     def json(self, *, text: bool = True) -> dict:
@@ -92,6 +101,8 @@ class Finding:
             found["viewports"] = list(self.viewports)
         if self.widths is not None:
             found["widths"] = list(self.widths)
+        if self.samples:
+            found["samples"] = list(self.samples)
         if self.values:
             found["values"] = self.values
         if text:
@@ -179,6 +190,88 @@ def _squeezed(at: str, v: dict) -> str:
         + " — an identifier in <code> breaks inside its cell; a column fewer, or a"
         " shorter word in the widest, gives the rest the measure"
     )
+
+
+def _line(at: str, v: dict) -> str:
+    """An element of the author's file, as they find it: its name and its line."""
+    return f"{at} (line {v['line']})"
+
+
+def _bearing(at: str, v: dict, value: str) -> str:
+    """The element `at` names, written with the attribute the finding is about and
+    its `value` as the words quote it."""
+    return _line(f"{at[:-1]} {v['attr']}={value}>", v)
+
+
+def _quoted(value: str) -> str:
+    return f'"{value}"'
+
+
+def _conditions(lacks: dict) -> str:
+    """The `x-awaits.when` conditions a widget never met (`instances.unasked`)."""
+    return " and ".join(
+        " or ".join(
+            f"{attr} is {'present' if value else 'absent'}"
+            if isinstance(value, bool)
+            else f"{attr}={json_value(value)}"
+            for value in values
+        )
+        for attr, values in lacks.items()
+    )
+
+
+def _seat(seat: dict) -> str:
+    return (
+        f"{seat['document']} <{seat['tag']}> input `{seat['input']}`"
+        f" (line {seat['line']})"
+    )
+
+
+def _reference_contract(at: str, v: dict) -> str:
+    expected = ", ".join(
+        f"{key}={json_value(value)}" for key, value in v["where"].items()
+    )
+    found = (
+        ", ".join(f"{key}={json_value(value)}" for key, value in v["found"].items())
+        if v["found"] is not None
+        else "no declaration"
+    )
+    actual = (
+        f"<{v['target_tag']}> has {found}"
+        if v["target_tag"] is not None
+        else "the target is not a registered widget"
+    )
+    return (
+        f'{_line(at, v)}: {v["attr"]}="{v["target"]}" must name a {v["via"]} widget'
+        f" where {expected}; {actual}"
+    )
+
+
+def _question_context(at: str, v: dict) -> str:
+    widgets = "; ".join(
+        f"{_line(w['at'], w)} asks only where {_conditions(w['lacks'])}"
+        for w in v["widgets"]
+    )
+    return f"{_line(at, v)}: a Question context registers no Question: " + (
+        widgets or "it holds no widget that declares x-awaits"
+    )
+
+
+def _outside_main(content: list[dict]) -> list[str]:
+    return [
+        f"text in <{c['tag']}> at line {c['line']}"
+        if c["text"]
+        else f"<{c['tag']}> at line {c['line']}"
+        for c in content
+    ]
+
+
+# What the layer does with a word a widget declares from one of its lists, where the
+# word is on it (`instances.DECLARED_WORDS`).
+_HONORED = {
+    "x-language": "a language this page's layer speaks",
+    "x-tone": "a tone this page's layer paints",
+}
 
 
 def _size(box: dict) -> str:
@@ -401,8 +494,269 @@ _TEXT = {
         f"Browser request returned HTTP {v['status']} ({v['kind']}) in {v['frame']}:"
         f" {v['url']}"
     ),
-    # The markup checks.
-    "markup": lambda at, v: v["text"],
+    # The markup checks, of a page's source, its samples' documents and message
+    # markup. The source as a whole:
+    "no-source": lambda at, v: f"no {v['path']}; write index.html first",
+    "not-utf8": lambda at, v: f"{v['path']} is not UTF-8: {v['error']}",
+    "invalid-registry": lambda at, v: v["error"],
+    "capture-failed": lambda at, v: v["error"],
+    "sample-history": lambda at, v: v["error"],
+    "missing-vendored": lambda at, v: (
+        f"{v['file']} missing from the page directory; run `leaf page init` to vendor"
+        " the layer"
+    ),
+    "head-count": lambda at, v: (
+        "the page must have one explicit <head> directly under <html>; found"
+        f" {v['tags']} head tags, {v['parsed']} parsed heads, and {v['direct']} direct"
+        " html heads"
+    ),
+    "main-count": lambda at, v: (
+        f"the page must have one <main> directly under <body>; found {v['bodies']}"
+        f" bodies, {v['mains']} mains, and {v['direct']} direct body mains"
+    ),
+    "outside-main": lambda at, v: (
+        "paintable authored content must stay inside the one <main> directly under"
+        f" <body>; found {json_value(_outside_main(v['content']))}"
+    ),
+    "unclosed": lambda at, v: (
+        "unclosed tags: "
+        + ", ".join(f"<{e['tag']}> (line {e['line']})" for e in v["elements"])
+    ),
+    "self-closing": lambda at, v: (
+        f"{at[:-1]}/> at line {v['line']} is self-closing: HTML ignores the slash and"
+        f" the element would swallow what follows — write {at[:-1]} …></{at[1:-1]}>"
+    ),
+    "noscript": lambda at, v: (
+        f"{at} at line {v['line']}: the browser renders none of its content; write it"
+        " plainly or leave it out"
+    ),
+    "unnamed-sample": lambda at, v: (
+        f"<template data-sample> at line {v['line']}: needs a stable id"
+    ),
+    "async-script": lambda at, v: (
+        f"<script async> (line {v['line']}) runs whenever it arrives, which can be"
+        " before Leaf reads the page; leave async off"
+    ),
+    "parser-blocking-script": lambda at, v: (
+        f"{_line(at, v)} runs while the page is still parsing, before Leaf reads it;"
+        ' write inline JavaScript as <script type="module">, and load a classic script'
+        " file with <script defer src>"
+    ),
+    "document-declaration": lambda at, v: (
+        f"{_line(at, v)} declares something about the whole document, which delivery"
+        " owns"
+    ),
+    "unknown-meta": lambda at, v: (
+        f'<meta name="{v["name"]}"> (line {v["line"]}): unknown lf- meta; known:'
+        f" {json_value(v['known'])}"
+    ),
+    "meta-content": lambda at, v: (
+        f'<meta name="{v["name"]}"> (line {v["line"]}): content must be one of'
+        f" {json_value(v['allowed'])}, found {v['found']!r}"
+    ),
+    "allocation-value": lambda at, v: (
+        f"{_bearing(at, v, json_value(v['value']))} has an invalid value; expected "
+        + (
+            "a whole number of CSS pixels"
+            if v["allowed"] is None
+            else f"one of {', '.join(v['allowed'])}"
+        )
+    ),
+    "css-unclosed": lambda at, v: (
+        f"{v['sheet']}: {v['depth']} block(s) left open at end of file — every rule"
+        " after the unclosed brace, this stylesheet's or a later layer's, lands inside"
+        " its scope"
+    ),
+    "css-syntax": lambda at, v: (
+        f"{v['sheet']} syntax error at {v['row']}:{v['column']}: {v['message']}"
+    ),
+    "unserved-media": lambda at, v: (
+        f"{v['ref']} isn't a name `leaf page media` gives, so the page never serves it"
+    ),
+    "missing-media": lambda at, v: (
+        f"{v['ref']} isn't in the page directory; `leaf page media` puts it there"
+    ),
+    # Ids and the runtime's own names.
+    "duplicate-ids": lambda at, v: (
+        f"duplicate ids (anchors need unique targets): {json_value(v['ids'])}"
+    ),
+    "spaced-ids": lambda at, v: (
+        "ids containing whitespace, which HTML forbids in an id:"
+        f" {json_value(v['ids'])}"
+    ),
+    "reserved-ids": lambda at, v: (
+        "ids in the runtime's own lf- namespace (it coins lf-composer-quote there, and"
+        f" points ARIA at them): {json_value(v['ids'])}"
+    ),
+    "event-shaped-ids": lambda at, v: (
+        "ids shaped like the event ids the log mints (eight hex digits), which"
+        f" commands would read as a message: {json_value(v['ids'])}"
+    ),
+    "reserved-markers": lambda at, v: (
+        f"{at} at line {v['line']} wears the runtime's own markers"
+        f" ({', '.join(v['markers'])}); the lf- and data-lf- namespaces are the"
+        " runtime's to write, whether or not it writes this name today"
+    ),
+    "ids-taken-by-messages": lambda at, v: (
+        f"ids already taken by message markup: {json_value(v['ids'])}"
+    ),
+    "ids-taken": lambda at, v: (
+        f"ids already taken by the page or an earlier message: {json_value(v['ids'])}"
+    ),
+    # Widgets, against the registry that declares them.
+    "unknown-widget": lambda at, v: (
+        f"{_line(at, v)}: unknown widget — not in the vendored registry.json"
+    ),
+    "attribute-schema": lambda at, v: f"{_line(at, v)}: {v['reason']}",
+    "not-member": lambda at, v: (
+        f"{_line(at, v)}: must be a direct member of "
+        + " or ".join(f"<{owner}>" for owner in v["owners"])
+        + (f", found <{v['parent']}>" if v["parent"] else "")
+    ),
+    "content-empty": lambda at, v: (
+        f"{_line(at, v)}: takes no content — write {at[:-1]} …></{at[1:-1]}>"
+    ),
+    "data-body": lambda at, v: (
+        f"{_line(at, v)}: its body is one <pre> holding the text (escape < and >),"
+        " found " + (", ".join(f"<{c}>" for c in v["children"]) or "nothing")
+    ),
+    "text-outside-pre": lambda at, v: (
+        f"{_line(at, v)}: text outside its <pre> — the whole body goes inside it"
+    ),
+    "stray-members": lambda at, v: (
+        f"{_line(at, v)}: admits only {json_value(v['admits'])} members, found"
+        f" {json_value(v['found'])}"
+    ),
+    "loose-text": lambda at, v: (
+        f"{_line(at, v)}: loose text between its members isn't allowed"
+    ),
+    "pane-ends": lambda at, v: (
+        f"{_line(at, v)}: x-reading-role {v['role']} admits at most one direct"
+        " <header> and one direct <footer>"
+    ),
+    "pane-header-first": lambda at, v: (
+        f"{_line(at, v)}: x-reading-role {v['role']} direct <header> must be first"
+    ),
+    "pane-footer-last": lambda at, v: (
+        f"{_line(at, v)}: x-reading-role {v['role']} direct <footer> must be last"
+    ),
+    "pane-body": lambda at, v: (
+        f"{_line(at, v)}: x-reading-role {v['role']} must contain exactly one direct"
+        " body element between its header and footer, found "
+        + (json_value(v["body"]) if v["body"] else "nothing")
+        + "; wrap several blocks in one <div> or <section>"
+    ),
+    "repeated-parts": lambda at, v: (
+        f"{_line(at, v)}: visual part ids must be unique, repeated"
+        f" {json_value(v['parts'])}"
+    ),
+    "needs-id": lambda at, v: (
+        f"{_line(at, v)}: a matching {v['role']} instance requires an id"
+    ),
+    "empty-question-context": _question_context,
+    "question-context-headings": lambda at, v: (
+        f"{_line(at, v)}: a Question context must have exactly one direct heading,"
+        f" found {json_value(v['headings']) if v['headings'] else 'none'}"
+    ),
+    "question-context-heading-first": lambda at, v: (
+        f"{_line(at, v)}: a Question context's direct heading must be its first"
+        " content, found "
+        + ("text" if v["first"] == "#text" else f"<{v['first']}>")
+        + " first"
+    ),
+    "unknown-word": lambda at, v: (
+        f"{_bearing(at, v, _quoted(v['value']))}: not {_HONORED[v['declares']]} —"
+        " known:"
+        f" {json_value(v['known'])}"
+    ),
+    "repeated-key": lambda at, v: (
+        f'{_line(at, v)}: {v["key"]}="{v["value"]}" repeats the {at} at line'
+        f" {v['first_line']} in the same <{v['scope']}>"
+    ),
+    "unmatched-member": lambda at, v: (
+        f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names no <{v["member"]}'
+        f' {v["key"]}="{v["target"]}"> in its <{v["scope"]}>'
+    ),
+    "unknown-reference": lambda at, v: (
+        f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names no element in this version'
+    ),
+    "reference-contract": _reference_contract,
+    "outside-reference": lambda at, v: (
+        f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names an element outside its'
+        " own document, which it fills"
+    ),
+    "unowned": lambda at, v: (
+        f"{_line(at, v)}: no <{v['referrer']}> names it in `{v['attr']}`"
+    ),
+    "owned-twice": lambda at, v: (
+        f'{_line(at, v)}: {v["attr"]}="{v["target"]}" is already named by'
+        f" {v['first']} (line {v['first_line']}); only one element may name it"
+    ),
+    "nested-suggestion": lambda at, v: f"{_line(at, v)}: suggestions don't nest",
+    "empty-suggestion": lambda at, v: (
+        f"{_line(at, v)}: needs a <lf-old> (what it replaces), a <lf-new> (what it"
+        " proposes), or both"
+    ),
+    "repeated-slot": lambda at, v: (
+        f"{_line(at, v)}: carries {v['count']} <{v['slot']}> children, one at most"
+    ),
+    "unknown-thread": lambda at, v: (
+        f"{_line(at, v)}: resolves={v['resolves']!r} names no thread in this document"
+    ),
+    "contract-conflict": lambda at, v: (
+        f"source {v['source']!r} is bound to both contract {v['first']['contract']!r}"
+        f" at {_seat(v['first'])} and contract {v['then']['contract']!r} at"
+        f" {_seat(v['then'])}; use a new source id for the new meaning"
+    ),
+    # Message markup, which the log freezes.
+    "frozen-settlement": lambda at, v: (
+        f"{at} is a settlement holder, but thread markup is frozen in the log and no"
+        " version could ever settle it; put the change in the next version instead"
+    ),
+    "message-style": lambda at, v: (
+        "<style> in message markup becomes a stylesheet of the whole document it is"
+        " put into; a widget's look belongs in the layer's theme, beside its element"
+        " declaration"
+    ),
+    "message-stylesheet": lambda at, v: (
+        "<link rel=stylesheet> in message markup dresses the whole document it is put"
+        " into; the page serves the one vendored theme it was reviewed with"
+    ),
+    "sample-loop": lambda at, v: (
+        f"sample {json_value(v['samples'])} selects thread {v['thread']!r}, which"
+        " holds this message, so its child would hold the same sample again; select"
+        " other threads"
+    ),
+    # Advice on the source.
+    "unpointable-section": lambda at, v: (
+        f"unpointable — {_line(at, v)} has no id, so no comment or reading position"
+        " can hold to it"
+    ),
+    "unpointable": lambda at, v: (
+        f"unpointable — {_line(at, v)} has no id, nor anything enclosing it, so"
+        " element selection has no target"
+    ),
+    "unpointable-wide": lambda at, v: (
+        f"unpointable — {_line(at, v)} has no id, so a comment aimed at it lands on"
+        f" the whole of #{v['enclosing']}"
+    ),
+    "dropped-ids": lambda at, v: (
+        f"ids dropped from revision r{v['revision']}: {json_value(v['ids'])}"
+    ),
+    "measurement-lag": lambda at, v: (
+        f"measurement behind its source: {_line(at, v)} pins source {v['source']!r}"
+        f" run {v['run']}, but that source now holds run {v['current_run']}"
+    ),
+    "unreadable-data": lambda at, v: f"data source unreadable: {v['error']}",
+    "relocated-anchor": lambda at, v: (
+        f"open thread {v['thread']} anchor no longer resolves; activation will move it"
+        " to "
+        + (
+            f"section {v['section']!r}"
+            if v["section"] is not None
+            else "a detached thread"
+        )
+    ),
     "leaf-version": lambda at, v: (
         f"Leaf {v['vendored']} vendored this page; this is Leaf {v['running']}. If the"
         f" page misbehaves, `leaf page init {v['page']}` re-vendors it."
@@ -440,3 +794,12 @@ _CONSOLE = {
 
 def _words(finding: Finding) -> str:
     return _TEXT[finding.code](finding.at, finding.values)
+
+
+class Rejected(Refused):
+    """A gate's refusal of what it found: the words list the findings under
+    `heading`, and `findings` keeps the records for a reader that wants the facts."""
+
+    def __init__(self, heading: str, findings: list[Finding]):
+        super().__init__(f"{heading}:\n" + "\n".join(f"  - {f}" for f in findings))
+        self.findings = findings

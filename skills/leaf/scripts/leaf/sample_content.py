@@ -20,6 +20,7 @@ from .data_contracts import data_document_errors, initial_data_document_readings
 from .event_contracts import admitted_event, command_error
 from .event_log import EventRefused
 from .event_meaning import AdmissionReadings
+from .findings import Rejected
 from .page_view import InitialPageView
 from .passages import enclosing_ids
 from .projection import generated_children, retirement_outcomes, rewritten_bodies
@@ -36,7 +37,7 @@ from .thread_context import (
     thread_widgets,
     widget_messages,
 )
-from .validation.admission import message_markup_error
+from .validation.admission import message_markup_errors
 from .validation.markup import text_media_errors
 
 
@@ -248,16 +249,15 @@ def initial_sample_history(
             if "text" in event and (
                 errors := text_media_errors(event["text"], page_dir)
             ):
-                raise ValueError("; ".join(errors))
+                raise ValueError("; ".join(map(str, errors)))
             if "markup" in event:
                 fragment = SourceDocument(event["markup"])
                 readings = initial_data_document_readings(child, events, registry)
                 readings.append(
                     (fragment.lf_elements, f"incoming {kind} markup", registry)
                 )
-                if error := message_markup_error(
+                if errors := message_markup_errors(
                     page_dir,
-                    kind,
                     fragment,
                     events,
                     registry,
@@ -269,7 +269,7 @@ def initial_sample_history(
                     if kind == "comment"
                     else thread_names(events).get(event.get("parent")),
                 ):
-                    raise ValueError(error)
+                    raise Rejected(f"{kind} markup doesn't validate", errors)
                 if collision := fragment.ids & (
                     {logged["id"] for logged in events} | {event["id"]}
                 ):
@@ -277,7 +277,7 @@ def initial_sample_history(
                         f"message widget ids already taken by events: {json_value(sorted(collision))}"
                     )
             events.append(admitted_event(view, events, event))
-        except (ValueError, EventRefused) as error:
+        except (ValueError, EventRefused, Rejected) as error:
             raise ValueError(
                 f"data-sample-events {reference!r}, event {seq}: {error}"
             ) from error

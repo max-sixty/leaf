@@ -8,8 +8,8 @@ from leaf.data import read_contracts
 from leaf.data_contracts import data_binding_errors
 from leaf.events import build_threads
 from leaf.files import list_revisions
+from leaf.findings import Finding, Rejected
 from leaf.passages import SourceReading
-from leaf.registry.schema import json_value
 from leaf.registry.storage import require_registry
 from leaf.revision_artifact import read_revision
 from leaf.schema import MESSAGE_KINDS
@@ -22,7 +22,6 @@ from leaf.thread_context import (
 
 from ..refusals import Refused
 from .instances import (
-    instance_errors,
     reference_errors,
     thread_markup_contract_errors,
 )
@@ -48,10 +47,7 @@ def read_text_arg(page_dir: Path, text, *, allow_empty: bool = False) -> str:
     if not body and not allow_empty:
         raise Refused("empty text (pass --text or pipe via stdin)")
     if errs := text_media_errors(body, page_dir):
-        raise Refused(
-            "text names media the page won't show:\n"
-            + "\n".join(f"  - {e}" for e in errs)
-        )
+        raise Rejected("text names media the page won't show", errs)
     return body
 
 
@@ -172,9 +168,8 @@ def check_markup(
         effective_events,
         incoming=[(frag, f"incoming {kind} markup")],
     )
-    if error := message_markup_error(
+    if errors := message_markup_errors(
         page_dir,
-        kind,
         frag,
         events,
         registry,
@@ -185,59 +180,55 @@ def check_markup(
         thread,
         effective_events=effective_events,
     ):
-        raise Refused(error)
+        raise Rejected(f"{kind} markup doesn't validate", errors)
     return frag
 
 
-def message_markup_error(
+def message_markup_errors(
     page_dir: Path,
-    kind: str,
     frag: SourceDocument,
     events: list,
     registry: dict,
     page: SourceDocument,
     prior_ids: set[str],
-    extra_errors: list[str],
+    extra_errors: list[Finding],
     contracts: dict,
     thread_id: str | None,
     *,
     effective_events: list | None = None,
-) -> str | None:
+) -> list[Finding]:
     """The shared message-fragment gate for a stored or newly constructed page.
 
     Callers supply their lifetime binding checks. Fragment structure, vocabulary,
     presentation, media, ids, references and live sample children have one gate,
     whether or not its page is allocated. `thread_id` names the joined thread.
+    Each stage reads only a fragment the stages before it accept, so it gives the
+    first stage's findings, or none.
     """
-    errs = (
+    if errs := (
         thread_markup_contract_errors(frag, registry)
         + extra_errors
         + fragment_style_errors(frag)
         + document_declaration_errors(frag)
         + media_errors(frag, page_dir)
-    )
-    if errs:
-        return f"{kind} markup doesn't validate:\n" + "\n".join(
-            f"  - {error}" for error in errs
-        )
+    ):
+        return errs
     if names := id_errors(frag):
-        return f"{kind} markup: " + "; ".join(names)
+        return names
     thread = thread_structure(
         effective_events if effective_events is not None else events
     )
     reserved = thread_structure(events)
     clash = sorted(frag.ids & (prior_ids | page.ids | reserved.ids))
     if clash:
-        return f"{kind} markup ids already taken by the page or an earlier message: {json_value(clash)}"
+        return [Finding("ids-taken", values={"ids": clash})]
     if reference_errs := reference_errors(
         frag.lf_elements,
         registry,
         page.ids | thread.ids | frag.ids,
         {**page.by_id, **thread.by_id, **frag.by_id},
     ):
-        return f"{kind} markup doesn't validate:\n" + "\n".join(
-            f"  - {error}" for error in reference_errs
-        )
+        return reference_errs
     # A child selecting the thread this message joins would hold this sample again,
     # and its child the same, without end.
     if looping := sorted(
@@ -245,18 +236,12 @@ def message_markup_error(
         for sample in frag.samples
         if thread_id in sample["attrs"].get("data-sample-threads", "").split()
     ):
-        return (
-            f"{kind} markup: sample {json_value(looping)} selects thread "
-            f"{thread_id!r}, which holds this message, so its child would hold the "
-            "same sample again; select other threads"
-        )
+        return [
+            Finding("sample-loop", values={"samples": looping, "thread": thread_id})
+        ]
     # A live sample's child is a page of its own, built from this message once it is
     # logged. Imported here because checking a child calls this gate back for each
     # fixture message in its history.
     from .source import sample_errors
 
-    if child_errs := sample_errors(page_dir, page, events, frag, registry, contracts):
-        return f"{kind} markup doesn't validate:\n" + "\n".join(
-            f"  - {error}" for error in child_errs
-        )
-    return None
+    return sample_errors(page_dir, page, events, frag, registry, contracts)

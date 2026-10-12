@@ -109,7 +109,7 @@ def planned_activation(page_dir: Path, checked: SourceCheck) -> Activation:
     revisions = list_revisions(page_dir)
     active = revisions[-1] if revisions else None
     if checked.errors:
-        return Activation(active, "; ".join(checked.errors), False)
+        return Activation(active, "; ".join(map(str, checked.errors)), False)
     return Activation(checked.revision.candidate, None, not checked.revision.unchanged)
 
 

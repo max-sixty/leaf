@@ -11,6 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from itertools import pairwise
 
+from leaf.findings import Finding, element_at
 from leaf.passages import SourceReading, page_passages
 from leaf.projection import (
     frozen_thread_reading,
@@ -23,8 +24,6 @@ from leaf.projection import (
 from leaf.registry.contract import is_element_name, retirement_slots
 from leaf.render_checks import evaluate_probe, one_frame, rendered
 from leaf.structure import SourceDocument
-
-from .findings import Finding, element_at
 
 # A probe's arguments cross as JSON, so a node only CDP can name is handed to the
 # `issueNode` probe as the receiver of a call made on the node itself.

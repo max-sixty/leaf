@@ -206,7 +206,7 @@ def capture_page_snapshot(
             revisions=frozenset(readings),
             revision=readings.__getitem__,
             registry=registry,
-            layer=layer,
+            stored_layer=lambda: layer,
             stored_data=lambda: data,
             versions=versions,
             presence=copy.deepcopy(present),

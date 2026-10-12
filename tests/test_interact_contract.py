@@ -89,6 +89,7 @@ from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
+from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
@@ -4327,8 +4328,7 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     # Claude Code: the native watcher wakes the session after its turn closes,
     # and the next prompt hook hands the delivery over.
     assert service_model.claim_page(page_dir)
-    with service_model.PageTransaction(page_dir) as transaction:
-        transaction.close_turn(session)
+    cleanup_model.close_session_turn(session)
     woke = session_model.watch_between_turns(harness_model.session_harness())
     assert woke is not None
     hooks_model.cmd_hook(

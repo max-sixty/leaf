@@ -18,6 +18,7 @@ import {
   whileConnected,
   keeps,
   keepsText,
+  layoutPx,
   mountSample,
   once,
   offer,
@@ -173,7 +174,7 @@ customElements.define(
           const height =
             this.#frame.getBoundingClientRect().bottom -
             controls.getBoundingClientRect().top;
-          this.style.setProperty("--lf-sample-height", `${height}px`);
+          this.style.setProperty("--lf-sample-height", layoutPx(height));
           closeNativeLayer(this.#view);
           this.#view.setAttribute("role", "dialog");
           this.#view.setAttribute("aria-label", this.#frame.title);

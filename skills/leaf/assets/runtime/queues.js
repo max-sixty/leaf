@@ -5,10 +5,10 @@
 import { awaitsUser } from "./thread/model.js";
 import { atWork } from "./thread/workflow.js";
 
-export const endsByDone = (item) => item.ends === "done";
+// The tasks on the user's queue are those the agent opened on them.
 export const queueOffers = (item, ready, onYou) => ({
   open: ready,
-  done: ready && onYou && item.kind === "task" && endsByDone(item),
+  done: ready && onYou && item.kind === "task",
 });
 
 export const taskNoun = (item) =>
@@ -24,23 +24,22 @@ const taskItem = (task) => ({
   running: task.running,
   agent: task.agent,
   session: task.session,
-  ends: task.ends,
 });
 
-// What a Question is about, and how answering it ends, by where it was asked.
-const questionSource = (question) => {
+// What a Question is about, by where it was asked.
+const questionSubject = (question) => {
   switch (question.source.kind) {
     case "widget":
-      return { subject: { kind: "widget", id: question.source.id }, ends: "widget" };
+      return { kind: "widget", id: question.source.id };
     case "approval":
-      return { subject: { kind: "page" }, ends: "approval" };
+      return { kind: "page" };
     default:
-      return { subject: { kind: "thread", id: question.thread }, ends: "reply" };
+      return { kind: "thread", id: question.thread };
   }
 };
 
 const questionItem = (question) => {
-  const { subject, ends } = questionSource(question);
+  const subject = questionSubject(question);
   return {
     kind: "question",
     id: question.id,
@@ -51,7 +50,6 @@ const questionItem = (question) => {
     running: null,
     agent: null,
     session: null,
-    ends,
     question,
   };
 };

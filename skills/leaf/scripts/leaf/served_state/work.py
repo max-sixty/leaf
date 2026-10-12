@@ -5,15 +5,10 @@ Delivery and status never need browser serialization, external data, or history.
 A serving context holds this result once; its browser selects the same objects.
 """
 
-from pathlib import Path
 from typing import NamedTuple
 
 from ..activity import canonical_activity, canonical_stream_reply
-from ..files import active_descriptor, list_revisions
-from ..presence import presence_with_activity
 from ..projection import FrozenThreadReading, page_reading
-from ..revision_artifact import read_revision
-from ..state import now_iso
 from ..tasks import TaskReading
 from ..work_reading import WorkReading
 
@@ -140,19 +135,3 @@ def work_state(
         else activity["workflows"]
     )
     return WorkState(durable, activity, workflows, reply, present)
-
-
-def live_work(page_dir: Path, events: list, *, now: str | None = None) -> WorkState:
-    """Read work inside the caller's transaction, without preparing a browser response."""
-    active = active_descriptor(page_dir, events)
-    present, stream = presence_with_activity(page_dir, events)
-    return work_state(
-        events,
-        read_revision(page_dir, active["revision"]) if active else None,
-        active["revision"] if active else None,
-        present,
-        now or now_iso(),
-        stream,
-        revisions=list_revisions(page_dir),
-        revision_reader=lambda previous: read_revision(page_dir, previous),
-    )

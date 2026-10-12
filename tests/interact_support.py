@@ -721,7 +721,6 @@ def record_claim(page, /, harness="claude-code", **fields):
         "agent": "Claude",
         "cwd": str(Path.cwd()),
         "ts": "t",
-        "released": None,
         "turn": observed["turn"] if observed else "turn-1",
         "turn_opened": observed["turn_opened"] if observed else cleanup_model.now_iso(),
         "turn_closed": observed["turn_closed"] if observed else None,
@@ -2126,11 +2125,11 @@ SnapshotHandlerRegistry.add_handler(
 def consume_pending_input(session_id):
     """Hand the session its pending input as a hook does inline: one complete
     envelope, confirmed as it is handed over."""
-    from leaf import delivery
+    from leaf import delivery, state
 
     batches = delivery.pending_batches(session_id)
     if not batches:
         return None
     payload = delivery.freeze_delivery(batches)
-    delivery.receive_held(payload, session_id)
+    delivery.receive_held(payload, session_id, state.session_record(session_id))
     return payload

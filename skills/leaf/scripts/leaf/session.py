@@ -60,14 +60,14 @@ def cmd_waiting(page_dir: Path, detail: str) -> tuple[dict, list[dict]]:
     (`tasks.put_down`), and return the declaration, with the updates still owed an
     answer, which the page goes on showing over it."""
     from .revisioning import activate_source
-    from .served_state.work import live_work
+    from .served_state.context import read_page
     from .tasks import put_down
 
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, transaction=page)
         put_down(page)
         status = page.set_status("waiting", detail)
-        return status, live_work(page_dir, page.events).obligations
+        return status, read_page(page_dir, page.events).work.obligations
 
 
 def cmd_idle(page_dir: Path, detail: str) -> dict:
@@ -84,12 +84,12 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
     The check and the transition share the log lock, so an event arriving
     or an acknowledgement advancing the cursor orders against them."""
     from .activity import blocking_obligations, unanswered
-    from .served_state.work import live_work
+    from .served_state.context import read_page
     from .tasks import put_down
 
     with PageTransaction(page_dir) as page:
         events = page.events
-        work = live_work(page_dir, events)
+        work = read_page(page_dir, events).work
         state = {**work.presence, "activity": work.activity}
         claim = page.active_claim
         harness = claim_harness(claim) if claim is not None else None
@@ -608,11 +608,11 @@ def wake_inputs(page: PageTransaction, batch: list[dict]) -> list[dict]:
     reports, errors, reactions and widget actions) remains
     transport input, independent of whether it carries a response obligation.
     """
-    from .served_state.work import live_work
+    from .served_state.context import read_page
 
     agent_inputs = {
         item["input"]
-        for item in live_work(page.page_dir, page.events).durable.workflows
+        for item in read_page(page.page_dir, page.events).work.durable.workflows
         if item["next_actor"] == "agent"
     }
     pending = []

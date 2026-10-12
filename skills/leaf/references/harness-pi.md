@@ -30,7 +30,8 @@ going.
 
 The extension confirms an envelope it puts in your context, so the user's updates
 read **Picked up** and its `acknowledge` is null: run no acknowledgement command.
-Large input arrives instead as a pointer, `leaf delivery read <id>`. Run it before
+Input it could not confirm, large input among it, arrives instead as a pointer,
+`leaf delivery read <id>`. Run it before
 working or replying, and once you have read every part, follow its confirmation
 instruction.
 

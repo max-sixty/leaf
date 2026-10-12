@@ -52,7 +52,10 @@ const DRAWER_SLOT_MIN = 220;
 // the same name, and the layer test holds the spellings equal, since a stylesheet cannot
 // read a constant. No stylesheet states a default: the drawer is built by script, and
 // drawn-edge.js writes the width when it makes or restores the handle, before the drawer
-// first paints.
+// first paints. The thread panel's default is a stylesheet token instead because it is
+// a theme input page authors set (`--lf-thread-panel-default-width`, packages.md), and
+// the panel's first paint reads it before any script; the drawer's default is no
+// author's to set.
 export const DRAWER_SLOT_PROP = "--lf-drawer-slot-width";
 
 // The rows' own box, one per drawer. Collected privately as they are made, because what

@@ -12,15 +12,14 @@ A default export has no name of its own: its readers import the module, or a too
 loads it by path, as eslint loads `eslint.config.mjs` and Pi loads `hooks/pi.ts`.
 So it counts as read where another file names the module's file name.
 
-What a module exports is read from its parse (`tests/js_facts.mjs`, `exports`), with a
-TypeScript module's types erased first: a type holds up no code that runs, so an unused
-one goes unreported. A name counts as read where another tracked file names it as a word: in code,
-in a Python string, in a page, or in a contract's prose. A JavaScript comment or a
-stylesheet reads nothing, since a module's comment about another's helper keeps
-no caller alive, except for a JSDoc type import (`import("…").Name`). A name that
-collides with another word can still hide an unused export. The comment reading is
-textual, so a `/*` inside a string can only make the check report a used export,
-never pass an unused one.
+What a module exports is read from its parse (`tests/js_facts.mjs`, `exports`), a
+TypeScript module's types and interfaces included. A name counts as read where another
+tracked file names it as a word: in code, in a Python string, in a page, or in a
+contract's prose. A JavaScript comment or a stylesheet reads nothing, since a module's
+comment about another's helper keeps no caller alive, except for a JSDoc type import
+(`import("…").Name`). A name that collides with another word can still hide an unused
+export. The comment reading is textual, so a `/*` inside a string can only make the
+check report a used export, never pass an unused one.
 """
 
 import json

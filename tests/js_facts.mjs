@@ -7,26 +7,26 @@
 //   node tests/js_facts.mjs queries FILE...   {file: [selector]} handed to DOM queries
 //   node tests/js_facts.mjs literals FILE...  {file: {constants, calls}} literal values
 //
-// Every module is read with acorn. A TypeScript module is read once amaro has blanked
-// its types in place, so what it exports is what it runs: a type, which nothing runs,
-// is not counted.
+// Every module is read with oxc, which parses JavaScript and TypeScript, the language
+// chosen by the file's extension, into one ESTree, so a TypeScript module's exported
+// types and interfaces are exports like its values.
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
-import { parse } from "acorn";
-import amaro from "amaro";
+import { parseSync } from "oxc-parser";
 
 const [command, ...files] = process.argv.slice(2);
 
 function tree(file) {
-  let source = readFileSync(file, "utf8");
-  if (file.endsWith(".ts"))
-    source = amaro.transformSync(source, { mode: "strip-only" }).code;
-  return parse(source, {
-    ecmaVersion: "latest",
+  const { program, errors } = parseSync(file, readFileSync(file, "utf8"), {
     sourceType: "module",
-    locations: true,
   });
+  if (errors.length) throw new Error(`${file}: ${errors[0].message}`);
+  return program;
 }
+
+// The 1-based line a node starts on; oxc gives offsets only.
+const line = (file, node) =>
+  readFileSync(file, "utf8").slice(0, node.start).split("\n").length;
 
 // Every node below `node`, each with the `for (… of [...])` loop variables in scope.
 function walk(node, visit, loops = new Map()) {
@@ -80,7 +80,7 @@ function keydown() {
         (type?.type === "Literal" && type.value === "keydown") ||
         (type?.type === "Identifier" && loops.get(type.name)?.includes("keydown"))
       )
-        found.push(`${basename(file)}:${node.loc.start.line}`);
+        found.push(`${basename(file)}:${line(file, node)}`);
     });
   return found.join("\n");
 }
@@ -103,7 +103,7 @@ function exports() {
       if (declaration?.type === "VariableDeclaration")
         for (const { id } of declaration.declarations)
           if (id.type === "Identifier") names.add(id.name);
-      if (declaration?.id) names.add(declaration.id.name);
+      if (declaration?.id) names.add(name(declaration.id));
     }
     if (names.delete("default")) hasDefault = true;
     read[file] = { names: [...names].sort(), default: hasDefault };

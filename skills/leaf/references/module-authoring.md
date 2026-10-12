@@ -22,9 +22,8 @@ page readiness open. Cancel it when the motion stops or its owner leaves.
 
 `/runtime/widget-api.js` is the whole Leaf API a behavior module gets: a module imports
 only that public helper surface, and does not reach into the runtime's private owners,
-query private chrome, or duplicate a runtime helper inside itself. It exports Lit's
-`render`, `html`, `nothing`, `repeat`, `keyed`, `live`, `ref`, `classMap`, `styleMap`,
-`guard`, and `unsafeHTML`.
+query private chrome, or duplicate a runtime helper inside itself. Of Lit, it exports
+the names under **Lit exports** below.
 Resolve canonical `/media/…` paths from typed data with `scopedMediaUrl(path)` before assigning them to
 generated images or links. It uses the page's public root across ordinary and
 published pages while the source retains its canonical path.
@@ -68,6 +67,11 @@ assigns with `textContent`. For changing Markdown prose, load the renderer with 
 and paint the current value with `inlineMarkdownFragment()`; repaint that value when
 loading completes. A changing numeric readout keeps surrounding text still with
 tabular numerals and a slot wide enough for its largest value.
+
+### Lit exports
+
+`render`, `html`, `nothing`, `repeat`, `keyed`, `live`, `ref`, `classMap`, `styleMap`,
+`guard`, and `unsafeHTML`.
 
 ## Startup and presentation
 

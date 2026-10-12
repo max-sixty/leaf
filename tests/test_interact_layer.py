@@ -1516,11 +1516,11 @@ def test_kernel_selectors_name_no_package_tag():
 def test_every_widget_api_export_has_a_behavior_module_reader():
     """widget-api.js is the API behavior modules get, so each name it exports is one a
     behavior module imports (a bundled package's, a kernel widget's, an example's or a
-    fixture package's) or one a reference teaches package authors. A plain enumeration
-    of names, such as the reference's list of what widget-api exports, teaches none of
-    them, so it keeps no name alive. A name only the render gate's probes read belongs
-    in check-api.js, and one only the suite reads is imported from its owning module, so
-    neither widens the authoring API."""
+    fixture package's) or one a reference teaches package authors. The list of Lit's
+    names under module-authoring.md's "Lit exports" teaches none of them, so it keeps no
+    name alive. A name only the render gate's probes read belongs in check-api.js, and
+    one only the suite reads is imported from its owning module, so neither widens the
+    authoring API."""
     strip = lambda code: re.sub(r"(?<!:)//[^\n]*|/\*.*?\*/", "", code, flags=re.DOTALL)
     api = strip((schema_model.ASSETS / "runtime" / "widget-api.js").read_text())
     exported = {
@@ -1558,21 +1558,15 @@ def test_every_widget_api_export_has_a_behavior_module_reader():
         SKILL_ROOT / "SKILL.md",
         *schema_model.BUNDLED_PACKAGES.glob("*/instructions/*.md"),
     ]
-    # Fenced examples teach whatever they use. In prose, a sentence teaches the names in
-    # its code spans unless it is a plain enumeration: three or more spans with almost
-    # no words of its own, as "It exports Lit's `a`, `b`, … and `z`."
-    span = re.compile(r"`[^`\n]+`")
-    taught = []
-    for path in references:
-        text = path.read_text()
-        taught += re.findall(r"```.*?```", text, flags=re.DOTALL)
-        prose = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
-        for sentence in re.split(r"(?<=[.!?:])\s+", prose):
-            spans = span.findall(sentence)
-            words = re.findall(r"[A-Za-z']+", span.sub(" ", sentence))
-            if len(spans) < 3 or len(words) > 5:
-                taught += spans
-    in_code = "\n".join(taught)
+    # The list of Lit's names has its own section, which teaches none of them.
+    listed = re.compile(r"^### Lit exports\n.*?(?=^#)", flags=re.DOTALL | re.MULTILINE)
+    in_code = "\n".join(
+        code
+        for path in references
+        for code in re.findall(
+            r"```.*?```|`[^`\n]+`", listed.sub("", path.read_text()), flags=re.DOTALL
+        )
+    )
     shown = {name for name in exported if re.search(rf"\b{name}\b", in_code)}
 
     assert {"once", "html", "widgetController"} <= imported, "no import read"

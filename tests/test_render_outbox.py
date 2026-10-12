@@ -7,8 +7,8 @@ import re
 import pytest
 from interact_support import add_test_widget, append_carried_log_record, append_command
 from leaf import event_log as events_model
-from leaf import projection as projection_model
 from leaf import schema as schema_model
+from leaf.registry.contract import RANK
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -272,7 +272,7 @@ def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
     (moved,) = actions(serve.page_dir)
     rank = moved["detail"].pop("rank")
     assert moved["detail"] == {"unit": "card-baffle", "value": "col-done"}
-    assert projection_model.RANK.fullmatch(rank)
+    assert re.fullmatch(RANK, rank)
     assert [(e["kind"], e.get("undoes")) for e in log if e["kind"] == "undo"] == [
         ("undo", moved["id"])
     ]
@@ -2331,8 +2331,10 @@ PANED_LONG_PAGE = leaf_page(
 )
 
 
-@pytest.mark.parametrize("scroller", ["page", "pane"])
-@pytest.mark.parametrize("target", ["passage", "item"])
+# The item field is the one that used to retire; the passage field rides the pane.
+@pytest.mark.parametrize(
+    ("target", "scroller"), [("item", "page"), ("passage", "pane")]
+)
 def test_a_comment_field_scrolled_away_and_back_is_still_there(
     browser, serve, target, scroller
 ):
@@ -2955,13 +2957,14 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
     assert [event["detail"]["outcome"] for event in actions(serve.page_dir)] == [
         "accept"
     ]
-    # One fault, one report, from the region whose renderer raised it. The gesture's own
+    # One fault, one report, from the widget paint that raised it. The gesture's own
     # promise carries the same rejection for a caller that restores a draft from it, and
     # accounts for it no second time.
     errors = take_browser_errors(page)
     assert [error.splitlines()[0] for error in errors] == [
         (
-            "leaf: Presentation failed: <lf-suggestion> renderState threw: "
+            "leaf: paint failed for lf-suggestion#sug-refill: "
+            "<lf-suggestion> renderState threw: "
             "injected optimistic presentation fault"
         )
     ], errors

@@ -297,7 +297,7 @@ export const pageWords = (node) => Boolean(node) && !inChrome(node) && !inUi(nod
 // being broken, which is the one thing it isn't.
 export const elementOver = (n) => {
   if (n.parentElement) return n.parentElement;
-  const host = shadowHost(Node.prototype.getRootNode.call(n));
+  const host = shadowHost(n.getRootNode());
   const at = host
     ? `<${host.localName}${host.id ? ` id="${host.id}"` : ""}>`
     : "a module";
@@ -580,7 +580,7 @@ export function closestAcross(node, selector) {
   while (el) {
     const hit = el.closest(selector);
     if (hit) return hit;
-    el = shadowHost(Node.prototype.getRootNode.call(el));
+    el = shadowHost(el.getRootNode());
   }
   return null;
 }
@@ -666,11 +666,7 @@ export function pageRange(sel) {
   const [composed] = sel.getComposedRanges({ shadowRoots });
   if (!composed) return plain;
   const { startContainer, startOffset, endContainer, endOffset } = composed;
-  if (
-    Node.prototype.getRootNode.call(startContainer) !==
-    Node.prototype.getRootNode.call(endContainer)
-  )
-    return plain;
+  if (startContainer.getRootNode() !== endContainer.getRootNode()) return plain;
   const range = document.createRange();
   range.setStart(startContainer, startOffset);
   range.setEnd(endContainer, endOffset);
@@ -718,8 +714,7 @@ export function programmaticSelection(selection) {
 // the platform's direction for the range inside its declared shadow tree.
 export function selectionBackward(selection, range = pageRange(selection)) {
   if (
-    Node.prototype.getRootNode.call(selection.anchorNode) !==
-    Node.prototype.getRootNode.call(range.commonAncestorContainer)
+    selection.anchorNode.getRootNode() !== range.commonAncestorContainer.getRootNode()
   )
     return programmaticSelection(selection)
       ? writtenBackward
@@ -738,10 +733,7 @@ export function selectionBackward(selection, range = pageRange(selection)) {
 // it. The tree renders where its host stands, so the host is what the question is really
 // about: climb to whichever ancestor shares the range's root, and ask there.
 function coveredBy(range, node) {
-  const n = hostIn(
-    node,
-    Node.prototype.getRootNode.call(range.commonAncestorContainer),
-  );
+  const n = hostIn(node, range.commonAncestorContainer.getRootNode());
   if (!n || !range.intersectsNode(n)) return false;
   // A host represents its shadow words only while the range actually enters it.
   // intersectsNode includes an endpoint at the host's edge, even when no shadow

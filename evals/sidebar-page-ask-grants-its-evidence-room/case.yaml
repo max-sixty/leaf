@@ -2,17 +2,19 @@
 # they do in a column: an Ask that turns on a table now needs data-width there too.
 # An Ask widens to a block of its own that declares data-width, so the width may go on
 # either. On the final wording, Claude Code: base 0/2, candidate 2/2 (and 0/3 against
-# 3/3 on the wording before it).
-description: wide-page-ask-grants-its-evidence-room
+# 3/3 on the wording before it). Moved from layout-wide to a sidebar page when
+# layout-wide was retired, since a sidebar page's body is now the flow wider than the
+# column where an Ask keeps the measure.
+description: sidebar-page-ask-grants-its-evidence-room
 metadata:
-  purpose: 'Asks: on a wide page, an Ask holding a table it turns on takes data-width, and one of words alone does not.'
+  purpose: 'Asks: on a sidebar page, an Ask holding a table it turns on takes data-width, and one of words alone does not.'
   tags:
   - asks
   - layout
 vars:
   prompt: |
-    You are writing a Leaf release dashboard, `<main class="layout-wide">`, that the
-    on-call engineer keeps open all day. Write the section about the export timeout
+    You are writing a Leaf release dashboard, `<main class="layout-sidebar">`, that
+    the on-call engineer keeps open all day. Write the section about the export timeout
     regression, which puts two questions to the user.
 
     Your notes:

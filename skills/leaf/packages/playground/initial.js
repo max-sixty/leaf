@@ -1,10 +1,15 @@
 /* The playground's one initial DOM producer. It runs as the parser finishes the
  * widget and again only for an arriving widget that has no initial drawing. Native
  * fields and the viewer's tab-local values determine the actual first layout;
- * upgrade adopts these nodes and adds Leaf commands, projection and delivery. */
+ * upgrade adopts these nodes and adds Leaf commands, projection and delivery.
+ *
+ * Every authored playground has passed validation, page source and message markup
+ * alike, so what the registry states is not checked again here: control names and
+ * kinds, unique control names, choice values and preset settings (x-unique), and each
+ * setting's and value slot's `for` naming a control of this playground (a keyed
+ * x-refers). This producer checks only what needs the values themselves, such as a
+ * range value against its bounds or a choice control's value among its choices. */
 const own = (root, tag) => [...root.querySelectorAll(`:scope > ${tag}`)];
-const KINDS = new Set(["range", "toggle", "choice", "color", "text"]);
-const NAME = /^[a-z][a-z0-9-]*$/;
 const COPY_LABELS = [
   ["rest", "Copy instruction"],
   ["success", "Copied"],
@@ -25,14 +30,9 @@ function render(host, { tabStore, offer, keeps }) {
   for (const control of controls) {
     const name = control.getAttribute("name"),
       kind = control.getAttribute("kind");
-    if (!NAME.test(name ?? "") || controlByName.has(name) || !KINDS.has(kind))
-      throw new Error(`invalid or repeated playground control ${name}`);
     const choices = own(control, "lf-playground-choice");
     if ((kind === "choice") !== Boolean(choices.length))
       throw new Error(`control ${name} needs choices only for kind choice`);
-    const choicesValues = choices.map((choice) => choice.getAttribute("value"));
-    if (new Set(choicesValues).size !== choicesValues.length)
-      throw new Error(`control ${name} repeats a choice`);
     choicesByName.set(name, choices);
     controlByName.set(name, control);
   }
@@ -44,13 +44,7 @@ function render(host, { tabStore, offer, keeps }) {
         min = Number(control.getAttribute("min"));
       const max = Number(control.getAttribute("max")),
         step = Number(control.getAttribute("step") ?? "1");
-      if (
-        ![value, min, max, step].every(Number.isFinite) ||
-        min >= max ||
-        step <= 0 ||
-        value < min ||
-        value > max
-      )
+      if (!Number.isFinite(value) || min >= max || value < min || value > max)
         throw new Error(`control ${name} has a value outside its range`);
       if (Math.abs((value - min) / step - Math.round((value - min) / step)) > 1e-9)
         throw new Error(`control ${name} has a value off its step`);
@@ -146,10 +140,6 @@ function render(host, { tabStore, offer, keeps }) {
       const next = {};
       for (const setting of settings) {
         const name = setting.getAttribute("for");
-        if (!controlByName.has(name))
-          throw new Error(`preset names unknown control ${name}`);
-        if (Object.hasOwn(next, name))
-          throw new Error(`preset repeats control ${name}`);
         next[name] = parse(controlByName.get(name), setting.getAttribute("value"));
       }
       return [preset, Object.freeze(next)];
@@ -319,10 +309,8 @@ function render(host, { tabStore, offer, keeps }) {
   };
   const renderValues = (next) => {
     for (const slot of output.querySelectorAll("lf-playground-value")) {
-      const name = slot.getAttribute("for"),
-        control = controlByName.get(name);
-      if (!control) throw new Error(`output names unknown control ${name}`);
-      text(slot, formatted(control, next[name]));
+      const name = slot.getAttribute("for");
+      text(slot, formatted(controlByName.get(name), next[name]));
     }
   };
   const paintPresets = (next) => {

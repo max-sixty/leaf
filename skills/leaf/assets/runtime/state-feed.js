@@ -14,22 +14,14 @@
    state-dependent controls remain unavailable. */
 
 import { countTraffic } from "./traffic.js";
-import { pagePresented } from "./page-paint.js";
 import { activityTransitionDue, tickClock } from "./presence.js";
-import {
-  passiveSample,
-  offlineInteractive,
-  offlineState,
-  pageUrl,
-  runtime,
-} from "./context.js";
+import { offlineInteractive, offlineState, pageUrl, runtime } from "./context.js";
 import { applicationState } from "./semantic-state.js";
 import { completeReadingReturn, readingReturn } from "./reading-continuity.js";
 import {
   layerHeaders,
   admitResponse,
   reportCarried,
-  reportPageError,
   sessionIsActive,
 } from "./layer-client.js";
 
@@ -120,7 +112,8 @@ export function createStateFeed({
   // the drag's release; time-dependent paints remember their own displayed readings.
   async function tick() {
     if (stateApplying()) return;
-    await tickClock(reportPageError);
+    // A repaint through a reading paint has already reported its own failure.
+    await tickClock(reportCarried);
     if (stateApplying()) return;
     document.dispatchEvent(new Event("lf-tick"));
   }
@@ -352,12 +345,11 @@ export function createStateFeed({
       const returned = readingReturn();
       // Revealing cached news needs no network round trip. A live page keeps
       // continuity interrupted until its freshness/state answer is presented;
-      // fixed samples and offline pages already have their complete reading.
+      // offline pages already have their complete reading.
       void invalidateDom()
         .then(present)
         .then(() => {
-          if (offlineInteractive || passiveSample || !sessionIsActive())
-            completeReadingReturn(returned);
+          if (offlineInteractive || !sessionIsActive()) completeReadingReturn(returned);
         })
         .catch((error) => reportCarried(error, `return presentation failed`));
       listen();
@@ -371,20 +363,6 @@ export function createStateFeed({
     const initialPresentation = readAndPresent();
     if (offlineInteractive) return;
     initialPresentation.finally(() => {
-      // A passive sample is a fixed replay controlled by its parent gallery. It needs
-      // the first reading to render production chrome, but another freshness clock and
-      // heartbeat would repeat the outer page's checks for a picture that cannot
-      // accept user input or durable updates.
-      if (passiveSample) {
-        const retry = () => {
-          if (pagePresented()) return;
-          if (!readAnswered) void ask();
-          else void present();
-          setTimeout(retry, TICK_MS);
-        };
-        retry();
-        return;
-      }
       feedStarted = true;
       // One shared clock serves temporal paint, deferred work, and failed reads.
       setInterval(() => {

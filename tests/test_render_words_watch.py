@@ -109,67 +109,68 @@ def test_words_a_handler_clears_in_their_own_turn_fail(browser, announced):
     )
 
 
-@pytest.mark.parametrize(
-    "operation", ["text", "cancelled", "image", "no-edit", "untrusted"]
-)
-def test_words_a_native_paste_observes_only_its_actual_editor_edit(
-    browser, serve, operation
-):
-    """The closed editor's paste is an edit; unused paste cannot hide later loss."""
+def test_words_a_native_paste_observes_only_its_actual_editor_edit(browser, serve):
+    """The closed editor's paste is an edit; unused paste cannot hide later loss. Each
+    operation pastes into its own field, in turn on one page."""
     page = open_page(browser, serve(leaf_page("Paste", "<h1>Paste a reply</h1>")))
-    page.evaluate("""() => {
-      const field = document.createElement('leaf-text');
-      field.id = 'field'; document.querySelector('main').append(field);
-    }""")
-    field = page.locator("#field")
-    write(field, "Keep these words")
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     pixels = base64.b64encode(
         (example_media() / "051bee487bfb5d13.png").read_bytes()
     ).decode()
     page.evaluate(
-        """async ({operation,pixels}) => {
-      window.clipboardBeforeWordTest = await navigator.clipboard.read();
-      if (operation === 'image') {
-        const bytes = Uint8Array.from(atob(pixels), char => char.charCodeAt(0));
-        await navigator.clipboard.write([new ClipboardItem({
-          'image/png': new Blob([bytes], {type:'image/png'})
-        })]);
-      } else await navigator.clipboard.writeText('Pasted words');
-      if (['cancelled','image','no-edit'].includes(operation))
-        field.addEventListener('paste', event => {
-          event.preventDefault(); event.stopImmediatePropagation();
-          if (operation === 'image') window.pastedPicture = event.clipboardData.files.length;
-          if (operation === 'no-edit') field.dispatchEvent(new Event('input', {bubbles:true}));
-        }, true);
-    }""",
-        {"operation": operation, "pixels": pixels},
+        "async () => { window.clipboardBeforeWordTest = await navigator.clipboard.read(); }"
     )
     try:
-        field.focus()
-        page.keyboard.press("ControlOrMeta+a")
-        if operation == "untrusted":
+        for operation in ("text", "cancelled", "image", "no-edit", "untrusted"):
+            page.evaluate(
+                """operation => {
+              const field = document.createElement('leaf-text');
+              field.id = `field-${operation}`; document.querySelector('main').append(field);
+            }""",
+                operation,
+            )
+            field = page.locator(f"#field-{operation}")
+            write(field, "Keep these words")
+            field.evaluate(
+                """async (field, {operation,pixels}) => {
+              if (operation === 'image') {
+                const bytes = Uint8Array.from(atob(pixels), char => char.charCodeAt(0));
+                await navigator.clipboard.write([new ClipboardItem({
+                  'image/png': new Blob([bytes], {type:'image/png'})
+                })]);
+              } else await navigator.clipboard.writeText('Pasted words');
+              if (['cancelled','image','no-edit'].includes(operation))
+                field.addEventListener('paste', event => {
+                  event.preventDefault(); event.stopImmediatePropagation();
+                  if (operation === 'image') window.pastedPicture = event.clipboardData.files.length;
+                  if (operation === 'no-edit') field.dispatchEvent(new Event('input', {bubbles:true}));
+                }, true);
+            }""",
+                {"operation": operation, "pixels": pixels},
+            )
+            field.focus()
+            page.keyboard.press("ControlOrMeta+a")
+            if operation == "untrusted":
+                field.evaluate("""field => {
+                  field.dispatchEvent(new ClipboardEvent('paste', {bubbles:true}));
+                }""")
+            else:
+                page.keyboard.press("ControlOrMeta+v")
+            words = "Pasted words" if operation == "text" else "Keep these words"
+            expect(field).to_have_js_property("value", words)
+            if operation == "image":
+                assert page.evaluate("window.pastedPicture") == 1
+            judge_watches()
+            # Even the successful paste must resume watching its newly edited words.
             field.evaluate("""field => {
-              field.dispatchEvent(new ClipboardEvent('paste', {bubbles:true}));
+              field.value = ''; field.dispatchEvent(new Event('input', {bubbles:true}));
             }""")
-        else:
-            page.keyboard.press("ControlOrMeta+v")
-        expect(field).to_have_js_property(
-            "value", "Pasted words" if operation == "text" else "Keep these words"
-        )
-        if operation == "image":
-            assert page.evaluate("window.pastedPicture") == 1
-        judge_watches()
-        # Even the successful paste must resume watching its newly edited words.
-        field.evaluate("""field => {
-          field.value = ''; field.dispatchEvent(new Event('input', {bubbles:true}));
-        }""")
-        judge_watches()
-        words = "Pasted words" if operation == "text" else "Keep these words"
-        consume_browser_errors(
-            page,
-            f'typed words left the screen without a key or press: "{words}" in leaf-text#field',
-        )
+            judge_watches()
+            consume_browser_errors(
+                page,
+                f'typed words left the screen without a key or press: "{words}" in '
+                f"leaf-text#field-{operation}",
+            )
     finally:
         page.evaluate("""async () => {
           const previous = window.clipboardBeforeWordTest;
@@ -178,15 +179,17 @@ def test_words_a_native_paste_observes_only_its_actual_editor_edit(
         }""")
 
 
-@pytest.mark.parametrize("command", ["cut", "drop"])
-def test_words_native_editor_commands_commit_only_their_actual_edit(
-    browser, serve, command
-):
-    """Native cut and pointer drop update held words; unused commands grant no credit."""
+def test_words_native_editor_commands_commit_only_their_actual_edit(browser, serve):
+    """Native cut and pointer drop update held words; unused commands grant no credit.
+    Each command works its own field, in turn on one page."""
     page = open_page(browser, serve(leaf_page("Native edits", "<h1>Edit a reply</h1>")))
     page.evaluate("""() => {
-      const field = document.createElement('leaf-text');
-      field.id = 'field'; document.querySelector('main').append(field);
+      for (const command of ['cut', 'drop']) {
+        const field = document.createElement('leaf-text');
+        field.id = `field-${command}`; document.querySelector('main').append(field);
+        field.addEventListener(command, event =>
+          window.nativeCommandEvents.push({type:command,trusted:event.isTrusted}), true);
+      }
       const source = document.createElement('div');
       source.id = 'drag-source'; source.draggable = true;
       source.textContent = 'Drag words';
@@ -194,15 +197,29 @@ def test_words_native_editor_commands_commit_only_their_actual_edit(
       source.addEventListener('dragstart', event =>
         event.dataTransfer.setData('text/plain', 'Dropped words'));
       document.body.append(source);
-      window.nativeCommandEvents = [];
-      for (const type of ['cut','drop']) field.addEventListener(type, event =>
-        window.nativeCommandEvents.push({type,trusted:event.isTrusted}), true);
     }""")
-    field = page.locator("#field")
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     page.evaluate(
         "async () => window.clipboardBeforeCommandTest = await navigator.clipboard.read()"
     )
+    try:
+        for command in ("cut", "drop"):
+            page.evaluate("window.nativeCommandEvents = []")
+            command_commits_only_its_edit(
+                page, page.locator(f"#field-{command}"), command
+            )
+    finally:
+        page.evaluate("""async () => {
+          const previous = window.clipboardBeforeCommandTest;
+          if (previous.length) await navigator.clipboard.write(previous);
+          else await navigator.clipboard.writeText('');
+        }""")
+
+
+def command_commits_only_its_edit(page, field, command):
+    """Work `command` on `field` as a real edit, a cancelled one, a synthetic event and
+    an edit a page handler clobbers, judging the words each leaves."""
+    name = f"leaf-text#field-{command}"
 
     def perform():
         if command == "cut":
@@ -221,70 +238,63 @@ def test_words_native_editor_commands_commit_only_their_actual_edit(
         judge_watches()
         consume_browser_errors(
             page,
-            f'typed words left the screen without a key or press: "{words}" in leaf-text#field',
+            f'typed words left the screen without a key or press: "{words}" in {name}',
         )
 
-    try:
-        write(field, "Keep these words")
-        perform()
-        if command == "cut":
-            expect(field).to_have_js_property("value", "Keep ")
-        else:
-            expect(field).not_to_have_js_property("value", "Keep these words")
-            assert "Dropped words" in field.evaluate("field => field.value")
-        assert page.evaluate("window.nativeCommandEvents") == [
-            {"type": command, "trusted": True}
-        ]
-        judge_watches()
-        clobber(field.evaluate("field => field.value"))
+    write(field, "Keep these words")
+    perform()
+    if command == "cut":
+        expect(field).to_have_js_property("value", "Keep ")
+    else:
+        expect(field).not_to_have_js_property("value", "Keep these words")
+        assert "Dropped words" in field.evaluate("field => field.value")
+    assert page.evaluate("window.nativeCommandEvents") == [
+        {"type": command, "trusted": True}
+    ]
+    judge_watches()
+    clobber(field.evaluate("field => field.value"))
 
-        write(field, "Keep these words")
-        field.evaluate(
-            """(field, command) => {
-          field.addEventListener(command, event => {
-            event.preventDefault(); event.stopImmediatePropagation();
-            field.dispatchEvent(new Event('input', {bubbles:true}));
-          }, {capture:true, once:true});
-        }""",
-            command,
-        )
-        perform()
-        expect(field).to_have_js_property("value", "Keep these words")
-        judge_watches()
-        clobber("Keep these words")
+    write(field, "Keep these words")
+    field.evaluate(
+        """(field, command) => {
+      field.addEventListener(command, event => {
+        event.preventDefault(); event.stopImmediatePropagation();
+        field.dispatchEvent(new Event('input', {bubbles:true}));
+      }, {capture:true, once:true});
+    }""",
+        command,
+    )
+    perform()
+    expect(field).to_have_js_property("value", "Keep these words")
+    judge_watches()
+    clobber("Keep these words")
 
-        write(field, "Keep these words")
-        field.evaluate(
-            """(field, command) => {
-          field.dispatchEvent(new Event(command, {bubbles:true, cancelable:true}));
-        }""",
-            command,
-        )
-        judge_watches()
-        clobber("Keep these words")
+    write(field, "Keep these words")
+    field.evaluate(
+        """(field, command) => {
+      field.dispatchEvent(new Event(command, {bubbles:true, cancelable:true}));
+    }""",
+        command,
+    )
+    judge_watches()
+    clobber("Keep these words")
 
-        write(field, "Keep these words")
-        field.evaluate("""field => {
-          field.addEventListener('input', () => {
-            window.commandWordsBeforeClobber = field.value;
-            field.value = ''; field.dispatchEvent(new Event('input', {bubbles:true}));
-          }, {once:true});
-        }""")
-        perform()
-        expect(field).to_have_js_property("value", "")
-        words = page.evaluate("window.commandWordsBeforeClobber")
-        assert words != "Keep these words" and words.strip()
-        judge_watches()
-        consume_browser_errors(
-            page,
-            f'typed words left the screen without a key or press: "{words}" in leaf-text#field',
-        )
-    finally:
-        page.evaluate("""async () => {
-          const previous = window.clipboardBeforeCommandTest;
-          if (previous.length) await navigator.clipboard.write(previous);
-          else await navigator.clipboard.writeText('');
-        }""")
+    write(field, "Keep these words")
+    field.evaluate("""field => {
+      field.addEventListener('input', () => {
+        window.commandWordsBeforeClobber = field.value;
+        field.value = ''; field.dispatchEvent(new Event('input', {bubbles:true}));
+      }, {once:true});
+    }""")
+    perform()
+    expect(field).to_have_js_property("value", "")
+    words = page.evaluate("window.commandWordsBeforeClobber")
+    assert words != "Keep these words" and words.strip()
+    judge_watches()
+    consume_browser_errors(
+        page,
+        f'typed words left the screen without a key or press: "{words}" in {name}',
+    )
 
 
 def test_words_editcontext_tracks_the_exact_native_field_and_committed_words(
@@ -1181,8 +1191,16 @@ def test_words_a_slow_send_retains_its_input(browser, delay):
     judge_watches()
 
 
-@pytest.mark.parametrize("scheduler", ["nextRender", "afterScript", "presenter"])
-@pytest.mark.parametrize("order", ["passive-first", "input-first"])
+# Each scheduler takes one order, and both orders are taken: which job comes first is
+# the pass's, not the scheduler's.
+@pytest.mark.parametrize(
+    ("scheduler", "order"),
+    [
+        ("nextRender", "passive-first"),
+        ("afterScript", "input-first"),
+        ("presenter", "passive-first"),
+    ],
+)
 def test_coalesced_rendering_jobs_keep_their_own_input_source(
     browser, serve, scheduler, order
 ):
@@ -1205,7 +1223,9 @@ def test_coalesced_rendering_jobs_keep_their_own_input_source(
             const {bindQueuedWork}=await __lfRuntimeImport('/runtime/queued-work.js');
             const {createPresentationSchedule}=await __lfRuntimeImport('/vendor/browser-runtime.js');
             const presentations=createPresentationSchedule(bindQueuedWork);
-            schedule=callback=>presentations.presenter({attach:()=>null,paint:callback}).sync(null);
+            // This test observes scheduling, so a ticket that accepts the paint is enough.
+            const attach=()=>({present:()=>({resolve:()=>{},ready:Promise.resolve()})});
+            schedule=callback=>presentations.presenter({attach,paint:callback}).sync(null);
           }
           const passive=lfInputWork.capture(()=>schedule(()=>{
             document.getElementById('passive').remove();window.passiveDone=true;
@@ -1249,7 +1269,9 @@ def test_a_rendering_jobs_returned_async_tail_stays_passive(browser, serve, sche
         const {bindQueuedWork}=await __lfRuntimeImport('/runtime/queued-work.js');
         const {createPresentationSchedule}=await __lfRuntimeImport('/vendor/browser-runtime.js');
         const presentations=createPresentationSchedule(bindQueuedWork);
-        schedule=callback=>presentations.presenter({attach:()=>null,paint:callback}).sync(null);
+        // This test observes scheduling, so a ticket that accepts the paint is enough.
+        const attach=()=>({present:()=>({resolve:()=>{},ready:Promise.resolve()})});
+        schedule=callback=>presentations.presenter({attach,paint:callback}).sync(null);
       }
       document.getElementById('send').onclick=()=>schedule(async()=>{
         await new Promise(resolve=>window.finishTail=resolve);

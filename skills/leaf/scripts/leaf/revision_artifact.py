@@ -76,18 +76,10 @@ RESOURCE_TYPES = {
 _JAVASCRIPT = Language(tree_sitter_javascript.language())
 # The nodes `javascript_imports` reads, matched in the parser's own code rather than
 # by visiting every node of a vendored bundle in Python.
-_JSX_KINDS = sorted(
-    kind
-    for kind_id in range(_JAVASCRIPT.node_kind_count)
-    if (kind := _JAVASCRIPT.node_kind_for_id(kind_id))
-    and kind.startswith("jsx_")
-    and _JAVASCRIPT.node_kind_is_named(kind_id)
-)
 _IMPORT_NODES = Query(
     _JAVASCRIPT,
     "(import_statement) @node (export_statement) @node "
-    "(call_expression function: (import)) @node "
-    + " ".join(f"({kind}) @node" for kind in _JSX_KINDS),
+    "(call_expression function: (import)) @node",
 )
 JAVASCRIPT_SUFFIXES = frozenset(
     suffix
@@ -300,10 +292,6 @@ def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ..
     )
     imports = []
     for node in nodes:
-        if node.type.startswith("jsx_"):
-            raise ArtifactError(
-                f"{path}:{node.start_point[0] + 1}: JSX is not executable JavaScript"
-            )
         literal = None
         if node.type in {"import_statement", "export_statement"}:
             literal = node.child_by_field_name("source")
@@ -542,6 +530,14 @@ def _capture_input_stamps(page_dir: Path) -> tuple[tuple[str, tuple], ...]:
     ) + tuple((logical, _path_stamp(path)) for logical, path in PROBE_SOURCES.items())
 
 
+def probe_resources() -> dict[str, Resource]:
+    """This Leaf's browser probe modules, as a capture holds them."""
+    return {
+        logical: Resource(source.read_bytes(), "application/javascript")
+        for logical, source in PROBE_SOURCES.items()
+    }
+
+
 def capture_artifact(
     page_dir: Path,
     document: SourceDocument,
@@ -705,12 +701,7 @@ def _capture_artifact(
     # Live observations and headless checks are browser code too. Capture their
     # source beside the runtime it reads, so a revision and an export have one
     # complete module graph, even when the serving checkout later changes.
-    resources.update(
-        {
-            logical: Resource(source.read_bytes(), "application/javascript")
-            for logical, source in PROBE_SOURCES.items()
-        }
-    )
+    resources.update(probe_resources())
 
     entries = []
     documents = [document]

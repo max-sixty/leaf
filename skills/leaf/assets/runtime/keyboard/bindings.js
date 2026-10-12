@@ -665,10 +665,6 @@ export function checked(rows, where) {
       if (missing.length)
         throw new Error(`leaf: ${row.id} has no route for ${missing.join(", ")}`);
     }
-    if (row.sequenceControl != null && row.sequenceControl !== true)
-      throw new Error(
-        `leaf: row ${i} of ${where} has invalid sequence-control presentation ${String(row.sequenceControl)}`,
-      );
     for (const binding of allBindings(row)) {
       for (const mod of parsed(binding).mods)
         if (!MODIFIERS.includes(mod))

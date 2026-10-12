@@ -47,7 +47,6 @@ from leaf_dev.leaf_assets import pinned_assets, raw_prefix, specification
 from leaf_dev.page_fixtures import source_packages
 from PIL import Image
 from playwright.sync_api import expect
-from render_cases_interaction import GALLERY_THREAD_TEXT, serve_interaction_gallery
 from render_cases_layout import banner_control
 
 # The suite's own page primitives, so a navigation here waits on what every other
@@ -296,9 +295,13 @@ def test_product_pages_vendor_the_composed_theme(site, monkeypatch):
         assert (target / "theme.css").read_bytes() == expected_theme, page.name
 
 
-@pytest.mark.parametrize("source", pages_under(DOCS), ids=lambda p: p.stem)
-def test_published_product_page_renders(site, browser, source):
-    product = site_build.product_page(site, source.name)
+@pytest.mark.parametrize("name", ["index", "event-log", "how-it-works"])
+def test_published_product_page_renders(site, browser, name):
+    """The render gate passes the published product pages: the landing page, a
+    reference page of prose, tables, code and a sample, and the page that holds
+    every widget the docs use. The other routes share their sheet and parts, and
+    `test_every_product_route_is_a_live_leaf_page` opens each of them."""
+    product = site_build.product_page(site, f"{name}.html")
     with hosting_model.TemporaryPageServer(product) as server:
         url = f"{server.origin}/versions/v1.html?t={server.token}"
         failures = render_gate_model.render_version(browser, url).failures
@@ -1058,7 +1061,10 @@ def test_freshness_checks_share_session_identity_without_rebroadcasting(
 
 
 def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
-    """Each product route runs the canonical runtime and exposes its page state."""
+    """Each product route runs the canonical runtime and exposes its page state. It
+    takes its paper from the theme in both schemes, and nothing scrolls sideways at
+    390px: the nav wraps, the screenshots scale, and a command too long for the
+    column scrolls inside its own block, as the architecture diagram fits its box."""
     names = list(site_build.PRODUCT_ROUTES)
     page = browser.new_page()
     failed = []
@@ -1070,7 +1076,9 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
             else None
         ),
     )
+    paper = "getComputedStyle(document.body).backgroundColor"
     for name in names:
+        page.set_viewport_size({"width": 1200, "height": 900})
         page.goto(product_url(hosted, name), wait_until="load")
         wait_until_ready(page)
         assert page.evaluate("document.compatMode") == "CSS1Compat", name
@@ -1094,36 +1102,35 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
             "agent": "The agent",
             "install_url": "/#install",
         }
+        if name == "how-it-works.html":
+            diagram = page.locator("#arch")
+            expect(diagram).to_be_visible()
+            width = diagram.evaluate(
+                "element => ({client: element.clientWidth, scroll: element.scrollWidth})"
+            )
+            assert width["scroll"] == width["client"]
+        for scheme in ("dark", "light"):
+            page.emulate_media(color_scheme=scheme)
+            assert page.evaluate(paper) == PAPER[scheme], (name, scheme)
+        page.set_viewport_size(PHONE)
+        wait_until_ready(page)
+        overflow = root_overflow(page)
+        assert overflow == 0, f"{name} scrolls {overflow}px sideways on a phone"
         assert not failed, f"{name}: {failed[:3]}"
-
-
-def test_the_product_diagram_fits_without_its_own_scroll(hosted, browser):
-    """The architecture diagram fits its content box without scrolling sideways."""
-    page = browser.new_page()
-    page.set_viewport_size({"width": 1200, "height": 900})
-    page.goto(product_url(hosted, "how-it-works.html"), wait_until="load")
-    wait_until_ready(page)
-    diagram = page.locator("#arch")
-    expect(diagram).to_be_visible()
-    width = diagram.evaluate(
-        "element => ({client: element.clientWidth, scroll: element.scrollWidth})"
-    )
-    assert width["scroll"] == width["client"]
 
 
 @pytest.fixture
 def staged_site(site, tmp_path):
-    """The module's built site, copied for one test to break one file in.
+    """The module's built site, copied for one test to break files in.
 
     `build` links the vendored layer into every page it publishes rather than
     writing it again, so the site is 18,054 files and 65M on disk. A plain
-    `copytree` copies bytes and breaks every one of those links, so each of the
-    three copies here measured 398M. Sharing the layer the way `build` does, and
-    the way a lent page shares it, brings that to 84M. It buys nothing in time —
-    the two take 3.5s and 3.9s, because the cost is the directory entry rather
-    than the bytes — and everything outside the layer is still copied, so a test
-    rewrites the file it is here to break without that write reaching the build
-    the rest of the module reads.
+    `copytree` copies bytes and breaks every one of those links, so each copy
+    measured 398M. Sharing the layer the way `build` does, and the way a lent page
+    shares it, brings that to 84M. It buys nothing in time — the two take 3.5s and
+    3.9s, because the cost is the directory entry rather than the bytes — and
+    everything outside the layer is still copied, so a test rewrites the file it is
+    here to break without that write reaching the build the rest of the module reads.
     """
     staged = tmp_path / "staged"
 
@@ -1138,63 +1145,54 @@ def staged_site(site, tmp_path):
     return staged
 
 
-def test_a_link_that_reaches_nothing_stops_the_build(staged_site):
-    (site_build.product_page(staged_site, "index.html") / "index.html").write_text(
-        '<a href="whats-new.html">news</a>'
-    )
+def test_a_link_a_host_would_404_stops_the_build(staged_site, hosted):
+    """The build stops on each local link a static host would answer with a 404.
 
-    with pytest.raises(SystemExit) as stopped:
-        site_build.check_links(staged_site)
-    assert "whats-new.html" in str(stopped.value)
+    One copy takes each break in turn and puts it back, and the untouched copy
+    passes first, so each refusal is that break's own."""
 
+    def refusal():
+        with pytest.raises(SystemExit) as stopped:
+            site_build.check_links(staged_site)
+        return str(stopped.value)
 
-@pytest.mark.parametrize(
-    "target", ["/examples/triage-board/events.jsonl", "/_leaf/site.json"]
-)
-def test_a_link_to_a_built_file_the_server_does_not_route_stops_the_build(
-    staged_site, hosted, target
-):
-    """The build holds each page's log and the site's own manifest, but the server
-    routes only a page's document and served resources, so these links 404 live."""
-    assert (staged_site / target.lstrip("/")).is_file()
-    with pytest.raises(urllib.error.HTTPError) as missing:
-        urllib.request.urlopen(f"{hosted}{target}")
-    assert missing.value.code == 404
-    (site_build.product_page(staged_site, "index.html") / "index.html").write_text(
-        f'<a href="{target}">record</a>'
-    )
+    site_build.check_links(staged_site)
+    tour = site_build.product_page(staged_site, "index.html") / "index.html"
+    authored = tour.read_bytes()
 
-    with pytest.raises(SystemExit) as stopped:
-        site_build.check_links(staged_site)
-    assert target in str(stopped.value)
+    tour.write_text('<a href="whats-new.html">news</a>')
+    assert "whats-new.html" in refusal()
 
+    # The build holds each page's log and the site's own manifest, but the server
+    # routes only a page's document and served resources, so these links 404 live.
+    for target in ("/examples/triage-board/events.jsonl", "/_leaf/site.json"):
+        assert (staged_site / target.lstrip("/")).is_file()
+        with pytest.raises(urllib.error.HTTPError) as missing:
+            urllib.request.urlopen(f"{hosted}{target}")
+        assert missing.value.code == 404
+        tour.write_text(f'<a href="{target}">record</a>')
+        assert target in refusal()
+    tour.write_bytes(authored)
 
-def test_a_directory_link_with_no_index_stops_the_build(staged_site):
-    """What a host answers a directory with is its index, so that is what has to be
-    there. An existence check passes on the directory itself and publishes a 404."""
-    (staged_site / "examples" / "triage-board" / "index.html").unlink()
+    # What a host answers a directory with is its index, so that is what has to be
+    # there. An existence check passes on the directory itself and publishes a 404.
+    board = staged_site / "examples" / "triage-board" / "index.html"
+    document = board.read_bytes()
+    board.unlink()
+    assert "triage-board" in refusal()
+    board.write_bytes(document)
 
-    with pytest.raises(SystemExit) as stopped:
-        site_build.check_links(staged_site)
-    assert "triage-board" in str(stopped.value)
-
-
-def test_a_card_image_that_reaches_nothing_stops_the_build(staged_site):
-    """The one broken image a user of the site would never run into.
-
-    A card is fetched by whoever unfurls the link, not by the browser showing the
-    page, so a preview whose bytes moved out from under its content address fails
-    silently everywhere except in a shared link.
-    """
+    # The one broken image a user of the site would never run into. A card is
+    # fetched by whoever unfurls the link, not by the browser showing the page, so a
+    # preview whose bytes moved out from under its content address fails silently
+    # everywhere except in a shared link.
     manifest_path = staged_site / site_build.SITE_MANIFEST
     manifest = json.loads(manifest_path.read_text())
     manifest["pages"]["/examples/triage-board"]["image"] = "/examples/media/gone.jpg"
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-
-    with pytest.raises(SystemExit) as stopped:
-        site_build.check_links(staged_site)
-    assert "og:image" in str(stopped.value)
-    assert "gone.jpg" in str(stopped.value)
+    refused = refusal()
+    assert "og:image" in refused
+    assert "gone.jpg" in refused
 
 
 def test_an_invalid_product_document_stops_the_build(tmp_path, monkeypatch):
@@ -1255,35 +1253,6 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
-
-
-@pytest.mark.parametrize("name", framed_root_examples())
-def test_published_workspaces_keep_their_allocation_without_site_note(
-    hosted, browser, name
-):
-    """A published workspace owns main and keeps its bounded reading regions: the
-    page does not scroll, and each region scrolls on its own, whether that is a pane's
-    body or the workspace's body itself, as where a side-list queue is the body."""
-    page = open_page(browser, f"{hosted}/examples/{name}/")
-    page.set_viewport_size({"width": 1200, "height": 900})
-    expect(page.locator("body > main.layout-workspace")).to_have_count(1)
-    expect(page.locator("body > main .sitenote")).to_have_count(0)
-    page.wait_for_function(
-        """() => {
-          const page = document.documentElement;
-          const main = document.querySelector('body > main.layout-workspace');
-          const pane = '[data-lf-reading-role="pane"]';
-          const bodyOf = (box) =>
-            [...box.children].find(child => !child.matches('header, footer'));
-          const regions = [
-            ...[...main.children].filter(
-              child => !child.matches('header, footer') && !child.matches(pane)),
-            ...[...main.querySelectorAll(pane)].map(bodyOf),
-          ];
-          return page.scrollHeight === page.clientHeight && regions.length > 0
-            && regions.every(region => getComputedStyle(region).overflowY === 'auto');
-        }"""
-    )
 
 
 def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
@@ -1352,580 +1321,25 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
     )
     product_gallery = developer_galleries.locator("#product-gallery")
     expect(product_gallery).to_contain_text("Core product gallery")
-    expect(product_gallery).to_contain_text("focused core interaction replays")
+    expect(product_gallery).to_contain_text("core interactions to try live")
     expect(product_gallery).to_have_attribute("href", "/examples/feature-gallery/")
     threads_gallery = developer_galleries.locator("#thread-panel-gallery")
     expect(threads_gallery).to_contain_text("Four live panel views")
     expect(threads_gallery).to_have_attribute("href", "/examples/thread-panel-gallery/")
 
 
-def test_the_interaction_gallery_drives_real_widgets(serve, browser):
-    """The runner pauses its real widgets, resumes them, and resets between scenes.
-
-    Playback calls each upgraded widget's canonical rendering surface without
-    dispatching its input gesture, so a developer can inspect the transition without
-    the demonstration becoming durable page state.
-    """
-    url = serve_interaction_gallery(serve)
-    page_dir = serve.page_dir
-    # Let every child present before starting the timed sequence. Otherwise the
-    # first replay can finish while open_page still waits for another sample.
-    context = browser.new_context(reduced_motion="reduce")
-    page = open_page(browser, f"{url}#bg-interactions", context=context)
-    before = read_events(page_dir)
-    gallery = page.locator("#bg-interactions")
-    status = gallery.locator("[data-interaction-status]")
-    toggle = gallery.locator("[data-interaction-toggle]")
-    loop = gallery.locator("[data-interaction-loop]")
-    viewport = gallery.locator("[data-interaction-viewport-select]")
-    accept_stage = gallery.locator("#bg-interaction-accept .interaction-stage")
-    accept_frame_element = accept_stage.locator("[data-interaction-frame]")
-    accept_frame = accept_frame_element.content_frame
-    accept = accept_frame.locator("#bg-motion-accept")
-    move_frame = gallery.locator(
-        "#bg-interaction-move [data-interaction-frame]"
-    ).content_frame
-    card = move_frame.locator("#bg-motion-card")
-
-    page.emulate_media(reduced_motion="no-preference")
-    expect(status).to_have_text("Playing")
-    expect(accept_frame.locator(".interaction-pointer")).to_be_visible()
-    expect(accept_frame_element).to_have_attribute("data-interaction-ready", "")
-    accept_controls = accept_frame.locator('[data-lf-margin-for="bg-motion-accept"]')
-    expect(accept_controls).to_be_visible()
-    assert accept_controls.evaluate(
-        """controls => {
-                const cluster = controls.closest('.lf-margin-cluster');
-                const box = controls.getBoundingClientRect();
-                return cluster.dataset.lfPlace === 'rail'
-                    && box.left >= 0 && box.right <= innerWidth;
-            }"""
-    )
-    zoom = accept_frame_element.evaluate(
-        """frame => ({
-                displayedWidth: frame.getBoundingClientRect().width,
-                layoutWidth: frame.offsetWidth,
-            })"""
-    )
-    child_geometry = accept.evaluate(
-        """suggestion => ({
-                viewportWidth: innerWidth,
-                columnWidth: document.querySelector('#bg-motion-accept-copy').getBoundingClientRect().width,
-                declaredColumnWidth: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--col')),
-                columnRight: document.querySelector('#bg-motion-accept-copy').getBoundingClientRect().right,
-                controlsLeft: document.querySelector('[data-lf-margin-for="bg-motion-accept"]')
-                    .getBoundingClientRect().left,
-                mainBoxSizing: getComputedStyle(document.querySelector('main')).boxSizing,
-                pointerWidth: parseFloat(getComputedStyle(document.querySelector('.interaction-pointer')).width),
-            })"""
-    )
-    assert zoom["layoutWidth"] >= zoom["displayedWidth"] * 1.9
-    assert abs(child_geometry["viewportWidth"] - zoom["layoutWidth"]) <= 1
-    assert child_geometry["columnWidth"] == child_geometry["declaredColumnWidth"]
-    assert child_geometry["columnRight"] < child_geometry["controlsLeft"]
-    assert child_geometry["mainBoxSizing"] == "content-box"
-    assert abs(child_geometry["pointerWidth"] / 2 - 22) <= 1
-    # The browser can inspect either document, but the page cannot reach through its
-    # opaque sandbox. Playback controls exercise the structured bridge instead.
-    assert accept_frame_element.evaluate("frame => frame.contentDocument === null")
-    toggle_box = toggle.bounding_box()
-    assert toggle_box["y"] + toggle_box["height"] <= 900
-    accept.evaluate(
-        "suggestion => { window.pauseProbe = suggestion.animate([{}, {}], {duration: 10000}); }"
-    )
-    toggle.click()
-    expect(status).to_have_text("Paused")
-    assert accept.evaluate("() => window.pauseProbe.playState") == "paused"
-    paused_suggestion = """suggestion => {
-            const retired = suggestion.querySelector('lf-old');
-            const style = getComputedStyle(retired);
-            return {
-                state: suggestion.dataset.lfState ?? null,
-                height: retired.getBoundingClientRect().height,
-                opacity: style.opacity,
-                animations: suggestion.getAnimations({subtree: true}).map(
-                    animation => [animation.playState, animation.currentTime]
-                ),
-            };
-        }"""
-    # A paused animation's time is fixed at the frame its pause commits, so the
-    # reading waits for every pause to stop pending.
-    accept_frame_element.element_handle().content_frame().wait_for_function(
-        """() => document.querySelector('#bg-motion-accept')
-            .getAnimations({subtree: true}).every(animation => !animation.pending)"""
-    )
-    frozen = accept.evaluate(paused_suggestion)
-    page.wait_for_timeout(800)
-    assert accept.evaluate(paused_suggestion) == frozen
-    toggle.click()
-    expect(status).to_have_text("Playing")
-    assert accept.evaluate("() => window.pauseProbe.playState") == "running"
-    accept.evaluate("() => window.pauseProbe.cancel()")
-    expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
-    expect(toggle).to_have_text("Replay")
-    expect(toggle).to_be_enabled()
-    expect(loop).not_to_be_checked()
-    expect(viewport).to_have_value("2")
-    expect(viewport.locator("option")).to_have_text(["1×", "2×", "4×"])
-    assert gallery.evaluate(
-        """async gallery => {
-                const { pageWords, says } = await window.__lfRuntimeImport('/runtime/passages.js');
-                const toggle = gallery.querySelector('[data-interaction-toggle]');
-                const status = gallery.querySelector('[data-interaction-status]');
-                return !pageWords(toggle.firstChild)
-                    && !pageWords(status.firstChild)
-                    && !says(gallery).includes(status.textContent);
-            }"""
-    )
-    assert gallery.locator(
-        ".lf-interaction-control, .lf-interaction-setting, .lf-interaction-status"
-    ).evaluate_all("nodes => nodes.map(node => getComputedStyle(node).fontSize)") == [
-        "11.5px",
-        "11.5px",
-        "11.5px",
-        "11.5px",
-    ]
-    # The live line stands under the persistent controls at every width. The runtime
-    # rewrites it as the demo runs, so putting it on their line would move that row
-    # while the user is aiming at it.
-    assert gallery.evaluate(
-        """gallery => {
-                const toggle = gallery.querySelector('[data-interaction-toggle]');
-                const status = gallery.querySelector('[data-interaction-status]');
-                return status.offsetTop >= toggle.offsetTop + toggle.offsetHeight;
-            }"""
-    )
-    expect(accept).to_have_attribute("data-lf-state", "accept")
-    assert read_events(page_dir) == before
-
-    loop.check()
-    expect(status).to_have_text("Playing")
-    expect(accept).not_to_have_attribute("data-lf-state", "accept")
-    expect(accept).to_have_attribute(
-        "data-lf-state", "accept", timeout=HANDOVER_DEADLINE_MS
-    )
-    expect(accept).not_to_have_attribute(
-        "data-lf-state", "accept", timeout=HANDOVER_DEADLINE_MS
-    )
-    expect(status).to_have_text("Playing")
-    loop.uncheck()
-    expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
-
-    displayed_width = accept_frame_element.evaluate(
-        "frame => frame.getBoundingClientRect().width"
-    )
-    for size in ("1", "4"):
-        viewport.select_option(size)
-        expect(gallery).to_have_attribute("data-interaction-viewport", size)
-        scaled = accept_frame_element.evaluate(
-            """frame => ({
-                    displayedWidth: frame.getBoundingClientRect().width,
-                    layoutWidth: frame.offsetWidth,
-                })"""
-        )
-        assert abs(scaled["displayedWidth"] - displayed_width) <= 1
-        assert abs(scaled["layoutWidth"] / displayed_width - int(size)) <= 0.02
-        assert abs(accept.evaluate("() => innerWidth") - scaled["layoutWidth"]) <= 1
-    viewport.select_option("2")
-
-    move_tab = gallery.get_by_role("tab", name="Move a card")
-    move_tab.click()
-    expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
-    assert card.evaluate("card => card.parentElement.id") == "bg-motion-tried"
-    assert move_tab.evaluate("tab => document.activeElement === tab")
-    assert read_events(page_dir) == before
-
-    toggle.click()
-    expect(status).to_have_text("Playing")
-    assert card.evaluate("card => card.parentElement.id") == "bg-motion-ready"
-    assert card.evaluate("card => card.getAnimations().length") == 0
-    expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
-    assert card.evaluate("card => card.parentElement.id") == "bg-motion-tried"
-    assert read_events(page_dir) == before
-
-    comment_tab = gallery.get_by_role("tab", name="Send a comment")
-    comment_tab.click()
-    comment_frame = gallery.locator(
-        "#bg-interaction-comment [data-interaction-frame]"
-    ).content_frame
-    expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
-    expect(comment_frame.locator("#lf-margin-preview")).to_be_visible()
-    expect(comment_frame.locator("#lf-margin-preview")).to_contain_text(
-        GALLERY_THREAD_TEXT
-    )
-    expect(page.locator("#lf-margin-preview")).to_be_hidden()
-    assert read_events(page_dir) == before
-
-    threads_tab = gallery.get_by_role("tab", name="Open and close Threads")
-    threads_tab.click()
-    threads_frame = gallery.locator(
-        "#bg-interaction-threads [data-interaction-frame]"
-    ).content_frame
-    expect(threads_frame.locator("body")).to_have_attribute(
-        "data-lf-auxiliary-surface", "threads"
-    )
-    expect(threads_frame.locator(".lf-thread-panel")).to_be_visible()
-    expect(page.locator("body")).not_to_have_attribute(
-        "data-lf-auxiliary-surface", "threads"
-    )
-    toggle.click()
-    expect(status).to_have_text("Paused")
-    page.wait_for_timeout(1_500)
-    expect(threads_frame.locator("body")).to_have_attribute(
-        "data-lf-auxiliary-surface", "threads"
-    )
-    toggle.click()
-    expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
-    expect(threads_frame.locator("body")).not_to_have_attribute(
-        "data-lf-auxiliary-surface", "threads"
-    )
-    expect(threads_frame.locator(".lf-thread-panel")).to_be_hidden()
-    assert read_events(page_dir) == before
-
-    page.emulate_media(media="print")
-    expect(toggle).to_be_hidden()
-
-
-def test_a_contained_replay_leaves_the_page_around_it_standing(serve, browser):
-    """A framed replay is a picture, and the user is standing in the page holding it.
-
-    Each frame runs a whole second Leaf page, and a Leaf page arrives: it restores the
-    auxiliary surface this user last had open and puts them on its own body. Neither is this
-    document's to do. The arrangements are the user's, read from a store the frame
-    shares with the page around it, so restoring them opens an auxiliary surface inside the
-    picture that nobody asked this gallery for. The focus is worse, because a document
-    has only one: focus taken into a frame is focus taken off the page the user is
-    actually on, which folds their open margin cluster, drops their selection hints and
-    leaves the next key they press going somewhere they cannot see.
-    """
-    context = browser.new_context()
-    news_requests = []
-    context.on(
-        "request",
-        lambda request: (
-            news_requests.append(request.url)
-            if request.url.endswith("/api/news")
-            else None
-        ),
-    )
-    page = open_page(
-        browser, f"{serve_interaction_gallery(serve)}#bg-interactions", context=context
-    )
-    # The user's own standing intent, written the way a user writes it. It has to
-    # survive out here for the frames' silence about it to say anything.
-    page.locator(".lf-threads-toggle").click()
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
-    page.reload(wait_until="load")
-    wait_until_ready(page)
-    gallery = page.locator("#bg-interactions")
-    ready = gallery.locator("[data-interaction-frame][data-interaction-ready]")
-    expect(ready).to_have_count(4)
-    expect(page.locator("body")).to_have_attribute(
-        "data-lf-auxiliary-surface", "threads"
-    )
-    for frame in ready.all():
-        expect(frame.content_frame.locator("body")).not_to_have_attribute(
-            "data-lf-auxiliary-surface", "threads"
-        )
-    assert page.evaluate("() => document.activeElement?.tagName") != "IFRAME"
-    # The positive ready edge is where each inner page would open its own news
-    # freshness checks and two-second heartbeat. Hold through that interval: only the outer
-    # page and operable sample own live leases; the passive replays stop after one read.
-    page.wait_for_timeout(2_200)
-    passive_roots = [
-        sample_address(frame)
-        for frame in gallery.locator("[data-interaction-frame]").all()
-    ]
-    assert news_requests and not any(
-        request.startswith(root) for request in news_requests for root in passive_roots
-    )
-    for frame in ready.all():
-        assert frame.content_frame.locator("html").evaluate(
-            """root => {
-                const {asked, heard} = JSON.parse(root.dataset.lfTraffic);
-                return {asked, heard};
-            }"""
-        ) == {"asked": 1, "heard": 1}
-
-    # Arrival is the easy half. The Threads replay opens a <dialog> in the frame, and
-    # a shown dialog runs the browser's own focusing steps whatever the page around
-    # it wants — the frame's inert body is what those steps land against. They are
-    # standing on the tab they just pressed, and the sequence they press next has to
-    # still reach the page they are reading.
-    threads_tab = gallery.get_by_role("tab", name="Open and close Threads")
-    threads_tab.click()
-    threads_frame = gallery.locator(
-        "#bg-interaction-threads [data-interaction-frame]"
-    ).content_frame
-    expect(threads_frame.locator(".lf-thread-panel")).to_be_visible()
-    assert threads_tab.evaluate("tab => document.activeElement === tab")
-    status = gallery.locator("[data-interaction-status]")
-    expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
-    assert threads_tab.evaluate("tab => document.activeElement === tab")
-
-    # A tab holds focus on its own, so standing there survives anything short of
-    # something else taking it. The places a user actually addresses mostly do not:
-    # a `g` hint, a version swap and the skip link all land on a heading or a fold
-    # that `focusDestination` lent a stop to behind a one-shot blur listener, so a
-    # frame that took focus even for a moment would spend the lend and leave nowhere
-    # to put the user back. The second run stands them where the go-to sequence stands
-    # them — in the same synchronous step that starts the replay, before any framed
-    # call can run — and the destination has to still be theirs when it completes.
-    assert (
-        page.evaluate(
-            """async () => {
-                const {focusDestination} = await window.__lfRuntimeImport('/runtime/focus.js');
-                document.querySelector('[data-interaction-toggle]').click();
-                focusDestination(document.querySelector('#bg-interactions-title'), 'move');
-                return document.activeElement?.id;
-            }"""
-        )
-        == "bg-interactions-title"
-    )
-    expect(threads_frame.locator(".lf-thread-panel")).to_be_visible()
-    assert page.evaluate("() => document.activeElement?.id") == (
-        "bg-interactions-title"
-    )
-    expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
-    assert page.evaluate("() => document.activeElement?.id") == (
-        "bg-interactions-title"
-    )
-
-    page.keyboard.press("w")
-    expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
-
-
-def test_reduced_motion_leaves_gallery_play_explicit(serve, browser):
-    url = serve_interaction_gallery(serve)
-    context = browser.new_context(
-        reduced_motion="reduce", viewport={"width": 1280, "height": 900}
-    )
-    page = open_page(browser, f"{url}#bg-interactions", context=context)
-    gallery = page.locator("#bg-interactions")
-    status = gallery.locator("[data-interaction-status]")
-    accept = gallery.locator(
-        "#bg-interaction-accept [data-interaction-frame]"
-    ).content_frame.locator("#bg-motion-accept")
-    expect(status).to_have_text("Ready — motion will start only when you press Play")
-    page.wait_for_timeout(900)
-    assert accept.get_attribute("data-lf-state") is None
-    gallery.locator("[data-interaction-toggle]").click()
-    expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
-    expect(accept).to_have_attribute("data-lf-state", "accept")
-
-
-COALESCED_VIEW_RECORDS = """
-// Every record an IntersectionObserver accumulated since its last delivery arrives
-// together, and Chromium produces that shape for a single target whenever the main
-// thread is busy between two rendering updates. This makes it certain: each delivery
-// carries the record before it as well as its own.
-const Real = window.IntersectionObserver;
-window.IntersectionObserver = class extends Real {
-  constructor(callback, options) {
-    let last = null;
-    super((entries, observer) => {
-      const carried = last ? [last, ...entries] : [...entries];
-      last = entries.at(-1);
-      callback(carried, observer);
-    }, options);
-  }
-};
-"""
-
-
-def test_the_interaction_gallery_reads_where_it_is_now(serve, browser):
-    """The gallery plays from the last record of a view delivery, not the first.
-
-    The observer reports crossings rather than a state, so a stale record read as the
-    current one is never corrected: the gallery a user scrolled to stays at Ready for
-    the rest of the page's life. The arrival scroll crosses the gallery out of view and
-    back on its own, which is how a loaded machine hands both crossings over together.
-    """
-    url = serve_interaction_gallery(serve)
-    page = open_page(browser, url, init_script=COALESCED_VIEW_RECORDS)
-    gallery = page.locator("#bg-interactions")
-    status = gallery.locator("[data-interaction-status]")
-    expect(status).to_have_text("Ready")
-    page.locator("#bg-gallery-tabs").get_by_role(
-        "tab", name="Interactions", exact=True
-    ).click()
-    gallery.evaluate("node => node.scrollIntoView({block: 'start'})")
-    expect(status).to_have_text("Playing")
-
-
-def test_interaction_gallery_contains_page_chrome(serve, browser):
-    """A replay changes its zoomed-out Leaf document, not the gallery around it."""
-    url = serve_interaction_gallery(serve)
-    context = browser.new_context(
-        reduced_motion="reduce", viewport={"width": 1280, "height": 900}
-    )
-    page = open_page(browser, f"{url}#bg-interactions", context=context)
-    gallery = page.locator("#bg-interactions")
-    comment_tab = gallery.get_by_role("tab", name="Send a comment")
-    threads_tab = gallery.get_by_role("tab", name="Open and close Threads")
-    toggle = gallery.locator("[data-interaction-toggle]")
-    status = gallery.locator("[data-interaction-status]")
-    expect(status).to_have_text(
-        "Ready — motion will start only when you press Play",
-        timeout=HANDOVER_DEADLINE_MS,
-    )
-
-    page.locator("#bg-gallery-tabs").get_by_role(
-        "tab", name="Threads", exact=True
-    ).click()
-    page.locator('[data-lf-margin-for="bg-thread-text"] > .lf-margin-marker').click()
-    expect(page.locator("#lf-margin-preview")).to_contain_text(GALLERY_THREAD_TEXT)
-    page.locator("#bg-gallery-tabs").get_by_role(
-        "tab", name="Interactions", exact=True
-    ).click()
-    comment_tab.click()
-    comment_frame = gallery.locator(
-        "#bg-interaction-comment [data-interaction-frame]"
-    ).content_frame
-    comment_input = comment_frame.locator(".lf-fab-input")
-    assert comment_input.evaluate(
-        """input => {
-                const box = input.getBoundingClientRect();
-                return input.checkVisibility()
-                    && box.left >= 0 && box.right <= innerWidth
-                    && box.top >= 0 && box.bottom <= innerHeight;
-            }"""
-    )
-    expect(comment_input).to_have_attribute(
-        "aria-keyshortcuts", "Enter Meta+Enter Control+Enter Tab"
-    )
-    expect(comment_input).to_have_js_property(
-        "value",
-        "Gallery thread: should the practice exercise come before lunch? "
-        "Try replying here; the agenda is fictional.",
-    )
-    toggle.click()
-    expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
-    expect(page.locator("#lf-margin-preview")).to_contain_text(GALLERY_THREAD_TEXT)
-    expect(comment_frame.locator("#lf-margin-preview")).to_contain_text(
-        GALLERY_THREAD_TEXT
-    )
-
-    page.locator(".lf-threads-toggle").click()
-    expect(page.locator("body")).to_have_attribute(
-        "data-lf-auxiliary-surface", "threads"
-    )
-    assert page.evaluate("localStorage.getItem('lf-auxiliary-surface')") == "threads"
-    threads_tab.evaluate("tab => tab.click()")
-    toggle.click()
-    threads_frame = gallery.locator(
-        "#bg-interaction-threads [data-interaction-frame]"
-    ).content_frame
-    expect(threads_frame.locator("body")).to_have_attribute(
-        "data-lf-auxiliary-surface", "threads"
-    )
-    expect(page.locator("body")).to_have_attribute(
-        "data-lf-auxiliary-surface", "threads"
-    )
-    expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
-    expect(threads_frame.locator("body")).not_to_have_attribute(
-        "data-lf-auxiliary-surface", "threads"
-    )
-    expect(page.locator("body")).to_have_attribute(
-        "data-lf-auxiliary-surface", "threads"
-    )
-    assert page.evaluate("localStorage.getItem('lf-auxiliary-surface')") == "threads"
-
-    # Remember this demo beside the user's open outer workspace, reload, and play
-    # as soon as the frame declares itself ready. The contained thread surface may
-    # finish rendering after the page's presentation edge; the replay waits for it
-    # instead of failing its first attempt. The user here still asks for stillness,
-    # which is what makes the ready state a resting one: a gallery that may move
-    # plays itself the moment it is both loaded and on screen, and where the reload's
-    # restored reading position leaves it is not something this test arranges.
-    comment_tab.click()
-    page.reload(wait_until="domcontentloaded")
-    wait_until_ready(page)
-    gallery = page.locator("#bg-interactions")
-    status = gallery.locator("[data-interaction-status]")
-    expect(status).to_have_text(
-        "Ready — motion will start only when you press Play",
-        timeout=HANDOVER_DEADLINE_MS,
-    )
-    gallery.locator("[data-interaction-toggle]").evaluate("toggle => toggle.click()")
-    expect(gallery.locator("[data-interaction-status]")).to_have_text(
-        "Complete", timeout=HANDOVER_DEADLINE_MS
-    )
-
-
-def test_interaction_gallery_waits_for_a_restored_frame_tab(serve, browser):
-    """A remembered chrome demo cannot replay before its inner Leaf page is ready."""
-    url = serve_interaction_gallery(serve)
-    context = browser.new_context(reduced_motion="reduce")
-    page = open_page(browser, f"{url}#bg-interactions", context=context)
-    gallery = page.locator("#bg-interactions")
-    gallery.get_by_role("tab", name="Send a comment").click()
-    held = []
-    allocation = sample_allocation(page, url, "bg-motion-comment-page")
-
-    def is_restored_entry(request):
-        return (
-            allocation["url"] is not None
-            and request.frame.url.partition("#")[0] == allocation["url"]
-            and urlsplit(request.url).path.endswith("/leaf.js")
-        )
-
-    def hold_restored_entry(route):
-        if is_restored_entry(route.request):
-            held.append(route)
-        else:
-            route.continue_()
-
-    # State may remain pending after deliberate offline presentation. The runtime
-    # entry is a true prerequisite of readiness, independent of restoration time.
-    # Frame identity is supplied by the browser request, without a DOM query or
-    # intercepting the native navigation response (which changes its address space).
-    page.route("**/leaf.js", hold_restored_entry)
-    with page.expect_request(
-        is_restored_entry,
-        timeout=HANDOVER_DEADLINE_MS,
-    ):
-        page.reload(wait_until="domcontentloaded")
-        gallery.scroll_into_view_if_needed()
-    toggle = gallery.locator("[data-interaction-toggle]")
-    expect(gallery.get_by_role("tab", name="Send a comment")).to_have_attribute(
-        "aria-selected", "true", timeout=HANDOVER_DEADLINE_MS
-    )
-    expect(gallery.locator("[data-interaction-status]")).to_have_text(
-        "Loading", timeout=HANDOVER_DEADLINE_MS
-    )
-    expect(toggle).to_be_disabled(timeout=HANDOVER_DEADLINE_MS)
-    assert held, "the restored frame never requested its runtime entry"
-    bootstrap = gallery.locator("#bg-interaction-comment iframe").content_frame.locator(
-        "script[data-lf-entry]"
-    )
-    assert held[0].request.url == urljoin(
-        allocation["url"], bootstrap.get_attribute("data-lf-entry")
-    )
-    held.pop().continue_()
-    page.wait_for_load_state("load", timeout=HANDOVER_DEADLINE_MS)
-    wait_until_ready(page)
-    page.unroute("**/leaf.js", hold_restored_entry)
-    expect(gallery.locator("[data-interaction-status]")).to_have_text(
-        "Ready — motion will start only when you press Play",
-        timeout=HANDOVER_DEADLINE_MS,
-    )
-    expect(toggle).to_be_enabled()
-    expect(
-        gallery.locator(
-            "#bg-interaction-comment [data-interaction-frame]"
-        ).content_frame.locator(".lf-fab-input")
-    ).to_be_visible()
-
-
-def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser):
+def test_a_sample_waits_for_slow_contained_page_state(serve, browser):
     """A healthy contained page may present after an arbitrarily slow state read."""
-    url = serve_interaction_gallery(serve)
+    url = serve("""<!doctype html><html><head><title>Slow sample</title></head><body><main>
+      <lf-sample id="practice" label="practice page">
+        <template id="practice-page" data-sample><p id="copy">Practice here.</p></template>
+      </lf-sample>
+    </main></body></html>""")
     context = browser.new_context(reduced_motion="reduce")
     page = context.new_page()
     held = []
     held_once = False
-    allocation = sample_allocation(page, url, "bg-motion-accept-page")
+    allocation = sample_allocation(page, url, "practice-page")
 
     def hold_first_contained_state(route):
         nonlocal held_once
@@ -1948,25 +1362,20 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
                 and "/api/state" in request.url
             )
         ):
-            page.goto(f"{url}#bg-interactions", wait_until="domcontentloaded")
-        gallery = page.locator("#bg-interactions")
+            page.goto(url, wait_until="domcontentloaded")
+        sample = page.locator("#practice")
         holding(page, held, 1, "the contained page's first state read")
         held.pop().continue_()
         page.wait_for_load_state("load")
         wait_until_ready(page)
-        expect(gallery.locator("iframe[data-interaction-ready]")).to_have_count(
-            4, timeout=HANDOVER_DEADLINE_MS
+        sample.evaluate("async sample => { await sample.ready; }")
+        frame = sample.locator("iframe")
+        assert not frame.get_attribute("srcdoc")
+        contained_document = frame.content_frame.locator("html")
+        assert contained_document.evaluate(
+            "() => document.doctype?.name === 'html' && Boolean(document.scrollingElement)"
         )
-        for frame in gallery.locator("iframe[data-interaction-ready]").all():
-            assert not frame.get_attribute("srcdoc")
-            assert frame.content_frame.locator("html").evaluate(
-                "() => document.doctype?.name === 'html' && Boolean(document.scrollingElement)"
-            )
         page.evaluate("sessionStorage.setItem('lf-view', 'outer reading')")
-        contained = gallery.locator(
-            "iframe[data-interaction-ready]"
-        ).first.content_frame
-        contained_document = contained.locator("html")
         storage = contained_document.evaluate(
             """async () => {
                 const {LIVE_ROOT} = await window.__lfRuntimeImport('/runtime/context.js');
@@ -1986,7 +1395,7 @@ def test_interaction_gallery_waits_for_slow_contained_page_state(serve, browser)
         )
         assert storage["liveRoot"] is True
         assert "/api/samples/" in storage["pageScope"]
-        interaction_url = f"{sample_address(gallery.locator('iframe[data-interaction-ready]').first)}api/interaction"
+        interaction_url = f"{sample_address(frame)}api/interaction"
         with page.expect_response(
             lambda response: (
                 response.url == interaction_url
@@ -2065,102 +1474,17 @@ def test_a_sample_keeps_ephemeral_storage_and_presents_uploaded_media(serve, bro
     )
 
 
-def test_a_contained_page_retries_a_failed_first_state_read(serve, browser):
-    """A sample retries startup state without retaining a live page feed."""
-    url = serve_interaction_gallery(serve)
-    context = browser.new_context(reduced_motion="reduce")
-    page = context.new_page()
-    failed = []
-    allocation = sample_allocation(page, url, "bg-motion-accept-page")
-    news_requests = []
-    context.on(
-        "request",
-        lambda request: (
-            news_requests.append(request.url)
-            if request.url.endswith("/api/news")
-            else None
-        ),
-    )
-
-    def fail_first_contained_reads(route):
-        if (
-            allocation["url"] is not None
-            and route.request.url.startswith(allocation["url"])
-            and len(failed) < 2
-        ):
-            failed.append(route.request.url)
-            route.fulfill(status=200, content_type="application/json", body="{")
-        else:
-            route.continue_()
-
-    page.route("**/api/state*", fail_first_contained_reads)
-    navigate(page, f"{url}#bg-interactions")
-    gallery = page.locator("#bg-interactions")
-    expect(gallery.locator("iframe[data-interaction-ready]")).to_have_count(
-        4, timeout=HANDOVER_DEADLINE_MS
-    )
-    page.wait_for_timeout(2_200)
-    target = gallery.locator("#bg-interaction-accept iframe")
-    assert target.content_frame.locator("html").evaluate(
-        """root => {
-                const {asked, heard} = JSON.parse(root.dataset.lfTraffic);
-                return {asked, heard};
-            }"""
-    ) == {"asked": 3, "heard": 3}
-    assert len(failed) == 2
-    passive_roots = [
-        sample_address(frame)
-        for frame in gallery.locator("[data-interaction-frame]").all()
-    ]
-    assert news_requests and not any(
-        request.startswith(root) for request in news_requests for root in passive_roots
-    )
-    errors = consume_browser_errors(page, "leaf: read failed:")
-    assert len(errors) == 2
-
-
-@pytest.mark.parametrize("document_status", [200, 503])
-def test_gallery_reports_sample_document_without_leaf(serve, browser, document_status):
-    """A failed contained page is reported without blocking the other demos."""
-    url = serve_interaction_gallery(serve)
-    context = browser.new_context(reduced_motion="reduce")
-    page = context.new_page()
-
-    allocation = sample_allocation(page, url, "bg-motion-comment-page")
-
-    def fail_inner_document(route):
-        if route.request.url == allocation["url"]:
-            route.fulfill(
-                status=document_status,
-                content_type="text/html",
-                body="<html><body>Unavailable</body></html>",
-            )
-        else:
-            route.continue_()
-
-    page.route(re.compile(r"/api/samples/[^/]+/$"), fail_inner_document)
-    page.goto(f"{url}#bg-interactions", wait_until="domcontentloaded")
-    wait_until_ready(page)
-    gallery = page.locator("#bg-interactions")
-    gallery.get_by_role("tab", name="Send a comment").click()
-    expect(gallery.locator("[data-interaction-status]")).to_have_text("Could not play")
-    expect(gallery.locator("[data-interaction-toggle]")).to_be_disabled()
-    gallery.get_by_role("tab", name="Move a card").click()
-    status = gallery.locator("[data-interaction-status]")
-    toggle = gallery.locator("[data-interaction-toggle]")
-    expect(status).to_have_text("Ready — motion will start only when you press Play")
-    toggle.click()
-    expect(status).to_have_text("Complete", timeout=HANDOVER_DEADLINE_MS)
-    expect(toggle).to_have_text("Replay")
-    expect(toggle).to_be_enabled()
-    consume_browser_errors(page, "503", "The sample document did not start Leaf")
-
-
 def test_every_published_page_stands_as_a_live_page(served_example, browser):
-    """Every artifact starts through Leaf's own document and state boundaries."""
+    """Every artifact starts through Leaf's own document and state boundaries.
+
+    A published workspace owns main and keeps its bounded reading regions: the page
+    does not scroll, and each region scrolls on its own, whether that is a pane's body
+    or the workspace's body itself, as where a side-list queue is the body."""
+    framed = set(framed_root_examples())
     pages = published_pages()
     _, url = served_example(pages[0].stem)
     page = open_page(browser, url)
+    page.set_viewport_size({"width": 1200, "height": 900})
     for source in pages:
         if source != pages[0]:
             _, url = served_example(source.stem)
@@ -2174,9 +1498,32 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
             "revises this private copy. Other examples Install Leaf"
         )
         if source == FEATURE_GALLERY:
-            expect(
-                page.locator("#bg-interactions iframe[data-interaction-ready]")
-            ).to_have_count(4, timeout=HANDOVER_DEADLINE_MS)
+            samples = page.locator("#bg-interactions lf-sample")
+            expect(samples).to_have_count(4)
+            for sample in samples.all():
+                sample.evaluate("async sample => { await sample.ready; }")
+        if source.stem in framed:
+            framed.remove(source.stem)
+            expect(page.locator("body > main.layout-workspace")).to_have_count(1)
+            expect(page.locator("body > main .sitenote")).to_have_count(0)
+            page.wait_for_function(WORKSPACE_REGIONS_SCROLL_ALONE)
+    assert not framed, f"framed examples the sweep never opened: {framed}"
+
+
+WORKSPACE_REGIONS_SCROLL_ALONE = """() => {
+  const page = document.documentElement;
+  const main = document.querySelector('body > main.layout-workspace');
+  const pane = '[data-lf-reading-role="pane"]';
+  const bodyOf = (box) =>
+    [...box.children].find(child => !child.matches('header, footer'));
+  const regions = [
+    ...[...main.children].filter(
+      child => !child.matches('header, footer') && !child.matches(pane)),
+    ...[...main.querySelectorAll(pane)].map(bodyOf),
+  ];
+  return page.scrollHeight === page.clientHeight && regions.length > 0
+    && regions.every(region => getComputedStyle(region).overflowY === 'auto');
+}"""
 
 
 def test_an_example_paints_while_every_stage_of_site_startup_is_held(
@@ -2259,7 +1606,8 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
 
 
 def test_a_published_example_has_no_agent_claim(served_example, browser):
-    """A finished public page claims neither an agent nor an active session."""
+    """A finished public page claims neither an agent nor an active session, and its
+    backend answers the exact projection path the runtime asks for."""
     page_dir, url = served_example("triage-board")
     page = open_page(browser, url)
     expect(page.locator(".lf-banner .lf-status-text")).to_have_text(
@@ -2279,10 +1627,26 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
         "agent": "The agent",
         "install_url": "/#install",
     }
-    assert state["browser"]["tasks"] == []
+    assert state["browser"]["todos"] == []
     assert state["session_alive"] is None
     assert not state["listening"]
     assert not (page_dir / "service.json").exists()
+
+    # The page backend answers the exact projection path the runtime asks for.
+    answer = page.evaluate(
+        """async () => {
+              const state = await fetch('api/state').then(response => response.json());
+              const revision = state.active.revision;
+              const through = state.browser.basis.through_seq;
+              const response = await fetch(
+                `api/view?revision=${revision}&through_seq=${through}`,
+              );
+              return {status: response.status, through, body: await response.json()};
+            }"""
+    )
+    assert answer["status"] == 200
+    assert answer["body"]["browser"]["basis"] == {"through_seq": answer["through"]}
+    assert set(answer["body"]["browser"]["views"]) == {"1"}
 
 
 def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
@@ -2339,7 +1703,8 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
 
 
 def test_shipped_data_opens_in_its_package_projection(site, served_example, browser):
-    """The page backend delivers package data through the live state contract."""
+    """The page backend delivers package data through the live state contract, and
+    the page counts every Ask it declares."""
     stored = data_model.source_file(
         site / "examples" / "command-hub", "atlas-worktrees"
     )
@@ -2358,6 +1723,9 @@ def test_shipped_data_opens_in_its_package_projection(site, served_example, brow
             "xpath=following-sibling::dd[1]"
         )
     ).to_have_text("running")
+    # The inventory includes request Decisions beside state Asks.
+    expect_asks_answered(page, "0/5")
+    expect_banner_control_offered(page.locator(".lf-queue"))
 
 
 def test_a_comment_persists_without_inventing_an_agent_reply(served_example, browser):
@@ -2406,15 +1774,6 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
     expect(thread.locator(".lf-msg.agent")).to_have_count(0)
 
 
-def test_the_published_page_counts_every_declared_ask(served_example, browser):
-    """The inventory includes request Decisions beside state Asks."""
-    _, url = served_example("command-hub")
-    page = open_page(browser, url)
-    decisions = page.locator(".lf-queue")
-    expect_asks_answered(page, "0/5")
-    expect_banner_control_offered(decisions)
-
-
 def test_a_published_decision_survives_reload(served_example, browser):
     """A published example uses Leaf's durable log rather than browser-only state."""
     _, url = served_example("heat-loss")
@@ -2432,25 +1791,6 @@ def test_a_published_decision_survives_reload(served_example, browser):
     wait_until_ready(page)
     expect_asks_answered(page, "1/1")
     assert "heat-opt-floor" in page.evaluate(chosen)
-
-
-def test_the_page_backend_answers_the_exact_projection_path(served_example, browser):
-    _, url = served_example("triage-board")
-    page = open_page(browser, url)
-    answer = page.evaluate(
-        """async () => {
-              const state = await fetch('api/state').then(response => response.json());
-              const revision = state.active.revision;
-              const through = state.browser.basis.through_seq;
-              const response = await fetch(
-                `api/view?revision=${revision}&through_seq=${through}`,
-              );
-              return {status: response.status, through, body: await response.json()};
-            }"""
-    )
-    assert answer["status"] == 200
-    assert answer["body"]["browser"]["basis"] == {"through_seq": answer["through"]}
-    assert set(answer["body"]["browser"]["views"]) == {"1"}
 
 
 def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
@@ -2485,24 +1825,3 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     assert page.evaluate("() => document.scrollingElement.scrollTop") == 0, (
         "the second example opened at the offset left on the first"
     )
-
-
-@pytest.mark.parametrize("scheme", ["light", "dark"])
-def test_the_site_takes_its_palette_from_the_theme(site, hosted, browser, scheme):
-    page = browser.new_page(color_scheme=scheme)
-    for name in site_build.PRODUCT_ROUTES:
-        page.goto(product_url(hosted, name), wait_until="load")
-        assert (
-            page.evaluate("getComputedStyle(document.body).backgroundColor")
-            == (PAPER[scheme])
-        ), name
-
-
-def test_the_pages_fit_a_phone(site, hosted, browser):
-    """Nothing scrolls sideways at 390px — the nav wraps, the screenshots scale,
-    and a command too long for the column scrolls inside its own block."""
-    page = browser.new_page(viewport=PHONE)
-    for name in site_build.PRODUCT_ROUTES:
-        page.goto(product_url(hosted, name), wait_until="load")
-        overflow = root_overflow(page)
-        assert overflow == 0, f"{name} scrolls {overflow}px sideways on a phone"

@@ -119,7 +119,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
         if tasks := work.durable.log.owed:
             named = "; ".join(f"{task['id']} ({task['title']})" for task in tasks)
             raise Refused(
-                f"{len(tasks)} open task{'s' if len(tasks) != 1 else ''}: {named}. "
+                f"{len(tasks)} open to-do{'s' if len(tasks) != 1 else ''}: {named}. "
                 "End each before idling with "
                 '`leaf task end <page> <id> done "<where the result is>"`, or '
                 '`dropped "<why>"`.'
@@ -343,9 +343,9 @@ class Watch:
         watch_state = page.watch_state(self.harness)
         status = observed if watch_state == "lost" else page.status
         live = status["state"] != "idle"
-        batch = (
-            unacknowledged(page.events, page.cursor) if watch_state != "lost" else []
-        )
+        from .delivery import deliverable
+
+        batch = deliverable(page) if watch_state != "lost" else []
         service = read_json(page_dir / SERVICE_FILE)
         enabled = bool(service and service["enabled"])
         key, now, revive = str(page_dir), time.time(), False
@@ -559,8 +559,6 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
     the next immutable delivery; exit 2 names why the watch ended. A refused
     receipt raises before a watch starts, leaving that page's cursor unchanged.
     """
-    if page_dir is not None and ack is not None:
-        raise ValueError("PAGE and --ack cannot be used together")
     received = []
     if ack is not None:
         from .delivery import receive_delivery
@@ -677,10 +675,12 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
             watch.await_news(mark)
     finally:
         watch.release()
+    from .delivery import deliverable
+
     # Input admitted while this watch held the lease was not nudged, so now the
     # lease is gone, any such input is nudged as admission would have.
     for page_dir in owned_pages(harness.session):
         with contextlib.suppress(FileNotFoundError), PageTransaction(page_dir) as page:
-            if wake_inputs(page, unacknowledged(page.events, page.cursor)):
+            if wake_inputs(page, deliverable(page)):
                 nudge_unwatched(page)
     return None

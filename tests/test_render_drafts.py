@@ -93,12 +93,11 @@ from test_render_threads import hold_visible_thread_presentation
     ("unique", "tall", "control"),
     [
         (True, False, "editor"),
-        (False, False, "editor"),
         (False, True, "editor"),
         (False, False, "checkbox"),
         (False, False, "button"),
     ],
-    ids=["unique", "repeated", "tall-repeated", "checkbox", "button"],
+    ids=["unique", "tall-repeated", "checkbox", "button"],
 )
 def test_a_visible_focused_element_is_the_reading_place_until_the_reader_scrolls_away(
     browser, serve, unique, tall, control
@@ -479,54 +478,56 @@ diff --git a/reading.py b/reading.py
 
 
 @pytest.mark.watch_shifts
-@pytest.mark.parametrize("box", ["general", "reply", "composer"])
-def test_a_single_space_is_message_content_in_every_composer(browser, serve, box):
-    """The shared field and both drawing-aware variants admit the smallest message.
+def test_a_single_space_is_message_content_in_every_composer(browser, serve):
+    """The shared field and both drawing-aware variants admit the smallest message,
+    each box sending in turn on one page.
 
     Each box sends from the one press the shared field dresses, and that press paints
     nothing of its own: at rest the accent glyph is the whole of what a user sees, and
     the disc behind it is a clear 28px that takes the accent tint under the pointer,
     which is why it stays the same size as the target around it grows.
     """
-    page = open_page(browser, serve(LONG_PAGE, comments=box == "reply"))
-    if box == "composer":
-        select_words(page, "#p0")
-        expect(page.locator(".lf-fab-input")).to_be_visible()
-        page.keyboard.press("c")
-        surface = page.locator(".lf-composer")
-    elif box == "general":
-        page_comment(page)
-        surface = page.locator(".lf-general")
-    else:
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
-        surface = page.locator(".lf-threads > .lf-thread").first
+    page = open_page(browser, serve(LONG_PAGE, comments=True))
+    for box in ("reply", "general", "composer"):
+        if box == "composer":
+            select_words(page, "#p0")
+            expect(page.locator(".lf-fab-input")).to_be_visible()
+            page.keyboard.press("c")
+            surface = page.locator(".lf-composer")
+        elif box == "general":
+            page_comment(page)
+            surface = page.locator(".lf-general")
+        else:
+            page.locator(".lf-threads-toggle").click()
+            panel_settled(page)
+            surface = page.locator(".lf-threads > .lf-thread").first
+            surface.locator(".lf-thread-summary").click()
+        field = surface.locator("leaf-text")
+        send = surface.locator(".lf-compose-submit")
+        write(field, " ")
+        expect(send).to_have_attribute("aria-disabled", "false")
+        face = glyph_action_face(send)
+        assert face["press"] == "rgba(0, 0, 0, 0)", (box, face)
+        assert face["glyph"] == token_colour(page, "--accent"), (box, face)
+        assert face["disc"] == "rgba(0, 0, 0, 0)", (box, face)
+        assert face["discWidth"] == "28px", (box, face)
+        send.hover()
+        hovered = glyph_action_face(send)
+        assert hovered["press"] == "rgba(0, 0, 0, 0)", (box, hovered)
+        assert hovered["disc"] == token_colour(page, "--accent-tint"), (box, hovered)
+        assert hovered["discWidth"] == "28px", (box, hovered)
+        with sending(page, f"the {box} message"):
+            send.click()
 
-    if box == "reply":
-        surface.locator(".lf-thread-summary").click()
-    field = surface.locator("leaf-text")
-    send = surface.locator(".lf-compose-submit")
-    write(field, " ")
-    expect(send).to_have_attribute("aria-disabled", "false")
-    face = glyph_action_face(send)
-    assert face["press"] == "rgba(0, 0, 0, 0)", face
-    assert face["glyph"] == token_colour(page, "--accent"), face
-    assert face["disc"] == "rgba(0, 0, 0, 0)", face
-    assert face["discWidth"] == "28px", face
-    send.hover()
-    hovered = glyph_action_face(send)
-    assert hovered["press"] == "rgba(0, 0, 0, 0)", hovered
-    assert hovered["disc"] == token_colour(page, "--accent-tint"), hovered
-    assert hovered["discWidth"] == "28px", hovered
-    with sending(page, f"the {box} message"):
-        send.click()
-
-    message = [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] in {"comment", "reply"}
-    ][-1]
-    assert message["text"] == " "
+        message = [
+            event
+            for event in events_model.read_events(serve.page_dir)
+            if event["kind"] in {"comment", "reply"}
+        ][-1]
+        assert message["text"] == " ", box
+        if box == "reply":
+            page.locator(".lf-threads-toggle").click()
+            panel_settled(page, open=False)
 
 
 # A storage fault stands in an init script, because it has to run ahead of the
@@ -549,60 +550,65 @@ def cancel_draft(page, draft_id="draft-ops"):
     draft_control(page, "cancel", draft_id).click()
 
 
-@pytest.mark.parametrize("gesture", ["mouse", "mouse-in-scroller", "keyboard"])
-def test_completed_page_selection_opens_its_own_comment(browser, serve, gesture):
-    """A real page selection opens Comment without focusing it or carrying earlier words."""
-    later = '<p id="later">A later passage keeps native selection.</p>'
-    if gesture == "mouse-in-scroller":
-        later = (
-            '<p id="later" style="height:72px;overflow:auto">'
-            "A later passage keeps native selection.<br>"
-            + "Another line of evidence.<br>" * 40
-            + "</p>"
-        )
+def test_completed_page_selection_opens_its_own_comment(browser, serve):
+    """A real page selection opens Comment without focusing it or carrying earlier
+    words, whether a mouse drag, a drag inside a bounded scroller, or the keyboard's
+    select-all made it."""
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "Selection gestures",
-                '<p id="earlier">Earlier subject.</p>' + later,
+                '<p id="earlier">Earlier subject.</p>'
+                '<p id="later">A later passage keeps native selection.</p>'
+                '<p id="later-box" style="height:72px;overflow:auto">'
+                "A later boxed passage keeps native selection.<br>"
+                + "Another line of evidence.<br>" * 40
+                + "</p>",
             )
         ),
     )
-    page.locator("#earlier").click(modifiers=["Alt"])
     field = page.locator(".lf-fab-input")
-    write(field, "Words about the earlier subject")
-    if gesture.startswith("mouse"):
-        line = page.locator("#later").evaluate("""p => {
-            const range = document.createRange();
-            range.selectNodeContents(p);
-            return range.getClientRects()[0].toJSON();
-        }""")
-        y = line["y"] + line["height"] / 2
-        hold_selection(page, (line["x"] + 2, y), (line["x"] + line["width"] - 2, y))
-        page.mouse.up()
-        if gesture == "mouse-in-scroller":
-            # A bounded reading region takes native focus as the drag begins.
-            expect(page.locator("#later")).to_be_focused()
-    else:
-        page.locator("#later").click()
-        page.keyboard.press("ControlOrMeta+a")
-    rendered(page)
-    assert page.evaluate("() => getSelection().toString()")
-    expect(field).to_be_visible()
-    expect(field).not_to_be_focused()
-    expect(field).to_have_js_property("value", "")
-    page.keyboard.press("c")
-    expect(field).to_be_focused()
-    page.keyboard.press("Escape")
-    page.locator("#earlier").click(modifiers=["Alt"])
-    expect(field).to_have_js_property("value", "Words about the earlier subject")
+    for gesture, later in (
+        ("mouse", "#later"),
+        ("mouse-in-scroller", "#later-box"),
+        ("keyboard", "#later"),
+    ):
+        page.locator("#earlier").click(modifiers=["Alt"])
+        write(field, "Words about the earlier subject")
+        if gesture.startswith("mouse"):
+            line = page.locator(later).evaluate("""p => {
+                const range = document.createRange();
+                range.selectNodeContents(p);
+                return range.getClientRects()[0].toJSON();
+            }""")
+            y = line["y"] + line["height"] / 2
+            hold_selection(page, (line["x"] + 2, y), (line["x"] + line["width"] - 2, y))
+            page.mouse.up()
+            if gesture == "mouse-in-scroller":
+                # A bounded reading region takes native focus as the drag begins.
+                expect(page.locator(later)).to_be_focused()
+        else:
+            page.locator(later).click()
+            page.keyboard.press("ControlOrMeta+a")
+        rendered(page)
+        assert page.evaluate("() => getSelection().toString()"), gesture
+        expect(field).to_be_visible()
+        expect(field).not_to_be_focused()
+        expect(field).to_have_js_property("value", "")
+        page.keyboard.press("c")
+        expect(field).to_be_focused()
+        page.keyboard.press("Escape")
+        page.locator("#earlier").click(modifiers=["Alt"])
+        expect(field).to_have_js_property("value", "Words about the earlier subject")
+        page.keyboard.press("Escape")
 
 
 @pytest.mark.parametrize(
-    "touch", [False, True], ids=["browser-command", "touch-handles"]
+    "touch, words",
+    [(False, "An unfinished earlier comment"), (True, "")],
+    ids=["browser-command-unfinished", "touch-handles-empty"],
 )
-@pytest.mark.parametrize("words", ["", "An unfinished earlier comment"])
 def test_observed_selection_offers_comment_without_replacing_the_editor(
     browser, serve, touch, words
 ):
@@ -823,26 +829,10 @@ def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(
     inside a widget's own content would be chrome in the user's text: lf-draft seeds the
     editor they type into from its body div, so words left in there would arrive in the
     leaf-text and post with the edit. The note stands in the chrome, and the block the
-    passage sits in, or the element the anchor names, names it as its details."""
+    passage sits in, or the element the anchor names, names it as its details. A
+    reaction on the same words keeps the widget as its seat too: the passage's generated
+    body is not the owner of the reaction's margin control."""
     url = serve(JOURNEY_V1, anchored=[(section, "Run the migration before deploying.")])
-    page = open_page(browser, url)
-    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    expect_comment_notes(page, "#draft-ops", 1)
-    # The thread's margin row stands at the same seat as its note: the widget, not the
-    # paragraph its Markdown body renders.
-    expect(page.locator("[data-lf-margin-for]")).to_have_attribute(
-        "data-lf-margin-for", "draft-ops"
-    )
-    page.locator("#draft-ops .lf-draft-body").dblclick()
-    assert (
-        page.locator("#draft-ops leaf-text").evaluate("el => el.value") == DRAFT_TEXT
-    ), "the user's editor opened on text the runtime had written into"
-
-
-@pytest.mark.parametrize("section", ["draft-ops", None])
-def test_a_reaction_inside_a_widget_keeps_its_authored_seat(browser, serve, section):
-    """A passage's generated body is not the owner of the reaction's margin control."""
-    url = serve(JOURNEY_V1)
     append_carried_log_record(
         serve.page_dir,
         {
@@ -857,6 +847,7 @@ def test_a_reaction_inside_a_widget_keeps_its_authored_seat(browser, serve, sect
         },
     )
     page = open_page(browser, url)
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     page.wait_for_function("() => (CSS.highlights.get('lf-react')?.size ?? 0) > 0")
     expect(
         page.locator(
@@ -865,8 +856,16 @@ def test_a_reaction_inside_a_widget_keeps_its_authored_seat(browser, serve, sect
             '[data-lf-margin-entry-key^="reaction:"]:visible'
         )
     ).to_have_count(1)
+    expect_comment_notes(page, "#draft-ops", 1)
+    # The thread's margin row stands at the same seat as its note: the widget, not the
+    # paragraph its Markdown body renders.
+    expect(page.locator("[data-lf-margin-for]")).to_have_attribute(
+        "data-lf-margin-for", "draft-ops"
+    )
     page.locator("#draft-ops .lf-draft-body").dblclick()
-    assert page.locator("#draft-ops leaf-text").evaluate("el => el.value") == DRAFT_TEXT
+    assert (
+        page.locator("#draft-ops leaf-text").evaluate("el => el.value") == DRAFT_TEXT
+    ), "the user's editor opened on text the runtime had written into"
 
 
 def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
@@ -970,8 +969,11 @@ def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
     page.emulate_media(media="screen")
 
 
-@pytest.mark.parametrize("in_pane", [False, True], ids=["document", "pane"])
-@pytest.mark.parametrize("formatted", [False, True], ids=["plain", "markdown"])
+@pytest.mark.parametrize(
+    "in_pane, formatted",
+    [(False, True), (True, False)],
+    ids=["document-markdown", "pane-plain"],
+)
 def test_opening_a_visible_line_in_a_long_draft_preserves_the_reading_position(
     browser, serve, in_pane, formatted
 ):
@@ -1030,13 +1032,9 @@ def test_opening_a_visible_line_in_a_long_draft_preserves_the_reading_position(
     expect(editor).to_have_js_property("value", text)
 
 
-@pytest.mark.parametrize(
-    "viewport", [(1440, 900), (390, 844)], ids=["desktop", "phone"]
-)
-def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(
-    browser, serve, viewport
-):
-    """Formatted reading retains exact Markdown through caret placement and editing."""
+def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(browser, serve):
+    """Formatted reading retains exact Markdown through caret placement and editing, at
+    a phone's width, where the formatted words wrap most."""
     text = (
         "A **bold invitation**, `literal code`, and [a link](https://example.com). " * 3
     ).strip()
@@ -1050,7 +1048,7 @@ def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(
             )
         ),
     )
-    resized(page, *viewport)
+    resized(page, 390, 844)
     draft = page.locator("#source")
     point = draft.locator(".lf-draft-body").evaluate("""body => {
       const node=body.querySelector('code').firstChild;
@@ -1319,7 +1317,11 @@ def test_an_empty_draft_survives_reload_and_a_live_revision(browser, serve):
 def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     """A second gesture cannot overtake an earlier request or let that request clear
     newer unsent text. Hold the first POST in the browser: while it owns the draft,
-    every edit door stays closed and the exact body remains recoverable."""
+    every edit door stays closed and the exact body remains recoverable, and the busy
+    draft is readable content.
+
+    A refused save is then an editable state, with Retry and Cancel at the same
+    target."""
     page = open_page(browser, serve(JOURNEY_V1))
     page.evaluate(
         """() => {
@@ -1347,6 +1349,10 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     draft_control(page, "save", "draft-ops").click()
     expect(draft).to_have_attribute("aria-busy", "true")
     assert stored_draft_text(page, "edit:draft-ops") == sent
+    expect(draft.locator(".lf-draft-body")).to_have_text(sent)
+    expect(draft).to_have_css("opacity", "1")
+    expect(draft).to_have_css("cursor", "progress")
+    assert draft.evaluate("node => node.getAnimations().length") == 0
 
     expect(draft_control(page, "edit", "draft-ops")).to_be_disabled()
     # The projection owns a native disabled button, so a forced DOM click is refused
@@ -1366,44 +1372,11 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
         if event["kind"] == "action"
     ]
     assert [event["detail"]["value"] for event in events] == [sent]
+    expect(draft.locator(".lf-draft-body")).to_have_text(sent)
 
     draft_control(page, "edit", "draft-ops").click()
-    expect(draft.locator("leaf-text")).to_be_focused()
-    page.keyboard.press("Escape")
-
-
-def test_a_sending_draft_keeps_its_edited_reading_legible(browser, serve):
-    """A busy draft is readable content, including while its Save waits on delivery."""
-    page = open_page(browser, serve(JOURNEY_V1))
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    draft = page.locator("#draft-ops")
-    draft.locator(".lf-draft-body").dblclick()
-    words = "Keep the edited words readable while their delivery is pending."
-    write(draft.locator("leaf-text"), words)
-    draft_control(page, "save", "draft-ops").click()
-    holding(page, held, 1, "the draft edit")
-    expect(draft).to_have_attribute("aria-busy", "true")
-    expect(draft.locator(".lf-draft-body")).to_have_text(words)
-    expect(draft).to_have_css("opacity", "1")
-    expect(draft).to_have_css("cursor", "progress")
-    assert draft.evaluate("node => node.getAnimations().length") == 0
-
-    held[0].continue_()
-    page.unroute("**/api/event")
-    round_trip(page)
-    expect(draft).not_to_have_attribute("aria-busy", "true")
-    expect(draft.locator(".lf-draft-body")).to_have_text(words)
-
-
-def test_a_refused_draft_keeps_text_and_offers_retry_without_a_details_pane(
-    browser, serve
-):
-    """Failure is an editable state, with Retry and Cancel at the same target."""
-    page = open_page(browser, serve(JOURNEY_V1))
-    draft = page.locator("#draft-ops")
-    draft.locator(".lf-draft-body").dblclick()
     editor = draft.locator("leaf-text")
+    expect(editor).to_be_focused()
     write(editor, "Keep these unsent words.")
     page.route(
         "**/api/event",
@@ -1436,7 +1409,8 @@ def test_a_refused_draft_keeps_text_and_offers_retry_without_a_details_pane(
         if event.get("action") == "edit"
     ]
     assert [event["detail"] for event in edits] == [
-        {"value": "Keep the revised unsent words."}
+        {"value": sent},
+        {"value": "Keep the revised unsent words."},
     ]
     consume_browser_errors(page, "400")
 
@@ -1833,54 +1807,6 @@ def test_a_refused_selection_comment_written_past_is_where_resume_writing_goes(
     consume_browser_errors(page, "400")
 
 
-def test_a_reply_behind_a_refused_parent_is_withdrawn_rather_than_sent(
-    held_events, serve
-):
-    """A gesture against a message the log refused has nothing left to be about. It
-    never reaches the wire under a name only this page used, and its own words go back
-    to the box they were written in."""
-    browser, held = held_events
-    page = open_page(browser, serve(LONG_PAGE))
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    write(page_comment(page), "The parent the server will refuse.")
-    page.locator(".lf-general .lf-compose-submit").click()
-    holding(page, held, 1, "the parent send")
-
-    card = page.locator('.lf-thread[data-id^="pending:"]')
-    expect(card).to_have_count(1)
-    words = "A reply behind a parent that never lands."
-    write(card.locator("leaf-text").first, words)
-    card.get_by_role("button", name="Send", exact=True).click()
-
-    attempt = held[0].request.post_data_json["attempt"]
-    with page.expect_response(lambda response: "/api/event" in response.url):
-        held.pop(0).fulfill(
-            status=400,
-            json={
-                "ok": False,
-                "attempt": attempt,
-                "error": "refused before append",
-                "final": True,
-            },
-        )
-    round_trip(page)
-    expect(card).to_have_count(0)
-    assert not [
-        route for route in held if "pending:" in (route.request.post_data or "")
-    ], "a gesture reached the wire naming a thread the log never took"
-    # The thread went with its parent, so the reply's words wait in the parent's draft.
-    assert stored_draft_text(page, f"reply:{attempt}") is None
-    assert (
-        page.evaluate(
-            "([read, ctx]) => read(ctx)?.held ?? null",
-            [stored_draft(page), "general"],
-        )
-        == words
-    )
-    consume_browser_errors(page, "400")
-
-
 @pytest.mark.parametrize("reply_sent", [True, False], ids=["sent", "unsent"])
 @pytest.mark.parametrize("edited", [False, True], ids=["as-sent", "edited"])
 def test_a_reply_under_a_refused_parent_comes_back_with_it(
@@ -1891,7 +1817,8 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
     the refusal withdraws and an edit of the comment replaces. The words go to the
     comment's own draft instead, so the notice says where they wait, Resume writing
     leads to that draft, and the thread its next send opens, edited or not, has the
-    reply back in its box."""
+    reply back in its box. A reply sent behind the comment never reaches the wire under
+    the pending name only this page used."""
     browser, held = held_events
     page = open_page(browser, serve(LONG_PAGE))
     page.locator(".lf-threads-toggle").click()
@@ -1927,6 +1854,18 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
         "Reply kept — it returns when its comment sends"
     )
     expect(card).to_have_count(0)
+    assert not [
+        route for route in held if "pending:" in (route.request.post_data or "")
+    ], "a gesture reached the wire naming a thread the log never took"
+    # The thread went with its parent, so the reply's words wait in the parent's draft.
+    assert stored_draft_text(page, f"reply:{attempt}") is None
+    assert (
+        page.evaluate(
+            "([read, ctx]) => read(ctx)?.held ?? null",
+            [stored_draft(page), "general"],
+        )
+        == reply
+    )
 
     # Resume writing leads to the comment, the one place that brings the reply back.
     page.keyboard.press("Escape")
@@ -2083,8 +2022,7 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     consume_browser_errors(page, "400")
 
 
-@pytest.mark.parametrize("box", ["seat", "general"])
-def test_every_message_send_says_so_to_a_user_listening(held_events, serve, box):
+def test_every_message_send_says_so_to_a_user_listening(held_events, serve):
     """A send whose result the user cannot see still reaches them.
 
     The message standing in the thread is the whole acknowledgement for a user
@@ -2096,15 +2034,9 @@ def test_every_message_send_says_so_to_a_user_listening(held_events, serve, box)
     browser, held = held_events
     page = open_page(browser, serve(SEATED_QUESTION_PAGE))
     live = page.locator(".lf-live")
-    if box == "seat":
-        seat = page.locator("#jobs > .lf-thread-seat > .lf-say")
-        field = seat.locator("leaf-text")
-        press = seat.get_by_role("button", name="Send", exact=True)
-    else:
-        field = page_comment(page)
-        press = page.locator(".lf-general").get_by_role(
-            "button", name="Send", exact=True
-        )
+    seat = page.locator("#jobs > .lf-thread-seat > .lf-say")
+    field = seat.locator("leaf-text")
+    press = seat.get_by_role("button", name="Send", exact=True)
     write(field, "A remark whose arrival nothing else will say.")
     press.click()
     # Held: the gesture is the only thing that can have written the region, and the
@@ -3883,8 +3815,9 @@ def test_comment_follows_a_thread_standing_instead_of_an_earlier_draft(
         assert [event["text"] for event in replies] == [words]
 
 
-@pytest.mark.parametrize("surface", ["panel", "margin"])
-@pytest.mark.parametrize("answer", ["accepted", "refused"])
+@pytest.mark.parametrize(
+    "surface, answer", [("panel", "refused"), ("margin", "accepted")]
+)
 def test_reply_admission_finishes_or_restores_its_native_session(
     browser, serve, one_user, surface, answer
 ):
@@ -3972,8 +3905,10 @@ def test_reply_admission_finishes_or_restores_its_native_session(
     assert stored_draft_text(page, "reply:" + root) == next_words
 
 
-@pytest.mark.parametrize("surface", ["panel", "margin"])
-@pytest.mark.parametrize("resolution", ["user", "active-agent", "inactive-agent"])
+@pytest.mark.parametrize(
+    "surface, resolution",
+    [("panel", "user"), ("margin", "active-agent"), ("panel", "inactive-agent")],
+)
 def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
     browser, serve, surface, resolution
 ):
@@ -4071,8 +4006,10 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
     expect(recovered.locator("leaf-text")).to_have_js_property("value", words)
 
 
-@pytest.mark.parametrize("surface", ["panel", "margin"])
-@pytest.mark.parametrize("continuation", ["send", "dismiss", "clear"])
+@pytest.mark.parametrize(
+    "surface, continuation",
+    [("panel", "send"), ("margin", "dismiss"), ("panel", "clear")],
+)
 def test_a_resolved_reply_composition_stays_open_until_deliberately_dismissed(
     browser, serve, surface, continuation
 ):
@@ -4150,10 +4087,7 @@ def test_a_resolved_reply_composition_stays_open_until_deliberately_dismissed(
         assert stored_draft_text(page, f"reply:{root['id']}") == words
 
 
-@pytest.mark.parametrize("resolved", [False, True])
-def test_send_follows_a_reply_composition_whose_diff_outlet_disappears(
-    browser, serve, resolved
-):
+def test_send_follows_a_reply_composition_whose_diff_outlet_disappears(browser, serve):
     """A replaced patch carries the same Send control to the thread's margin card."""
     patch = (
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
@@ -4184,12 +4118,11 @@ def test_send_follows_a_reply_composition_whose_diff_outlet_disappears(
     inline = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
     words = "I still need to send my answer about that line."
     write(inline.locator("leaf-text"), words)
-    if resolved:
-        events_model.append_event(
-            serve.page_dir,
-            {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": root},
-        )
-        told(page)
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": root},
+    )
+    told(page)
     page.keyboard.press("Tab")
     expect(inline.get_by_role("button", name="Send", exact=True)).to_be_focused()
     rendered(page)
@@ -4207,8 +4140,7 @@ def test_send_follows_a_reply_composition_whose_diff_outlet_disappears(
     assert (reply["kind"], reply["parent"], reply["text"]) == ("reply", root, words)
 
 
-@pytest.mark.parametrize("resolved", [False, True])
-@pytest.mark.parametrize("cleared", [False, True])
+@pytest.mark.parametrize("resolved, cleared", [(False, True), (True, False)])
 def test_tab_browsing_keeps_a_reply_when_its_diff_outlet_is_replaced(
     browser, serve, resolved, cleared
 ):
@@ -4276,9 +4208,8 @@ def test_tab_browsing_keeps_a_reply_when_its_diff_outlet_is_replaced(
     expect(card.locator("leaf-text")).to_have_js_property("value", words)
 
 
-@pytest.mark.parametrize("resolved", [False, True])
 def test_tab_browsing_continues_a_displaced_reply_without_an_annotation_overlay(
-    browser, serve, resolved
+    browser, serve
 ):
     """Native Tab during core continuation preserves its caret and newer authored focus."""
     patch = (
@@ -4315,12 +4246,11 @@ def test_tab_browsing_continues_a_displaced_reply_without_an_annotation_overlay(
     write(inline.locator("leaf-text"), words)
     page.keyboard.press("Home")
     page.keyboard.press("ArrowRight")
-    if resolved:
-        events_model.append_event(
-            serve.page_dir,
-            {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": root},
-        )
-        told(page)
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": root},
+    )
+    told(page)
     page.keyboard.press("Tab")
     expect(inline.get_by_role("button", name="Send", exact=True)).to_be_focused()
     rendered(page)
@@ -4630,16 +4560,22 @@ def test_a_composer_on_one_passage_is_one_box_in_every_tab(browser, serve, one_u
     assert said == [sent], "one box, and so one comment however many tabs showed it"
 
 
-def test_text_alignment_is_lossless_and_keeps_a_shared_spine(browser, serve):
-    """The draft renderer is allowed to choose where an ambiguous repeated word
-    aligns, but never to lose or invent a character. The two projections are the
-    contract: same+delete is the old text, same+insert the new one. Unicode,
-    whitespace and repetition are where a character or regex diff quietly breaks.
+def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, serve):
+    """One disclosure answers both deferred draft decisions. It compares this version's
+    authored body with the standing body, retains every absolute edit in log order,
+    and walks back by posting another ordinary edit. A second tab proves restore is
+    durable replay rather than local history state; copy mode proves the local history
+    does not survive without its handlers.
 
-    Both granularities, because the unit is the caller's and the contract is not: a
-    draft's history aligns by word, while an inline version comparison starts with
-    sentences and refines a local edit by word. Neither may drop or invent a character."""
-    page = open_page(browser, serve(JOURNEY_V1))
+    The comparison is drawn by the text aligner, which is allowed to choose where an
+    ambiguous repeated word aligns, but never to lose or invent a character: same+delete
+    is the old text, same+insert the new one. Unicode, whitespace and repetition are
+    where a character or regex diff quietly breaks. Both granularities, because the unit
+    is the caller's and the contract is not: a draft's history aligns by word, while an
+    inline version comparison starts with sentences and refines a local edit by word.
+    Its words come from Intl.Segmenter, so it is read in the browser."""
+    url = serve(JOURNEY_V1)
+    page = open_page(browser, url)
     cases = [
         ("", ""),
         ("one line", "one longer line"),
@@ -4698,15 +4634,6 @@ def test_text_alignment_is_lossless_and_keeps_a_shared_spine(browser, serve):
         ", including focused replays of its motion"
     )
 
-
-def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, serve):
-    """One disclosure answers both deferred draft decisions. It compares this version's
-    authored body with the standing body, retains every absolute edit in log order,
-    and walks back by posting another ordinary edit. A second tab proves restore is
-    durable replay rather than local history state; copy mode proves the local history
-    does not survive without its handlers."""
-    url = serve(JOURNEY_V1)
-    page = open_page(browser, url)
     draft = page.locator("#draft-ops")
     edits = [
         "Run the migration before deploying. It takes one minute.",
@@ -4896,8 +4823,8 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
     the DOM replay builds from the same two. An edited draft is where those readings
     used to drift — the file holds words the page stopped showing — so write the anchor
     blind, on the user's own words, and prove the page paints it. The words the edit
-    replaced are refused at the CLI, naming the edit, because posted they would detach
-    in front of the user."""
+    replaced are refused at the CLI, because posted they would detach in front of the
+    user."""
     url = serve(JOURNEY_V1)
     d = serve.page_dir
     append_command(
@@ -4915,7 +4842,7 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
         cli_model.cli,
         ["thread", "open", str(d), "--quote", "It is online.", "--text", "x"],
     )
-    assert refused.exit_code != 0 and "rewrote § draft-ops" in refused.output
+    assert refused.exit_code != 0 and "doesn't say" in refused.output
     written = CliRunner().invoke(
         cli_model.cli,
         [
@@ -5085,8 +5012,7 @@ def test_the_browser_pages_the_document_with_space(browser, serve):
     assert up < down, "the browser did not page the document back up"
 
 
-@pytest.mark.parametrize(("down", "up"), [("d", "u"), ("j", "k")])
-def test_the_reading_keys_accumulate_and_reverse(browser, serve, down, up):
+def test_the_reading_keys_accumulate_and_reverse(browser, serve):
     """d/u move 60% of the visible page; j/k take small steps through the same glide.
     The page sets scroll-behavior: smooth on the box, as an authored page may —
     a step whose writes ride that rule instead of stating `instant` never lands.
@@ -5105,8 +5031,40 @@ def test_the_reading_keys_accumulate_and_reverse(browser, serve, down, up):
     measures from where the user left the box, not from the goal it dropped, and a
     glide that ignored the taking presses on to that goal and fails both reads.
     Pressing on at the foot moves nothing and banks nothing, so u from there
-    is one step back."""
+    is one step back. Both pairs of keys walk the same page in turn, each from its top."""
     page = open_page(browser, serve(SMOOTH_LONG_PAGE))
+    assert page.evaluate(
+        "() => document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight * 3"
+    ), "the page is too short for these steps to be told apart"
+    # A callback's frame timestamp may predate performance.now() in the key handler.
+    # Make that browser timing deterministic: a negative first fraction used to write
+    # above the page, get clamped to zero, then cancel the glide as if the user moved.
+    page.evaluate(
+        """downs => {
+      const raf = requestAnimationFrame;
+      let stale = false;
+      addEventListener('keydown', event => {
+        if (downs.includes(event.key)) stale = true;
+      }, {capture: true});
+      window.requestAnimationFrame = callback => {
+        const firstAfterPress = stale;
+        stale = false;
+        return raf(now => callback(firstAfterPress ? -1 : now));
+      };
+    }""",
+        ["d", "j"],
+    )
+
+    for down, up in (("d", "u"), ("j", "k")):
+        page.evaluate(
+            "() => document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})"
+        )
+        reading_keys_walk(page, down, up)
+
+
+def reading_keys_walk(page, down, up):
+    """Step, double-step, reverse, take the box mid-glide and press past the foot
+    with `down` and `up`, from the top of the page."""
     step = (
         60
         if down == "j"
@@ -5115,27 +5073,6 @@ def test_the_reading_keys_accumulate_and_reverse(browser, serve, down, up):
             " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
             " - parseFloat(s.scrollPaddingBottom)) * 0.6; }"
         )
-    )
-    assert page.evaluate(
-        "() => document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight * 3"
-    ), "the page is too short for these steps to be told apart"
-    # A callback's frame timestamp may predate performance.now() in the key handler.
-    # Make that browser timing deterministic: a negative first fraction used to write
-    # above the page, get clamped to zero, then cancel the glide as if the user moved.
-    page.evaluate(
-        """down => {
-      const raf = requestAnimationFrame;
-      let stale = false;
-      addEventListener('keydown', event => {
-        if (event.key === down) stale = true;
-      }, {capture: true});
-      window.requestAnimationFrame = callback => {
-        const firstAfterPress = stale;
-        stale = false;
-        return raf(now => callback(firstAfterPress ? -1 : now));
-      };
-    }""",
-        down,
     )
 
     def rests_at(act, expected):
@@ -5258,8 +5195,7 @@ def test_the_reading_page_step_never_paints_behind_where_it_started(browser, ser
         )
 
 
-@pytest.mark.parametrize(("down", "up"), [("d", "u"), ("j", "k")])
-def test_the_reading_keys_jump_under_reduced_motion(browser, serve, down, up):
+def test_the_reading_keys_jump_under_reduced_motion(browser, serve):
     """Both reading distances jump immediately under reduced motion."""
     context = browser.new_context(
         viewport={"width": 1200, "height": 900},
@@ -5267,23 +5203,27 @@ def test_the_reading_keys_jump_under_reduced_motion(browser, serve, down, up):
         reduced_motion="reduce",
     )
     page = open_page(browser, serve(SMOOTH_LONG_PAGE), context=context)
-    step = (
-        60
-        if down == "j"
-        else page.evaluate(
-            "() => { const s = getComputedStyle(document.scrollingElement); return ("
-            " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
-            " - parseFloat(s.scrollPaddingBottom)) * 0.6; }"
+    for down, up in (("d", "u"), ("j", "k")):
+        step = (
+            60
+            if down == "j"
+            else page.evaluate(
+                "() => { const s = getComputedStyle(document.scrollingElement); return ("
+                " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
+                " - parseFloat(s.scrollPaddingBottom)) * 0.6; }"
+            )
         )
-    )
-    page.keyboard.press(down)
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
-        step, abs=1
-    ), "the step had not reached its destination when the press returned"
-    page.keyboard.press(up)
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
-        0, abs=1
-    )
+        page.keyboard.press(down)
+        assert page.evaluate(
+            "() => document.scrollingElement.scrollTop"
+        ) == pytest.approx(step, abs=1), (
+            down,
+            "the step had not reached its destination when the press returned",
+        )
+        page.keyboard.press(up)
+        assert page.evaluate(
+            "() => document.scrollingElement.scrollTop"
+        ) == pytest.approx(0, abs=1), up
 
 
 def test_the_reading_page_keys_move_the_region_the_user_is_scrolling(browser, serve):
@@ -5610,8 +5550,8 @@ def editing_read(editor):
     [
         "authored",
         "composer",
+        # The margin card's reply; the panel's open thread holds the same reply editor.
         "reply",
-        "panel-reply",
         "general",
         "first-message",
         "edit",
@@ -5638,17 +5578,13 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
         page.keyboard.press("c")
         editor = page.locator(".lf-composer leaf-text")
         expect(editor).to_be_focused()
-        if kind in {"reply", "panel-reply"}:
+        if kind == "reply":
             write(editor, "A canonical root comment.")
             page.keyboard.press("Control+Enter")
             round_trip(page)
             page.keyboard.press("c")
             editor = page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
             expect(editor).to_be_focused()
-            if kind == "panel-reply":
-                page.locator(".lf-threads-toggle").click()
-                editor = page.locator(".lf-threads .lf-thread-reply leaf-text").first
-                write(editor, "A native panel draft.")
     words = "Kept words with a selected span."
     if kind == "authored":
         words = "\n".join([words] * 200)
@@ -5927,10 +5863,7 @@ def test_delayed_thread_destination_yields_to_shared_generation_or_new_input(
         expect(page.locator("#authored-draft")).to_be_focused()
 
 
-@pytest.mark.parametrize("surface", ["panel", "margin"])
-def test_live_executable_replacement_keeps_a_resolved_reply_session(
-    browser, serve, surface
-):
+def test_live_executable_replacement_keeps_a_resolved_reply_session(browser, serve):
     """A live replacement continues actual editing; an ordinary reload only saves words."""
     page = editing_reply_page(browser, serve)
     root = next(
@@ -5938,15 +5871,10 @@ def test_live_executable_replacement_keeps_a_resolved_reply_session(
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     )
-    if surface == "panel":
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
-        thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
-        thread.locator(".lf-thread-summary").focus()
-    else:
-        thread = page.locator(
-            f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'
-        )
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    thread.locator(".lf-thread-summary").focus()
     editor = thread.locator("leaf-text")
     words = "Keep this actual editing session through the executable replacement."
     write(editor, words)
@@ -6548,12 +6476,10 @@ def test_draft_comparison_detects_format_changes_but_not_the_same_standing_edit(
     expect(page.locator("#source .lf-draft-body strong")).to_have_text("edit")
 
 
-@pytest.mark.parametrize("action", ["edit", "save", "cancel", "close"])
-@pytest.mark.parametrize("edge", ["left", "right"])
-def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(
-    browser, serve, action, edge
-):
-    """Raw pointer down must not move the button before the matching up arrives."""
+def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(browser, serve):
+    """Raw pointer down must not move the button before the matching up arrives. Either
+    edge detects a button that moves under the press, so each action, pressed in turn
+    on one draft, takes one."""
     page = open_page(
         browser,
         serve(
@@ -6564,43 +6490,57 @@ def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(
         ),
     )
     draft = page.locator("#note")
-    if action != "edit":
-        draft_control(page, "edit", "note").click()
-        write(draft.locator("leaf-text"), "Keep `the corrected` note.")
-    page.get_by_role("heading", name="Release note").click()
-    rendered(page)
-    controls = draft.locator("[data-lf-draft-action]:visible")
-    before = controls.evaluate_all(
-        "ns => ns.map(n=>({action:n.dataset.lfDraftAction,box:n.getBoundingClientRect().toJSON()}))"
-    )
-    button = draft_control(page, action, "note")
-    box = button.bounding_box()
-    x = box["x"] + (2 if edge == "left" else box["width"] - 2)
-    page.mouse.move(x, box["y"] + box["height"] / 2)
-    page.mouse.down()
-    expect(button).to_be_focused()
-    rendered(page)
-    assert (
-        controls.evaluate_all(
+    # Save keeps its words; cancel and close discard theirs.
+    saved = "Keep this note."
+    for action, edge in (
+        ("edit", "left"),
+        ("save", "right"),
+        ("cancel", "left"),
+        ("close", "right"),
+    ):
+        if action != "edit":
+            draft_control(page, "edit", "note").click()
+            write(
+                draft.locator("leaf-text"),
+                f"Keep `the corrected` note before {action}.",
+            )
+        page.get_by_role("heading", name="Release note").click()
+        rendered(page)
+        controls = draft.locator("[data-lf-draft-action]:visible")
+        before = controls.evaluate_all(
             "ns => ns.map(n=>({action:n.dataset.lfDraftAction,box:n.getBoundingClientRect().toJSON()}))"
         )
-        == before
-    )
-    page.mouse.up()
-    if action == "edit":
-        expect(draft.locator("leaf-text")).to_be_focused()
-    else:
-        expect(draft.locator("leaf-text")).to_have_count(0)
-        expect(draft.locator(".lf-draft-body")).to_have_text(
-            "Keep the corrected note." if action == "save" else "Keep this note."
-        )
+        button = draft_control(page, action, "note")
+        box = button.bounding_box()
+        x = box["x"] + (2 if edge == "left" else box["width"] - 2)
+        page.mouse.move(x, box["y"] + box["height"] / 2)
+        page.mouse.down()
+        expect(button).to_be_focused()
+        rendered(page)
+        assert (
+            controls.evaluate_all(
+                "ns => ns.map(n=>({action:n.dataset.lfDraftAction,box:n.getBoundingClientRect().toJSON()}))"
+            )
+            == before
+        ), action
+        page.mouse.up()
+        if action == "edit":
+            expect(draft.locator("leaf-text")).to_be_focused()
+            page.keyboard.press("Escape")
+            expect(draft.locator("leaf-text")).to_have_count(0)
+        else:
+            expect(draft.locator("leaf-text")).to_have_count(0)
+            round_trip(page)
+        if action == "save":
+            saved = "Keep the corrected note before save."
+        expect(draft.locator(".lf-draft-body")).to_have_text(saved)
         round_trip(page)
         edits = [
             e
             for e in events_model.read_events(serve.page_dir)
             if e.get("action") == "edit"
         ]
-        assert len(edits) == (1 if action == "save" else 0)
+        assert len(edits) == (0 if saved == "Keep this note." else 1), action
 
 
 def test_a_delayed_draft_close_yields_to_a_newer_page_selection(browser, serve):

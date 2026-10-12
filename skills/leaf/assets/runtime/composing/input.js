@@ -54,6 +54,7 @@ import "./text-field.js";
 import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
 import { focusDestination, focused } from "../focus.js";
 import { whileConnected } from "../arrivals.js";
+import { move } from "../dom-move.js";
 import { applicationState } from "../semantic-state.js";
 
 const inputDrafts = new WeakMap();
@@ -411,7 +412,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       if (suffix && !status) {
         keepsText(hintLabel, word);
         keepsText(hintKey, suffix);
-        if (visibleHint.parentNode !== ta) ta.append(visibleHint);
+        if (visibleHint.parentNode !== ta) move(ta, visibleHint, null);
       } else visibleHint.remove();
       const ariaLabel = name();
       if (ariaLabel) keeps(ta, "aria-label", ariaLabel);

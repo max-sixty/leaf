@@ -204,14 +204,15 @@ const bundles = {
   // checked radio joining the source's group or a nested widget activating. The
   // optional cloneElement factory prepares compact native motion previews at both
   // creation sites. Existing dragEl relocations use the shared move primitive,
-  // preserving native state where supported and reordering by insertion elsewhere.
+  // preserving native state where supported and reordering by insertion elsewhere; as
+  // package payload, the bundle takes it from the public widget-api.js.
   // Keep the upstream ESM/autoscroll implementation otherwise intact: the module
   // entry mounts autoscroll, unlike core; complete adds unused swap and multi-drag.
   sortable: () => ({
     out: `${packageVendor("default")}/sortable.esm.js`,
     copy: "sortablejs/modular/sortable.esm.js",
     finish: (source) =>
-      'import {move as leafMove} from "/runtime/dom-move.js";\n' +
+      'import {move as leafMove} from "/runtime/widget-api.js";\n' +
       [
         [
           "ghostEl = dragEl.cloneNode(true);",

@@ -42,12 +42,16 @@
   // fallback the themes give a page without the runtime, such as a tab set's stacked
   // panels or a diagram's source in the column. An uncaught error in code that did
   // load, before the page presents, is a fault too, but the page may still present
-  // with everything it has, so its widgets keep their boxes. Each fault is said once
-  // more as `lf-startup-fault`, which a served page's bootstrap answers by waiting for
-  // a server that can start the page (bootstrap.js); an export has no server to wait
-  // for.
+  // with everything it has, so its widgets keep their boxes. The first fault names the
+  // page and is said once more as `lf-startup-fault`, which a served page's bootstrap
+  // answers by waiting for a server that can start the page (bootstrap.js); an export
+  // has no server to wait for. A later fault only takes the mark off where it is
+  // incomplete. The first is the earliest evidence and a later one is often its
+  // consequence, as a page that cannot read its own words throws the same refusal from
+  // every repaint; the bootstrap's report keeps the first as well.
   const fault = (reason, incomplete, error = null) => {
     if (incomplete) root.toggleAttribute("data-lf-interactive", false);
+    if (root.hasAttribute("data-lf-startup-error")) return;
     root.dataset.lfStartupError = reason;
     // The attribute is the short display reason; this record retains the actual
     // exception before modules load, including for an opaque sample's private port.
@@ -372,7 +376,7 @@
     if (box.localName === "details") return !box.open && child.localName !== "summary";
     return getComputedStyle(box).contentVisibility === "hidden";
   };
-  const residency = () => {
+  const seat = () => {
     const body = document.body;
     if (!body) return false;
     // The page's `main` (passages.js, `pageDocument`), read here before any module runs.
@@ -537,6 +541,94 @@
     // before upgrade the same attributes already provide the final authored box.
     return true;
   };
+  // How far each breakout's holder stands in from the column on each side
+  // (`--lf-indent-l`, `--lf-indent-r`), which the breakout's room counts as its own
+  // (layouts.css): a list item, a list the page resets, a page's own indented block,
+  // whatever moved it, read off the boxes rather than declared by each kind of holder.
+  // Only a column grows a breakout past its holder, so a page whose `main` requests no
+  // column shell (`seat`) carries no reading, and a breakout inside another takes its
+  // holder's width and none of this room. A breakout the browser is not drawing, such
+  // as one in a tab not chosen, is not read, since reading skipped content forces its
+  // style and layout: it keeps its last reading, and one never read stands as if its
+  // holder were the column. Every edge is read before any is written, so the page is
+  // laid out once however many breakouts it holds. Read with the column, so a breakout
+  // parsed before first paint is placed before it paints; one inserted or revealed
+  // later is read as it arrives (content-layout.js).
+  const contentEdges = (element) => {
+    const box = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return {
+      left:
+        box.left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft),
+      right:
+        box.right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight),
+    };
+  };
+  const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
+  // The box a breakout is laid out in: its slot's where a widget slots it, past any
+  // ancestor that draws no box of its own (shadow-tree.js, `renderedParent`).
+  const holderOf = (breakout, main) => {
+    let holder = breakout;
+    do
+      holder = holder.assignedSlot ?? holder.parentElement ?? holder.getRootNode().host;
+    while (holder !== main && getComputedStyle(holder).display === "contents");
+    return holder;
+  };
+  // Returns whether any breakout's indent changed, and the holders it measured, each
+  // with its content box's width and the breakouts it holds, for content-layout.js to
+  // watch: a class or style that pads a holder moves its breakout without inserting
+  // anything. The reading keeps none of them.
+  const indents = () => {
+    const holders = new Map();
+    const main = document.querySelector("body > main");
+    if (!main) return { changed: false, holders };
+    const grows = document.body.hasAttribute("data-lf-column-shell");
+    const readings = [];
+    let column = null;
+    for (const breakout of main.querySelectorAll(BREAKOUT)) {
+      if (breakout.parentElement.closest(BREAKOUT)) continue;
+      if (!grows) {
+        readings.push([breakout, 0, 0]);
+        continue;
+      }
+      if (!breakout.checkVisibility()) continue;
+      column ??= contentEdges(main);
+      const holder = holderOf(breakout, main);
+      const edges = contentEdges(holder);
+      const held = holders.get(holder);
+      if (held) held.breakouts.push(breakout);
+      else
+        holders.set(holder, {
+          width: edges.right - edges.left,
+          breakouts: [breakout],
+        });
+      readings.push([
+        breakout,
+        Math.max(0, Math.round(edges.left - column.left)),
+        Math.max(0, Math.round(column.right - edges.right)),
+      ]);
+    }
+    let changed = false;
+    for (const [breakout, left, right] of readings)
+      for (const [property, length] of [
+        ["--lf-indent-l", left],
+        ["--lf-indent-r", right],
+      ]) {
+        const value = length ? `${length}px` : "";
+        if (breakout.style.getPropertyValue(property) === value) continue;
+        if (!sourceShells.has(breakout))
+          sourceShells.set(breakout, breakout.cloneNode(false));
+        if (value) setRuntimeRootStyle(breakout, property, value);
+        else removeRuntimeRootStyle(breakout, property);
+        changed = true;
+      }
+    return { changed, holders };
+  };
+  const residency = () => {
+    const seated = seat();
+    const { changed, holders } = indents();
+    return { changed: changed || seated, holders };
+  };
 
   // The id a URL fragment spells, for location.hash and for a link's href alike, from
   // the first script on (`named` below) to every module reading a destination
@@ -562,6 +654,7 @@
     runtimeRootStyles: (node) => new Set(runtimeStyles.get(node) ?? []),
     authoredShell: (node) => sourceShells.get(node) ?? sources.get(node) ?? node,
     residency,
+    indents,
     skipped,
     register(tag, render) {
       // The widget loader imports unregistered producers for later revisions and

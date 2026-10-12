@@ -53,7 +53,7 @@ const rowTemplate = (row, activate, finish, end) =>
           id: "queue.row.done",
           keys: ["x"],
           title: "done",
-          description: "Mark this task waiting on you done",
+          description: "Mark this to-do waiting on you done",
           when: () => Boolean(row.done),
           run: () => end(row.key),
         },
@@ -71,7 +71,7 @@ const rowTemplate = (row, activate, finish, end) =>
             data-lf-done=${row.key}
             aria-label=${`Done: ${row.title}`}
             @click=${finish}
-            ${commandsOn("On a task's Done", [
+            ${commandsOn("On a to-do's Done", [
               { id: "queue.done.press", keys: PRESS, title: "mark it done" },
             ])}
           >

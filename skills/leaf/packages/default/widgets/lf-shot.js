@@ -66,6 +66,7 @@ import {
   scopedMediaUrl,
   selectableOffer,
   widgetController,
+  move,
 } from "/runtime/widget-api.js";
 
 let comparing = Promise.resolve();
@@ -93,10 +94,8 @@ customElements.define(
     #frameLabels = new Map();
     #captions = new Map();
     #openers = new Map();
-    #settleDifference;
-    difference = new Promise((resolve) => {
-      this.#settleDifference = resolve;
-    });
+    #difference = Promise.withResolvers();
+    difference = this.#difference.promise;
 
     static observedAttributes = ["alt"];
 
@@ -226,7 +225,7 @@ customElements.define(
               ? `${labels.before} · ${labels.after} below`
               : labels[state],
           );
-          if (label.parentNode !== frame) frame.prepend(label);
+          if (label.parentNode !== frame) move(frame, label, frame.firstChild);
         } else label?.remove();
         if (focus) {
           const image = frame.querySelector("img");
@@ -345,7 +344,7 @@ customElements.define(
       const registered = this.register(shots);
       present(registered);
       void registered.then(() => this.#requestComparison());
-      this.#settleDifference(
+      this.#difference.resolve(
         registered.then((aligned) =>
           aligned
             ? afterPresentation(() => inTurn(() => this.#markDifference(shots)))
@@ -439,13 +438,13 @@ customElements.define(
             title: "show before or after",
           },
         ]);
-        this.insertBefore(comparison, this.#box);
+        move(this, comparison, this.#box);
         this.#comparison = comparison;
         void comparison.updateComplete?.then(() => this.#paint());
       } else if (!enabled && this.#comparison) {
         for (const frame of this.#frames) {
           frame.removeAttribute("slot");
-          this.insertBefore(frame, this.#comparison);
+          move(this, frame, this.#comparison);
         }
         this.#comparison.remove();
         this.#comparison = null;

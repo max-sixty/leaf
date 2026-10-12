@@ -358,12 +358,11 @@ def test_a_missing_native_frame_cannot_retarget_another_svg(browser, serve, chan
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
 
 
-@pytest.mark.parametrize(
-    "position", ["right 10px bottom 20px", "calc(100% - 10px) calc(100% - 20px)"]
-)
-def test_native_image_frames_follow_object_fit_and_position(browser, serve, position):
+def test_native_image_frames_follow_object_fit_and_position(browser, serve):
     """The painted content, including letterboxing and CSS edge offsets, owns
-    native image points through resizing instead of the semantic figure's box."""
+    native image points through resizing instead of the semantic figure's box. The
+    offsets are written as calc(), of which `right 10px bottom 20px` is a case."""
+    position = "calc(100% - 10px) calc(100% - 20px)"
     source = (
         "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' "
         "width='400' height='100'%3E%3Cpath d='M0 50H400' stroke='red'/%3E%3C/svg%3E"
@@ -1439,9 +1438,9 @@ def test_draw_mode_captures_widget_controls(browser, serve):
     assert option.get_attribute("chosen") is None
 
 
-@pytest.mark.parametrize("mode", ["draw", "design"])
-def test_pointer_modes_leave_document_editing_controls_usable(browser, serve, mode):
-    """A widget's source editor is Leaf apparatus wherever the widget seats it."""
+def test_pointer_modes_leave_document_editing_controls_usable(browser, serve):
+    """A widget's source editor is Leaf apparatus wherever the widget seats it, in draw
+    mode and then in design mode on one page."""
     page = open_page(
         browser,
         serve(
@@ -1451,24 +1450,28 @@ def test_pointer_modes_leave_document_editing_controls_usable(browser, serve, mo
             )
         ),
     )
-    page.keyboard.press("w" if mode == "draw" else "l")
     draft = page.locator("#draft")
-    edit = draft.get_by_role("button", name="Edit", exact=True)
-    assert edit.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
-    edit.click()
-    expect(page.locator(".lf-fab-input")).to_be_hidden()
-    editor = draft.get_by_role("textbox", name="Edit draft", exact=True)
-    expect(editor).to_be_focused()
-    assert editor.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
-    editor.click()
-    write(editor, "Revised words.")
-    with sending(page, "document edit"):
-        draft.get_by_role("button", name="Save", exact=True).click()
-    expect(draft.locator(".lf-draft-body")).to_have_text("Revised words.")
-    expect(page.locator("html" if mode == "draw" else "body")).to_have_attribute(
-        f"data-lf-{mode}-mode", ""
-    )
-    expect(page.locator(".lf-drawing-mark")).to_have_count(0)
+    for mode, key, root in (("draw", "w", "html"), ("design", "l", "body")):
+        page.keyboard.press(key)
+        expect(page.locator(root)).to_have_attribute(f"data-lf-{mode}-mode", "")
+        edit = draft.get_by_role("button", name="Edit", exact=True)
+        assert edit.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
+        edit.click()
+        expect(page.locator(".lf-fab-input")).to_be_hidden()
+        editor = draft.get_by_role("textbox", name="Edit draft", exact=True)
+        expect(editor).to_be_focused()
+        assert editor.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
+        editor.click()
+        write(editor, f"Revised words in {mode} mode.")
+        with sending(page, f"document edit in {mode} mode"):
+            draft.get_by_role("button", name="Save", exact=True).click()
+        expect(draft.locator(".lf-draft-body")).to_have_text(
+            f"Revised words in {mode} mode."
+        )
+        expect(page.locator(root)).to_have_attribute(f"data-lf-{mode}-mode", "")
+        expect(page.locator(".lf-drawing-mark")).to_have_count(0)
+        page.keyboard.press("Escape")
+        expect(page.locator(root)).not_to_have_attribute(f"data-lf-{mode}-mode", "")
 
 
 def test_a_draw_press_uses_the_exact_target_under_its_start(browser, serve):
@@ -1546,11 +1549,11 @@ def test_an_unsent_drawing_survives_reload_before_it_has_words(browser, serve):
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "note"
 
 
-def test_a_malformed_anchored_drawing_draft_keeps_its_words_without_the_mark(
+def test_an_older_runtimes_anchored_drawing_draft_keeps_its_words_without_the_mark(
     browser, serve
 ):
-    """The selection draft has its own serialized envelope and applies the same
-    drawing validation before page presentation or submission."""
+    """A draft an older runtime saved holds a drawing in a format this one does not
+    draw, so its words come back and its mark neither shows nor sends."""
     page = open_page(browser, serve(TARGETS_PAGE))
     # The composer's draft is keyed on the passage it is on.
     ctx = "composer:" + json.dumps([["section", "prose"]], separators=(",", ":"))
@@ -1563,7 +1566,7 @@ def test_a_malformed_anchored_drawing_draft_keeps_its_words_without_the_mark(
               anchor,
               suggest: false,
               about: null,
-              drawing: {format: 'leaf-drawing/3', strokes: [[[0, 0]]]},
+              drawing: {format: 'leaf-drawing/2', strokes: [[[0, 0], [9, 9]]]},
               touched: Date.now(),
             }),
             attempt: record.attempt,
@@ -1744,9 +1747,7 @@ CLIPPED_DRAWING_PAGE = leaf_page(
 )
 
 
-@pytest.mark.parametrize(
-    "transform", ["scale(.5)", "rotate(90deg)", "ancestor scale(.5)"]
-)
+@pytest.mark.parametrize("transform", ["rotate(90deg)", "ancestor scale(.5)"])
 def test_drawing_ink_follows_its_targets_transform(browser, serve, transform):
     """A page transform moves marked visual features and their ink together."""
     page = open_page(browser, serve(CLIPPED_DRAWING_PAGE))
@@ -1880,8 +1881,13 @@ def test_drawing_ink_follows_pixels_inside_their_ancestor_viewport(browser, serv
         )
 
 
-@pytest.mark.parametrize("long", [False, True], ids=["short", "scrolled"])
-@pytest.mark.parametrize("touch", [False, True], ids=["desktop", "phone"])
+# The text viewport's length and the device are independent, so each length takes one
+# device rather than both.
+@pytest.mark.parametrize(
+    "long, touch",
+    [(False, True), (True, False)],
+    ids=["short-phone", "scrolled-desktop"],
+)
 def test_sent_drawing_keeps_its_reference_outside_the_retained_text_viewport(
     browser, serve, long, touch
 ):

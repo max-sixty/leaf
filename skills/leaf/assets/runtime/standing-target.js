@@ -14,7 +14,11 @@
 
    Each feature takes what it needs from that place by its own rule: the Question view the
    Question source or unique context holding it, `c` and `e` its semantic target, the walks its document
-   position. The chrome stands over the page rather than in it and is appended after it,
+   position. Every side answers alike: an open ask stood at from its card still wears its
+   ring and takes its digits, `c` at an element whose own thread is shown continues it,
+   and `q` and `t` step from the target.
+
+   The chrome stands over the page rather than in it and is appended after it,
    so a chrome node measured as a place would put the user behind every Question and thread
    there is; no reader measures from one that does not stand in a Question.
 

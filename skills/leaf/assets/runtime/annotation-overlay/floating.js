@@ -29,8 +29,8 @@
    a scroll, as inside a shadow tree, native ScrollTimeline motion layers carry those
    remaining axes.
    One viewport frame holds the surface's native subtree and solver coordinates. Its
-   layer graph stays intact across size solves and transfers focus/caret through the
-   existing focus owner only when that graph changes. The frame ignores pointer input;
+   layer graph stays intact across size solves and moves the subtree, keeping the
+   user's place and caret in it (`move`), only when that graph changes. The frame ignores pointer input;
    each surface's own CSS retains its interaction policy. Without the needed native
    capability, the existing observed placement path invalidates on scroll instead.
    Every attachment solved in the window plane retains its physical attachment point,
@@ -56,24 +56,19 @@
    A surface's first placement then lands in the frame that asks for it rather than
    after a fetch. */
 
-import { afterPresentation } from "/runtime/presentation.js";
-import { keeps, layoutPx as px, atLayoutPrecision } from "/runtime/keeps.js";
-import {
-  anchorElement,
-  anchorFor,
-  anchorHolder,
-  anchorName,
-} from "/runtime/css-anchors.js";
-import { holdFocus } from "/runtime/focus.js";
-import { shownBand } from "/runtime/geometry.js";
+import { afterPresentation } from "../presentation.js";
+import { keeps, layoutPx as px, atLayoutPrecision } from "../keeps.js";
+import { anchorElement, anchorFor, anchorHolder, anchorName } from "../css-anchors.js";
+import { move } from "../dom-move.js";
+import { shownBand } from "../geometry.js";
 import {
   followScroll,
   scrollFollows,
   scrollMotions,
   scrollOrigins,
-} from "/runtime/scroll-motion.js";
-import { containingReadingRegionFor } from "/runtime/reading-regions.js";
-import { upFrom, renderedParent } from "/runtime/shadow.js";
+} from "../scroll-motion.js";
+import { containingReadingRegionFor } from "../reading-regions.js";
+import { upFrom, renderedParent } from "../shadow.js";
 
 let floatingUiModule = null;
 export const floatingUi = () =>
@@ -243,7 +238,6 @@ export function floatingPlacement({ floating, update }) {
   let frame = floating;
   let layers = [];
   let graph = [];
-  let restoreNativeFocus = null;
   function motionFrame(sources) {
     if (
       sources.length === graph.length &&
@@ -253,7 +247,6 @@ export function floatingPlacement({ floating, update }) {
       )
     )
       return;
-    restoreNativeFocus = holdFocus(floating);
     if (frame === floating && sources.length) {
       frame = document.createElement("div");
       frame.className = "lf-ui";
@@ -275,8 +268,8 @@ export function floatingPlacement({ floating, update }) {
       });
     }
     if (frame === floating) return;
-    // Actual graph changes transfer the native subtree through the existing focus
-    // handoff. Ordinary size/layout solves keep both its ancestors and caret untouched.
+    // Actual graph changes move the native subtree (`move`). Ordinary size/layout
+    // solves keep both its ancestors and caret untouched.
     const previous = layers;
     layers = [];
     let parent = frame;
@@ -292,7 +285,7 @@ export function floatingPlacement({ floating, update }) {
       layers.push(layer);
       parent = layer;
     }
-    parent.append(floating);
+    move(parent, floating, null);
     for (const layer of previous) layer.remove();
     graph = sources;
   }
@@ -490,8 +483,6 @@ export function floatingPlacement({ floating, update }) {
     },
     stand(answer) {
       stand(answer);
-      restoreNativeFocus?.();
-      restoreNativeFocus = null;
       if (!placementProof) {
         stood.delete(floating);
         tenure = Object.freeze({});
@@ -575,16 +566,13 @@ export function floatingPlacement({ floating, update }) {
       placementProof = null;
       stood.delete(floating);
       if (frame !== floating) {
-        const restore = frame.contains(floating) ? holdFocus(floating) : null;
-        if (frame.contains(floating)) frame.before(floating);
+        if (frame.contains(floating)) move(frame.parentNode, floating, frame);
         frame.remove();
         frame = floating;
         layers = [];
         graph = [];
         floating.style.removeProperty("position");
-        restore?.();
       }
-      restoreNativeFocus = null;
       delete floating.dataset.lfPlane;
       for (const property of ["position-anchor", ...INSETS])
         floating.style.removeProperty(property);

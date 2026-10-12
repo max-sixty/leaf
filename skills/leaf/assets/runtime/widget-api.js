@@ -6,23 +6,18 @@
    over HTTP from the served page, as `/runtime/widget-api.js`. What only the render
    gate's probes read belongs in check-api.js instead. */
 export {
-  LitElement,
   html,
-  svg,
-  mathml,
-  noChange,
   nothing,
+  render,
   classMap,
+  createRef,
   guard,
-  ifDefined,
   keyed,
   live,
-  createRef,
   ref,
   repeat,
   styleMap,
   unsafeHTML,
-  when,
 } from "../vendor/browser-runtime.js";
 export { move } from "./dom-move.js";
 export { iconElement, iconTemplate } from "./icons.js";
@@ -30,6 +25,7 @@ export { widgetController } from "./widget-controller.js";
 export { quoted } from "./widget-descriptors.js";
 export { initialRender } from "./initial-render.js";
 export { whileConnected, frameFor } from "./arrivals.js";
+export { aborted } from "./abort.js";
 // The rank a position record carries for a unit dropped at an index in a container.
 export { rankAt } from "./projection/model.js";
 export async function mountSample(frame, options) {
@@ -73,7 +69,7 @@ export {
 } from "./focus.js";
 export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place.
-export { render, setChildren, setRenderedChildren } from "./dom-children.js";
+export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.js";
 export { readQuestions, watchQuestions } from "./questions/model.js";
 export { comparisonChanges, watchComparison } from "./version.js";
 export { questionWords } from "./questions/answer.js";
@@ -91,7 +87,6 @@ export { queueActions } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
 export {
   threadBox,
-  placeThreads,
   placePageThreads,
   consumeAnnotations,
   mountThreadViews,
@@ -99,6 +94,7 @@ export {
   threadActions,
 } from "./application.js";
 export { readThreads } from "./thread/state.js";
+export { threadSurface } from "./thread/surfaces.js";
 export { watchThreads } from "./thread/watch.js";
 export { turns as threadTurns, threadSummary } from "./thread/model.js";
 export { threadInput } from "./thread/landing.js";
@@ -137,6 +133,7 @@ export {
 export {
   contributionEntry,
   presentContributionEntry,
+  presentContributionReceipts,
 } from "./contribution-controls.js";
 export { registerContribution } from "./contributions.js";
 export {
@@ -166,15 +163,22 @@ export {
   compoundReadingRegionId,
   preserveReadingRegions,
   readingPosture,
-  readingRegion,
   registerReadingRegion,
   scrollerFor,
+  showReadingSubject,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 export { announce, notice } from "./notifications.js";
 export { alignText, alignedNodes } from "./text-alignment.js";
 export { inChrome, renderRetired, says, textNodesUnder, wrote } from "./passages.js";
-export { ago, clocked, clockValue, quietSince, shortAgo } from "./presence.js";
+export {
+  ago,
+  clocked,
+  clockValue,
+  quietSince,
+  readingPaint,
+  shortAgo,
+} from "./presence.js";
 export { shadowStage } from "./shadow-stage.js";
 export { inBaseLayer } from "./stylesheets.js";
 export { revisionLabel } from "./context.js";

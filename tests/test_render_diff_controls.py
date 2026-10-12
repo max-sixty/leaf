@@ -321,16 +321,22 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     assert reading(diff.locator(".lf-msg-body").first) == physical_reading
 
 
-def test_an_inline_patch_that_failed_stays_failed_when_its_diff_returns(browser, serve):
-    """An inline patch never changes, so a refusal of it stands: a diff that leaves the
-    page and returns, as document reconciliation moves it, renders its patch again only
-    when the departure cut that rendering short, and does not tell the author twice."""
+@pytest.mark.parametrize("bound", [False, True], ids=["inline", "bound"])
+def test_a_patch_that_failed_stays_failed_when_its_diff_returns(browser, serve, bound):
+    """A refusal stands while its patch is unchanged: a diff that leaves the page and
+    returns, as document reconciliation moves it, renders its patch again only when
+    the departure cut that rendering short, and does not tell the author twice. A bound
+    patch returns through its data subscription, an inline one through the widget."""
     one = "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-x\n+y\n"
-    source = leaf_page(
-        "bad diff",
-        f'<h1 id="t">Bad</h1>\n<lf-diff id="d-bad"><pre>\n{one}{one}</pre></lf-diff>',
+    diff = (
+        '<lf-diff id="d-bad" source="bad-patch"><pre></pre></lf-diff>'
+        if bound
+        else f'<lf-diff id="d-bad"><pre>\n{one}{one}</pre></lf-diff>'
     )
-    page = open_page(browser, serve(source))
+    url = serve(leaf_page("bad diff", f'<h1 id="t">Bad</h1>\n{diff}'))
+    if bound:
+        data_model.cmd_data_set(serve.page_dir, "bad-patch", one + one)
+    page = open_page(browser, url)
     expect(page.locator("#d-bad .lf-error")).to_contain_text("repeats file path")
     returned = page.evaluate("""async () => {
         const diff = document.getElementById('d-bad');
@@ -579,3 +585,54 @@ diff --git a/other.md b/other.md
         held[0].continue_()
     rendered(page)
     expect(head.locator("..").locator("[data-line]").last).to_contain_text("new")
+
+
+PATH_PARTS = """head => {
+  const path = head.querySelector('.lf-diff-path');
+  const room = path.getBoundingClientRect();
+  return [...path.querySelectorAll('.lf-diff-dir, .lf-diff-base')].map(part => {
+    const words = new Range();
+    words.selectNodeContents(part);
+    const own = part.getBoundingClientRect();
+    return {text: part.textContent, shown: getComputedStyle(part).opacity !== '0',
+      whole: [...words.getClientRects()].every(ink =>
+        ink.left >= Math.max(own.left, room.left) - 0.5
+        && ink.right <= Math.min(own.right, room.right) + 0.5)};
+  });
+}"""
+
+
+def test_printed_diff_rows_hold_their_whole_paths(browser, serve):
+    """Paper gives no title, focus or press back to a cut path, so a printed file row
+    wraps to show every folder and the whole name; the screen row still cuts them."""
+    paths = (
+        "plugins/worktrunk/skills/worktrunk/references/configuration/hooks/README.md",
+        "src/picker/snapshots/wt__commands__picker__items__tests__unified_diff.snap",
+    )
+    patch = "".join(
+        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+        for path in paths
+    )
+    url = serve(
+        leaf_page(
+            "Printed paths",
+            f'<lf-diff id="patch"><pre>{escape(patch)}</pre></lf-diff>',
+        )
+    )
+    # A5's printable width under the print dialog's default margins.
+    context = browser.new_context(viewport={"width": 483, "height": 800})
+    page = open_page(browser, url, context=context)
+    page.evaluate("document.fonts.ready")
+    heads = page.locator("#patch .lf-diff-head")
+    expect(heads).to_have_count(len(paths))
+    screen = [head.evaluate(PATH_PARTS) for head in heads.all()]
+    assert all(
+        not all(part["shown"] and part["whole"] for part in parts) for parts in screen
+    ), f"each path must be cut on screen, or print proves nothing: {screen}"
+    page.emulate_media(media="print")
+    one_frame(page)
+    for head, path in zip(heads.all(), paths, strict=True):
+        parts = head.evaluate(PATH_PARTS)
+        assert "".join(part["text"] for part in parts) == path
+        assert all(part["shown"] and part["whole"] for part in parts), (path, parts)

@@ -692,6 +692,12 @@ def test_after_is_what_each_gesture_leaves_the_thread_as_the_log_reads_it():
                         for message in reversed(thread["msgs"])
                         if message["author"] == "user"
                         and message.get("token") == "keep"
+                        and message.get("parent")
+                        in {
+                            turn["id"]
+                            for turn in thread["msgs"]
+                            if turn["author"] == "agent"
+                        }
                     ),
                     None,
                 )

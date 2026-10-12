@@ -117,8 +117,8 @@ def _supposed(
     the thread offers none: a rewrite needs words of the user's to rewrite, a
     settlement goes the way the thread does not stand, `react`, a reaction with a
     `settling` token on the agent turn whose ask the user owes (`prompt`), needs
-    both, and `unreact`, taking back the newest such reaction the log holds, needs
-    one."""
+    both, and `unreact`, taking back the newest reaction with such a token on an
+    agent turn the log holds, needs one."""
     gesture = {
         "id": f"supposed-{kind}:{thread['id']}",
         "kind": kind,
@@ -148,6 +148,11 @@ def _supposed(
             and {**gesture, "kind": "reply", "parent": prompt, "token": token}
         )
     if kind == "unreact":
+        # Only a reaction on an agent turn settles anything; a bare one is its own
+        # thread, which taking it back removes.
+        turns = {
+            message["id"] for message in thread["msgs"] if message["author"] == "agent"
+        }
         reaction = next(
             (
                 message
@@ -155,6 +160,7 @@ def _supposed(
                 if message["author"] == "user"
                 and is_reaction(message)
                 and message["token"] in settling
+                and message.get("parent") in turns
             ),
             None,
         )

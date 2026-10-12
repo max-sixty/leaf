@@ -2,7 +2,7 @@
    module: composing/selection.js builds its response button with an icon as it
    evaluates. */
 
-import { html } from "../vendor/browser-runtime.js";
+import { html, render } from "../vendor/browser-runtime.js";
 
 // Built-in margin entry faces use one stroked, currentColor icon vocabulary. Reaction tokens
 // are authored content and may supply emoji; structural Leaf faces keep their line
@@ -22,6 +22,8 @@ const ICONS = {
   expand: '<path d="M9.5 3H13v3.5M13 3 9.25 6.75M6.5 13H3V9.5M3 13l3.75-3.75"/>',
   fit: '<path d="M6 3H3v3M10 3h3v3M3 10v3h3M13 10v3h-3"/>',
   more: '<circle cx="3.5" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="12.5" cy="8" r="1" fill="currentColor" stroke="none"/>',
+  microphone:
+    '<rect x="6" y="2" width="4" height="7" rx="2"/><path d="M4 7.5v.75a4 4 0 0 0 8 0V7.5M8 12.25V14M6 14h4"/><path class="lf-mic-slash" d="M2.5 2.5l11 11"/>',
   next: '<path d="m6 3.5 4.5 4.5L6 12.5"/>',
   pause: '<path d="M5 3v10M11 3v10"/>',
   play: '<path d="m5 3 7 5-7 5z"/>',
@@ -35,6 +37,7 @@ const ICONS = {
   retry: '<path d="M12.5 5.25V2.75M12.5 2.75H10M12.35 3.1A5 5 0 1 0 13 9"/>',
   send: SEND,
   sent: SEND,
+  start: '<path d="M3.5 3v10M12.5 3.5 6 8l6.5 4.5z"/>',
   subtract: '<path d="M3 8h10"/>',
   undo: '<path d="M5.25 4.25 2.75 6.5 5.25 8.75M3 6.5h5.5a4 4 0 0 1 4 4v1"/>',
   waiting: '<circle cx="8" cy="8" r="5"/><path d="M8 5v3.25l2 1.25"/>',
@@ -59,12 +62,7 @@ export function iconTemplate(icon, className = "lf-margin-entry-icon") {
 }
 
 export function iconElement(icon, className = "lf-margin-entry-icon") {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", "0 0 16 16");
-  svg.setAttribute("focusable", "false");
-  svg.setAttribute("aria-hidden", "true");
-  svg.classList.add(className);
-  svg.dataset.lfIcon = icon;
-  svg.innerHTML = iconMarkup(icon);
-  return svg;
+  const holder = document.createDocumentFragment();
+  render(iconTemplate(icon, className), holder);
+  return holder.querySelector("svg");
 }

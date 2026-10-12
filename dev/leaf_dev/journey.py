@@ -92,7 +92,7 @@ from contextlib import ExitStack, contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import NamedTuple
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urljoin
 
 import click
 from leaf.delivery import pickup_receipts
@@ -1056,6 +1056,8 @@ class BrowserEnd:
         startup = startup_reading(page)
         # The runtime presents without waiting for its first read, which is what
         # brings the revision back, so that follow gets its own wait and timing.
+        # The revision marker advances as the patch begins; its presentation proof
+        # must finish before the text below is a reading of that revision.
         followed_at = time.monotonic()
         try:
             page.wait_for_function(
@@ -1077,6 +1079,13 @@ class BrowserEnd:
             (shown or "").isdigit() and int(shown) >= published["revision"],
             f"{url} stands on revision {shown} rather than following the published "
             f"{published['revision']}, with the banner reading ‘{banner}’",
+        )
+        check(
+            page.evaluate(
+                "window.__leafVerifier.revisionAtLeast", published["revision"]
+            ),
+            f"{url} reached revision {shown} but did not finish presenting it, "
+            f"with the banner reading ‘{banner}’",
         )
         rendered = page.locator("main").inner_text()
         check(
@@ -1294,9 +1303,7 @@ def local_session(browser, url: str) -> Session:
     response = page.goto(url, wait_until="load", timeout=120_000)
     check(response is not None and response.ok, f"{url} did not load")
     await_presentation(page, url, failures)
-    parts = urlsplit(url)
-    token = re.search(r"[?&]t=([^&]+)", url)[1]
-    state_url = f"{parts.scheme}://{parts.netloc}/api/state?t={token}"
+    state_url = PageClient(url).state_url
     state = answered(context.request.get(state_url), state_url).json()
     return Session(context, page, failures, url, state_url, state, {}, None)
 

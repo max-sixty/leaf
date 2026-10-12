@@ -63,10 +63,17 @@ records its identities under `$layer`:
   widgets passes it. A checkout whose runtime modules were edited refuses every page
   vendored before the edit until each is re-vendored.
 - `server` is the SHA-256 identity of the payload's Python serving code,
-  `pyproject.toml`, `uv.lock`, and interpreter version. Initialization reads these inputs whether
-  invoked directly or by a preview, so a server-only edit requires a new generation
+  `pyproject.toml`, and `uv.lock`. It excludes the interpreter version because a site
+  builds pages on one Python release and serves them from a container on another.
+  Initialization reads these inputs whether invoked directly or by a preview,
+  so a server-only edit requires a new generation
   even when the installed browser files are unchanged. This identity decides
-  re-vendoring; the runtime identity still owns the server's bind check.
+  re-vendoring. Event admission checks both identities when the installed
+  registry is readable, before validating a new command, and names `leaf page
+  init` when either belongs to another Leaf. A broken or missing candidate
+  registry does not displace an active revision's captured vocabulary. An
+  already admitted attempt remains readable as the same event. The runtime
+  identity also owns the server's bind check.
 
 HTTP responses also identify the serving incarnation in `Leaf-Server`. Every
 document that runs the runtime, served or exported, carries an inline prepaint that

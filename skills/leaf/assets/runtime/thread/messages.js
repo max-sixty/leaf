@@ -45,17 +45,13 @@ import {
   renderQuiet,
   renderSaid,
   writePrepaint,
-} from "../presentation.js";
+} from "../declared-words.js";
 import { highlightBlocks } from "../syntax.js";
 import { ago } from "../presence.js";
 import { elementById } from "../passages.js";
 import { designName } from "../design-readings.js";
-import {
-  addressableLabel,
-  addressableWord,
-  datumLabel,
-  visualPartLabel,
-} from "../anchor-resolution.js";
+import { addressableLabel, addressableWord } from "../addressable-names.js";
+import { datumLabel, visualPartLabel } from "../anchor-resolution.js";
 import { rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
 import { iconTemplate } from "../icons.js";

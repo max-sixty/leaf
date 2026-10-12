@@ -34,8 +34,8 @@ assert:
     Read the commands. Pass only if all three hold. First, the earlier messages are
     read with `leaf page state <page> 3fa1c2d9` (or the same command naming
     7c41d0e2), optionally paged with `--after`, before the reply. Second, the answer
-    is one `leaf response reply` naming the exact reference `7f20c3d9:0:7c41d0e2`, and it or a progress update (`--ephemeral`) posted
+    is one `leaf response reply` naming the exact reference `7f20c3d9:0:7c41d0e2`, and it or a progress message (`--ephemeral`) posted
     before it carries `--title` with a few words naming the thread's subject; that
-    progress update may come before the read. Third, no separate command names the
+    progress message may come before the read. Third, no separate command names the
     thread: fail on any `leaf thread title`, `leaf thread read`, or `leaf page
     events --thread`, which do not exist.

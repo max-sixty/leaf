@@ -32,6 +32,7 @@ import json
 import os
 import posixpath
 import re
+import sys
 import tempfile
 import threading
 from collections.abc import Callable, Mapping
@@ -45,7 +46,7 @@ import tinycss2
 import tree_sitter_javascript
 import turbohtml
 from tinycss2.serializer import serialize_string_value
-from tree_sitter import Language, Parser
+from tree_sitter import Language, Parser, Query, QueryCursor
 
 from leaf.files import file_stamp, latest_revision, list_revisions, revision_path
 from leaf.page_memory import Slot, memo
@@ -73,6 +74,21 @@ RESOURCE_TYPES = {
     ".otf": "font/otf",
 }
 _JAVASCRIPT = Language(tree_sitter_javascript.language())
+# The nodes `javascript_imports` reads, matched in the parser's own code rather than
+# by visiting every node of a vendored bundle in Python.
+_JSX_KINDS = sorted(
+    kind
+    for kind_id in range(_JAVASCRIPT.node_kind_count)
+    if (kind := _JAVASCRIPT.node_kind_for_id(kind_id))
+    and kind.startswith("jsx_")
+    and _JAVASCRIPT.node_kind_is_named(kind_id)
+)
+_IMPORT_NODES = Query(
+    _JAVASCRIPT,
+    "(import_statement) @node (export_statement) @node "
+    "(call_expression function: (import)) @node "
+    + " ".join(f"({kind}) @node" for kind in _JSX_KINDS),
+)
 JAVASCRIPT_SUFFIXES = frozenset(
     suffix
     for suffix, mime in RESOURCE_TYPES.items()
@@ -271,12 +287,16 @@ def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | 
     return resolved
 
 
-def javascript_imports(data: bytes, path: str):
-    """Yield exact string-literal spans of static exports/imports and import().
+@lru_cache(maxsize=512)
+def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ...]:
+    """The exact string-literal spans of static exports/imports and import().
 
     A computed import() binds when it runs, so capture neither follows nor refuses it:
     a CDN module named that way loads, and a page file it names is in the revision
-    only if something imports it literally."""
+    only if something imports it literally.
+
+    A layer's modules are the same bytes in every page that selects them, and parsing
+    a vendored bundle takes about a second, so a process reads each module once."""
     try:
         data.decode("utf-8")
     except UnicodeDecodeError as error:
@@ -292,9 +312,14 @@ def javascript_imports(data: bytes, path: str):
                 )
             pending.extend(reversed(node.children))
         raise ArtifactError(f"{path}: invalid JavaScript")
-    pending = [tree.root_node]
-    while pending:
-        node = pending.pop()
+    # Document order, a node before the nodes it holds, as a walk of the tree meets
+    # them, so the first problem in the file is the one reported.
+    nodes = sorted(
+        QueryCursor(_IMPORT_NODES).captures(tree.root_node).get("node", []),
+        key=lambda node: (node.start_byte, -node.end_byte),
+    )
+    imports = []
+    for node in nodes:
         if node.type.startswith("jsx_"):
             raise ArtifactError(
                 f"{path}:{node.start_point[0] + 1}: JSX is not executable JavaScript"
@@ -317,12 +342,14 @@ def javascript_imports(data: bytes, path: str):
                 raise ArtifactError(
                     f"{path}:{literal.start_point[0] + 1}: module URLs must be unescaped string literals"
                 )
-            yield (
-                literal.start_byte,
-                literal.end_byte,
-                data[literal.start_byte + 1 : literal.end_byte - 1].decode("utf-8"),
+            imports.append(
+                (
+                    literal.start_byte,
+                    literal.end_byte,
+                    data[literal.start_byte + 1 : literal.end_byte - 1].decode("utf-8"),
+                )
             )
-        pending.extend(reversed(node.named_children))
+    return tuple(imports)
 
 
 def _css_meaningful(tokens) -> list:
@@ -859,8 +886,22 @@ def artifact_name(revision: int, artifact: RevisionArtifact) -> str:
     return f"r{revision}-{artifact.digest.removeprefix('sha256:')[:16]}"
 
 
+class Disposable:
+    """Whether Leaf built this page for itself and deletes it, as a sample's child
+    (`samples`), so nothing reads its revisions after a crash and staging and
+    publishing them skip every fsync.
+
+    The builder sets it in the memory it holds for the page's life
+    (`page_memory.memory_of`). A page whose memory never held the mark, or dropped
+    it, is written durably, so losing the mark costs time and never a revision."""
+
+    held = False
+
+
 def stage_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) -> str:
-    """Make exact immutable inputs durable, without making a revision discoverable."""
+    """Make exact immutable inputs durable, unless the page is `Disposable`, without
+    making a revision discoverable."""
+    durable = not memo(page_dir, Disposable).held
     revisions = page_dir / "revisions"
     revisions.mkdir(exist_ok=True)
     if revision in list_revisions(page_dir):
@@ -879,28 +920,31 @@ def stage_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) ->
                 ("index.html", artifact.html),
                 ("manifest.json", artifact.manifest),
             ):
-                written.append(_write_durably(staged / relative, data))
+                written.append(_write(staged / relative, data, durable))
             for path, resource in artifact.resources.items():
                 target = staged / ("resources" + path)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 earlier = captured.get(resource.digest)
                 if earlier is None or not _linked(earlier, target):
-                    _write_durably(target, resource.data)
+                    _write(target, resource.data, durable)
                 written.append(target)
-            fsync_parents(written + list(staged.rglob("*")))
+            if durable:
+                fsync_parents(written + list(staged.rglob("*")))
             os.rename(staged, destination)
-            fsync_parents([destination])
+            if durable:
+                fsync_parents([destination])
     elif (destination / "manifest.json").read_bytes() != artifact.manifest:
         raise ArtifactError(f"{destination}: immutable artifact digest collision")
     return name
 
 
-def _write_durably(target: Path, data: bytes) -> Path:
+def _write(target: Path, data: bytes, durable: bool) -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("xb") as stream:
         stream.write(data)
-        stream.flush()
-        os.fsync(stream.fileno())
+        if durable:
+            stream.flush()
+            os.fsync(stream.fileno())
     return target
 
 
@@ -950,7 +994,8 @@ def publish_artifact(page_dir: Path, name: str, reading: SourceReading) -> Path:
     destination = page_dir / "revisions" / name
     marker = destination.with_name(f"{name}.html")
     os.link(destination / "index.html", marker)
-    fsync_parents([marker])
+    if not memo(page_dir, Disposable).held:
+        fsync_parents([marker])
     marker = marker.absolute()
     memo(page_dir, _Readings).hold(
         marker, file_stamp(marker), RevisionReading(marker, reading)
@@ -970,19 +1015,16 @@ def write_artifact(
 def read_artifact(page_dir: Path, revision: int) -> RevisionArtifact:
     """Read exact captured inputs, never substituting a mutable page file.
 
-    The page keeps the last few bundle descriptors (`_Artifacts`), until any file they
-    were read from changes."""
+    The page keeps the last few bundle descriptors (`_Artifacts`) by path alone. A
+    revision's name carries its manifest's digest and its marker appears only after
+    its bundle is complete (`write_artifact`), so one path names one bundle for good,
+    and a server answering a page's few hundred resource requests reads none of its
+    files again."""
     path = revision_path(page_dir, revision).absolute()
-    bundle = path.with_suffix("")
-    stamps = (
-        file_stamp(path),
-        file_stamp(bundle),
-        file_stamp(bundle / "manifest.json"),
-    )
     held = memo(page_dir, _Artifacts)
-    if (artifact := held.get(path, stamps)) is None:
-        artifact = _materialize(path, bundle)
-        held.hold(path, stamps, artifact)
+    if (artifact := held.get(path)) is None:
+        artifact = _materialize(path, path.with_suffix(""))
+        held.hold(path, artifact)
     return artifact
 
 
@@ -997,21 +1039,20 @@ class _Artifacts:
     LIMIT = 4
 
     def __init__(self) -> None:
-        self.held: dict[Path, tuple[tuple, RevisionArtifact]] = {}
+        self.held: dict[Path, RevisionArtifact] = {}
         self.lock = threading.Lock()
 
-    def get(self, path: Path, stamps: tuple) -> RevisionArtifact | None:
+    def get(self, path: Path) -> RevisionArtifact | None:
         with self.lock:
-            held = self.held.pop(path, None)
-            if held is None or held[0] != stamps or None in stamps:
-                return None
-            self.held[path] = held
-            return held[1]
+            artifact = self.held.pop(path, None)
+            if artifact is not None:
+                self.held[path] = artifact
+            return artifact
 
-    def hold(self, path: Path, stamps: tuple, artifact: RevisionArtifact) -> None:
+    def hold(self, path: Path, artifact: RevisionArtifact) -> None:
         with self.lock:
             self.held.pop(path, None)
-            self.held[path] = (stamps, artifact)
+            self.held[path] = artifact
             while len(self.held) > self.LIMIT:
                 self.held.pop(next(iter(self.held)))
 
@@ -1062,6 +1103,20 @@ class RevisionReading(SourceReading):
         captured the same bytes (`_shared_registry`)."""
         return _shared_registry(
             (self.bundle / "resources" / "registry.json").read_bytes()
+        )
+
+    @cached_property
+    def inventory(self):
+        """Historical consumers outlive eviction of the expensive parse.
+
+        A long history can exceed the document budget. Keeping only these compact
+        immutable facts lets retries and new revisions reuse the completed scan.
+        """
+        return memo(self.marker.parent.parent, _CompactReadings).get(
+            self.marker,
+            file_stamp(self.marker),
+            lambda: SourceReading.inventory.func(self),
+            _inventory_size,
         )
 
     def under(self, registry: dict) -> SourceReading:
@@ -1144,6 +1199,69 @@ class _Readings:
                     evicted_stamp, _evicted = self.held.pop(next(iter(self.held)))
                     self.size -= evicted_stamp[2]
         return reading
+
+
+def _inventory_size(value):
+    """Charge retained compact objects once, including each future dynamic slot."""
+    seen = set()
+
+    def size(item):
+        if id(item) in seen:
+            return 0
+        seen.add(id(item))
+        held = sys.getsizeof(item)
+        if isinstance(item, dict):
+            return held + sum(size(key) + size(value) for key, value in item.items())
+        if isinstance(item, (tuple, list, frozenset)):
+            return held + sum(size(value) for value in item)
+        if isinstance(item, Slot):
+            # Reserve the dict, pair and digest before the bool answer is filled.
+            return (
+                held
+                + sys.getsizeof(vars(item))
+                + sys.getsizeof((None, None))
+                + sys.getsizeof(bytes(32))
+            )
+        return held
+
+    return size(value)
+
+
+class _CompactReadings:
+    """Compact revision readings with their own byte budget and page lifetime.
+
+    Element identities, Question registration and data consumers are small facts
+    about immutable documents. Keeping them separately prevents long-history scans
+    from evicting their own completed work with full parses. Each owner charges its retained
+    representation; a Question source also reserves its last dynamic answer,
+    keyed by the event basis the canonical fold reads. Keys include the marker
+    stamp. No document, full registry, SourceReading or event log is retained.
+    """
+
+    BUDGET = 8 * 1024 * 1024
+
+    def __init__(self):
+        self.held = {}
+        self.size = 0
+        self.lock = threading.Lock()
+
+    def get(self, key, stamp, read, weight):
+        with self.lock:
+            held = self.held.pop(key, None)
+            if held is not None:
+                self.size -= held[2]
+                if held[0] == stamp:
+                    self.held[key] = held
+                    self.size += held[2]
+                    return held[1]
+            value = read()
+            size = weight(value)
+            self.held[key] = (stamp, value, size)
+            self.size += size
+            while self.size > self.BUDGET and len(self.held) > 1:
+                _, _, evicted_size = self.held.pop(next(iter(self.held)))
+                self.size -= evicted_size
+            return value
 
 
 def active_enclosing(page_dir: Path) -> dict:

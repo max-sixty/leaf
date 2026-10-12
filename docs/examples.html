@@ -62,10 +62,10 @@
         margin-left: 2px;
         transition: transform 160ms ease;
       }
-      .developer-gallery-link:is(:hover, :focus-visible) .developer-gallery-open span {
+      .developer-gallery-link:is(:hover, [data-lf-focus]) .developer-gallery-open span {
         transform: translate(2px, -2px);
       }
-      .developer-gallery-link:focus-visible {
+      .developer-gallery-link[data-lf-focus] {
         outline: var(--focus-ring);
         outline-offset: var(--focus-ring-gap);
       }
@@ -140,18 +140,18 @@
         margin-left: 2px;
         transition: transform 160ms ease;
       }
-      .example-link:is(:hover, :focus-visible) .example-preview {
+      .example-link:is(:hover, [data-lf-focus]) .example-preview {
         border-color: color-mix(in srgb, var(--accent) 55%, var(--border-2));
         box-shadow: 0 18px 42px color-mix(in srgb, var(--ink) 15%, transparent);
         transform: translateY(-3px);
       }
-      .example-link:is(:hover, :focus-visible) .example-open span {
+      .example-link:is(:hover, [data-lf-focus]) .example-open span {
         transform: translate(2px, -2px);
       }
-      .example-link:focus-visible {
+      .example-link[data-lf-focus] {
         outline: none;
       }
-      .example-link:focus-visible .example-preview {
+      .example-link[data-lf-focus] .example-preview {
         outline: var(--focus-ring);
         outline-offset: var(--focus-ring-gap);
       }

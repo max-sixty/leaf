@@ -118,7 +118,7 @@ def append_command(page_dir, command):
     event, including meaning and attention, to event_log.append_event instead.
     """
     with service_model.PageTransaction(page_dir) as page:
-        return event_contracts_model.append_admitted(page, command)
+        return event_contracts_model.append_admitted(page, command)[0]
 
 
 def response_reference(page_dir, event):
@@ -136,20 +136,18 @@ def append_carried_log_record(page_dir, event):
     """Seed already-interpreted input for a storage or transport test.
 
     These tests declare input the transport must deliver, without a document that
-    could decide its meaning. Semantic attention cases use `append_command`.
+    could decide its meaning, so user input that admission would weigh against the
+    page's obligations is taken to change them. Semantic attention cases use
+    `append_command`.
     A raw fixture can explicitly declare `attention=False` for quiet input.
     """
-    from leaf.registry.kernel import bookkeeping_kinds
+    from leaf.registry.kernel import kernel_event_kinds
 
+    attention = event_contracts_model.settled_attention(
+        event, kernel_event_kinds().get(event["kind"], {})
+    )
     return events_model.append_event(
-        page_dir,
-        {
-            "attention": (
-                event["author"] == "user" and event["kind"] not in bookkeeping_kinds()
-            )
-            or event["kind"] in {"report", "error"},
-            **event,
-        },
+        page_dir, {"attention": attention is not False, **event}
     )
 
 
@@ -285,7 +283,7 @@ def spawn_probe(spawn, page_dir, body, **environment):
     )
 
 
-STATED_TIMEOUT = 60
+STATED_TIMEOUT = 120
 """How long a pure-Python wait gives another thread or process to state its fact.
 
 The deadline separates a product that never states the fact from a machine that
@@ -494,7 +492,7 @@ PAGE = """<!doctype html>
 <section id="plan">
   <h2>Plan</h2>
   <p>The cutoff lives in <a href="https://example.test/jobs/backfill.py#L88"><code>jobs/backfill.py:88</code></a>.</p>
-  <lf-ask id="plan-choice-decision">
+  <div id="plan-choice-decision">
     <h3>Which plan should lead?</h3>
     <lf-options>
       <lf-option id="flag-first"><small class="tag">effort: low</small><small class="tag">risk: med</small>
@@ -504,16 +502,24 @@ PAGE = """<!doctype html>
         <strong>Backfill first</strong> Verify, then flip. <em>My take: do this first.</em>
       </lf-option>
     </lf-options>
-  </lf-ask>
-  <lf-diagram id="flow"><pre>
-graph LR
-  A --> B
-  </pre></lf-diagram>
+  </div>
 </section>
 </main>
 </body>
 </html>
 """
+# PAGE places no widget whose module only a browser can judge, so `page check` on it
+# and on the versions built from it never starts one (`needs_browser`). A test about a
+# data widget's body, its visual parts, or the section one supplies starts from
+# FLOW_PAGE, which closes the Plan section with a diagram.
+FLOW_PAGE = PAGE.replace(
+    "</section>",
+    """  <lf-diagram id="flow"><pre>
+graph LR
+  A --> B
+  </pre></lf-diagram>
+</section>""",
+)
 
 
 def package_path(path: Path) -> str:
@@ -524,9 +530,8 @@ def package_path(path: Path) -> str:
 def page_packages() -> tuple[str, ...]:
     """The integration page's package selection, resolved where it is initialized.
 
-    PAGE holds an lf-diagram, and the interact suite borrows lf-diagram and
-    lf-diff declarations from the vendored registry. The template cache names
-    this composition so one selection is never handed to another.
+    FLOW_PAGE holds an lf-diagram, and the interact suite borrows lf-diagram and
+    lf-diff declarations from the vendored registry.
     """
     return (package_path(COMMAND_HUB_PACKAGE), "diagram", "diff")
 
@@ -535,23 +540,11 @@ def page_packages() -> tuple[str, ...]:
 def page_dir(tmp_path, monkeypatch, initialized_page):
     """A mutable page with the default, Command Hub, diagram and diff vocabularies."""
     monkeypatch.chdir(tmp_path)  # resolve fixture package paths
-    d = tmp_path / "page"
-
-    def initialize(template):
-        result = CliRunner().invoke(
-            cli_model.cli,
-            [
-                "page",
-                "init",
-                *(arg for name in page_packages() for arg in ("--package", name)),
-                str(template),
-            ],
-        )
-        assert result.exit_code == 0, result.output
-        (template / "index.html").write_text(PAGE)
-
-    initialized_page("work-" + "-".join(page_packages()[1:]), d, initialize)
-    return d
+    return initialized_page(
+        tmp_path / "page",
+        page_packages(),
+        ("PAGE", lambda template: (template / "index.html").write_text(PAGE)),
+    )
 
 
 def check(d):
@@ -728,7 +721,6 @@ def record_claim(page, /, harness="claude-code", **fields):
         "agent": "Claude",
         "cwd": str(Path.cwd()),
         "ts": "t",
-        "released": None,
         "turn": observed["turn"] if observed else "turn-1",
         "turn_opened": observed["turn_opened"] if observed else cleanup_model.now_iso(),
         "turn_closed": observed["turn_closed"] if observed else None,
@@ -815,8 +807,8 @@ SUGGESTION = """<lf-suggestion id="sug-refill">
 
 
 def before_choice(page, markup):
-    """Insert a fixture before the base page's titled choice Ask."""
-    start = '<lf-ask id="plan-choice-decision">'
+    """Insert a fixture before the base page's titled choice."""
+    start = '<div id="plan-choice-decision">'
     return page.replace(start, markup + start)
 
 
@@ -1101,8 +1093,8 @@ def _report_without_upgrade(registry):
     registry["lf-test-task"]["x-upgrade"] = False
 
 
-def _user_verb_update(registry):
-    registry["lf-options"]["x-state"]["choose"]["update"] = True
+def _user_verb_report(registry):
+    registry["lf-options"]["x-state"]["choose"]["report"] = True
 
 
 def _agent_verb_answers(registry):
@@ -1217,11 +1209,8 @@ def trial_page(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
     page = tmp_path / "page"
-    # The version is built out of PAGE, which holds an lf-diagram; the project package
-    # under test is explicitly selected beside it.
     initialized = CliRunner().invoke(
-        cli_model.cli,
-        ["page", "init", "--package", "diagram", "--package", "./.leaf", str(page)],
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
     )
     assert initialized.exit_code == 0, initialized.output
     (page / "index.html").write_text(trial_version(TRIAL_CACHE, TRIAL_LOG, PILOT_PURGE))
@@ -1297,9 +1286,8 @@ def fetch(url, data=None, token=TOKEN, layer=None, headers=None):
 HELD_LEASES = []
 
 
-def serving(directory, port: int, lifetime: str = "standing") -> None:
-    """Hold the serving incarnation lease of a live `server run`."""
-    directory.mkdir(parents=True, exist_ok=True)
+def fixture_service(directory, port: int, lifetime: str = "standing") -> dict:
+    """Record the desired service of a `server run` on `port`, as it records its own."""
     service = {
         "host": "127.0.0.1",
         "bind": "127.0.0.1",
@@ -1309,12 +1297,17 @@ def serving(directory, port: int, lifetime: str = "standing") -> None:
         "server_id": "fixture-server",
     }
     cleanup_model.write_json(directory / "service.json", service)
-    handle = open(directory / "server.lock", "a+b")  # noqa: SIM115 - test lease
-    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    handle.truncate(0)
-    handle.write(service["server_id"].encode())
-    handle.flush()
-    HELD_LEASES.append(handle)
+    return service
+
+
+def serving(directory, port: int, lifetime: str = "standing") -> None:
+    """Hold the serving incarnation lease of a live `server run`, taken as it takes it."""
+    directory.mkdir(parents=True, exist_ok=True)
+    service = fixture_service(directory, port, lifetime)
+    lease = hosting_model._take_server_lease(directory)
+    lease.write(service["server_id"].encode())
+    lease.flush()
+    HELD_LEASES.append(lease)
 
 
 def available_loopback_port() -> int:
@@ -1431,10 +1424,10 @@ def neighbour_page(directory, title=None, dead=False, published=True, port=59999
     initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(directory)])
     assert initialized.exit_code == 0, initialized.output
     write_revision(directory, 1, html.encode())
-    # A neighbour the agent has finished with.
+    # A neighbour waiting on its user: a closed one is not listed (`other_leaves`).
     cleanup_model.write_json(
         directory / "status.json",
-        {"state": "idle", "detail": "", "ts": None},
+        {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
     )
     if published:
         append_carried_log_record(
@@ -1447,21 +1440,10 @@ def neighbour_page(directory, title=None, dead=False, published=True, port=59999
                 "text": "t",
             },
         )
-    record = {"port": port}
     if dead:
-        cleanup_model.write_json(
-            directory / "service.json",
-            {
-                "host": "127.0.0.1",
-                "bind": "127.0.0.1",
-                "port": port,
-                "enabled": True,
-                "lifetime": "standing",
-                "server_id": "fixture-server",
-            },
-        )
+        fixture_service(directory, port)
     else:
-        serving(directory, record["port"])
+        serving(directory, port)
     server_rows_model.RowPublisher(directory, "fixture-server").refresh()
     return server_model.page_url("127.0.0.1", port, server_model.host_key())
 
@@ -2038,7 +2020,7 @@ class _SnapshotDumper(yaml.SafeDumper):
     def best_width(self, width):
         self._best_width = width
 
-    def increase_indent(self, flow=False, indentless=False):
+    def increase_indent(self, flow=False, **_indentless):
         # A list sits indented under its key, as a person writes one.
         return super().increase_indent(flow, False)
 
@@ -2107,7 +2089,7 @@ def yaml_document(header: str, cases: dict) -> YamlDocument:
 class _YamlSnapshotHandler(BaseSnapshotHandler):
     FILE = "snapshot.yaml"
 
-    def __init__(self, handler_options, pytest_config, tw):
+    def __init__(self, *_configuration):
         pass
 
     def save(self, folder, obj):
@@ -2122,7 +2104,7 @@ class _YamlSnapshotHandler(BaseSnapshotHandler):
     def compare(self, current_obj, recorded_obj):
         return current_obj == recorded_obj
 
-    def show_differences(self, current_obj, recorded_obj, has_markup, use_ddiff):
+    def show_differences(self, current_obj, recorded_obj, *_presentation):
         return list(
             difflib.unified_diff(
                 recorded_obj.splitlines(),
@@ -2143,11 +2125,11 @@ SnapshotHandlerRegistry.add_handler(
 def consume_pending_input(session_id):
     """Hand the session its pending input as a hook does inline: one complete
     envelope, confirmed as it is handed over."""
-    from leaf import delivery
+    from leaf import delivery, state
 
     batches = delivery.pending_batches(session_id)
     if not batches:
         return None
     payload = delivery.freeze_delivery(batches)
-    delivery.receive_held(payload, session_id)
+    delivery.receive_held(payload, session_id, state.session_record(session_id))
     return payload

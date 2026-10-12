@@ -27,12 +27,11 @@
    context menu, and Option/Alt aims at the item. Such a press is left to the platform
    and the control's own click handling. A modifier arriving before the release ends the
    hold without this gesture's press and leaves the press to the browser's own click. */
+import { plainPress } from "./pointer.js";
 
 export const HOLDS_WORD = "lf-holds-word";
 
 const HOLDER = `.${HOLDS_WORD}`;
-const modified = (event) =>
-  event.ctrlKey || event.metaKey || event.altKey || event.shiftKey;
 
 export function holdToRead() {
   let hold = null;
@@ -53,7 +52,7 @@ export function holdToRead() {
   };
   const end = (event, commit) => {
     if (hold?.pointerId !== event.pointerId) return;
-    const holder = commit && !modified(event) ? under(event) : null;
+    const holder = commit && plainPress(event) ? under(event) : null;
     read(null);
     hold = null;
     if (!holder) return;
@@ -75,7 +74,7 @@ export function holdToRead() {
       released = null;
       if (hold) read(null);
       hold = null;
-      if (!event.isPrimary || event.button !== 0 || modified(event)) return;
+      if (!event.isPrimary || !plainPress(event)) return;
       const holder = holderIn(event);
       if (!holder || holder.matches(":disabled, [aria-disabled='true']")) return;
       const origin = event.composedPath()[0];

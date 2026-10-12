@@ -19,6 +19,10 @@
      back in one batch has not left, so leaving is decided once the batch is read, from
      where the element stands then.
 
+   `arriveBatch(elements)` may replace `arrive` where an owner must read all matching
+   elements before writing any of them. Each initial stage and mutation delivery is
+   one batch; an explicit offer is a batch of one.
+
    The returned offer function enrolls a connected element synchronously when its
    resource setup starts before that first mutation delivery.
 
@@ -145,7 +149,7 @@ export function liveStages() {
 }
 
 const stands = (el) => {
-  const root = el.getRootNode();
+  const root = Node.prototype.getRootNode.call(el);
   return root === document
     ? document.body.contains(el)
     : stages.has(root) && root.host.isConnected;
@@ -160,12 +164,27 @@ function* matching(node, selector) {
     if (under(stage.host, node)) yield* stage.querySelectorAll(selector);
 }
 
-export function watchArrivals(selector, attributes, { arrive, leave }) {
+export function watchArrivals(selector, attributes, { arrive, arriveBatch, leave }) {
   const arrived = new WeakSet();
+  const offerMany = (elements) => {
+    if (!arriveBatch) {
+      for (const el of elements) offer(el);
+      return;
+    }
+    const standing = [];
+    for (const el of elements) {
+      if (stands(el) && el.matches(selector)) {
+        arrived.add(el);
+        standing.push(el);
+      } else if (arrived.delete(el)) leave(el);
+    }
+    if (standing.length) arriveBatch(standing);
+  };
   const offer = (el) => {
     if (stands(el) && el.matches(selector)) {
       arrived.add(el);
-      arrive(el);
+      if (arriveBatch) arriveBatch([el]);
+      else arrive(el);
     } else if (arrived.delete(el)) leave(el);
   };
   const beside = (node) =>
@@ -191,22 +210,22 @@ export function watchArrivals(selector, attributes, { arrive, leave }) {
       for (const node of record.removedNodes)
         for (const el of matching(node, selector)) if (arrived.has(el)) offered.add(el);
     }
-    for (const el of offered) offer(el);
+    offerMany(offered);
   });
-  const watch = { selector, attributes, observer, offer };
+  const watch = { selector, attributes, observer, offerMany };
   watches.add(watch);
   for (const root of [document.body, ...liveStages()]) enroll(watch, root);
   return offer;
 }
 
-function enroll({ selector, attributes, observer, offer }, root) {
+function enroll({ selector, attributes, observer, offerMany }, root) {
   observer.observe(root, {
     childList: true,
     subtree: true,
     attributes: true,
     attributeFilter: attributes,
   });
-  for (const el of root.querySelectorAll(selector)) offer(el);
+  offerMany(root.querySelectorAll(selector));
 }
 
 export function watchArrivalsIn(stage) {
@@ -225,7 +244,7 @@ export function watchArrivalsIn(stage) {
 const scrollListeners = new Set();
 const SCROLL = { capture: true, passive: true };
 const heardIn = (stage) => (event) => {
-  if (event.target.getRootNode() !== stage) return;
+  if (Node.prototype.getRootNode.call(event.target) !== stage) return;
   for (const listener of scrollListeners) listener(event);
 };
 export function watchScrolls(listener) {

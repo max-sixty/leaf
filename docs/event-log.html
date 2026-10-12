@@ -121,7 +121,7 @@ flowchart TD
           The sample below is a complete Leaf page with a log of its own, and its feed
           lists that log newest first. Open <strong>Show activity</strong>, then type
           <em>After the canary is healthy</em> into <em>Another option</em>, and press
-          <kbd>Enter</kbd>: press the new-updates notice to reveal an
+          <kbd>Enter</kbd>: press the notice counting new rows to reveal an
           <code>add</code> and then a pick. Pick <em>Later</em>. Then press
           <kbd>z</kbd> three times. The first press brings back the pick of the added
           option, the second leaves nothing picked while the added option stays, and the
@@ -362,7 +362,6 @@ flowchart TD
      "unit": "option",
      "record": null,
      "creates": {"child": "lf-option", "words": "text"},
-     "update": false,
      "detail": {"type": "object",
        "properties": {"option": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
          "text": {"type": "string", "minLength": 1}},
@@ -381,7 +380,6 @@ flowchart TD
      "unit": "widget",
      "record": {"kind": "attribute", "attr": "chosen"},
      "creates": null,
-     "update": false,
      "detail": {"type": "object",
        "properties": {"value": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}},
        "required": ["value"],
@@ -399,7 +397,6 @@ flowchart TD
      "unit": "widget",
      "record": {"kind": "attribute", "attr": "chosen"},
      "creates": null,
-     "update": false,
      "detail": {"type": "object",
        "properties": {"value": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}},
        "required": ["value"],
@@ -420,7 +417,7 @@ flowchart TD
             <code>attention</code> records whether the action changes work the agent
             owes.</lf-note
           >
-          <lf-note at="19"
+          <lf-note at="18"
             >Leaf derives <code>meaning</code> and refuses a sender that supplies it. It
             keeps only what a reader without the registry could not recover: whether the
             action was made on the page or in a thread (<code>scope</code>), its fold
@@ -433,12 +430,12 @@ flowchart TD
             >Leaf generates the eight-hex <code>id</code>; <code>seq</code> is the
             record's line in the log.</lf-note
           >
-          <lf-note at="37"
+          <lf-note at="35"
             >This pick makes the Question's answered condition hold, so it completes the
             Question. <code>null</code> means it closes no thread; a group with a
             <code>resolves</code> attribute would name one here.</lf-note
           >
-          <lf-note at="58"
+          <lf-note at="55"
             >An undo names the gesture to withdraw. Leaf excludes that gesture when
             deriving state, and both records stay in the log.</lf-note
           >

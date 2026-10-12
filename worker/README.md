@@ -11,7 +11,9 @@ another. When `AGENT_PREWARM` is `true`, a browser document navigation also star
 identity's container through `waitUntil`. Asset fetches, API clients, and release probes
 do not prewarm. Setting the variable to `false` keeps read-only visits at the edge. The
 first request that needs private, mutable state reaches the canonical Python Leaf
-server. Containers are keyed by both user identity and site release, so a deployment
+server. A page fault the runtime reports from a passive session is not one: it is the
+published page failing, so the edge logs it (see **Browser diagnostics**) rather than
+activating a container to hold it. Containers are keyed by both user identity and site release, so a deployment
 may discard ephemeral demo state instead of routing the new site through an older
 container. Cloudflare activates the Worker and its assets before the container image has
 finished rolling out, so a session opened in that window still starts on the previous
@@ -295,6 +297,16 @@ served straight from `leaf_website` — the test suite, a local preview — has 
 of it, so the adapter acknowledges the report itself and keeps no record of it. Startup
 profiles exist only for the deployed release.
 
+A runtime fault after startup, such as a code block that fails to highlight, reaches
+the agent as a page `error` event (`reportPageError`). In a passive session the page is
+the published one, so the edge answers that event itself, with no container, and
+writes one `component=leaf-page-error`, `event=browser_page_error` record carrying the
+session `reference`, route, the document's `release` and the edge's `currentRelease`,
+document `revision`, browser, platform, and the first 300 characters of the runtime's
+words as `reason`, which the startup `reason` caution covers too. Such a fault never
+reaches the agent, even after the visitor's first comment activates the session. Once
+the session is active, faults go to its container's log like any other event.
+
 The deployed site also accepts `POST api/interaction` at the edge and writes each
 validated browser batch as one `component=leaf-interaction`, `event=client_batch`
 Workers Observability record. The record carries the public session `reference`,
@@ -371,8 +383,10 @@ The local end-to-end journey (`leaf-dev journey website-adapter`) prints the sam
 container records and leaves them at `.tmp/verify-site/run-*/website-adapter.log` for a later
 agent to inspect. Each run builds its own site, binds an OS-assigned HTTP port, and gives
 each website harness a private App Server socket. It gives the child App
-Server a temporary plugin-free `CODEX_HOME` seeded with copies of the host login and
-website config, matching production without changing personal state. Its JSON result
+Server a temporary `CODEX_HOME` seeded with copies of the host login and website
+config, then installs the prepared Leaf plugin through Codex, matching production
+without changing personal state. Native installation output stays in the run's
+`plugin-install.log`, separate from the server's JSON-lines log. Its JSON result
 records `sinceSendMs.responseVisible` from the first non-empty agent reply the open
 Threads panel actually displays; `sinceAdmissionMs.replied` is when the container
 admitted that reply and is not a substitute for that user-visible milestone.
@@ -388,15 +402,15 @@ Codex App Server task rooted at the actual page directory and deliver the event 
 Leaf's immutable delivery envelope, passed
 inline as structured `leaf_delivery` when the task is idle. While a turn is active,
 Leaf retains that immutable delivery locally and starts it directly after the current
-turn completes. The website-specific App Server starts
-without the authoring plugin, so skill discovery cannot turn a small user response
-into a full authoring workflow. Its developer instructions are the shipped
-`skills/leaf/references/harness-codex-app-server.md`, whole, followed by leaf.page's own
-additions in `HOSTED_INSTRUCTIONS`, so the hosted agent and a terminal App Server task
-read one delivery and reply contract. The App Server's `PATH` starts with the
-container's own `leaf` launcher, the name that contract uses. The hosted task can
-revise `index.html`, validate it, append thread replies, and leave the page waiting. The
-initiating App Server connection projects the turn's native activity notifications back
+turn completes. The container installs the complete prepared Leaf plugin through
+Codex's native marketplace and plugin commands, just as a terminal agent does.
+The hosted task discovers the installed skill and reads the shared references,
+including `skills/leaf/references/harness-codex-app-server.md`, selected by
+`LEAF_CODEX_APP_SERVER`. Its developer instructions in `CODEX_INSTRUCTIONS` add only
+the session's environment and page scope. Full tasks use Codex's normal features
+and skill discovery; only the separate thread-title request disables tools and
+plugins. The App Server's `PATH` starts with the container's own `leaf` launcher.
+The initiating App Server connection projects the turn's native activity notifications back
 through Leaf. For deferred input it stays subscribed through the active turn, starts
 and records the delivery turn opening, and observes that turn to its terminal state. The container's
 pickup is idempotent, so a repeated dispatch does not start the work twice. A boundary

@@ -220,7 +220,7 @@ def detail_schema(entry: dict, spec: dict) -> dict:
     """The event payload contract: an effect's fixed fields or custom command data.
 
     Recorded values use `value`; positions add `unit` and `rank`, and a report
-    declaring `update` adds required nonempty `text`. Attribute values inherit
+    declaring `report` adds required nonempty `text`. Attribute values inherit
     the destination's exact schema. Derived schemas are readings, never inserted
     into the registry beside the effect that owns them.
     """
@@ -237,7 +237,7 @@ def detail_schema(entry: dict, spec: dict) -> dict:
     properties = {"value": value}
     if kind == "position":
         properties.update(unit={"type": "string"}, rank={"type": "string"})
-    if spec.get("update"):
+    if spec.get("report"):
         properties["text"] = {"type": "string", "minLength": 1}
     return {
         "type": "object",
@@ -355,7 +355,8 @@ def state_definition(origin: str, entry: dict, spec: dict) -> dict:
 
     Later declarations may reuse a verb's name with different meaning or types.
     Recorded definitions distinguish those new operations from history, while
-    descriptive schema annotations remain free to change.
+    descriptive schema annotations remain free to change. A verb's `report` flag
+    is not recorded: all it changes is the required `text` in `detail`.
     """
     from copy import deepcopy
 
@@ -365,7 +366,6 @@ def state_definition(origin: str, entry: dict, spec: dict) -> dict:
             "unit": spec["unit"],
             "record": spec.get("record"),
             "creates": spec.get("creates"),
-            "update": spec.get("update", False),
             "detail": _semantic_schema(detail_schema(entry, spec)),
         }
     )
@@ -392,13 +392,19 @@ def same_state_definition(recorded, current) -> bool:
 
 
 def same_state_operation(recorded, current) -> bool:
-    """The same fold destination and construction, independent of payload domain."""
+    """The same fold destination and construction, independent of payload domain.
+
+    The operation is the fields `state_definition` writes now, `detail` aside. A
+    field an earlier Leaf recorded beside them, such as `update` before it was
+    named `report`, is how that version wrote the definition, not part of the
+    operation, so it never retracts a decision. A missing field still fails."""
     return (
         isinstance(recorded, dict)
         and isinstance(current, dict)
-        and same_state_definition(
-            {key: value for key, value in recorded.items() if key != "detail"},
-            {key: value for key, value in current.items() if key != "detail"},
+        and all(
+            key in recorded and same_state_definition(recorded[key], value)
+            for key, value in current.items()
+            if key != "detail"
         )
     )
 

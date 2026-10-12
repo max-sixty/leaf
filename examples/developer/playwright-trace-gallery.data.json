@@ -31,7 +31,9 @@
         "startTime": 2416.095,
         "endTime": 4107.181,
         "error": null,
-        "phases": {}
+        "phases": {},
+        "method": "newPage",
+        "input": null
       },
       {
         "id": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-459765577710bb98",
@@ -182,7 +184,9 @@
               ]
             }
           }
-        }
+        },
+        "method": "setContent",
+        "input": null
       },
       {
         "id": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-4e380b5061c4982e",
@@ -583,6 +587,19 @@
                 }
               ]
             }
+          }
+        },
+        "method": "click",
+        "input": {
+          "selector": "internal:role=button[name=\"Review\"s] >> nth=0",
+          "key": null,
+          "point": {
+            "x": 104.22,
+            "y": 294.9
+          },
+          "viewport": {
+            "width": 960,
+            "height": 640
           }
         }
       },
@@ -985,6 +1002,19 @@
                 }
               ]
             }
+          }
+        },
+        "method": "click",
+        "input": {
+          "selector": "internal:role=button[name=\"Review\"s] >> nth=1",
+          "key": null,
+          "point": {
+            "x": 104.22,
+            "y": 464.68
+          },
+          "viewport": {
+            "width": 960,
+            "height": 640
           }
         }
       }

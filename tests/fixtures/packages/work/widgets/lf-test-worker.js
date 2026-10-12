@@ -9,9 +9,9 @@ import {
   quietSince,
   render,
   saidAt,
-  updateSequence,
+  reportSequence,
   watchOwner,
-  watchUpdates,
+  watchReports,
   widgetController,
 } from "/runtime/widget-api.js";
 customElements.define(
@@ -28,13 +28,13 @@ customElements.define(
         disconnect: () => this.paint.stop(),
       });
       this.#controller.subscribe(() => {});
-      watchUpdates(this, () => this.paint());
+      watchReports(this, () => this.paint());
     }
     renderState(state) {
       keeps(this, "state", state.state.value);
     }
     show() {
-      const reports = updateSequence(this).filter(
+      const reports = reportSequence(this).filter(
         (row) => row.source === "report" && row.action === "state",
       );
       const heard = reports.at(-1)?.ts ?? saidAt(this);

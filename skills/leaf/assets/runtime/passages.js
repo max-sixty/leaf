@@ -127,7 +127,7 @@ import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { readApplication } from "./semantic-state.js";
 import { COLLAPSE } from "./collapse.js";
 import { textUnits } from "./text-alignment.js";
-import { excerptWords } from "./contribution-model.js";
+import { excerptWords } from "./words.js";
 
 // Opaque widgets and their original direct children: each is a passage cell of its own.
 const passageFences = new WeakSet();
@@ -245,7 +245,7 @@ export function settledAway(el) {
     )
   );
 }
-export const GENERATED = ".lf-ui, [data-lf-gen]";
+const GENERATED = ".lf-ui, [data-lf-gen]";
 export const DATUM = "[data-lf-projection][data-lf-datum]";
 // A different question the class also used to answer, and not a question about looks at
 // all: which document is this element in? The runtime's layer is one container, so a
@@ -306,7 +306,7 @@ export const pageWords = (node) => Boolean(node) && !inChrome(node) && !inUi(nod
 // being broken, which is the one thing it isn't.
 export const elementOver = (n) => {
   if (n.parentElement) return n.parentElement;
-  const host = shadowHost(n.getRootNode());
+  const host = shadowHost(Node.prototype.getRootNode.call(n));
   const at = host
     ? `<${host.localName}${host.id ? ` id="${host.id}"` : ""}>`
     : "a module";
@@ -589,7 +589,7 @@ export function closestAcross(node, selector) {
   while (el) {
     const hit = el.closest(selector);
     if (hit) return hit;
-    el = shadowHost(el.getRootNode());
+    el = shadowHost(Node.prototype.getRootNode.call(el));
   }
   return null;
 }
@@ -622,7 +622,8 @@ export const elementById = (id, root = document) => {
 // document of its own, placed in that message's body; everything else is the page's
 // `main`. A widget resolving a reference among its own document's elements searches
 // here, so markup a message quotes neither answers for the page nor reaches into it.
-export const pageDocument = () => document.querySelector("body > main");
+// `doc` is a parsed revision's document, where a version reads its authored `main`.
+export const pageDocument = (doc = document) => doc.querySelector("body > main");
 export const authoredScope = (node) =>
   closestAcross(node, ".lf-msg-body") ?? pageDocument();
 
@@ -674,7 +675,11 @@ export function pageRange(sel) {
   const [composed] = sel.getComposedRanges({ shadowRoots });
   if (!composed) return plain;
   const { startContainer, startOffset, endContainer, endOffset } = composed;
-  if (startContainer.getRootNode() !== endContainer.getRootNode()) return plain;
+  if (
+    Node.prototype.getRootNode.call(startContainer) !==
+    Node.prototype.getRootNode.call(endContainer)
+  )
+    return plain;
   const range = document.createRange();
   range.setStart(startContainer, startOffset);
   range.setEnd(endContainer, endOffset);
@@ -722,7 +727,8 @@ export function programmaticSelection(selection) {
 // the platform's direction for the range inside its declared shadow tree.
 export function selectionBackward(selection, range = pageRange(selection)) {
   if (
-    selection.anchorNode.getRootNode() !== range.commonAncestorContainer.getRootNode()
+    Node.prototype.getRootNode.call(selection.anchorNode) !==
+    Node.prototype.getRootNode.call(range.commonAncestorContainer)
   )
     return programmaticSelection(selection)
       ? writtenBackward
@@ -741,7 +747,10 @@ export function selectionBackward(selection, range = pageRange(selection)) {
 // it. The tree renders where its host stands, so the host is what the question is really
 // about: climb to whichever ancestor shares the range's root, and ask there.
 function coveredBy(range, node) {
-  const n = hostIn(node, range.commonAncestorContainer.getRootNode());
+  const n = hostIn(
+    node,
+    Node.prototype.getRootNode.call(range.commonAncestorContainer),
+  );
   if (!n || !range.intersectsNode(n)) return false;
   // A host represents its shadow words only while the range actually enters it.
   // intersectsNode includes an endpoint at the host's edge, even when no shadow

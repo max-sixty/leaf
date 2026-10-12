@@ -5,13 +5,17 @@ import { cancelRender, nextFrame } from "./rendering.js";
 import { scrollGlides } from "./arrivals.js";
 import { clampedRow } from "./keyboard/bindings.js";
 import { coveringAuxiliarySurface, pageCommand } from "./keyboard/register.js";
+import { nativeModalAdmits } from "./keyboard/layer-stack.js";
+import { sampleNotice } from "./sample-child.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
-import { atScrollEnd, pageScroller } from "./scrolling.js";
+import { atScrollEnd, pageScroller, scrollLimit } from "./scrolling.js";
 import { landingBand, shownRect } from "./geometry.js";
+import { intersect } from "./rect.js";
 import {
   effectiveScroller,
   userReadingRegion,
   readingRegionFor,
+  scrollChainOf,
   scrollersOf,
 } from "./reading-regions.js";
 import { walkOrigin, heldQuestion, placeOf } from "./standing-target.js";
@@ -146,9 +150,11 @@ export function placeThreadEdge(thread, edge) {
 
 // j/k take small pixel steps; d/u move 60% of the visible reading page. Both follow
 // the active region and share one glide, so mixed or repeated presses add up from
-// the pending goal. At a region's edge they follow its CSS scroll chain, stopping at
-// the same task or modal boundary as native input. Space, Home/End and PageUp/Down
-// stay the browser's own keys.
+// the pending goal. At a region's edge they follow its CSS scroll chain
+// (`scrollChainOf`, `stepAlong`), stopping at the same task or modal boundary as
+// native input, so a floating thread's turns, once spent, hand the step to the
+// document, and a sample's to its containing page, as the wheel does. Space,
+// Home/End and PageUp/Down stay the browser's own keys.
 //
 // They move the region the user is reading. The thread list is that region when
 // focus stands on its frame; a nested region keeps its own scrollport. Scrolling a
@@ -206,8 +212,7 @@ const readingStep = (box, clips) => {
   const shown = shownRect(box, clips);
   const band = shown && landingBand(box);
   if (!band) return null;
-  const top = Math.max(shown.top, band.top);
-  const bottom = Math.min(shown.bottom, band.bottom);
+  const { top, bottom } = intersect(shown, band, { y: true });
   return bottom > top ? { box, height: bottom - top } : null;
 };
 const stepScroller = (coveringAuxiliaryScroller) => {
@@ -242,10 +247,19 @@ const stepScroller = (coveringAuxiliaryScroller) => {
 };
 function stepReading(amount, unit, coveringAuxiliaryScroller) {
   const first = stepScroller(coveringAuxiliaryScroller);
-  if (!first) return;
+  if (first) stepAlong(first.box, amount, unit, first);
+}
+// The step walks the chain from `from` to the first box that can take it. A box that
+// contains its overscroll, or one a standing modal leaves outside, ends the walk. A
+// sample's chain runs on past its document into the containing page, as the wheel's
+// does, so a chain spent without either boundary passes the step on, and the
+// containing page's navigation takes it up from the frame; outside a sample the notice
+// goes nowhere.
+function stepAlong(from, amount, unit, first = null) {
   const clips = new Map();
-  for (const box of scrollersOf(first.box)) {
-    const step = box === first.box ? first : readingStep(box, clips);
+  for (const box of scrollChainOf(from)) {
+    if (!nativeModalAdmits(box)) return;
+    const step = box === first?.box ? first : readingStep(box, clips);
     const canMove = amount > 0 ? !atScrollEnd(box) : box.scrollTop > 0;
     if (step && canMove) {
       const distance = unit === "page" ? amount * step.height : amount;
@@ -255,12 +269,13 @@ function stepReading(amount, unit, coveringAuxiliaryScroller) {
     }
     if (getComputedStyle(box).overscrollBehaviorY !== "auto") return;
   }
+  sampleNotice("step", { amount, unit });
 }
 // One eased travel to a goal, shared by the reading-page step and the sequence's edges. The
 // goal is clamped here, so a step pressed on at the foot banks no debt for u to press
 // back through, and an edge may be asked for as the height it cannot exceed.
 export function glideTo(box, goal) {
-  goal = Math.max(0, Math.min(box.scrollHeight - box.clientHeight, goal));
+  goal = Math.max(0, Math.min(scrollLimit(box), goal));
   if (reducedMotion()) {
     box.scrollTo({ top: goal, behavior: "instant" });
     return;
@@ -396,6 +411,14 @@ export function createNavigation({
     // or opens the margin's thread view for a thread with no seat, and that view
     // is what the Page Map's own step dismisses.
     run: (binding) => walkThreads(binding === "t" ? 1 : -1),
+  });
+  // A sample's spent step arrives at its frame (sample.js). It goes on only while the
+  // user is still in that frame: one that lands after they have left was not theirs to
+  // finish. The child's scripts are the page author's, like the page's own, so the
+  // frame's word is trusted as a page script's would be.
+  document.addEventListener("lf-sample-step", (event) => {
+    const frame = event.composedPath()[0];
+    if (focused() === frame) stepAlong(frame, event.detail.amount, event.detail.unit);
   });
   pageCommand({
     id: "page.move",

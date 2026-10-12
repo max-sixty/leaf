@@ -70,9 +70,7 @@ export function createAnchorPaint({
         .filter((element) => element instanceof Element),
     );
     const focus = new Set(
-      [...elements].filter((element) =>
-        element.matches(":focus-visible, .lf-focus-visible"),
-      ),
+      [...elements].filter((element) => element.matches("[data-lf-focus]")),
     );
     const sources = [
       ["pending", pending],

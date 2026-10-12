@@ -229,7 +229,7 @@ class Harness:
         as the comment is admitted (`thread_titles`), or None where it cannot.
 
         Only a harness whose model any process on the machine can ask has one. The
-        website's host names the thread instead, as the move opening it is
+        website's host names the thread instead, as the update opening it is
         dispatched to it, since only it can reach the App Server it owns."""
         return None
 
@@ -608,10 +608,9 @@ class EmbeddedHarness(Harness):
     itself, supplying its own display name and the App Server process its
     session lives and dies with.
 
-    The Stop hook never reaches a page this holds: the container's Codex runs
-    with no Leaf plugin and so no Leaf hooks (`worker/codex-config.toml`), even
-    though its agent does run `leaf` commands. The two remedies say what is true
-    rather than what to type."""
+    The host owns turn pickup and observes completion directly. It installs the
+    ordinary Leaf plugin for the agent's skills and tools; its remedies describe
+    host-owned delivery rather than asking the agent to start another watcher."""
 
     pid: int
 

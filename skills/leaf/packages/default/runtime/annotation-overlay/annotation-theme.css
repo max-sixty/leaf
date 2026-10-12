@@ -86,7 +86,7 @@
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
   color: var(--lf-entry-ink); inline-size: 14px; block-size: 14px; }
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry:not([data-lf-behavior="status"]):is(button, [role="button"]):is(:hover, :focus-visible, .lf-focus-visible, [aria-expanded="true"], [data-lf-target-selected]) {
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry:not([data-lf-behavior="status"]):is(button, [role="button"]):is(:hover, [data-lf-focus], [aria-expanded="true"], [data-lf-target-selected]) {
   border-color: var(--lf-pin-edge); }
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry:not([data-lf-behavior="status"]):is(button, [role="button"]):is(:hover, [aria-expanded="true"]):not([aria-disabled="true"]):not(:disabled) {
   background: color-mix(in srgb, var(--lf-pin-face, var(--pin-fill)) 82%, #000); }

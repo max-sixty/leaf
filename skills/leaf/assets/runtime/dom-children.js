@@ -2,10 +2,11 @@
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 import { render as renderTemplate } from "/vendor/browser-runtime.js";
 import { holdFocus } from "./focus.js";
+import { move } from "./dom-move.js";
 
 const detach = (node) => node.remove();
 
-// Keyed template moves preserve the native editor that the user stands in.
+// Engines without native state-preserving moves still need their editor restored.
 export function render(value, container, options) {
   const restore = holdFocus(container);
   const part = renderTemplate(value, container, options);
@@ -64,8 +65,7 @@ export function setRenderedChildren(parent, nodes) {
 
 // Put `nodes` in order under `parent`, walking past the children `passed` names, and
 // moving only a node that is not already where it belongs. A retained move within one
-// shadow-including tree preserves the browser's own state, including iframe documents
-// and editor focus. New nodes and nodes adopted from another tree arrive by insertion.
+// shadow-including tree preserves native state where the browser supports it (`move`).
 function order(parent, nodes, passed = () => false) {
   let cursor = parent.firstChild;
   for (const node of nodes) {
@@ -74,9 +74,7 @@ function order(parent, nodes, passed = () => false) {
       cursor = cursor.nextSibling;
       continue;
     }
-    if (node.getRootNode({ composed: true }) === parent.getRootNode({ composed: true }))
-      parent.moveBefore(node, cursor);
-    else parent.insertBefore(node, cursor);
+    move(parent, node, cursor);
   }
 }
 

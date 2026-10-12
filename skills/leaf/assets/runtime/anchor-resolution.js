@@ -7,8 +7,7 @@
  * its context identifies one occurrence.
  */
 
-import { sameAnchor } from "./anchor-coordinate.js";
-import { isElementName } from "./registry-contract.js";
+import { anchorKey } from "./anchor-coordinate.js";
 import {
   resolvedElement,
   resolvedPassage,
@@ -17,7 +16,7 @@ import {
 } from "./resolved-target.js";
 import { overlaps } from "./rect.js";
 import { clippedContents } from "./geometry.js";
-import { inUi, uiInside, under, upFrom } from "./shadow.js";
+import { inUi, shadowHost, under, upFrom } from "./shadow.js";
 import {
   registeredVisualPart,
   registeredVisualPartAt,
@@ -51,12 +50,16 @@ import {
   pageDocument,
   pageQueryAll,
   settledAway,
-  TEXT_BLOCK,
 } from "./passages.js";
 import { registry, tagsDeclaring } from "./registry.js";
 import { PRESSABLE } from "./widget-elements.js";
 import { PRESSES, WORKS } from "./control-selectors.js";
-import { excerptWords } from "./contribution-model.js";
+import {
+  accessibleName,
+  addressableLabel,
+  addressableWord,
+  ownName,
+} from "./addressable-names.js";
 import { fragmentId } from "./initial-render.js";
 
 // Anchors are durable coordinates, so every route that can mint one begins only after
@@ -199,7 +202,7 @@ function visualPart(visual, part) {
   return admitsVisualPart(visual, part) ? registeredVisualPart(visual, part) : null;
 }
 
-export function revealVisualPart(visual, part) {
+function revealVisualPart(visual, part) {
   return admitsVisualPart(visual, part)
     ? revealRegisteredVisualPart(visual, part)
     : null;
@@ -290,160 +293,30 @@ export function isAddressable(at) {
   return !(visual && at.parentElement && closestAcross(at.parentElement, visual));
 }
 
-export function addressableAt(node) {
+function addressableAt(node) {
   let at = node?.nodeType === 1 ? node : node?.parentElement;
   for (; at; at = upFrom(at)) if (isAddressable(at)) return at;
   return null;
 }
 
-// Markdown block structure is reading geometry, not authored annotation identity.
-// A whole-body formatter replaces one authored data record with paragraphs/lists;
-// its declared host remains the seat that comments and reactions can name durably.
-export function annotationAt(node) {
+// The seat of a node: the element its margin row, response bar, note and reaction
+// receipt stand at. Markdown block structure is reading geometry, not authored
+// annotation identity. A whole-body formatter replaces one authored data record with
+// paragraphs/lists; its declared host remains the seat that comments and reactions can
+// name durably. A resolved passage's `place` is its first segment's seat; a passage in
+// a datum falls back to the datum, where other text falls back to the nearest
+// addressable element.
+export function annotationAt(node, fallback = addressableAt) {
   const formatted = tagsDeclaring(
     (entry) => entry["x-text-format"] === "markdown",
   ).join(",");
   return (
-    (formatted && closestAcross(node, formatted)) ||
-    blockAt(node) ||
-    addressableAt(node)
+    (formatted && closestAcross(node, formatted)) || blockAt(node) || fallback(node)
   );
 }
 
-const HTML_WORDS = {
-  input: "control",
-  select: "control",
-  button: "control",
-  p: "paragraph",
-  li: "item",
-  tr: "row",
-  td: "cell",
-  th: "cell",
-  figure: "figure",
-  blockquote: "quote",
-  pre: "block",
-  section: "section",
-  article: "section",
-  aside: "aside",
-  ul: "list",
-  ol: "list",
-  dl: "list",
-  table: "table",
-  details: "note",
-  h1: "heading",
-  h2: "heading",
-  h3: "heading",
-  h4: "heading",
-  h5: "heading",
-  h6: "heading",
-};
-
-export function addressableWord(addressable) {
-  if (!addressable) return "";
-  const tag = addressable.tagName.toLowerCase();
-  if (registry[tag]?.["x-word"] === "module") {
-    const own = addressable.lfWord?.();
-    if (own) return own;
-  }
-  if (registry[tag]?.["x-question-context"]) return "question";
-  if (tag.startsWith("lf-")) return tag.slice(3);
-  if (tag === "pre")
-    return addressable.querySelector(":scope > code") ? "code" : "block";
-  return HTML_WORDS[tag] ?? tag;
-}
-
-// The label is rooted at the addressable and reads its authored words. Generated annotation
-// chrome is excluded by the same passage reader used for anchor resolution. Display
-// surfaces constrain these complete words to their available space.
-export function addressableSays(addressable) {
-  if (!addressable) return "";
-  const own =
-    registry[addressable.localName]?.["x-word"] === "module"
-      ? addressable.lfSays?.()
-      : "";
-  return own || elementReading(addressable);
-}
-
-// What names an element, where the authoring contract gives it a name
-// (`../../references/page-authoring.md`): the attribute its registry entry declares
-// with `x-name`, else a leading disclosure summary, heading, or titled member's
-// <strong>, looked for inside a leading <header> or <hgroup> too. Leading means no words come
-// before it; elements may, as a titled member's comparison chips stand in the band
-// above its title and an eyebrow above a header's heading. The words are read the way
-// `addressableSays` reads them, and generated chrome is skipped, so it never names
-// anything: chrome inside the element, asked about the element's own insides, since
-// a widget an agent sent in a reply stands inside the thread panel's chrome and its
-// heading is still its name. An element the contract gives no name answers "".
-const TITLES = "summary, h1, h2, h3, h4, h5, h6, strong";
-function leadingTitle(container) {
-  for (const node of container.childNodes) {
-    if (node.nodeType === Node.TEXT_NODE && node.data.trim()) return "";
-    if (node.nodeType !== Node.ELEMENT_NODE || uiInside(node, container)) continue;
-    if (node.matches(TITLES)) return elementReading(node);
-    if (["header", "hgroup"].includes(node.localName)) return leadingTitle(node);
-  }
-  return "";
-}
-export function addressableName(element) {
-  if (!element) return "";
-  const attribute = registry[element.localName]?.["x-name"];
-  const declared = attribute && element.getAttribute(attribute)?.trim();
-  return declared || leadingTitle(element);
-}
-
-// What the chrome calls an element away from it: a Questions panel row, a Page Map heading,
-// a thread's anchor, a feed row. The element's name comes first: `addressableName`,
-// else its own caption, the `aria-label` its author gave it, or a control's <label>.
-// An element whose words are its own (a block of prose, anything holding text of its
-// own, or a module that answers `lfSays`) is otherwise named by them, cut short. Any other
-// element's words are its members' run together, a question's with its options' and
-// their chips', which name nothing, so it takes the name of the nearest element
-// holding it that has one, short of the document it stands in (the page's column, or
-// a message's body): a question's options by the question, a chart by its section.
-// Past that, plain markup is named by its words cut short, and a registered widget by
-// nothing: empty, and the caller says the element's word (`addressableWord`), which it
-// usually shows beside this anyway.
-const LABEL_WORDS = 60;
-const captionOf = (element) => {
-  const caption = [...element.children].find(
-    (child) => child.matches("figcaption, caption") && !uiInside(child, element),
-  );
-  return caption ? elementReading(caption) : "";
-};
-// A form control's caption is its <label>.
-const accessibleName = (element) =>
-  element.getAttribute("aria-label")?.trim() ||
-  (element.labels?.[0] ? elementReading(element.labels[0]) : "") ||
-  element.alt?.trim() ||
-  "";
-const ownName = (element) =>
-  addressableName(element) || captionOf(element) || accessibleName(element);
-const saysItself = (element) =>
-  element.matches(TEXT_BLOCK) ||
-  (registry[element.localName]?.["x-word"] === "module" && element.lfSays?.()) ||
-  [...element.childNodes].some(
-    (node) => node.nodeType === Node.TEXT_NODE && node.data.trim(),
-  );
-export function addressableLabel(element) {
-  if (!element) return "";
-  const own = ownName(element);
-  if (own) return own;
-  if (saysItself(element)) return excerptWords(addressableSays(element), LABEL_WORDS);
-  const scope = authoredScope(element);
-  for (let at = upFrom(element); at && at !== scope; at = upFrom(at)) {
-    const name = ownName(at);
-    if (name) return name;
-  }
-  // A registered widget has a word of its own, which says more than its members' words
-  // run together. Plain markup has none worth saying (a `div`), so its words, or the
-  // name of the picture it holds, are the last resort.
-  if (isElementName(element.localName) && registry[element.localName]) return "";
-  return excerptWords(
-    addressableSays(element) ||
-      element.querySelector("[aria-label]")?.getAttribute("aria-label"),
-    LABEL_WORDS,
-  );
-}
+// A seat inside a shadow root stands at its host, where light-DOM chrome can sit.
+export const lightSeat = (seat) => (seat && shadowHost(seat.getRootNode())) ?? seat;
 
 const aimLabel = (addressable, says = addressableLabel(addressable)) =>
   [addressableWord(addressable), says].filter(Boolean).join(": ");
@@ -458,7 +331,7 @@ const addressableAimTarget = (addressable) => ({
 // The one coordinate minted from a projected datum. Pointer aim, passage capture, and
 // widget-local comment affordances all pass through this function so source provenance
 // cannot disappear merely because the gesture began in generated UI rather than text.
-export const anchorForDatum = (datum, fields = {}) => {
+const anchorForDatum = (datum, fields = {}) => {
   const sourceRevision = datum.dataset.lfSourceRevision;
   return {
     section: datum.dataset.lfProjection,
@@ -523,7 +396,7 @@ export function anchorForRange(range) {
       ...(prefix && { prefix }),
       ...(suffix && { suffix }),
     };
-    const resolved = quote && resolveAnchor(anchor, reading);
+    const resolved = quote && resolveAnchor(anchor);
     if (resolved?.exact && resolved.kind === "passage") {
       // Quotes discard boundary whitespace. Compare the characters the passage
       // reader retained, rather than demanding the drag's cosmetic spaces survive.
@@ -711,7 +584,7 @@ function designTargetAt(
         for (const passage of controlPassages(face, partElement)) {
           if (!passage.length || !fileModelsPassage(passage)) continue;
           const captured = anchorForRange(rangeOf(passage));
-          const resolved = captured.quote && resolveAnchor(captured, pageText());
+          const resolved = captured.quote && resolveAnchor(captured);
           const attachment =
             resolved?.kind === "passage" && passageGeometry(resolved)?.attachment;
           // Hidden option words and repeated passages cannot establish an exact face.
@@ -796,13 +669,16 @@ export function aimTargets(options = {}) {
       return true;
     });
   }
-  return targets.filter(
-    (target, index) =>
-      !targets.slice(0, index).some((prior) => sameAnchor(prior.anchor, target.anchor)),
-  );
+  const keys = new Set();
+  return targets.filter((target) => {
+    const key = anchorKey(target.anchor);
+    if (keys.has(key)) return false;
+    keys.add(key);
+    return true;
+  });
 }
 
-export function resolveAnchor(anchor, text = "") {
+export function resolveAnchor(anchor) {
   // Capture exhausted the selected occurrence's real fences without identifying it.
   // Later uniqueness cannot prove that the survivor was the user's occurrence.
   if (anchor.detached) return null;
@@ -860,11 +736,11 @@ export function resolveAnchor(anchor, text = "") {
         exact: true,
         status: "exact",
       };
-    const segments = findQuote(text, anchor.quote, anchor, datums[0]);
+    const segments = findQuote(pageText(), anchor.quote, anchor, datums[0]);
     return segments.length
       ? {
           ...resolvedPassage({
-            place: segments[0].block ?? datums[0],
+            place: annotationAt(segments[0].node, () => datums[0]),
             segments,
           }),
           datumElement: datums[0],
@@ -918,7 +794,7 @@ export function resolveAnchor(anchor, text = "") {
     return anchor.part ? { ...target, exact: false, status: "fallback" } : target;
   }
 
-  const segments = findQuote(text, anchor.quote, anchor, sectionOf(anchor));
+  const segments = findQuote(pageText(), anchor.quote, anchor, sectionOf(anchor));
   if (!segments.length) return null;
   // An exact named-control quote identifies its actual readable face, so both the
   // editor and sent thread clear that face. Ordinary prose still clears its block.
@@ -926,7 +802,7 @@ export function resolveAnchor(anchor, text = "") {
   const controlFace =
     face && segments.every(({ node }) => closestAcross(node, WORKS) === face);
   return resolvedPassage({
-    place: controlFace ? face : (segments[0].block ?? addressableAt(segments[0].node)),
+    place: controlFace ? face : annotationAt(segments[0].node),
     segments,
   });
 }

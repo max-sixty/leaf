@@ -86,7 +86,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 # Where focus given to the Threads list lands while it shows a thread: the title of the
@@ -664,15 +664,12 @@ def test_a_durable_reply_completes_its_stream_placeholder_in_place(
 
     reply = thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "The complete answer.",
-        (
-            '<lf-ask id="stream-reply-ask"><h3>Use this answer?</h3>'
-            '<lf-options id="stream-reply-choice" choose>'
-            '<lf-option id="stream-reply-now">Use it now</lf-option>'
-            "</lf-options></lf-ask>"
-        ),
-        for_event=root,
+        '<lf-ask id="stream-reply-ask"><h3>Use this answer?</h3>'
+        '<lf-options id="stream-reply-choice" choose>'
+        '<lf-option id="stream-reply-now">Use it now</lf-option>'
+        "</lf-options></lf-ask>",
         attempt=STREAM_ATTEMPT,
         identity={"agent": "Codex", "session": "codex-thread"},
     )
@@ -753,10 +750,8 @@ def test_a_codex_reply_streams_into_an_open_card_and_its_answer_completes_it(
 
     reply = thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Recorded the release on the board.",
-        "",
-        for_event=root,
         attempt="leaf-response-explicit",
         identity={"agent": "Codex", "session": "codex-thread"},
     )
@@ -806,10 +801,8 @@ def test_a_held_card_counts_a_streaming_reply_once_and_names_the_users_own_messa
 
     thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Recorded the release on the board.",
-        "",
-        for_event=root,
         attempt="leaf-response-explicit",
         identity={"agent": "Codex", "session": "codex-thread"},
     )
@@ -885,10 +878,8 @@ def test_an_answer_completing_its_stream_with_the_same_words_folds_progress_as_i
     claim_for_codex(serve.page_dir, request)
     thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Checking the board",
-        "",
-        for_event=root,
         ephemeral=True,
         identity={"agent": "Codex", "session": "codex-thread"},
     )
@@ -903,10 +894,8 @@ def test_an_answer_completing_its_stream_with_the_same_words_folds_progress_as_i
 
     thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Recorded the release.",
-        "",
-        for_event=root,
         attempt=STREAM_ATTEMPT,
         identity={"agent": "Codex", "session": "codex-thread"},
     )
@@ -937,10 +926,8 @@ def test_an_idle_card_shows_an_answer_folding_the_progress_at_its_end(
     claim_for_codex(serve.page_dir, request)
     thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Checking the board",
-        "",
-        for_event=root,
         ephemeral=True,
         identity={"agent": "Codex", "session": "codex-thread"},
     )
@@ -959,10 +946,8 @@ def test_an_idle_card_shows_an_answer_folding_the_progress_at_its_end(
 
     thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Recorded the release on the board.",
-        "",
-        for_event=root,
         attempt=STREAM_ATTEMPT,
         identity={"agent": "Codex", "session": "codex-thread"},
     )
@@ -982,10 +967,8 @@ def answer_folding_progress(page_dir, root):
     """The agent's answer to `root`, which folds the progress before it."""
     return thread_model.post_reply(
         page_dir,
-        root,
+        {"to": root, "for": root},
         "Recorded the release on the board.",
-        "",
-        for_event=root,
         attempt=STREAM_ATTEMPT,
         identity={"agent": "Codex", "session": "codex-thread"},
     )
@@ -998,10 +981,8 @@ def open_card_with_progress(browser, serve, request):
     claim_for_codex(serve.page_dir, request)
     thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Checking the board for the release entry",
-        "",
-        for_event=root,
         ephemeral=True,
         identity={"agent": "Codex", "session": "codex-thread"},
     )
@@ -1144,14 +1125,13 @@ def test_an_inline_reply_link_reveals_its_thread(browser, serve, resolved):
     )
     reply = thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Choose the first job.",
         '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
         '<lf-options id="first-job" choose>'
         '<lf-option id="mounts">Put the mounts back</lf-option>'
         '<lf-option id="camera">Install the camera</lf-option>'
         "</lf-options></lf-ask>",
-        for_event=root,
     )
     for i in range(8):
         append_carried_log_record(
@@ -1230,10 +1210,8 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     )
     first = thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "The first job establishes the dependency.",
-        None,
-        for_event=root,
     )
     middle = append_user_reply(
         serve.page_dir, root, "Does that still hold for the camera?"
@@ -1332,7 +1310,9 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
 
 
 @pytest.mark.parametrize("width", [390, 1440])
-def test_previous_updates_can_fold_without_summary_prose(browser, serve, width):
+def test_previous_progress_messages_can_fold_without_summary_prose(
+    browser, serve, width
+):
     """The same disclosure keeps progress available without an authored digest."""
     url = serve(SEATED_QUESTION_PAGE)
     root = panel_comment(
@@ -1342,7 +1322,7 @@ def test_previous_updates_can_fold_without_summary_prose(browser, serve, width):
     last = append_agent_reply(serve.page_dir, root, "Checking the camera.")
     answer = append_agent_reply(serve.page_dir, root, "The schedule works.")
     summary = summarize_thread(
-        serve.page_dir, first["id"], last["id"], "", label="Previous updates"
+        serve.page_dir, first["id"], last["id"], "", label="Previous progress messages"
     )
 
     page = open_page(browser, url)
@@ -1356,7 +1336,7 @@ def test_previous_updates_can_fold_without_summary_prose(browser, serve, width):
     )
     label = checkpoint.locator(".lf-summary-label")
     expand = checkpoint.get_by_role("button", name="Show 2 earlier messages")
-    expect(label).to_have_text("Previous updates")
+    expect(label).to_have_text("Previous progress messages")
     expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
     expect(card.locator(f'.lf-msg[data-mid="{answer["id"]}"]')).to_be_visible()
     expect(card.locator(f'.lf-msg[data-mid="{first["id"]}"]')).to_be_hidden()
@@ -1382,10 +1362,8 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     root = panel_comment(serve.page_dir, "Check the schedule.", {"section": "jobs"})
     progress = thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Checking the camera.",
-        None,
-        for_event=root,
         ephemeral=True,
     )
     owed = root
@@ -1402,10 +1380,8 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
         owed = intervening["id"]
         thread_model.post_reply(
             serve.page_dir,
-            owed,
+            {"to": owed, "for": owed},
             "Checking the mount.",
-            None,
-            for_event=owed,
             ephemeral=True,
         )
 
@@ -1431,11 +1407,7 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
         expect(original).to_be_focused()
 
     answer = thread_model.post_reply(
-        serve.page_dir,
-        owed,
-        "The schedule works.",
-        None,
-        for_event=owed,
+        serve.page_dir, {"to": owed, "for": owed}, "The schedule works."
     )
     told(page)
     notice = card.get_by_role("button", name="1 new reply", exact=True)
@@ -1526,7 +1498,7 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
     root = roots[0]
     progress = [
         thread_model.post_reply(
-            serve.page_dir, root, text, None, for_event=root, ephemeral=True
+            serve.page_dir, {"to": root, "for": root}, text, ephemeral=True
         )
         for text in (
             "I'm checking the afternoon schedule against the break.",
@@ -1536,10 +1508,8 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
     ]
     thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Three sessions, a fifteen-minute break, and the closing discussion fit before five.",
-        None,
-        for_event=root,
     )
     context = browser.new_context(
         viewport={"width": width, "height": 670}, has_touch=touch, is_mobile=touch
@@ -1667,7 +1637,7 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Start with the measured constraint.")
     reply = thread_model.post_reply(
-        serve.page_dir, root, "The constraint still applies.", None, for_event=root
+        serve.page_dir, {"to": root, "for": root}, "The constraint still applies."
     )
     end = reply["id"]
     for number in range(count - 2):
@@ -1764,7 +1734,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Start with the measured constraint.")
     first = thread_model.post_reply(
-        serve.page_dir, root, "The first constraint.", None, for_event=root
+        serve.page_dir, {"to": root, "for": root}, "The first constraint."
     )
     second = append_agent_reply(serve.page_dir, root, "The second constraint.")
     third = append_agent_reply(serve.page_dir, root, "The third constraint.")
@@ -1840,14 +1810,13 @@ def test_a_summary_cannot_hide_an_active_question(browser, serve):
     )
     question = thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Choose the first job.",
         '<lf-ask id="summary-job-decision"><h3>Which job first?</h3>'
         '<lf-options id="summary-job" choose>'
         '<lf-option id="summary-mounts">Put the mounts back</lf-option>'
         '<lf-option id="summary-camera">Install the camera</lf-option>'
         "</lf-options></lf-ask>",
-        for_event=root,
     )
     summary = summarize_thread(
         serve.page_dir,
@@ -1887,14 +1856,13 @@ def test_a_held_inline_reply_reveal_yields_to_new_user_focus(browser, serve):
     )
     reply = thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Choose the first job.",
         '<lf-ask id="held-job-decision"><h3>Which job first?</h3>'
         '<lf-options id="held-job" choose>'
         '<lf-option id="held-mounts">Put the mounts back</lf-option>'
         '<lf-option id="held-camera">Install the camera</lf-option>'
         "</lf-options></lf-ask>",
-        for_event=root,
     )
     append_carried_log_record(
         serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
@@ -1908,9 +1876,7 @@ def test_a_held_inline_reply_reveal_yields_to_new_user_focus(browser, serve):
     page.locator(
         f'#jobs .lf-page-thread[data-thread="{root}"] .lf-page-thread-open'
     ).click()
-    page.wait_for_function(
-        "() => window.visibleThreadPresentationHeld === true", timeout=3000
-    )
+    page.wait_for_function("() => window.visibleThreadPresentationHeld === true")
     page.locator(".lf-threads-toggle").focus()
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
     page.evaluate("releaseVisibleThreadPresentation()")
@@ -2479,9 +2445,7 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_its_reveal(
 
     card.get_by_role("button", name=re.compile(r"\bReopen(?: thread)?$")).click()
     holding(page, held, 1, "the refused reopen with a held reveal")
-    page.wait_for_function(
-        "window.visibleThreadPresentationHeld === true", timeout=3000
-    )
+    page.wait_for_function("window.visibleThreadPresentationHeld === true")
     find.fill("newer user search")
     expect(find).to_be_focused()
     page.evaluate("releaseVisibleThreadPresentation()")
@@ -2526,9 +2490,7 @@ def test_a_refused_reopen_preserves_a_filter_typed_during_restoration(
 
     hold_visible_thread_presentation(page, root)
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
-    page.wait_for_function(
-        "window.visibleThreadPresentationHeld === true", timeout=3000
-    )
+    page.wait_for_function("window.visibleThreadPresentationHeld === true")
     find.fill("newer user search")
     expect(find).to_be_focused()
     page.evaluate("releaseVisibleThreadPresentation()")
@@ -2651,8 +2613,8 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
             "button", name=re.compile(r"\bReopen(?: thread)?$"), include_hidden=True
         ),
     ):
-        expect(settled).to_be_enabled(timeout=1000)
-        expect(settled).not_to_have_attribute("aria-busy", "true", timeout=1000)
+        expect(settled).to_be_enabled()
+        expect(settled).not_to_have_attribute("aria-busy", "true")
 
     route.fulfill(response=accepted)
     page.unroute("**/api/event")
@@ -2720,7 +2682,7 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     box = page_comment(page)
     write(box, "Where did my words go?")
     with sending(page, "the first comment"):
-        page.locator(".lf-general button").click()
+        page.locator(".lf-general .lf-compose-submit").click()
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["text"]) == ("comment", "Where did my words go?")
     in_threads_scrollport(page, f'.lf-thread[data-id="{sent["id"]}"]')
@@ -3043,7 +3005,9 @@ def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):
     expect(bar).to_have_class(re.compile(r"\blf-response-open\b"))
     page.keyboard.press("Escape")
     expect(field).to_be_focused()
-    bar.locator(".lf-compose-submit").focus()
+    action = bar.locator(".lf-compose-field > button:visible")
+    action.focus()
+    expect(action).to_be_focused()
     page.keyboard.press("Escape")
     expect(bar).to_be_hidden()
 
@@ -5177,7 +5141,6 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
         "() => window.threadChildFailed && window.threadRetryHeld && "
         "window.threadListPresentation.readApplicationPresentation().pending"
         ".includes('thread')",
-        timeout=5000,
     )
 
     recovered = page.locator(f'.lf-thread[data-id="{root}"]')
@@ -5672,14 +5635,13 @@ def test_two_standard_thread_lists_share_updates_but_not_local_state(browser, se
     ]
     authored = thread_model.post_reply(
         serve.page_dir,
-        first_id,
+        {"to": first_id, "for": first_id},
         "Choose the deployment window.",
         '<lf-ask id="two-panel-decision"><h3>Deployment window</h3>'
         '<lf-options id="two-panel-window" choose>'
         '<lf-option id="today">Today</lf-option>'
         '<lf-option id="tomorrow">Tomorrow</lf-option>'
         "</lf-options></lf-ask>",
-        for_event=first_id,
     )
     page = open_page(browser, url)
     page.evaluate(
@@ -5836,7 +5798,7 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
     cap = comment("Is forty enough?", {"section": "how-cap"}, 3)
     whole = comment("The whole thing needs a summary.", None, 12)
     # A reply today makes the oldest thread the most recent one.
-    thread_model.post_reply(d, whole, "Added one at the top.", None, for_event=whole)
+    thread_model.post_reply(d, {"to": whole, "for": whole}, "Added one at the top.")
 
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
@@ -6325,7 +6287,7 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     # One open thread awaits neither party after a complete agent answer.
     settled_turn = panel_comment(d, "A complete answer is available.")
     thread_model.post_reply(
-        d, settled_turn, "Done; nothing more is needed.", None, for_event=settled_turn
+        d, {"to": settled_turn, "for": settled_turn}, "Done; nothing more is needed."
     )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
@@ -6502,17 +6464,13 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     asked = panel_comment(serve.page_dir, "What remains?", {"section": "how-store"})
     thread_model.post_reply(
         serve.page_dir,
-        answered,
+        {"to": answered, "for": answered},
         "Forty is what the slowest supported device can hold.",
-        None,
-        for_event=answered,
     )
     thread_model.post_reply(
         serve.page_dir,
-        asked,
+        {"to": asked, "for": asked},
         "One choice remains. Which store should own the result?",
-        None,
-        for_event=asked,
         question=True,
     )
     page = open_page(
@@ -6578,14 +6536,13 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     # question can never render itself into the list that would discover it.
     widget_reply = thread_model.post_reply(
         serve.page_dir,
-        answered,
+        {"to": answered},
         "Choose the backend here.",
         '<lf-ask id="backend-decision"><h3>Which backend?</h3>'
         '<lf-options id="backend" choose>'
         '<lf-option id="backend-sqlite"><strong>SQLite</strong></lf-option>'
         '<lf-option id="backend-postgres"><strong>Postgres</strong></lf-option>'
         "</lf-options></lf-ask>",
-        for_event=None,
     )
     told(page)
     expect(page.locator(".lf-needs")).to_have_text("You (2)")
@@ -6656,18 +6613,14 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     )
     answer = thread_model.post_reply(
         serve.page_dir,
-        answered["id"],
+        {"to": answered["id"], "for": answered["id"]},
         "Widened it to forty.",
-        None,
-        for_event=answered["id"],
     )
     receipt = thread_model.post_reply(
         serve.page_dir,
-        unanswered["id"],
+        {"to": unanswered["id"], "for": unanswered["id"]},
         "The agent's turn ended without an answer to this message. "
         "Send it again to retry.",
-        None,
-        for_event=unanswered["id"],
         failure="turn_failed",
     )
 
@@ -7030,12 +6983,14 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
     )
 
     focus_panel_thread(page.locator(f'.lf-thread[data-id="{c1}"]'))
+    reply = page.locator(f'[data-id="{c1}"] .lf-thread-reply')
+    expect(reply).to_be_visible()
     page.locator(f'.lf-thread[data-id="{c1}"] .lf-resolve').click()
     round_trip(page)
     outcome = page.locator(f'[data-id="{c1}"] .lf-resolve')
     expect(outcome).to_have_attribute("aria-label", "Resolved")
     expect(outcome.locator('svg[data-lf-icon="check"]')).to_have_count(1)
-    expect(page.locator(f'[data-id="{c1}"] .lf-thread-send')).to_be_hidden()
+    expect(reply).to_be_hidden()
     resolved = page.locator(f'[data-id="{c1}"] .lf-resolve').evaluate(
         "node => node.getBoundingClientRect().toJSON()"
     )
@@ -7473,14 +7428,13 @@ def test_an_inline_reply_link_finishes_a_resolution_fold(browser, serve):
     root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
     reply = thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "Pick the first job.",
         '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
         '<lf-options id="first-job" choose>'
         '<lf-option id="mounts">Mounts</lf-option>'
         '<lf-option id="camera">Camera</lf-option>'
         "</lf-options></lf-ask>",
-        for_event=root,
     )
     page = open_page(browser, url, init_script=HOLD_MOTION)
     resized(page, 1920, 900)
@@ -8193,9 +8147,7 @@ def test_a_delayed_accordion_reveal_yields_to_the_users_new_thread(browser, serv
     # The thread the list shows asks the user a question too, so focus on the list is
     # standing on that item of their queue; the hidden Ask stands before it on the page.
     page.keyboard.press("Shift+q")
-    page.wait_for_function(
-        "window.visibleThreadPresentationHeld === true", timeout=3000
-    )
+    page.wait_for_function("window.visibleThreadPresentationHeld === true")
     later = page.locator(".lf-thread:not([hidden])").first
     later_id = later.get_attribute("data-id")
     assert later_id != target_id
@@ -8749,19 +8701,18 @@ def test_an_empty_thread_list_wears_its_ring_whole(browser, serve, color_scheme)
     )
 
 
-def thread_mark_fault(reading, ring="solid"):
+def thread_mark_fault(reading):
     """Why a current thread is indistinguishable from a resting card, if it is.
 
-    The card the keyboard stands on wears the inset ring every keyboard target wears,
-    over the quiet ground that says the user is in it; a pointer arrival paints the
-    ground alone, and its caller says so with `ring="none"`. `rings_drawn` reads whether
+    The focused card wears the same inset ring after pointer or keyboard arrival,
+    over the quiet ground that says the user is in it. `rings_drawn` reads whether
     a ring is whole; this reads that the marks the arrival owes are there."""
     if not reading:
         return "focus is not inside a thread"
     if reading["restingBackground"] is None:
         return "there is no resting peer to distinguish the current thread from"
-    if reading["outline"] != ring:
-        return f"the current thread wears a {reading['outline']} outline, not {ring}"
+    if reading["outline"] != "solid":
+        return f"the current thread wears a {reading['outline']} outline, not solid"
     if reading["background"] == reading["restingBackground"]:
         return "the current thread's surface is the same as a resting card's"
     if reading["cuts"]:
@@ -9148,7 +9099,7 @@ def test_a_comment_the_pointer_lands_on_comes_back_from_the_lists_edge(browser, 
     assert page.evaluate(
         "() => Boolean(document.activeElement?.closest('.lf-thread'))"
     ), "the press did not land the user on a thread"
-    mark_fault = thread_mark_fault(standing_thread(page), ring="none")
+    mark_fault = thread_mark_fault(standing_thread(page))
     assert not mark_fault, mark_fault
     assert not ring_faults(
         rings_drawn(page), "after a press on a card the list's edge cut"
@@ -10394,14 +10345,12 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
     )
     thread_model.post_reply(
         serve.page_dir,
-        root,
+        {"to": root, "for": root},
         "I'm capturing both widths.",
-        None,
-        for_event=root,
         ephemeral=True,
     )
     answer = thread_model.post_reply(
-        serve.page_dir, root, LANDING_WORDS * 8, None, for_event=root
+        serve.page_dir, {"to": root, "for": root}, LANDING_WORDS * 8
     )["id"]
     thread_model.cmd_edit(serve.page_dir, answer, "Edited. " + LANDING_WORDS * 8)
     # Later turns leave room to scroll the answer past the top in either direction.
@@ -10497,7 +10446,10 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
              - box.getBoundingClientRect().top""",
         toggle.element_handle(),
     )
-    assert abs(focused - rest["toggle"]) <= 1, (rest, focused)
+    # Native focus reveals the offscreen disclosure below the stuck head; the
+    # exact offset depends on the space the scrollport has for that reveal.
+    assert focused >= rest["head"] - 1, (rest, focused)
+    expect(toggle).to_be_in_viewport(ratio=1)
 
 
 SEAT_FILLER = "".join(
@@ -14321,7 +14273,7 @@ customElements.define('lf-quote-subject', class extends HTMLElement {
     )
     reading = page.evaluate(
         """anchor => window.__lfRuntimeImport('/runtime/anchor-resolution.js')
-          .then(async ({resolveAnchor}) => {const {pageText} = await window.__lfRuntimeImport('/runtime/passages.js'); const {kind, exact, status} = resolveAnchor(anchor, pageText());
+          .then(({resolveAnchor}) => {const {kind, exact, status} = resolveAnchor(anchor);
             return {kind, exact, status};})""",
         comment["anchor"],
     )

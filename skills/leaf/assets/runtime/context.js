@@ -1,7 +1,59 @@
-/* Shared mechanical runtime context and read-only views of the semantic root.
-   Accepted facts are never installed here independently of application publication. */
+/* Shared mechanical runtime context: which address this document is and how a server
+   delivered it, the interactive export's payload, and read-only views of the semantic
+   root. Accepted facts are never installed here independently of application
+   publication. */
 import { readApplication } from "./semantic-state.js";
-import { PAGE_ROOT } from "./storage.js";
+
+// ---------- which address this document is ----------
+// Which version a document is comes from its served `lf-version` marker
+// (`document-identity.js`), and where another version is from that version's `url` in
+// the state reading, which the server addresses at the page root. Neither is read off
+// this path.
+const PAGE_PATH = location.pathname;
+// The live root follows the active revision in place; a virtual version address
+// (`versions/vN.html`) stays pinned to its mapped revision.
+export const LIVE_ROOT = PAGE_PATH.endsWith("/");
+// Which page this document belongs to. The server declares the page's root in the
+// canonical link it adds to every document it serves, the live root and each version
+// address alike, and every page operation resolves against it. An interactive export
+// has no server and no link, so no root: the file is the page.
+export const PAGE_ROOT =
+  document.querySelector('link[rel="canonical"][data-lf-runtime]')?.href ?? null;
+// How a server delivered this document: the runtime script it adds to every document it
+// serves (http.py) names the layer and release the document belongs to, the probe its
+// source answers, and a keyed transport's share address. An interactive export carries
+// no such script. Its own marker (`offlineMarker` below) shares only `data-lf-entry`, the
+// seam a harness finds either delivery by.
+const served = document.querySelector(
+  "script[data-lf-runtime][data-lf-server]",
+)?.dataset;
+export const DELIVERY = Object.freeze({
+  layer: served?.lfLayer,
+  release: served?.lfRelease,
+  probe: served?.lfProbe,
+});
+// The public website declares the release it serves; a local server declares none.
+export const WEBSITE_DELIVERY = DELIVERY.release !== undefined;
+// Where a delivered document's layer, and so its captured resources, is addressed: the
+// directory its registry probe names, the revision's own root, as the document writes
+// it. Empty where nothing declared one, and the layer is at the document's own root.
+export const layerRoot = (doc) =>
+  doc
+    .querySelector("script[data-lf-runtime][data-lf-probe]")
+    ?.dataset.lfProbe.replace(/registry\.json$/, "") ?? "";
+// A keyed transport declares its share address even on a cookie-authorized reload.
+// Samples and the public website have no share address. Preserve the current
+// version path, query and passage while taking access from the transport's URL.
+export const SHARE_ROOT = served?.lfShareUrl;
+export function shareUrl() {
+  const url = new URL(SHARE_ROOT);
+  url.pathname = location.pathname;
+  const access = [...url.searchParams];
+  url.search = location.search;
+  for (const [key, value] of access) url.searchParams.set(key, value);
+  url.hash = location.hash;
+  return url.href;
+}
 
 // Code may be shared by several documents, including a sample and its parent.
 // Page operations belong to the document's declared root, never to the module's asset
@@ -38,16 +90,13 @@ export const offlineData = () => (offlineInteractive ? offlinePayload.data : nul
 export const runtimeModule = (path) =>
   offlineInteractive ? `leaf:${path.startsWith("/") ? path : `/${path}`}` : path;
 // A layer file by its rooted path in the page directory (`/icon.svg`,
-// `/widgets/lf-tabs.js`), at the address this document's layer is served from. A
-// served document declares its registry's address beside the runtime's other entry
-// points, and the layer is that file's directory; a document nothing declared one for
-// takes the layer at its own root.
-const layerRegistry = document.querySelector("script[data-lf-runtime][data-lf-probe]")
-  ?.dataset.lfProbe;
+// `/widgets/lf-tabs.js`), at the address this document's layer is served from
+// (`layerRoot`); a document nothing declared one for takes the layer at its own root.
+const servedLayerRoot = layerRoot(document);
 export const runtimeResource = (path) => {
   if (!offlineInteractive)
-    return layerRegistry
-      ? new URL(`.${path}`, new URL(layerRegistry, document.baseURI)).href
+    return servedLayerRoot
+      ? new URL(`.${path}`, new URL(servedLayerRoot, document.baseURI)).href
       : path;
   const located = new URL(path, document.baseURI);
   const resource = offlinePayload.resources[located.pathname];
@@ -61,9 +110,6 @@ export const runtimeResource = (path) => {
 export const runtime = {
   get active() {
     return readApplication().authoritative?.active ?? null;
-  },
-  get activity() {
-    return readApplication().effective.activity;
   },
   get browser() {
     return readApplication().authoritative?.browser ?? null;
@@ -95,9 +141,6 @@ export const runtime = {
   get data() {
     return readApplication().data;
   },
-  get events() {
-    return readApplication().authoritative?.events ?? [];
-  },
   get lastEventSeq() {
     return readApplication().authoritative?.browser.basis.through_seq ?? null;
   },
@@ -110,12 +153,10 @@ export const runtime = {
   get state() {
     return readApplication().authoritative;
   },
-  restoringState: false,
   registry: {},
   get statePhase() {
     return readApplication().phase;
   },
-  undoing: false,
   get versions() {
     return readApplication().authoritative?.versions ?? [];
   },

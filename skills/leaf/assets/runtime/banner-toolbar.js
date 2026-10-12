@@ -222,7 +222,8 @@ function paint() {
   for (const entry of controls.values()) paintControl(entry);
   if (
     !held ||
-    (document.activeElement === held.focusTarget && !overflowMenu.contains(held.control))
+    (document.activeElement === held.focusTarget &&
+      !overflowMenu.contains(held.control))
   )
     return;
   // Where the control stands, not whether it would take a press: a refused Approval

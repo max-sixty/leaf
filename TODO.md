@@ -411,12 +411,24 @@ on 2026-10-07.
   into a page by hand. It is an experiment: the alternative is for the command to
   print the samples' rows and leave the chart to the agent writing the page. Keep it
   if it gets used for later readings; otherwise reduce it to the rows.
-- **Consider loading the compiled kernel in previews and tests.** Installs and the
-  website load the kernel `leaf_dev.distribution` compiles, but development previews
-  and the browser tests still load about 220 source modules over HTTP/1.1's six
-  connections. A prototype bundle cut a widgetless page from 217 requests to 38 and
-  its open from 332–483 ms to 238–258 ms, roughly 10% of browser-test time. Untested
-  alternative: `modulepreload` hints.
+- **Choose how installs get the compiled kernel before a proper release.** Installs
+  follow `main` and load about 260 source modules; only the website compiles them
+  into one kernel (`leaf_dev.distribution`). On `pr-walkthrough` (2026-10-11, 8
+  paired runs on a loaded Mac), the kernel's 57 JS requests presented about 755 ms
+  after document receipt, against about 940 ms for source modules; `modulepreload`
+  hints for the 222 statically imported modules recovered only about 35 ms. A
+  CI-built `prepared` branch carried the kernel to installs from #1963 until
+  2026-10-11, when it was dropped to keep installs on `main`. Candidates: CI commits
+  the kernel to `main` after each runtime merge, and installs serve source modules
+  while it is stale; CI publishes each `main` commit to npm, which Claude Code, Codex
+  and Pi accept as a plugin source; or the first run builds it, which adds Node to
+  the host's requirements. Committing the kernel in each pull request conflicts too
+  often: of 25 replayed pairs of consecutive runtime commits, the minified chunks
+  conflicted in 20, and one unminified file per entry conflicted in 3 and merged one
+  more cleanly into bytes that differ from a rebuild. Previews and browser tests
+  loading the same kernel would also save roughly 10% of browser-test time: a
+  prototype cut a widgetless page from 217 requests to 38 and its open from
+  332–483 ms to 238–258 ms.
 
 ## Etc
 

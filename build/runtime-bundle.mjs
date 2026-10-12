@@ -1,4 +1,4 @@
-/** Build the browser graph once, shared by website and prepared installations.
+/** Build the browser graph once, shared by website delivery and its prepared installation.
  *
  * Entry URLs are delivery boundaries; every other private module can move into
  * shared chunks. Both paths keep vendor modules native, at their public URL however

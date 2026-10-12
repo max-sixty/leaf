@@ -237,9 +237,10 @@ handed to the user carries the fragment of the semantic block it is about
 
 `uv run leaf-dev preview <example>` serves a live page that follows source and
 runtime edits at one URL. `--source <file>` serves any authored HTML file instead
-of a shipped example, and `--export` writes one file that opens offline. Outside
-desktop Codex the preview runs in the foreground like a dev server, so start it as
-a long-running command (`run_in_background` in Claude Code). The
+of a shipped example, and `--export` writes one file that opens offline. A
+desktop Codex `--user` preview detaches and returns its URL; every other preview
+runs in the foreground like a dev server, so start it as a long-running command
+(`run_in_background` in Claude Code). The
 `dev/leaf_dev/preview.py` header owns slots, what a restart keeps, and the desktop
 Codex detach; `--help` lists the flags.
 
@@ -342,8 +343,17 @@ posed to those instructions.
 To make an existing page exercise the current checkout, re-vendor it with the
 checkout launcher (`<root>/skills/leaf/references/serving-pages.md`); fix or
 report a compatibility refusal rather than falling back to the installed plugin.
-A page that explains how a Leaf interface behaves lets the user operate it
-(`<root>/skills/leaf/references/page-authoring.md`, "Live samples").
+A page that explains how a Leaf widget, verb, or event flow behaves lets the user
+operate it in a live sample (`<root>/skills/leaf/references/page-authoring.md`,
+"Live samples"). The sample's template holds only the demonstrated page and an
+`lf-activity` feed of the sample's own log, so each gesture shows the event it
+writes; nothing in it mentions the sample. The parent's prose directly above the
+sample lists the gestures to try, in an order that exercises each verb the page
+explains, undo included. Before handing the page over, drive the sample using only
+what that prose tells the user, and read each line the feed prints for those
+gestures: a probe that knows more than the prose shows that the sample works, not
+that a user can work it, and a badly worded line misleads the user about the log
+the page explains.
 
 ## Score an instruction change
 

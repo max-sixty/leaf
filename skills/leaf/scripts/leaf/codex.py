@@ -64,9 +64,9 @@ left a turn running. Which delivery is offered, when, and what an uncertain star
 means for the turn it may have made are each client's own policy: the adapter's offer
 loop and the website's turn follower each keep theirs. The start returns the lifecycle
 publication it admitted, and both clients' folds retain its generation and provider ID
-through construction, activity and cleanup: a fold projects live activity only under the exact current publication
-with its matching turn open, under page→session locks, and cleans up under the
-matching publication after closure. A resumed new generation replaces an older live
+through construction, activity and cleanup: a fold projects live activity only under
+the exact current publication with its matching turn open, under page→session locks,
+and cleans up under the matching publication after closure. A resumed new generation replaces an older live
 fold instead of borrowing it.
 
 A client that owns its task, as the website's host does, delivers the same immutable
@@ -83,9 +83,9 @@ that one id, which Codex's own hooks name too, and a retry reads the durable pic
 instead of starting the event again. Its subscription spans the active turn, the
 delivery turn's opening and that turn's terminal notification, recording both `opened`
 and the exact close, and a host that owns a starting connection closes only that turn
-on its terminal notification. A host owns the provider task and interrupts its turn when its
-initiating stream fails; the adapter observes a user-owned task and reconnects without
-interrupting it.
+on its terminal notification. A host owns the provider task and interrupts its turn
+when its initiating stream fails; the adapter observes a user-owned task and
+reconnects without interrupting it.
 
 An App Server client presents at most one thread reply in each turn's chronological
 delivery slice, with an exact response reference and `writer: "turn"`; once the turn

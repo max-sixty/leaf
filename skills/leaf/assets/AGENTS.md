@@ -54,8 +54,11 @@ representative desktop viewport.
   markers exist and where. Where a pin covers something the user needs, the answers are
   `o` (Hide annotations under More on a touch screen) and a better placement
   (`TODO.md`), never room made for it. The rail sits right of `main` wherever the window
-  has room and never moves, narrows or indents the column (`content-layout.js`); only
-  the left resident and sidenotes move the column, through prepaint.js `residency`.
+  has room, and seating it there never moves, narrows or indents the column
+  (`content-layout.js`). `data-rail` on `body` withholds or reserves it: `"right"` makes
+  the shell give up the rail's width, so the page's layout gets narrower
+  (`annotation-theme.css`). Otherwise only the left resident and sidenotes move the
+  column, through prepaint.js `residency`.
   Checks: `test_a_comment_leaves_its_block_as_the_page_wrote_it` and the shift watch
   ("Stability"). Owners: the default package's `margin-placement.js` for where a margin
   row sits and when a pin folds.
@@ -83,8 +86,14 @@ representative desktop viewport.
   deliberate. Expanding content keeps the allocation its declaration gave it. An object
   that leaves flow for inspection keeps the controls its task needs and restores the
   selection, inspection state and document position on return; a root workspace never
-  duplicates itself in another inspection layer. No automated check; `/ui-sweep`
-  reviews it.
+  duplicates itself in another inspection layer. Owner: `runtime/reach.js`
+  (`reachScrollers`) gives every box a mouse can scroll a tab stop and paints the
+  edge its content continues past. Checks: the reach tests
+  (`test_a_scroll_box_inside_a_widgets_shadow_tree_takes_the_keyboard`,
+  `test_a_hidden_scroller_is_reached_once_it_is_shown`,
+  `test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring`) and the axe sweep.
+  Chaining, room allocation and inspection return have no test; `/ui-sweep` reviews
+  them.
 
 ### Stability
 

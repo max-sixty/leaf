@@ -100,14 +100,18 @@
    them back had to opt out of.
 
    `HeldReading` is the same rule for a widget's region whose rows only the log or the
-   clock decides, such as a command's lists of stopped goals and live workers. No first
-   paint can size such a region, so it shows no rows until the reader opens it through
-   a control of fixed size the widget already draws, as the Atlas plan's Stopped work
-   disclosure does (`examples/command-hub.page/widgets/lf-atlas-plan.js`). After that,
-   a reading that would change its size waits, the region standing as it was, while its
-   growth would be seen, and that control says so and shows it. A fixed-height box that
-   scrolls the rows is no answer: a scroller shows no edge until it is scrolled, so
-   nothing tells the reader a row is cut off. */
+   clock decides, such as a command's lists of stopped goals and live workers. The first
+   ready reading draws whole. After that, a reading that would change the region's size
+   waits, the region standing as it was, while its growth would be seen, and a control
+   of fixed size the widget already draws says so and shows it.
+
+   No first paint can size such a region, so a widget keeps its rows closed until the
+   reader opens them through that control, as the Atlas plan's Stopped work disclosure
+   does (`examples/command-hub.page/widgets/lf-atlas-plan.js`). The conversation
+   workspace (`examples/corpus.page/widgets/lf-conversation-workspace.js`) is a known
+   exception: it draws its lists at first paint, with "Lists current" as the control.
+   A fixed-height box that scrolls the rows is no answer: a scroller shows no edge until
+   it is scrolled, so nothing tells the reader a row is cut off. */
 import { growthAfterIsSeen, growthIsSeen, whenNone } from "../geometry.js";
 import { offer } from "../widget-elements.js";
 import { keeps, keepsText, layoutPx } from "../keeps.js";

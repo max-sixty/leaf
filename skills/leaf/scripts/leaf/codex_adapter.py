@@ -24,13 +24,8 @@ transcript, because a terminal task keeps running after this adapter disconnects
 The adapter holds the task's wait lease and a lease of its own, since a generic wait
 lease cannot prove its output can enter a later Codex turn. Over App Server, a delivery
 start first resumes the task for fresh idle evidence; cached activity only holds an
-offer back. The record is marked `starting` before the request goes out, and a start
-whose response is lost is never sent blindly again, even after a restart or with no
-streamed reply seat: resuming reconciles the exact delivery identity in the provider
-transcript, and a rejected stale snapshot never marks the observer running. Losing the subscription disconnects the turn's reply and clears live
-activity without inventing an ending or releasing a running turn's reservation. A later
-provider completion settles it, and a later session turn withdraws the old reply
-binding, so an explicit reply wins over a recovered final message.
+offer back. `TaskConnection` owns what an uncertain start and a dropped connection
+leave behind.
 
 Recovery reads the full, paginated provider history, because a summary or an unloaded
 item can neither settle an answer nor prove absence. Accepted or abandoned deliveries
@@ -164,9 +159,16 @@ class TaskConnection:
     binds the returned turn, then replays them in arrival order. Every provider
     turn has one fold, whether the user or Leaf started it.
 
-    A dropped connection is unknown provider state, never a failed turn. Resuming
-    reconciles running and completed turns from their exact delivery identities.
-    A persisted starting offer is never blindly repeated after an uncertain send.
+    A delivery record is marked `starting` before its request goes out. A start
+    whose response is lost is never sent blindly again, even after a restart or
+    with no streamed reply seat; a rejected stale snapshot never marks the
+    observer running. A dropped connection is unknown provider state, never a
+    failed turn: it disconnects the turn's reply and clears live activity without
+    inventing an ending or releasing a running turn's reservation. A later
+    provider completion settles that turn, and a later session turn withdraws its
+    reply binding, so an explicit reply wins over a recovered final message.
+    Resuming reconciles running and completed turns from their exact delivery
+    identities.
     Live provider observations adopt the subscription's lifecycle token before
     fold selection. A resume response uses its pre-request token, so intervening
     notifications or a newer prompt win; exact historical answers settle without

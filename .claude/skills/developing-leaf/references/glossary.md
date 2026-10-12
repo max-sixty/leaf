@@ -144,10 +144,10 @@ two ways: the compact **margin projection** beside the page, and the searchable 
 
 | Term | Identity criterion |
 |---|---|
-| **Rail** | The strip right of `main` where margin rows sit beside their targets. It never narrows or moves the column; `page-authoring.md`, "The rail and the margin", says when a page has one |
+| **Rail** | The strip right of `main` where margin rows sit beside their targets. Seated where the room beside `main` holds it, it never moves the column; only `data-rail="right"` on `body` makes the shell give up the rail's width, so the page's layout gets narrower (`annotation-theme.css`). `page-authoring.md`, "The rail and the margin", says when a page has one |
 | **Margin resident** | Something the page's margin holds: the rail, the contents map, a column's first sidebar, its sidenotes. One measurement, prepaint.js `residency`, admits each where the room beside `main` holds it |
 | **Margin row** | One target-anchored row whose placement is `rail`, `pin`, or `withheld` |
-| **Pin** | A margin row drawn over the page by its target, used where the row cannot sit in the rail (`rowPosture`). It sits at the end of its target's text or inside its target's top-right corner, or, where that would cover words, a control, another block or another pin, at the nearest free spot that still reads as its target's (`pinSpot` in `margin-placement.js`) |
+| **Pin** | A margin row drawn over the page by its target, used where the row cannot sit in the rail (`rowPosture`). It sits at the end of its target's text or inside its target's top-right corner, or, where that would cover words, a control, another block or another pin, at the nearest free spot that still reads as its target's (`pinSpot` in `margin-placement.js`). Where no such spot exists, it folds, or stays at the end of the text or in the corner and covers what lies under it (`seatRows`) |
 | **Folded pin** | A pin drawn as its options' toggle alone (`data-lf-folded`) because its whole face found no room (`seatRows` in `margin-placement.js`) |
 | **Margin lane** | The layer holding the margin rows of one scroller: the root lane for the document, and one lane per bounded reading region, clipped to what that region shows |
 | **Margin cluster** | The visible group attached to one target |

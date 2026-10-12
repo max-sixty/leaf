@@ -856,6 +856,33 @@ test("a template scope refused on re-render withdraws its shortcuts, and its ali
   root.remove();
 });
 
+test("a template scope's rows read the element the template renders", async () => {
+  const { html, render } = await import("/vendor/browser-runtime.js");
+  const { DISCLOSE } =
+    await import("../../skills/leaf/assets/runtime/keyboard/disclosure.js");
+  const root = document.createElement("section");
+  document.body.append(root);
+  render(
+    html`<details>
+      <summary
+        ${commandsOn("Disclosure", (summary) => [
+          { id: "probe.disclose", keys: () => DISCLOSE(summary), title: "toggle" },
+        ])}
+      ></summary>
+    </details>`,
+    root,
+  );
+  reflectFirstScopes();
+  reflectKeys();
+  const summary = root.querySelector("summary");
+  assert.match(summary.getAttribute("aria-keyshortcuts"), /ArrowRight/);
+  summary.parentElement.open = true;
+  paintKeys();
+  reflectKeys();
+  assert.match(summary.getAttribute("aria-keyshortcuts"), /ArrowLeft/);
+  root.remove();
+});
+
 test("template scopes follow current rows and retire without removing projected commands", async () => {
   const { html, nothing, render } = await import("/vendor/browser-runtime.js");
   const root = document.createElement("section");

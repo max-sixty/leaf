@@ -180,7 +180,7 @@ representative desktop viewport.
   `runtime/composing/surface.js`). A re-render that replaces a box's node hands its
   words and caret to the replacement. Checks: `tests/words_watch.js`, through which the
   suite's browser fixture fails any test whose page loses typed words without a key or
-  press, and `typed_box_findings` in `tests/test_render_gate.py`, which scrolls every
+  press, and `typed_box_findings` in `tests/*/test_render_gate.py`, which scrolls every
   corpus page to both ends and back with each typed box open. Owner: the default
   package's `composing/floating-response.js` for where the box floats.
 
@@ -224,13 +224,15 @@ reaches. `runtime/prepaint.js` runs first, inline in the head after the canonica
 link, in every document the runtime runs in, served or exported. It marks the root
 `data-lf-interactive`, so the themes give each widget its upgraded box, and takes the
 mark off when the runtime could not start because something it needs did not arrive
-(naming why in `data-lf-startup-error`), so the themes give back the readable fallback
-for every widget at once; it declares the page's storage scope; and it decides which
+or the page declared it failed (naming why in `data-lf-startup-error`), so the themes
+give back the readable fallback for every widget at once, and a declared failure
+never presents (`leaf.js`); it declares the page's storage scope; and it decides which
 member an `x-views` holder opens on. `runtime/bootstrap.js` runs next, in a served
 page only, before any resource the page loads. It marks the page live
 (`data-lf-live`), so the theme reserves the chrome's room; it shows a startup failure
-and waits for a server that can start the page, even if the module graph never loads;
-and it holds page keys pressed before presentation. Content modules import only
+and waits for a server that can start the page, even if the module graph never loads,
+or says the page has a problem where the fault is the page's own, as words a module
+staged where the page cannot read them; and it holds page keys pressed before presentation. Content modules import only
 `runtime/widget-api.js`, the public helper surface; owners never reach back
 through it or the entry module. Owners are constructed with explicit capabilities
 and cross-owner reads happen in their mounts. Pure projection, thread, and
@@ -314,7 +316,7 @@ listeners; a page resized says at each width what it said there before. So whate
 sets a state also clears it, when the width or the gesture that called for it ends,
 and "none" has one spelling, the attribute's absence, which `keeps` writes for a null
 value. The corpus holds each rule, in
-`test_a_still_page_comes_back_from_every_journey_as_it_was`.
+`test_page_fixture_renders`.
 
 Stylesheets apply in cascade layers, in the order `layer.py`'s `CASCADE_LAYERS`
 declares and `../references/packages.md`, "Styles and composition", describes;
@@ -388,6 +390,8 @@ keeps its own test says why beside it. Rows marked *lint* are enforced in
 | --- | --- |
 | Where the user stands: focus inside open shadow trees, or a label press holding them | `focus.js` `focused` |
 | Put the user on an element, saying what moved them | `focus.js` `focusDestination(node, cause)` (*lint*) |
+| Place a node that may already stand somewhere, keeping the user's place in it | `dom-move.js` `move(parent, node, before)` (*lint*) |
+| Make a list of nodes, some already placed, a parent's children | `dom-children.js` `setChildren` |
 | Whether a control takes typed letters | `focus.js` `typesText`, `takesLetters` |
 | Which focused control counts as the user's place: shown, and not under a stuck box | `user-place.js` `focusedInView` |
 | Whether a click came from the keyboard | `pointer.js` `pressIsKeyboardActivation` |
@@ -405,6 +409,7 @@ keeps its own test says why beside it. Rows marked *lint* are enforced in
 | Whether a box scrolls, for a script or for the user | `geometry.js` `scrollContainer`, `scrollport`, `userScrollport` |
 | Which axes a box clips | `rect.js` `clippingAxes` |
 | Whether a box is at its scroll end | `scrolling.js` `atScrollEnd`, `SCROLL_SLACK` |
+| Whether the reader chose where a box stands, or layout put it there | `scrolling.js` `chosenSince`, `placeKept` |
 | The page's `main` | `passages.js` `pageDocument` |
 | Whether a place is already shown, and the room a landing needs | `landing-scroll.js` `alreadyShown`, `landingRoom` |
 | Bring something into view without scrolling the page around it | `landing-scroll.js` `scrollIntoView` (*lint*) |
@@ -497,7 +502,7 @@ boolean only when false has one clear meaning; otherwise declare named values.
 The Python reader models only transformations the registry declares. A module that
 changes text in a way the file cannot reproduce is fenced: browser capture stops at the
 fence, so a selection crossing it never becomes a quote the file cannot confirm.
-Declare modelable words with `x-says`, `x-paints`, or the content key, and keep a
+Declare modelable words with `x-says` or the content key, and keep a
 widget fenced when its transformation cannot be represented.
 
 ## Render gates

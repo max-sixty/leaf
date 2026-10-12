@@ -22,14 +22,20 @@
    `arriveBatch(elements)` may replace `arrive` where an owner must read all matching
    elements before writing any of them. Each initial stage and mutation delivery is
    one batch; an explicit offer is a batch of one. `watchArrivals` returns `offer(el)`,
-   which decides one element at once rather than at the next mutation delivery.
+   which decides one element at once rather than at the next mutation delivery. It
+   first reads the mutations already made as a batch, so a decision made now never
+   runs ahead of a departure made before it.
 
    An element's connection lifetime is one such watch over every element:
    `watchOwner(owner, {connect, disconnect})` connects while the owner stands and
-   disconnects once a batch shows it gone, so a move within one batch keeps it. The
-   runtime's own subscriptions (data, projections, widget controllers) hold it directly,
-   and the data and projection subscriptions paint through `readingPaint`, the one rule
-   for what a returning owner is drawn again.
+   disconnects once a batch shows it gone, so a move within one batch keeps it. A new
+   owner connects through `offer`, and a batch decides its departures before its
+   arrivals, so whatever left before an owner connects has released first: a revision
+   evicts a replaced widget before its replacement connects, and a registration only
+   one element may hold passes from one to the other. A connection also ends the
+   batch, so an element removed before it and put back after it leaves and returns.
+   The runtime's own subscriptions (data, projections, widget controllers) and clock
+   paints (`clocked` and `readingPaint` in presence.js) hold it directly.
    Widgets hold it through `whileConnected`, for resources, and `frameFor`, for
    scheduled paints, which `widget-api.js` exports in its place.
 
@@ -42,7 +48,6 @@
    host. */
 import { under } from "./shadow.js";
 import { cancelRender, nextRender } from "./rendering.js";
-import { clocked } from "./presence.js";
 
 const watches = new Set();
 const stages = new WeakSet();
@@ -146,66 +151,6 @@ export function frameFor(owner, run) {
   };
 }
 
-/** The paint of one reading at a time, kept across the owner's departures. Calling
- * `paint(key, ...args)` draws `draw(...args)` through `clocked`, unless `key` names
- * the reading already painted: a return repaints only what changed while away. A drawn
- * reading stands, failed or not, so a refusal is not reported twice; a draw whose
- * returned promise does not settle while its owner stands was cut short, and the next
- * call draws it again. Time readings pause while the owner is away and resume with
- * it. `owes(key)` says whether `paint(key)` would draw, `forget()` owes the next call
- * a draw, `refresh()` redraws the last reading, at once or on the return, and `stop()`
- * retires the paint. Its owner's subscriptions stay the caller's. */
-export function readingPaint(owner, draw) {
-  const render = clocked(owner, draw);
-  let painted = false;
-  let key;
-  let pending = null;
-  let stopped = false;
-  const stopLifetime = watchOwner(owner, {
-    connect: () => render.resume(),
-    disconnect() {
-      render.stop();
-      if (pending) painted = false;
-      pending = null;
-    },
-  });
-  const owes = (next) => !painted || key !== next;
-  const paint = (next, ...args) => {
-    if (stopped || !owes(next)) return undefined;
-    // Claim the reading before drawing, so a synchronous failure or a re-entrant call
-    // cannot draw the same reading again.
-    painted = true;
-    key = next;
-    pending = null;
-    const result = render(...args);
-    if (typeof result?.then === "function") {
-      const mark = (pending = {});
-      const settled = () => {
-        if (pending !== mark) return;
-        pending = null;
-        if (!owner.isConnected) painted = false;
-      };
-      result.then(settled, settled);
-    }
-    return result;
-  };
-  paint.owes = owes;
-  paint.forget = () => {
-    painted = false;
-  };
-  // A refresh asked for while the owner is away is owed to its return.
-  paint.refresh = () => {
-    if (stopped) return undefined;
-    if (owner.isConnected) return render.refresh();
-    painted = false;
-  };
-  paint.stop = () => {
-    stopped = true;
-    stopLifetime();
-  };
-  return paint;
-}
-
 export function liveStages() {
   const live = [];
   for (const ref of stageRefs) {
@@ -234,19 +179,18 @@ function* matching(node, selector) {
 
 export function watchArrivals(selector, attributes, { arrive, arriveBatch, leave }) {
   const arrived = new WeakSet();
+  // Every departure a batch shows is decided before any arrival in it.
   const offerMany = (elements) => {
-    if (!arriveBatch) {
-      for (const el of elements) offer(el);
-      return;
-    }
     const standing = [];
     for (const el of elements) {
-      if (stands(el) && el.matches(selector)) {
-        arrived.add(el);
-        standing.push(el);
-      } else if (arrived.delete(el)) leave(el);
+      if (stands(el) && el.matches(selector)) standing.push(el);
+      else if (arrived.delete(el)) leave(el);
     }
-    if (standing.length) arriveBatch(standing);
+    if (!arriveBatch) for (const el of standing) offer(el);
+    else if (standing.length) {
+      for (const el of standing) arrived.add(el);
+      arriveBatch(standing);
+    }
   };
   const offer = (el) => {
     if (stands(el) && el.matches(selector)) {
@@ -260,7 +204,7 @@ export function watchArrivals(selector, attributes, { arrive, arriveBatch, leave
     (arrived.has(node) || node.matches(selector))
       ? [node]
       : [];
-  const observer = new MutationObserver((records) => {
+  const read = (records) => {
     const offered = new Set();
     for (const record of records) {
       if (record.type === "attributes") {
@@ -279,11 +223,15 @@ export function watchArrivals(selector, attributes, { arrive, arriveBatch, leave
         for (const el of matching(node, selector)) if (arrived.has(el)) offered.add(el);
     }
     offerMany(offered);
-  });
+  };
+  const observer = new MutationObserver(read);
   const watch = { selector, attributes, observer, offerMany };
   watches.add(watch);
   for (const root of [document.body, ...liveStages()]) enroll(watch, root);
-  return offer;
+  return (el) => {
+    read(observer.takeRecords());
+    offer(el);
+  };
 }
 
 function enroll({ selector, attributes, observer, offerMany }, root) {

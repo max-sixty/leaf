@@ -280,11 +280,6 @@ MEASURED_SCHEMA = {
     "additionalProperties": False,
 }
 
-_ATTRIBUTE_LIST = {
-    "type": "array",
-    "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-    "minItems": 1,
-}
 _ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
 EXTENSION_SCHEMA = {
     "type": "object",
@@ -311,10 +306,6 @@ EXTENSION_SCHEMA = {
         "x-reading-role": {"enum": ["pane"]},
         "x-resident": {"enum": ["map"]},
         "x-measured": MEASURED_SCHEMA,
-        # Attributes the theme renders as paint alone — a status marker's tint or an
-        # event's kind. The runtime speaks each as a clipped word (renderQuiet), the
-        # value or, where a flag carries no value, the attribute's own name.
-        "x-paints": _ATTRIBUTE_LIST,
         "x-patch": {"enum": ["members"]},
         "x-owners": {
             "type": "array",
@@ -434,9 +425,6 @@ EXTENSION_SCHEMA = {
     "additionalProperties": False,
 }
 _NONEMPTY = {"type": "string", "minLength": 1}
-# The end of a name pattern: jsonschema searches with Python's `re`, whose `$` also
-# matches before a final newline, so "keep\n" would pass for "keep".
-_END = r"(?![\s\S])"
 _UNIQUE_NAMES = {"type": "array", "items": {"type": "string"}, "uniqueItems": True}
 # A delivered event's handling or answering instructions: what every batch carries.
 _CLAUSES = {
@@ -489,7 +477,7 @@ LAYER_FACTS_SCHEMA = {
                 "description": _NONEMPTY,
                 "contracts": {
                     "type": "object",
-                    "propertyNames": {"pattern": f"^(?:{DATA_CONTRACT_NAME}){_END}"},
+                    "propertyNames": {"pattern": f"^(?:{DATA_CONTRACT_NAME})$"},
                     "additionalProperties": {
                         "type": "object",
                         "properties": {
@@ -522,7 +510,7 @@ LAYER_FACTS_SCHEMA = {
             "properties": {
                 "tokens": {
                     "type": "object",
-                    "propertyNames": {"pattern": f"^(?:{HTML_NAME}){_END}"},
+                    "propertyNames": {"pattern": f"^(?:{HTML_NAME})$"},
                     "additionalProperties": {
                         "type": "object",
                         # A glyph is a mark: at most four code points.
@@ -556,7 +544,6 @@ LAYER_FACTS_SCHEMA = {
 ATTRIBUTE_KEYS = (
     "x-language",
     "x-name",
-    "x-paints",
     "x-refers",
     "x-says",
     "x-tone",

@@ -337,11 +337,13 @@ start. A narrower frame still bounds it. `available` uses all room left by the p
 shell, frames, chrome, and a margin resident that takes its side, such as a sidebar
 standing in the margin or the contents map's spine; the markers beside it then stand as
 pins on it, and it moves below a note hanging level with it. A native `table` given
-either takes its columns' natural width up to that room: one that fits the column
-starts where the prose starts, and a wider one grows evenly about the prose axis, or to
-the right where a sidebar stands in the left margin. A table in a list item fills its
-room instead. An `lf-ask` or a callout keeps the column: a block of its own that
-declares a width breaks out of it on a column page, and widens it in a wider flow.
+either takes its columns' natural width up to that room: one that fits where it stands
+starts where the text around it starts, and a wider one grows evenly about the prose
+axis, or to the right where a sidebar stands in the left margin. A block in a list item
+or another indented block takes its room from the column, so it stands where the same
+block in the page's flow would, however deep the indent.
+An `lf-ask` or a callout keeps the column: a block of its own that declares a width
+breaks out of it on a column page, and widens it in a wider flow.
 Use these names on the semantic block itself, including a native `table`, `lf-code`, or
 `lf-diff`; do not reproduce their responsive widths in page CSS.
 
@@ -602,6 +604,13 @@ The child is temporary: use an ordinary Leaf page when its history must outlive
 the sample. A live sample needs a server, so a page declaring one cannot be
 exported (`references/serving-pages.md`, "Exported files").
 
+A thread message's `--markup` can carry a live sample too, and the user operates it
+in the thread. Its child is checked as the message is posted and uses the layer of
+the version showing the message; that version's captured files are the only page
+files it can load, so keep its code inline in the template. Its
+`data-sample-threads` cannot name the thread the message is in, since the copy would
+hold the same sample again.
+
 To start with fictional conversations or decisions, author an inert JSON script
 in the parent and name its id in the template's `data-sample-events`:
 
@@ -627,7 +636,8 @@ at `page check` and admitted before its first presentation. Give an event an exp
 `id` when a later command references it; omitted ids and timestamps are supplied,
 and the history belongs to revision 1. Several samples can name the same script;
 each gets an independent copy. Reset restores that authored history. The script
-must be inline `application/json` in the template's parent document. Its events
+must be inline `application/json` in the markup declaring the template: the page, or
+the message carrying it. Its events
 never appear in the outer log: leave fictional fixture anchors inside the template,
 and use this declaration rather than posting setup events from a page module.
 

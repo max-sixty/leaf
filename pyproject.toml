@@ -27,6 +27,9 @@
 # ada-url binds Ada, the WHATWG URL parser Node uses, to check the `uri` format
 # (`registry/schema.py`), so a URL `data set` accepts is one the page's `new URL`
 # accepts too. It is a compiled extension as well.
+# regress is an ECMAScript regular-expression engine; schema `pattern`s are read
+# with it (`registry/schema.py`) so they mean what they mean to the browser rather
+# than Python's `re`, whose `$` also matches before a final newline.
 # watchfiles supplies the native subscriptions shared by page maintenance,
 # delivery waits and developer previews, avoiding repeated idle filesystem scans.
 #
@@ -56,6 +59,7 @@ dependencies = [
   "packaging>=22",
   "playwright>=1.63",
   "psutil>=6",
+  "regress>=2026.9",
   "starlette>=0.48",
   "tinycss2>=1.4",
   "tree-sitter>=0.25.2",
@@ -117,8 +121,8 @@ leaf-website = { workspace = true }
 
 # The suite is round trips through a real browser rather than computation, so tests
 # shard independently: every test gets its own tmp_path, XDG homes, and server.
-# The site module is one load group because its module-scoped build and host are the
-# shared setup; everything else stays individually balanced. Chromium launches once
+# The site's test modules are one load group because their module-scoped build and
+# host are the shared setup; everything else stays individually balanced. Chromium launches once
 # per worker for the run.
 # Two workers cap the browser load when suites overlap on one machine; CI's own
 # runner sets its count in ci.yaml.
@@ -126,10 +130,8 @@ leaf-website = { workspace = true }
 [tool.pytest.ini_options]
 addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings --image-snapshot-save-diff -p leaf_dev.thread_snapshot_plugin -p leaf_dev.suite_profile"
 markers = [
-  "main: a pull request can land without it; each push to main runs it (`--run-main`) unless its cost puts it in `nightly`",
-  "nightly: a push to main skips it; the daily schedule runs it (`--run-nightly`)",
-  "landing: both landing gates run it, whatever it costs or its other marks say",
-  "watch_shifts: a surveyed test marked `main` or `nightly` also rejects unsolicited layout shifts and typing that carries its field",
+  "shifts_unsurveyed: its browser tests await a shift survey, so they do not reject unsolicited layout shifts",
+  "watch_shifts: a surveyed test marked `shifts_unsurveyed` rejects unsolicited layout shifts and typing that carries its field",
 ]
 # A test still running after half an hour is hung, not slow: the slowest takes under
 # three minutes on CI, so even ten times slower it finishes. The worker prints every
@@ -165,6 +167,9 @@ ignore_names = [
   "pytestmark",
   "image_snapshot_*",
   "show_differences",
+  # a subject's module fixture another tier directory's module imports by its alias
+  # (`tests/AGENTS.md`, "Run what the change needs")
+  "*_fixture",
   # http.server, socketserver, logging
   "do_*",
   "list_directory",

@@ -627,7 +627,7 @@ button.lf-thread-notice[data-lf-focus] {
 :where(:root, .lf-thread-transcript) table:where([data-lf-space], [data-lf-space] *) {
   --lf-fills-frame: 1;
 }
-:where(:root, .lf-thread-transcript) table:where([data-lf-space]:not([data-lf-space=column])):where(:not(li table)) {
+:where(:root, .lf-thread-transcript) table:where([data-lf-space]:not([data-lf-space=column])) {
   --lf-fills-frame: 0;
 }
 @container style(--lf-block-frame: 1) {
@@ -683,7 +683,7 @@ button.lf-thread-notice[data-lf-focus] {
 }
 :where(:root, .lf-thread-transcript) :is(ul, ol) {
   margin: 10px 0;
-  padding-left: 24px;
+  padding-inline-start: 24px;
 }
 :where(:root, .lf-thread-transcript) li {
   margin: 6px 0;

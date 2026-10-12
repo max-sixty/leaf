@@ -68,7 +68,7 @@ export {
 } from "./focus.js";
 export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place.
-export { setChildren, setRenderedChildren } from "./dom-children.js";
+export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.js";
 export { readQuestions, watchQuestions } from "./questions/model.js";
 export { comparisonChanges, watchComparison } from "./version.js";
 export { questionWords } from "./questions/answer.js";
@@ -86,7 +86,6 @@ export { queueActions } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
 export {
   threadBox,
-  placeThreads,
   placePageThreads,
   consumeAnnotations,
   mountThreadViews,
@@ -94,6 +93,7 @@ export {
   threadActions,
 } from "./application.js";
 export { readThreads } from "./thread/state.js";
+export { releaseOutlets, threadSurface } from "./thread/surfaces.js";
 export { watchThreads } from "./thread/watch.js";
 export { turns as threadTurns, threadSummary } from "./thread/model.js";
 // Holding a region's rows the log or the clock decides while their growth would be seen
@@ -130,6 +130,7 @@ export {
 export {
   contributionEntry,
   presentContributionEntry,
+  presentContributionReceipts,
 } from "./contribution-controls.js";
 export { registerContribution } from "./contributions.js";
 export {
@@ -158,15 +159,22 @@ export {
   compoundReadingRegionId,
   preserveReadingRegions,
   readingPosture,
-  readingRegion,
   registerReadingRegion,
   scrollerFor,
+  showReadingSubject,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 export { announce, notice } from "./notifications.js";
 export { alignText, alignedNodes } from "./text-alignment.js";
 export { inChrome, says, wrote } from "./passages.js";
-export { ago, clocked, clockValue, quietSince, shortAgo } from "./presence.js";
+export {
+  ago,
+  clocked,
+  clockValue,
+  quietSince,
+  readingPaint,
+  shortAgo,
+} from "./presence.js";
 export { shadowStage } from "./shadow-stage.js";
 export { inBaseLayer } from "./stylesheets.js";
 export { revisionLabel } from "./context.js";

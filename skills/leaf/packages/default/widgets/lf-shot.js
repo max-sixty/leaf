@@ -66,6 +66,7 @@ import {
   scopedMediaUrl,
   selectableOffer,
   widgetController,
+  move,
 } from "/runtime/widget-api.js";
 
 let comparing = Promise.resolve();
@@ -224,7 +225,7 @@ customElements.define(
               ? `${labels.before} · ${labels.after} below`
               : labels[state],
           );
-          if (label.parentNode !== frame) frame.prepend(label);
+          if (label.parentNode !== frame) move(frame, label, frame.firstChild);
         } else label?.remove();
         if (focus) {
           const image = frame.querySelector("img");
@@ -437,13 +438,13 @@ customElements.define(
             title: "show before or after",
           },
         ]);
-        this.insertBefore(comparison, this.#box);
+        move(this, comparison, this.#box);
         this.#comparison = comparison;
         void comparison.updateComplete?.then(() => this.#paint());
       } else if (!enabled && this.#comparison) {
         for (const frame of this.#frames) {
           frame.removeAttribute("slot");
-          this.insertBefore(frame, this.#comparison);
+          move(this, frame, this.#comparison);
         }
         this.#comparison.remove();
         this.#comparison = null;

@@ -50,8 +50,11 @@ import {
   readSampleVisibility,
 } from "./sample-visibility.js";
 import { keeps } from "./keeps.js";
+import { move } from "./dom-move.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { recordInteraction } from "./interaction-log.js";
+import { focusDestination } from "./focus.js";
+import { enterFrameBy, inLoop, movePast } from "./keyboard/layer-stack.js";
 import { aborted } from "./abort.js";
 
 // A page can carry many samples. Their child documents each import the runtime;
@@ -111,11 +114,15 @@ const request = (url, body, headers = {}) =>
 
 export function mountSample(frame, { template, window: asWindow = false }) {
   if (!template) throw new Error("a sample needs an authored template id");
+  // A template is declared in its revision's document or in a message's frozen
+  // markup, which the server reads from the log beside the current revision.
   let revision = runtime.currentRevision;
+  let message;
   for (let owner = frame.parentElement; owner; owner = owner.parentElement) {
     const descriptor = widgetDescriptor(owner);
     if (!descriptor) continue;
     if (descriptor.document.kind === "page") revision = descriptor.document.revision;
+    else message = descriptor.document.message;
     break;
   }
   let current = null;
@@ -179,7 +186,16 @@ export function mountSample(frame, { template, window: asWindow = false }) {
       sampleVisibility()?.visible !== false
     );
   }
+  // What the containing page admits changes with what stands over the frame, and so
+  // does whether the frame stands in a Tab loop (keyboard/layer-stack.js). The child
+  // hears the loop first, so its own samples tell theirs on the admission it publishes.
+  let looped = null;
   function visibility() {
+    const standing = inLoop(frame);
+    if (channel && standing !== looped) {
+      channel.postMessage({ type: "tab-loop", detail: { standing } });
+      looped = standing;
+    }
     channel?.postMessage({ type: "visibility", detail: { visible: admitted() } });
   }
   async function readVisibility(port, id) {
@@ -207,6 +223,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
   function disconnect(reason) {
     channel?.close();
     channel = null;
+    looped = null;
     lost = reason;
     connectedNonce = null;
     for (const { reject } of pending.values()) reject(reason);
@@ -336,6 +353,8 @@ export function mountSample(frame, { template, window: asWindow = false }) {
       } else if (data.type === "ready") {
         record("presented");
         readyResolve(data.detail);
+        // A loop told before the child's runtime listened never reached it.
+        looped = null;
         visibility();
       } else if (data.type === "error") {
         failure(
@@ -347,6 +366,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
         );
       } else if (data.type === "return")
         frame.dispatchEvent(new Event("lf-sample-return"));
+      else if (data.type === "tab") movePast(frame, data.detail.backward);
       else if (data.type === "step")
         frame.dispatchEvent(
           new CustomEvent("lf-sample-step", {
@@ -391,6 +411,10 @@ export function mountSample(frame, { template, window: asWindow = false }) {
   for (const type of ["beforetoggle"])
     document.addEventListener(type, nativeTransition, true);
   const unwatch = onSampleVisibility(visibility);
+  const unenter = enterFrameBy(frame, (backward) => {
+    focusDestination(frame, "step");
+    channel?.postMessage({ type: "tab-enter", detail: { backward } });
+  });
   const undress = registerSampleDress(frame, (dress) =>
     channel?.postMessage({ type: "dress", detail: dress }),
   );
@@ -417,7 +441,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
     const next = frame.nextSibling;
     frame.remove();
     frame.removeAttribute("src");
-    parent?.insertBefore(frame, next);
+    if (parent) move(parent, frame, next);
     record("retired", { reason, document: retiringDocument, sample });
     return request(new URL("api/release", previous), {}).catch((error) => {
       recordFailure(error, {
@@ -438,7 +462,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
         record("allocating");
         const { url, page } = await request(
           pageUrl("api/samples"),
-          { template },
+          { template, message },
           revision ? { "Leaf-View-Revision": String(revision) } : {},
         );
         current = new URL(url, location.href).href;
@@ -537,6 +561,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
         document.removeEventListener(type, nativeTransition, true);
       lifetime.disconnect();
       unwatch();
+      unenter();
       undress();
       closing = Promise.all([retire("destroyed"), operation?.catch(() => {})]);
       return closing;

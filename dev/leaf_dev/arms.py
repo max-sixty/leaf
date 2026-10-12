@@ -802,6 +802,23 @@ def trace_summary(trace: list[dict]) -> dict:
     }
 
 
+def resumed(summaries: list[dict]) -> list[dict]:
+    """The summaries of one session's successive phases, each costing only its own work.
+
+    Claude Code's `total_cost_usd` covers the whole session, so a phase resumed with
+    `--resume` reports its predecessors' cost too; its own is the difference. A Codex
+    turn reports no cost, which stays unknown."""
+    before = 0
+    phases = []
+    for summary in summaries:
+        cost = summary["cost_usd"]
+        phases.append(
+            {**summary, "cost_usd": None if cost is None else round(cost - before, 3)}
+        )
+        before = cost if cost is not None else before
+    return phases
+
+
 def progress_start(events: list[dict], for_event: str) -> dict | None:
     """The admitted start on this exact input before its first successful answer.
 

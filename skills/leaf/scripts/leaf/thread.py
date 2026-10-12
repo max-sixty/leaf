@@ -144,7 +144,7 @@ def thread_of(page_dir: Path, message_id: str) -> str:
     return thread_names(read_events(page_dir))[message_id]
 
 
-def _current_anchor(
+def current_anchor(
     page_dir: Path,
     events: list,
     quote: str,
@@ -236,7 +236,7 @@ def cmd_comment(
     body = read_text_arg(page_dir, text)
     with PageTransaction(page_dir) as page:
         events = page.events
-        revision, anchor = _current_anchor(
+        revision, anchor = current_anchor(
             page_dir, events, quote, section, part, transaction=page
         )
         if markup:
@@ -686,7 +686,14 @@ def _compose_and_append(
                     (active or 0) + 1,
                 )
     fragment = (
-        check_markup(page_dir, "reply", markup, events, page=prospective_page)
+        check_markup(
+            page_dir,
+            "reply",
+            markup,
+            events,
+            page=prospective_page,
+            thread=thread_id,
+        )
         if markup
         else None
     )
@@ -716,7 +723,7 @@ def _compose_and_append(
     if prospective_anchor is not None:
         revision, anchor = reply_revision, prospective_anchor
     elif moving:
-        revision, anchor = _current_anchor(
+        revision, anchor = current_anchor(
             page_dir,
             events,
             quote,

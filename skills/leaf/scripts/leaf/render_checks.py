@@ -202,6 +202,15 @@ _READINESS = """({held, through}) => {
   return readiness ? readiness(held, through ?? undefined) : 'started';
 }"""
 _READY = f"asked => ({_READINESS})(asked) === null"
+# The reason a page declared it cannot start (an incomplete startup fault, prepaint.js),
+# or null. Such a page upgrades nothing more until a replacement server reloads it
+# (bootstrap.js).
+_REFUSED = """() => {
+  const root = document.documentElement;
+  return root.hasAttribute('data-lf-startup-error')
+    && !root.hasAttribute('data-lf-interactive') ? root.dataset.lfStartupError : null;
+}"""
+_READY_OR_REFUSED = f"asked => ({_READY})(asked) || ({_REFUSED})() !== null"
 _OUTSTANDING = f"asked => ({_READINESS})(asked) ?? 'ready'"
 # How a failure words each stage `pageReadiness` names. `state` fails only against an
 # answer the caller holds.
@@ -220,7 +229,8 @@ _STAGE_READ_MS = 5_000
 
 
 class PageNotReady(TimeoutError):
-    """A page that never stated one of its readiness facts; `stage` names which."""
+    """A page that never stated one of its readiness facts; `stage` names which, or is
+    `refused` where the page declared it cannot start (`wait_until_ready`)."""
 
     def __init__(self, stage: str, message: str):
         super().__init__(message)
@@ -233,6 +243,7 @@ def wait_until_ready(
     *,
     through: str | None = None,
     timeout_ms: int | None = None,
+    fixed_server: bool = False,
 ) -> None:
     """Wait until the page says a reader outside it may read its final boxes and press
     its keys, or raise `PageNotReady` naming the first fact it never stated.
@@ -246,6 +257,11 @@ def wait_until_ready(
     caller that wants the answer taken in while the page is still mid-gesture. Finite
     animation is not readiness; the render gate asks `pageSettled` for that on its own.
     The deadline is `HANDOVER_DEADLINE_MS` unless the caller states one.
+
+    A caller whose server nothing replaces while it waits, such as a check reading a
+    preview of one candidate, passes `fixed_server`: a page that declares it cannot
+    start is then refused at once, as stage `refused` with the page's own reason,
+    rather than at the deadline, since the reload it waits for never comes.
     """
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -259,10 +275,14 @@ def wait_until_ready(
     }
     timeout_ms = timeout_ms or HANDOVER_DEADLINE_MS
     try:
-        page.wait_for_function(_READY, arg=asked, timeout=timeout_ms)
+        page.wait_for_function(
+            _READY_OR_REFUSED if fixed_server else _READY, arg=asked, timeout=timeout_ms
+        )
     except PlaywrightTimeout:
         pass
     else:
+        if fixed_server and (reason := page.evaluate(_REFUSED)) is not None:
+            raise PageNotReady("refused", f"the runtime could not start: {reason}")
         return
     # Read the stage through a bounded wait too, since `evaluate` takes no deadline: a
     # page whose own code holds its main thread answers neither.

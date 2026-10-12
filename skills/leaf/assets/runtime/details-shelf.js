@@ -31,6 +31,7 @@
  * nothing (chrome.css). Focus on a note stands at its element (standing-target.js).
  */
 import { chromeRoot } from "./chrome.js";
+import { move } from "./dom-move.js";
 import { declareSide } from "./standing-target.js";
 import { offer } from "./widget-elements.js";
 
@@ -74,7 +75,7 @@ function name(element, record) {
 export function shelve(element, note) {
   shelf ??= offer("div", "lf-details-shelf");
   if (!shelf.isConnected) chromeRoot.append(shelf);
-  if (note.parentNode !== shelf) shelf.append(note);
+  if (note.parentNode !== shelf) move(shelf, note, null);
   owners.set(note, element);
   let record = records.get(element);
   if (!record) {

@@ -126,9 +126,8 @@ def test_sort_film_readout_and_narration(browser, serve):
     page = open_page(browser, serve(example))
     readings = page.evaluate(
         """async () => {
-          const widget = performance.getEntriesByType('resource')
-            .find(resource => resource.name.endsWith('/page/widgets/lf-sort-film.js'));
-          const source = new URL('../sort.js', widget.name);
+          const imports = JSON.parse(document.querySelector('script[type="importmap"]').textContent).imports;
+          const source = new URL('../page/sort.js', new URL(imports['/runtime/'], location.href));
           const {makeInput, trace} = await import(source);
           const steps = trace(makeInput('random', 7)).steps;
           const film = document.querySelector('#sort-film');

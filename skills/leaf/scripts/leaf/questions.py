@@ -20,7 +20,7 @@ from leaf.events import (
     taken_back,
 )
 from leaf.files import stamped_version
-from leaf.gesture_words import leading_title
+from leaf.gesture_words import element_name
 from leaf.page_memory import Slot
 from leaf.projection import (
     FrozenThreadReading,
@@ -114,6 +114,20 @@ def event_reference(event: dict | None) -> dict | None:
     return {
         key: event[key] for key in ("id", "kind", "seq", "ts", "author") if key in event
     }
+
+
+def approval_blocking(records: list[dict]) -> list[dict]:
+    """The Questions that keep a version from being approved: each open widget
+    Question someone still owes, on the page or in a widget an agent sent. The append
+    door refuses a sign-off while one stands, and the browser view serves their ids
+    so the approve control says the same."""
+    return [
+        record
+        for record in records
+        if record["source"]["kind"] == "widget"
+        and record["status"] == "open"
+        and record["next_actor"] is not None
+    ]
 
 
 def collection(records: list[dict]) -> dict:
@@ -328,6 +342,18 @@ def previously_requested(
         if asking(replayed_attrs(record, cache[key]), when):
             return True
     return False
+
+
+def closed_thread(rec: dict, entry: dict, projection: StateProjection) -> str | None:
+    """The thread an answer on this widget closes: its authored `resolves`, read
+    while the widget still asks under `projection`, as a name `thread_names`
+    resolves. Admission reads it with the answering action standing
+    (`event_meaning.answer_meaning`); the browser places an action it has not sent yet
+    by the current reading (`served_state.browser`, `closes`)."""
+    awaits = entry.get("x-awaits")
+    if awaits is None or not asking(replayed_attrs(rec, projection), awaits.get("when")):
+        return None
+    return rec["attrs"].get("resolves")
 
 
 def answer_verbs(entry: dict) -> dict:
@@ -779,11 +805,7 @@ class _QuestionReducer:
                 key=lambda event: event["seq"],
                 default=None,
             )
-            node = self.nodes.get(surface["attrs"]["id"])
-            text = leading_title(node) if node is not None else None
-            if not text and surface is record:
-                attr = entry.get("x-name")
-                text = record["attrs"].get(attr) if attr else None
+            text = element_name(self.nodes[surface["attrs"]["id"]], self.registry) or None
             records.append(
                 {
                     "id": "widget:" + unit,

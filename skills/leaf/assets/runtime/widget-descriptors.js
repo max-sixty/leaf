@@ -55,8 +55,9 @@ const declaredAncestors = (element) => {
   return ancestors;
 };
 
+// Whether an x-exhibit element holds this one, strictly within it (`quoted`).
 const quotedBy = (element) => {
-  for (let node = element; node; node = parentOf(node))
+  for (let node = parentOf(element); node; node = parentOf(node))
     if (runtime.registry[node.localName]?.["x-exhibit"]) return true;
   return false;
 };

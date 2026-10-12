@@ -8,10 +8,19 @@ from ..files import stamped_version
 from ..gesture_words import GestureWords, RevisionReader
 from ..history import history, wants_history
 from ..passages import SourceReading
-from ..projection import FrozenThreadReading, canonical_reports, page_reading
+from ..projection import (
+    FrozenThreadReading,
+    StateProjection,
+    canonical_reports,
+    page_reading,
+)
+from ..questions import approval_blocking, answer_verbs, closed_thread, collection
+from ..registry.contract import state_definition, state_specs
+from ..thread_context import thread_memberships
 from ..schema import WIDGET_KINDS
 from .context import PageRead
 from .document import browser_document, browser_undo_candidates
+from .queues import queues
 from .thread import browser_thread
 from .work import WorkState, work_state
 
@@ -83,17 +92,55 @@ def _apply_thread_attention(
                 "kind": "waiting",
                 "reason": "task",
                 "workflow": None,
-                # The line of the start running on it, while that start holds.
+                # The line of the start running on it, while one holds it.
                 "task": {
                     "id": task["id"],
                     "title": task["title"],
-                    "line": task["running"]["text"]
-                    if task["running"] and task["running"]["condition"] is None
-                    else None,
+                    "line": task["running"]["text"] if task["running"] else None,
                 },
             }
         else:
             thread["attention"] = None
+
+
+def _closes(
+    pages: list[tuple[dict, dict, StateProjection]], threads: dict
+) -> dict[str, dict]:
+    """Each widget an answer on would close a thread (`questions.closed_thread`):
+    that thread, the verbs that answer (`questions.answer_verbs`), and the outcome
+    that withdraws the request instead (`x-withdrawn-as`), which closes nothing.
+    `pages` are each document's records by id, registry and projection; an answer
+    closes the thread `threads` holds under that exact id, as `build_threads` reads
+    it. The browser places an action it has not sent yet in the
+    thread it would close by this, as `thread_memberships` places a logged one by its
+    admitted meaning (`event_meaning.answer_meaning`)."""
+    closes = {}
+    for by_id, registry, projection in pages:
+        for widget, record in by_id.items():
+            entry = registry.get(record["tag"], {})
+            name = closed_thread(record, entry, projection)
+            if name and name in threads:
+                closes[widget] = {
+                    "thread": name,
+                    "verbs": sorted(answer_verbs(entry)),
+                    "withdrawn_as": entry.get("x-withdrawn-as"),
+                }
+    return closes
+
+
+def _state_definitions(registry: dict, records) -> dict[str, dict[str, dict]]:
+    """Each tag among `records` → each verb its user writes → that verb's admitted
+    definition under `registry` (`registry.contract.state_definition`). The browser
+    stamps an action it has not sent yet with its verb's definition, and stops drawing
+    the action once a revision defines that verb differently; it never derives one."""
+    return {
+        tag: {
+            verb: state_definition(tag, registry[tag], spec)
+            for verb, spec in state_specs(registry[tag], writer="user")
+        }
+        for tag in sorted({record["tag"] for record in records})
+        if any(state_specs(registry.get(tag, {}), writer="user"))
+    }
 
 
 def browser_state(
@@ -143,6 +190,10 @@ def browser_state(
     )
     thread, thread_reading = browser_thread(durable, work.live_reply)
     thread_projection = thread_reading.projection
+    # Frozen markup reads under the active registry for the page's whole lifetime.
+    thread["state_definitions"] = _state_definitions(
+        active_registry, thread_reading.by_id.values()
+    )
 
     views = {}
     documents = {}
@@ -198,6 +249,16 @@ def browser_state(
         )
         views[str(revision)] = {
             "basis": {"revision": revision, "through_seq": through_seq},
+            "state_definitions": _state_definitions(
+                page.registry, page.document.by_id.values()
+            ),
+            "closes": _closes(
+                [
+                    (page.document.by_id, page.registry, projection),
+                    (thread_reading.by_id, active_registry, thread_projection),
+                ],
+                threads,
+            ),
             "document": document,
             "reports": canonical_reports(projection),
             "undo": browser_undo_candidates(
@@ -223,6 +284,16 @@ def browser_state(
         workflows,
         [task for task in tasks if task["owner"] == "agent"],
     )
+    # Each view's Questions are its own document's beside the frozen thread's, so
+    # each view carries the queues they add up to and the ones approving it waits on.
+    for view in views.values():
+        questions = view["document"]["questions"]["all"] + thread["questions"]["all"]
+        view["queues"] = queues(
+            thread["threads"], workflows, tasks, ended_tasks, collection(questions)
+        )
+        view["approval_blocking"] = [
+            question["id"] for question in approval_blocking(questions)
+        ]
     if wants_history(readings[revision] for revision in view_revisions):
         words = GestureWords(events, active_registry, revisions or readings.__getitem__)
         page_history = {
@@ -246,6 +317,19 @@ def browser_state(
         "tasks": tasks,
         "ended_tasks": ended_tasks,
         "receipts": [event for event in events if event.get("attempt")],
+        # Every thread whose history each logged event changes
+        # (`thread_context.thread_memberships`), which the browser reads for the
+        # gesture an unsent undo takes back or an unsent action replaces.
+        "thread_memberships": {
+            identity: threads
+            for identity, threads in thread_memberships(
+                events,
+                thread_reading.thread_by_name,
+                thread_reading.thread_by_widget,
+                active_page.within,
+            ).items()
+            if threads
+        },
         "version_notes": {
             str(event["version"]): event["text"]
             for event in events

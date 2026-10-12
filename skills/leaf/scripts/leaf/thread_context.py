@@ -242,11 +242,13 @@ def thread_memberships(
     supersedes its earlier answer, an undo inherits the gesture's membership, and
     a version note can retract what an answer rested on.
 
-    This is the shared join for wait delivery and sampled thread closures. Current
-    resolution still comes from `build_threads`; membership says which raw
-    records explain that fold rather than becoming another state projection.
-    Read state and the history feed read the direct relation, `event_threads`:
-    an update the user made in a thread, rather than every thread it changed.
+    This is the shared join for wait delivery, sampled thread closures, and the
+    browser state, which serves it so the browser files an unsent undo or action
+    with the logged gesture it takes back or replaces. Current resolution still
+    comes from `build_threads`; membership says which raw records explain that fold
+    rather than becoming another state projection. Read state and the history feed
+    read the direct relation, `event_threads`: an update the user made in a thread,
+    rather than every thread it changed.
     """
     memberships: dict[str, list[str]] = {}
     settled_by_coordinate: dict[tuple, list[str]] = {}

@@ -69,7 +69,8 @@
      is a move within it, such as Escape out of its reply box onto its title or going to
      a Question it already shows;
    - acting in it (`gesturedOn`): a reply, a reaction on one of its messages, settling
-     it, an action on a widget one of them holds, or a thread they start in the seat, which
+     it, an action on a widget one of them holds or one that closes it, as accepting
+     the suggestion it asked for does, or a thread they start in the seat, which
      answers what came before it and so follows it;
    - changing the panel's view, which moves its cards anyway.
 
@@ -278,8 +279,20 @@ function withheld(was, now) {
     const message = standing.get(messageKey(prior));
     if (!message) return isReaction(prior) || prior.provisional ? [prior] : [];
     // A streaming reply held as drawn is still the reply arriving, whatever completed it.
-    const { text, body, edited, provisional, reactions } = prior;
-    return [Object.freeze({ ...message, text, body, edited, provisional, reactions })];
+    // Its content version is the one its drawn words are, so the words a rewrite holds
+    // back are neither marked read nor taken for the rewrite.
+    const { text, body, edited, content_version, provisional, reactions } = prior;
+    return [
+      Object.freeze({
+        ...message,
+        text,
+        body,
+        edited,
+        content_version,
+        provisional,
+        reactions,
+      }),
+    ];
   });
   return Object.freeze({
     ...now,

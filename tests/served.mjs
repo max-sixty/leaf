@@ -37,8 +37,22 @@ export function servedReading(name) {
   return structuredClone(RECORDS.readings[name]);
 }
 
+// A Question as a work queue lists it, holding `question`; `changes` set where it
+// stands, for a test whose served reading states its Questions by hand.
+export const servedQuestionItem = (question, changes) =>
+  served("question_item", {
+    id: question.id,
+    thread: question.thread,
+    title: question.prompt.text,
+    question,
+    ...changes,
+  });
+
 // The same admitted undo/refusal/revision sequence used by the Python fold test.
 export const servedGestureSequence = () => structuredClone(RECORDS.gestures);
+
+// The shared state definition cases, each as the two definitions the server serves.
+export const servedStateDefinitionCases = () => structuredClone(RECORDS.state_definitions);
 
 // Cross-runtime typed Question values use the same real server fold.
 export const servedQuestionValues = () => structuredClone(RECORDS.question_values);

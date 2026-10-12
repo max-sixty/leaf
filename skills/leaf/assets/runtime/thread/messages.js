@@ -170,7 +170,7 @@ export function messageReading(
     id: message.id,
     // A reply still streaming, which the answer it stands for completes in place.
     provisional: Boolean(message.provisional),
-    version: message.edited?.id ?? message.id,
+    version: message.content_version,
     seq: moved(message).seq,
     unread: message.unread,
     attempt: message.attempt ?? null,
@@ -186,9 +186,9 @@ export function messageReading(
     editable: editable(message),
     failure: message.failure ?? null,
     pending: workflow?.stage === "sending",
-    // What a rewrite of the message is written over (`base` on an edit): its latest
-    // edit, or the message itself.
-    base: message.edited?.id ?? message.id,
+    // What a rewrite of the message is written over (`base` on an edit): its current
+    // content version.
+    base: message.content_version,
     workflow,
     workflowLabel: workflowLabel(workflow),
     workflowTitle: workflowTitle(workflow),

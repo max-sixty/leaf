@@ -30,6 +30,7 @@ export const turnMessage = (turn) =>
 export const threadForAttempt = (event, timestamp) => ({
   ...event,
   id: `${PENDING}${event.attempt}`,
+  content_version: `${PENDING}${event.attempt}`,
   author: "user",
   ts: timestamp,
   pending: /** @type {const} */ (true),

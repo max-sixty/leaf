@@ -12,15 +12,15 @@ assertions always consume this checkout's server rather than a recorded copy.
 """
 
 import json
+from pathlib import Path
 
 from interact_support import model_layer
-from leaf.agent_state import queues
 from leaf.event_log import EventRefused
 from leaf.passages import SourceReading
 from leaf.projection import StateProjection, authored_rank, question_value
-from leaf.questions import collection
+from leaf.registry.contract import state_definition
 from leaf.structure import SourceDocument
-from model_folds import leaf_page, served_reading
+from model_folds import NOW, UNCLAIMED, leaf_page, served_reading
 
 PAGE = leaf_page("Served records", '<h1 id="h">Steps</h1><p id="p">Two steps.</p>')
 
@@ -31,6 +31,104 @@ def _served(events: tuple[dict, ...]) -> dict:
         "threads": state["browser"]["thread"]["threads"],
         "workflows": state["workflows"],
     }
+
+
+# Something of every kind on each side: an open Ask, a question left in prose, a task
+# the agent put on them, a reply that failed and a page action whose pickup failed are on
+# the user; a comment owed a reply and a task the agent has in hand are on the agent.
+BOTH_SIDES = (
+    {"kind": "comment", "text": "Weekly?"},
+    {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Agent",
+        "parent": "e1",
+        "responds": "e1",
+        "text": "Weekly or daily?",
+        "question": True,
+    },
+    {"kind": "comment", "text": "Tighten this."},
+    {"kind": "comment", "text": "Rebuild the chart."},
+    {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Agent",
+        "session": "served-records",
+        "parent": "e4",
+        "responds": "e4",
+        "text": "On it after CI.",
+        "task": "Rebuild the chart",
+    },
+    {"kind": "comment", "text": "Retitle it."},
+    {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Agent",
+        "parent": "e6",
+        "responds": "e6",
+        "failure": "turn_failed",
+        "text": "No answer is coming.",
+    },
+    {
+        "kind": "action",
+        "widget": "ship",
+        "action": "choose",
+        "detail": {"value": ["ship-now"]},
+    },
+    {
+        "kind": "pickup",
+        "author": "page",
+        "events": ["e8"],
+        "phase": "failed",
+        "failure": "turn_failed",
+        "session": "served-records",
+        "turn": "turn-1",
+    },
+    {
+        "kind": "start",
+        "author": "agent",
+        "agent": "Agent",
+        "session": "served-records",
+        "turn": "turn-1",
+        "item": "e5",
+        "text": "Redrawing the chart",
+    },
+    {
+        "kind": "task",
+        "author": "agent",
+        "agent": "Agent",
+        "session": "served-records",
+        "owner": "user",
+        "subject": {"kind": "page"},
+        "title": "Try the build on a phone",
+    },
+)
+
+
+SIGN_OFF_PAGE = PAGE.replace(
+    "</head>", '<meta name="lf-review" content="sign-off"></head>'
+)
+READY = {"kind": "note", "author": "agent", "version": 1, "text": "Ready"}
+
+
+SUGGESTION_PAGE = leaf_page(
+    "Suggested change",
+    '<lf-suggestion id="sug-refill" resolves="e1">'
+    '<lf-old><p id="refill-rule">Refill every morning.</p></lf-old>'
+    "<lf-new><p>Refill when half-empty.</p></lf-new>"
+    "</lf-suggestion>",
+)
+SUGGESTED = (
+    {"kind": "comment", "text": "Refill less often?"},
+    {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Agent",
+        "parent": "e1",
+        "responds": "e1",
+        "text": "Suggested a rule above.",
+    },
+)
 
 
 def build() -> dict:
@@ -59,15 +157,16 @@ def build() -> dict:
         "thread": threads["e1"],
         "workflow": workflows["e4"],
         "gestures": gesture_sequence(),
+        "question_item": _served_question_item(),
+        "state_definitions": state_definition_cases(),
         "readings": {
             # A required approval of the exact stamped document, with no other
             # Questions. Keep the whole browser reading for local approval folds.
-            "approval": served_reading(
-                PAGE.replace(
-                    "</head>", '<meta name="lf-review" content="sign-off"></head>'
-                ),
-                ({"kind": "note", "author": "agent", "version": 1, "text": "Ready"},),
-            )["browser"],
+            "approval": served_reading(SIGN_OFF_PAGE, (READY,)),
+            # The same version once the user approved it.
+            "approved": served_reading(
+                SIGN_OFF_PAGE, (READY, {"kind": "done", "version": 1})
+            ),
             # The agent asks a question over a board it sent, and the user moves a
             # card on it without answering: the thread is the user's to answer, and
             # the move, which owes nothing, stands in it without holding it.
@@ -96,82 +195,74 @@ def build() -> dict:
                     },
                 )
             ),
-            # Something of every kind on each side: an open Ask, a question left in
-            # prose, a task the agent put on them, a reply that failed and a page move
-            # whose pickup failed are on the user; a comment owed a reply and a task the agent has in hand are on
-            # the agent.
-            "queues on both sides": _queued(
+            "queues on both sides": served_reading(
+                ASK_PAGE,
+                BOTH_SIDES,
+            ),
+            # The same page once the user has marked their task done.
+            "user done": served_reading(
+                ASK_PAGE,
                 (
-                    {"kind": "comment", "text": "Weekly?"},
-                    {
-                        "kind": "reply",
-                        "author": "agent",
-                        "agent": "Agent",
-                        "parent": "e1",
-                        "responds": "e1",
-                        "text": "Weekly or daily?",
-                        "question": True,
-                    },
-                    {"kind": "comment", "text": "Tighten this."},
-                    {"kind": "comment", "text": "Rebuild the chart."},
-                    {
-                        "kind": "reply",
-                        "author": "agent",
-                        "agent": "Agent",
-                        "session": "served-records",
-                        "parent": "e4",
-                        "responds": "e4",
-                        "text": "On it after CI.",
-                        "task": "Rebuild the chart",
-                    },
-                    {"kind": "comment", "text": "Retitle it."},
-                    {
-                        "kind": "reply",
-                        "author": "agent",
-                        "agent": "Agent",
-                        "parent": "e6",
-                        "responds": "e6",
-                        "failure": "turn_failed",
-                        "text": "No answer is coming.",
-                    },
+                    *BOTH_SIDES,
+                    {"kind": "task_end", "task": "e11", "outcome": "done"},
+                ),
+            ),
+            # Two tasks the agent holds on a page it is working on: a start running
+            # on one went quiet past the working grace, and the other's is current.
+            "quiet start": served_reading(
+                ASK_PAGE,
+                (
+                    *(
+                        {
+                            "kind": "task",
+                            "author": "agent",
+                            "agent": "Agent",
+                            "session": "served-records",
+                            "owner": "agent",
+                            "subject": {"kind": "page"},
+                            "title": title,
+                        }
+                        for title in ("Rebuild the chart", "Check the colours")
+                    ),
+                    *(
+                        {
+                            "kind": "start",
+                            "author": "agent",
+                            "agent": "Agent",
+                            "session": "served-records",
+                            "turn": "turn-1",
+                            "item": item,
+                            "text": text,
+                            "ts": ts,
+                        }
+                        for item, text, ts in (
+                            ("e1", "Redrawing the chart", QUIET),
+                            ("e2", "Comparing the palette", NOW),
+                        )
+                    ),
+                ),
+                presence=HELD,
+            ),
+            # The user asked for a change in a thread, and the agent answered with a
+            # page suggestion whose acceptance closes that thread.
+            "suggestion closes a thread": served_reading(SUGGESTION_PAGE, SUGGESTED),
+            # The same page once the user accepted the suggestion.
+            "suggestion accepted": served_reading(
+                SUGGESTION_PAGE,
+                (
+                    *SUGGESTED,
                     {
                         "kind": "action",
-                        "widget": "ship",
-                        "action": "choose",
-                        "detail": {"value": ["ship-now"]},
-                    },
-                    {
-                        "kind": "pickup",
-                        "author": "page",
-                        "events": ["e8"],
-                        "phase": "failed",
-                        "failure": "turn_failed",
-                        "session": "served-records",
-                        "turn": "turn-1",
-                    },
-                    {
-                        "kind": "start",
-                        "author": "agent",
-                        "agent": "Agent",
-                        "session": "served-records",
-                        "turn": "turn-1",
-                        "item": "e5",
-                        "text": "Redrawing the chart",
-                    },
-                    {
-                        "kind": "task",
-                        "author": "agent",
-                        "agent": "Agent",
-                        "session": "served-records",
-                        "owner": "user",
-                        "subject": {"kind": "page"},
-                        "title": "Try the build on a phone",
+                        "widget": "sug-refill",
+                        "action": "decide",
+                        "detail": {"outcome": "accept"},
                     },
                 ),
             ),
             # One Ask answered and one open, and a task the agent ended beside one it
             # still holds: only the answered Ask and the ended task are done.
-            "done": _done(
+            "done": served_reading(
+                ASK_PAGE,
                 (
                     {
                         "kind": "action",
@@ -214,6 +305,18 @@ def build() -> dict:
     }
 
 
+# A page the agent's live session holds while it works, and a moment past the grace
+# a start's line stays current for (`activity.WORKING_GRACE`).
+HELD = {
+    **UNCLAIMED,
+    "status": {"state": "working", "detail": "", "ts": NOW},
+    "listening": True,
+    "session_alive": True,
+    "claim_session": "served-records",
+    "claim_turn": "turn-1",
+}
+QUIET = "2026-09-19T11:30:00+00:00"
+
 ASK_PAGE = leaf_page(
     "Served queues",
     '<lf-ask id="pick-ask"><h2>Which one?</h2><lf-options id="pick" choose>'
@@ -225,33 +328,32 @@ ASK_PAGE = leaf_page(
 )
 
 
-def _done(events: tuple[dict, ...]) -> dict:
-    """The reading the browser selects what is done from, as it is handed it: the
-    ended explicit tasks and the canonical Question inventory."""
-    state = served_reading(ASK_PAGE, events)
-    return {
-        "tasks": state["browser"]["ended_tasks"],
-        "questions": collection(
-            state["browser"]["views"]["1"]["document"]["questions"]["all"]
-            + state["browser"]["thread"]["questions"]["all"]
-        ),
-    }
+def _served_question_item() -> dict:
+    """One Question as a work queue lists it (`served_state.queues`)."""
+    state = served_reading(ASK_PAGE, BOTH_SIDES)
+    return next(
+        item
+        for item in state["browser"]["views"]["1"]["queues"]["on_you"]
+        if item["kind"] == "question"
+    )
 
 
-def _queued(events: tuple[dict, ...]) -> dict:
-    """The readings `agent_state.queues` selects from, as the browser is handed
-    them, and the two queues Python selects from them."""
-    state = served_reading(ASK_PAGE, events)
-    served = {
-        "threads": state["browser"]["thread"]["threads"],
-        "workflows": state["workflows"],
-        "tasks": state["browser"]["tasks"],
-        "questions": collection(
-            state["browser"]["views"]["1"]["document"]["questions"]["all"]
-            + state["browser"]["thread"]["questions"]["all"]
-        ),
-    }
-    return {**served, "queues": queues(**served)}
+def state_definition_cases() -> list[dict]:
+    """Each case in `state_definition_cases.json` as two definitions the server
+    serves (`registry.contract.state_definition`), which the browser compares as
+    `same_state_definition` does."""
+    cases = json.loads((Path(__file__).with_name("state_definition_cases.json")).read_text())
+    return [
+        {
+            "id": case["id"],
+            "definitions": [
+                state_definition("lf-local", {}, {"unit": "widget", "detail": case[key]})
+                for key in ("before", "after")
+            ],
+            "same": case["same"],
+        }
+        for case in cases
+    ]
 
 
 def question_value_cases():

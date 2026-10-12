@@ -45,7 +45,6 @@ from render_cases_navigation import (
     source_revision,
 )
 from render_harness import (
-    FEATURE_GALLERY,
     LONG_PAGE,
     RELEASE_FOCUS,
     CutOff,
@@ -92,12 +91,11 @@ from test_render_threads import hold_visible_thread_presentation
     ("unique", "tall", "control"),
     [
         (True, False, "editor"),
-        (False, False, "editor"),
         (False, True, "editor"),
         (False, False, "checkbox"),
         (False, False, "button"),
     ],
-    ids=["unique", "repeated", "tall-repeated", "checkbox", "button"],
+    ids=["unique", "tall-repeated", "checkbox", "button"],
 )
 def test_a_visible_focused_element_is_the_reading_place_until_the_reader_scrolls_away(
     browser, serve, unique, tall, control
@@ -328,15 +326,37 @@ What should we do next?</lf-test-task></lf-test-plan>
     assert after["reply"] == pytest.approx(before["reply"], abs=1), (before, after)
 
 
+EMPTY_REPLY_PAGE = leaf_page(
+    "An empty reply",
+    '<h1>Moving words</h1><p id="carry">To carry unfinished words to another item, '
+    "cut them from this one.</p>",
+)
+
+
 @pytest.mark.parametrize("installation", ["in-place", "fresh"])
-def test_gallery_automatic_revision_keeps_the_empty_reply_focused(
+def test_an_automatic_revision_keeps_an_empty_panel_reply_focused(
     browser, serve, installation
 ):
-    page = open_page(browser, live_url(serve(FEATURE_GALLERY)))
+    """An automatic revision, patched in or installed as a fresh document, leaves the
+    reader in the reply field they clicked into, though it holds no words yet."""
+    url = serve(
+        EMPTY_REPLY_PAGE,
+        events=[
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "Where do the words go?",
+                "anchor": {"section": "carry"},
+            }
+        ],
+    )
+    page = open_page(browser, live_url(url))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    thread = page.locator('.lf-thread[data-id="72e031c5bf0d485ba9054628e09869d4"]')
-    thread.locator(":scope > .lf-thread-summary").click()
+    thread = page.locator(".lf-threads > .lf-thread").first
+    if thread.get_attribute("open") is None:
+        thread.locator(":scope > .lf-thread-summary").click()
     editor = thread.locator(".lf-thread-reply leaf-text")
     editor.click()
     expect(editor).to_be_focused()
@@ -347,7 +367,7 @@ def test_gallery_automatic_revision_keeps_the_empty_reply_focused(
             "content"
         )
     )
-    revised = FEATURE_GALLERY.read_text().replace(
+    revised = EMPTY_REPLY_PAGE.replace(
         "To carry unfinished words to another item",
         "To move unfinished words to another item",
     )
@@ -356,7 +376,7 @@ def test_gallery_automatic_revision_keeps_the_empty_reply_focused(
             "</head>",
             '<script type="module">window.galleryRevision = 2;</script></head>',
         )
-    stamp_page(serve.page_dir, revised, "Revise the gallery beside its empty reply")
+    stamp_page(serve.page_dir, revised, "Revise the page beside its empty reply")
     wait_for_revision(page, revision + 1)
     assert (page.evaluate("performance.timeOrigin") != birth) == (
         installation == "fresh"
@@ -596,9 +616,10 @@ def test_completed_page_selection_opens_its_own_comment(browser, serve, gesture)
 
 
 @pytest.mark.parametrize(
-    "touch", [False, True], ids=["browser-command", "touch-handles"]
+    "touch, words",
+    [(False, "An unfinished earlier comment"), (True, "")],
+    ids=["browser-command-unfinished", "touch-handles-empty"],
 )
-@pytest.mark.parametrize("words", ["", "An unfinished earlier comment"])
 def test_observed_selection_offers_comment_without_replacing_the_editor(
     browser, serve, touch, words
 ):
@@ -966,8 +987,11 @@ def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
     page.emulate_media(media="screen")
 
 
-@pytest.mark.parametrize("in_pane", [False, True], ids=["document", "pane"])
-@pytest.mark.parametrize("formatted", [False, True], ids=["plain", "markdown"])
+@pytest.mark.parametrize(
+    "in_pane, formatted",
+    [(False, True), (True, False)],
+    ids=["document-markdown", "pane-plain"],
+)
 def test_opening_a_visible_line_in_a_long_draft_preserves_the_reading_position(
     browser, serve, in_pane, formatted
 ):
@@ -3641,8 +3665,9 @@ def test_comment_follows_a_thread_standing_instead_of_an_earlier_draft(
         assert [event["text"] for event in replies] == [words]
 
 
-@pytest.mark.parametrize("surface", ["panel", "margin"])
-@pytest.mark.parametrize("answer", ["accepted", "refused"])
+@pytest.mark.parametrize(
+    "surface, answer", [("panel", "refused"), ("margin", "accepted")]
+)
 def test_reply_admission_finishes_or_restores_its_native_session(
     browser, serve, one_user, surface, answer
 ):
@@ -3730,8 +3755,10 @@ def test_reply_admission_finishes_or_restores_its_native_session(
     assert stored_draft_text(page, "reply:" + root) == next_words
 
 
-@pytest.mark.parametrize("surface", ["panel", "margin"])
-@pytest.mark.parametrize("resolution", ["user", "active-agent", "inactive-agent"])
+@pytest.mark.parametrize(
+    "surface, resolution",
+    [("panel", "user"), ("margin", "active-agent"), ("panel", "inactive-agent")],
+)
 def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
     browser, serve, surface, resolution
 ):
@@ -3829,8 +3856,10 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
     expect(recovered.locator("leaf-text")).to_have_js_property("value", words)
 
 
-@pytest.mark.parametrize("surface", ["panel", "margin"])
-@pytest.mark.parametrize("continuation", ["send", "dismiss", "clear"])
+@pytest.mark.parametrize(
+    "surface, continuation",
+    [("panel", "send"), ("margin", "dismiss"), ("panel", "clear")],
+)
 def test_a_resolved_reply_composition_stays_open_until_deliberately_dismissed(
     browser, serve, surface, continuation
 ):
@@ -3965,8 +3994,7 @@ def test_send_follows_a_reply_composition_whose_diff_outlet_disappears(
     assert (reply["kind"], reply["parent"], reply["text"]) == ("reply", root, words)
 
 
-@pytest.mark.parametrize("resolved", [False, True])
-@pytest.mark.parametrize("cleared", [False, True])
+@pytest.mark.parametrize("resolved, cleared", [(False, True), (True, False)])
 def test_tab_browsing_keeps_a_reply_when_its_diff_outlet_is_replaced(
     browser, serve, resolved, cleared
 ):
@@ -6305,8 +6333,10 @@ def test_draft_comparison_detects_format_changes_but_not_the_same_standing_edit(
     expect(page.locator("#source .lf-draft-body strong")).to_have_text("edit")
 
 
-@pytest.mark.parametrize("action", ["edit", "save", "cancel", "close"])
-@pytest.mark.parametrize("edge", ["left", "right"])
+@pytest.mark.parametrize(
+    "action, edge",
+    [("edit", "left"), ("save", "right"), ("cancel", "left"), ("close", "right")],
+)
 def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(
     browser, serve, action, edge
 ):

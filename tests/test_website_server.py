@@ -5223,6 +5223,8 @@ def test_a_progress_update_is_timed_apart_from_the_answer():
 
     # Addressed progress takes the input in hand atomically in the current log.
     inline = {**progress, "start": {"item": comment["id"]}}
+    # Progress on another input, in that input's own thread.
+    other = {**comment, "id": "other-input", "ts": "2026-10-04T12:00:00.900-07:00"}
     unrelated = {
         **inline,
         "id": "other-progress",
@@ -5231,7 +5233,7 @@ def test_a_progress_update_is_timed_apart_from_the_answer():
         "ts": "2026-10-04T12:00:01.000-07:00",
     }
     assert journey.recorded_steps(
-        [comment, unrelated, inline, reply], comment, published
+        [comment, other, unrelated, inline, reply], comment, published
     ) == {
         "queued": None,
         "pickedUp": None,

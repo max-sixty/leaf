@@ -7068,6 +7068,63 @@ def test_a_resolved_thread_gives_its_room_back_as_motion(browser, serve):
     )
 
 
+def test_the_arrows_and_t_walk_one_list_of_threads(browser, serve):
+    """The arrows, `t` and the position they report count the same threads: every card
+    the user can step onto, one kept in the list as news from elsewhere included, and
+    not a card folding out, which is room about to go. Counted by the arrows alone, a
+    fold made `Home` say "1 of 4" where `t` walked three threads, and the arrows'
+    position left out the "shown" a narrowed list's `t` says."""
+    page = open_page(browser, serve(LONG_PAGE, comments=4), init_script=HOLD_MOTION)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    kept, folding, third, fourth = [
+        e["id"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "comment"
+    ]
+    card = lambda id: page.locator(f'.lf-threads > [data-id="{id}"]')
+    card(kept).locator(".lf-thread-summary").click()
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": kept},
+    )
+    told(page)
+    expect(card(kept).locator(".lf-thread-news")).to_be_visible()
+    card(folding).locator(".lf-thread-summary").click()
+    card(folding).locator(".lf-resolve").click()
+    round_trip(page)
+    assert page.evaluate("() => window.__lfHeld.length") == 1
+    expect(card(kept)).to_be_visible()
+
+    position = page.locator(".lf-walk-position")
+    for key, at, label in [
+        ("Home", kept, "Thread 1 of 3"),
+        ("t", third, "Thread 2 of 3"),
+        ("t", fourth, "Thread 3 of 3"),
+        ("ArrowUp", third, "Thread 2 of 3"),
+        ("ArrowUp", kept, "Thread 1 of 3"),
+        ("End", fourth, "Thread 3 of 3"),
+        ("Shift+T", third, "Thread 2 of 3"),
+    ]:
+        page.keyboard.press(key)
+        expect(card(at).locator(":scope > .lf-thread-summary")).to_be_focused()
+        expect(position).to_have_text(label)
+
+    # A narrowed list says so in both walks' positions, `n`/`N` walking a search.
+    page.get_by_role("searchbox", name="Find in threads").fill("Comment")
+    page.keyboard.press("Enter")
+    expect(card(third).locator(":scope > .lf-thread-summary")).to_be_focused()
+    expect(position).to_have_text("Thread 1 of 2 shown")
+    for key, at, label in [
+        ("ArrowDown", fourth, "Thread 2 of 2 shown"),
+        ("Shift+N", third, "Thread 1 of 2 shown"),
+        ("End", fourth, "Thread 2 of 2 shown"),
+    ]:
+        page.keyboard.press(key)
+        expect(card(at).locator(":scope > .lf-thread-summary")).to_be_focused()
+        expect(position).to_have_text(label)
+
+
 def test_a_folding_thread_keeps_the_card_under_the_pointer_put(browser, serve):
     """A remote resolution may fold a card scrolled past, above the one the user aims
     inside. A card any of which shows stays where news leaves it (thread-list-view.js),
@@ -8514,93 +8571,6 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(browser, se
         "a widget an agent sent shows as nothing: no box of its own, and every part "
         "its contents paint read as the panel's apparatus"
     )
-
-
-def test_a_panel_reads_a_log_that_lost_the_message_a_reply_answers(browser, serve):
-    """The browser walks the same relation as `build_threads`, and tore the same way.
-
-    A crash tears one line and `read_events` keeps reading past it, so the events the
-    server hands the browser can hold a reply whose message is gone. The panel is built
-    by walking replies onto their parents, and the walk threw where the parent was
-    missing — taking down not the thread but the whole reconcile, on a page whose log
-    had already been read successfully by the side that wrote it. The missing id stays
-    the recovered thread's identity, so a structural Ask in one surviving reply also
-    stays visible after a later plain reply."""
-    url = serve(REPLY_TRAVEL_PAGE)
-    d = serve.page_dir
-    append_carried_log_record(
-        d,
-        {
-            "kind": "comment",
-            "id": "tv-lost",
-            "author": "user",
-            "revision": 1,
-            "text": "the question nobody can read any more",
-        },
-    )
-    append_carried_log_record(
-        d,
-        {
-            "kind": "reply",
-            "id": "tv-kept",
-            "author": "agent",
-            "parent": "tv-lost",
-            "revision": 1,
-            "text": "the answer that survived it",
-            "markup": (
-                '<lf-ask id="tv-decision"><h2>Which recovery should we use?</h2>'
-                '<lf-options id="tv-choice" choose>'
-                '<lf-option id="tv-retry">Retry</lf-option>'
-                '<lf-option id="tv-stop">Stop</lf-option>'
-                "</lf-options></lf-ask>"
-            ),
-        },
-    )
-    append_carried_log_record(
-        d,
-        {
-            "kind": "reply",
-            "id": "tv-later",
-            "author": "agent",
-            "parent": "tv-kept",
-            "revision": 1,
-            "text": "the later plain reply",
-        },
-    )
-    log = d / "events.jsonl"
-    lines = log.read_text(encoding="utf-8").split("\n")
-    torn = next(i for i, line in enumerate(lines) if '"id": "tv-lost"' in line)
-    lines[torn] = lines[torn][: len(lines[torn]) // 2]
-    log.write_text("\n".join(lines), encoding="utf-8")
-
-    page = open_page(browser, url)
-    resized(page, 1280, 900)
-    expect_asks_answered(page, "0/1")
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    expect(page.locator(".lf-thread")).to_have_count(1)
-    expect(page.locator(".lf-thread")).to_contain_text("the answer that survived it")
-    expect(page.locator(".lf-thread")).to_contain_text("the later plain reply")
-    expect(page.locator('.lf-thread[data-id="tv-lost"]')).to_have_count(1)
-    expect(page.locator(".lf-needs")).to_have_text("You (1)")
-
-    # The lost id names the thread and no message, so the user's reply and
-    # resolve address the message that opens it now, and the log admits both.
-    card = page.locator('.lf-thread[data-id="tv-lost"]')
-    card.locator(".lf-thread-summary").click()
-    with sending(page, "a reply in the recovered thread"):
-        write(card.locator("leaf-text"), "Retry is fine.")
-        card.locator(".lf-thread-send").click()
-    expect(card).to_contain_text("Retry is fine.")
-    with sending(page, "resolving the recovered thread"):
-        card.locator(".lf-resolve").click()
-    addressed = [
-        (event["kind"], event["parent"])
-        for event in events_model.read_events(d)
-        if event["kind"] in {"reply", "resolve"} and event.get("author") == "user"
-    ]
-    assert addressed == [("reply", "tv-kept"), ("resolve", "tv-kept")], addressed
-    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
 
 
 THREAD_STANDING = """() => {

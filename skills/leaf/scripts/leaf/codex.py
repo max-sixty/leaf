@@ -142,11 +142,6 @@ def app_server_socket_path(endpoint: str) -> Path | None:
     )
 
 
-def check_app_server_endpoint(endpoint: str) -> None:
-    """Keep the experimental unauthenticated transport on this machine."""
-    app_server_socket_path(endpoint)
-
-
 def app_server_connect(endpoint: str):
     """Open one connection to a local App Server, by socket or by loopback."""
     from websockets.sync.client import connect, unix_connect

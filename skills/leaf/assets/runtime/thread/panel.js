@@ -40,7 +40,7 @@ export function createThreadPanelKeys({
   // still step and open. Only from a stop, so the arrows inside an open thread keep
   // scrolling it. A position counts threads alone.
   const stops = () => threadsBox.focusStops();
-  const onStop = () => stops().includes(focused());
+  const onStop = () => threadsBox.isFocusStop(focused());
   const titleWalk = rowWalk({
     id: "thread.list",
     noun: "Thread",

@@ -71,6 +71,14 @@ const turnOnItsWay = (thread) =>
       (message.id.startsWith(PENDING) && !message.token) || message.edited?.pending,
   );
 
+// The focus stop of drawn row `row`: a card's title, a withdrawn notice's Dismiss.
+const rowStop = (row) =>
+  row.kind === "thread"
+    ? threadFocusStop(row.node)
+    : row.kind === "withdrawn"
+      ? row.node?.querySelector("button")
+      : null;
+
 class ThreadListView extends RetainedFace {
   #commands = null;
   #views = new Map();
@@ -255,14 +263,12 @@ class ThreadListView extends RetainedFace {
   // Each shown row's focus stop in the list's order, which the arrows walk (panel.js):
   // a card's title, or a withdrawn notice's Dismiss.
   focusStops() {
-    return this.#rows
-      .filter((row) => row.kind === "thread" || row.kind === "withdrawn")
-      .map((row) =>
-        row.kind === "thread"
-          ? threadFocusStop(row.node)
-          : row.node?.querySelector("button"),
-      )
-      .filter((stop) => stop?.checkVisibility());
+    return this.#rows.map(rowStop).filter((stop) => stop?.checkVisibility());
+  }
+
+  // Whether `node` is a row's focus stop, read without layout for the shortcut bar.
+  isFocusStop(node) {
+    return Boolean(node) && this.#rows.some((row) => rowStop(row) === node);
   }
 
   // The shown cards in the page's order, whichever order the list stands in.

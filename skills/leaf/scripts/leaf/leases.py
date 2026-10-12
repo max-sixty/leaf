@@ -9,6 +9,7 @@ process may have removed or replaced the shared path while it was opening it.
 """
 
 import contextlib
+import fcntl
 import functools
 import os
 import signal
@@ -23,15 +24,9 @@ from leaf.state import (
     HOOKS_SUFFIX,
     STEP_HOOK_SUFFIX,
     TITLES_SUFFIX,
-    require_cross_process_locking,
     session_file,
     still_named,
 )
-
-try:
-    import fcntl
-except ImportError:  # pragma: no cover - rejected before a lease is read or taken
-    fcntl = None
 
 
 def lock_is_held(path: Path) -> bool:
@@ -45,7 +40,6 @@ def lock_is_held(path: Path) -> bool:
     answered by another reading's probe as readily as by a lease, so two
     processes asking at once would tell each other a lease was held.
     """
-    require_cross_process_locking()
     try:
         with open(path, "r+b") as probe:
             try:
@@ -80,7 +74,6 @@ def take_lease(path: Path, *, prepare: Callable[[BinaryIO], None] | None = None)
     The caller serializes those preparations; promotion waits for the momentary
     shared probes rather than refusing a legitimate lease.
     """
-    require_cross_process_locking()
     while True:
         record = open(path, "a+b")  # noqa: SIM115 - returned and held by the caller
         if prepare is not None:
@@ -149,7 +142,6 @@ def page_locked(page_dir: Path):
     it. A page deleted and made again at its path while this waited is another
     directory, so the lock is taken again on whichever the path names once it is
     held; a page deleted for good raises FileNotFoundError."""
-    require_cross_process_locking()
     while True:
         held = os.open(page_dir, os.O_RDONLY | os.O_DIRECTORY)
         try:

@@ -559,8 +559,6 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
     the next immutable delivery; exit 2 names why the watch ended. A refused
     receipt raises before a watch starts, leaving that page's cursor unchanged.
     """
-    if page_dir is not None and ack is not None:
-        raise ValueError("PAGE and --ack cannot be used together")
     received = []
     if ack is not None:
         from .delivery import receive_delivery

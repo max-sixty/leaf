@@ -11,7 +11,7 @@
     [70, "zz1"]
   ],
   "valid": ["01", "0i", "1", "1i", "9zz1", "i", "z", "zz1"],
-  "invalid": ["", "0", "00", "10", "i0", "I", "1.5", "-1", " 1"],
+  "invalid": ["", "0", "00", "10", "i0", "I", "1.5", "-1", " 1", "1\n"],
   "folds": [
     {
       "name": "a move lands at its rank among the authored units",

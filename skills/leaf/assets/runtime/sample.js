@@ -115,15 +115,15 @@ export function mountSample(
   { template, window: asWindow = false, chrome = undefined },
 ) {
   if (!template) throw new Error("a sample needs an authored template id");
-  // A template is declared in its revision's document or in a message's frozen
-  // markup, which the server reads from the log beside the current revision.
+  // A template belongs to its widget's captured publication, including a
+  // message shown beside an older document.
   let revision = runtime.currentRevision;
   let message;
   for (let owner = frame.parentElement; owner; owner = owner.parentElement) {
     const descriptor = widgetDescriptor(owner);
     if (!descriptor) continue;
-    if (descriptor.document.kind === "page") revision = descriptor.document.revision;
-    else message = descriptor.document.message;
+    revision = descriptor.document.revision;
+    if (descriptor.document.kind === "thread") message = descriptor.document.message;
     break;
   }
   let current = null;

@@ -91,3 +91,122 @@ test("an earlier publication cannot lend its shadow, question or member roles", 
   part.append(document.createElement("button"));
   assert.equal(worksInside(part.lastElementChild, container), part.lastElementChild);
 });
+
+test("work inventories retain each publication's roles and state vocabulary", async () => {
+  const { adoptRegistry } = await import("/runtime/registry.js");
+  const { workRole, workElements, directWorkElements, workAncestor } =
+    await import("/runtime/work.js");
+  const goal = { role: "goal", state: "stage", done: ["finished"] };
+  const old = {
+    revision: 9701,
+    declarations: {
+      $work: {
+        widgets: {
+          "lf-era-scope": { role: "scope" },
+          "lf-era-work": goal,
+        },
+      },
+    },
+  };
+  const current = {
+    revision: 9702,
+    declarations: {
+      $work: {
+        widgets: {
+          "lf-era-work": { role: "worker", state: "status", done: ["done"] },
+          "lf-current-goal": { role: "goal", state: "status", done: ["done"] },
+        },
+      },
+    },
+  };
+  adoptRegistry(current.declarations);
+  const scope = document.createElement("lf-era-scope");
+  scope.innerHTML =
+    '<lf-era-work id="old"></lf-era-work><lf-era-work id="current"></lf-era-work>' +
+    '<lf-current-goal id="current-goal"></lf-current-goal>';
+  bindVocabulary(scope, old);
+  const oldGoal = scope.querySelector("#old");
+  const currentWorker = scope.querySelector("#current");
+  const currentGoal = scope.querySelector("#current-goal");
+  bindVocabulary(currentWorker, current);
+  bindVocabulary(currentGoal, current);
+
+  assert.equal(workRole(oldGoal, "goal"), goal);
+  assert.equal(workRole(currentWorker, "goal"), null);
+  assert.equal(workRole(currentWorker, "worker").state, "status");
+  assert.equal(workAncestor(currentGoal, "scope"), scope);
+  assert.deepEqual(workElements(scope, "goal"), [oldGoal, currentGoal]);
+  assert.deepEqual(directWorkElements(scope, "goal"), [oldGoal, currentGoal]);
+});
+
+test("shared declaration readers retain the owner's publication after moving", async () => {
+  const { adoptRegistry, layerFact } = await import("/runtime/registry.js");
+  const old = { revision: 9801, declarations: { $tones: { primary: "old" } } };
+  const current = { revision: 9802, declarations: { $tones: { primary: "current" } } };
+  adoptRegistry(current.declarations);
+  const olderDocument = document.implementation.createHTMLDocument("");
+  olderDocument.body.innerHTML = "<main><lf-tone></lf-tone></main>";
+  bindVocabulary(olderDocument, old);
+  const widget = olderDocument.querySelector("lf-tone");
+  const destination = document.createElement("main");
+  bindVocabulary(destination, current);
+  destination.append(widget);
+
+  assert.deepEqual(layerFact(widget, "$tones"), { primary: "old" });
+  assert.deepEqual(layerFact(olderDocument, "$tones"), { primary: "old" });
+  assert.deepEqual(layerFact(destination, "$tones"), { primary: "current" });
+  layerFact(widget, "$tones").primary = "changed";
+  assert.deepEqual(layerFact(widget, "$tones"), { primary: "old" });
+});
+
+test("shared reaction chrome follows the viewed document instead of the serving kernel", async (t) => {
+  const { adoptRegistry } = await import("/runtime/registry.js");
+  const { applicationState } = await import("/runtime/semantic-state.js");
+  const { tokenChoices } = await import("/runtime/thread/model.js");
+  const { reactionTokens, createReactionController } =
+    await import("/runtime/reactions.js");
+  const { messageText } = await import("/runtime/thread/messages.js");
+  const { fabBar, fabOptions } = await import("/runtime/composing/selection.js");
+  const viewed = { approve: { glyph: "O", settles: true } };
+  const kernel = { later: { glyph: "L" }, approve: { glyph: "N", settles: false } };
+  adoptRegistry({ $reactions: { tokens: kernel } });
+  const previous = applicationState.read().document;
+  const controller = createReactionController({
+    fabAnchorAt: () => null,
+    syncResponseOptions: () => {},
+  });
+  document.body.append(fabBar);
+  controller.buildReactBar({});
+  controller.mount();
+  t.after(() => window.happyDOM.cancelAsync());
+  let retained = null;
+  try {
+    for (const [index, tokens] of [viewed, kernel].entries()) {
+      applicationState.captureDocument({
+        ...previous,
+        revision: 9803 + index,
+        registry: { $states: {}, $reactions: { tokens } },
+      });
+      await new Promise(setImmediate);
+      const offered = tokenChoices(tokens, []).find(
+        (choice) => choice.name === "approve",
+      );
+      assert.equal(messageText({ token: "approve" }), `${offered.glyph} approve`);
+      assert.deepEqual(reactionTokens(), Object.entries(tokens));
+      const chip = fabOptions.querySelector('[data-token="approve"]');
+      assert.equal(
+        chip.querySelector(".lf-response-action-glyph").textContent,
+        offered.glyph,
+      );
+      assert.deepEqual(
+        [...fabOptions.querySelectorAll(".lf-react")].map((chip) => chip.dataset.token),
+        Object.keys(tokens),
+      );
+      if (retained) assert.equal(chip, retained);
+      retained = chip;
+    }
+  } finally {
+    applicationState.captureDocument(previous);
+    fabBar.remove();
+  }
+});

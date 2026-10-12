@@ -148,6 +148,7 @@ def serving(arm: Path, state: Path, page: Path):
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
         text=True,
+        start_new_session=True,
     )
     try:
         yield json.loads(server.stdout.readline())["url"]

@@ -2311,7 +2311,8 @@
     judge(entries);
   };
   const observer = new PerformanceObserver((list) => received(list.getEntries()));
-  observer.observe({ type: "layout-shift" });
+  if (PerformanceObserver.supportedEntryTypes.includes("layout-shift"))
+    observer.observe({ type: "layout-shift" });
   // Once two native frames and their task checkpoint complete, Chrome has painted
   // the work preceding `through`. Drain its native records before retiring that
   // history. Keep the entering pose and active typing's origin, whose comparison

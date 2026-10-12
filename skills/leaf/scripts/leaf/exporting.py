@@ -238,10 +238,11 @@ def _module_urls(
 
 
 def _export_resources(kernel, publications, roots, markup, data_resources):
-    """One captured resource namespace per publication plus the shared live kernel."""
+    """Captured resource namespaces, module entries and classic initial producers."""
     resources = dict(kernel.resources)
     resources.update(data_resources)
     pending = ["/leaf.js"]
+    initializers = set()
     for revision, artifact in publications.items():
         root = roots[str(revision)]
         address = PublicationAddress("", root, artifact.shared_modules)
@@ -270,12 +271,12 @@ def _export_resources(kernel, publications, roots, markup, data_resources):
             for tag in tags
             if artifact.registry.get(tag, {}).get("x-upgrade")
         )
-        pending.extend(
-            address(initial)
+        initializers.update(
+            root + initial
             for tag in tags
             if (initial := artifact.registry.get(tag, {}).get("x-initial"))
         )
-    return resources, pending
+    return resources, pending, initializers
 
 
 def export_document(
@@ -312,7 +313,7 @@ def export_document(
     for event in events:
         if event.get("markup"):
             markup[event["revision"]].append(logged_fragment(event))
-    resources, pending = _export_resources(
+    resources, pending, initializers = _export_resources(
         kernel, publications, roots, markup, data_resources
     )
     modules = _module_urls(resources, pending)
@@ -339,6 +340,11 @@ def export_document(
         for path, resource in resources.items()
         if resource.mime not in {"application/javascript", "text/css"}
     }
+    # Initial producers execute as classic scripts so registration can read the
+    # publication carried by document.currentScript. They are resources, not ESM.
+    embedded_resources.update(
+        (path, inliner.address(path)) for path in sorted(initializers)
+    )
     embedded_resources["/shadow.css"] = inliner.address("/shadow.css")
     for root in roots.values():
         for path in ("/shadow.css", "/widget-theme.css"):

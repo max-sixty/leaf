@@ -90,7 +90,8 @@ function placeName(anchor, about) {
   return nameOf(anchor?.section ?? null);
 }
 
-const reaction = (token) => layerFact("$reactions")?.tokens?.[token]?.glyph ?? token;
+const reaction = (owner, token) =>
+  layerFact(owner, "$reactions")?.tokens?.[token]?.glyph ?? token;
 
 const actorOf = (row) =>
   row.author === "user"
@@ -125,7 +126,7 @@ function gesturePhrase(gesture) {
 }
 
 // One served row as the words and the way there it is drawn with.
-function describe(row) {
+function describe(owner, row) {
   const thread = (what, label) => ({
     what,
     thread: row.thread?.id,
@@ -135,7 +136,7 @@ function describe(row) {
     case "comment":
       if (row.token)
         return {
-          what: `reacted ${reaction(row.token)} on`,
+          what: `reacted ${reaction(owner, row.token)} on`,
           widget: row.anchor?.section ?? null,
           label: placeName(row.anchor, row.about),
         };
@@ -145,7 +146,9 @@ function describe(row) {
         placeName(row.anchor, row.about),
       );
     case "reply":
-      return thread(row.token ? `reacted ${reaction(row.token)} in` : "replied in");
+      return thread(
+        row.token ? `reacted ${reaction(owner, row.token)} in` : "replied in",
+      );
     case "edit":
       return thread("edited a message in");
     case "resolve":
@@ -242,7 +245,7 @@ export default class extends HTMLElement {
       }
     }
     const current = history.map((served) => ({
-      ...describe(served),
+      ...describe(this, served),
       excerpt: served.excerpt ? excerptWords(markdownWords(served.excerpt), 140) : null,
       id: served.id,
       ts: served.ts,

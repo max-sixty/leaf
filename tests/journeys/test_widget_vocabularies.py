@@ -69,7 +69,7 @@ def test_a_publication_stylesheet_failure_names_its_captured_resource(browser, s
 def test_historical_document_and_frozen_replies_keep_their_widget_vocabulary(
     request, serve, engine
 ):
-    """An old decision, renamed action, new attribute and new widget coexist."""
+    """Old decisions and new widgets keep their publications, including sample children."""
     url = serve(
         leaf_page(
             "Publication vocabularies",
@@ -170,7 +170,10 @@ def test_historical_document_and_frozen_replies_keep_their_widget_vocabulary(
         "New decision",
         '<lf-ask id="new-question"><h3>New choice</h3><lf-options id="new" choose caption="New attribute">'
         '<lf-option id="new-a">Alpha</lf-option><lf-option id="new-b">Beta</lf-option>'
-        '</lf-options></lf-ask><lf-fresh id="new-widget" caption="New widget">Current reply</lf-fresh>',
+        '</lf-options></lf-ask><lf-fresh id="new-widget" caption="New widget">Current reply</lf-fresh>'
+        '<lf-sample id="reply-practice"><template id="reply-practice-page" data-sample>'
+        '<h1>New sample</h1><lf-fresh id="sample-widget" caption="New sample widget">'
+        "Sample reply</lf-fresh></template></lf-sample>",
     )
     assert old["revision"] == 1 and new["revision"] == 2
     browser = request.getfixturevalue("browser" if engine == "sample" else engine)
@@ -214,6 +217,16 @@ def test_historical_document_and_frozen_replies_keep_their_widget_vocabulary(
       try {context.register('lf-generated-child', class extends HTMLElement {})} catch {refused = true}
       return refused && child.constructor === context.registry.get('lf-generated-child');
     }""")
+    page.locator("#reply-practice").evaluate("sample => sample.ready")
+    child_frame = page.locator("#reply-practice iframe")
+    child_page = child_frame.element_handle().content_frame()
+    wait_until_ready(child_page)
+    expect(
+        child_page.locator('#sample-widget > [data-lf-said="caption"]')
+    ).to_have_text("New sample widget")
+    expect(child_page.locator("#sample-widget lf-generated-child")).to_have_attribute(
+        "data-ready", "yes"
+    )
 
     answered_before = "1/2" if engine == "sample" else "2/3"
     expect_asks_answered(page, answered_before)

@@ -406,7 +406,7 @@ export default class extends HTMLElement {
   connectedCallback() {
     this.paint();
     if (!once(this)) return;
-    layerFact("$tones");
+    layerFact(this, "$tones");
     keeps(this, "data-page-widget", "ready");
     this.controller.subscribe(reading => {
       this.reading = reading;

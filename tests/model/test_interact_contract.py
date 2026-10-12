@@ -74,6 +74,7 @@ from leaf import media as media_model
 from leaf import page_view as page_view_model
 from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
+from leaf import samples as samples_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -88,6 +89,9 @@ from leaf.registry import schema as registry_schema
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
 from leaf.render_gate import preview as render_gate_model
+from leaf.served_state.browser import project_browser_state
+from leaf.served_state.context import read_page
+from leaf.served_state.service import LivePage
 from leaf_dev.page_fixtures import package_selection_args
 
 
@@ -1297,10 +1301,8 @@ def test_revendoring_serializes_with_a_worker_report_entering_the_log(
 
 
 @pytest.mark.parametrize("in_sample", [False, True])
-def test_message_vocabulary_answers_to_every_pinned_revision(page_dir, in_sample):
-    """A message shows in every version, and a live sample in it allocates its
-    child from the version showing it, so a widget an older version's registry
-    lacks is refused in either place."""
+def test_new_message_keeps_its_vocabulary_in_an_older_page_view(page_dir, in_sample):
+    """A frozen message and its sample use their own publication in every view."""
     publish(page_dir)
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
@@ -1310,10 +1312,46 @@ def test_message_vocabulary_answers_to_every_pinned_revision(page_dir, in_sample
     publish(page_dir)
     markup = '<lf-local-thread id="local">Choose locally.</lf-local-thread>'
     if in_sample:
-        markup = f'<template id="practice" data-sample>{markup}</template>'
+        markup = (
+            '<lf-sample id="local-sample"><template id="practice" data-sample>'
+            f"{markup}</template></lf-sample>"
+        )
     result = comment(page_dir, "--text", "Try it:", "--markup", markup)
-    assert result.exit_code != 0, result.output
-    assert "pinned revision" in result.output and "lf-local-thread" in result.output
+    assert result.exit_code == 0, result.output
+    message = events_model.read_events(page_dir)[-1]
+    assert message["revision"] == 2
+    source = LivePage(page_dir)
+    assert "lf-local-thread" not in source.revision(1).registry
+    with service_model.PageTransaction(page_dir) as page:
+        context = read_page(page_dir, page.events)
+        browser, reading = project_browser_state(context, 1)
+        [thread] = browser["views"]["1"]["thread"]["threads"]
+        [shown] = thread["msgs"]
+        assert shown["id"] == message["id"] and shown["markup"] == markup
+        publication = reading.thread.message_revisions[message["id"]]
+        assert publication == 2
+        assert (
+            reading.thread.registry_for_message(message["id"])["lf-local-thread"]
+            == local
+        )
+        if not in_sample:
+            assert reading.thread.spoken["local"].words == "Choose locally."
+    if in_sample:
+        samples = samples_model.Samples()
+        try:
+            identity = samples.create(
+                page_dir,
+                source.sample_inputs(publication),
+                "practice",
+                message["id"],
+                None,
+            )
+            child = LivePage(samples.pages[identity].directory)
+            captured = child.revision(child.active_revision())
+            assert captured.registry["lf-local-thread"] == local
+            assert captured.spoken["local"].words == "Choose locally."
+        finally:
+            samples.close()
 
 
 def test_revendoring_can_change_frozen_thread_widget_vocabulary(

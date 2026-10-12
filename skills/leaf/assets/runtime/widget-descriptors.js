@@ -1,8 +1,9 @@
 /* Revision-bound widget identity captured before a content module upgrades the DOM.
 
    A controller receives no caller-supplied declaration or scope. Leaf records the
-   authored owner, its declared ancestors, and exhibit fence while the revision's
-   markup is still intact. Later physical reparenting is layout;
+   authored owner, its declaration and stamped verbs, its declared ancestors, and
+   exhibit fence while the revision's markup is still intact. Later physical reparenting
+   is layout;
    semantic commands keep using this captured document coordinate. A data renderer may
    replace a widget node while preserving its authored id; that replacement reuses the
    same revision-bound descriptor.
@@ -87,13 +88,15 @@ export function stageWidgetDescriptors(
       captured.set(element.id, standing);
       continue;
     }
-    const declaration = structuredClone(registryFor(element)[element.localName]);
+    const vocabulary = registryFor(element);
+    const declaration = structuredClone(vocabulary[element.localName]);
     const ancestors = declaredAncestors(element);
     const descriptor = {
       id: element.id,
       tag: element.localName,
       document: structuredClone(documentContext),
       declaration,
+      states: structuredClone(vocabulary.$states[element.localName] ?? {}),
       parent: ancestors[0] ?? null,
       ancestors,
       quoted: quotedBy(element),

@@ -1278,7 +1278,7 @@ PIXEL = bytes.fromhex(
 def test_an_offline_historical_page_keeps_each_replies_captured_renderer(
     browser, serve, tmp_path
 ):
-    """The current kernel renders old choose and new pick replies from one tag."""
+    """One kernel renders each reply's captured constructor and initial drawing."""
     from copy import deepcopy
 
     from interact_support import append_command, element_declaration
@@ -1290,10 +1290,29 @@ def test_an_offline_historical_page_keeps_each_replies_captured_renderer(
         '<h1 id="topic">Review both answers</h1><lf-conversations id="conversations"></lf-conversations>',
     )
     conversations = element_declaration("lf-conversations", upgrade=True)
+    initial_probe = element_declaration("lf-initial-probe", upgrade=True)
+    initial_probe["x-initial"] = "/page/initial.js"
+
+    def producer(era):
+        return f"""document.documentElement.lfInitial.register('lf-initial-probe', host => {{
+          host.textContent = '{era} drawing'; return {{era: '{era}'}};
+        }});"""
+
     serve(
         source,
-        layer_registry={"lf-conversations": conversations},
+        layer_registry={
+            "lf-conversations": conversations,
+            "lf-initial-probe": initial_probe,
+        },
         layer_widgets={
+            "lf-initial-probe.js": """
+      import {once, initialRender} from '/runtime/widget-api.js';
+      export default class extends HTMLElement {
+        connectedCallback() {
+          if (once(this)) this.dataset.drawn = initialRender(this).era;
+        }
+      }
+    """,
             "lf-conversations.js": """
       import {registerThreadPresentation} from '/runtime/widget-api.js';
       export default class extends HTMLElement {
@@ -1308,8 +1327,9 @@ def test_an_offline_historical_page_keeps_each_replies_captured_renderer(
         }
         disconnectedCallback() {this.consumer?.unregister(); this.consumer = null;}
       }
-    """
+    """,
         },
+        page_files={"initial.js": producer("old")},
     )
     page_dir = serve.page_dir
     old = read_artifact(page_dir, 1)
@@ -1328,7 +1348,8 @@ def test_an_offline_historical_page_keeps_each_replies_captured_renderer(
                 "parent": opening["id"],
                 "text": "Pick one.",
                 "markup": f'<lf-options id="{name}" choose><lf-option id="{name}-a">Alpha</lf-option>'
-                f'<lf-option id="{name}-b">Beta</lf-option></lf-options>',
+                f'<lf-option id="{name}-b">Beta</lf-option></lf-options>'
+                f'<lf-initial-probe id="{name}-drawing"></lf-initial-probe>',
             },
         )
 
@@ -1338,6 +1359,7 @@ def test_an_offline_historical_page_keeps_each_replies_captured_renderer(
     entry["x-awaits"]["value"] = "pick"
     entry["x-awaits"]["answered"]["pick"] = entry["x-awaits"]["answered"].pop("choose")
     (page_dir / "page/registry.json").write_text(json.dumps({"lf-options": entry}))
+    (page_dir / "page/initial.js").write_text(producer("new"))
     widgets = page_dir / "page/widgets"
     widgets.mkdir(exist_ok=True)
     renderer = old.resources["/widgets/lf-options.js"].data.decode()
@@ -1400,6 +1422,9 @@ def test_an_offline_historical_page_keeps_each_replies_captured_renderer(
     expect(page.locator("#new-choice-a .lf-pick")).to_have_attribute(
         "aria-checked", "true"
     )
+    for name, era in [("old-choice", "old"), ("new-choice", "new")]:
+        expect(page.locator(f"#{name}-drawing")).to_have_attribute("data-drawn", era)
+        expect(page.locator(f"#{name}-drawing")).to_have_text(f"{era} drawing")
     assert (
         page.locator("#old-choice").evaluate(
             "element => element.constructor === document.querySelector('#new-choice').constructor"
@@ -1407,4 +1432,3 @@ def test_an_offline_historical_page_keeps_each_replies_captured_renderer(
         is False
     )
     assert external == [out.as_uri()]
-

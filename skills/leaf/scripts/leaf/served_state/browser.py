@@ -84,9 +84,9 @@ def _apply_thread_attention(
     durable: WorkReading, workflows: list[dict], threads: list[dict], todos: list[dict]
 ):
     """Attach each served thread's `attention`, the browser's one reading of whose turn
-    it is. `durable` is the reading of the view these threads are served in, so a pinned
-    revision's threads take the attention its own vocabulary reads; `workflows` are
-    the page's, enriched with delivery liveness."""
+    it is. `durable` combines the viewed page's vocabulary with each message's captured
+    vocabulary, so pinning another page revision does not reclassify frozen asks.
+    `workflows` are the page's, enriched with delivery liveness."""
     owed = {ask["thread"] for ask in durable.questions["user"]}
     by_thread: dict[str, list[dict]] = {}
     for workflow in workflows:
@@ -162,8 +162,8 @@ def browser_state(
                 revision_reader=revisions or readings.__getitem__,
             )
         )
-        # The view's own reading of the log: its document, and the frozen thread
-        # widgets with the asks and attention they give, under its registry.
+        # Read the page under its vocabulary and each frozen message under the
+        # vocabulary captured when that message was admitted.
         viewed = durable.viewing(page)
         reading = viewed.document
         thread, thread_reading = browser_thread(viewed, work.live_reply)

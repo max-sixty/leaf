@@ -2367,12 +2367,6 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
         details: shadow?.querySelectorAll('details').length ?? 0,
         diffs: shadow?.querySelectorAll('pre[data-diff]').length ?? 0,
         renameCount: renames.length,
-        evidence: [...shadow.querySelectorAll(".lf-diff-evidence")].map(node => node.textContent),
-        metadata: renames.slice(3).map(node => node.querySelector('.lf-diff-stat').textContent),
-        copied: [...shadow.querySelectorAll('summary')].find(node => node.textContent.includes('edited-copy.js'))?.textContent.includes('copied'),
-        overflow: shadow.host.scrollWidth > shadow.host.clientWidth,
-        pathsVisible: [...shadow.querySelectorAll('summary .lf-diff-base')].every(node => node.getBoundingClientRect().width > 1),
-        metadataLines: renames.reduce((total, node) => total + node.querySelectorAll('[data-line]').length, 0),
         from: rename?.querySelector('.lf-diff-source-path')?.textContent ?? null,
         to: rename?.querySelector('.lf-diff-destination-path')?.textContent ?? null,
         stat: rename?.querySelector('.lf-diff-stat')?.textContent ?? null,
@@ -2392,27 +2386,9 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
     assert result == {
         "rendered": True,
         "error": None,
-        "details": 6,
-        "diffs": 6,
-        "renameCount": 8,
-        "evidence": [
-            "mode 100644 → 100755",
-            "mode 100644 → 120000",
-            "mode 120000 → 100644",
-            "mode 100644 → 120000",
-            "binary content · mode 100644 → 120000",
-        ],
-        "metadata": [
-            "mode 100644 → 100755",
-            "binary content",
-            "copied",
-            "added · mode 100644",
-            "deleted · mode 100644",
-        ],
-        "copied": True,
-        "overflow": False,
-        "pathsVisible": True,
-        "metadataLines": 0,
+        "details": 1,
+        "diffs": 1,
+        "renameCount": 3,
         "from": "old-name.js",
         "to": "new-name.js",
         "stat": "renamed",
@@ -2422,19 +2398,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
         "quotedTo": "new\tname.js",
         "bomFrom": "\ufeffold.js",
         "bomTo": "\ufeffnew.js",
-        "lines": [
-            "const value = 1;",
-            "const value = 2;",
-            "const original = 1;",
-            "const copied = 2;",
-            "before",
-            "target",
-            "target",
-            "after",
-            "target",
-            "target",
-            "binary-target",
-        ],
+        "lines": ["const value = 1;", "const value = 2;"],
         "saysRename": True,
         "wroteRename": False,
     }
@@ -6029,7 +5993,12 @@ new file mode 120000
 @@ -0,0 +1 @@
 +binary-target
 \\ No newline at end of file"""
-    authored = _diff_page(("mixed-rename-diff", "" if manifest else escape(source)))
+    authored = leaf_page(
+        "Native Git changes",
+        '<h1 id="changes">Changes</h1><lf-diff id="mixed-rename-diff"><pre>'
+        + ("" if manifest else escape(source))
+        + "</pre></lf-diff>",
+    )
     if manifest:
         authored = authored.replace(
             'id="mixed-rename-diff"', 'id="mixed-rename-diff" source="native-patch"'

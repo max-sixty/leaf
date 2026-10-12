@@ -31,7 +31,7 @@ import {
   releaseMessageEdit,
   watchRewrite,
 } from "./message-edit.js";
-import { tokenEntry } from "../registry.js";
+import { reactionVocabulary } from "../registry.js";
 import { readAttachedMedia, writeAttachedMedia } from "../media.js";
 import {
   rememberAuthoredParents,
@@ -97,7 +97,7 @@ function proseReading(message) {
 /** @param {import("../../../../../build/browser/domain.ts").Message | Extract<import("../../../../../build/browser/domain.ts").Command, {kind: "comment" | "reply"}>} message @returns {string} */
 export function messageText(message) {
   if (message.token) {
-    const token = tokenEntry(message.token);
+    const token = reactionVocabulary()[message.token];
     return `${token?.glyph ?? ""} ${message.token}`.trim();
   }
   return message.suggestion ? (message.text ?? "") : proseReading(message).plainText;
@@ -158,7 +158,7 @@ export function messageReading(
   { panel, nativeAuthored = false, reactions, workflows },
 ) {
   const workflow = strongestWorkflow(workflows);
-  const token = isReaction(message) ? tokenEntry(message.token) : null;
+  const token = isReaction(message) ? reactionVocabulary()[message.token] : null;
   const kind = isReaction(message)
     ? "reaction"
     : message.suggestion

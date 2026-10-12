@@ -46,11 +46,11 @@ class WorkReading:
 
     def viewing(self, page) -> "WorkReading":
         """This log read beside another revision's document, as a view pinned to that
-        revision shows it. That revision captured its frozen thread widgets under its
-        own registry, so their decisions, the asks they answer and the attention those
-        asks give a thread are classified under it, as the page's own are. The threads
-        themselves fold as every reading of them does, under the published page's
-        containment (`events.build_threads`)."""
+        revision shows it. Page widgets take that revision's vocabulary. Each frozen
+        message retains the vocabulary captured when it was admitted, including its
+        decisions and asks, whichever page revision displays the thread. The threads
+        themselves fold under the published page's containment
+        (`events.build_threads`)."""
         if page is self.page:
             return self
         return WorkReading(

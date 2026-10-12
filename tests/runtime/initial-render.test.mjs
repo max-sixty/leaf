@@ -89,6 +89,7 @@ test("nested initial drawings retain authored member order, node routes and sema
   );
   adoptRegistry({
     $layer: { generation: "initial-render" },
+    $states: { "lf-outer": { set: { writer: "user", definition: {} } } },
     "lf-outer": {
       "x-state": {
         set: {
@@ -137,6 +138,7 @@ test("native idioms never become widget descriptors or authored widget ancestors
   document.body.innerHTML =
     '<main><table id="native"><tbody><tr><td><lf-nested id="nested">Value</lf-nested></td></tr></tbody></table></main>';
   adoptRegistry({
+    $states: {},
     "lf-nested": {},
     table: { description: "A table idiom.", "x-example": "<table></table>" },
     "lf-nested.selected": {
@@ -155,6 +157,7 @@ test("native idioms never become widget descriptors or authored widget ancestors
 test("an arriving source root keeps its declared parent and exhibit fence", () => {
   adoptRegistry({
     $layer: { generation: "initial-arrival" },
+    $states: {},
     "lf-quoted-parent": { "x-exhibit": true },
     "lf-arrival": {},
   });
@@ -193,6 +196,14 @@ test("each publication selects its own widgets while native and widget selectors
   ]) {
     const declarations = {
       $layer: { generation: `publication-${revision}` },
+      $states: {
+        "lf-publication-owner": {
+          [verb]: {
+            writer: revision === 101 ? "agent" : "user",
+            definition: { publication: revision },
+          },
+        },
+      },
       "lf-publication-parent": {},
       "lf-publication-owner": { "x-state": { [verb]: { record: {} } } },
       "lf-publication-owner[checked]": {
@@ -222,6 +233,14 @@ test("each publication selects its own widgets while native and widget selectors
     assert.deepEqual(Object.keys(descriptors.get("owner").declaration["x-state"]), [
       verb,
     ]);
+    assert.deepEqual(
+      descriptors.get("owner").states,
+      declarations.$states["lf-publication-owner"],
+    );
+    assert.notEqual(
+      descriptors.get("owner").states,
+      declarations.$states["lf-publication-owner"],
+    );
     assert.equal(addressableLabel(root.querySelector("table")), "Decision");
   }
   // Revisit the old publication after warming the new one's index.

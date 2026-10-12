@@ -16,7 +16,7 @@ const { registry, cases } = JSON.parse(
 
 for (const { id, markup, quoted: expected } of cases)
   test(`exhibit: ${id}`, () => {
-    adoptRegistry(registry);
+    adoptRegistry({ ...registry, $states: {} });
     document.body.innerHTML = `<main>${markup}</main>`;
     const ids = Object.keys(expected);
     assert.deepEqual(

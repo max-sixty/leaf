@@ -392,7 +392,8 @@ tag, or `undefined`. `elementsDeclaring(root, key, {direct})` lists the elements
 `root`, or only its children with `direct: true`, whose entries declare `key`.
 `matchesWhen(element, when)` says whether the element's attributes satisfy a
 declaration's `when`, as an `x-thread-seat` declaration's `when` selects its elements.
-`layerFact(name)` returns a copy of a layer-wide `$` declaration, such as `$reactions`.
+`layerFact(owner, name)` returns a copy of a layer-wide `$` declaration, such as
+`$reactions`, from the element or document owner's publication.
 
 ### Following a reference
 

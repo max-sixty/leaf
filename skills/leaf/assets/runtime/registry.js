@@ -15,7 +15,9 @@ import { readApplication } from "./semantic-state.js";
 // the already-wired chrome can legitimately be used; a failed fetch still rejects
 // startup rather than becoming an empty vocabulary.
 export const registry = runtime.registry;
-export const tokenEntry = (name) => registry.$reactions.tokens[name];
+// Shared chrome follows the viewed document; frozen content reads its node's registry.
+export const reactionVocabulary = () =>
+  readApplication().document.registry.$reactions?.tokens ?? {};
 
 // Ordinary keys are the authoring vocabulary: exact custom-element names and CSS
 // selectors. Only exact names are widget declarations; `lf-options.selected` is
@@ -60,10 +62,10 @@ export const stateSpecs = (scope = document) => indexedState(registryFor(scope))
 export const recordedWidgetSelector = (scope = document) =>
   indexedState(registryFor(scope)).recordedWidgetSelector;
 
-// Shared `$` declarations belong to the layer rather than to one widget. Return a copy so
-// a package module can read its cross-widget vocabulary without a registry write path.
-export function layerFact(name) {
-  const value = registry[name];
+// Shared `$` declarations follow the owner's publication. Return a copy so a package
+// module can read its cross-widget vocabulary without a registry write path.
+export function layerFact(owner, name) {
+  const value = registryFor(owner)[name];
   return value === undefined ? undefined : structuredClone(value);
 }
 

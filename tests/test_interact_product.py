@@ -41,11 +41,13 @@ from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import tasks as tasks_model
+from leaf.refusals import Refused
 from leaf.registry import storage as registry_storage
 from leaf.registry.contract import element_declarations
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_digest
 from leaf.validation import composition as validation_model
+from leaf.validation.admission import check_markup
 from leaf.validation.instances import reference_errors
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import prepare_page, read_fixture
@@ -662,6 +664,86 @@ def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
         'kind="toggle" value="yes"'
     )
     assert "does not match" in errors('kind="color" value="red"')
+
+
+def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_page):
+    """A preset's setting and an instruction's value slot name a control of their
+    own playground by `name` (a keyed x-refers), and names, choice values and a
+    preset's settings are unique within their owner (x-unique). Both doors refuse a
+    break before any browser draws it: message markup, where a reply's playground
+    otherwise reaches the user with only a static check, and the page's own source."""
+    page_dir = initialized_page(tmp_path / "page", ("playground",))
+
+    def playground(ident, controls, presets="", output=""):
+        return (
+            f'<lf-playground id="{ident}">{controls}{presets}'
+            "<lf-playground-preview><p>Preview</p></lf-playground-preview>"
+            f"<lf-playground-output>Use {output}.</lf-playground-output>"
+            "</lf-playground>"
+        )
+
+    tone = (
+        '<lf-playground-control name="tone" label="Tone" kind="choice" value="quiet">'
+        '<lf-playground-choice value="quiet" label="Quiet"></lf-playground-choice>'
+        '<lf-playground-choice value="bold" label="Bold"></lf-playground-choice>'
+        "</lf-playground-control>"
+    )
+    size = (
+        '<lf-playground-control name="size" label="Size" kind="range" value="2" '
+        'max="4"></lf-playground-control>'
+    )
+
+    def preset(*names):
+        return (
+            '<lf-playground-preset label="Loud">'
+            + "".join(
+                f'<lf-playground-setting for="{name}" value="bold"></lf-playground-setting>'
+                for name in names
+            )
+            + "</lf-playground-preset>"
+        )
+
+    def slot(name):
+        return f'<lf-playground-value for="{name}"></lf-playground-value>'
+
+    def reply(*playgrounds):
+        markup = f'<lf-ask id="ask"><h2>Which?</h2>{"".join(playgrounds)}</lf-ask>'
+        try:
+            check_markup(page_dir, "reply", markup, [])
+        except Refused as refused:
+            return str(refused)
+        return ""
+
+    assert reply(playground("a", tone, preset("tone"), slot("tone"))) == ""
+    assert (
+        '<lf-playground-setting> (line 1): for="tine" names no '
+        '<lf-playground-control name="tine"> in its <lf-playground>'
+    ) in reply(playground("a", tone, preset("tine")))
+    # The name of a control in the playground beside it answers nothing here.
+    assert (
+        'for="size" names no <lf-playground-control name="size"> in its <lf-playground>'
+    ) in reply(playground("a", tone, output=slot("size")), playground("b", size))
+    assert 'name="tone" repeats the <lf-playground-control>' in reply(
+        playground("a", tone + tone.replace("Tone", "Again"))
+    )
+    assert 'value="bold" repeats the <lf-playground-choice>' in reply(
+        playground("a", tone.replace('"quiet" label', '"bold" label'))
+    )
+    assert 'for="tone" repeats the <lf-playground-setting>' in reply(
+        playground("a", tone, preset("tone", "tone"))
+    )
+
+    main = (
+        '<lf-ask id="ask"><h2>Which?</h2>'
+        + playground("a", tone + tone, output=slot("tone"))
+        + "</lf-ask>"
+    )
+    (page_dir / "index.html").write_text(
+        re.sub(r"<main>.*?</main>", f"<main>{main}</main>", PAGE, flags=re.DOTALL)
+    )
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert 'name="tone" repeats the <lf-playground-control>' in result.output
 
 
 def test_corpus_is_generated_from_the_examples():

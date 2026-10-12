@@ -141,7 +141,10 @@ ACTION_CREATES = {
 # any authored element. A typed relation selects a package registry map
 # and an equality predicate within that map; the names and values remain vocabulary.
 # `owns` makes the relation one-to-one within a document: the referrer fills its
-# target (`validation.instances.reference_errors`).
+# target (`validation.instances.reference_errors`). A keyed relation names a member,
+# not an element id: the `tag` member whose `key` attribute holds the value, which
+# that tag declares unique within an owner (x-unique), looked up in the referrer's own
+# enclosing owner.
 REFERENCE_SCHEMA = {
     "type": "object",
     "minProperties": 1,
@@ -161,8 +164,17 @@ REFERENCE_SCHEMA = {
                 },
             },
             "owns": {"const": True},
+            "tag": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
+            "key": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         },
-        "dependentRequired": {"via": ["where"], "where": ["via"], "owns": ["via"]},
+        "dependentRequired": {
+            "via": ["where"],
+            "where": ["via"],
+            "owns": ["via"],
+            "tag": ["key"],
+            "key": ["tag"],
+        },
+        "dependentSchemas": {"key": {"not": {"required": ["via"]}}},
         "additionalProperties": False,
     },
 }
@@ -320,6 +332,12 @@ EXTENSION_SCHEMA = {
         "x-state": STATE_SCHEMA,
         "x-thread-surface": {"const": True},
         "x-tone": _ATTRIBUTE_NAME,
+        "x-unique": {
+            "type": "object",
+            "minProperties": 1,
+            "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+            "additionalProperties": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
+        },
         "x-upgrade": {"type": "boolean"},
         "x-verbatim": {"type": "boolean"},
         "x-visual": {
@@ -431,6 +449,7 @@ ATTRIBUTE_KEYS = (
     "x-refers",
     "x-says",
     "x-tone",
+    "x-unique",
 )
 # The declarations a stylesheet reads, each painted on the element as `paint`: the room
 # it takes (x-space), whether it sets inline among words (x-inline), quotes what it holds

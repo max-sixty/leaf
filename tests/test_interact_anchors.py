@@ -12,6 +12,7 @@ from interact_support import (
     SUGGESTION,
     append_carried_log_record,
     append_command,
+    asks_on_user,
     before_choice,
     check,
     comment,
@@ -21,7 +22,6 @@ from interact_support import (
     page_state,
     publish,
     published,
-    questions_on_you,
     response_reference,
     stamp,
     state_json,
@@ -674,7 +674,7 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
             "detached_from": None,
             "resolved": None,
             "unread": [root["id"], reply["id"]],
-            "attention": {"kind": "needs_user", "reason": "question", "workflow": None},
+            "attention": {"kind": "needs_user", "reason": "ask", "workflow": None},
         }
     ]
     transcript = CliRunner().invoke(
@@ -993,7 +993,7 @@ def test_a_refused_stamp_does_not_publish_quote_fallbacks(page_dir):
     before = events_model.read_events(page_dir)
     (page_dir / "index.html").write_text(original.replace("Alpha", "Beta"))
     refused = stamp(page_dir, "Revised", completes=("unknown-widget",))
-    assert refused.exit_code == 1 and "no open task on" in refused.output
+    assert refused.exit_code == 1 and "no open to-do on" in refused.output
     assert files_model.latest_revision(page_dir) == 1
     assert events_model.read_events(page_dir) == before
     accepted = stamp(page_dir, "Revised")
@@ -1216,7 +1216,7 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
             "detached_from": root["anchor"],
             "resolved": None,
             "unread": [root["id"], reply["id"]],
-            "attention": {"kind": "needs_user", "reason": "question", "workflow": None},
+            "attention": {"kind": "needs_user", "reason": "ask", "workflow": None},
         }
     ]
     stored_root = next(event for event in events if event["id"] == root["id"])
@@ -2026,7 +2026,7 @@ def test_a_closed_thread_stops_asking(page_dir):
             "</lf-options></lf-ask>",
         },
     )
-    assert questions_on_you(state_json(page_dir)) == [
+    assert asks_on_user(state_json(page_dir)) == [
         {
             "id": "widget:gm",
             "tag": "lf-options",
@@ -2038,7 +2038,7 @@ def test_a_closed_thread_stops_asking(page_dir):
     append_carried_log_record(
         page_dir, {"kind": "resolve", "author": "agent", "parent": root["id"]}
     )
-    assert questions_on_you(state_json(page_dir)) == []
+    assert asks_on_user(state_json(page_dir)) == []
 
 
 def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
@@ -2063,7 +2063,7 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
                 },
             )
         )
-    assert questions_on_you(state_json(page_dir)) == [
+    assert asks_on_user(state_json(page_dir)) == [
         {
             "id": "widget:group-a",
             "tag": "lf-options",
@@ -2091,7 +2091,7 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
             "detail": {"value": ["option-a"]},
         },
     )
-    assert questions_on_you(state_json(page_dir)) == [
+    assert asks_on_user(state_json(page_dir)) == [
         {
             "id": "widget:group-b",
             "tag": "lf-options",

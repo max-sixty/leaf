@@ -150,7 +150,16 @@ def registry_path(registry: dict, path: str):
 def reference_relation_error(
     reference: dict, registry: dict, declarations: dict
 ) -> str | None:
-    """Why one `{via, where}` target relation cannot name a declared widget."""
+    """Why one `{via, where}` or `{tag, key}` target relation cannot name a declared
+    widget. A keyed relation needs its key declared unique on the member, which also
+    supplies the owner it resolves within, so one reference names at most one member."""
+    if member := reference.get("tag"):
+        key = reference["key"]
+        if member not in declarations:
+            return f"names unknown element declaration <{member}>"
+        if key not in declarations[member].get("x-unique", {}):
+            return f"names <{member}> by `{key}`, which <{member}> does not declare in x-unique"
+        return None
     via = reference.get("via")
     if via is None:
         return None

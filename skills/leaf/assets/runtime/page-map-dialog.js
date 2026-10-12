@@ -56,8 +56,6 @@ import {
   clearContributionControls,
   contributionHost,
   contributionReceipts,
-  syncContributionAgentWorkflow,
-  trackContributionControl,
 } from "./contribution-controls.js";
 import { contributionSource } from "./contributions.js";
 
@@ -198,31 +196,12 @@ export function createPageMapDialog({
   }
 
   const sheetHost = (action, actions) =>
-    contributionHost(
-      action.record,
-      {
-        accessibleLabel: [action.record.accessibleLabel, action.record.context]
-          .filter(Boolean)
-          .join(", "),
-        relatedControlIds: relatedControlIds(action, actions),
-      },
-      (control) => {
-        const { entry, offered, record } = action;
-        const workflow = entry.workflowCarrier;
-        syncContributionAgentWorkflow(
-          control,
-          workflow?.key === record.key && workflow.owner === record.owner
-            ? workflow.receipt
-            : record.workflowReceipt,
-        );
-        trackContributionControl(
-          contributionSource(offered),
-          "map",
-          record.key,
-          control,
-        );
-      },
-    );
+    contributionHost(contributionSource(action.offered), "map", action.record, {
+      accessibleLabel: [action.record.accessibleLabel, action.record.context]
+        .filter(Boolean)
+        .join(", "),
+      relatedControlIds: relatedControlIds(action, actions),
+    });
 
   const sheetItemTemplate = (action) => html`
     <button
@@ -231,7 +210,7 @@ export function createPageMapDialog({
       data-lf-map-key=${action.key}
       data-lf-map-item=${action.item.id}
       aria-label=${[action.label, action.context].filter(Boolean).join(", ")}
-      ${contributionReceipts(action.item.workflowReceipt, Boolean(action.item.userAttention))}
+      ${contributionReceipts(action.receipt, action.awaitsUser)}
       @click=${() => activateItem(action.item, action.entry)}
     >
       ${sheetFace(action)}
@@ -261,6 +240,7 @@ export function createPageMapDialog({
         data-lf-map-key=${action.key}
         data-lf-map-margin-entry=${action.key}
         ${sheetHost(action, actions)}
+        ${contributionReceipts(action.receipt, action.awaitsUser)}
         >${body}</span
       >`;
     return html`<button
@@ -270,6 +250,7 @@ export function createPageMapDialog({
       data-lf-map-key=${action.key}
       data-lf-map-margin-entry=${action.key}
       ${sheetHost(action, actions)}
+      ${contributionReceipts(action.receipt, action.awaitsUser)}
       @click=${(event) => activateSheetControl(event, action)}
     >
       ${body}

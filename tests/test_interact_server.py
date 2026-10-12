@@ -37,6 +37,7 @@ from interact_support import (
     TOKEN,
     append_carried_log_record,
     append_command,
+    asks_on_user,
     check,
     declare_data_input,
     declare_work,
@@ -2136,7 +2137,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     )
     assert status == 400
     assert json.loads(body)["error"] == (
-        "v2 still has unanswered widget Questions: widget:choice"
+        "v2 still has unanswered widget asks: widget:choice"
     )
 
     status, body = fetch(
@@ -2188,7 +2189,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     )
     assert status == 400
     assert json.loads(body)["error"] == (
-        "v2 still has unanswered widget Questions: widget:thread-approval"
+        "v2 still has unanswered widget asks: widget:thread-approval"
     )
 
     status, body = fetch(

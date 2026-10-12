@@ -7269,7 +7269,7 @@ def test_clearing_an_answer_reopens_its_ask_and_shuts_the_approval_gate(browser,
     expect_asks_answered(page, "0/1")
     expect(approve).to_be_disabled()
     expect(approve).to_have_attribute(
-        "title", "Answer every Question before approving this work"
+        "title", "Answer every ask before approving this work"
     )
 
 
@@ -8346,7 +8346,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_contain_text(
-        "thread, to-do or update to send again waiting on you"
+        "thread, to-do or resend waiting on you"
     )
     page.keyboard.press("Escape")
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("questions")
@@ -9760,7 +9760,7 @@ def test_a_change_says_which_of_the_three_it_is(browser, serve):
 
     banner_control(page, ".lf-queue").click()
     expect(page.locator(".lf-queue-panel")).to_be_visible()
-    rows = [row for row in page.evaluate(QUEUE_ROW_SAYS) if row["kind"] == "question"]
+    rows = [row for row in page.evaluate(QUEUE_ROW_SAYS) if row["kind"] == "ask"]
 
     assert {r["at"]: r["word"] for r in rows} == {
         "widget:sug-rewrite": "Rewrite",
@@ -9810,7 +9810,7 @@ def test_the_questions_control_opens_open_and_answered_asks(browser, serve):
         ("widget:honored", "done"),
     ]
     for row in rows:
-        assert row["kind"] == "question", row
+        assert row["kind"] == "ask", row
         assert row["word"] == (
             "Rewrite" if row["at"] == "widget:sug-refill" else "Options"
         ), row
@@ -9831,9 +9831,7 @@ def test_the_questions_control_opens_open_and_answered_asks(browser, serve):
     # The pick is a move the agent now owes a reply, which is its row and not the Ask's.
     page.locator("#lq-token").click()
     expect_asks_answered(page, "2/5")
-    expect(page.locator("button.lf-queue-row[data-lf-kind='question']")).to_have_count(
-        5
-    )
+    expect(page.locator("button.lf-queue-row[data-lf-kind='ask']")).to_have_count(5)
     answered = {r["at"]: r for r in page.evaluate(QUEUE_ROW_SAYS)}
     assert answered["widget:live-question"]["list"] == "done", answered
     assert answered["widget:live-question"]["where"].startswith(
@@ -10020,7 +10018,7 @@ def test_pending_action_waits_for_the_ask_list_paint_before_retiring(
     banner_control(page, ".lf-queue").click()
     row = page.locator('button.lf-queue-row[data-lf-at="widget:storage-options"]')
     expect(row).to_have_count(1)
-    expect(row).to_have_attribute("data-lf-kind", "question")
+    expect(row).to_have_attribute("data-lf-kind", "ask")
     expect(page.locator("[data-lf-queue='you'] .lf-queue-row")).to_have_count(1)
     page.evaluate(
         """async () => {
@@ -10070,7 +10068,7 @@ def test_the_queue_clock_owns_held_paint_failure_and_retry(browser, serve):
     task = append_carried_log_record(
         serve.page_dir,
         {
-            "kind": "task",
+            "kind": "todo",
             "author": "agent",
             "agent": "Agent",
             "session": "queue-clock",
@@ -10082,11 +10080,11 @@ def test_the_queue_clock_owns_held_paint_failure_and_retry(browser, serve):
     append_carried_log_record(
         serve.page_dir,
         {
-            "kind": "task_end",
+            "kind": "todo_end",
             "author": "agent",
             "agent": "Agent",
             "session": "queue-clock",
-            "task": task["id"],
+            "todo": task["id"],
             "outcome": "done",
         },
     )
@@ -11147,6 +11145,36 @@ def test_a_body_the_module_cannot_draw_says_why_over_its_source(browser, serve):
             page.wait_for_timeout(25)
         assert len(reported) == 1 and reported[0].startswith(report), reported
         assert said[chart_id] in reported[0], reported
+
+
+def test_a_chart_that_fails_on_a_redraw_stays_failed_when_it_returns(browser, serve):
+    """A body may draw at one width and fail at another. The redraw that fails puts the
+    refusal where the drawing was, and the refusal stands: a chart that leaves the page
+    and returns, as document reconciliation moves it, does not watch its room again,
+    paint into the drawing the refusal replaced, or tell the author a second time."""
+    body = '{ariaLabel: "merged", marks: [width < 560 ? Plot.barz() : Plot.ruleY([0])]}'
+    source = leaf_page(
+        "narrow chart",
+        f'<h1 id="t">Narrow</h1>\n<lf-chart id="c-narrow"><pre>\n{body}\n</pre></lf-chart>',
+    )
+    page = open_page(browser, serve(source))
+    page.wait_for_function("() => document.querySelector('#c-narrow svg[role=img]')")
+    resized(page, 480, 900)
+    expect(page.locator("#c-narrow .lf-error")).to_contain_text("Plot.barz")
+    returned = page.evaluate("""async () => {
+        const chart = document.getElementById('c-narrow');
+        const failure = chart.querySelector('.lf-error');
+        const parent = chart.parentNode;
+        const next = chart.nextSibling;
+        chart.remove();
+        await new Promise((resolve) => setTimeout(resolve));
+        parent.insertBefore(chart, next);
+        for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
+        return chart.querySelector('.lf-error') === failure;
+    }""")
+    assert returned, "the returning chart drew its failure again"
+    errors = consume_browser_errors(page, '<lf-chart id="c-narrow"> failed: ')
+    assert len(errors) == 1, errors
 
 
 def test_a_chart_body_is_plot_code_that_reads_the_width_it_is_drawn_at(browser, serve):

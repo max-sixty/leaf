@@ -10,7 +10,6 @@
  */
 
 import { getContainer } from "@cloudflare/containers";
-import * as z from "zod/mini";
 
 import type { Env } from "./index";
 
@@ -22,28 +21,21 @@ interface AgentTaskParams {
   sourceId: string;
 }
 
-const settledAgentResultSchema = z.object({ status: z.literal("settled") });
+// What the container answers on `/_leaf/agent/{start,fail}` (`worker/leaf_website`'s
+// `_start_agent` and `_fail_agent`). The Worker reads only the status, to log it.
+type AgentResult =
+  | { status: "settled" }
+  | { status: "started"; thread: string }
+  | { status: "appended"; event: string };
 
-const agentResultSchemas = {
-  start: z.discriminatedUnion("status", [
-    settledAgentResultSchema,
-    z.object({
-      status: z.literal("started"),
-      thread: z.string().check(z.minLength(1)),
-    }),
-  ]),
-  fail: z.discriminatedUnion("status", [
-    settledAgentResultSchema,
-    z.object({
-      status: z.literal("appended"),
-      event: z.string().check(z.minLength(1)),
-    }),
-  ]),
-};
+// The failures the Worker reports. The container writes the third, `turn_failed`, from
+// its own reading of a turn it followed, so a receipt claiming a turn was observed
+// comes only from the code that observed it.
+type WorkerFailure = "rate_limited" | "startup_failed";
 
-type AgentResult = z.infer<
-  (typeof agentResultSchemas)[keyof typeof agentResultSchemas]
->;
+type AgentAsk =
+  | { action: "start"; event: string }
+  | { action: "fail"; event: string; failure: WorkerFailure };
 
 // Every leaf-agent record. Callers project the fields they log, and never spread an
 // AgentTaskParams, whose sourceId is the client's IP.
@@ -88,11 +80,7 @@ async function measuredAgentOperation<T>(
   }
 }
 
-function agentRequest(
-  params: AgentTaskParams,
-  action: "start" | "fail",
-  body: object,
-): Request {
+function agentRequest(params: AgentTaskParams, { action, ...body }: AgentAsk): Request {
   const root = params.route === "/" ? "" : params.route;
   return new Request(`http://container${root}/_leaf/agent/${action}`, {
     method: "POST",
@@ -104,27 +92,17 @@ function agentRequest(
 async function askContainer(
   env: Env,
   params: AgentTaskParams,
-  action: "start" | "fail",
-  body: object,
+  ask: AgentAsk,
 ): Promise<AgentResult> {
   const response = await getContainer(env.PAGES, params.containerId).fetch(
-    agentRequest(params, action, body),
+    agentRequest(params, ask),
   );
-  const raw = await response.text();
   if (!response.ok) {
-    throw new Error(`website agent ${action} failed (${response.status}): ${raw}`);
+    throw new Error(
+      `website agent ${ask.action} failed (${response.status}): ${await response.text()}`,
+    );
   }
-  let value: unknown;
-  try {
-    value = JSON.parse(raw);
-  } catch {
-    throw new Error(`invalid website agent ${action} response`);
-  }
-  const result = agentResultSchemas[action].safeParse(value);
-  if (!result.success) {
-    throw new Error(`invalid website agent ${action} response`);
-  }
-  return result.data;
+  return (await response.json()) as AgentResult;
 }
 
 async function runAgentTask(
@@ -143,13 +121,14 @@ async function runAgentTask(
   );
   if (allowed) {
     return measuredAgentOperation("container_start", params, () =>
-      askContainer(env, params, "start", { event: params.eventId }),
+      askContainer(env, params, { action: "start", event: params.eventId }),
     );
   }
   // The words the user gets belong to the adapter, which declares them beside the
   // code in `FAILURE_RECEIPTS`; naming the code here is the whole of what this knows.
   return measuredAgentOperation("failure_receipt", params, () =>
-    askContainer(env, params, "fail", {
+    askContainer(env, params, {
+      action: "fail",
       event: params.eventId,
       failure: "rate_limited",
     }),
@@ -175,7 +154,8 @@ export async function dispatchAgentTask(
     });
     try {
       await measuredAgentOperation("failure_receipt", params, () =>
-        askContainer(env, params, "fail", {
+        askContainer(env, params, {
+          action: "fail",
           event: params.eventId,
           failure: "startup_failed",
         }),

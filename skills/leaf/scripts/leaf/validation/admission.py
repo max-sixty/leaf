@@ -188,7 +188,7 @@ def check_markup(
                 (
                     "thread markup must use vocabulary shared by the active registry "
                     "and every pinned revision; otherwise ask with --text (and "
-                    "--question for a reply)"
+                    "--ask for a reply)"
                 )
             ]
             if pinned_errors

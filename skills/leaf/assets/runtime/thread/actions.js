@@ -4,6 +4,7 @@
    resolves the current message target and constructs the event. Core controls call
    these same commands. The application ledger remains the one optimistic and
    admission path, so a stale or unavailable command returns null. */
+import { randomId } from "../ids.js";
 import { editable } from "./model.js";
 import { readThreads } from "./state.js";
 
@@ -18,7 +19,7 @@ export function createThreadActions({
     const {
       text,
       anchor,
-      attempt = crypto.randomUUID(),
+      attempt = randomId(),
       holds,
       about,
       drawing,
@@ -113,7 +114,6 @@ export function createThreadActions({
         revision: currentRevision(),
         token,
       },
-      null,
       `${message.agent}'s reply`,
       post,
     );

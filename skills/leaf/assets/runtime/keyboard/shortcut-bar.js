@@ -69,7 +69,7 @@ import {
   neutralStates,
   progressStates,
   rowSteps,
-} from "./presentation.js";
+} from "./key-sequence.js";
 import { el } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { lineOwner, shadow, stack, executeCommand } from "./dispatch.js";
@@ -91,7 +91,7 @@ import {
 import { repaint } from "../repaint.js";
 import { walkPosition } from "../walk-position.js";
 import { declareBottomBar } from "../geometry.js";
-import { pagePresented } from "../presentation.js";
+import { pagePresented } from "../page-paint.js";
 import { closeLayer, focusDestination } from "../focus.js";
 import {
   BANNER_CONTROL_RANK,

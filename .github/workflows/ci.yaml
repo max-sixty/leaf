@@ -1,8 +1,13 @@
 name: ci
 
-# Pull requests run the small landing gate plus the nightly-marked tests they edit,
-# and the website gate. Main, the daily schedule, and a manual dispatch run the
-# complete selection once, with the same runtime, browser-framework and bundle gates.
+# Every event runs the runtime, browser-framework and bundle gates; the Python suite's
+# selection follows the test tiers, set by a test's marks and its measured cost
+# (`tests/conftest.py`, `run_tier`):
+# - a pull request runs the first tier, plus the `main` and `nightly` tests it edits,
+#   and the website gate;
+# - a push to main runs the first tier and `main`;
+# - the daily schedule and a manual dispatch run every test, and their junit report is
+#   what `leaf-dev cost-tiers` measures the tiers from.
 # Relevant pushes to main run the website gate in publish-site before deploy.
 on:
   push:
@@ -14,56 +19,43 @@ on:
 
 # Only a pull request cancels its own earlier run. A push to main keeps its run: a red
 # branch is judged against the base SHA's result, a cancellation reaches tend-ci-fix as
-# something to fix, and the next merge must not end a complete suite partway through.
-# Nothing outside a pull request shares a workflow group; the complete test job owns
-# the automatic suite's queue.
+# something to fix, and the next merge must not end a suite partway through. Nothing
+# outside a pull request shares a workflow group; the test job owns each event's queue.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Branch protection requires this check by name.
-  lint:
-    if: github.event_name == 'pull_request' || github.event_name == 'push'
-    runs-on: ubuntu-24.04
-
-    steps:
-      - name: 📂 Checkout code
-        uses: actions/checkout@v7
-
-      - name: 🔍 Pre-commit hooks
-        uses: pre-commit/action@v3.0.1
-
   test:
-    # Scheduled and manual runs skip lint. A red or cancelled lint never starts tests.
-    if: >-
-      !cancelled()
-      && (needs.lint.result == 'success' || needs.lint.result == 'skipped')
-    needs: lint
+    # Keep branch protection's required check name; it now covers the full gate.
+    name: lint
     concurrency:
-      # One automatic suite at a time: it holds a runner for over an hour, and
-      # GitHub's concurrency pool is per-account, shared with the other repos here. A
-      # running suite is never cancelled, because that hour would be lost; a newer
-      # commit replaces the pending entry instead, under GitHub's default
-      # `queue: single`, so a busy main gets the suite on its tip rather than working
-      # through commits already superseded. Superseded pending entries are recorded as
-      # cancelled runs, and #296 accepted that cost for the same reason.
+      # One push suite at a time: it holds a runner for over an hour, and GitHub's
+      # concurrency pool is per-account, shared with the other repos here. A running
+      # suite is never cancelled, because that hour would be lost; a newer commit
+      # replaces the pending entry instead, under GitHub's default `queue: single`, so a
+      # busy main gets the suite on its tip rather than working through commits already
+      # superseded. Superseded pending entries are recorded as cancelled runs, and #296
+      # accepted that cost for the same reason.
       #
-      # A dispatch keeps a slot per ref, as it had before this job took a group of its
-      # own. It is the control a session runs against a base SHA, and two sessions
-      # judging two branches need both answers; behind main's queue either one would
-      # be replaced by the next merge before it ever started.
-      # PRs keep their own slot; the automatic and dispatch groups keep the complete
-      # suite's existing queue identity.
-      group: ${{ github.event_name == 'pull_request' && format('{0}-test-pr-{1}', github.workflow, github.event.pull_request.number) || format('{0}-nightly-{1}', github.workflow, github.event_name == 'workflow_dispatch' && github.ref || 'automatic') }}
+      # The daily schedule has a slot of its own. It is the only run of the `nightly`
+      # tier, and while it shared the push queue (#751) the next merge replaced it
+      # before it reached a runner. A dispatch keeps a slot per ref. It is the control a
+      # session runs against a base SHA, and two sessions judging two branches need
+      # both answers; behind main's queue either one would be replaced by the next
+      # merge before it ever started. A pull request keeps a slot per number.
+      group: ${{ format('{0}-test-{1}', github.workflow, github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.event_name == 'workflow_dispatch' && format('dispatch-{0}', github.ref) || github.event_name) }}
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-24.04
     env:
       PYTEST_ADDOPTS: --durations=25 --durations-min=1
+      # py-spy's sampling rate, which `leaf-dev suite-profile` reads to turn samples
+      # into minutes.
+      PY_SPY_RATE: 2
 
     steps:
       # A pull request's checkout is its merge commit, whose first parent is the base:
-      # the second commit is what the nightly selection below diffs against.
+      # the second commit is what `--changed-since` below diffs against.
       - name: 📂 Checkout code
         uses: actions/checkout@v7
         with:
@@ -73,10 +65,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
-          cache: npm
+          cache: pnpm
 
       # The runner supplies installed Chrome for the two launcher tests. The rest of
       # the browser suite uses the headless shell matching the locked Playwright, and
@@ -87,30 +80,80 @@ jobs:
       - name: Install the Linux browser font contract
         run: sudo apt-get install -y fonts-dejavu
 
+      # Where the Python suite's time goes. BSD process accounting records each
+      # process's CPU as it exits, so the run's CPU reads back by command afterwards;
+      # py-spy samples the stacks of every Python process the run starts, waits
+      # included, so wall time reads back by function. py-spy reads a process it did
+      # not start only where Yama allows any same-user trace.
+      - name: Install the suite's profilers
+        run: |
+          sudo apt-get install -y acct
+          sudo sysctl -w kernel.yama.ptrace_scope=0
+          uvx py-spy@0.4.2 --version
+
       - name: Fetch pinned image assets
         run: uv run leaf-dev fetch-assets
 
       - name: Install development dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       # The bundles build from the installed lock, so a rebuild reproduces the
       # tracked bytes exactly and any difference is a lock nobody rebuilt from.
-      - name: Check vendored bundles
-        run: npm run check:bundles
+      - name: Check bundles, browser, runtime, Worker and eval assertions
+        run: pnpm run check
 
-      - name: Check browser, runtime, Worker and eval assertions
-        run: npm run check
+      # Hooks only check source, so they can overlap Python and the private website
+      # build.
+      - name: 🔍 Pre-commit hooks
+        id: lint
+        background: true
+        uses: pre-commit/action@v3.0.1
 
-      # Cheap gates fail before the complete Python suite spends its runner time.
+      # The synchronous gates fail before Python spends its runner time.
       # The runner's four vCPUs sat ~41% idle under two workers; four left 7% idle
       # but slowed each test 1.3–1.46×, so three take the idle share without
       # saturating the deadlines browser tests wait under.
       - name: 🧪 Python tests
         id: python-tests
         background: true
-        run: >-
-          uv run pytest tests -n 3 -v --junitxml=.tmp/test-results/results.xml
-          ${{ github.event_name == 'pull_request' && '--nightly-changed-since HEAD^1' || '--run-nightly' }}
+        # The profilers write beside the junit report: `cpu-by-command.txt` is `sa`'s
+        # table of every process that ran meanwhile, and `stacks.txt` holds one line
+        # per distinct stack and sample count, rooted at its process, for
+        # `leaf-dev suite-profile`, speedscope or flamegraph.pl. py-spy follows the
+        # process tree from `uv run` once it has a child, and stops when it exits. Its
+        # cost scales with the rate: 20 Hz took 10% of a run's CPU, 5 Hz 4.5%. At 2 Hz
+        # each worker's stack is still sampled 7,200 times an hour.
+        # Accounting is machine-wide, so it runs only where the suite is the only work
+        # meanwhile: a pull request builds the website beside it.
+        run: |
+          mkdir -p .tmp/test-results
+          accounting=${{ github.event_name != 'pull_request' }}
+          if $accounting; then
+            sudo touch /var/log/account/suite
+            sudo accton /var/log/account/suite
+          fi
+          uv run pytest tests -n 3 -v --junitxml=.tmp/test-results/results.xml \
+            ${{ github.event_name == 'pull_request' && '--changed-since HEAD^1' || github.event_name == 'push' && '--run-main' || '--run-nightly' }} &
+          tests=$!
+          until pgrep -P "$tests" >/dev/null || ! kill -0 "$tests" 2>/dev/null; do
+            sleep 0.1
+          done
+          uvx py-spy@0.4.2 record --pid "$tests" --subprocesses --idle --nonblocking \
+            --function --rate "$PY_SPY_RATE" --format raw --output .tmp/test-results/stacks.txt &
+          profiler=$!
+          wait "$tests" && status=0 || status=$?
+          # A profile that failed fails the job, keeping pytest's own failure status.
+          wait "$profiler" && profiled=0 || profiled=$?
+          if [ "$profiled" -ne 0 ]; then
+            echo "::error::py-spy exited with $profiled"
+            [ "$status" -ne 0 ] || status=1
+          fi
+          if $accounting; then
+            sudo accton off
+            sudo chmod a+r /var/log/account/suite
+            sa -a -c -i /var/log/account/suite > .tmp/test-results/cpu-by-command.txt
+          fi
+          exit "$status"
 
       # The website build can overlap Python; Docker must wait because its host
       # interface changes interrupt Chrome's loopback requests in browser tests.
@@ -118,20 +161,26 @@ jobs:
         if: github.event_name == 'pull_request'
         run: uv run leaf-dev site
 
-      # wait runs even when the build fails. Propagate Python's result and finish
-      # its artifacts before starting Docker or the unconditional upload below.
-      - name: Wait for Python tests
-        wait: python-tests
+      # wait runs even when the build fails. Propagate both results and finish
+      # Python's artifacts before Docker or the unconditional upload below.
+      - name: Wait for lint and Python tests
+        wait: [lint, python-tests]
 
       - name: Check website deployment
         if: github.event_name == 'pull_request'
         run: |
-          npx wrangler deploy --dry-run --outdir ../.tmp/worker-deploy
+          pnpm --dir .. exec wrangler --cwd worker deploy --dry-run --outdir ../.tmp/worker-deploy
         working-directory: worker
 
       - name: Measure the bundled release in Chrome
         if: github.event_name == 'pull_request'
         run: uv run leaf-dev verify-site website-worker
+
+      - name: Summarize where the suite's time went
+        if: success() || failure()
+        run: |
+          uv run leaf-dev suite-profile .tmp/test-results | tee .tmp/test-results/summary.txt
+          { echo '```'; cat .tmp/test-results/summary.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload pytest results
         if: always()

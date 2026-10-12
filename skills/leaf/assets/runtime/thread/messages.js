@@ -22,7 +22,7 @@ import {
   renderedWords,
 } from "../markdown.js";
 import { reportPageError } from "../layer-client.js";
-import { editable, isReaction, moved } from "./model.js";
+import { editable, isReaction, messageKey, moved } from "./model.js";
 import {
   MessageEditor,
   OPEN_MESSAGE_EDIT,
@@ -45,16 +45,13 @@ import {
   renderQuiet,
   renderSaid,
   writePrepaint,
-} from "../presentation.js";
+} from "../declared-words.js";
 import { highlightBlocks } from "../syntax.js";
 import { ago } from "../presence.js";
 import { elementById, pageQueryAll } from "../passages.js";
 import { designName } from "../design-readings.js";
-import {
-  addressableLabel,
-  addressableWord,
-  visualPartLabel,
-} from "../anchor-resolution.js";
+import { addressableLabel, addressableWord } from "../addressable-names.js";
+import { visualPartLabel } from "../anchor-resolution.js";
 import { rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
 import { iconTemplate } from "../icons.js";
@@ -169,8 +166,10 @@ export function messageReading(
       : "prose";
   const prose = kind === "prose" ? proseReading(message) : null;
   return Object.freeze({
-    key: message.attempt ?? message.id,
+    key: messageKey(message),
     id: message.id,
+    // A reply still streaming, which the answer it stands for completes in place.
+    provisional: Boolean(message.provisional),
     version: message.edited?.id ?? message.id,
     seq: moved(message).seq,
     unread: message.unread,
@@ -202,7 +201,6 @@ export function messageReading(
       drawing: Boolean(message.drawing),
       token: message.token ?? null,
       glyph: token?.glyph ?? "",
-      meaning: token?.means ?? null,
       authored: message.body.kind === "authored",
     }),
     panel,
@@ -448,9 +446,7 @@ export class MessageView {
   #body(body) {
     if (body.kind === "reaction")
       return html`<div class="lf-msg-text">
-        <span class="lf-react-said" title=${body.meaning ?? nothing}
-          >${`${body.glyph} ${body.token}`.trim()}</span
-        >
+        <span class="lf-react-said">${`${body.glyph} ${body.token}`.trim()}</span>
       </div>`;
     if (body.kind === "suggestion")
       return html`<div class="lf-msg-text" .textContent=${body.text}></div>`;

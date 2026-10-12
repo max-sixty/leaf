@@ -4,7 +4,7 @@ import re
 
 from leaf.passages import COLLAPSE_CHARS
 from leaf.projection import enclosing_widgets
-from leaf.questions import asking
+from leaf.questions import asking, local_question_entry, quoted_in
 from leaf.registry.contract import (
     is_element_name,
     registry_path,
@@ -153,20 +153,83 @@ def visual_part_errors(lf_elements: list, registry: dict) -> list:
     return errors
 
 
+def unasked(rec: dict, entry: dict) -> str:
+    """The `x-awaits.when` conditions a widget never met, worded for the author, or
+    "" where it asks, was asked, or can be made to ask.
+
+    The flag `x-awaits.retired` names is how an author ends a Question already
+    asked, such as a settled decision kept with its context, so failing on it alone
+    leaves the widget counted. A condition a recorded value writes can still be met
+    by a gesture."""
+    awaits = entry["x-awaits"]
+    when = awaits.get("when") or {}
+    recorded = {
+        (spec.get("record") or {}).get("attr")
+        for spec in entry.get("x-state", {}).values()
+        if (spec.get("record") or {}).get("kind") == "value"
+    }
+    return " and ".join(
+        " or ".join(
+            f"{attr} is {'present' if value else 'absent'}"
+            if isinstance(value, bool)
+            else f"{attr}={json_value(value)}"
+            for value in values
+        )
+        for attr, values in when.items()
+        if attr != awaits.get("retired")
+        and attr not in recorded
+        and not asking(rec["attrs"], {attr: values})
+    )
+
+
 def question_context_errors(lf_elements: list, registry: dict) -> list:
     """A context supplies a leading title and arrival region for nested Questions.
 
     Context never owns Question identity or registration. Any number of sources
     can select it, and each source retains its independent answer and lifecycle.
+    A context framing no source asks nothing: the page shows a question the banner
+    never counts and the user can't answer, so the error names what each framed
+    widget lacks to ask (`unasked`).
     """
+
+    def context_of(rec):
+        return next(
+            (
+                holder
+                for holder in enclosing_widgets(rec)
+                if registry.get(holder["tag"], {}).get("x-question-context")
+            ),
+            None,
+        )
+
+    def named(rec):
+        return f"id={json_value(rec['attrs']['id'])}" if "id" in rec["attrs"] else ""
 
     regions = [
         rec
         for rec in lf_elements
         if registry.get(rec["tag"], {}).get("x-question-context")
     ]
+    framed = {id(region): [] for region in regions}
+    for rec in lf_elements:
+        entry = registry.get(rec["tag"], {})
+        region = context_of(rec)
+        if local_question_entry(entry) and region and not quoted_in(rec, registry):
+            framed[id(region)].append((rec, unasked(rec, entry)))
     errors = []
     for region in regions:
+        # A quoted context is a mention whose widgets ask nothing by design.
+        if not quoted_in(region, registry) and all(
+            lacks for _, lacks in framed[id(region)]
+        ):
+            widgets = "; ".join(
+                f"{at(rec, named(rec))} asks only where {lacks}"
+                for rec, lacks in framed[id(region)]
+            )
+            errors.append(
+                f"{at(region)}: a Question context registers no Question: "
+                + (widgets or "it holds no widget that declares x-awaits")
+            )
         headings = [
             child
             for child in region["children"]
@@ -492,6 +555,20 @@ def suggestion_errors(lf_elements: list, registry: dict, thread_ids: set) -> lis
     return errors
 
 
+def instance_errors(lf_elements: list, registry: dict) -> list:
+    """Every instance check that needs only the registry, no id namespace, so a new
+    check of that kind reaches page source and message markup alike."""
+    return (
+        widget_errors(lf_elements, registry)
+        + layout_errors(lf_elements, registry)
+        + visual_part_errors(lf_elements, registry)
+        + addressable_instance_errors(lf_elements, registry)
+        + question_context_errors(lf_elements, registry)
+        + declared_word_errors(lf_elements, registry)
+        + line_ref_errors(lf_elements, registry)
+    )
+
+
 def fragment_errors(parser: SourceDocument, registry: dict) -> list:
     """Structural + registry validation of an HTML fragment:
     the discussion-side analog of `page check`. The declared-word
@@ -499,13 +576,4 @@ def fragment_errors(parser: SourceDocument, registry: dict) -> list:
     <lf-code language=…> is colored by the same tokenizer a version's is, and its chips
     are tinted by the same theme, and nothing else would now refuse either a word its
     layer doesn't know."""
-    return (
-        structure_errors(parser)
-        + widget_errors(parser.lf_elements, registry)
-        + layout_errors(parser.lf_elements, registry)
-        + visual_part_errors(parser.lf_elements, registry)
-        + addressable_instance_errors(parser.lf_elements, registry)
-        + question_context_errors(parser.lf_elements, registry)
-        + declared_word_errors(parser.lf_elements, registry)
-        + line_ref_errors(parser.lf_elements, registry)
-    )
+    return structure_errors(parser) + instance_errors(parser.lf_elements, registry)

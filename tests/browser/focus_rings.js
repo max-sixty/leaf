@@ -125,7 +125,7 @@
           // nested rule is hoisted into a CSSNestedDeclarations, which has one and no
           // selector. The context comes off the parent for the same reason: the layer's
           // one nested ring says
-          // `&:has(> lf-option > .lf-pick:is(:focus-visible, .lf-focus-visible))`
+          // `&:has(> lf-option > .lf-pick[data-lf-focus])`
           // and nothing else, which names no rule anybody can find.
           if (
             rule.style &&
@@ -181,7 +181,7 @@
     // comment names — it asked only about overflow, so paint containment and
     // content-visibility clipped a ring away with nothing said, and it measured the
     // padding box with the scrollbar's gutter still in it.
-    const { shownBand } = await window.__lfRuntimeImport("/runtime/widget-api.js");
+    const { shownBand } = await window.__lfRuntimeImport("/runtime/check-api.js");
     const holds = (a, b) => {
       for (let n = b; n; n = n.parentNode || n.host) if (n === a) return true;
       return false;

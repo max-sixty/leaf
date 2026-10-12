@@ -21,6 +21,7 @@ import {
   setChildren,
   watchData,
   once,
+  plainPress,
 } from "/runtime/widget-api.js";
 
 import { diffLocationKey } from "./diff-coordinates.js";
@@ -43,12 +44,7 @@ function parse(text) {
       : line.startsWith("- ")
         ? "removed"
         : "unchanged";
-    const displayed =
-      status === "unchanged" && line.startsWith("  ")
-        ? line.slice(2)
-        : status === "unchanged"
-          ? line
-          : line.slice(2);
+    const displayed = meta ? line : line.slice(2);
     const matched = displayed.match(LOCATION);
     if (!meta && !matched)
       throw new Error(
@@ -169,15 +165,7 @@ function locationLink(record, owner) {
         class="lf-call-location"
         href=${`#${owner.getAttribute("diff")}`}
         @click=${async (event) => {
-          if (
-            event.defaultPrevented ||
-            event.button !== 0 ||
-            event.metaKey ||
-            event.ctrlKey ||
-            event.shiftKey ||
-            event.altKey
-          )
-            return;
+          if (event.defaultPrevented || !plainPress(event)) return;
           event.preventDefault();
           event.stopPropagation();
           await travelToLine(owner, record);

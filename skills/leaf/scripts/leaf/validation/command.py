@@ -1,7 +1,6 @@
 """Command boundary for mutable-source validation."""
 
 import sys
-from contextlib import nullcontext
 from pathlib import Path
 
 from leaf.event_log import read_events
@@ -12,20 +11,14 @@ from leaf.revision_artifact import read_revision
 from .source import check_source
 
 
-def cmd_check(
-    page_dir: Path,
-    render: bool = False,
-    *,
-    transition_held: bool = False,
-    events_override: list | None = None,
-) -> int:
+def cmd_check(page_dir: Path, render: bool = False) -> int:
     """Check the mutable source without activating or stamping it."""
-    with nullcontext() if transition_held else page_locked(page_dir):
-        return _check(page_dir, render, events_override)
+    with page_locked(page_dir):
+        return _check(page_dir, render)
 
 
-def _check(page_dir: Path, render: bool, events_override: list | None) -> int:
-    events = read_events(page_dir) if events_override is None else events_override
+def _check(page_dir: Path, render: bool) -> int:
+    events = read_events(page_dir)
     result = check_source(page_dir, events)
     if result.errors:
         print(
@@ -49,14 +42,18 @@ def _check(page_dir: Path, render: bool, events_override: list | None) -> int:
     runs_code = needs_browser(result.document, result.artifact)
     if not (runs_code or render):
         return 0
-    from leaf.render_gate.command import page_code_check, render_check
+    from leaf.render_gate.command import browser_check
 
     revisions = list_revisions(page_dir)
     active = revisions[-1] if revisions else 0
     revision = active
     if not active or read_revision(page_dir, active).digest != result.artifact.digest:
         revision = active + 1
-    candidate = (page_dir, result.document, revision, result.artifact)
-    if runs_code and page_code_check(*candidate):
-        return 1
-    return render_check(*candidate) if render else 0
+    return browser_check(
+        page_dir,
+        result.document,
+        revision,
+        result.artifact,
+        page_code=runs_code,
+        render=render,
+    )

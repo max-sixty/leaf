@@ -245,6 +245,24 @@ def rewrite_attribute_references(
     return value
 
 
+def pre_body(element) -> str | None:
+    """The text of `element`'s first `<pre>` child: the body a Markdown-bodied element
+    renders and a `body` state record reads, or None where it has none."""
+    pre = next(
+        (
+            child
+            for child in element.children
+            if isinstance(child, turbohtml.Element) and child.tag == "pre"
+        ),
+        None,
+    )
+    if pre is None:
+        return None
+    return "".join(
+        child.data for child in pre.children if isinstance(child, turbohtml.Text)
+    )
+
+
 class SourceDocument:
     """One browser-compatible structural reading of authored HTML.
 
@@ -544,20 +562,8 @@ class SourceDocument:
             elif isinstance(child, turbohtml.Text) and child.data.strip():
                 record["text"] = True
                 record["direct"].append("#text")
-        pre = next(
-            (
-                child
-                for child in element.children
-                if isinstance(child, turbohtml.Element) and child.tag == "pre"
-            ),
-            None,
-        )
-        if pre is not None:
-            record["body"] = "".join(
-                child.data
-                for child in pre.children
-                if isinstance(child, turbohtml.Text)
-            )
+        if (body := pre_body(element)) is not None:
+            record["body"] = body
 
     def _sample_resources(self, template) -> None:
         """Read the complete child document without merging its identity space.

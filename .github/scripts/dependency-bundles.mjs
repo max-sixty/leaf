@@ -70,11 +70,12 @@ export async function publish(api, repo, run, artifact) {
   );
   if (
     changes.length >= 100 ||
-    !changes.some((f) => f.filename === "package-lock.json") ||
+    !changes.some((f) => f.filename === "pnpm-lock.yaml") ||
     changes.some(
       (f) =>
-        !["package.json", "package-lock.json"].includes(f.filename) &&
-        !generated(f.filename),
+        !["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml"].includes(
+          f.filename,
+        ) && !generated(f.filename),
     )
   )
     throw new Error("Dependency PR also changes non-bundle source");

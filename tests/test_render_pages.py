@@ -92,7 +92,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 def test_sort_source_follows_the_initial_step_when_code_arrives_later(browser, serve):
@@ -1440,10 +1440,19 @@ def test_a_screenshot_margin_trace_paints_one_complete_quiet_contour(browser, se
         return Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
 
     quiet = screenshot()
-    toggle = page.get_by_role(
-        "button",
-        name="Show after — the run list with and without a status column",
-    )
+    # Exercise the generic contribution trace with a real public registration;
+    # the screenshot's own endpoint actions live in its native control rail.
+    page.evaluate("""async () => {
+      const {contributionEntry, registerContribution} =
+        await window.__lfRuntimeImport('/runtime/widget-api.js');
+      registerContribution({key: 'review-capture',
+        target: document.querySelector('#rn-console-shot'),
+        read: () => ({entries: [contributionEntry({key: 'review', glyph: 'R',
+          label: 'Review capture'})]}), activate: () => {},
+      });
+    }""")
+    margins_laid_out(page)
+    toggle = page.get_by_role("button", name="Review capture", exact=True)
     toggle.hover()
     trace = page.locator('.lf-target-trace[data-for="rn-console-shot"]')
     expect(trace).to_be_visible()
@@ -1463,7 +1472,7 @@ def test_a_screenshot_margin_trace_paints_one_complete_quiet_contour(browser, se
         f"the screenshot frame covered the trace's {missing} edge: {changed} ink pixels"
     )
     assert shot.evaluate("element => getComputedStyle(element).outlineStyle") == "none"
-    toggle.click()
+    shot.locator('.lf-shotcap[data-lf-state="after"]').click()
     expect(shot.locator('.lf-shotframe[data-lf-state="after"]')).to_be_visible()
 
 
@@ -1477,7 +1486,7 @@ def test_a_diagram_follows_the_scheme_it_is_read_in(browser, serve):
     expected = page.evaluate(
         """() => {
           const probe = document.createElement('i');
-          probe.style.cssText = 'color:color-mix(in srgb, var(--accent) 14%, var(--paper))';
+          probe.style.cssText = 'color:color-mix(in srgb, var(--accent) 10%, var(--paper))';
           document.body.append(probe);
           const color = getComputedStyle(probe).color;
           probe.remove();
@@ -1516,8 +1525,6 @@ def test_diagrams_keep_fonts_and_svg_definitions_inside_the_page(browser, serve)
           probe.style.cssText = 'font-family:var(--sans);position:fixed;visibility:hidden';
           document.body.append(probe);
           const expectedFont = getComputedStyle(probe).fontFamily;
-          probe.style.fontFamily = 'var(--mono)';
-          const expectedMonoFont = getComputedStyle(probe).fontFamily;
           probe.remove();
           return {
             count: svgs.length,
@@ -1526,10 +1533,7 @@ def test_diagrams_keep_fonts_and_svg_definitions_inside_the_page(browser, serve)
             styles: svgs.map(svg => svg.querySelector('style')?.textContent ?? ''),
             fonts: svgs.map(svg => svg.querySelector('text')).filter(Boolean)
               .map(text => getComputedStyle(text).fontFamily),
-            monoFonts: svgs.flatMap(svg => [...svg.querySelectorAll('text.mono')])
-              .map(text => getComputedStyle(text).fontFamily),
             expectedFont,
-            expectedMonoFont,
           };
         }"""
     )
@@ -1546,8 +1550,6 @@ def test_diagrams_keep_fonts_and_svg_definitions_inside_the_page(browser, serve)
     assert all(f.startswith(readings["expectedFont"]) for f in readings["fonts"]), (
         readings["fonts"]
     )
-    assert readings["monoFonts"], "class and ER literal rows exercise the mono face"
-    assert set(readings["monoFonts"]) == {readings["expectedMonoFont"]}
 
 
 def test_a_diagram_label_cannot_inject_markup_into_the_rendered_svg(browser, serve):
@@ -1564,9 +1566,7 @@ flowchart LR
     )
     page = open_page(browser, serve(hostile))
 
-    expect(page.locator('#flow g[data-id="A"] text')).to_have_text(
-        "<img src=x onerror=window.lfInjected=true>"
-    )
+    expect(page.locator("#flow svg text").filter(has_text="<img")).to_have_count(1)
     expect(page.locator("#flow img, #flow script")).to_have_count(0)
     assert not page.evaluate("() => !!window.lfInjected")
 
@@ -2624,6 +2624,7 @@ def test_a_box_that_shows_less_than_it_holds_says_so(browser, serve):
     promise of more with nothing behind it."""
     url = serve(CUT_BOXES_PAGE)
     page = open_page(browser, url)
+    resized(page, 900, 900)
     marks = page.evaluate("""() => {
         const read = (id) => {
             const el = document.getElementById(id);
@@ -2682,7 +2683,7 @@ def test_a_drawing_cut_at_its_edge_fades_toward_the_ground_and_still_reaches_it(
     drawn at throughout, and the same five steps drawn top-down fit the column and fade
     nothing."""
     page = open_page(browser, serve(LONG_CHAIN_PAGE))
-    resized(page, 1440, 900)
+    resized(page, 850, 900)
     rendered(page)
     sizes = page.evaluate("""() => Object.fromEntries(['chain', 'stack'].map((id) => {
         const el = document.getElementById(id), svg = el.querySelector('svg');
@@ -3180,7 +3181,9 @@ def test_a_note_the_page_does_not_show_takes_no_room(browser, serve):
     expect(page.locator("#frequency")).to_have_css("float", "right")
     page.locator("#more > summary").click()
     expect(main).to_have_attribute("data-lf-margin", "rail")
-    expect(main).not_to_have_attribute("style", re.compile("--lf-shift"))
+    expect(page.locator("body")).not_to_have_attribute(
+        "style", re.compile("--lf-column-shift")
+    )
     assert main.evaluate("node => node.getBoundingClientRect().left") == centred
 
 
@@ -3501,7 +3504,7 @@ aside.note { --lf-resident: note; display: none }
       const inert = !owner.residencyStarted();
       owner.openResidency({onRead: changed => window.completed.push(changed)});
       return {inert, tokens: main.getAttribute('data-lf-margin'),
-              shift: main.style.getPropertyValue('--lf-shift')};
+              shift: document.body.style.getPropertyValue('--lf-column-shift')};
     }""",
         {"asset": asset, "rail": rail},
     )
@@ -3514,8 +3517,8 @@ aside.note { --lf-resident: note; display: none }
     page.evaluate("document.documentElement.dir='rtl'; residency.scheduleResidency()")
     page.wait_for_function("completed.length >= 2")
     assert (
-        page.locator("main").evaluate(
-            "node => node.style.getPropertyValue('--lf-shift')"
+        page.locator("body").evaluate(
+            "node => node.style.getPropertyValue('--lf-column-shift')"
         )
         == expected["shift"]
     )

@@ -50,7 +50,7 @@ dependencies = [
   "markdown-it-py>=4",
   "mdit-py-plugins>=0.4",
   "packaging>=22",
-  "playwright>=1.51",
+  "playwright>=1.63",
   "psutil>=6",
   "starlette>=0.48",
   "tinycss2>=1.4",
@@ -120,10 +120,12 @@ leaf-website = { workspace = true }
 # runner sets its count in ci.yaml.
 # `-n0` to debug a single test.
 [tool.pytest.ini_options]
-addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings --image-snapshot-save-diff -p leaf_dev.thread_snapshot_plugin"
+addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings --image-snapshot-save-diff -p leaf_dev.thread_snapshot_plugin -p leaf_dev.suite_profile"
 markers = [
-  "nightly: a pull request can land without it; `--run-nightly` runs it",
-  "watch_shifts: a surveyed nightly test also rejects unsolicited layout shifts and typing that carries its field",
+  "main: a pull request can land without it; each push to main runs it (`--run-main`) unless its cost puts it in `nightly`",
+  "nightly: a push to main skips it; the daily schedule runs it (`--run-nightly`)",
+  "landing: both landing gates run it, whatever it costs or its other marks say",
+  "watch_shifts: a surveyed test marked `main` or `nightly` also rejects unsolicited layout shifts and typing that carries its field",
 ]
 # A test still running after half an hour is hung, not slow: the slowest takes under
 # three minutes on CI, so even ten times slower it finishes. The worker prints every
@@ -133,3 +135,41 @@ markers = [
 # job's six-hour limit.
 faulthandler_timeout = 1800
 faulthandler_exit_on_timeout = true
+
+# Definitions nothing in the tree reaches (pre-commit's `vulture`). Every Python
+# tree is scanned at once, so a use in the tests, the Worker's container or a dev
+# command keeps a definition alive. What a framework calls by name is excluded by
+# the framework's own registration or naming convention, never one dead candidate
+# at a time: a decorator that registers the function, or a name the framework's
+# protocol fixes. A new framework gets its pattern here; a definition only a
+# removed caller used gets deleted.
+[tool.vulture]
+paths = ["build", "dev", "hooks", "skills", "tests", "worker"]
+exclude = ["vendor/", "node_modules/"]
+min_confidence = 60
+ignore_decorators = [
+  "@*.command",
+  "@*.group",
+  "@*.fixture",
+  "@pytest.*",
+  "@atexit.register",
+  "@*.checks",
+]
+ignore_names = [
+  # pytest and its plugins
+  "pytest_*",
+  "pytestmark",
+  "image_snapshot_*",
+  "show_differences",
+  # http.server, socketserver, logging
+  "do_*",
+  "list_directory",
+  "log_message",
+  "daemon_threads",
+  "handlers",
+  # click, uvicorn, markdown-it
+  "get_command",
+  "format_commands",
+  "main_loop",
+  "validateLink",
+]

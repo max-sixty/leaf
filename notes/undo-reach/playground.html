@@ -375,7 +375,7 @@
         return `resolved ${place(e)} again`;
       }
 
-      // Today's notice words (projection/commands.js), which name the kind only.
+      // Today's notice words (undo.js), which name the kind only.
       const TODAY = {
         resolve: "Reopened the thread",
         unresolve: "Resolved the thread again",
@@ -1431,15 +1431,14 @@
         <dl>
           <dt>Last 7 days</dt>
           <dd>
-            <code>projection/commands.js</code> compares the head's <code>ts</code> with
-            the clock. The 7 is a constant someone has to pick, which is the arbitrary
-            limit you wanted to avoid.
+            <code>undo.js</code> compares the head's <code>ts</code> with the clock. The
+            7 is a constant someone has to pick, which is the arbitrary limit you wanted
+            to avoid.
           </dd>
           <dt>This visit only</dt>
           <dd>
-            <code>commands.js</code> notes the undo candidates present at the first
-            reading, and <code>undoable()</code> refuses a head among them. Browser
-            only.
+            <code>undo.js</code> notes the undo candidates present at the first reading,
+            and <code>undoable()</code> refuses a head among them. Browser only.
           </dd>
           <dt>Say what <kbd>z</kbd> takes</dt>
           <dd>
@@ -1448,12 +1447,12 @@
             <code>served_state/browser.py</code> builds that only for a page that shows
             history, so every state read would pay for it. <code>undoSentence</code> and
             the notice read the words in place of the per-kind words in
-            <code>commands.js</code>.
+            <code>undo.js</code>.
           </dd>
           <dt>Show, then take</dt>
           <dd>
             <code>document.py</code> marks each candidate the agent has picked up, from
-            the delivery evidence the workflows already read. <code>commands.js</code>
+            the delivery evidence the workflows already read. <code>undo.js</code>
             holds an armed state that the next gesture or key clears, and so does a
             scroll that takes the target out of view. The reveal goes to the target the
             way an
@@ -1474,8 +1473,8 @@
             <code>document.py</code> serves a redo list;
             <code>projection/model.js</code> lets a local redo override the server's
             reading that the target is withdrawn, as a pending forward action does;
-            <code>commands.js</code> binds <kbd>Z</kbd>; <code>gesture_words.py</code>,
-            the coverage lookup in <code>browser.py</code>, and
+            <code>undo.js</code> binds <kbd>Z</kbd>; <code>gesture_words.py</code>, the
+            coverage lookup in <code>browser.py</code>, and
             <code>projection/presentation.js</code> follow the chain;
             <code>delivery.py</code> carries the restored answer; the undo handling text
             in <code>registry.json</code>, <code>lf-activity.js</code>'s "undone" label,

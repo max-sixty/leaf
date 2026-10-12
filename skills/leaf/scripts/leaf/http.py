@@ -10,7 +10,6 @@ import html
 import json
 import re
 import secrets
-import sys
 import time
 from collections.abc import Mapping
 from dataclasses import replace
@@ -24,27 +23,16 @@ from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 from starlette.responses import Response
 
-from . import presence as presence_model
 from .data import (
     DataError,
     StaleDataError,
     deferred_value,
-    read_contracts,
-    read_data,
-    read_source,
 )
 from .event_endpoint import accept_event, event_fault, event_rejection
-from .event_log import read_events
 from .file_bindings import FileBindingError, StaleFileError, read_file, save_file
 from .files import (
-    latest_revision,
-    list_revisions,
     missing_revision,
-    published_versions,
-    read_json,
-    revision_names,
     revision_num,
-    revision_path,
     stamped_version,
     version_num,
     version_revisions,
@@ -54,13 +42,12 @@ from .layer import foreign_runtime
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .passages import SourceReading
-from .registry.storage import layer_metadata, require_registry
+from .refusals import Refused
+from .registry.storage import layer_metadata
 from .render_checks import PROBE_SOURCES
 from .revision_artifact import (
     Resource,
     RevisionArtifact,
-    read_artifact,
-    read_revision,
 )
 from .revision_delivery import (
     Delivery,
@@ -71,7 +58,6 @@ from .revision_delivery import (
     layer_import_map,
     rebase_document,
 )
-from .revisioning import activate_source
 from .samples import Samples
 from .schema import (
     BINARY_TYPES,
@@ -80,15 +66,12 @@ from .schema import (
     NO_KEY,
     REVISION_NAME,
     SERVED_PATH,
-    VIEWED_FILE,
 )
-from .served_state import reading as served_reading
-from .served_state.service import PageStateService
+from .served_state.service import LivePage, PageSource, PageStateService
 from .server import preview_metadata
-from .service import PageTransaction
-from .state import now_iso, write_json
+from .state import now_iso
 from .structure import FRAME_ANCESTORS_CSP
-from .user_views import FRESH_FOR_S, observe_user_view, read_user_views
+from .user_views import observe_user_view
 
 # How deeply a POSTed body may nest its arrays and objects. What reads a body after the
 # parse recurses: schema validation runs into the interpreter's recursion limit a few
@@ -286,6 +269,14 @@ class PageEndpoint:
         # Set when the route names a child capability, including a revoked one.
         # The opaque child must be able to read refusals and faults as HTTP too.
         self.sample_request = False
+        # The endpoint a sample's child answers inside (`SampleEndpoint`); None for
+        # the authored page.
+        self.parent: PageEndpoint | None = None
+        # A POST's body and the refusal reading it earned, which `_answer` reads only
+        # once the request is authorized. Empty until then, so a fault met before
+        # that still answers in the route's shape.
+        self.posted = {}
+        self.posted_error: str | None = None
 
     @property
     def layer(self) -> str:
@@ -296,11 +287,22 @@ class PageEndpoint:
         """
         return self.layer_identity["generation"] if self.layer_identity else ""
 
+    @property
+    def source(self) -> PageSource:
+        """The page every route reads: the capture this server was given, or the
+        bound page directory, read anew.
+
+        Derived rather than stored, like `layer`, because a multiplexed transport
+        binds the page directory in `_select_page`, after construction."""
+        if self.page_snapshot is not None:
+            return self.page_snapshot
+        return LivePage(self.page_dir, self.layer_identity)
+
     def interaction_owner(self) -> "PageEndpoint":
         """The durable authored page retaining every descendant sample's trace."""
         owner = self
-        while (parent := getattr(owner, "parent", None)) is not None:
-            owner = parent
+        while owner.parent is not None:
+            owner = owner.parent
         return owner
 
     def respond(self) -> Response:
@@ -323,7 +325,7 @@ class PageEndpoint:
         # query strings (including the access key) and request bodies out of it.
         if (
             self.page_dir is not None
-            and getattr(self, "parent", None) is None
+            and self.parent is None
             and not (self.housekeeping and answer.status_code < 400)
         ):
             try:
@@ -369,8 +371,7 @@ class PageEndpoint:
     def _state_service(self) -> PageStateService:
         return PageStateService(
             self.page_dir,
-            page_snapshot=self.page_snapshot,
-            layer_identity=self.layer_identity,
+            source=self.source,
             preview=self.preview,
             publication=self.publication,
         )
@@ -429,25 +430,13 @@ class PageEndpoint:
                 raise ValueError(f"{name} is required")
         view_revision = self.requested_view_revision()
         if view_revision is not None:
-            revisions = (
-                set(self.page_snapshot.artifacts)
-                if self.page_snapshot is not None
-                else set(list_revisions(self.page_dir))
-            )
-            if view_revision not in revisions:
+            if view_revision not in self.source.revision_names:
                 raise ValueError(f"unknown view revision r{view_revision}")
             registry = self._registry(view_revision)
-        elif self.page_snapshot is not None:
-            registry = self.page_snapshot.context.registry
         else:
-            registry = require_registry(self.page_dir)
+            registry = self.source.active_registry()
         self.response_layer = registry["$layer"]["generation"]
-        if self.page_snapshot is not None:
-            reading = self.page_snapshot.context.data["sources"].get(source)
-        elif contract := read_contracts(self.page_dir).get(source):
-            reading = read_source(self.page_dir, source, contract, registry)
-        else:
-            reading = None
+        reading = self.source.data_source(source, registry)
         return deferred_value(
             reading, registry, source=source, revision=revision, key=key
         )
@@ -465,18 +454,9 @@ class PageEndpoint:
         Ordinary state reads and captured previews do not prove a user is looking.
         """
         self.housekeeping = True
-        if self.page_snapshot is not None:
-            reading = self.page_snapshot.reading
-        else:
-            reading = served_reading.join_reading(
-                served_reading.page_reading(self.page_dir),
-                presence_model.presence_reading(self.page_dir),
-            )
-            viewed = (read_json(self.page_dir / VIEWED_FILE) or {"t": 0})["t"]
-            now = time.time()
-            if now - viewed > 30:
-                write_json(self.page_dir / VIEWED_FILE, {"t": now})
-        return self._content(200, "text/plain; charset=utf-8", reading.encode())
+        return self._content(
+            200, "text/plain; charset=utf-8", self.source.news().encode()
+        )
 
     @property
     def key_cookie(self) -> str:
@@ -715,8 +695,6 @@ class PageEndpoint:
             answered = self._select_page()
             if answered is not None:
                 return answered
-            if prepare:
-                self.posted, self.posted_error = {}, None
             sample_answer = self._sample_request()
             if sample_answer is not None:
                 return sample_answer
@@ -774,14 +752,14 @@ class PageEndpoint:
         child = SampleEndpoint(
             self.request,
             self.server,
+            parent=self,
+            path=inside or "/",
+            passive=sample.passive,
+            asset_root=sample.asset_root,
             page_dir=sample.directory,
             layer_identity=sample.layer,
             page_root=f"{self.page_root}/api/samples/{segment}",
         )
-        child.path = inside or "/"
-        child.parent = self
-        child.passive = sample.passive
-        child.asset_root = sample.asset_root
         with sample.lock:
             if sample.closed:
                 return self._not_found()
@@ -814,42 +792,29 @@ class PageEndpoint:
         return response
 
     def _serve_root(self) -> Response:
-        if self.page_snapshot is not None:
-            revision = self.page_snapshot.context.active["revision"]
-            artifact = self.page_snapshot.artifacts[revision]
-            version = self.page_snapshot.context.active["version"]
-        else:
-            with PageTransaction(self.page_dir) as page:
-                activate_source(self.page_dir, transaction=page)
-                revision = latest_revision(self.page_dir)
-                if revision is None:
-                    return self._json({"error": missing_revision(self.page_dir)}, 404)
-                artifact = read_artifact(self.page_dir, revision)
-                version = stamped_version(page.events, revision)
-        return self._serve_document(artifact, revision, version)
+        served = self.source.served_document()
+        if served is None:
+            return self._json({"error": missing_revision(self.page_dir)}, 404)
+        return self._serve_document(*served)
 
     def _revision_name(self, revision: int) -> str:
-        if self.page_snapshot is not None:
-            return self.page_snapshot.revision_names[revision]
-        return revision_path(self.page_dir, revision).name
+        return self.source.revision_names[revision]
 
     def _artifact(self, revision: int) -> RevisionArtifact:
-        if self.page_snapshot is not None:
-            return self.page_snapshot.artifacts[revision]
-        return read_artifact(self.page_dir, revision)
+        return self.source.artifact(revision)
 
     def _reading(self, revision: int) -> SourceReading:
         """One revision's document under its captured vocabulary, without
         materializing its bundle."""
-        if self.page_snapshot is not None:
-            return self.page_snapshot.context.revision(revision)
-        return read_revision(self.page_dir, revision)
+        return self.source.revision(revision)
 
     def _registry(self, revision: int) -> dict:
         return self._reading(revision).registry
 
     def _artifact_root(self, revision: int) -> str:
-        name = self._revision_name(revision).removesuffix(".html")
+        return self._named_root(self._revision_name(revision).removesuffix(".html"))
+
+    def _named_root(self, name: str) -> str:
         return self.page_root.rstrip("/") + f"/revisions/{name}"
 
     def _document_asset_root(self, revision: int) -> str:
@@ -906,13 +871,8 @@ class PageEndpoint:
         )
         if match is None:
             return None
-        revision = int(match.group("revision"))
-        names = (
-            self.page_snapshot.revision_names
-            if self.page_snapshot is not None
-            else revision_names(self.page_dir)
-        )
-        if names.get(revision) != match.group("name") + ".html":
+        revision, name = int(match.group("revision")), match.group("name")
+        if self.source.revision_names.get(revision) != name + ".html":
             return None
         artifact = self._artifact(revision)
         self.response_layer = artifact.registry["$layer"]["generation"]
@@ -920,7 +880,7 @@ class PageEndpoint:
         resource = delivered_resource(
             artifact,
             logical,
-            DeliveryAddress(self.page_root, self._artifact_root(revision)),
+            DeliveryAddress(self.page_root, self._named_root(name)),
         )
         if resource is None:
             return None
@@ -940,18 +900,9 @@ class PageEndpoint:
             return served
         if path.startswith("/versions/"):
             version = version_num(Path(path).name)
-            events = (
-                list(self.page_snapshot.context.events)
-                if self.page_snapshot is not None
-                else read_events(self.page_dir)
-            )
+            events = self.source.events()
             mapping = version_revisions(events)
-            published = (
-                {item["version"] for item in self.page_snapshot.context.versions}
-                if self.page_snapshot is not None
-                else set(published_versions(self.page_dir, events))
-            )
-            if version not in published:
+            if version not in self.source.published_versions(events):
                 return self._json(
                     {"error": "not stamped yet; run `leaf page stamp` first"},
                     404,
@@ -963,42 +914,22 @@ class PageEndpoint:
                 return self._json({"error": "unknown revision resource"}, 404)
             name = Path(path).name
             revision = revision_num(name)
-            revisions = (
-                self.page_snapshot.context.revisions
-                if self.page_snapshot is not None
-                else set(list_revisions(self.page_dir))
-            )
-            if revision not in revisions:
+            if self.source.revision_names.get(revision) != name:
                 return self._json({"error": "unknown revision"}, 404)
-            expected_name = (
-                self.page_snapshot.revision_names.get(revision)
-                if self.page_snapshot is not None
-                else revision_path(self.page_dir, revision).name
-            )
-            if expected_name != name:
-                return self._json({"error": "unknown revision"}, 404)
-            artifact = self._artifact(revision)
-            events = (
-                list(self.page_snapshot.context.events)
-                if self.page_snapshot is not None
-                else read_events(self.page_dir)
-            )
             return self._serve_document(
-                artifact, revision, stamped_version(events, revision)
+                self._artifact(revision),
+                revision,
+                stamped_version(self.source.events(), revision),
             )
         if path == "/registry.json":
-            revision = (
-                self.page_snapshot.context.active["revision"]
-                if self.page_snapshot is not None
-                else latest_revision(self.page_dir)
-            )
+            revision = self.source.active_revision()
             if revision is None:
                 return None
             registry = self._registry(revision)
             self.response_layer = registry["$layer"]["generation"]
             return self._json(registry)
-        if self.page_snapshot is not None and path in self.page_snapshot.data_resources:
-            return self._resource_content(self.page_snapshot.data_resources[path])
+        if (resource := self.source.data_resources.get(path)) is not None:
+            return self._resource_content(resource)
         file = self.page_dir / path.lstrip("/")
         # The allowlist rejects traversal spellings; containment is the second
         # boundary for a page directory edited or symlinked after vendoring.
@@ -1015,7 +946,7 @@ class PageEndpoint:
     def _get(self) -> Response:
         path = self.path
         if match := re.fullmatch(r"/api/files/([^/]+)", path):
-            if self.page_snapshot is not None:
+            if not self.source.writable:
                 return self._refuse("Captured previews cannot read live files.", 403)
             try:
                 return self._json(read_file(self.page_dir, match[1]))
@@ -1030,11 +961,7 @@ class PageEndpoint:
         if path == "/api/news":
             return self._news()
         if path == "/api/user-view":
-            return self._json(
-                read_user_views(self.page_dir, latest_revision(self.page_dir))
-                if self.page_snapshot is None
-                else {"fresh_for_s": FRESH_FOR_S, "sessions": []}
-            )
+            return self._json(self.source.user_views())
         if path == "/api/state":
             # Versions pass through the endpoint's own view, so a preview state
             # agrees with the version it serves.
@@ -1086,9 +1013,9 @@ class PageEndpoint:
                 view_revision = self.requested_view_revision()
             except ValueError as error:
                 return self._refuse(str(error))
-            if self.page_snapshot is not None or (
+            if not self.source.writable or (
                 view_revision is not None
-                and view_revision != latest_revision(self.page_dir)
+                and view_revision != self.source.active_revision()
             ):
                 return self._refuse("This view cannot edit live files.", 403)
             expected_origin = f"{self.request.url.scheme}://{self.request.url.netloc}"
@@ -1114,10 +1041,10 @@ class PageEndpoint:
             if self.posted_error:
                 return self._refuse(self.posted_error)
             # Captured render previews are instruments, not the user's reading.
-            if self.page_snapshot is not None:
+            if not self.source.writable:
                 return self._content(204, "text/plain", b"")
             revision = self.posted.get("revision")
-            revisions = list_revisions(self.page_dir)
+            revisions = self.source.revision_names
             if type(revision) is not int or revision not in revisions:
                 return self._refuse("unknown user view revision")
             checks = self.posted.get("checks")
@@ -1160,27 +1087,21 @@ class PageEndpoint:
         # refusal can therefore name its attempt; media uses the route's generic shape.
         # A sample allocates an independent page from the frozen reading; it does
         # not write to the preview's parent.
-        if self.page_snapshot is not None and path != "/api/samples":
+        if not self.source.writable and path != "/api/samples":
             return self._refuse("the preview server is read-only", 403)
         try:
             view_revision = self.requested_view_revision(header=True)
         except ValueError as error:
             return self._refuse(str(error))
-        revisions = (
-            self.page_snapshot.artifacts
-            if self.page_snapshot is not None
-            else list_revisions(self.page_dir)
-        )
-        if view_revision is not None and view_revision not in revisions:
+        if (
+            view_revision is not None
+            and view_revision not in self.source.revision_names
+        ):
             return self._refuse(f"unknown view revision r{view_revision}")
         if view_revision is not None:
             current_layer = self._registry(view_revision)["$layer"]["generation"]
         else:
-            active_revision = (
-                self.page_snapshot.context.active["revision"]
-                if self.page_snapshot is not None
-                else latest_revision(self.page_dir)
-            )
+            active_revision = self.source.active_revision()
             current_layer = (
                 self._registry(active_revision)["$layer"]["generation"]
                 if active_revision is not None
@@ -1208,19 +1129,10 @@ class PageEndpoint:
             if revision is None:
                 return self._refuse("sample requires an active parent revision")
             try:
-                if self.page_snapshot is not None:
-                    artifact = self._artifact(revision)
-                    events = list(self.page_snapshot.context.events)
-                    data = self.page_snapshot.context.data
-                    asset_root = self._sample_asset_root(revision)
-                else:
-                    with PageTransaction(self.page_dir) as page:
-                        artifact = self._artifact(revision)
-                        events = page.events
-                        data = read_data(self.page_dir, artifact.registry)
-                        asset_root = self._sample_asset_root(revision)
-                # Allocation validates and writes only the child's directory.
-                # Its parent reading is complete before releasing the log lease.
+                # The parent reading is complete before allocation, which validates
+                # and writes only the child's directory.
+                artifact, events, data = self.source.sample_inputs(revision)
+                asset_root = self._sample_asset_root(revision)
                 identity = self.server.samples.create(
                     self.page_dir,
                     artifact,
@@ -1260,6 +1172,24 @@ class PageEndpoint:
 
 class SampleEndpoint(PageEndpoint):
     """A normal child page authorized by its scoped, unguessable route."""
+
+    def __init__(
+        self,
+        request: Request,
+        server,
+        *,
+        parent: PageEndpoint,
+        path: str,
+        passive: bool,
+        asset_root: str | None,
+        **binding,
+    ) -> None:
+        super().__init__(request, server, **binding)
+        self.parent = parent
+        # The address inside the child, below the capability its parent matched.
+        self.path = path
+        self.passive = passive
+        self.asset_root = asset_root
 
     def authorized(self) -> bool:
         return True
@@ -1306,7 +1236,7 @@ def page_endpoint(
     The layer identity and the preview reading are read once here rather than per
     request: they are facts about the vendored page this server was started over. So
     is whether this Leaf can serve that page at all: every one-page server, durable
-    or temporary, passes here before it binds, and exits naming the re-vendor when
+    or temporary, passes here before it binds, and refuses naming the re-vendor when
     the page's runtime came from another Leaf (`foreign_runtime`).
     The key has no default: every server over a page directory is reachable by
     whatever reached the machine, so there is no construction that should quietly go
@@ -1317,7 +1247,7 @@ def page_endpoint(
         else layer_metadata(page_dir)
     )
     if refusal := foreign_runtime(page_dir, identity):
-        sys.exit(refusal)
+        raise Refused(refusal)
     return partial(
         endpoint,
         page_dir=page_dir,

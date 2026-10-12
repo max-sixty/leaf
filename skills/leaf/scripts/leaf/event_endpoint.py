@@ -9,7 +9,6 @@ this endpoint shares with every other writer.
 from collections.abc import Callable
 from pathlib import Path
 
-from .activity import takes_input
 from .event_contracts import (
     EventRefused,
     admitting_registry,
@@ -18,12 +17,12 @@ from .event_contracts import (
 )
 from .event_log import AttemptConflict
 from .harness import claim_harness
-from .leases import wait_is_live
 from .page_view import PageView
-from .presence import claimant_reading
+from .presence import nudge_unwatched
 from .registry.contract import RegistryError
 from .registry.kernel import kernel_event_ownership
 from .registry.schema import json_value
+from .schema import MESSAGE_KINDS
 from .service import PageTransaction, requires_agent_attention
 from .thread_titles import name_admitted_thread
 
@@ -49,35 +48,6 @@ def event_fault(event: dict, error: str) -> EventAnswer:
     return 500, body
 
 
-def _accepted_retry(
-    page: PageTransaction, event: dict
-) -> tuple[bool, EventAnswer | None]:
-    """Read an attempted retry before mutable-state validation."""
-    if "attempt" not in event:
-        return False, None
-    # The append gate enriches an abbreviated text anchor with its canonical
-    # context. A later retry still carries the original browser payload, so compare
-    # it as that same payload rather than treating server-added fields as a conflict.
-    existing = next(
-        (logged for logged in page.events if logged.get("attempt") == event["attempt"]),
-        None,
-    )
-    if (
-        existing
-        and event.get("kind") == existing.get("kind") == "comment"
-        and isinstance(event.get("anchor"), dict)
-        and isinstance(existing.get("anchor"), dict)
-    ):
-        for field, value in existing["anchor"].items():
-            event["anchor"].setdefault(field, value)
-    event["author"] = "user"
-    try:
-        existing = page.matching_attempt(event)
-    except AttemptConflict as error:
-        return False, event_rejection(event, str(error), 409)
-    return bool(existing), None
-
-
 def accept_event(
     page_dir: Path,
     event: dict,
@@ -86,7 +56,7 @@ def accept_event(
     """Validate and append one browser record, then return its current state."""
     status, answer = _receive_event(page_dir, event)
     # Admission has released its transaction before this reader takes a fresh one.
-    # A refusal also restores the tab from current truth, including other tabs' moves.
+    # A refusal also restores the tab from current truth, including other tabs' updates.
     return status, {**answer, "state": state()}
 
 
@@ -111,6 +81,7 @@ def _receive_event(page_dir: Path, event: dict) -> EventAnswer:
     # copies before validation prevents them from entering attempt identity too.
     for field in kernel_event_ownership()["browser_discard"]:
         event.pop(field, None)
+    event["author"] = "page" if kind == "error" else "user"
     if error := browser_command_error(contracts[kind], event):
         return event_rejection(event, f"{kind} event is invalid: {error}")
     # A fault raises out of here, before or after the append, and the transport's
@@ -135,38 +106,22 @@ def _execute_event(
     """
     spoken = None
     with PageTransaction(page_dir) as page:
-        # Acceptance outranks mutable state validation. A retry for an accepted
-        # attempt asks for its state; it does not repeat the gesture.
-        accepted, rejection = _accepted_retry(page, event)
-        if rejection:
-            return rejection
-        if not accepted:
-            event["author"] = "page" if event["kind"] == "error" else "user"
-            try:
-                admitted = append_admitted(page, event)
-            except EventRefused as error:
-                return event_rejection(event, error.user)
-            except RegistryError as error:
-                return event_rejection(event, str(error))
+        try:
+            # A retry for an accepted attempt asks for its state; the door returns
+            # that record unappended rather than repeating the gesture.
+            admitted, appended = append_admitted(page, event)
+        except AttemptConflict as error:
+            return event_rejection(event, str(error), 409)
+        except EventRefused as error:
+            return event_rejection(event, error.user)
+        except RegistryError as error:
+            return event_rejection(event, str(error))
+        if appended:
             claim = page.active_claim
-            # Input no watcher will pick up: the claimant takes no input, by the
-            # activity fold's own reading (`activity.takes_input`), because its
-            # turn was seen to end — closed by the Stop hook, or interrupted as
-            # its harness's record says — and no wait lease is held. A turn Leaf
-            # only stopped believing in may still be running a long step, and a
-            # running turn needs no nudge, because its Stop hook refuses to end
-            # with the input unpicked. Each ending gets one nudge per page, named
-            # by the claim's turn and the stamp that ended or last renewed it, so
-            # a user ticking three boxes queues one turn or one approval rather
-            # than three, while a turn interrupted again after a new prompt is
-            # messaged again. The claimant's harness decides whether its session
-            # can be reached at all and what to say; a harness whose watcher is a
-            # process of its own has nowhere to put this and answers no. It is
-            # sent under the lock, so the mark it leaves is exact: a local socket
-            # accepts or refuses at once, and input after a refusal tries again.
+            # Input that asks for the agent reaches it even when no watcher will.
             if requires_agent_attention(admitted):
                 nudge_unwatched(page)
-            if event["kind"] in ("comment", "reply") and claim:
+            if event["kind"] in MESSAGE_KINDS and claim:
                 spoken = admitted["id"], claim
     # A comment opens a thread with no name, and the claimant's harness names it from
     # its words while the agent is still reading them; a reply names a thread its
@@ -175,24 +130,3 @@ def _execute_event(
     if spoken and (generate := claim_harness(spoken[1]).title_generator()):
         name_admitted_thread(generate, page_dir, spoken[0], spoken[1]["id"])
     return 200, {"ok": True}
-
-
-def nudge_unwatched(page: PageTransaction) -> None:
-    """Message the claimant of a page holding input nothing will carry, once per
-    ending of its turn (`session-lifetime.md`, Watchers): no wait lease is held,
-    and its turn has ended, so nothing takes input by the activity fold's reading
-    (`activity.takes_input`). Run under the page's lock, which makes the mark it
-    leaves exact."""
-    claim, page_dir = page.active_claim, page.page_dir
-    if not claim or wait_is_live(page_dir, claim["id"]):
-        return
-    present, turn = claimant_reading(page_dir, page.events)
-    stamp = claim.get("turn_closed") or claim.get("turn_opened")
-    mark = f"{claim['turn']}@{stamp}"
-    if (
-        turn.ended is not None
-        and not takes_input(present, turn)
-        and claim.get("messaged_ending") != mark
-        and claim_harness(claim).nudge(page_dir)
-    ):
-        page.note_messaged(mark)

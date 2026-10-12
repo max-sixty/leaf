@@ -20,6 +20,7 @@ import json
 import os
 import re
 import shutil
+import urllib.error
 import urllib.request
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
@@ -80,7 +81,7 @@ GALLERY_THREAD_TEXT = "Gallery thread: I moved the practice exercise before lunc
 
 # The module-scoped build and host are one shared setup, so they belong to one
 # xdist work unit rather than being rebuilt independently on every worker.
-pytestmark = [pytest.mark.nightly, pytest.mark.xdist_group(name="site")]
+pytestmark = [pytest.mark.main, pytest.mark.xdist_group(name="site")]
 
 
 def sample_address(frame):
@@ -177,7 +178,8 @@ class ReleasedAssetEndpoint(website_server.WebsitePageEndpoint):
     the adapter up alone serves a document whose runtime nothing answers for.
 
     The rewrite is `releaseAssetRoute`'s: the key after the release names the page,
-    and what follows it is that page's own published path under the asset tree.
+    and what follows it is that page's own published path under the asset tree. The
+    delivery headers are `stampDelivery`'s, which the runtime's probes read.
     """
 
     def __init__(self, request, server, *, asset_tree: Path, **bound) -> None:
@@ -207,6 +209,8 @@ class ReleasedAssetEndpoint(website_server.WebsitePageEndpoint):
                 {
                     "Access-Control-Allow-Origin": "*",
                     "Access-Control-Expose-Headers": "*",
+                    "Leaf-Layer": page["layer"],
+                    "Leaf-Release": self.release,
                 }
             )
             return response
@@ -600,7 +604,7 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
         assert set(contracts) == {operation["source"] for operation in operations}
         for operation in operations:
             stored = data_model.source_file(page_dir, operation["source"])
-            assert json.loads(stored.read_text()) == operation["value"]
+            assert json.loads(stored.read_text())["value"] == operation["value"]
 
         for name in (
             "events.jsonl",
@@ -690,9 +694,7 @@ def test_a_nested_page_keeps_one_draft_across_its_version_addresses(
 
     opened(page, f"{url}versions/v1.html")
     expect(page.locator(".lf-version")).to_have_text("Showing v1")
-    expect(
-        page.locator(".lf-page-comment-card .lf-general leaf-text")
-    ).to_have_js_property("value", "Kept across addresses")
+    expect(page_comment(page)).to_have_js_property("value", "Kept across addresses")
 
 
 def test_the_published_notification_example_runs_its_authored_module(
@@ -722,7 +724,7 @@ def test_published_visual_evidence_loads_from_its_page(served_example, browser):
         expect(option).to_be_visible()
         option.click()
         # Web Awesome finishes hiding the listbox after it records the selection.
-        expect(case_select.locator('[part="listbox"]')).to_have_attribute("hidden", "")
+        expect(case_select.locator('[part~="listbox"]')).to_have_attribute("hidden", "")
         expect(case_select).to_have_js_property("value", case_id)
         comparison = review.locator(".lf-vr-case:not([hidden]) lf-shot")
         expect(comparison).to_be_visible()
@@ -1143,6 +1145,27 @@ def test_a_link_that_reaches_nothing_stops_the_build(staged_site):
     with pytest.raises(SystemExit) as stopped:
         site_build.check_links(staged_site)
     assert "whats-new.html" in str(stopped.value)
+
+
+@pytest.mark.parametrize(
+    "target", ["/examples/triage-board/events.jsonl", "/_leaf/site.json"]
+)
+def test_a_link_to_a_built_file_the_server_does_not_route_stops_the_build(
+    staged_site, hosted, target
+):
+    """The build holds each page's log and the site's own manifest, but the server
+    routes only a page's document and served resources, so these links 404 live."""
+    assert (staged_site / target.lstrip("/")).is_file()
+    with pytest.raises(urllib.error.HTTPError) as missing:
+        urllib.request.urlopen(f"{hosted}{target}")
+    assert missing.value.code == 404
+    (site_build.product_page(staged_site, "index.html") / "index.html").write_text(
+        f'<a href="{target}">record</a>'
+    )
+
+    with pytest.raises(SystemExit) as stopped:
+        site_build.check_links(staged_site)
+    assert target in str(stopped.value)
 
 
 def test_a_directory_link_with_no_index_stops_the_build(staged_site):
@@ -2239,7 +2262,9 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
         "links => links.map(link => link.getAttribute('href'))"
     ) == ["/examples/", "/#install"]
     expect(page.locator(".sitenote")).to_have_count(0)
-    expect(page.locator(".lf-banner .lf-dot")).to_have_class(re.compile(r"^lf-dot\s*$"))
+    assert page.locator(".lf-banner .lf-dot").evaluate("dot => [...dot.classList]") == [
+        "lf-dot"
+    ]
     state = page.evaluate("() => fetch('api/state').then(r => r.json())")
     assert state["publication"] == {
         "kind": "example",
@@ -2311,7 +2336,8 @@ def test_shipped_data_opens_in_its_package_projection(site, served_example, brow
         site / "examples" / "command-hub", "atlas-worktrees"
     )
     assert (
-        json.loads(stored.read_text())["tree-w-1"]["branch"] == "atlas/xml-declarations"
+        json.loads(stored.read_text())["value"]["tree-w-1"]["branch"]
+        == "atlas/xml-declarations"
     )
 
     _, url = served_example("command-hub")

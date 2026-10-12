@@ -8,13 +8,13 @@ combination. A source digest refuses a replacement prepared against other inputs
 
 import hashlib
 import json
-import sys
 from pathlib import Path
 
 from leaf.files import stamped_version
 from leaf.harness import message_identity
 from leaf.leases import contract_writer
 from leaf.projection import folded_value, markup_value, page_reading
+from leaf.refusals import Refused
 from leaf.revisioning import planned_activation, publish_checked_event
 from leaf.service import PageTransaction
 from leaf.tasks import owed_tasks
@@ -69,16 +69,16 @@ def _stamp_candidate(page_dir: Path, events: list):
     """Check the exact source and determine its revision without publishing it."""
     checked = check_source(page_dir, events)
     if checked.errors:
-        sys.exit(f"refusing to stamp index.html: {'; '.join(checked.errors)}")
+        raise Refused(f"refusing to stamp index.html: {'; '.join(checked.errors)}")
     return checked, planned_activation(page_dir, checked)
 
 
 def _stamp_reading(events: list, checked, revision: int):
     if existing := stamped_version(events, revision):
-        sys.exit(f"revision r{revision} is already stamped as v{existing}")
+        raise Refused(f"revision r{revision} is already stamped as v{existing}")
     registry = checked.registry
     if registry is None:
-        sys.exit("refusing to stamp index.html: the page has no registry.json")
+        raise Refused("refusing to stamp index.html: the page has no registry.json")
     page = page_reading(checked.reading, events, revision)
     return registry, page.projection, page.document, page.spoken
 
@@ -94,18 +94,20 @@ def _completed_tasks(
     establish that the task is complete.
     """
     if len(set(completes)) != len(completes):
-        sys.exit("--completes names each widget at most once")
+        raise Refused("--completes names each widget at most once")
     tasks = owed_tasks(events)
     on_widgets = [task for task in tasks if task["subject"]["kind"] == "widget"]
     unearned = sorted(set(completes) - {task["subject"]["id"] for task in on_widgets})
     if unearned:
-        sys.exit("no open task on " + ", ".join(repr(widget) for widget in unearned))
+        raise Refused(
+            "no open task on " + ", ".join(repr(widget) for widget in unearned)
+        )
     completed = [task for task in on_widgets if task["subject"]["id"] in completes]
     not_later = sorted(
         {task["subject"]["id"] for task in completed if revision <= task["revision"]}
     )
     if not_later:
-        sys.exit(
+        raise Refused(
             f"revision r{revision} is not later than the open task on "
             + ", ".join(repr(widget) for widget in not_later)
         )
@@ -177,7 +179,7 @@ def cmd_stamp(
     """Map the exact current source to the next public version."""
     body = read_text_arg(page_dir, text)
     if (from_directory is None) != (if_source is None):
-        sys.exit("--from-directory and --if-source are used together")
+        raise Refused("--from-directory and --if-source are used together")
     incoming = (
         authored_files(from_directory / "index.html", from_directory / "page")
         if from_directory is not None
@@ -188,7 +190,7 @@ def cmd_stamp(
             return _stamp_locked(page_dir, page, body, completes)
         previous = authored_files(page_dir / "index.html", page_dir / "page")
         if authored_digest(previous) != if_source:
-            sys.exit("authored inputs changed; reconcile them before retrying")
+            raise Refused("authored inputs changed; reconcile them before retrying")
         try:
             write_authored_files(page_dir, incoming, previous)
             return _stamp_locked(page_dir, page, body, completes)

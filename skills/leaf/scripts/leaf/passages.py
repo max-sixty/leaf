@@ -3,13 +3,12 @@
 import re
 from functools import cached_property, lru_cache
 from html import escape
-from html.parser import HTMLParser
 from typing import NamedTuple
 from urllib.parse import urlsplit
 
 import turbohtml
 
-from .structure import VOID_TAGS, SourceDocument
+from .structure import VOID_TAGS, SourceDocument, pre_body
 
 # ---------- passages: the text an anchor points at ----------
 # The runtime resolves an anchor against the DOM; `leaf thread open` writes one down
@@ -79,24 +78,33 @@ COLLAPSE_CHARS = frozenset(
 COLLAPSE = re.compile("[" + re.escape("".join(sorted(COLLAPSE_CHARS))) + "]+")
 
 
-class _RenderedInlineWords(HTMLParser):
+def _rendered(markup: str):
+    """Rendered Markdown as the browser's tree holds it once set as a block's
+    content."""
+    return turbohtml.parse_fragment(markup, context="div", positions=False)
+
+
+def _rendered_words(markup: str, *, image_alt=False) -> str:
     """Read rendered text as the DOM does; image labels also read nested image alts."""
+    parts = []
 
-    def __init__(self, *, image_alt=False):
-        super().__init__(convert_charrefs=True)
-        self.parts = []
-        self.image_alt = image_alt
+    def read(node):
+        if isinstance(node, turbohtml.Text):
+            parts.append(node.data)
+        elif isinstance(node, turbohtml.Element):
+            if image_alt and node.tag == "img":
+                parts.append(node.attrs["alt"])
+            for child in node.children:
+                read(child)
 
-    def handle_data(self, data):
-        self.parts.append(data)
-
-    def handle_starttag(self, tag, attrs):
-        if self.image_alt and tag == "img":
-            self.parts.append(dict(attrs)["alt"])
+    read(_rendered(markup))
+    return "".join(parts)
 
 
 @lru_cache(maxsize=2)
-def _inline_markdown(added: bool):
+def _markdown_dialect(added: bool):
+    """The browser's safe Markdown dialect; `added` reads soft line breaks as hard
+    ones, as a user-created child and a block body render them."""
     from markdown_it import MarkdownIt
     from mdit_py_plugins.tasklists import tasklists_plugin
 
@@ -111,9 +119,9 @@ def _inline_markdown(added: bool):
 
     def safe_image(tokens, idx, options, env):
         token = tokens[idx]
-        words = _RenderedInlineWords(image_alt=True)
-        words.feed(parser.renderer.renderInline(token.children, options, env))
-        alt = "".join(words.parts)
+        alt = _rendered_words(
+            parser.renderer.renderInline(token.children, options, env), image_alt=True
+        )
         token.attrSet("alt", alt)
         if urlsplit(token.attrGet("src") or "").scheme not in (
             "",
@@ -160,32 +168,24 @@ def _inline_markdown(added: bool):
 
 
 def inline_markdown_words(source: str, *, added: bool = False) -> str:
-    reader = _RenderedInlineWords()
-    reader.feed(_inline_markdown(added).renderInline(source))
-    return "".join(reader.parts)
+    return _rendered_words(_markdown_dialect(added).renderInline(source))
+
+
+def block_markdown():
+    """The shared safe block Markdown dialect: the browser's `makeMarkdown`, with its
+    linkify and task lists, which messages and Markdown bodies render in."""
+    return _markdown_dialect(True)
 
 
 def markdown_markup(source: str) -> str:
     """The shared safe block Markdown dialect, as inert markup for passage reading."""
-    return _inline_markdown(True).render(source)
+    return block_markdown().render(source)
 
 
 def feed_markdown(parser, source: str) -> None:
     """Apply inert rendered markup through the ordinary passage handlers."""
-
-    class Fragment(HTMLParser):
-        def handle_starttag(self, tag, attrs):
-            parser.handle_starttag(tag, attrs)
-
-        def handle_endtag(self, tag):
-            parser.handle_endtag(tag)
-
-        def handle_data(self, data):
-            parser.handle_data(data)
-
-    fragment = Fragment(convert_charrefs=True)
-    fragment.feed(markdown_markup(source))
-    fragment.close()
+    for child in _rendered(markdown_markup(source)).children:
+        _walk(parser, child)
 
 
 def shown_words(words: str, entry: dict, *, added: bool) -> str:
@@ -196,9 +196,7 @@ def shown_words(words: str, entry: dict, *, added: bool) -> str:
     if entry.get("x-text-format") == "inline-markdown":
         return inline_markdown_words(words, added=added)
     if entry.get("x-text-format") == "markdown":
-        reader = _RenderedInlineWords()
-        reader.feed(markdown_markup(words))
-        return "".join(reader.parts)
+        return _rendered_words(markdown_markup(words))
     return words
 
 
@@ -577,21 +575,11 @@ class _PassageParser:
             self.shown[frame["shows"]] = self.shown.get(frame["shows"], "") + data
 
     def handle_endtag(self, tag):
+        # Every caller walks a parsed tree or replays a declared child, so ends arrive
+        # balanced and this one closes the innermost open element.
         if tag in VOID_TAGS:
             return
-        for i in range(len(self.stack) - 1, -1, -1):
-            if self.stack[i]["tag"] == tag:
-                # Innermost first, so an element closing over unclosed children ends them
-                # in the order they were opened in.
-                while len(self.stack) > i:
-                    self._close(self.stack.pop())
-                return
-
-    def close(self):
-        # Generated fragments call this reader's handlers directly. Close any such
-        # remaining frames just as the browser tree closes them at the fragment edge.
-        while self.stack:
-            self._close(self.stack.pop())
+        self._close(self.stack.pop())
 
 
 class Passages(NamedTuple):
@@ -608,6 +596,29 @@ class Passages(NamedTuple):
     verbatim: dict  # source provenance → compositional words with upgraded descendants as boundaries
 
 
+def _walk(parser: "_PassageParser", node) -> None:
+    """Hand one parsed node and its subtree to the passage reader, in document order:
+    a Markdown-bodied element reads its body as rendered Markdown."""
+    if isinstance(node, turbohtml.Text):
+        parser.handle_data(node.data)
+        return
+    if not isinstance(node, turbohtml.Element):
+        return
+    parser.handle_starttag(
+        node.tag,
+        [
+            (name, " ".join(value) if isinstance(value, list) else value)
+            for name, value in node.attrs.items()
+        ],
+    )
+    if parser.registry.get(node.tag, {}).get("x-text-format") == "markdown":
+        feed_markdown(parser, pre_body(node))
+    else:
+        for child in node.children:
+            _walk(parser, child)
+    parser.handle_endtag(node.tag)
+
+
 def page_passages(
     document: SourceDocument,
     registry=None,
@@ -617,41 +628,8 @@ def page_passages(
     source=("page", None),
 ) -> Passages:
     parser = _PassageParser(registry, decided, rewrites, additions, source)
-
-    def attrs(element):
-        return [
-            (name, " ".join(value) if isinstance(value, list) else value)
-            for name, value in element.attrs.items()
-        ]
-
-    def walk(node):
-        if isinstance(node, turbohtml.Text):
-            parser.handle_data(node.data)
-            return
-        if not isinstance(node, turbohtml.Element):
-            return
-        parser.handle_starttag(node.tag, attrs(node))
-        entry = (registry or {}).get(node.tag, {})
-        if entry.get("x-text-format") == "markdown":
-            pre = next(
-                child
-                for child in node.children
-                if isinstance(child, turbohtml.Element) and child.tag == "pre"
-            )
-            body = "".join(
-                child.data
-                for child in pre.children
-                if isinstance(child, turbohtml.Text)
-            )
-            feed_markdown(parser, body)
-        else:
-            for child in node.children:
-                walk(child)
-        parser.handle_endtag(node.tag)
-
     for child in document.tree.children:
-        walk(child)
-    parser.close()
+        _walk(parser, child)
     return Passages(
         "".join(parser.chars),
         parser.owner,
@@ -702,6 +680,14 @@ def _spoken(p: Passages) -> dict:
     return {wid: Spoken(said.get(wid, ""), chain) for wid, chain in p.enclosing.items()}
 
 
+class SourceInventory(NamedTuple):
+    """Compact authored facts needed by scans across an entire revision history."""
+
+    ids: tuple[str, ...]
+    questions: dict
+    data_documents: list
+
+
 class SourceReading:
     """One document read under one vocabulary, each reading taken once.
 
@@ -725,6 +711,18 @@ class SourceReading:
     def __init__(self, document: SourceDocument, registry: dict | None):
         self.document = document
         self.registry = registry or {}
+
+    @cached_property
+    def inventory(self) -> SourceInventory:
+        """Read historical consumers together, without retaining parser records."""
+        from .data_contracts import data_document_readings
+        from .questions import question_registrations
+
+        return SourceInventory(
+            tuple(self.document.ids),
+            question_registrations(self.document, self.registry),
+            data_document_readings(self.document, "", self.registry),
+        )
 
     @cached_property
     def passages(self) -> Passages:

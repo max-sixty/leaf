@@ -88,7 +88,7 @@ revision the vocabulary won 3, 2 and 1 of the three queue, dashboard and documen
 pairs, and every revision met the width preference.
 Its reasons kept naming tiny text at 900px and on a phone, which the render check
 now reads at every swept width, and an Ask whose premise and controls fall below the
-first screen (TODO.md, "Verify the Ask's premise").
+first screen (TODO.md, "Measure how often agents produce bad pages").
 
 ## Remaining evaluation gaps
 

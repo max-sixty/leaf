@@ -58,6 +58,7 @@ function endpoint({
   author = "dependabot[bot]",
   extra = [],
   race = false,
+  lock = "pnpm-lock.yaml",
 } = {}) {
   const calls = [];
   const api = async (method, route, data) => {
@@ -77,7 +78,7 @@ function endpoint({
       ];
     if (route.includes("/files?"))
       return [
-        { filename: "package-lock.json" },
+        ...(lock ? [{ filename: lock }] : []),
         ...extra.map((filename) => ({ filename })),
       ];
     if (method === "GET") return { tree: { sha: "old-tree" } };
@@ -91,7 +92,9 @@ function endpoint({
 }
 
 test("publisher changes only bundles on the exact Dependabot branch and preserves parent custody", async () => {
-  const { api, calls } = endpoint();
+  const { api, calls } = endpoint({
+    extra: ["package.json", "pnpm-workspace.yaml"],
+  });
   assert.equal(await publish(api, repo, run, artifact), "generated-commit");
   assert.deepEqual(calls.find((c) => c.route.endsWith("/trees")).data.tree, [
     { path, mode: "100644", type: "blob", content: "new bundle" },
@@ -128,9 +131,15 @@ test("publisher refuses untrusted paths, foreign builds and non-dependency sourc
     await assert.rejects(publish(api, repo, badRun, artifact));
     assert.equal(calls.length, 0);
   }
-  const { api, calls } = endpoint({ extra: ["build/vendor.py"] });
-  await assert.rejects(publish(api, repo, run, artifact), /non-bundle source/);
-  assert.ok(calls.every((c) => c.method === "GET"));
+  for (const options of [
+    { extra: ["build/vendor.mjs"] },
+    { lock: "package-lock.json" },
+    { lock: null, extra: ["package.json", "pnpm-workspace.yaml"] },
+  ]) {
+    const { api, calls } = endpoint(options);
+    await assert.rejects(publish(api, repo, run, artifact), /non-bundle source/);
+    assert.ok(calls.every((c) => c.method === "GET"));
+  }
 });
 
 test("superseded heads and other authors cannot publish; a race refuses the final write", async () => {

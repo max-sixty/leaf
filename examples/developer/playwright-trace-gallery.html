@@ -14,8 +14,8 @@
         <p>
           This ordinary website has two buttons named Review. Playwright recorded each
           click; Leaf's comments identify the captured action, image or saved element.
-          Play the captured sequence, or drag the blue handle to scrub and pause on a
-          detail.
+          Each click is a bar spanning its recorded call, so the review shows what the
+          page looked like before, during and after it.
         </p>
       </header>
       <section id="trace-review">
@@ -43,9 +43,14 @@
             individual page filters; a single-page recording needs no selector.
           </li>
           <li>
-            Select Documentation reviewed or API reviewed on the timeline. Hover or
-            focus each number to read its name and time; close moments stay separate.
-            Zoom in to spread their times and Whole recording to restore the overview.
+            Select Documentation reviewed or API reviewed on the timeline. Hover a flag
+            to read its moments' names and times; moments too close to label apart share
+            one flag. Zoom in, or pinch, to separate them; scroll sideways to pan, and
+            Whole recording restores the overview.
+          </li>
+          <li>
+            Drag along the ruler, or drag the playhead, to scrub. Between captures the
+            readout names the capture on screen and when it was taken.
           </li>
           <li>
             Start playback and scroll down over the captured image until the controls
@@ -60,8 +65,9 @@
             tree shows its own capture time.
           </li>
           <li>
-            Enable Show intermediate frames to include the browser’s filmstrip on that
-            same timeline. Left and Right step through the displayed stops.
+            Intermediate filmstrip images share the action timeline. Left and Right step
+            through its captured stops; Home keeps the first available image visible
+            with its capture time.
           </li>
           <li>
             Comment on one saved Review button, move to another action, and follow the

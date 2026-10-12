@@ -14,7 +14,7 @@ from leaf.state import EVENTS_FILE
 def resolve_dir(dir_arg: str, must_exist: bool = True) -> Path:
     page_dir = Path(dir_arg).expanduser().resolve()
     if must_exist and not (page_dir / EVENTS_FILE).is_file():
-        sys.exit(
+        raise click.ClickException(
             f"{page_dir} is not an initialized page; "
             f"run `leaf page init {shlex.quote(str(page_dir))}`"
         )
@@ -58,29 +58,20 @@ def _leaf_root(ctx: click.Context, _param: click.Parameter, value: bool) -> None
 
 
 class LeafGroup(click.Group):
-    """Present domain refusals like Click errors at the command boundary.
+    """Present a domain refusal (`refusals.Refused`) as a Click error.
 
-    Domain writers also serve harnesses and raise SystemExit with their reason
-    or ReceiptRefused for delivery custody and captured-log refusals.
-    Numeric exit statuses (including a package script's status) retain their
-    meaning and output; unexpected exceptions still surface.
+    This is the command line's one translation of a refusal. Exit statuses
+    (including a package script's) keep their meaning and output, and any other
+    exception surfaces with its traceback.
     """
 
     def invoke(self, ctx: click.Context):
+        from leaf.refusals import Refused
+
         try:
             return super().invoke(ctx)
-        except SystemExit as error:
-            if isinstance(error.code, str):
-                raise click.ClickException(error.code) from error
-            raise
-        except (click.exceptions.Exit, click.Abort):
-            raise
-        except RuntimeError as error:
-            from leaf.delivery import ReceiptRefused
-
-            if isinstance(error, ReceiptRefused):
-                raise click.ClickException(str(error)) from error
-            raise
+        except Refused as error:
+            raise click.ClickException(str(error)) from error
 
 
 @click.group(cls=LeafGroup)
@@ -118,10 +109,7 @@ def codex_launch(codex_path: str | None) -> None:
     """
     from leaf.codex_adapter import cmd_codex_launch
 
-    try:
-        sys.exit(cmd_codex_launch(codex_path))
-    except RuntimeError as error:
-        raise click.ClickException(str(error)) from error
+    sys.exit(cmd_codex_launch(codex_path))
 
 
 @codex.command("start", short_help="Keep PAGE connected after this turn ends.")
@@ -140,10 +128,7 @@ def codex_start(
     """Start one task-wide delivery adapter and claim PAGE for it."""
     from leaf.codex_adapter import cmd_codex_start
 
-    try:
-        print(json.dumps(cmd_codex_start(resolve_dir(dir), codex_path, app_server)))
-    except RuntimeError as error:
-        raise click.ClickException(str(error)) from error
+    print(json.dumps(cmd_codex_start(resolve_dir(dir), codex_path, app_server)))
 
 
 @codex.command("run", hidden=True)
@@ -576,13 +561,13 @@ def interactions(
     try:
         start = interaction_time(since) if since else None
         stop = interaction_time(until) if until else None
-        if start is not None and stop is not None and start >= stop:
-            raise ValueError("--since must precede --until")
-        rows = read_interactions(
-            resolve_dir(dir), session=session, since=start, until=stop, types=types
-        )
     except ValueError as error:
         raise click.ClickException(str(error)) from error
+    if start is not None and stop is not None and start >= stop:
+        raise click.ClickException("--since must precede --until")
+    rows = read_interactions(
+        resolve_dir(dir), session=session, since=start, until=stop, types=types
+    )
     for row in rows:
         click.echo(
             json.dumps(row, ensure_ascii=False) if as_json else format_interaction(row)
@@ -592,13 +577,12 @@ def interactions(
 @page.command(short_help="Take a page this session did not serve.")
 @click.argument("dir", metavar="PAGE")
 def claim(dir: str) -> None:
-    """Make PAGE this session's, as a named `leaf wait PAGE` does before it
-    watches, for a harness whose own hook watches between turns. A watch another
-    session runs stops watching it."""
+    """Make PAGE this session's, for a harness whose own hook watches between
+    turns. A watch another session runs stops watching it."""
     from leaf.service import claim_page
 
     if not claim_page(resolve_dir(dir)):
-        sys.exit("only an agent harness session can claim a page")
+        raise click.ClickException("only an agent harness session can claim a page")
 
 
 @page.command(short_help="Print the page's exchange as Markdown.")
@@ -627,10 +611,7 @@ def delivery_read(delivery_id: str, part: int) -> None:
     """Read input without confirming it. Follow its next and acknowledgement instructions."""
     from leaf.delivery import cmd_delivery_read
 
-    try:
-        cmd_delivery_read(delivery_id, part=part)
-    except ValueError as error:
-        raise click.ClickException(str(error)) from error
+    cmd_delivery_read(delivery_id, part=part)
 
 
 @delivery.command("ack", short_help="Confirm complete delivery input reached context.")
@@ -639,10 +620,7 @@ def delivery_ack(delivery_id: str) -> None:
     """Attest complete receipt after reading every part of DELIVERY_ID."""
     from leaf.delivery import cmd_delivery_ack
 
-    try:
-        cmd_delivery_ack(delivery_id)
-    except (OSError, RuntimeError) as error:
-        raise click.ClickException(str(error)) from error
+    cmd_delivery_ack(delivery_id)
 
 
 @cli.group(short_help="Open, answer, edit, summarize, or resolve a thread.")
@@ -694,12 +672,9 @@ def file() -> None:
 @click.argument("path", type=click.Path(path_type=Path), metavar="PATH")
 def file_bind(dir: str, binding: str, path: Path) -> None:
     """Use ID in <lf-file-editor binding=\"ID\"> to edit PATH."""
-    from leaf.file_bindings import FileBindingError, bind_file
+    from leaf.file_bindings import bind_file
 
-    try:
-        snapshot = bind_file(resolve_dir(dir), binding, path)
-    except (FileBindingError, OSError) as error:
-        raise click.ClickException(str(error)) from error
+    snapshot = bind_file(resolve_dir(dir), binding, path)
     click.echo(
         f"Bound {binding} to {path.expanduser().resolve()} ({snapshot['bytes']} bytes)."
     )
@@ -795,11 +770,8 @@ def start(dir: str, host: str | None, standing: bool) -> None:
     """
     from leaf.hosting import claim_and_start
 
-    try:
-        with claim_and_start(resolve_dir(dir), host, standing) as started:
-            pass
-    except RuntimeError as error:
-        raise SystemExit(str(error)) from None
+    with claim_and_start(resolve_dir(dir), host, standing) as started:
+        pass
     print(json.dumps({"url": started.url}))
     print(started.note, file=sys.stderr)
 
@@ -833,10 +805,7 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
             raise click.UsageError("--temporary is loopback-only; omit --host")
         cmd_serve_temporary(page_dir)
         return
-    try:
-        cmd_serve(page_dir, host, standing, harness=session_harness(), acquire=True)
-    except RuntimeError as error:
-        raise SystemExit(str(error)) from None
+    cmd_serve(page_dir, host, standing, harness=session_harness(), acquire=True)
 
 
 @server.command("_serve", hidden=True)
@@ -940,11 +909,7 @@ def wait(dir: str | None, ack: str | None) -> None:
     if dir is not None and ack is not None:
         raise click.UsageError("PAGE and --ack cannot be used together")
     release_on_termination()
-    try:
-        outcome = cmd_wait(resolve_dir(dir) if dir else None, ack=ack)
-    except RuntimeError as error:
-        raise click.ClickException(str(error)) from error
-    sys.exit(outcome)
+    sys.exit(cmd_wait(resolve_dir(dir) if dir else None, ack=ack))
 
 
 def _title_option(command):
@@ -955,16 +920,6 @@ def _title_option(command):
             "most 80 characters"
         ),
     )(command)
-
-
-def _titled(page_dir: Path, title: str | None) -> None:
-    """Refuse a title admission would refuse before its command posts anything.
-    Past this the title can fail only with the page itself, and then the message
-    stands, already printed, for the refusal that follows it to be read against."""
-    from leaf.thread import title_refusal
-
-    if title is not None and (refusal := title_refusal(page_dir, title)):
-        sys.exit(refusal)
 
 
 @thread.command(
@@ -1016,7 +971,15 @@ def _reply_options(command):
             "--markup", default="", help="frozen HTML fragment after the text"
         ),
         click.option(
-            "--awaits", is_flag=True, help="the reply asks the user a question"
+            "--question",
+            is_flag=True,
+            help="the reply asks the user a question, which waits on them",
+        ),
+        click.option(
+            "--task",
+            metavar="TITLE",
+            help="the reply promises work it doesn't deliver; opens that task on the "
+            "thread, ended by `leaf task end` with the reply's id",
         ),
         click.option(
             "--ephemeral", is_flag=True, help="one-line progress, without answering"
@@ -1038,13 +1001,21 @@ def response() -> None:
     "--attempt", help="retry identity (ordinary replies default to the reference)"
 )
 @click.option("--failure", help="failure code when no answer is coming")
+@click.option(
+    "--done", is_flag=True, help="the reply delivers what the message asked for"
+)
 @_reply_options
 def response_reply(
-    reference: str, attempt: str | None, failure: str | None, **options
+    reference: str, attempt: str | None, failure: str | None, done: bool, **options
 ) -> None:
     """Answer the exact REFERENCE printed in a delivery's answer.ref.
 
-    Text, frozen HTML, prose questions, titles and anchor moves share this command.
+    An answer says what it leaves the thread with: --done when it delivers what the
+    message asked for, --question when it asks the user something back, or --task
+    TITLE when it promises work it doesn't deliver, which stays on you as a task.
+    Progress (--ephemeral) and failure receipts (--failure) take none of them.
+
+    Text, frozen HTML, titles and anchor moves share this command.
     It validates and activates saved page edits, then commits the reply immediately.
     A provider's later final yields to the recorded answer; failure receipts are
     refused while that provider still owns the answer.
@@ -1053,6 +1024,29 @@ def response_reply(
     """
     from leaf.thread import post_response
 
+    declared = [
+        flag
+        for flag, given in (
+            ("--done", done),
+            ("--question", options["question"]),
+            ("--task", options["task"] is not None),
+        )
+        if given
+    ]
+    if len(declared) > 1:
+        raise click.UsageError(f"{' and '.join(declared)} cannot be used together")
+    answers = not options["ephemeral"] and failure is None
+    if declared and not answers:
+        raise click.UsageError(
+            f"{declared[0]} declares what an answer leaves; progress and failure "
+            "receipts answer nothing"
+        )
+    if not declared and answers:
+        raise click.UsageError(
+            "say what the answer leaves: --done when it delivers what was asked, "
+            "--question when it asks the user something back, or --task TITLE when "
+            "it promises work it doesn't deliver"
+        )
     if attempt is not None:
         options["attempt"] = attempt
     _print_records(post_response(reference, failure=failure, **options))
@@ -1094,16 +1088,9 @@ def thread_edit(dir: str, message: str, text: str | None, title: str | None) -> 
     markup is not editable. Keep a title stable unless the thread's
     subject changes.
     """
-    from leaf.thread import cmd_edit, cmd_title
+    from leaf.thread import cmd_edit
 
-    page_dir = resolve_dir(dir)
-    _titled(page_dir, title)
-    records = []
-    if text is not None or title is None:
-        records.append(cmd_edit(page_dir, message, text))
-    if title is not None:
-        records.append(cmd_title(page_dir, message, title))
-    _print_records(*records)
+    _print_records(*cmd_edit(resolve_dir(dir), message, text, title=title))
 
 
 @thread.command("resolve", short_help="Close a thread as the agent.")
@@ -1151,12 +1138,12 @@ def task() -> None:
     help="Whose queue the task is on: yours, or the user's.",
 )
 def task_open(dir: str, subject: str, title: str, owner: str) -> None:
-    """Open a task titled TITLE on SUBJECT: an open thread, by any message in it or a
-    widget its messages carry; a page widget, which for your own task must declare
-    x-work or hold an unsettled update; any other element of the page by its id, such
-    as a section; or `page` for the page as a whole. With `--on user` the task is on
-    the user, on anything but a thread, where a reply with `--awaits` asks them: it
-    ends at their Done, and you can end it too. Its id is the printed record's `id`."""
+    """Open a task titled TITLE on SUBJECT: a page widget, which for your own task
+    must declare x-work or hold an unsettled update; any other element of the page by
+    its id, such as a section; or `page` for the page as a whole. With `--on user`
+    the task is on the user: it ends at their Done, and you can end it too. Its id is
+    the printed record's `id`. In a thread, the reply that promises work opens it
+    (`--task`), and one that asks the user is their Question (`--question`)."""
     from leaf.tasks import cmd_open
 
     _print_records(cmd_open(resolve_dir(dir), subject, title, owner))
@@ -1193,29 +1180,3 @@ def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
     from leaf.tasks import cmd_end
 
     _print_records(cmd_end(resolve_dir(dir), task_id, outcome, detail))
-
-
-@cli.command(hidden=True)
-@click.option(
-    "--harness",
-    required=True,
-    help="The harness whose registration runs this hook.",
-)
-@click.option(
-    "--watch",
-    is_flag=True,
-    help="Watch the session's pages until input, printing what wakes the session.",
-)
-def hook(harness: str, watch: bool) -> None:
-    """Answer an agent-harness hook on stdin."""
-    from leaf.hooks import main
-
-    main(harness, watch=watch)
-
-
-@cli.command(hidden=True)
-def session_end() -> None:
-    """Release ownership for the harness's SessionEnd payload on stdin."""
-    from leaf.state import main
-
-    main()

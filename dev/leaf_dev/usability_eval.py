@@ -18,9 +18,10 @@ from dataclasses import dataclass
 from html import unescape
 from pathlib import Path
 
-from leaf.delivery import opened_input_ids, pickup_receipts
+from leaf.delivery import DELIVERY_FORMAT, opened_input_ids, pickup_receipts
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
+from leaf.schema import MESSAGE_KINDS
 from leaf.service import requires_agent_attention
 from leaf.thread import successful_replies
 from playwright.sync_api import Browser
@@ -462,8 +463,10 @@ def build_constructs(run: Run, page: Path) -> None:
     measured = run.leaf(
         "data", "set", str(page), "checkout-p95", input_text="184", check=True
     ).stdout
-    at = json.loads(measured)["updated"]
-    (page / "index.html").write_text(re.sub(r'\bat="[^"]*"', f'at="{at}"', template))
+    receipt = json.loads(measured)["run"]
+    (page / "index.html").write_text(
+        re.sub(r'\brun="[^"]*"', f'run="{receipt}"', template)
+    )
     run.leaf("page", "stamp", str(page), "--text", "Release 4.2 review", check=True)
     run.leaf("status", str(page), "waiting", "Edit the release note", check=True)
     admit(run, page, {
@@ -773,7 +776,7 @@ def post_round(
             event["undoes"] = posted_event(page, attempt_key(n, i - 1))["id"]
         if move.get("parent") == "latest":
             event["parent"] = [
-                e for e in page_events(page) if e["kind"] in ("comment", "reply")
+                e for e in page_events(page) if e["kind"] in MESSAGE_KINDS
             ][-1]["id"]
         if "text" in move:
             event["text"] = move["text"].format(
@@ -1171,7 +1174,7 @@ def score_shared_source(run: Run, traces: list[list[dict]], replies: list[str]) 
     }
     page = run.work / "page"
     before = json.loads((FIXTURES / "hub-worktrees.json").read_text())
-    after = json.loads((page / "data/project-worktrees.json").read_text())
+    after = json.loads((page / "data/project-worktrees.json").read_text())["value"]
     finch = after.get("tree-finch", {})
     html = (page / "index.html").read_text()
     return out | {
@@ -1470,7 +1473,7 @@ def score_elided(run: Run, trace: list[dict]) -> dict:
                 if block.get("type") == "tool_result"
             ],
         ]
-        if "leaf-delivery-v" in text
+        if DELIVERY_FORMAT in text
     ]
     replying = next(
         (

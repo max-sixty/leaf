@@ -8,14 +8,15 @@ This module selects each kind's gates. Their implementations stay with their
 domains: undo in `events` and widget meaning in `event_meaning`.
 """
 
-from leaf.event_log import EventRefused, Refusal, new_event_id
+from leaf.event_log import APPEND_STAMPED, EventRefused, new_event_id
 from leaf.event_meaning import (
     AdmissionReadings,
     admit_widget_event,
     direct_dependencies,
 )
-from leaf.events import build_threads, spoken_turns, taken_back, undo_error
+from leaf.events import build_threads, spoken_turns, undo_error
 from leaf.files import version_revisions
+from leaf.layer import foreign_event_contract
 from leaf.page_view import CandidatePageView, PageView
 from leaf.projection import (
     RANK,
@@ -24,8 +25,10 @@ from leaf.projection import (
 )
 from leaf.questions import asking, projected_action_holders, quoted_in
 from leaf.read_state import read_contract_error
+from leaf.refusals import Refusal
 from leaf.registry.contract import (
     WRITERS,
+    RegistryError,
     created_child,
     detail_schema,
     event_spec,
@@ -36,18 +39,13 @@ from leaf.registry.contract import (
 from leaf.registry.kernel import kernel_event_ownership
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import json_value, schema_error
+from leaf.registry.storage import layer_metadata
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
 from leaf.structure import review_mode
 from leaf.tasks import task_error
 from leaf.work import widget_seat_error
 from leaf.work_reading import WorkReading
-from leaf.workflows import admission_tasks, admission_workflows, obligation_reading
-
-# The envelope the append lease itself assigns. Admission validates the complete
-# record, so pre-admission shape checks supply representative envelope fields.
-# Semantic admission allocates the real identity before folding the candidate.
-# A caller supplying an envelope field is held to the contract's reading of it.
-APPEND_STAMPED = {"id": "pending", "ts": "pending", "seq": 1}
+from leaf.workflows import obligation_reading
 
 
 def event_record_error(contract: dict, event: dict):
@@ -78,11 +76,11 @@ def command_record_schema(contract: dict) -> dict:
 def browser_command_error(contract: dict, event: dict):
     """The first complaint from what a browser client is allowed to post.
 
-    A command is not yet a record: the server owns the envelope, the author, and
-    every field admission derives. This reads the record contract with those
-    fields supplied or lifted, beside the kind's own browser assertions — which
-    are narrower than the record, because the fields a reply carries from the
-    CLI are not a tab's to send."""
+    A command is not yet a record: the server owns the envelope, the author (which
+    the endpoint has already stamped), and every field admission derives. This
+    reads the record contract with those fields supplied or lifted, beside the
+    kind's own browser assertions — which are narrower than the record, because the
+    fields a reply carries from the CLI are not a tab's to send."""
     return schema_error(
         {
             "allOf": [
@@ -90,11 +88,7 @@ def browser_command_error(contract: dict, event: dict):
                 contract["browser"],
             ]
         },
-        {
-            **event,
-            **APPEND_STAMPED,
-            "author": "page" if event.get("kind") == "error" else "user",
-        },
+        {**event, **APPEND_STAMPED},
     )
 
 
@@ -640,7 +634,7 @@ def _edit_error(event: dict, events: list) -> str | None:
 def _thread_presentation_error(view, event: dict, events: list) -> str | None:
     if event["kind"] not in {"summary", "thread_title"}:
         return None
-    threads = build_threads(events, view.within, withdrawn=taken_back(events))
+    threads = build_threads(events, view.within)
     thread = threads.get(event["thread"])
     if thread is None:
         return f"unknown thread {event['thread']!r}"
@@ -696,14 +690,14 @@ def admission_error(
         or _reanchor_error(view, event, events)
         or read_contract_error(event, events)
         or _withdrawal_error(view, event, events, readings)
-        or _task_error(view, event, events, readings)
+        or _task_error(view, event, readings)
     )
 
 
-def _task_error(view, event: dict, events: list, readings) -> str | None:
+def _task_error(view, event: dict, readings) -> str | None:
     """A task stands on an open thread, a widget that seats work or an element, or the
     page. Task endings also admit an agent withdrawal of a prose Question; a
-    start names explicit agent work or an owed move (`tasks.task_error`)."""
+    start names explicit agent work or an owed update (`tasks.task_error`)."""
     from leaf.tasks import start_reading
 
     progress_parent = (
@@ -713,7 +707,7 @@ def _task_error(view, event: dict, events: list, readings) -> str | None:
         event = start
     elif event["kind"] not in {"task", "task_end"}:
         return None
-    workflows = admission_workflows(readings)[0] if event["kind"] != "task_end" else []
+    workflows = readings.work.workflows if event["kind"] != "task_end" else []
     if progress_parent is not None and not any(
         item["input"] == event["item"]
         and item["next_actor"] == "agent"
@@ -722,7 +716,6 @@ def _task_error(view, event: dict, events: list, readings) -> str | None:
         for item in workflows
     ):
         return "progress must take in hand the reply input addressed by its parent"
-    threads = readings.work.threads if event["kind"] == "task" else {}
 
     def seat_error(widget: str) -> str | None:
         if not view.revisions:
@@ -758,12 +751,11 @@ def _task_error(view, event: dict, events: list, readings) -> str | None:
     return task_error(
         event,
         readings.log,
-        threads,
         seat_error=seat_error,
         element_error=element_error,
         user_widget_error=user_widget_error,
         owed=owed,
-        tasks=lambda: admission_tasks(readings),
+        tasks=lambda: [task for half in readings.work.page_tasks() for task in half],
         questions=lambda: readings.work.all_questions["all"],
     )
 
@@ -799,6 +791,20 @@ def _reanchor_error(view, event: dict, events: list) -> str | None:
     return None
 
 
+def settled_attention(event: dict, contract: dict) -> bool | None:
+    """The attention an event's kind and author decide alone, or None for the
+    user's input, which needs attention only when it changes what the agent owes.
+
+    A report or an error always wakes the agent; the agent's own events and the
+    user's bookkeeping never do.
+    """
+    if event["kind"] in {"report", "error"}:
+        return True
+    if event["author"] != "user" or contract.get("bookkeeping"):
+        return False
+    return None
+
+
 def admitted_event(view, events: list, event: dict) -> dict:
     """The record one event becomes, or `EventRefused` saying why it does not.
 
@@ -829,12 +835,8 @@ def admitted_event(view, events: list, event: dict) -> dict:
         contracts[kind], {**APPEND_STAMPED, **event, "attention": False}
     ):
         raise EventRefused(f"{kind} event is invalid: {error}")
-    attention = kind in {"report", "error"}
-    if (
-        not attention
-        and event["author"] == "user"
-        and not contracts[kind].get("bookkeeping")
-    ):
+    attention = settled_attention(event, contracts[kind])
+    if attention is None:
         candidate = {
             **APPEND_STAMPED,
             **event,
@@ -851,22 +853,34 @@ def admitted_event(view, events: list, event: dict) -> dict:
     return event
 
 
-def append_admitted(page, event: dict, *, view=None) -> dict:
-    """Admit one event and append it, under the page transaction's log lease.
+def append_admitted(page, event: dict, *, view=None) -> tuple[dict, bool]:
+    """Admit one event and append it, under the page transaction's log lease; the
+    record, and whether this call appended it.
 
     The one door. `page` is an open `service.PageTransaction`, whose lease makes
     every decision here one transaction: the standing log the gates read, the
     meaning derived from it, and the write. A refusal raises `EventRefused` with
-    what to do about it — `contract_writer` turns that into a CLI exit and the
-    browser endpoint into a final 400.
+    what to do about it, which the CLI presents as an error and the browser
+    endpoint answers as a final 400. An `attempt` the log already holds returns that record unappended,
+    or raises `AttemptConflict` when it names another payload.
     """
     # Ahead of the gates, not only ahead of the write: a retry asks for the event
     # its attempt already carried, and the page it was admitted against may since
-    # have moved past admitting it.
+    # have moved past admitting it. Content and time play no part: an intentional
+    # later identical message has a fresh attempt and is a second event.
     if accepted := page.matching_attempt(event):
-        return accepted
-    return page._append_record(
+        return accepted, False
+    try:
+        layer = layer_metadata(page.page_dir)
+    except RegistryError:
+        # A broken or missing candidate registry does not invalidate an active
+        # revision's captured vocabulary. Admission will read that vocabulary.
+        layer = None
+    if layer is not None and (refusal := foreign_event_contract(page.page_dir, layer)):
+        raise EventRefused(refusal)
+    record = page._append_record(
         admitted_event(
             view if view is not None else PageView(page.page_dir), page.events, event
         )
     )
+    return record, True

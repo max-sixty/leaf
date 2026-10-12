@@ -19,19 +19,21 @@
  * can reach. A private revision that changes executable code marks its one required
  * container reload in the URL; every ordinary document navigation stays at the edge.
  * Accepted browser events start their agent task in the already-selected user
- * container without holding the browser acknowledgement open. Analytics Engine records
- * accepted product events; Workers Observability records the content-free execution path.
+ * container without holding the browser acknowledgement open. A page fault reported
+ * from a passive session is the published page failing, so the edge logs it for the
+ * site's maintainers instead of activating a container to hold it. Analytics Engine
+ * records accepted product events; Workers Observability records the execution path,
+ * whose only page words are a bounded startup or fault `reason`.
  */
 
-import {
-  Container,
-  getContainer,
-  type OutboundHandlerContext,
-} from "@cloudflare/containers";
+import { Container, getContainer } from "@cloudflare/containers";
 export { ContainerProxy } from "@cloudflare/containers";
 import { type DurableObject } from "cloudflare:workers";
 import * as z from "zod/mini";
 
+import { agentLog, dispatchAgentTask, prewarmContainer } from "./agent";
+import { projectInteractionBatch, sampleInteractionReference } from "./interactions";
+import { proxyModelRequest } from "./model-proxy";
 import {
   activeCookie,
   activeFromCookie,
@@ -47,6 +49,7 @@ import {
   releaseAssetRoute,
   sessionCookie,
   sessionFromCookie,
+  sessionReference,
   type PageRoute,
   type SiteManifest,
 } from "./routing";
@@ -60,22 +63,14 @@ export interface Env {
   OPENAI_API_KEY: string;
 }
 
-interface AgentTaskParams {
-  containerId: string;
-  reference: string;
-  route: string;
-  eventId: string;
-  sourceId: string;
-}
-
-const settledAgentResultSchema = z.object({ status: z.literal("settled") });
+const siteRelease = z.string().check(z.regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/));
 const startupTime = z.nullable(
   z.number().check(z.int(), z.nonnegative(), z.maximum(300_000)),
 );
 const startupReportSchema = z.strictObject({
   version: z.literal(2),
-  loadId: z.uuidv4(),
-  release: z.string().check(z.regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/)),
+  loadId: z.string().check(z.regex(/^[0-9a-f]{32}$/)),
+  release: siteRelease,
   layer: z.string().check(z.regex(/^[A-Za-z0-9_-]{1,128}$/)),
   outcome: z.union([
     z.literal("presented"),
@@ -101,196 +96,20 @@ const startupReportSchema = z.strictObject({
   firstStateResponseMs: startupTime,
   presentedMs: startupTime,
 });
-const interactionEntrySchema = z.record(z.string(), z.unknown()).check(
-  z.refine(
-    (entry) =>
-      typeof entry.ts === "string" &&
-      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(entry.ts) &&
-      typeof entry.sequence === "number" &&
-      Number.isSafeInteger(entry.sequence) &&
-      entry.sequence > 0 &&
-      typeof entry.type === "string" &&
-      /^[a-z][a-z0-9_-]{0,99}$/.test(entry.type),
-  ),
-);
-const interactionBatchSchema = z.strictObject({
-  session: z.string().check(z.regex(/^[a-z0-9]+-[a-z0-9]+$/), z.maxLength(64)),
-  entries: z.array(interactionEntrySchema).check(z.minLength(1), z.maxLength(100)),
+const MAX_STARTUP_BYTES = 2048;
+// The fields of the runtime's `reportPageError` event the edge reads. Admission stays
+// the container's: this only recognizes a fault, which the edge logs and never admits.
+const pageFaultSchema = z.object({
+  kind: z.literal("error"),
+  text: z.string(),
+  revision: z.optional(z.number()),
 });
+const MAX_PAGE_FAULT_BYTES = 64 * 1024;
+// The startup report's `reason` bound, for the same kind of words.
+const PAGE_FAULT_REASON_CHARS = 300;
 // Workers Logs captures at most 256 KiB across the whole invocation. Leave room for
 // request metadata so an accepted batch can be read back without truncation.
 const MAX_INTERACTION_BYTES = 128 * 1024;
-const SAFE_KEYS = new Set([
-  "Alt", "Backspace", "Control", "Delete", "End", "Enter", "Escape", "Home",
-  "Meta", "PageDown", "PageUp", "Shift", "Tab", "ArrowDown", "ArrowLeft",
-  "ArrowRight", "ArrowUp",
-]);
-const MODIFIERS = new Set(["Alt", "Control", "Meta", "Shift"]);
-
-function safeLocator(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  // Client locators may embed authored ids and names. Keep only tag and structural
-  // position; those identify page controls without copying arbitrary attribute text.
-  const tag = /^([a-z][a-z0-9-]*)/.exec(value)?.[1];
-  if (!tag) return null;
-  const position = /:nth-of-type\(([1-9][0-9]{0,3})\)$/.exec(value)?.[1];
-  return position ? `${tag}:nth-of-type(${position})` : tag;
-}
-
-function finiteNumber(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function safeNodeId(value: unknown): number | null {
-  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null;
-}
-
-function coordinatePair(value: unknown): number[] | null {
-  if (!Array.isArray(value) || value.length !== 2) return null;
-  const pair = value.map(finiteNumber);
-  return pair.every((number) => number !== null) ? pair as number[] : null;
-}
-
-function httpStatus(value: unknown): number | null {
-  return typeof value === "number" && Number.isInteger(value) && value >= 100 && value <= 599
-    ? value : null;
-}
-
-function sampleInteractionReference(page: unknown): string | null {
-  if (typeof page !== "string" || page.length > 4096 ||
-      !/^(?:\/api\/samples\/[a-f0-9]{32}(?:~[a-f0-9]{64})?)+$/.test(page)) return null;
-  return sessionReference(page.split("/").at(-1)!.split("~")[0]);
-}
-
-function projectSampleEntry(entry: Record<string, unknown>): Record<string, unknown> {
-  const projected: Record<string, unknown> = {};
-  for (const field of ["phase", "reason", "operation"] as const)
-    if (typeof entry[field] === "string" && /^[a-z][a-z0-9_-]{0,63}$/.test(entry[field]))
-      projected[field] = entry[field];
-  for (const field of ["host", "revision"] as const) {
-    const value = safeNodeId(entry[field]);
-    if (value !== null) projected[field] = value;
-  }
-  if (typeof entry.allocation === "number" && Number.isSafeInteger(entry.allocation) && entry.allocation >= 0)
-    projected.allocation = entry.allocation;
-  const elapsed = finiteNumber(entry.elapsed);
-  if (elapsed !== null && elapsed >= 0) projected.elapsed = elapsed;
-  // A sample's canonical page identity contains its native-request credential.
-  // Use the same support-handle projection as cookies; never log the credential,
-  // its routing suffix, or arbitrary authored template ids.
-  const sample = sampleInteractionReference(entry.sample);
-  if (sample !== null) projected.sampleReference = sample;
-  else if (entry.sample === null) projected.sampleReference = null;
-  if (typeof entry.document === "string" &&
-      /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(entry.document))
-    projected.documentReference = sessionReference(entry.document.replaceAll("-", ""));
-  else if (entry.document === null) projected.documentReference = null;
-  if (typeof entry.leafDocument === "string" && /^[1-9][0-9]{0,15}$/.test(entry.leafDocument)) {
-    const revision = safeNodeId(Number(entry.leafDocument));
-    if (revision !== null) projected.leafDocument = revision;
-  } else if (entry.leafDocument === null) projected.leafDocument = null;
-  if (typeof entry.reloading === "boolean") projected.reloading = entry.reloading;
-  if (entry.error && typeof entry.error === "object" && !Array.isArray(entry.error)) {
-    const value = entry.error as Record<string, unknown>;
-    const error: Record<string, unknown> = {};
-    if (typeof value.name === "string" && /^[A-Z][A-Za-z0-9]{0,63}$/.test(value.name))
-      error.name = value.name;
-    const status = httpStatus(value.status);
-    if (status !== null) error.status = status;
-    if (Object.keys(error).length) projected.error = error;
-  }
-  return projected;
-}
-
-function projectInteractionEntry(entry: Record<string, unknown>): Record<string, unknown> {
-  const projected: Record<string, unknown> = {
-    ts: entry.ts,
-    sequence: entry.sequence,
-    type: entry.type,
-  };
-  if (typeof entry.trusted === "boolean") projected.trusted = entry.trusted;
-  if (Array.isArray(entry.target)) {
-    projected.target = entry.target.slice(0, 8).map(safeLocator).filter(Boolean);
-  }
-  if (Array.isArray(entry.nodes))
-    projected.nodes = entry.nodes.slice(0, 8).map(safeNodeId).filter((value) => value !== null);
-  const control = safeLocator(entry.control);
-  if (control) projected.control = control;
-  const controlNode = safeNodeId(entry.controlNode);
-  if (controlNode !== null) projected.controlNode = controlNode;
-  if (typeof entry.id === "string" && /^[A-Za-z][A-Za-z0-9_.:-]{0,127}$/.test(entry.id))
-    projected.id = entry.id;
-  if (typeof entry.binding === "string" &&
-      /^(?:(?:Mod|Alt|Shift|Control|Meta)\+){0,3}(?:[A-Za-z0-9]|Enter|Escape|Tab|Backspace|Delete|Arrow(?:Up|Down|Left|Right)|Home|End|PageUp|PageDown|Space|[?\/.,])$/.test(entry.binding))
-    projected.binding = entry.binding;
-  if (typeof entry.originalType === "string" && /^[a-z][a-z0-9_-]{0,99}$/.test(entry.originalType))
-    projected.originalType = entry.originalType;
-  if (typeof entry.kind === "string" && /^[a-z][a-z0-9_-]{0,63}$/.test(entry.kind))
-    projected.kind = entry.kind;
-  const status = httpStatus(entry.status);
-  if (status !== null) projected.status = status;
-  if (SAFE_KEYS.has(entry.key as string)) projected.key = entry.key;
-  if (typeof entry.repeat === "boolean") projected.repeat = entry.repeat;
-  if (Array.isArray(entry.modifiers)) {
-    projected.modifiers = entry.modifiers.filter((value) => MODIFIERS.has(value)).slice(0, 4);
-  }
-  if (entry.pointer && typeof entry.pointer === "object" && !Array.isArray(entry.pointer)) {
-    const input = entry.pointer as Record<string, unknown>;
-    const pointer: Record<string, unknown> = {};
-    for (const field of ["id", "button", "buttons", "x", "y"]) {
-      const value = finiteNumber(input[field]);
-      if (value !== null) pointer[field] = value;
-    }
-    if (["mouse", "pen", "touch"].includes(input.type as string)) pointer.type = input.type;
-    if (Object.keys(pointer).length) projected.pointer = pointer;
-  }
-  for (const field of ["scroll", "viewport"] as const) {
-    const pair = coordinatePair(entry[field]);
-    if (pair) projected[field] = pair;
-  }
-  if (Array.isArray(entry.delta) && entry.delta.length === 3) {
-    const delta = entry.delta.map(finiteNumber);
-    if (delta.every((number) => number !== null)) projected.delta = delta;
-  }
-  if (typeof entry.checked === "boolean") projected.checked = entry.checked;
-  if (typeof entry.open === "boolean") projected.open = entry.open;
-  if (["visible", "hidden"].includes(entry.visibility as string))
-    projected.visibility = entry.visibility;
-  if (entry.fullscreen === null) projected.fullscreen = null;
-  else if (entry.fullscreen && typeof entry.fullscreen === "object" && !Array.isArray(entry.fullscreen)) {
-    const value = entry.fullscreen as Record<string, unknown>;
-    const target = safeLocator(value.target);
-    const node = safeNodeId(value.node);
-    if (target && node !== null) projected.fullscreen = { target, node };
-  }
-  for (const field of ["partOf", "part", "parts", "durationMs", "responseStatus", "transferSize"] as const) {
-    const value = finiteNumber(entry[field]);
-    if (value !== null) projected[field] = value;
-  }
-  if (entry.type === "sample") Object.assign(projected, projectSampleEntry(entry));
-  return projected;
-}
-const agentResultSchemas = {
-  start: z.discriminatedUnion("status", [
-    settledAgentResultSchema,
-    z.object({
-      status: z.literal("started"),
-      thread: z.string().check(z.minLength(1)),
-    }),
-  ]),
-  fail: z.discriminatedUnion("status", [
-    settledAgentResultSchema,
-    z.object({
-      status: z.literal("appended"),
-      event: z.string().check(z.minLength(1)),
-    }),
-  ]),
-};
-
-type AgentResult = z.infer<
-  (typeof agentResultSchemas)[keyof typeof agentResultSchemas]
->;
-
 const CODEX_PROXY_CREDENTIAL = "leaf-outbound-proxy";
 const CLOUDFLARE_CONTAINER_CA = "/etc/cloudflare/certs/cloudflare-containers-ca.crt";
 interface LeafEvent {
@@ -304,14 +123,6 @@ interface LeafEvent {
 interface AcceptedEvent {
   event: LeafEvent;
   needsReply: boolean;
-}
-
-interface ModelRequestFields {
-  containerId: string;
-  modelRequestId: string;
-  requestKind?: string;
-  threadId?: string;
-  turnId?: string;
 }
 
 interface LeafStateAnswer {
@@ -339,226 +150,12 @@ export class LeafWebsiteSession extends Container<Env> {
   }
 }
 
-function metadataString(
-  metadata: Record<string, unknown>,
-  key: string,
-): string | undefined {
-  const value = metadata[key];
-  return typeof value === "string" && value.length > 0 && value.length <= 128
-    ? value
-    : undefined;
-}
-
-function modelRequestFields(
-  request: Request,
-  context: OutboundHandlerContext,
-): ModelRequestFields {
-  let metadata: Record<string, unknown> = {};
-  const encoded = request.headers.get("x-codex-turn-metadata");
-  if (encoded !== null) {
-    try {
-      const parsed: unknown = JSON.parse(encoded);
-      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
-        metadata = parsed as Record<string, unknown>;
-      }
-    } catch {
-      // Invalid optional diagnostics must not block the model request.
-    }
-  }
-  return {
-    containerId: context.containerId,
-    modelRequestId: crypto.randomUUID(),
-    requestKind: metadataString(metadata, "request_kind"),
-    threadId: metadataString(metadata, "thread_id"),
-    turnId: metadataString(metadata, "turn_id"),
-  };
-}
-
-function modelLog(
-  event: string,
-  request: ModelRequestFields,
-  fields: Record<string, unknown> = {},
-): void {
-  console.log({
-    component: "leaf-agent",
-    event,
-    ...request,
-    ...fields,
-  });
-}
-
-function observeModelBody(
-  body: ReadableStream<Uint8Array>,
-  request: ModelRequestFields,
-  started: number,
-  status: number,
-  upstreamRequestId: string | null,
-): ReadableStream<Uint8Array> {
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let bytes = 0;
-  let firstByte = true;
-  let firstOutput = true;
-
-  const observeFrames = (text: string): void => {
-    buffer += text;
-    const frames = buffer.replaceAll("\r\n", "\n").split("\n\n");
-    buffer = frames.pop() ?? "";
-    for (const frame of frames) {
-      const data = frame
-        .split("\n")
-        .filter((line) => line.startsWith("data:"))
-        .map((line) => line.slice(5).trimStart())
-        .join("\n");
-      if (!data || data === "[DONE]") continue;
-      let event: unknown;
-      try {
-        event = JSON.parse(data);
-      } catch {
-        continue;
-      }
-      if (typeof event !== "object" || event === null || Array.isArray(event)) {
-        continue;
-      }
-      const record = event as Record<string, unknown>;
-      const eventType = metadataString(record, "type");
-      if (
-        firstOutput &&
-        eventType !== undefined &&
-        !["response.created", "response.in_progress", "response.queued"].includes(
-          eventType,
-        )
-      ) {
-        const item = record.item;
-        const outputType =
-          typeof item === "object" && item !== null && !Array.isArray(item)
-            ? metadataString(item as Record<string, unknown>, "type")
-            : undefined;
-        modelLog("model_response_first_output", request, {
-          durationMs: Date.now() - started,
-          responseEvent: eventType,
-          outputType,
-          upstreamRequestId,
-        });
-        firstOutput = false;
-      }
-    }
-  };
-
-  return body.pipeThrough(
-    new TransformStream<Uint8Array, Uint8Array>({
-      transform(chunk, controller) {
-        bytes += chunk.byteLength;
-        if (firstByte) {
-          modelLog("model_response_first_byte", request, {
-            durationMs: Date.now() - started,
-            status,
-            upstreamRequestId,
-          });
-          firstByte = false;
-        }
-        if (firstOutput) {
-          observeFrames(decoder.decode(chunk, { stream: true }));
-        }
-        controller.enqueue(chunk);
-      },
-      flush() {
-        if (firstOutput) {
-          observeFrames(decoder.decode() + "\n\n");
-        }
-        modelLog("model_response_completed", request, {
-          durationMs: Date.now() - started,
-          status,
-          bytes,
-          upstreamRequestId,
-        });
-      },
-    }),
-  );
-}
-
 // Assignment invokes Container's inherited setter, which registers the handler for
 // ContainerProxy. A static class field would shadow that setter.
-LeafWebsiteSession.outboundByHost = {
-  "api.openai.com": async (request: Request, env: Env, ctx: OutboundHandlerContext) => {
-    const url = new URL(request.url);
-    if (
-      request.method === "GET" &&
-      url.pathname === "/v1/responses" &&
-      request.headers.get("upgrade")?.toLowerCase() === "websocket"
-    ) {
-      // Codex treats 426 as an immediate instruction to use its canonical HTTP
-      // transport. A generic denial is retried with exponential backoff before the
-      // same fallback, delaying every first turn while also bypassing the per-request
-      // model timing records below.
-      modelLog("model_transport_http_fallback", modelRequestFields(request, ctx));
-      return new Response("use the Responses HTTP transport", { status: 426 });
-    }
-    if (request.method !== "POST" || url.pathname !== "/v1/responses") {
-      return new Response("blocked website agent request", { status: 403 });
-    }
-    if (!env.OPENAI_API_KEY) {
-      return new Response("website agent credential is not configured", {
-        status: 503,
-      });
-    }
-    const capacity = await env.SOURCE_AGENT_RATE_LIMITER.limit({
-      key: `model:${ctx.containerId}`,
-    });
-    if (!capacity.success) {
-      return new Response("website agent model limit reached", { status: 429 });
-    }
-    const started = Date.now();
-    const modelRequest = modelRequestFields(request, ctx);
-    modelLog("model_request_started", modelRequest);
-    const headers = new Headers(request.headers);
-    headers.set("Authorization", `Bearer ${env.OPENAI_API_KEY}`);
-    let response: Response;
-    try {
-      response = await fetch(new Request(request, { headers }));
-    } catch (error) {
-      modelLog("model_request_failed", modelRequest, {
-        durationMs: Date.now() - started,
-        error: error instanceof Error ? error.name : "unknown",
-      });
-      throw error;
-    }
-    const upstreamRequestId = response.headers.get("x-request-id");
-    modelLog("model_response_headers", modelRequest, {
-      durationMs: Date.now() - started,
-      status: response.status,
-      upstreamRequestId,
-    });
-    if (response.body === null) {
-      modelLog("model_response_completed", modelRequest, {
-        durationMs: Date.now() - started,
-        status: response.status,
-        bytes: 0,
-        upstreamRequestId,
-      });
-      return response;
-    }
-    return new Response(
-      observeModelBody(
-        response.body,
-        modelRequest,
-        started,
-        response.status,
-        upstreamRequestId,
-      ),
-      response,
-    );
-  },
-};
+LeafWebsiteSession.outboundByHost = { "api.openai.com": proxyModelRequest };
 
 function randomSessionId(): string {
   return newSessionId(crypto.getRandomValues(new Uint8Array(16)));
-}
-
-// A support handle, not a credential: project a random identity into a short numeric
-// space without disclosing it. No server door accepts this handle as identity.
-function sessionReference(sessionId: string): string {
-  return (BigInt(`0x${sessionId}`) % 1_000_000_000_000n).toString().padStart(12, "0");
 }
 
 // Website sessions are explicitly ephemeral. A deployment starts a fresh container
@@ -566,36 +163,6 @@ function sessionReference(sessionId: string): string {
 // state that the website does not promise to persist.
 function containerId(sessionId: string, release: string): string {
   return `${release}:${sessionId}`;
-}
-
-function agentLog(
-  event: string,
-  params: Pick<AgentTaskParams, "reference" | "route" | "eventId">,
-  fields: Record<string, unknown> = {},
-): void {
-  console.log({
-    component: "leaf-agent",
-    event,
-    reference: params.reference,
-    route: params.route,
-    eventId: params.eventId,
-    ...fields,
-  });
-}
-
-function prewarmLog(
-  event: string,
-  reference: string,
-  route: string,
-  fields: Record<string, unknown> = {},
-): void {
-  console.log({
-    component: "leaf-agent",
-    event,
-    reference,
-    route,
-    ...fields,
-  });
 }
 
 function browserIdentity(request: Request): {
@@ -640,16 +207,36 @@ function browserIdentity(request: Request): {
   };
 }
 
+// The body as text, or null once it passes maxBytes, whether the client declared that
+// length or streamed it without one. A request with no body reads as "".
+async function readBoundedText(request: Request, maxBytes: number): Promise<string | null> {
+  if (Number(request.headers.get("Content-Length")) > maxBytes) return null;
+  const reader = request.body?.getReader();
+  if (!reader) return "";
+  const decoder = new TextDecoder();
+  let raw = "";
+  let bytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    bytes += value.byteLength;
+    if (bytes > maxBytes) {
+      await reader.cancel();
+      return null;
+    }
+    raw += decoder.decode(value, { stream: true });
+  }
+  return raw + decoder.decode();
+}
+
 async function recordStartup(
   request: Request,
   manifest: SiteManifest,
   route: PageRoute,
   reference: string,
 ): Promise<Response> {
-  if (Number(request.headers.get("Content-Length")) > 2048)
-    return new Response("startup report is too large", { status: 413 });
-  const raw = await request.text();
-  if (raw.length > 2048) {
+  const raw = await readBoundedText(request, MAX_STARTUP_BYTES);
+  if (raw === null) {
     return new Response("startup report is too large", { status: 413 });
   }
   let value: unknown;
@@ -677,6 +264,55 @@ async function recordStartup(
   });
 }
 
+// A passive session reads the published page, whose author is the site. A fault it
+// reports owes no reply, so it would start no agent work; in a container it would only
+// wait for the visitor's first agent turn, whose agent did not write the page either. So
+// it belongs beside the startup beacon, where the site's maintainers read, rather than in
+// a private container activated to hold it. Null for any other event, which goes to the
+// container as before.
+async function pageFault(
+  request: Request,
+): Promise<z.infer<typeof pageFaultSchema> | null> {
+  const raw = await readBoundedText(request.clone(), MAX_PAGE_FAULT_BYTES);
+  if (raw === null) return null;
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const parsed = pageFaultSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+function recordPageFault(
+  request: Request,
+  fault: z.infer<typeof pageFaultSchema>,
+  manifest: SiteManifest,
+  route: PageRoute,
+  reference: string,
+): Response {
+  console.log({
+    component: "leaf-page-error",
+    event: "browser_page_error",
+    reference,
+    route: route.root,
+    // The document's release, which a tab not yet reloaded past a deploy still names,
+    // beside the edge's, as the startup record keeps them.
+    release: siteRelease.safeParse(request.headers.get("Leaf-Release")).data ?? null,
+    currentRelease: manifest.release,
+    revision: fault.revision ?? null,
+    ...browserIdentity(request),
+    reason: fault.text.slice(0, PAGE_FAULT_REASON_CHARS),
+  });
+  const answer = new Response(null, {
+    status: 204,
+    headers: { "Cache-Control": "no-store", "Leaf-Session": "passive" },
+  });
+  stampDelivery(answer.headers, route, manifest, reference);
+  return answer;
+}
+
 type InteractionIdentity =
   | { reference: string; sampleReference?: never }
   | { sampleReference: string; reference?: never };
@@ -687,33 +323,17 @@ async function recordInteractions(
   identity: InteractionIdentity,
   release: string,
 ): Promise<Response> {
-  const declaredLength = Number(request.headers.get("Content-Length"));
-  if (declaredLength > MAX_INTERACTION_BYTES)
+  const raw = await readBoundedText(request, MAX_INTERACTION_BYTES);
+  if (raw === null)
     return new Response("interaction batch is too large", { status: 413 });
-  const reader = request.body?.getReader();
-  if (!reader) return new Response("interaction batch is empty", { status: 400 });
-  const decoder = new TextDecoder();
-  let raw = "";
-  let bytes = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    bytes += value.byteLength;
-    if (bytes > MAX_INTERACTION_BYTES) {
-      await reader.cancel();
-      return new Response("interaction batch is too large", { status: 413 });
-    }
-    raw += decoder.decode(value, { stream: true });
-  }
-  raw += decoder.decode();
   let value: unknown;
   try {
     value = JSON.parse(raw);
   } catch {
     return new Response("invalid interaction batch", { status: 400 });
   }
-  const parsed = interactionBatchSchema.safeParse(value);
-  if (!parsed.success)
+  const batch = projectInteractionBatch(value);
+  if (batch === null)
     return new Response("invalid interaction batch", { status: 400 });
   console.log({
     component: "leaf-interaction",
@@ -721,161 +341,9 @@ async function recordInteractions(
     ...identity,
     route: route.root,
     release,
-    session: parsed.data.session,
-    entries: parsed.data.entries.map(projectInteractionEntry),
+    ...batch,
   });
   return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
-}
-
-async function measuredAgentOperation<T>(
-  event: string,
-  params: AgentTaskParams,
-  operation: () => Promise<T>,
-): Promise<T> {
-  const started = Date.now();
-  agentLog(`${event}_started`, params);
-  try {
-    const result = await operation();
-    agentLog(`${event}_completed`, params, { durationMs: Date.now() - started });
-    return result;
-  } catch (error) {
-    agentLog(`${event}_failed`, params, {
-      durationMs: Date.now() - started,
-      error: error instanceof Error ? error.name : "unknown",
-    });
-    throw error;
-  }
-}
-
-function agentRequest(
-  params: AgentTaskParams,
-  action: "start" | "fail",
-  body: object,
-): Request {
-  const root = params.route === "/" ? "" : params.route;
-  return new Request(`http://container${root}/_leaf/agent/${action}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-}
-
-async function askContainer(
-  env: Env,
-  params: AgentTaskParams,
-  action: "start" | "fail",
-  body: object,
-): Promise<AgentResult> {
-  const response = await getContainer(env.PAGES, params.containerId).fetch(
-    agentRequest(params, action, body),
-  );
-  const raw = await response.text();
-  if (!response.ok) {
-    throw new Error(`website agent ${action} failed (${response.status}): ${raw}`);
-  }
-  let value: unknown;
-  try {
-    value = JSON.parse(raw);
-  } catch {
-    throw new Error(`invalid website agent ${action} response`);
-  }
-  const result = agentResultSchemas[action].safeParse(value);
-  if (!result.success) {
-    throw new Error(`invalid website agent ${action} response`);
-  }
-  return result.data;
-}
-
-async function runAgentTask(
-  env: Env,
-  params: AgentTaskParams,
-): Promise<AgentResult> {
-  const allowed = await measuredAgentOperation(
-    "capacity_reservation",
-    params,
-    async () =>
-      (
-        await env.SOURCE_AGENT_RATE_LIMITER.limit({
-          key: params.sourceId,
-        })
-      ).success,
-  );
-  if (allowed) {
-    return measuredAgentOperation("container_start", params, () =>
-      askContainer(env, params, "start", { event: params.eventId }),
-    );
-  }
-  // The words the user gets belong to the adapter, which declares them beside the
-  // code in `FAILURE_RECEIPTS`; naming the code here is the whole of what this knows.
-  return measuredAgentOperation("failure_receipt", params, () =>
-    askContainer(env, params, "fail", {
-      event: params.eventId,
-      failure: "rate_limited",
-    }),
-  );
-}
-
-async function dispatchAgentTask(
-  env: Env,
-  params: AgentTaskParams,
-): Promise<void> {
-  const started = Date.now();
-  agentLog("dispatch_started", params);
-  try {
-    const result = await runAgentTask(env, params);
-    agentLog("dispatch_completed", params, {
-      durationMs: Date.now() - started,
-      status: result.status,
-    });
-  } catch (error) {
-    agentLog("dispatch_failed", params, {
-      durationMs: Date.now() - started,
-      error: error instanceof Error ? error.name : "unknown",
-    });
-    try {
-      await measuredAgentOperation("failure_receipt", params, () =>
-        askContainer(env, params, "fail", {
-          event: params.eventId,
-          failure: "startup_failed",
-        }),
-      );
-    } catch (receiptError) {
-      agentLog("dispatch_abandoned", params, {
-        error: receiptError instanceof Error ? receiptError.name : "unknown",
-      });
-    }
-  }
-}
-
-async function prewarmContainer(
-  env: Env,
-  id: string,
-  reference: string,
-  route: string,
-  sourceId: string,
-): Promise<void> {
-  const started = Date.now();
-  prewarmLog("container_prewarm_started", reference, route);
-  try {
-    const allowed = await env.SOURCE_AGENT_RATE_LIMITER.limit({
-      key: `prewarm:${sourceId}`,
-    });
-    if (!allowed.success) {
-      prewarmLog("container_prewarm_denied", reference, route, {
-        durationMs: Date.now() - started,
-      });
-      return;
-    }
-    await getContainer(env.PAGES, id).start();
-    prewarmLog("container_prewarm_completed", reference, route, {
-      durationMs: Date.now() - started,
-    });
-  } catch (error) {
-    prewarmLog("container_prewarm_failed", reference, route, {
-      durationMs: Date.now() - started,
-      error: error instanceof Error ? error.name : "unknown",
-    });
-  }
 }
 
 async function acceptedEvent(
@@ -924,17 +392,28 @@ function recordAcceptedEvent(
   });
 }
 
+// A fetched asset's headers are immutable, so this takes the one copy each edge answer
+// to a static file makes; the stamps after it edit that copy in place.
 function staticAssetResponse(response: Response, manifest: SiteManifest): Response {
+  const answer = new Response(response.body, response);
   const contentType = response.headers.get("Content-Type")?.split(";", 1)[0].trim();
-  if (contentType?.toLowerCase() !== "text/html") return response;
+  if (contentType?.toLowerCase() === "text/html") {
+    answer.headers.append("Content-Security-Policy", manifest.frame_ancestors);
+  }
+  return answer;
+}
 
-  const headers = new Headers(response.headers);
-  headers.append("Content-Security-Policy", manifest.frame_ancestors);
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
+// The headers naming the release and layer an edge answer belongs to, and the session
+// it answers when it answers one. Leaf-Session stays with each caller.
+function stampDelivery(
+  headers: Headers,
+  route: PageRoute,
+  manifest: SiteManifest,
+  reference?: string,
+): void {
+  headers.set("Leaf-Layer", route.layer);
+  headers.set("Leaf-Release", manifest.release);
+  if (reference !== undefined) headers.set("Leaf-Session-Reference", reference);
 }
 
 const manifests = new WeakMap<object, Promise<SiteManifest>>();
@@ -958,15 +437,9 @@ function stampedStaticResponse(
   route: PageRoute,
   manifest: SiteManifest,
 ): Response {
-  const staticResponse = staticAssetResponse(response, manifest);
-  const headers = new Headers(staticResponse.headers);
-  headers.set("Leaf-Layer", route.layer);
-  headers.set("Leaf-Release", manifest.release);
-  return new Response(staticResponse.body, {
-    status: staticResponse.status,
-    statusText: staticResponse.statusText,
-    headers,
-  });
+  const answer = staticAssetResponse(response, manifest);
+  stampDelivery(answer.headers, route, manifest);
+  return answer;
 }
 
 async function staticState(
@@ -988,15 +461,11 @@ async function staticState(
   const now = new Date();
   state.now = now.toISOString();
   state.taken = now.getTime() / 1000;
-  return Response.json(state, {
-    headers: {
-      "Cache-Control": "no-store",
-      "Leaf-Layer": route.layer,
-      "Leaf-Release": manifest.release,
-      "Leaf-Session": "passive",
-      "Leaf-Session-Reference": reference,
-    },
+  const answer = Response.json(state, {
+    headers: { "Cache-Control": "no-store", "Leaf-Session": "passive" },
   });
+  stampDelivery(answer.headers, route, manifest, reference);
+  return answer;
 }
 
 // Cloudflare activates a Worker and its assets in one operation and rolls the container
@@ -1016,26 +485,18 @@ async function rollingOut(
   reference: string,
   cookies: string[],
 ): Promise<Response> {
-  const answer =
-    request.method === "GET" && route.inside === "api/state"
-      ? await staticState(request, env, manifest, route, reference)
-      : new Response("this release is still starting", {
-          status: 503,
-          headers: {
-            "Retry-After": "5",
-            "Cache-Control": "no-store",
-            "Leaf-Layer": route.layer,
-            "Leaf-Release": manifest.release,
-            "Leaf-Session-Reference": reference,
-          },
-        });
-  const headers = new Headers(answer.headers);
-  for (const cookie of cookies) headers.append("Set-Cookie", cookie);
-  return new Response(answer.body, {
-    status: answer.status,
-    statusText: answer.statusText,
-    headers,
-  });
+  let answer: Response;
+  if (request.method === "GET" && route.inside === "api/state") {
+    answer = await staticState(request, env, manifest, route, reference);
+  } else {
+    answer = new Response("this release is still starting", {
+      status: 503,
+      headers: { "Retry-After": "5", "Cache-Control": "no-store" },
+    });
+    stampDelivery(answer.headers, route, manifest, reference);
+  }
+  for (const cookie of cookies) answer.headers.append("Set-Cookie", cookie);
+  return answer;
 }
 
 export default {
@@ -1065,15 +526,10 @@ export default {
         releasedAsset.route,
         manifest,
       );
-      const headers = new Headers(response.headers);
-      headers.set("Cache-Control", "public, max-age=31536000, immutable");
-      headers.set("Access-Control-Allow-Origin", "*");
-      headers.set("Access-Control-Expose-Headers", "*");
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers,
-      });
+      response.headers.set("Cache-Control", "public, max-age=31536000, immutable");
+      response.headers.set("Access-Control-Allow-Origin", "*");
+      response.headers.set("Access-Control-Expose-Headers", "*");
+      return response;
     }
     const route = pageRoute(pathname, manifest);
     if (route === null) {
@@ -1100,19 +556,15 @@ export default {
         ? sampleInteractionReference(`/${route.inside.slice(0, -"/api/interaction".length)}`)
         : null;
       const interaction = sampleReference === null ? null : { request: request.clone(), sampleReference };
-      const response = await env.PAGES.get(id).fetch(request);
-      const headers = new Headers(response.headers);
-      headers.delete("Set-Cookie");
+      const fetched = await env.PAGES.get(id).fetch(request);
+      const response = new Response(fetched.body, fetched);
+      response.headers.delete("Set-Cookie");
       // Only the container can admit this capability. After admission, retain the
       // same bounded, redacted cloud evidence as a parent batch; the clone lets
       // the native request also keep its full local trace.
       if (interaction !== null && response.status === 204)
         await recordInteractions(interaction.request, route, { sampleReference: interaction.sampleReference }, manifest.release);
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers,
-      });
+      return response;
     }
 
     const secure = url.protocol === "https:";
@@ -1133,6 +585,15 @@ export default {
         return new Response("interaction batch has no page session", { status: 400 });
       }
       return recordInteractions(request, route, { reference }, manifest.release);
+    }
+    if (!active && request.method === "POST" && route.inside === "api/event") {
+      const fault = await pageFault(request);
+      if (fault !== null) {
+        if (existing === null) {
+          return new Response("page error has no page session", { status: 400 });
+        }
+        return recordPageFault(request, fault, manifest, route, reference);
+      }
     }
     if (
       !active &&
@@ -1170,11 +631,10 @@ export default {
         if (!response.headers.get("Content-Type")?.startsWith("text/html")) {
           return response;
         }
-        const headers = new Headers(response.headers);
-        headers.set("Leaf-Session-Reference", reference);
-        headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
+        response.headers.set("Leaf-Session-Reference", reference);
+        response.headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
         if (existing === null) {
-          headers.append("Set-Cookie", sessionCookie(sessionId, secure));
+          response.headers.append("Set-Cookie", sessionCookie(sessionId, secure));
         }
         if (
           env.AGENT_PREWARM === "true" &&
@@ -1192,11 +652,7 @@ export default {
             ),
           );
         }
-        return new Response(response.body, {
-          status: response.status,
-          statusText: response.statusText,
-          headers,
-        });
+        return response;
       }
     }
     const postedRequest =
@@ -1227,10 +683,8 @@ export default {
         agentLog("event_accepted", params, {
           durationMs: Date.now() - requestStarted,
         });
-        // TODO(2026-09-10): Persist the accepted event and active Codex turn identity
-        // in this container's Durable Object before returning the acknowledgement.
-        // TODO(2026-09-10): Add an alarm/status hook that recovers a dispatch when
-        // its container disappears or it exceeds the Worker's waitUntil window.
+        // TODO: a dispatch does not yet survive its container (TODO.md, "Make a
+        // leaf.page dispatch survive its container").
         ctx.waitUntil(dispatchAgentTask(env, params));
       }
     }
@@ -1249,24 +703,20 @@ export default {
       answer.page = `${answer.page}~${objectId}`;
       body = JSON.stringify(answer);
     }
-    const headers = new Headers(response.headers);
+    const answer = new Response(body, response);
     if (body !== response.body) {
-      headers.delete("Content-Length");
-      headers.delete("Content-Encoding");
+      answer.headers.delete("Content-Length");
+      answer.headers.delete("Content-Encoding");
     }
-    headers.set("Leaf-Session", "active");
-    headers.set("Leaf-Session-Reference", reference);
+    answer.headers.set("Leaf-Session", "active");
+    answer.headers.set("Leaf-Session-Reference", reference);
     if (existing === null) {
-      headers.append("Set-Cookie", sessionCookie(sessionId, secure));
+      answer.headers.append("Set-Cookie", sessionCookie(sessionId, secure));
     }
-    if (!active) headers.append("Set-Cookie", activeCookie(secure, route.root));
+    if (!active) answer.headers.append("Set-Cookie", activeCookie(secure, route.root));
     if (response.headers.get("Content-Type")?.startsWith("text/html")) {
-      headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
+      answer.headers.set("Server-Timing", `leaf;dur=${Date.now() - requestStarted}`);
     }
-    return new Response(body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers,
-    });
+    return answer;
   },
 };

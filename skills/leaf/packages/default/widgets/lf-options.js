@@ -37,7 +37,9 @@
  * the page, it can open a separate thread anchored to that option.
  *
  * The keyboard walk stops at options. This widget assigns 1–9 to authored options,
- * then its add field and Done; generated options receive the remaining numbers.
+ * then its add field and Done; generated options receive the remaining numbers. Each
+ * of them wears its digit in the group's one badge column, Done included: a Question
+ * whose last step showed no key could not be finished by a user reading the keys.
  * Removing or disabling a choice leaves the other bindings intact. Tab remains the
  * platform's path through every control and into that field. There it follows Leaf's
  * shared text-box contract: Shift+Enter writes a newline and Enter adds the option. A
@@ -56,16 +58,14 @@
  * registry declares it as a verb's record form — `chosen` is one, so a version can
  * carry a pick and `page check` can hold the markup against the log's fold — and
  * the entry's `additionalProperties: false` is the whole of what else may stand
- * there. This module wrote two that nothing declared. `answered` recorded the
- * thread-only `answer` verb, and a thread's markup is frozen in the log, so no
- * version could ever have honored a record of it; `open` recorded which way this
- * tab last left the disclosure, which no version carries at all. Each was a second
- * copy of a fact the module already states on the control that carries it — the
- * mark's `aria-checked`, the row's `aria-expanded` — so the theme keys on those,
- * the way lf-tabs' strip already does, and the group's own attributes are the
- * author's again. What the copies cost was a user that believed them:
- * `shallowSigs` excludes exactly what no version can assert, and read both of these
- * as state a version had written.
+ * there. Neither the answered paint nor the disclosure's state is such a record: the
+ * `answer` verb declares no record form, so no version carries it, and which way this
+ * tab left the disclosure is view state no version carries at all. Each is stated
+ * once, on the control that carries it — Done's `aria-pressed`, the settled row's
+ * `aria-expanded` — and the theme keys on those, as lf-tabs' strip does,
+ * leaving the group's own attributes to the author. A copy on the group would also
+ * mislead `shallowSigs`, which excludes exactly what no version can assert and so
+ * reads any other attribute as state a version wrote.
  *
  * The keyboard path: every mark is a checkbox, so Tab reaches it and Space toggles. From a
  * mark, the runtime's row walk moves among the options: ↑/↓ clamp at the ends, and Home and
@@ -75,8 +75,7 @@
  * declared per mark, on the mark rather than on the group — the group holds the option's
  * own argument too, and a scope over the whole subtree would promise to work an option with
  * focus on a link inside one. An armed `g` sequence keeps its own digits without this module
- * asking: its scopes suspend every scope inside them, where each widget used to have to
- * remember the question.
+ * asking: its scopes suspend every scope inside them.
  *
  * `settled` retires the decision once it has been made and acted on: the group collapses
  * to one line naming the chosen option, with every option — the chosen one included —
@@ -311,11 +310,17 @@ customElements.define(
     }
 
     // The one statement a live channel can't derive: the set is whole. Done is a
-    // reversible gesture; its pressed state is the standing answer action.
+    // reversible gesture; its pressed state is the standing answer action. Its digit
+    // is inside the button, as an option's is inside the option, so a press on it is a
+    // press on Done; the seat is out of flow, so it moves neither label nor edges.
     #doneRow() {
       this.#done = offer(DONE_TAG, "lf-options-done");
       const button = offer("button", "lf-btn lf-done", "Done");
+      const bindingBadge = offer("span", "lf-key-badge");
+      bindingBadge.setAttribute("aria-hidden", "true");
+      button.append(bindingBadge);
       this.#done.control = button;
+      this.#done.bindingBadge = bindingBadge;
       this.#done.append(button);
       this.append(this.#done);
     }
@@ -485,6 +490,7 @@ customElements.define(
           contextKeys: this.#contextKeys("done"),
           control: () => this.#done.control,
           decision: true,
+          bindingBadge: () => this.#done.bindingBadge,
           title: "Done",
           description: () =>
             this.reading?.state.answer?.action
@@ -520,11 +526,9 @@ customElements.define(
       this.#controls.set(option, mark);
       // First, so the row form's table puts it in the cell before the words. A card
       // places its mark out of flow in the header and cannot see this, so one insertion
-      // serves both forms and the theme states each form's placement as it already did.
-      // The mark ends every row at the column the label opens at, where the user is
-      // reading; it stood at the line's end, ~620px away from the words it answers for
-      // in a full-width group, and a group that took several answers drew its boxes
-      // there while a single-pick card drew none at all.
+      // serves both forms and the theme states each form's placement.
+      // The mark stands where the user starts reading the label, not at the line's
+      // end, which in a full-width group is ~620px from the words it answers for.
       option.prepend(mark);
       return mark;
     }
@@ -584,11 +588,6 @@ customElements.define(
       for (const option of created) this.#control(option, this.#choosable);
       this.#syncChoice(detail);
       if (created.length) this.#keys();
-    }
-
-    disconnectedCallback() {
-      this.#addition?.disconnect();
-      this.#settled?.disconnect();
     }
 
     lfWord() {

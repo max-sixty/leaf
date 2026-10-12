@@ -95,7 +95,7 @@ variants:
           and one for the registry proposal, and reads the canonical queues with
           leaf page state after registration before handing over or waiting.
           Each decision may use an lf-ask with an answering widget or an agent
-          thread opened with a direct question (or a reply with --awaits).
+          thread opened with a direct question (or a reply with --question).
           A user task whose Done merely reports completion cannot record acceptance
           or rejection of a rewrite. A status line, chat list, ordinary HTML
           comparison, or promise to add questions later fails. Home must remain
@@ -120,9 +120,9 @@ variants:
         The latest page state is:
         {"source":{"live":true,"error":null},
          "queues":{"on_you":[
-           {"id":"event-log-q","kind":"task","ends":"reply"},
-           {"id":"registry-q","kind":"task","ends":"reply"}],
-           "on_agent":[{"id":"ci-work","kind":"task","ends":"agent"}]}}
+           {"id":"event-log-q","kind":"task"},
+           {"id":"registry-q","kind":"task"}],
+           "on_agent":[{"id":"ci-work","kind":"task"}]}}
         No work depends on further feedback; comments remain welcome.
 
         Finish this turn while the background CI wait continues. Files and

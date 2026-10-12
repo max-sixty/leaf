@@ -75,12 +75,12 @@
   };
   const framePresented = (requested) => presentedFrame >= requested;
 
-  // The runtime's settled reading for chrome and geometry (runtime/rendering.js):
-  // nothing it queued for a rendering update is waiting and its last update was quiet.
-  const renderingSettled = () => {
-    const settled = document.querySelector("script[data-lf-entry]")?.lfRenderingSettled;
-    if (!settled) throw new Error("this document has no Leaf rendering reading");
-    return settled();
+  // The runtime's rendering facts for chrome and geometry (runtime/rendering.js).
+  // Readers select quiet updates or require every preparation to have landed too.
+  const renderingState = () => {
+    const read = document.querySelector("script[data-lf-entry]")?.lfRenderingState;
+    if (!read) throw new Error("this document has no Leaf rendering reading");
+    return read();
   };
 
   const themeReady = () =>
@@ -131,7 +131,7 @@
     call,
     requestFrame,
     framePresented,
-    renderingSettled,
+    renderingState,
     themeReady,
     preUpgradeFindings,
     firstBoxes: () => firstBoxes,

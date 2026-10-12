@@ -31,7 +31,8 @@ OUT = ROOT / ".tmp" / "bugback"
 # What the revert leaves at HEAD: the tests, the tooling they import, and the
 # environment the runs share.
 KEPT = (
-    "tests", "dev", "pyproject.toml", "uv.lock", "package.json", "package-lock.json",
+    "tests", "dev", "pyproject.toml", "uv.lock", "package.json", "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
 )  # fmt: skip
 
 

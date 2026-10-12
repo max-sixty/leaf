@@ -3,10 +3,10 @@
     "contracts": {
       "unified-diff": {
         "description": "A unified patch, either as one text value or as a file manifest whose patch fields Leaf delivers separately on demand.",
-        "instructions": {"producer": "Pipe the exact Git patch, with Git's default `a/` and `b/` prefixes, through this package's producer script into the source:\n\n```bash\ngit diff <base>...<head> | leaf package run diff patch_manifest.py | leaf data set \"$PAGE\" <source-id>\n```\n\nThe script writes the file manifest, whose `patch` fields Leaf sends only when their files open, and refuses what `lf-diff` cannot present \u2014 binary, mode-only, copy, and empty added or deleted files \u2014 naming the entry on stderr. State those changes in prose rather than setting a patch that omits them silently."},
+        "instructions": {"producer": "Pipe the exact Git patch, with Git's default `a/` and `b/` prefixes, into the source as one JSON string; the widget parses and validates it:\n\n```bash\ngit diff <base>...<head> | jq -Rs . | leaf data set \"$PAGE\" <source-id>\n```\n\n`lf-diff` accepts textual entries with `@@` hunks and exact path-only renames. If the comparison includes binary, mode-only, copy, or empty added/deleted files, describe those changes in prose and supply only supported entries to the widget. The raw form transfers and renders the whole supported patch. For a large supported patch whose files should load only when opened, optionally use this package's file-manifest producer:\n\n```bash\ngit diff <base>...<head> | leaf package run diff patch_manifest.py | leaf data set \"$PAGE\" <source-id>\n```\n\nThe script writes the file manifest, whose `patch` fields Leaf sends only when their files open, and refuses what `lf-diff` cannot present \u2014 binary, mode-only, copy, and empty added or deleted files \u2014 naming the entry on stderr. State those changes in prose rather than setting a patch that omits them silently."},
         "records": {
           "items": "files",
-          "key": "key",
+          "key": "path",
           "deferred": "patch"
         },
         "schema": {
@@ -14,10 +14,10 @@
           "properties": {
             "files": {
               "type": "array",
+              "minItems": 1,
               "items": {
                 "type": "object",
                 "properties": {
-                  "key": { "type": "string", "minLength": 1 },
                   "path": { "type": "string", "minLength": 1 },
                   "previousPath": { "type": "string", "minLength": 1 },
                   "kind": { "enum": ["patch", "rename"] },
@@ -26,13 +26,14 @@
                   "patch": { "type": "string", "minLength": 1 }
                 },
                 "required": [
-                  "key",
                   "path",
                   "kind",
                   "additions",
                   "deletions",
                   "patch"
                 ],
+                "if": { "properties": { "kind": { "const": "rename" } } },
+                "then": { "required": ["previousPath"] },
                 "additionalProperties": false
               }
             }

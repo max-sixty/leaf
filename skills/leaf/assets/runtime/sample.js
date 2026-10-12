@@ -8,6 +8,8 @@
  * An opaque parent cannot classify a later document which has no Leaf bootstrap.
  * Departed ports cannot settle the replacement's calls.
  * A block follows the child's reported height; a window keeps its own viewport.
+ * A reading step the child's scroll chain spent goes on from the frame here, as the
+ * wheel's scroll chains out of a frame (navigation.js, `stepAlong`).
  * Passive demonstrations remain inert. Removing a frame retires its realm before
  * releasing the allocation, including on reset and parent departure. Destruction
  * cancels pending admission and queue waits; an allocation already in flight is
@@ -15,19 +17,19 @@
  * enter the interaction stream at these decisions, with a host/allocation identity
  * and the connected document nonce. Native load is distinct from Leaf presentation;
  * an opaque destination cannot be classified from its load event. Retirement
- * records the local realm's destruction, before the allocation release answers. */
-import { layerHeaders } from "./layer-client.js";
+ * records the local realm's destruction, before the allocation release answers.
+ * A mounted frame answers for its image: the child draws the requested part of its
+ * viewport, which an image of the containing page puts in the frame's place. */
+import { requestJson } from "./layer-client.js";
 import { pageUrl, runtime } from "./context.js";
 import { dressFor, registerSampleDress } from "./dress.js";
 import { widgetDescriptor } from "./widget-descriptors.js";
-import { excludedByInert, upFrom } from "./shadow.js";
-import { seenRect } from "./geometry.js";
+import { containingView, frameView, presented } from "./geometry.js";
 import {
   sampleVisibility,
   onSampleVisibility,
   readSampleVisibility,
 } from "./sample-visibility.js";
-import { nativeModalAdmits } from "./keyboard/layer-stack.js";
 import { keeps } from "./keeps.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { recordInteraction } from "./interaction-log.js";
@@ -70,31 +72,22 @@ async function loadWithinLimit(work, signal) {
   }
 }
 
-async function request(url, body, headers = {}) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: layerHeaders({ "Content-Type": "application/json", ...headers }),
-    body: JSON.stringify(body),
-    keepalive: true,
-  });
-  const text = await response.text();
-  let answer;
-  try {
-    answer =
-      response.ok ||
-      response.headers.get("Content-Type")?.split(";")[0].trim() === "application/json"
-        ? JSON.parse(text)
-        : null;
-  } catch (error) {
-    throw Object.assign(error, { status: response.status, body: text });
-  }
-  if (!response.ok)
-    throw Object.assign(new Error(answer?.error ?? `sample: HTTP ${response.status}`), {
-      status: response.status,
-      body: text,
-    });
-  return answer;
-}
+const mounted = new Map();
+export const isSampleFrame = (node) => mounted.has(node);
+// A crop in the frame's viewport coordinates.
+export const sampleFrameImage = (frame, crop) => mounted.get(frame).call("image", crop);
+
+const request = (url, body, headers = {}) =>
+  requestJson(
+    url,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify(body),
+      keepalive: true,
+    },
+    "sample",
+  );
 
 export function mountSample(
   frame,
@@ -162,14 +155,10 @@ export function mountSample(
   frame.toggleAttribute("data-lf-contained", true);
 
   function admitted() {
-    for (let owner = frame; owner; owner = upFrom(owner))
-      if (owner.getAttribute?.("aria-hidden") === "true") return false;
     return (
       !passive &&
       document.visibilityState === "visible" &&
-      frame.checkVisibility({ visibilityProperty: true }) &&
-      !excludedByInert(frame) &&
-      nativeModalAdmits(frame) &&
+      presented(frame) &&
       sampleVisibility()?.visible !== false
     );
   }
@@ -180,26 +169,11 @@ export function mountSample(
     try {
       const outer = await readSampleVisibility();
       if (channel !== port) return;
-      const rect = frame.getBoundingClientRect();
-      const shown = seenRect(frame, new Map());
-      const band = shown ?? { left: 0, top: 0, right: 0, bottom: 0 };
-      const left = Math.max(rect.left, band.left, outer?.left ?? 0);
-      const top = Math.max(rect.top, band.top, outer?.top ?? 0);
-      const right = Math.min(rect.right, band.right, outer?.right ?? innerWidth);
-      const bottom = Math.min(rect.bottom, band.bottom, outer?.bottom ?? innerHeight);
-      const scaleX = rect.width / frame.offsetWidth || 1;
-      const scaleY = rect.height / frame.offsetHeight || 1;
+      const within = outer ? outer.visible && outer : containingView();
+      const view = admitted() && within && frameView(frame, within);
       port.postMessage({
         type: "visibility-reading",
-        detail: {
-          id,
-          visible:
-            admitted() && outer?.visible !== false && right > left && bottom > top,
-          left: (left - rect.left) / scaleX - frame.clientLeft,
-          top: (top - rect.top) / scaleY - frame.clientTop,
-          right: (right - rect.left) / scaleX - frame.clientLeft,
-          bottom: (bottom - rect.top) / scaleY - frame.clientTop,
-        },
+        detail: { id, visible: Boolean(view), ...view },
       });
     } catch (error) {
       if (channel !== port) return;
@@ -347,6 +321,14 @@ export function mountSample(
         );
       } else if (data.type === "return")
         frame.dispatchEvent(new Event("lf-sample-return"));
+      else if (data.type === "step")
+        frame.dispatchEvent(
+          new CustomEvent("lf-sample-step", {
+            bubbles: true,
+            composed: true,
+            detail: data.detail,
+          }),
+        );
       else notify(data.type, data.detail);
     };
     event.source.postMessage(
@@ -517,6 +499,7 @@ export function mountSample(
       destroyed = true;
       record("destroyed");
       lifetimeController.abort(new DOMException("sample destroyed", "AbortError"));
+      mounted.delete(frame);
       window.removeEventListener("message", connect);
       frame.removeEventListener("load", loaded);
       window.removeEventListener("pagehide", departing);
@@ -539,6 +522,7 @@ export function mountSample(
     if (!event.persisted) void host.destroy();
   };
   window.addEventListener("pagehide", departing);
+  mounted.set(frame, host);
   reset();
   return host;
 }

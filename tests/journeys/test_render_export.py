@@ -35,8 +35,8 @@ from leaf import leases as leases_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
+from leaf.findings import Finding
 from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
-from leaf.render_gate.findings import Finding
 from leaf.schema import ELEMENT_ID
 from leaf.structure import SourceDocument
 from leaf_dev import preview as preview_model

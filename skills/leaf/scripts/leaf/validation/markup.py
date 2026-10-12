@@ -3,33 +3,40 @@
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from leaf.findings import Finding, element_at
 from leaf.passages import block_markdown
-from leaf.registry.schema import json_value
 from leaf.schema import MEDIA_DIR, SERVED_PATH
 from leaf.structure import (
+    AUTHORED_ALLOCATIONS,
     POINTABLE_TAGS,
     SECTIONING_TAGS,
     SourceDocument,
-    allocation_expects,
+    allocation_valid,
     links_with_rel,
 )
 
 
-def reserved_marker_errors(parser) -> list:
+def found_at(code: str, rec: dict, id: str = "", **values) -> Finding:
+    """A finding about one parsed element, named as the author reads their own file:
+    its tag, with its id where the words name the one meant, and the line its markup
+    opens on. Every gate below makes its element findings here, so a reader scanning
+    a page of them reads one shape."""
+    return Finding(code, element_at(rec["tag"], id), {"line": rec["line"], **values})
+
+
+def reserved_marker_errors(parser) -> list[Finding]:
     """The same trespass as a reserved id, and reserved the same way one is: the
     runtime writes data-lf-* attributes and lf- classes as its own record and
     reads them back, so an authored copy makes it misread the page — words
     inside .lf-chrome leave every reading, .lf-quiet clips them to a point, and
     data-lf-gen words become cells the file-side reading has no fence for."""
     return [
-        f"<{tag}> at line {line} wears the runtime's own markers "
-        f"({', '.join(markers)}); the lf- and data-lf- namespaces are the "
-        "runtime's to write, whether or not it writes this name today"
+        Finding("reserved-markers", element_at(tag), {"line": line, "markers": markers})
         for tag, line, markers in parser.reserved_markers
     ]
 
 
-def id_errors(parser) -> list:
+def id_errors(parser) -> list[Finding]:
     """What a parsed markup's own names must not do: repeat, hold whitespace, or trespass
     on the runtime's own namespace — its ids, and its markers. One reader, because every
     gate that decides this is asking the same thing of the same parser: a version, a
@@ -38,44 +45,27 @@ def id_errors(parser) -> list:
     gate is the one that goes on not asking whatever the first one learns to."""
     errors = []
     if parser.duplicate_ids:
-        errors.append(
-            f"duplicate ids (anchors need unique targets): {json_value(parser.duplicate_ids)}"
-        )
+        errors.append(Finding("duplicate-ids", values={"ids": parser.duplicate_ids}))
     # HTML forbids whitespace in an id, and nothing downstream refuses one: the browser
     # still finds the element, so a comment anchors on the whole string and the page
     # reads as working. The id is then a thread's address, and renaming it means moving
     # the thread first; authoring is the one moment the fix costs nothing.
     if parser.spaced_ids:
-        errors.append(
-            f"ids containing whitespace, which HTML forbids in an id: {json_value(parser.spaced_ids)}"
-        )
+        errors.append(Finding("spaced-ids", values={"ids": parser.spaced_ids}))
     # leaf.js coins document ids under `lf-` (`lf-composer-quote`) and points ARIA at
     # them, so an authored id there redirects the reference to the page.
     if parser.reserved_ids:
-        errors.append(
-            "ids in the runtime's own lf- namespace (it coins lf-composer-quote there, "
-            f"and points ARIA at them): {json_value(parser.reserved_ids)}"
-        )
+        errors.append(Finding("reserved-ids", values={"ids": parser.reserved_ids}))
     # A command's ID names a widget or a message, whichever the page holds; the log
     # mints message ids in this shape, so an authored one could name both.
     if parser.event_shaped_ids:
         errors.append(
-            "ids shaped like the event ids the log mints (eight hex digits), which "
-            f"commands would read as a message: {json_value(parser.event_shaped_ids)}"
+            Finding("event-shaped-ids", values={"ids": parser.event_shaped_ids})
         )
     return errors + reserved_marker_errors(parser)
 
 
-def at(rec: dict, named: str = "") -> str:
-    """Where a lint finding is, in the terms the author reads their own file in: the
-    tag, whatever identifies the one meant — an id, or the attribute the rule is
-    about — and the line the markup opens on. Every gate below opens its findings this
-    way, so the shape is stated here rather than re-spelled at each of them; a reader
-    scanning a page of them reads one shape, and a change to it is one edit."""
-    return f"<{rec['tag']}{' ' + named if named else ''}> (line {rec['line']})"
-
-
-def unpointable_blocks(parser: SourceDocument) -> list:
+def unpointable_blocks(parser: SourceDocument) -> list[Finding]:
     """Blocks whose element-selection target is missing or too broad. Advice, never a
     gate:
     references/page-authoring.md's "Stable anchors" states the id rule, and this
@@ -91,52 +81,38 @@ def unpointable_blocks(parser: SourceDocument) -> list:
     no static read can measure, so a page-wide <div id> also passes for aim enough and the advice
     stays quiet. Undercounting is the right error for advice: a miss costs one
     aim landing wide, noise costs the register its authority."""
-    lines = []
+    found = []
     for block in parser.bare_blocks:
-        where = at(block)
         under = block["under"]
         if block["tag"] in ("section", "article"):
-            lines.append(
-                f"unpointable — {where} has no id, so no comment or reading "
-                f"position can hold to it"
-            )
+            found.append(found_at("unpointable-section", block))
         elif under is None:
-            lines.append(
-                f"unpointable — {where} has no id, nor anything enclosing it, "
-                f"so element selection has no target"
-            )
+            found.append(found_at("unpointable", block))
         elif block["tag"] in POINTABLE_TAGS and under[0] in SECTIONING_TAGS:
-            lines.append(
-                f"unpointable — {where} has no id, so a comment aimed at it "
-                f"lands on the whole of #{under[1]}"
-            )
-    return lines
+            found.append(found_at("unpointable-wide", block, enclosing=under[1]))
+    return [finding.but(severity="advice") for finding in found]
 
 
-def structure_errors(parser: SourceDocument) -> list:
+def structure_errors(parser: SourceDocument) -> list[Finding]:
     """Structural complaints and source elements missing a required end tag."""
     errors = list(parser.errors)
     if parser.unclosed:
-        errors.append(
-            "unclosed tags: "
-            + ", ".join(f"<{tag}> (line {line})" for tag, line in parser.unclosed)
-        )
+        elements = [{"tag": tag, "line": line} for tag, line in parser.unclosed]
+        errors.append(Finding("unclosed", values={"elements": elements}))
     return errors
 
 
-def document_declaration_errors(parser: SourceDocument) -> list:
+def document_declaration_errors(parser: SourceDocument) -> list[Finding]:
     """Delivery declares the document's base, headers, and import map, and addresses
     every request Leaf's runtime makes by them. Markup that declares its own, in a page
     or in a message quoted into one, sends those requests elsewhere, navigates the page,
     or leaves its modules unable to resolve, and a message does so in every revision."""
     return [
-        f"<{item['tag']}> (line {item['line']}) declares something about the whole "
-        "document, which delivery owns"
-        for item in parser.document_declarations
+        found_at("document-declaration", item) for item in parser.document_declarations
     ]
 
 
-def page_boundary_errors(parser: SourceDocument) -> list:
+def page_boundary_errors(parser: SourceDocument) -> list[Finding]:
     """Authored content lies under the page's one main content boundary."""
     errors = []
     direct_heads = [line for line, is_direct in parser.head_elements if is_direct]
@@ -146,9 +122,14 @@ def page_boundary_errors(parser: SourceDocument) -> list:
         or len(direct_heads) != 1
     ):
         errors.append(
-            "the page must have one explicit <head> directly under <html>; "
-            f"found {len(parser.head_lines)} head tags, {len(parser.head_elements)} "
-            f"parsed heads, and {len(direct_heads)} direct html heads"
+            Finding(
+                "head-count",
+                values={
+                    "tags": len(parser.head_lines),
+                    "parsed": len(parser.head_elements),
+                    "direct": len(direct_heads),
+                },
+            )
         )
     direct = [line for line, is_direct in parser.main_elements if is_direct]
     if (
@@ -157,29 +138,38 @@ def page_boundary_errors(parser: SourceDocument) -> list:
         or len(direct) != 1
     ):
         errors.append(
-            "the page must have one <main> directly under <body>; "
-            f"found {len(parser.body_lines)} bodies, {len(parser.main_elements)} mains, "
-            f"and {len(direct)} direct body mains"
+            Finding(
+                "main-count",
+                values={
+                    "bodies": len(parser.body_lines),
+                    "mains": len(parser.main_elements),
+                    "direct": len(direct),
+                },
+            )
         )
     if parser.outside_main:
-        errors.append(
-            "paintable authored content must stay inside the one <main> directly "
-            "under <body>; found " + json_value(parser.outside_main)
-        )
+        errors.append(Finding("outside-main", values={"content": parser.outside_main}))
     return errors
 
 
-def authored_allocation_errors(parser: SourceDocument) -> list:
-    """Authored allocations use the layer's named values."""
+def authored_allocation_errors(parser: SourceDocument) -> list[Finding]:
+    """Authored allocations use the layer's named values: one of the names `allowed`
+    lists, or, where it is None, a whole number of CSS pixels."""
     return [
-        f"{at(item, item['attr'] + '=' + json_value(item['value']))} has an invalid value; "
-        f"expected {expected}"
+        found_at(
+            "allocation-value",
+            item,
+            attr=item["attr"],
+            value=item["value"],
+            allowed=list(values) if isinstance(values, tuple) else None,
+        )
         for item in parser.authored_allocations
-        if (expected := allocation_expects(item["attr"], item["value"]))
+        if not allocation_valid(item["attr"], item["value"])
+        for values in [AUTHORED_ALLOCATIONS[item["attr"]]]
     ]
 
 
-def fragment_style_errors(parser: SourceDocument) -> list:
+def fragment_style_errors(parser: SourceDocument) -> list[Finding]:
     """A message may not dress the document it is put into.
 
     A version's <style> is the page's own, and the gates a version answers to read
@@ -196,20 +186,13 @@ def fragment_style_errors(parser: SourceDocument) -> list:
     page and its markup is frozen in the log where no version can revise it."""
     errors = []
     if parser.css.strip():
-        errors.append(
-            "<style> in message markup becomes a stylesheet of the whole document it "
-            "is put into; a widget's look belongs in the layer's theme, beside its "
-            "element declaration"
-        )
+        errors.append(Finding("message-style", "<style>"))
     if links_with_rel(parser.links, "stylesheet"):
-        errors.append(
-            "<link rel=stylesheet> in message markup dresses the whole document it is "
-            "put into; the page serves the one vendored theme it was reviewed with"
-        )
+        errors.append(Finding("message-stylesheet", "<link>"))
     return errors + authored_allocation_errors(parser)
 
 
-def media_errors(parser: SourceDocument, page_dir: Path) -> list:
+def media_errors(parser: SourceDocument, page_dir: Path) -> list[Finding]:
     """A /media/ reference the page directory can't answer, which renders as a broken
     image. The render gate would catch it as a 404, but that runs once a page; this
     runs at every door markup comes through, and a missing file is as deterministic as
@@ -227,7 +210,7 @@ def media_errors(parser: SourceDocument, page_dir: Path) -> list:
     return _unanswered_media(parser.media_refs, page_dir)
 
 
-def text_media_errors(text: str, page_dir: Path) -> list:
+def text_media_errors(text: str, page_dir: Path) -> list[Finding]:
     """The same reference in a message's Markdown, which is the other way one arrives.
 
     Markup names a picture in an attribute, where the parsed reading above finds it;
@@ -250,7 +233,7 @@ def text_media_errors(text: str, page_dir: Path) -> list:
     return _unanswered_media(refs, page_dir)
 
 
-def _unanswered_media(refs, page_dir: Path) -> list:
+def _unanswered_media(refs, page_dir: Path) -> list[Finding]:
     """Every `/media/…` reference the page will not answer: one whose name the server
     never serves (`schema.MEDIA_DIGEST`), whatever the directory holds under it, and
     one the directory has not got."""
@@ -258,12 +241,7 @@ def _unanswered_media(refs, page_dir: Path) -> list:
     for ref in sorted(refs):
         path = urlsplit(ref).path
         if not SERVED_PATH.fullmatch(path):
-            errors.append(
-                f"{ref} isn't a name `leaf page media` gives, so the page never "
-                "serves it"
-            )
+            errors.append(Finding("unserved-media", values={"ref": ref}))
         elif not (page_dir / path.lstrip("/")).is_file():
-            errors.append(
-                f"{ref} isn't in the page directory; `leaf page media` puts it there"
-            )
+            errors.append(Finding("missing-media", values={"ref": ref}))
     return errors

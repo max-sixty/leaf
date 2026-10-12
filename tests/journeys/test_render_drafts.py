@@ -9,8 +9,8 @@ from browser.test_render_application_boundary import (
 )
 from browser.test_render_threads import hold_visible_thread_presentation
 from leaf import event_log as events_model
+from leaf.findings import Finding
 from leaf.render_checks import wait_until_ready
-from leaf.render_gate.findings import Finding
 from playwright.sync_api import expect
 from render_cases_interaction import (
     SEATED_QUESTION_PAGE,

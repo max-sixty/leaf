@@ -1361,7 +1361,7 @@
     listen(held, "pointercancel", (event) => presses.delete(event.pointerId), true);
     if (view === view.parent) break;
   }
-  // Each finding goes to the fixture as a record (`render_gate/findings.py` words it),
+  // Each finding goes to the fixture as a record (`leaf/findings.py` words it),
   // once per `key`, with every node in it named.
   const reported = new Set();
   const report = (key, finding) => {

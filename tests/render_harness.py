@@ -66,9 +66,9 @@ from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
+from leaf.findings import Finding
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
-from leaf.render_gate.findings import Finding
 from leaf_dev.browser import (
     scroll_settled,
 )
@@ -1360,7 +1360,7 @@ def _frame_owners_drawn(frame):
 
 def watched(page, *, java_script_enabled=True):
     """Collect browser problems into one retained list per page, each a record
-    (`render_gate/findings.py`) a test reads by its fields.
+    (`leaf/findings.py`) a test reads by its fields.
 
     The browser's own reports, taken from Playwright's events as the render gate takes
     them: console warnings and errors, a failed response, and uncaught exceptions.

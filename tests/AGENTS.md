@@ -294,7 +294,7 @@ over `browser.unwatched`.
 
 The `browser` fixture instruments every page it makes and fails the test on any
 problem left at the end; do not install a second collector. Each problem is a record
-(`render_gate/findings.py`), and the health sensors below hand theirs over as data
+(`leaf/findings.py`), and the health sensors below hand theirs over as data
 rather than as console sentences. Consume an expected fault at its causal point with
 `consume_browser_errors`, or `reported_browser_errors` when its report arrives in parts,
 naming it by its fields (`{"code": "failed-load", "status": 400}`), or by a fragment of

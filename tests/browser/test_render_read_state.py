@@ -27,7 +27,7 @@ from journeys.test_render_read_state import (
 from leaf import event_endpoint as endpoint_model
 from leaf import http as http_model
 from leaf import thread as thread_model
-from leaf.render_gate.findings import Finding
+from leaf.findings import Finding
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_harness import (

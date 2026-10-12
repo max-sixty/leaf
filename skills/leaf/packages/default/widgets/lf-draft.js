@@ -54,6 +54,7 @@ import {
   watchDraft,
   whileConnected,
   widgetController,
+  pressIsKeyboardActivation,
   reachedForWords,
   paintMarkdown,
   markdownSourceOffset,
@@ -62,6 +63,7 @@ import {
   nextRender,
   retainUserIntent,
   scrollIntoView,
+  focused,
 } from "/runtime/widget-api.js";
 
 const ACTIONS = [
@@ -132,7 +134,7 @@ customElements.define(
         // A keyboard activation carries no place, and the keyboard's door is the ✎. The
         // primary button only: a middle- or right-press is not the gesture this is for.
         if (
-          ev.detail === 0 ||
+          pressIsKeyboardActivation(ev) ||
           ev.button !== 0 ||
           ev.target.closest("[data-lf-offer], a, button")
         )
@@ -373,7 +375,7 @@ customElements.define(
       // has focus in the box that is going, and the draft's one persistent control is
       // where it lands so a keyboard user isn't dropped back at the page top; a close
       // another tab's settlement brings takes focus from wherever they actually are.
-      const left = document.activeElement;
+      const left = focused(document);
       const stood = this.contains(left);
       const mayReturn = retainUserIntent({ source: left });
       this.#editor.remove();

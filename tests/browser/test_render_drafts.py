@@ -12,8 +12,8 @@ from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import service as service_model
+from leaf.findings import Finding
 from leaf.render_checks import one_frame, rendered, wait_until_ready
-from leaf.render_gate.findings import Finding
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (

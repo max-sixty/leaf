@@ -37,7 +37,7 @@ from urllib.parse import urlencode, urljoin, urlsplit
 
 import click
 import psutil
-from leaf.render_gate.findings import Finding
+from leaf.findings import Finding
 from leaf.render_gate.scheme import collect_page_errors
 from playwright.sync_api import APIResponse, BrowserContext, Page
 from playwright.sync_api import Error as PlaywrightError

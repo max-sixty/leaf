@@ -26,6 +26,7 @@ import {
   watchData,
   once,
   plainPress,
+  focused,
 } from "/runtime/widget-api.js";
 
 import { diffLocationKey } from "./diff-coordinates.js";
@@ -308,9 +309,11 @@ customElements.define(
       });
       // Placed at once, a row changing groups, even to a newly arriving root, moves
       // straight across and keeps its controls live; its group opens to show it.
-      const focused = this.getRootNode().activeElement;
+      const standing = focused(this.getRootNode());
       for (const { group, body, children } of placements)
-        if (children.some((node) => node.parentNode !== body && node.contains(focused)))
+        if (
+          children.some((node) => node.parentNode !== body && node.contains(standing))
+        )
           group.open = true;
       setChildLists([
         [

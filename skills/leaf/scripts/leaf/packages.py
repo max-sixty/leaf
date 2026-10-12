@@ -437,7 +437,7 @@ def cmd_package_check(
     check's refusal (`package`) or the widget quality findings; and `browser`, what
     the browser gate ran in or why none could, null where none was asked for or the
     package check refused."""
-    from .render_gate.findings import Finding
+    from .findings import Finding
 
     def reported(status, findings=(), browser=None):
         print(

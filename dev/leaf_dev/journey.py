@@ -99,7 +99,7 @@ from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.events import build_threads
 from leaf.files import revision_path
-from leaf.render_gate.findings import Finding
+from leaf.findings import Finding
 from leaf.server import running_server
 from leaf.tasks import start_reading
 from leaf.thread import successful_replies

@@ -632,34 +632,14 @@ export function createGoToSequence({
         when: () => atGoToTargets() && targetCapability(),
         run: filterTargets,
       },
-      {
-        id: "navigation.target.walk",
-        keys: ["Tab", "Shift+Tab"],
-        routes: [
-          {
-            id: "navigation.target.next",
-            binding: "Tab",
-            title: "Hear the next visible target",
-          },
-          {
-            id: "navigation.target.previous",
-            binding: "Shift+Tab",
-            title: "Hear the previous visible target",
-          },
-        ],
-        title: "browse hints",
-        repeat: true,
+      ...hints.walkRows({
+        id: "navigation.target",
         when: () => (goToActive ? hints.candidates().length > 0 : targetCapability()),
-        run: (binding) => hints.walk(binding === "Tab" ? 1 : -1),
-      },
-      {
-        id: "navigation.target.choose",
-        keys: ["Enter"],
-        description: "Go to the target just announced",
-        title: "go to target",
-        when: hints.walking,
-        run: hints.choose,
-      },
+        choose: {
+          description: "Go to the target just announced",
+          title: "go to target",
+        },
+      }),
       // A destination whose control belongs to another runtime owner joins this one
       // vocabulary as its complete row. The Go-to hint layer contributes only the sequence's
       // progress and cancellation; liveness, words, landing, and return remain with the

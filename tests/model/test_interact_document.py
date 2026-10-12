@@ -2626,7 +2626,7 @@ def test_thread_markup_can_use_a_different_binding_from_a_page_source(page_dir):
     active = read_page_data(page_dir)["sources"]["project-feed"]
     assert active["contract"] == "rows" and active["value"] == ["active page"]
     captured = artifact_model.read_revision(page_dir, reply["revision"]).registry
-    thread_bindings, _seats, errors = data_contracts_model.declared_data_bindings(
+    thread_bindings, errors = data_contracts_model.declared_data_bindings(
         structure_model.SourceDocument(reply["markup"]).lf_elements, captured
     )
     assert errors == [] and thread_bindings == {"project-feed": "other-rows"}

@@ -24,8 +24,8 @@ from leaf import media as media_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import thread as thread_model
+from leaf.findings import Finding
 from leaf.render_checks import one_frame, rendered, wait_until_ready
-from leaf.render_gate.findings import Finding
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect

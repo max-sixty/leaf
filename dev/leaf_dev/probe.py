@@ -18,8 +18,8 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import click
+from leaf.findings import Finding
 from leaf.render_checks import PageNotReady
-from leaf.render_gate.findings import Finding
 from leaf.render_gate.scheme import collect_page_errors
 from playwright.sync_api import Error as PlaywrightError
 

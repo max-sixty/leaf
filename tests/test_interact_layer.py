@@ -1572,6 +1572,7 @@ def test_every_widget_api_export_has_a_behavior_module_reader():
     shown = {name for name in exported if re.search(rf"\b{name}\b", in_code)}
 
     assert {"once", "html", "widgetController"} <= imported, "no import read"
+    assert sorted(imported - exported) == [], "widget imports absent from widget-api"
     assert sorted(exported - imported - shown) == []
 
 
@@ -1982,7 +1983,6 @@ def test_server_inputs_require_a_transition_without_browser_changes(
     assert second["generation"] != first["generation"]
     assert second["server"] != first["server"]
     assert second["fingerprint"] == first["fingerprint"]
-    assert second["runtime"] == first["runtime"]
 
 
 def test_site_page_accepts_events_across_build_and_container_python_versions(
@@ -2010,52 +2010,68 @@ PLAIN_PAGE = (
 )
 
 
-def test_the_browser_gate_refuses_a_page_another_leaf_vendored(tmp_path, monkeypatch):
-    """A page whose runtime moved under it names the re-vendor, not a missing export.
-
-    The gate's probe modules come from the running Leaf and the runtime they import
-    comes from the page, so a page vendored by another one breaks in the browser.
-    """
+def test_the_browser_gate_reads_a_page_another_leaf_vendored(tmp_path, monkeypatch):
+    """A Leaf update leaves the render gate working on a page an earlier Leaf vendored
+    at this protocol: its own probes import the page's older runtime by name, and need
+    only the names they import, not the same bytes."""
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
     page = tmp_path / "page"
     initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert initialized.exit_code == 0, initialized.output
     (page / "index.html").write_text(PLAIN_PAGE, encoding="utf-8")
-    assert (
-        interact_files.read_json(page / "registry.json")["$layer"]["runtime"]
-        == layer_model.payload_runtime_fingerprint()
-    )
-
-    # The page keeps the runtime the Leaf that vendored it had, which is the state a
-    # plugin update leaves behind.
+    # Another Leaf's runtime: the same names, other bytes, and the identity an earlier
+    # Leaf recorded for them.
+    geometry = page / "runtime" / "geometry.js"
+    older = geometry.read_text(encoding="utf-8") + "\n// an earlier Leaf's runtime\n"
+    geometry.unlink()
+    geometry.write_text(older, encoding="utf-8")
     stamp = page / "registry.json"
     vendored = interact_files.read_json(stamp)
-    before = "sha256:" + "b" * 64
-    vendored["$layer"]["runtime"] = before
+    vendored["$layer"]["runtime"] = "sha256:" + "b" * 64
+    stamp.unlink()
     stamp.write_text(json.dumps(vendored), encoding="utf-8")
 
     result = runner.invoke(cli_model.cli, ["page", "check", "--render", str(page)])
 
+    assert result.exit_code == 0, result.output
+    assert "render checks passed" in result.output
+
+
+def test_the_browser_gate_names_the_re_vendor_when_its_probes_cannot_link(
+    tmp_path, monkeypatch
+):
+    """A page whose runtime lacks a name the gate's probes import names the re-vendor,
+    not a missing export, which would read as a defect in the page."""
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    page = tmp_path / "page"
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert initialized.exit_code == 0, initialized.output
+    (page / "index.html").write_text(PLAIN_PAGE, encoding="utf-8")
+    check_api = page / "runtime" / "check-api.js"
+    exports = check_api.read_text(encoding="utf-8")
+    assert 'export { renderedParent, uiInside, upFrom } from "./shadow.js";' in exports
+    check_api.unlink()
+    check_api.write_text(
+        exports.replace(
+            "export { renderedParent, uiInside, upFrom }",
+            "export { renderedParent, uiInside }",
+        ),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(cli_model.cli, ["page", "check", "--render", str(page)])
+
     assert result.exit_code != 0, result.output
-    assert before in result.output
+    assert "upFrom" in result.output
     assert f"leaf page init {page}" in result.output
-
-    # A page from before the identity was recorded reads as carrying no runtime, which
-    # the gate cannot confirm either.
-    del vendored["$layer"]["runtime"]
-    stamp.write_text(json.dumps(vendored), encoding="utf-8")
-
-    unstamped = runner.invoke(cli_model.cli, ["page", "check", "--render", str(page)])
-
-    assert unstamped.exit_code != 0, unstamped.output
-    assert f"leaf page init {page}" in unstamped.output
 
 
 def test_the_browser_gate_opens_away_from_the_project_a_page_selected(
     tmp_path, monkeypatch
 ):
-    """The gate confirms the runtime it serves probes against from the payload alone.
+    """The gate opens a page away from the project its packages were selected in.
 
     `$layer.packages` records a project-relative selection, resolved against the
     directory `page init` ran in, so a reading composed from the page's packages would

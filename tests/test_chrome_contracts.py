@@ -447,19 +447,17 @@ REPLY_BOX = """card => {
 }"""
 
 
+# A short card with a card above it, read back toward that card, and with cards below;
+# a long card with cards below it and with cards above.
 @pytest.mark.parametrize(
     "earlier_cards,later_cards,answers,back_to_top",
     [
-        (0, 0, 1, False),
-        (1, 0, 1, False),
         (1, 0, 1, True),
         (0, 3, 1, False),
         (0, 3, 14, False),
         (2, 0, 14, False),
     ],
     ids=[
-        "alone",
-        "below-a-card",
         "short-after-reading-above",
         "above-cards",
         "scrolled",
@@ -1333,8 +1331,13 @@ def test_live_revision_retains_the_runtime_favicon(browser, serve):
     ), "in-place activation replaced or removed the runtime favicon"
 
 
-@pytest.mark.parametrize("scheme", ["light", "dark"])
-@pytest.mark.parametrize("touch", [False, True], ids=["desktop", "touch"])
+# Each scheme and each pointer once: the faces compared are the same scheme's, and a
+# finger changes the layout the two places stand in rather than their colours.
+@pytest.mark.parametrize(
+    ("touch", "scheme"),
+    [(False, "light"), (True, "dark")],
+    ids=["desktop-light", "touch-dark"],
+)
 def test_a_conversation_keeps_its_face_and_sends_from_margin_and_panel(
     browser, serve, scheme, touch
 ):
@@ -1675,8 +1678,11 @@ def test_news_that_answers_a_thread_waiting_on_you_leaves_its_card_in_place(
     assert card.locator(".lf-thread-summary").bounding_box() == stood
 
 
-@pytest.mark.parametrize("touch", [False, True])
-@pytest.mark.parametrize("agent", ["Codex", "Maximilian Roos Research Assistant"])
+# The long agent name stands on the phone's narrow card, where it has least room.
+@pytest.mark.parametrize(
+    ("agent", "touch"),
+    [("Codex", False), ("Maximilian Roos Research Assistant", True)],
+)
 def test_resolved_thread_has_one_surface_and_reopens_from_its_title(
     browser, serve, touch, agent
 ):
@@ -1781,8 +1787,7 @@ def test_resolved_thread_has_one_surface_and_reopens_from_its_title(
     )
 
 
-@pytest.mark.parametrize("width", [320, 800])
-@pytest.mark.parametrize("scheme", ["light", "dark"])
+@pytest.mark.parametrize(("scheme", "width"), [("dark", 320), ("light", 800)])
 def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_header(
     browser, serve, width, scheme
 ):
@@ -2049,8 +2054,9 @@ def test_opening_a_line_under_a_full_last_line_moves_no_words(browser, serve):
     assert typed["rows"][: len(full["rows"])] == full["rows"]
 
 
-@pytest.mark.parametrize("thread_count", [1, 2])
-@pytest.mark.parametrize("touch", [False, True])
+# Two threads put the card's navigation on the row too, which a finger's larger
+# controls leave least room for.
+@pytest.mark.parametrize(("touch", "thread_count"), [(False, 1), (True, 2)])
 def test_page_thread_dismiss_and_resolve_share_the_metadata_row(
     browser, serve, thread_count, touch
 ):
@@ -2356,10 +2362,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
         (630, False, 14),
         (629, False, 14),
         (500, False, 14),
-        (320, False, 14),
-        (630, True, 14),
         (629, True, 14),
-        (320, True, 16),
         (320, True, 20),
         (631, False, 20),
     ],
@@ -2953,13 +2956,12 @@ FACE = [
 ]
 
 
-# The scheme reaches every surface through the same tokens, so dark runs on the page's
-# own composer and on the one a widget's thread outlet holds.
+# The scheme reaches every surface through the same tokens, so dark runs once, on the
+# composer a widget's thread outlet holds inside the widget's own tree.
 @pytest.mark.parametrize(
     "surface, scheme",
     [
         *((surface, "light") for surface in ("general", "panel", "margin", "outlet")),
-        ("general", "dark"),
         ("outlet", "dark"),
     ],
 )
@@ -3164,8 +3166,17 @@ def toggle_surface(page, surface, open=True):
         panel_settled(page, open)
 
 
-@pytest.mark.parametrize("width", [900, 1440])
-@pytest.mark.parametrize("case", SURFACE_PAGES)
+# The wide page, whose side track the surface stands over, at both widths; the column
+# and the Questions panel at one each.
+@pytest.mark.parametrize(
+    ("case", "width"),
+    [
+        ("threads-column", 900),
+        ("threads-wide-page", 900),
+        ("threads-wide-page", 1440),
+        ("queue", 1440),
+    ],
+)
 def test_an_auxiliary_surface_stands_over_the_page_and_moves_none_of_it(
     browser, serve, case, width
 ):

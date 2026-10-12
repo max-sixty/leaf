@@ -417,7 +417,9 @@
                 <code>answer.value</code> contains option ids, and
                 <code>prompt.target</code> names the surrounding context.
               </p>
-              <button id="bg-read-question" type="button">Read current ask</button>
+              <button id="bg-read-question" class="button" type="button">
+                Read current ask
+              </button>
               <pre id="bg-question-reading" hidden></pre>
             </details>
             <section id="bg-task-on-you">
@@ -449,10 +451,13 @@
                 normally. Leave the sample: <kbd>1</kbd> no longer focuses the note.
               </p>
               <div id="bg-local-shortcuts" tabindex="0">
-                <button id="bg-shortcut-focus-note" type="button">
+                <button id="bg-shortcut-focus-note" class="button" type="button">
                   Write sample note
                 </button>
-                <label>Sample note <input id="bg-shortcut-note" type="text" /></label>
+                <label>
+                  Sample note
+                  <input id="bg-shortcut-note" class="field" type="text" />
+                </label>
               </div>
             </section>
             <section id="bg-keyboard-preference">
@@ -1319,7 +1324,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   lettering. Reset starts a fresh untitled thread. Reduced motion shows
                   solid muted text.
                 </p>
-                <button id="bg-title-sheen-show" type="button">
+                <button id="bg-title-sheen-show" class="button" type="button">
                   Open sample thread
                 </button>
                 <lf-sample
@@ -1503,7 +1508,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               with the author. On the public site, make a decision or comment first to
               activate your private page, then return here.
             </p>
-            <button id="bg-read-user-view" type="button">Read observed views</button>
+            <button id="bg-read-user-view" class="button" type="button">
+              Read observed views
+            </button>
             <pre id="bg-user-view-reading" hidden></pre>
           </section>
 
@@ -2505,7 +2512,7 @@ gallery/
                   page; another origin cannot frame it.
                 </p>
                 <div id="bg-durable-frame-host">
-                  <button id="bg-durable-frame-open" type="button">
+                  <button id="bg-durable-frame-open" class="button" type="button">
                     Open the earlier map decision
                   </button>
                   <iframe
@@ -2605,10 +2612,16 @@ gallery/
               ></lf-shot>
               <p id="bg-shot-plain-guide">
                 The same pair without <code>outlines</code>: nothing is marked, and the
-                rail says nothing, since the pair has a change to point at.
+                rail says nothing, since the pair has a change to point at. This one
+                carries <code>pixels</code> instead: choose “changed pixels” in the
+                middle of the rail, or press it with Enter, to see the after image
+                greyed with every changed pixel painted over it. Choose Before or After
+                to leave it, or click the picture to return to the comparison as it
+                stood.
               </p>
               <lf-shot
                 id="bg-shot-plain"
+                pixels
                 alt="a sample run list with and without a status column"
                 before="/media/051bee487bfb5d13.png"
                 after="/media/a99a1b63048502d0.png"

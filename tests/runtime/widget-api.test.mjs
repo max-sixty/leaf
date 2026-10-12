@@ -75,11 +75,13 @@ function referenceCode() {
     ),
   );
   // Names the reference's own code gives as an object's key or shorthand, or defines
-  // as a method in an example: an option or hook a widget supplies.
+  // as a method in an example: an option or hook a widget supplies. A method's head
+  // stands on one line, so a span that calls a helper does not read as a method
+  // definition because the next span opens a brace.
   const members = new Set(
     [
       ...code.matchAll(/([A-Za-z_$][\w$]*)\s*:/g),
-      ...code.matchAll(/^\s*([A-Za-z_$][\w$]*)\([^)]*\)\s*\{/gm),
+      ...code.matchAll(/^[ \t]*([A-Za-z_$][\w$]*)\([^)\n]*\)[ \t]*\{/gm),
       ...[...code.matchAll(/\{([^{}]*)\}/g)].flatMap((found) =>
         found[1].split(",").map((part) => part.trim().match(/^([A-Za-z_$][\w$]*)$/)),
       ),

@@ -91,7 +91,8 @@ Page scope holds commands whose subject is the page; surface scopes hold command
 about their contents. A page-level letter must stay useful on every page; any
 other control stays reachable through Tab, native activation, ask digits, or
 Go-to hints. `register.js`'s `PAGE_COMMANDS` is the canonical page vocabulary in
-shortcut-line order. Lowercase advances a walk and Shift goes back. A surface may
+shortcut-line order. Lowercase advances a walk and Shift goes back, and a page walk
+comes round from either end to the other. A surface may
 reuse a page key for the same intent with a nearer destination. While the user
 stands in an ask or its associated margin/thread representative, core forwards only
 the widget's explicit `contextKeys`. Widgets own `1`–`9` assignments; Decision is a

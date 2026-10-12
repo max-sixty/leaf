@@ -703,8 +703,9 @@ export const rowArrows = (node) =>
     : ["ArrowLeft", "ArrowRight"];
 
 // The one-dimensional list policy. Every step inside the list clamps; a caller may name
-// the row where its own off-list arrival enters. Tabs and spatial grids own their cyclic
-// policies instead of passing through this primitive.
+// the row where its own off-list arrival enters. The page walks cycle (`cycledRow`), and
+// tabs and spatial grids own their cyclic policies instead of passing through this
+// primitive.
 export const clampedRow = (
   rows,
   current,
@@ -715,4 +716,16 @@ export const clampedRow = (
   const at = rows.indexOf(current);
   const next = at < 0 ? entry : at + dir;
   return rows[Math.max(0, Math.min(rows.length - 1, next))];
+};
+
+// The page walks' policy (`t`, `q`, `n`): a step past either end comes round to the
+// other. `wrapped` says it came round, which the landing's ordinal alone does not, so
+// the walk can mark it (walk-position.js, `beginWalk`). Entry from off the list takes
+// the end the step faces and comes round nothing.
+export const cycledRow = (rows, current, dir) => {
+  if (!rows.length) return { row: undefined, wrapped: false };
+  const at = rows.indexOf(current);
+  const next = at < 0 ? (dir > 0 ? 0 : rows.length - 1) : at + dir;
+  const wrapped = next < 0 || next >= rows.length;
+  return { row: rows[(next + rows.length) % rows.length], wrapped };
 };

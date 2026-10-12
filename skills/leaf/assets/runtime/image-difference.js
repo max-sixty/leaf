@@ -76,7 +76,10 @@
  *
  * A before/after widget states the reading and, when asked, draws each frame's outlines,
  * and `leaf-dev stills` loads this module into its browser on its own and crops a
- * changed state to them. The clustering dependency loads only when a comparison
+ * changed state to them. Where a change is a few pixels, a shift or a recolour inside
+ * one block, an outline says where to look but not what moved, so `changedPixels`
+ * also gives every pixel's own reading under the same rule, for a view that paints
+ * them. The clustering dependency loads only when a comparison
  * needs regions, after page presentation; this module touches no document. */
 
 const SLIGHT = 48;
@@ -112,11 +115,10 @@ export async function differingRegions(a, b) {
     const row = Math.floor(y / CELL) * columns;
     const coarseRow = Math.floor(y / COARSE) * coarseColumns;
     for (let x = 0; x < width; x += 1) {
-      const p = x < a.width && y < a.height ? one[y * a.width + x] : undefined;
-      const q = x < b.width && y < b.height ? other[y * b.width + x] : undefined;
-      if (p === q && p !== undefined) continue;
+      const change = pixelChange(a, one, b, other, x, y);
+      if (!change) continue;
       changed += 1;
-      if (p === undefined || q === undefined || distance(p, q) >= SLIGHT) {
+      if (change === STRONG) {
         struck[row + Math.floor(x / CELL)] = 1;
         coarse[coarseRow + Math.floor(x / COARSE)] = 1;
       }
@@ -618,6 +620,39 @@ function distance(p, q) {
   );
 }
 
+const SLIGHT_CHANGE = 1;
+const STRONG = 2;
+
+/* How the pixel at `x`, `y` changed between `a` and `b`, read as `one` and `other`:
+ * 0 not at all, SLIGHT_CHANGE by less than SLIGHT levels, or STRONG, which a pixel
+ * only one image has also is. */
+function pixelChange(a, one, b, other, x, y) {
+  const p = x < a.width && y < a.height ? one[y * a.width + x] : undefined;
+  const q = x < b.width && y < b.height ? other[y * b.width + x] : undefined;
+  if (p === q && p !== undefined) return 0;
+  return p === undefined || q === undefined || distance(p, q) >= SLIGHT
+    ? STRONG
+    : SLIGHT_CHANGE;
+}
+
+/* Every changed pixel of `a` and `b`, in the pair's size, as the alpha of black RGBA
+ * `data` beside its `width` and `height`: opaque where a pixel moved SLIGHT levels or
+ * more, faint where it moved less, clear where it did not move. Takes what
+ * `differingRegions` takes. A reader paints its own colour through it as a mask, so
+ * the picture follows the theme. */
+export function changedPixels(a, b) {
+  const width = Math.max(a.width, b.width);
+  const height = Math.max(a.height, b.height);
+  const one = words(a);
+  const other = words(b);
+  const data = new Uint8ClampedArray(width * height * 4);
+  const alpha = [0, 40, 255];
+  for (let y = 0; y < height; y += 1)
+    for (let x = 0; x < width; x += 1)
+      data[(y * width + x) * 4 + 3] = alpha[pixelChange(a, one, b, other, x, y)];
+  return { width, height, data };
+}
+
 /* Which of four readings a difference is: "identical", "throughout", "slight" (it
  * changed, but nowhere far enough to point at), or "areas", the one with regions. */
 export function differenceKind({ changed, throughout, regions }) {
@@ -669,6 +704,11 @@ export function countAreas(regions) {
  * the canvas origin-clean; cross-origin images need a successful CORS response. */
 export function compareImages(a, b) {
   return differingRegions(pixels(a), pixels(b));
+}
+
+/* `changedPixels` for two decoded images, read as `compareImages` reads them. */
+export function compareImagePixels(a, b) {
+  return changedPixels(pixels(a), pixels(b));
 }
 
 function pixels(image) {

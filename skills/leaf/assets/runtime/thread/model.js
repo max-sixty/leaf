@@ -150,26 +150,56 @@ const pendingSeat = (message) =>
 // reading of the same outbox and log the server projects rather than a second store
 // beside it.
 //
-// The derived facts a pending thread carries are the ones the user just made true: a
-// thread the user opened with words is a thread rather than a mark, and its attention
-// waits on the newest turn sent, words or a rewrite of them, whose local workflow
-// shares its pending id, so the agent owes the next word and the user none. Every other
-// thread keeps the attention the server derived.
+// A thread the user opened with words is a thread rather than a mark, and asks
+// nothing yet. Whose turn any other thread is, and which of its asks the user
+// owes, once a pending gesture lands depends on what the whole log leaves standing, so
+// the fold takes them from the server's reading of that gesture (`after`, served
+// beside the thread) rather than deciding them: the attention, drawn on a send's own
+// local workflow, which shares its pending id, where the thread waits on the send,
+// and the owed asks as `owed`, which the published asks and Questions read. Of several
+// pending gestures on one thread, the last decides, a turn reopening what a
+// settlement before it closed, and a reply's reading covers a rewrite beside it,
+// since a reply answers what a rewrite would and more, and a reaction that settles
+// the question the user owes (`react`), which answers less; a reaction beside a
+// rewrite, which answers the question the rewrite leaves, has no reading of its own
+// and takes the rewrite's until the log answers. Taking back the newest settling
+// reaction the log holds reopens what it answered (`unreact`, which names it). A
+// gesture the thread offers no reading of, a settlement undoing another still
+// pending, a reaction on another turn or taking back an older one, leaves it as
+// served.
 /** @param {{id: string}} turn @returns {import("../../../../../build/browser/domain.ts").Attention} */
 const sending = (turn) => ({
   kind: "waiting",
   reason: "workflow",
   workflow: turn.id,
 });
+/** @returns {Thread["after"]} */
+const openedAfter = () => {
+  /** @type {import("../../../../../build/browser/domain.ts").ThreadAfter} */
+  const waiting = {
+    attention: { kind: "waiting", reason: "workflow", workflow: null },
+    owed: [],
+  };
+  return {
+    reply: waiting,
+    edit: waiting,
+    resolve: { attention: null, owed: [] },
+    unresolve: null,
+    react: null,
+    unreact: null,
+  };
+};
 
 // `gestures` are the ledger's thread gestures, oldest first: each comment, reply or
 // rewrite as the thread draws it, each settlement with the `localParent` its pending
-// parent went by, and each undo.
+// parent went by, and each undo. `settles` says whether a reaction token answers the
+// question of the turn it marks (`$reactions`).
 /** @param {Thread[]} threads
  * @param {readonly import("../../../../../build/browser/domain.ts").ThreadGesture[]} gestures
+ * @param {(token: string) => boolean} [settles]
  * @returns {Thread[]}
  */
-export function foldThreads(threads, gestures) {
+export function foldThreads(threads, gestures, settles = () => false) {
   if (!gestures.length) return threads;
   const withdrawn = new Set(
     gestures.flatMap((gesture) => (gesture.kind === "undo" ? [gesture.undoes] : [])),
@@ -187,6 +217,16 @@ export function foldThreads(threads, gestures) {
   const byName = threadNames(copies);
   /** @type {Thread[]} */
   const opened = [];
+  // Each thread's pending gestures, as far as its reading goes: the last turn, whether
+  // a reply was among them, and which came last, a turn or a settlement.
+  /** @type {Map<Thread, {turn: {id: string} | null, replied: boolean, reacted: boolean, unreacted?: boolean, last?: string}>} */
+  const effects = new Map();
+  /** @param {Thread} thread @param {{turn?: {id: string}, replied?: boolean, reacted?: boolean, unreacted?: boolean, last?: string}} change */
+  const note = (thread, change) =>
+    effects.set(thread, {
+      ...(effects.get(thread) ?? { turn: null, replied: false, reacted: false }),
+      ...change,
+    });
   for (const gesture of gestures) {
     if (gesture.kind === "comment") {
       const reaction = isReaction(gesture);
@@ -207,6 +247,7 @@ export function foldThreads(threads, gestures) {
         summaries: [],
         unread: [],
         attention: reaction ? null : sending(gesture),
+        after: openedAfter(),
       };
       opened.push(thread);
       byName.set(gesture.id, thread);
@@ -217,12 +258,24 @@ export function foldThreads(threads, gestures) {
       // user's message joins the thread above it and its acceptance moves nothing.
       const streaming = thread.msgs.at(-1)?.provisional ? 1 : 0;
       thread.msgs.splice(thread.msgs.length - streaming, 0, gesture);
-      if (isReaction(gesture)) continue;
+      if (isReaction(gesture)) {
+        // It answers less than a turn and closes nothing, so a pending turn or resolve
+        // still decides; one this tab takes back before the log has it answers
+        // nothing. It stays drawn until the log answers the undo, which refuses it
+        // once a reply of the user's stands on it.
+        if (
+          !withdrawn.has(gesture.id) &&
+          gesture.parent === thread.user_prompt?.message &&
+          settles(gesture.token ?? "")
+        )
+          note(thread, { reacted: true });
+        continue;
+      }
       thread.resolved = null;
-      thread.attention = sending(gesture);
+      note(thread, { turn: gesture, replied: true, last: "turn" });
     } else if (gesture.kind === "edit") {
-      // An edit shows as its message's new words, and hands the thread to the agent as
-      // a reply would, under the edit's own pending id (`events.exchange`).
+      // An edit shows as its message's new words, and is a turn as a reply is, under
+      // the edit's own pending id (`events.exchange`).
       const thread = byName.get(gesture.message);
       const at = thread?.msgs.findIndex(({ id }) => id === gesture.message) ?? -1;
       const message = thread?.msgs[at];
@@ -240,9 +293,7 @@ export function foldThreads(threads, gestures) {
       });
       if (thread.root.id === gesture.message) thread.root = thread.msgs[at] ?? message;
       thread.resolved = null;
-      // A question asked since still waits on the user: new words for an older message
-      // answer none (`events.exchange`), so the user stays first, as the log will say.
-      if (thread.attention?.reason !== "ask") thread.attention = sending(gesture);
+      note(thread, { turn: gesture, last: "turn" });
     } else if (gesture.kind === "resolve" || gesture.kind === "unresolve") {
       const thread =
         byName.get(gesture.parent) ??
@@ -257,7 +308,34 @@ export function foldThreads(threads, gestures) {
       // lands without changing anything else, and a view reading the ledger would keep
       // the state it drew before that.
       thread.settling = gesture.kind;
+      note(thread, { last: gesture.kind });
+    } else if (gesture.kind === "undo") {
+      const thread = copies.find(
+        ({ after }) => after.unreact?.undoes === gesture.undoes,
+      );
+      if (thread) note(thread, { unreacted: true });
     }
+  }
+  for (const [thread, { turn, replied, reacted, unreacted, last }] of effects) {
+    const after =
+      last === "resolve"
+        ? thread.after.resolve
+        : turn
+          ? thread.after[replied ? "reply" : "edit"]
+          : reacted
+            ? thread.after.react
+            : unreacted
+              ? thread.after.unreact
+              : thread.after.unresolve;
+    if (!after) continue;
+    thread.attention =
+      turn &&
+      last !== "resolve" &&
+      after.attention?.kind === "waiting" &&
+      !after.attention.workflow
+        ? sending(turn)
+        : after.attention;
+    thread.owed = after.owed;
   }
   for (const thread of opened)
     thread.bare_reaction = isReaction(thread.root) && !spoken(thread).length;

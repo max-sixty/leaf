@@ -8,7 +8,7 @@ from leaf.data import read_contracts
 from leaf.data_contracts import data_binding_errors
 from leaf.events import build_threads
 from leaf.files import list_revisions
-from leaf.registry.schema import json_value
+from leaf.findings import Finding, Rejected
 from leaf.registry.storage import require_registry
 from leaf.revision_artifact import read_revision
 from leaf.schema import MESSAGE_KINDS
@@ -43,10 +43,7 @@ def read_text_arg(page_dir: Path, text, *, allow_empty: bool = False) -> str:
     if not body and not allow_empty:
         raise Refused("empty text (pass --text or pipe via stdin)")
     if errs := text_media_errors(body, page_dir):
-        raise Refused(
-            "text names media the page won't show:\n"
-            + "\n".join(f"  - {e}" for e in errs)
-        )
+        raise Rejected("text names media the page won't show", errs)
     return body
 
 
@@ -133,7 +130,9 @@ def version_ids(page_dir: Path) -> set:
     return ids
 
 
-def pinned_thread_markup_errors(page_dir: Path, fragment: SourceDocument) -> list[str]:
+def pinned_thread_markup_errors(
+    page_dir: Path, fragment: SourceDocument
+) -> list[Finding]:
     """Refuse thread markup an immutable page cannot render.
 
     Thread markup has no revision boundary: every open historical document
@@ -148,9 +147,8 @@ def pinned_thread_markup_errors(page_dir: Path, fragment: SourceDocument) -> lis
     documents = [fragment]
     for document in documents:
         documents.extend(sample["document"] for sample in document.samples)
-    failures: dict[str, list[int]] = {}
-    revisions = list_revisions(page_dir)
-    for revision in revisions[:-1]:
+    failures: dict[Finding, list[int]] = {}
+    for revision in list_revisions(page_dir)[:-1]:
         registry = read_revision(page_dir, revision).registry
         for error in thread_markup_contract_errors(fragment, registry) + [
             error
@@ -159,10 +157,10 @@ def pinned_thread_markup_errors(page_dir: Path, fragment: SourceDocument) -> lis
         ]:
             failures.setdefault(error, []).append(revision)
     return [
-        "pinned revision"
-        + ("s " if len(revisions) > 1 else " ")
-        + ", ".join(f"r{revision}" for revision in revisions)
-        + f" cannot render this thread markup: {error}"
+        Finding(
+            "pinned-unrenderable",
+            values={"revisions": revisions, "finding": error.json(text=False)},
+        )
         for error, revisions in failures.items()
     ]
 
@@ -187,7 +185,7 @@ def check_markup(
     registry = require_registry(page_dir)
     frag = SourceDocument(markup)
     # Frozen markup also renders in historical documents. Validate their captured
-    # vocabularies before admission; message_markup_error owns the fragment checks
+    # vocabularies before admission; message_markup_errors owns the fragment checks
     # shared with sample histories, alongside each caller's data bindings and ids.
     pinned_errors = pinned_thread_markup_errors(page_dir, frag)
     revisions = list_revisions(page_dir)
@@ -199,17 +197,7 @@ def check_markup(
         )
     extra_errors = (
         pinned_errors
-        + (
-            [
-                (
-                    "thread markup must use vocabulary shared by the active registry "
-                    "and every pinned revision; otherwise ask with --text (and "
-                    "--ask for a reply)"
-                )
-            ]
-            if pinned_errors
-            else []
-        )
+        + ([Finding("pinned-vocabulary")] if pinned_errors else [])
         + data_binding_errors(
             page_dir,
             registry,
@@ -217,9 +205,8 @@ def check_markup(
             incoming=[(frag, f"incoming {kind} markup")],
         )
     )
-    if error := message_markup_error(
+    if errors := message_markup_errors(
         page_dir,
-        kind,
         frag,
         events,
         registry,
@@ -229,55 +216,50 @@ def check_markup(
         read_contracts(page_dir),
         thread,
     ):
-        raise Refused(error)
+        raise Rejected(f"{kind} markup doesn't validate", errors)
     return frag
 
 
-def message_markup_error(
+def message_markup_errors(
     page_dir: Path,
-    kind: str,
     frag: SourceDocument,
     events: list,
     registry: dict,
     page: SourceDocument,
     prior_ids: set[str],
-    extra_errors: list[str],
+    extra_errors: list[Finding],
     contracts: dict,
     thread_id: str | None,
-) -> str | None:
+) -> list[Finding]:
     """The shared message-fragment gate for a stored or newly constructed page.
 
     Callers supply their lifetime's binding and pinned-vocabulary checks. The
     fragment's structure, vocabulary, presentation, media, ids, references and
     live sample children have one gate regardless of whether its page has been
-    allocated yet. `thread_id` is the thread the message joins, where known.
+    allocated yet. `thread_id` is the thread the message joins, where known. Each
+    stage reads only a fragment the stages before it accept, so it gives the first
+    stage's findings, or none.
     """
-    errs = (
+    if errs := (
         thread_markup_contract_errors(frag, registry)
         + extra_errors
         + fragment_style_errors(frag)
         + document_declaration_errors(frag)
         + media_errors(frag, page_dir)
-    )
-    if errs:
-        return f"{kind} markup doesn't validate:\n" + "\n".join(
-            f"  - {error}" for error in errs
-        )
+    ):
+        return errs
     if names := id_errors(frag):
-        return f"{kind} markup: " + "; ".join(names)
+        return names
     thread = thread_structure(events)
-    clash = sorted(frag.ids & (prior_ids | page.ids | thread.ids))
-    if clash:
-        return f"{kind} markup ids already taken by the page or an earlier message: {json_value(clash)}"
+    if clash := sorted(frag.ids & (prior_ids | page.ids | thread.ids)):
+        return [Finding("ids-taken", values={"ids": clash})]
     if reference_errs := reference_errors(
         frag.lf_elements,
         registry,
         page.ids | thread.ids | frag.ids,
         {**page.by_id, **thread.by_id, **frag.by_id},
     ):
-        return f"{kind} markup doesn't validate:\n" + "\n".join(
-            f"  - {error}" for error in reference_errs
-        )
+        return reference_errs
     # A child selecting the thread this message joins would hold this sample again,
     # and its child the same, without end.
     if looping := sorted(
@@ -285,18 +267,12 @@ def message_markup_error(
         for sample in frag.samples
         if thread_id in sample["attrs"].get("data-sample-threads", "").split()
     ):
-        return (
-            f"{kind} markup: sample {json_value(looping)} selects thread "
-            f"{thread_id!r}, which holds this message, so its child would hold the "
-            "same sample again; select other threads"
-        )
+        return [
+            Finding("sample-loop", values={"samples": looping, "thread": thread_id})
+        ]
     # A live sample's child is a page of its own, built from this message once it is
     # logged. Imported here because checking a child calls this gate back for each
     # fixture message in its history.
     from .source import sample_errors
 
-    if child_errs := sample_errors(page_dir, page, events, frag, registry, contracts):
-        return f"{kind} markup doesn't validate:\n" + "\n".join(
-            f"  - {error}" for error in child_errs
-        )
-    return None
+    return sample_errors(page_dir, page, events, frag, registry, contracts)

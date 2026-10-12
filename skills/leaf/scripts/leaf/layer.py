@@ -197,7 +197,7 @@ def _sheet(source: Path) -> str:
     except UnicodeDecodeError:
         raise Refused(f"{source} must be UTF-8")
     if errors := css_syntax_errors(css, str(source)):
-        raise Refused(errors[0])
+        raise Refused(str(errors[0]))
     return css if css.endswith("\n") else css + "\n"
 
 

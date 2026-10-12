@@ -51,6 +51,7 @@ from interact_support import (
     fifo_writer,
     hold_status_read,
     let_a_pick_settle_a_thread,
+    lock_contention,
     owed,
     page_packages,
     page_state,
@@ -13019,18 +13020,7 @@ def test_a_page_lock_is_its_directory_and_follows_a_page_made_again(
 
     entered = threading.Event()
     release = threading.Event()
-    requested = threading.Event()
-    native_flock = fcntl.flock
-
-    def observed_flock(fd, operation):
-        if threading.current_thread() is taker and not requested.is_set():
-            assert os.path.samestat(os.fstat(fd), page.stat())
-            with pytest.raises(BlockingIOError):
-                native_flock(fd, operation | fcntl.LOCK_NB)
-            requested.set()
-        return native_flock(fd, operation)
-
-    monkeypatch.setattr(fcntl, "flock", observed_flock)
+    requested = lock_contention(monkeypatch, page, by="page-taker")
 
     def take():
         with leases_model.page_locked(page):
@@ -13039,7 +13029,7 @@ def test_a_page_lock_is_its_directory_and_follows_a_page_made_again(
                 "the replacement lock was never released"
             )
 
-    taker = threading.Thread(target=take)
+    taker = threading.Thread(target=take, name="page-taker")
     try:
         with leases_model.page_locked(page):
             taker.start()

@@ -32,6 +32,7 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
+from leaf.render_gate.findings import Finding
 from leaf.render_gate.widget_quality import own_tags
 from leaf.schema import ELEMENT_ID
 from leaf.validation import composition as validation_model
@@ -2153,7 +2154,7 @@ def unread_syntax(page):
             "(a) => a instanceof CSSTransition && a.finish())"
         )
         unread += [
-            f"[{scheme}] {u}"
+            Finding.read(u, scheme=scheme)
             for u in render_checks_model.evaluate_probe(page, "unreadSyntax")
         ]
     return unread
@@ -4438,7 +4439,7 @@ def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(
     assert readable["background"] == faint["background"], population
     assert readable["ink"] != faint["ink"], population
 
-    assert len(syntax) == 4, "\n".join(syntax)
+    assert len(syntax) == 4, "\n".join(map(str, syntax))
     for appearance, color in (
         ("light", "keyword"),
         ("light", "string"),
@@ -4446,10 +4447,9 @@ def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(
         ("dark", "number"),
     ):
         assert any(
-            finding.startswith(
-                f'[{appearance}] code styled "color: var(--syn-{color});'
-            )
-            and "reads at " in finding
+            finding.scheme == appearance
+            and finding.values["style"].startswith(f"color: var(--syn-{color});")
+            and finding.values["ratio"] < 4.5
             for finding in syntax
         ), syntax
 

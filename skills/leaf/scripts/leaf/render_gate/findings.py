@@ -363,6 +363,10 @@ _TEXT = {
     "apparatus-among-authored": lambda at, v: (
         f"{at} stands among the children of {v['parent']}"
     ),
+    "unread-syntax": lambda at, v: (
+        f"code styled {json_value(v['style'])} reads at {v['ratio']:.1f}:1 against the"
+        " block it is set on"
+    ),
     "covered-words": lambda at, v: (
         f"{at} draws {json_value(v['words'])} in the same place as {v['under']}'s"
         f" {json_value(v['covered'])}"

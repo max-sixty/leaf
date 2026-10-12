@@ -278,11 +278,11 @@ export function unreadSyntax() {
     seen.add(surface);
     const read = ratio(ink, on);
     if (read < 4.5)
-      found.set(
+      found.set(style, {
+        code: "unread-syntax",
         style,
-        `code styled ${JSON.stringify(style)} reads at ${read.toFixed(1)}:1 ` +
-          `against the block it is set on`,
-      );
+        ratio: Math.round(read * 10) / 10,
+      });
   }
   return [...found.values()];
 }

@@ -249,6 +249,52 @@ test("publisher replaces one immutable reading before subscribers run", () => {
   assert.equal(decision.read(), "open");
 });
 
+test("publisher shares unchanged subtrees, so a selection hears only its own part move", () => {
+  const initial = {
+    document: { revision: 1 },
+    authoritative: {},
+    unresolved: [],
+    effective: {
+      thread: { all: [{ id: "t1", words: ["hello"] }] },
+      widgets: new Map([["board", { state: { column: "todo" } }]]),
+    },
+    semanticEpoch: 0,
+  };
+  const publisher = createApplicationPublisher(initial);
+  const thread = publisher.select((root) => root.effective.thread);
+  const pair = publisher.select((root) => [
+    root.effective.thread.all[0],
+    root.document.revision,
+  ]);
+  const heard = [];
+  thread.subscribe((value) => heard.push(["thread", value]));
+  pair.subscribe((value) => heard.push(["pair", value]));
+  const standing = thread.read();
+  const standingPair = pair.read();
+  publisher.publish({
+    ...initial,
+    effective: {
+      thread: { all: [{ id: "t1", words: ["hello"] }] },
+      widgets: new Map([["board", { state: { column: "done" } }]]),
+    },
+  });
+  assert.equal(thread.read(), standing);
+  assert.equal(pair.read(), standingPair);
+  assert.equal(heard.length, 2);
+  publisher.publish({
+    ...initial,
+    effective: {
+      thread: { all: [{ id: "t1", words: ["hello", "again"] }] },
+      widgets: new Map([["board", { state: { column: "done" } }]]),
+    },
+  });
+  assert.notEqual(thread.read(), standing);
+  assert.deepEqual(
+    heard.slice(2).map(([name]) => name),
+    ["thread", "pair"],
+  );
+});
+
 test("publisher secures shallow-frozen inputs and complete selected collections", () => {
   const key = { id: "thread" };
   const collection = Object.freeze(new Map([[key, { words: ["standing"] }]]));

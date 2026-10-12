@@ -4,7 +4,7 @@
  * readings. The existing pure folds derive every published projection synchronously.
  * Promises, rendering instances, and proof of presentation stay outside this owner.
  */
-import { createApplicationPublisher,                } from "./snapshot.js";
+import { createApplicationPublisher, share,                } from "./snapshot.js";
 import {
   coordinateOf,
   foldProjection,
@@ -862,7 +862,6 @@ export function createSemanticApplication({
   const publisher = createApplicationPublisher(initial);
   let dataTaken = -Infinity;
   let order = 0;
-  let signature = semanticSignature([initial.effective, initial.data, initial.phase]);
   let publicationDepth = 0;
   let activePresentation                                         = null;
 
@@ -1128,8 +1127,8 @@ export function createSemanticApplication({
         tasks: contextual(selectedQueues.tasks),
         done: contextual(selectedQueues.done),
       },
-      // Inside the publication signature, so a read that changes only the view's
-      // reports, publication time, or undo list still reaches its watchers.
+      // Part of the effective reading, so a read that changes only the view's
+      // reports, publication time, or undo list opens an epoch and reaches its readers.
       view,
       // The attempts still waiting for their POST's answer, in ledger order.
       sending: unresolved
@@ -1140,31 +1139,31 @@ export function createSemanticApplication({
     };
   }
 
-  function semanticSignature(value         ) {
-    return JSON.stringify(value, (_key, child) =>
-      child instanceof Map ? [...child] : child,
-    );
-  }
-
   function publish(changes                         ) {
     const prior = publisher.read();
     const next = { ...prior, ...changes }                  ;
-    next.effective = derive(
-      next.document,
-      next.authoritative,
-      next.unresolved,
-      next.markingRead,
-      next.phase,
-      next.hostAvailable,
+    // Shared against the standing reading, so a part whose contents did not move keeps
+    // its identity: that is what an epoch and every selection compare.
+    next.effective = share(
+      prior.effective,
+      derive(
+        next.document,
+        next.authoritative,
+        next.unresolved,
+        next.markingRead,
+        next.phase,
+        next.hostAvailable,
+      ),
     );
-    const nextSignature = semanticSignature([next.effective, next.data, next.phase]);
+    next.data = share(prior.data, next.data);
     next.semanticEpoch =
       prior.semanticEpoch +
       Number(
-        nextSignature !== signature ||
+        next.effective !== prior.effective ||
+          next.data !== prior.data ||
+          next.phase !== prior.phase ||
           next.document.revision !== prior.document.revision,
       );
-    signature = nextSignature;
     if (presentation) activePresentation = presentation.begin(next.semanticEpoch);
     publicationDepth += 1;
     try {
@@ -1281,16 +1280,7 @@ export function createSemanticApplication({
         .read();
     },
     selectWidget(descriptor                  ) {
-      let prior                                              ;
-      let priorSignature                    ;
-      return publisher.select((root) => {
-        const reading = widgetReading(root, descriptor);
-        const readingSignature = semanticSignature(reading);
-        if (readingSignature === priorSignature && prior) return prior;
-        prior = reading;
-        priorSignature = readingSignature;
-        return reading;
-      });
+      return publisher.select((root) => widgetReading(root, descriptor));
     },
     entry,
     identify(revision               , stamp                = null, live = false) {

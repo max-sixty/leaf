@@ -3,8 +3,15 @@
  *
  * The application owner prepares complete, validated serializable candidates and
  * assigns their semantic epochs. Publication takes ownership of those values,
- * freezes them, and replaces one private signal synchronously. This module does
- * not derive activity, reconcile receipts, or perform transport and rendering.
+ * shares every subtree equal to the standing reading's, freezes them, and replaces one
+ * private signal synchronously. This module does not derive activity, reconcile
+ * receipts, or perform transport and rendering.
+ *
+ * Sharing is what makes identity mean "unchanged": a fold rebuilds its whole result on
+ * every publication, and a subtree whose contents did not move comes back as the
+ * object the last reading held. So a selection is a `computed` compared by identity,
+ * and a reader subscribed to one part of the reading hears only that part change. A
+ * selection shares its own derived value against its previous one by the same rule.
  */
 import { computed, signal } from "./signals-core.js";
 
@@ -83,16 +90,101 @@ function immutable   (value   , normalized = new WeakMap                ())     
   return value                ;
 }
 
+const plain = (value        ) => {
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+};
+
+/**
+ * `next`, with every subtree deep-equal to the matching one in `prior` replaced by
+ * `prior`'s. Plain objects, arrays, Maps and Sets compare by contents (a Map or Set by
+ * its entries in order, an object by its keys in any order); anything else by identity.
+ * Returns `prior` itself when the two are equal, and `next` itself when nothing in it
+ * could be shared, so neither input is copied or mutated needlessly.
+ */
+export function share   (prior         , next   )    {
+  if (Object.is(prior, next)) return next;
+  if (
+    prior === null ||
+    next === null ||
+    typeof prior !== "object" ||
+    typeof next !== "object"
+  )
+    return next;
+  if (Array.isArray(next)) {
+    if (!Array.isArray(prior)) return next;
+    const children = next.map((child, index) => share(prior[index], child));
+    if (
+      prior.length === next.length &&
+      children.every((child, index) => child === prior[index])
+    )
+      return prior     ;
+    return (children.every((child, index) => child === next[index])
+      ? next
+      : children)     ;
+  }
+  if (next instanceof Map) {
+    if (!(prior instanceof Map)) return next;
+    const priorKeys = [...prior.keys()];
+    const entries = [...next].map(([key, child]) => [
+      key,
+      prior.has(key) ? share(prior.get(key), child) : child,
+    ]         );
+    if (
+      priorKeys.length === entries.length &&
+      entries.every(([key, child], index) =>
+        key === priorKeys[index] && child === prior.get(key))
+    )
+      return prior     ;
+    return (entries.every(([key, child]) => child === next.get(key))
+      ? next
+      : new Map(entries))     ;
+  }
+  if (next instanceof Set) {
+    if (!(prior instanceof Set)) return next;
+    const priorMembers = [...prior];
+    const members = [...next].map((child, index) => share(priorMembers[index], child));
+    if (
+      priorMembers.length === members.length &&
+      members.every((child, index) => child === priorMembers[index])
+    )
+      return prior     ;
+    return (members.every((child) => next.has(child)) ? next : new Set(members))     ;
+  }
+  if (!plain(next) || !plain(prior) || Array.isArray(prior) || prior instanceof Map
+    || prior instanceof Set)
+    return next;
+  const before = prior                           ;
+  const after = next                           ;
+  const keys = Object.keys(after);
+  const children = keys.map((key) =>
+    Object.hasOwn(before, key) ? share(before[key], after[key]) : after[key]);
+  if (
+    keys.length === Object.keys(before).length &&
+    keys.every((key, index) => Object.hasOwn(before, key) && children[index] === before[key])
+  )
+    return prior     ;
+  if (keys.every((key, index) => children[index] === after[key])) return next;
+  const copy                          = Object.getPrototypeOf(next) === null
+    ? Object.create(null)
+    : {};
+  keys.forEach((key, index) => (copy[key] = children[index]));
+  return copy     ;
+}
+
 export function createApplicationPublisher                               (initial   ) {
   const root = signal(immutable(initial));
   return Object.freeze({
     read: ()               => root.value,
     publish(candidate   )               {
-      root.value = immutable(candidate);
+      root.value = immutable(share(root.peek(), candidate));
       return root.peek();
     },
     select   (derive                               )                                {
-      const selected = computed(() => immutable(derive(root.value)));
+      let prior         ;
+      const selected = computed(
+        () => (prior = immutable(share(prior, derive(root.value)))),
+      );
       return Object.freeze({
         read: ()               => selected.value,
         subscribe: (listener                               ) =>

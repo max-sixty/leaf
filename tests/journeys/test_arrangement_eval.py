@@ -318,10 +318,10 @@ def test_reveal_opens_the_named_item_though_its_words_show_elsewhere(tmp_path):
     from leaf_dev.eval_user import reveal, shows
 
     (tmp_path / "index.html").write_text(
-        "<!doctype html><title>Queue</title>"
+        "<!doctype html><title>Queue</title><main>"
         "<p>Routed today: Sam Okafor.</p>"
         "<button onclick=\"document.getElementById('t').hidden=false\">ESC-4110</button>"
-        '<section id="t" hidden><h2>ESC-4110</h2><p>Route to Sam Okafor.</p></section>'
+        '<div id="t" hidden><h2>ESC-4110</h2><p>Route to Sam Okafor.</p></div></main>'
     )
     with (
         arrangement_plain.serving(tmp_path) as url,

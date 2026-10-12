@@ -484,13 +484,15 @@ def run_agent(
     dirs: Iterable[Path] = (),
     env: dict | None = None,
     harness: str = ClaudeCodeHarness.name,
+    limit: float = TURN_LIMIT,
     **options: str | bool,
 ) -> list[dict]:
     """Run an isolated harness turn, optionally resuming its preceding session.
 
     `out` is normalized evidence; `err` is stderr. Codex's complete App Server
     notifications live beside `err` with a `.codex.jsonl` suffix. Both harnesses
-    have the same TURN_LIMIT; a timeout retains their partial native evidence and
+    have the same `limit`, TURN_LIMIT unless the caller bounds its turn more
+    tightly; a timeout retains their partial native evidence and
     marks `out.with_suffix(".timed-out")` without fabricating completion. `options`
     passes a Claude Code child's `model` and `sandbox` (`claude_child`).
     """
@@ -502,7 +504,7 @@ def run_agent(
                 *args[1:],
                 harness=harness,
                 stderr=err,
-                limit=TURN_LIMIT,
+                limit=limit,
                 timed_out=out.with_suffix(".timed-out"),
                 dirs=dirs,
                 env=env,
@@ -524,7 +526,7 @@ def run_agent(
                 stdout=stdout,
                 stderr=stderr,
                 check=True,
-                timeout=TURN_LIMIT,
+                timeout=limit,
             )
         except subprocess.TimeoutExpired:
             out.with_suffix(".timed-out").touch()

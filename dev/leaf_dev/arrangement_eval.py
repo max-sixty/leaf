@@ -232,8 +232,14 @@ CASES = {
             task="Decide eu-west: roll it back to 4.11 and ship 4.12.1 with the old "
             "timeout.",
             typed="Roll eu-west back to 4.11 and ship 4.12.1 with the old timeout.",
-            chosen={"eu-west": "roll back to 4.11"},
-            values={"eu-west": ("resume to 100%", "hold at 50%", "roll back to 4.11")},
+            chosen={
+                "eu-west": "roll back to 4.11",
+                "next release": "4.12.1 with the old timeout",
+            },
+            values={
+                "eu-west": ("resume to 100%", "hold at 50%", "roll back to 4.11"),
+                "next release": ("4.12.1 with the old timeout", "none"),
+            },
         ),
     ),
     "queue": Scenario(
@@ -524,9 +530,9 @@ def comment(run: Run, live: LiveSession):
 
 def decision_round(run: Run, live: LiveSession) -> None:
     """Make the scenario's decision on the page as its user, then ask for it to be
-    applied, recording the route the request took: the page itself where it sent
-    the decision to the agent's log, what it gave to copy where it offered that,
-    and otherwise the decision typed."""
+    applied, recording the route the request took: what the page gave to copy
+    where it offered that, the page itself where it sent the decision to the
+    agent's log, and otherwise the decision typed."""
     decision = CASES[run.subject].decision
     page = run.authored_page
     before = latest_seq(page)
@@ -548,10 +554,12 @@ def decision_round(run: Run, live: LiveSession) -> None:
         and requires_agent_attention(e)
     ]
     copied = (made["copies"] or [None])[-1] or made["copied"]
-    if made["made"] and gestures:
-        route = "page"
-    elif made["made"] and copied:
+    # The user copies only where the page has no way to send the decision, so
+    # what it copied is the handover even beside inputs the page sent.
+    if made["made"] and copied:
         route = "copied"
+    elif made["made"] and gestures:
+        route = "page"
     else:
         route = "typed"
     message = apply_message(decision, route, copied)

@@ -90,18 +90,29 @@ SELECT = (
 }"""
 )
 
-# Whether words matching the pattern are drawn within one item that also draws
-# `target`: an element, short enough to be one item rather than the page, whose
-# rendered text holds both. Without a target, anywhere on the page.
+# Whether words matching the pattern are drawn within the item that `target`
+# names: from each rendered occurrence of the target, the nearest ancestor that is
+# an item, by its role or by a rendered heading naming the target, below the
+# page's own regions. Without a target, anywhere on the page.
 SHOWS = """([pattern, target]) => {
   const matches = new RegExp(pattern);
   if (!target) return matches.test(document.body.innerText);
-  for (const element of document.body.querySelectorAll("*")) {
-    // An element that isn't rendered reports its whole text as its innerText.
-    if (!element.textContent.includes(target) || !element.checkVisibility()) continue;
-    const text = element.innerText ?? "";
-    if (text.length < 4000 && text.includes(target) && matches.test(text))
-      return true;
+  const items = "article, section, li, details, dialog, dd, td, tr, [role=article], "
+    + "[role=dialog], [role=listitem], [role=region], [role=row], [role=tabpanel]";
+  const headings = "h1, h2, h3, h4, h5, h6, [role=heading]";
+  const named = (element) => [...element.querySelectorAll(headings)].some(
+    (heading) => heading.checkVisibility() && heading.textContent.includes(target));
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let node; (node = walker.nextNode()); ) {
+    if (!node.data.includes(target) || !node.parentElement?.checkVisibility())
+      continue;
+    for (let at = node.parentElement; at && at !== document.body; at = at.parentElement) {
+      if (at.matches("main, [role=main]")) break;
+      if (at.matches(items) || named(at)) {
+        if (matches.test(at.innerText ?? "")) return true;
+        break;
+      }
+    }
   }
   return false;
 }"""
@@ -204,6 +215,11 @@ def comment_on_passage(
         }
 
 
+# A user who has not decided in this long is stuck, and one browser command that
+# takes this long has hung; either ends the round rather than the session.
+DECIDING_LIMIT = 30 * 60
+COMMAND_LIMIT = 120
+
 USER = """You are the user of a web page an assistant built for you. It is open in
 a browser tab you control with playwright-cli, already attached as session
 `{session}`: run `playwright-cli -s={session} snapshot` to see the page and its
@@ -265,6 +281,7 @@ def decide(url: str, task: str, evidence: Path) -> dict:
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=COMMAND_LIMIT,
             )
 
         attached = playwright("attach", f"--cdp=http://127.0.0.1:{port}")
@@ -285,6 +302,7 @@ def decide(url: str, task: str, evidence: Path) -> dict:
                 env={"PWTEST_SOCKETS_DIR": sockets},
                 model=MODELS["user"],
                 sandbox=False,
+                limit=DECIDING_LIMIT,
             )
             copies = view.evaluate("() => globalThis.__leafEvalCopies ?? []")
         finally:

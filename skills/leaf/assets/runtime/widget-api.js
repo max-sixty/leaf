@@ -143,8 +143,9 @@ export {
   renderMarkdown,
 } from "./markdown.js";
 export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
-// Where two images differ, gathered into regions (image-difference.js).
+// Where two images differ, gathered into regions or as pixels (image-difference.js).
 export {
+  compareImagePixels,
   compareImages,
   countAreas,
   describeDifference,

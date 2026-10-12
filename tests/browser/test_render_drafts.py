@@ -5489,6 +5489,9 @@ def test_the_reading_page_keys_follow_the_user_into_the_panel(browser, serve):
             ".lf-threads > .lf-thread:not([hidden])[open] > .lf-thread-summary"
         )
     ).to_be_focused()
+    # Focus lands as the panel starts its slide in, while the list still stands past the
+    # window's edge; a step there has nothing shown to move.
+    panel_settled(page)
 
     page_was, threads_was = offsets()
     page.keyboard.press("d")

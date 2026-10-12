@@ -1739,6 +1739,8 @@ def test_the_feature_gallery_displays_the_complete_margin_entry_inventory(
     stale = sample("update stale")
     fallback = sample("working · fallback")
     expect(resting).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
+    expect(resting).not_to_have_attribute("data-lf-turn", re.compile(".+"))
+    expect(sample("on you")).to_have_attribute("data-lf-turn", "user")
     expect(picked_up).to_have_attribute("data-lf-agent-workflow", "picked_up")
     expect(picked_up).to_have_css(
         "border-top-color",
@@ -4278,6 +4280,129 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     workflow = working_thread.locator(".lf-msg-sending", has_text="Working")
     expect(workflow).to_have_text("Working")
     expect(workflow).to_have_attribute("title", f"Working · {detail}")
+
+
+@pytest.mark.parametrize("annotations", ["margin", "page"])
+def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
+    browser, serve, annotations
+):
+    """A package control's receipt reads the same wherever its target's controls sit.
+
+    The target's agent work rides on its primary control, and every other control shows
+    the receipt its contribution gave it. The contrast is a control that gives up the
+    primary seat: it goes back to its own receipt, and the new primary takes the work,
+    in the margin or a page's own annotation view as in the Page Map.
+    """
+    source = ASK_PAGE
+    if annotations == "page":
+        source = source.replace("<body>", '<body data-annotations="page">')
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                source,
+                events=[
+                    {**COMMENT_ON_ASK, "id": "1" * 32},
+                    {
+                        **COMMENT_ON_ASK,
+                        "id": "2" * 32,
+                        "text": "Check the return visit too.",
+                    },
+                ],
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    roots = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    record_claim(serve.page_dir)
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        delivery_model.record_pickup(transaction, roots)
+    claimed = CliRunner().invoke(
+        cli_model.cli,
+        ["task", "start", str(serve.page_dir), roots[0]["id"], "Checking the visit."],
+    )
+    assert claimed.exit_code == 0, claimed.output
+    told(page)
+    if annotations == "margin":
+        seat = page.locator('[data-lf-margin-for="bracket"]')
+        expect(seat.locator(":scope > .lf-margin-marker")).to_have_attribute(
+            "data-lf-agent-workflow", "working"
+        )
+    else:
+        seat = page.locator("#receipt-view")
+        page.evaluate("""async () => {
+          const {consumeAnnotations} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const box = document.createElement('aside');
+          box.id = 'receipt-view';
+          document.querySelector('#bracket').after(box);
+          consumeAnnotations(box, (entries, view) => {
+            box.replaceChildren();
+            for (const entry of entries) {
+              const row = document.createElement('div');
+              row.dataset.lfGen = '1';
+              box.append(row);
+              row.append(...view.controls(entry));
+              view.place(entry, row);
+            }
+          });
+        }""")
+    page.evaluate("""async () => {
+      const {contributionEntry, registerContribution} =
+        await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
+      const ownReceipt = runtime.workflows.find(item => item.stage === 'picked_up');
+      let approving = false;
+      const contribution = registerContribution({
+        key: 'receipt-probe', target: document.querySelector('#bracket'),
+        read: () => ({entries: [
+          ...(approving ? [contributionEntry({key: 'approve', icon: 'check',
+            label: 'Approve', rank: 'complete'})] : []),
+          contributionEntry({key: 'edit', icon: 'edit', label: 'Edit',
+            workflowReceipt: ownReceipt}),
+        ]}), activate: () => {}
+      });
+      window.offerApproval = () => {
+        approving = true;
+        contribution.update({immediate: true});
+      };
+    }""")
+
+    def receipts():
+        seated = {
+            key: seat.locator(f'[data-lf-margin-entry-key="{key}"]').get_attribute(
+                "data-lf-agent-workflow"
+            )
+            for key in ("approve", "edit")
+            if seat.locator(f'[data-lf-margin-entry-key="{key}"]').count()
+        }
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+m")
+        dialog = page.locator(".lf-page-map-dialog")
+        expect(dialog).to_be_visible()
+        rows = dialog.locator("[data-lf-map-margin-entry]")
+        mapped = {
+            key: rows.filter(has_text=label).get_attribute("data-lf-agent-workflow")
+            for key, label in (("approve", "Approve"), ("edit", "Edit"))
+            if rows.filter(has_text=label).count()
+        }
+        page.keyboard.press("Escape")
+        expect(dialog).to_be_hidden()
+        return seated, mapped
+
+    carrying = {"edit": "working"}
+    expect(seat.locator('[data-lf-margin-entry-key="edit"]')).to_have_attribute(
+        "data-lf-agent-workflow", "working"
+    )
+    assert receipts() == (carrying, carrying)
+    page.evaluate("window.offerApproval()")
+    expect(seat.locator('[data-lf-margin-entry-key="approve"]')).to_have_count(1)
+    displaced = {"approve": "working", "edit": "picked_up"}
+    assert receipts() == (displaced, displaced)
 
 
 def _margin_entry_paint(control):

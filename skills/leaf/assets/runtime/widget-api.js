@@ -133,6 +133,7 @@ export {
 export {
   contributionEntry,
   presentContributionEntry,
+  presentContributionReceipts,
 } from "./contribution-controls.js";
 export { registerContribution } from "./contributions.js";
 export {

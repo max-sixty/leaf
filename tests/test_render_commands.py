@@ -73,8 +73,10 @@ def unnamed_browser():
 
 
 def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
-    """A comment on a widget's option leaves a page the gate passes: the mark and the note
-    counting the comment are the runtime's, and none of it is words the widget wrote.
+    """A comment on a widget's option leaves a page the gate passes
+    (`test_every_table_the_theme_sets_honestly_passes_the_gate` gates one): the mark
+    and the note counting the comment are the runtime's, and none of it is words the
+    widget wrote.
 
     The pass hunting words drawn on other words holds out a control the runtime hangs out
     of flow over the page (`floating` in words.js). A control planted over the option's
@@ -106,7 +108,6 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
         page, "coveredWords", {"holdFloating": False}
     )
     page.close()
-    assert render_gate_model.render_version(browser, url).failures == []
     assert held == []
     assert any("planted float" in found for found in reported), (
         "the planted control covers no words, so a gate that never looked would pass too"

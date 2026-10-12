@@ -98,6 +98,7 @@ from render_harness import (
     EXAMPLE_PACKAGES,
     EXAMPLES,
     FEATURE_GALLERY,
+    INLINE_PAGE,
     LONG_PAGE,
     RECURRING_RESIZE_NOTICE,
     RELEASE_FOCUS,
@@ -4943,21 +4944,30 @@ def test_every_table_the_theme_sets_honestly_passes_the_gate(browser, serve):
     lower, so a reading of rect tops called it a wrap and told the author to write the
     <code> they had written), a <br>, a newline under <pre>, and words either side of a
     nested table. A wrap is what goes away with soft wrapping turned off, and none of
-    these does. A comment on one of its cells leaves it clean too: the mark paints the
-    cell's words and the runtime's count stands in the chrome, so nothing the runtime
-    writes is read as the cell's words or widens the page."""
+    these does. A comment on one of its cells leaves it clean too, as one on a widget's
+    option beside it does: the mark paints the words and the runtime's count stands in
+    the chrome, so nothing the runtime writes is read as the page's words or widens the
+    page."""
 
     def tables(page, first):
         start = page.index(first)
         return page[start : page.rindex("</main>")]
 
+    option = INLINE_PAGE[INLINE_PAGE.index("<lf-ask") :]
+    option = option[: option.index("</lf-ask>") + len("</lf-ask>")]
     page = AUTHORED_LINES_PAGE.replace(
         "</main>",
         tables(FRAMED_TABLES_PAGE, '<table id="bare">')
         + tables(IDENTIFIERS_IN_CODE_PAGE, '<table id="held">')
+        + option
         + "</main>",
     )
-    url = serve(page, anchored=[("sessions", "value_number_3")])
+    url = serve(
+        page,
+        anchored=[("sessions", "value_number_3"), ("opt-b", "quietly puts one back")],
+    )
+    # Vacuous otherwise: the gate has to be looking at a page that carries both.
+    expect(open_page(browser, url).locator(".lf-mark-note")).to_have_count(2)
 
     assert render_gate_model.render_version(browser, url).failures == []
 

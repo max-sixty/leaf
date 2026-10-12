@@ -156,7 +156,10 @@ A behavior module follows these rules:
   In templates, `commandsOn(title, rows, options)` attaches that same command scope
   to its element. It attaches once per connection, takes the current declaration on
   each render, and withdraws its attachment when the directive leaves; projected
-  commands on the element remain.
+  commands on the element remain. Rows that read their own element take it as an
+  argument: `commandsOn(title, (summary) => [{ keys: () => DISCLOSE(summary), … }])`,
+  and `commands()` accepts the same function. Declare a template's scope there
+  rather than looking its element up after rendering.
 
 Each helper's header under `runtime/` explains its contract.
 

@@ -10,6 +10,7 @@ import "/vendor/webawesome.esm.js";
 
 import {
   commands,
+  commandsOn,
   countAreas,
   describeDifference,
   compoundReadingRegionId,
@@ -105,7 +106,6 @@ customElements.define(
     #controller = widgetController(this);
     #presentGenerated = (promise) => this.#controller.present(promise);
     #caseEntries = new Map();
-    #choiceRefs = new Map();
     #casesBody = null;
     #commands = null;
     #evidenceHost = null;
@@ -203,29 +203,18 @@ customElements.define(
               ${offered("lf-vr-inspector-choice", true)}
               value=${value}
               appearance="button"
-              ${this.#choiceRef(kind, value, text)}
+              ${commandsOn("On visual evidence", (radio) => [
+                {
+                  id: `visual.${kind}.${value}`,
+                  keys: PRESS,
+                  title: text.toLowerCase(),
+                  run: () => radio.click(),
+                },
+              ])}
               >${text}</wa-radio
             >`,
         )}
       </wa-radio-group>`;
-    }
-
-    #choiceRef(kind, value, text) {
-      const key = `${kind}/${value}`;
-      if (!this.#choiceRefs.has(key))
-        this.#choiceRefs.set(key, (radio) => {
-          if (!radio || radio.dataset[kind] === value) return;
-          radio.dataset[kind] = value;
-          commands(radio, "On visual evidence", [
-            {
-              id: `visual.${kind}.${value}`,
-              keys: PRESS,
-              title: text.toLowerCase(),
-              run: () => radio.click(),
-            },
-          ]);
-        });
-      return ref(this.#choiceRefs.get(key));
     }
 
     #renderInspector() {

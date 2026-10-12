@@ -604,6 +604,13 @@ The child is temporary: use an ordinary Leaf page when its history must outlive
 the sample. A live sample needs a server, so a page declaring one cannot be
 exported (`references/serving-pages.md`, "Exported files").
 
+A thread message's `--markup` can carry a live sample too, and the user operates it
+in the thread. Its child is checked as the message is posted and uses the layer of
+the version showing the message; that version's captured files are the only page
+files it can load, so keep its code inline in the template. Its
+`data-sample-threads` cannot name the thread the message is in, since the copy would
+hold the same sample again.
+
 To start with fictional conversations or decisions, author an inert JSON script
 in the parent and name its id in the template's `data-sample-events`:
 
@@ -629,7 +636,8 @@ at `page check` and admitted before its first presentation. Give an event an exp
 `id` when a later command references it; omitted ids and timestamps are supplied,
 and the history belongs to revision 1. Several samples can name the same script;
 each gets an independent copy. Reset restores that authored history. The script
-must be inline `application/json` in the template's parent document. Its events
+must be inline `application/json` in the markup declaring the template: the page, or
+the message carrying it. Its events
 never appear in the outer log: leave fictional fixture anchors inside the template,
 and use this declaration rather than posting setup events from a page module.
 

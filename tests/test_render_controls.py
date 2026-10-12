@@ -8,6 +8,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from browser_sources import browser_function
+from click.testing import CliRunner
 from interact_support import (
     append_carried_log_record,
     append_command,
@@ -15,9 +16,11 @@ from interact_support import (
     element_declaration,
     end_work,
     record_claim,
+    response_reference,
     wait_for,
     working,
 )
+from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
@@ -1647,6 +1650,59 @@ def test_a_live_revision_mounts_and_resets_its_new_sample(browser, serve):
         "Practice added in the revision"
     )
     wait_until_ready(page)
+
+
+REPLY_SAMPLE = """<lf-sample id="reply-practice" label="Practice in a reply">
+  <template id="reply-practice-source" data-sample>
+    <h1 id="reply-child-heading">Practice from a reply</h1>
+    <lf-ask id="reply-child-ask"><h2>Which approach?</h2>
+      <lf-options id="reply-child-options" choose>
+        <lf-option id="reply-child-a">First approach</lf-option>
+        <lf-option id="reply-child-b">Second approach</lf-option>
+      </lf-options>
+    </lf-ask>
+  </template>
+</lf-sample>"""
+
+
+def test_an_agent_reply_runs_its_live_sample_in_the_thread(browser, serve):
+    """A live sample an agent posts in a reply is a page the user operates in the
+    thread: its template is the message's, and its gestures reach only its own log."""
+    url = serve(leaf_page("Reply host", '<h1 id="host">Session store</h1>'))
+    question = panel_comment(serve.page_dir, "What would the alternative look like?")
+    replied = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "response",
+            "reply",
+            "--done",
+            response_reference(serve.page_dir, question),
+            "--text",
+            "Try it here:",
+            "--markup",
+            REPLY_SAMPLE,
+        ],
+    )
+    assert replied.exit_code == 0, replied.output
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    page.locator(f'.lf-thread[data-id="{question}"] .lf-thread-summary').click()
+    sample = page.locator("#reply-practice")
+    sample.evaluate("async sample => await sample.ready")
+    child = sample.locator("iframe").element_handle().content_frame()
+    child.lf_traffic = Traffic(child)
+    expect(child.locator("#reply-child-heading")).to_have_text("Practice from a reply")
+    with sending(child, "the sample choice"):
+        child.locator("#reply-child-b .lf-pick").click()
+    expect(child.locator("#reply-child-b .lf-pick")).to_have_attribute(
+        "aria-checked", "true"
+    )
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action"
+    ]
+    assert take_browser_errors(page) == []
 
 
 def test_thread_panel_gallery_shows_independent_live_views(browser, serve):

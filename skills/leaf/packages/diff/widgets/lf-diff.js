@@ -1300,7 +1300,7 @@ customElements.define(
       const label = entry.record.path || "file";
       entry.fileComment = commentButton(
         label,
-        () => threadSurface(this).open(entry.node, { origin: entry.fileComment }),
+        () => threadSurface(this).open(entry.node),
         "lf-diff-file-comment",
       );
       entry.node
@@ -1315,7 +1315,7 @@ customElements.define(
         if (line.comment?.parentElement === gutterRow) continue;
         line.comment = commentButton(
           lineLabel(line),
-          () => threadSurface(this).open(line.node, { origin: line.comment }),
+          () => threadSurface(this).open(line.node),
           "lf-diff-line-comment",
         );
         // Thousands of lines must not become thousands of Tab stops. The page-level

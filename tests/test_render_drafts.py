@@ -1749,6 +1749,38 @@ def test_a_refused_selection_comment_leaves_the_words_on_their_passage(
     consume_browser_errors(page, "400")
 
 
+def test_a_refused_selection_comment_reopens_its_words_while_the_send_owns_intent(
+    held_events, serve
+):
+    """A refusal that lands while the user is still where the send left them puts the
+    words back in front of them, in the box on their passage, as the page comment card
+    does. Left in the store alone, they read as lost: the thread the send drew goes
+    away, and nothing on screen says the sentence still exists."""
+    browser, held = held_events
+    page = open_page(browser, serve(LONG_PAGE))
+    words = "The selection comment the server will refuse."
+    compose(page, "#p3", words)
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the selection comment")
+    expect(page.locator(".lf-fab-input")).not_to_be_visible()
+
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held.pop(0).fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+    expect(page.locator(".lf-notice")).to_contain_text("Couldn't send")
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).to_have_js_property("value", words)
+    consume_browser_errors(page, "400")
+
+
 def test_a_reply_behind_a_refused_parent_is_withdrawn_rather_than_sent(
     held_events, serve
 ):

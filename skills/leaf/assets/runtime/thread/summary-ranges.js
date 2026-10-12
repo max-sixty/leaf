@@ -27,7 +27,6 @@ export function summaryRanges(messages, summaries = []) {
       ranges.push(
         Object.freeze({
           kind: "summary",
-          key: `summary:${summary.id}`,
           summary,
           messages: Object.freeze(
             summary.covers
@@ -41,7 +40,6 @@ export function summaryRanges(messages, summaries = []) {
       ranges.push(
         Object.freeze({
           kind: "message",
-          key: `message:${messages[at].key}`,
           message: messages[at],
         }),
       );

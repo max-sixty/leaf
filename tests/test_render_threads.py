@@ -1642,6 +1642,49 @@ def test_a_summary_gathering_the_message_the_user_is_on_keeps_them_on_it(
     expect(message).to_be_focused()
 
 
+def test_a_summary_folding_a_message_keeps_its_frame_loaded(browser, serve):
+    """A message gathered into a checkpoint moves there whole, framed document and all.
+
+    A frame in a reply holds a document of its own. When a summary folds the reply,
+    the message moves from the transcript into the checkpoint's originals; a move
+    that detached it on the way would reload that document and lose whatever the
+    user had done in it."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Show me the practice board.")
+    first = append_agent_reply(
+        serve.page_dir,
+        root,
+        "Here it is:",
+        markup='<iframe id="folded-frame" title="Practice board"'
+        ' srcdoc="&lt;p&gt;Practice&lt;/p&gt;"></iframe>',
+    )
+    last = append_agent_reply(serve.page_dir, root, "Try a move on it.")
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    if card.get_attribute("open") is None:
+        card.locator(":scope > .lf-thread-summary").click()
+    page.frame_locator("#folded-frame").locator("p").wait_for()
+    card.locator("#folded-frame").evaluate(
+        "frame => { window.frameLoads = 0;"
+        " frame.addEventListener('load', () => window.frameLoads++); }"
+    )
+
+    summary = summarize_thread(
+        serve.page_dir, first["id"], last["id"], "The board was shown."
+    )
+    told(page)
+    card.get_by_role("button", name="1 summary changed", exact=True).click()
+    expect(
+        card.locator(
+            f'[data-summary-id="{summary["id"]}"] .lf-summary-originals #folded-frame'
+        )
+    ).to_be_attached()
+    rendered(page)
+    assert page.evaluate("window.frameLoads") == 0, "the frame's document reloaded"
+
+
 @pytest.mark.parametrize(
     ("width", "touch", "count"), [(1440, False, 2), (320, True, 10)]
 )

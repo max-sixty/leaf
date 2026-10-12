@@ -38,12 +38,13 @@ assert:
     Read the HTML. Pass only if all of these hold. `main` is a `layout-sidebar` page, not
     a `layout-workspace`, and the eight sections are its body, read in the page's own
     scroll rather than in a pane or other box that scrolls on its own. The verdict, the
-    two changes and the three questions are in the `aside`, and the block holding them
-    stays in view as the body scrolls: it is `position: sticky` with `top: var(--lf-top)`.
+    two changes and the three questions are in the `aside`, which the Layout keeps in view
+    as the body scrolls: fail if the page's CSS makes the `aside` or a block inside it
+    `position: sticky`, or sets the `aside`'s `top`, `height`, `max-height` or `overflow`.
     The document includes an empty lf-toc with a stable id. Its contents navigation is
     available at the desktop opening and stays available while reading. The requested
     twelve-entry history is present as supporting evidence and does not push the contents
-    below the opening or make the sticky block taller than the window. On a phone where
+    below the opening or make the `aside` taller than the window. On a phone where
     the tracks stack, the contents appear before the eight
     substantive sections. Determine this from source order and any page CSS that changes
     that order. The history may follow the body or be disclosed separately.

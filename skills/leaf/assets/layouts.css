@@ -455,8 +455,33 @@
   }
   main.layout-sidebar > :is(header, footer) { flex: 1 0 100%; margin-block: 0; }
   main.layout-sidebar > :not(header, footer) { flex: 2 1 30rem; margin-block: 0; }
-  main.layout-sidebar > aside { flex: 1 1 18rem; }
+  main.layout-sidebar > aside { flex: 1 1 18rem; --lf-resident: track; overflow-anchor: none; }
   main.layout-sidebar > :not(header, footer) > :first-child { margin-top: 0; }
+  /* Beside the body, the track stays in view while the body scrolls: it sticks a gap
+   * below Leaf's banner and any page tab strip, and scrolls what it holds within the
+   * window, so a track taller than the window keeps its end reachable rather than
+   * hiding it until the page ends. Stacked, it is only as tall as what it holds and
+   * flows with the page, since stuck it would stand over the body. Which of the two it
+   * is depends on the window's width and on what the body's content needs, which no
+   * query can read, so the margin reading says so on the track (`data-lf-beside`,
+   * prepaint.js `residency`). Like a column's sidebar standing in the margin, it starts
+   * the slot and landing band again for what it holds and keeps a focused control's
+   * ring room (`--lf-head-inset`), and anchors no reading (`overflow-anchor`). It sticks
+   * inside `main`, so a footer stands over it as the page's end scrolls up. */
+  @media screen {
+    main.layout-sidebar { --lf-top-outer: var(--lf-top); }
+    main.layout-sidebar > aside[data-lf-beside] {
+      position: sticky;
+      top: calc(var(--lf-top-outer) + var(--sp-4));
+      --lf-top: 0px; --lf-top-covered: 0px; --lf-landing-room: 0px;
+      --lf-head-inset: initial;
+      max-height: calc(var(--lf-view-height) - 2 * var(--sp-4));
+      overflow-y: auto;
+    }
+    main.layout-sidebar:has(> aside[data-lf-beside]) > footer {
+      position: relative; z-index: 1; background: var(--paper);
+    }
+  }
   /* Tiles: equal cells, as many to a row as fit at 9rem each, and every cell in a row
    * as tall as the row. How a row wraps is the page's to judge: the pre-handover review
    * (page-authoring.md) names a lone tile on its own row as a look to avoid, and the

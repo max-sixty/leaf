@@ -2708,6 +2708,47 @@ def test_a_sidebar_pages_track_is_its_aside_in_the_order_it_is_written(browser, 
         assert (track_box["top"] < body_box["top"]) is first
 
 
+def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(browser, serve):
+    """Beside the body, a track taller than the window stays in view below the banner
+    as the body scrolls, and scrolls what it holds so its end is reachable. Stacked,
+    whether the window is narrow or the body's content needs the page's width, it
+    scrolls with the page rather than standing over the body."""
+    body = "<div id='body'>" + "<p>Body paragraph. " * 600 + "</p></div>"
+    track = "<aside id='track'>" + "<p>Follow-up to check.</p>" * 60 + "</aside>"
+    wide = "<div style='min-width: 1300px'>A block 1300px wide.</div>"
+    read = """() => {
+      const track = document.getElementById('track').getBoundingClientRect();
+      return { top: track.top, bottom: track.bottom,
+               banner: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
+               innerHeight };
+    }"""
+    for content, width, beside in (
+        ("", 900, True),
+        ("", 390, False),
+        (wide, 1440, False),
+    ):
+        source = leaf_page(
+            "a sidebar page",
+            "<header><h1>Review</h1></header>"
+            + track
+            + body.replace("<p>", content + "<p>", 1),
+            layout="sidebar",
+        )
+        page = open_page(browser, serve(source))
+        resized(page, width, 600)
+        if beside:
+            expect(page.locator("#track")).to_have_attribute("data-lf-beside", "")
+        else:
+            expect(page.locator("#track")).not_to_have_attribute("data-lf-beside", "")
+        page.evaluate("scrollTo(0, 1500)")
+        at = page.evaluate(read)
+        if beside:
+            assert at["banner"] <= at["top"] <= at["banner"] + 40, at
+            assert at["bottom"] <= at["innerHeight"], at
+        else:
+            assert at["top"] < 0, (width, at)
+
+
 @pytest.mark.parametrize("rail", [True, False])
 def test_authored_residency_runs_without_annotation_geometry(browser, serve, rail):
     """Content residency imports inertly and admits authored residents independently

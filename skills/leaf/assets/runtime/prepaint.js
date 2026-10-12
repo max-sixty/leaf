@@ -627,10 +627,44 @@
       }
     return { changed, holders };
   };
+  // Whether each track (`--lf-resident: track`, a sidebar page's `aside`, layouts.css)
+  // stands beside another of `main`'s boxes, which it says as `data-lf-beside` so the
+  // Layout sticks it only there. Flex wrapping places it, from the window's width and
+  // from the minimum the body's content declares, and no query reads the second. It is
+  // read across rather than down, since sticking moves the track down alone: a box on
+  // its line stands clear of it to one side, and one on another line spans it, as the
+  // header, the footer and a stacked body do.
+  const BESIDE = "data-lf-beside";
+  const stand = () => {
+    const main = document.querySelector("body > main");
+    if (!main) return false;
+    const boxes = [...main.children].filter((child) => child.checkVisibility());
+    let changed = false;
+    for (const track of main.children) {
+      if (getComputedStyle(track).getPropertyValue("--lf-resident").trim() !== "track")
+        continue;
+      const { left, right } = track.getBoundingClientRect();
+      const beside =
+        boxes.includes(track) &&
+        boxes.some((box) => {
+          if (box === track) return false;
+          const other = box.getBoundingClientRect();
+          return (
+            other.width > 0 && (other.right <= left + 0.5 || other.left >= right - 0.5)
+          );
+        });
+      if (track.hasAttribute(BESIDE) === beside) continue;
+      if (!sourceShells.has(track)) sourceShells.set(track, track.cloneNode(false));
+      track.toggleAttribute(BESIDE, beside);
+      changed = true;
+    }
+    return changed;
+  };
   const residency = () => {
     const seated = seat();
+    const stood = stand();
     const { changed, holders } = indents();
-    return { changed: changed || seated, holders };
+    return { changed: changed || seated || stood, holders };
   };
 
   // The id a URL fragment spells, for location.hash and for a link's href alike, from

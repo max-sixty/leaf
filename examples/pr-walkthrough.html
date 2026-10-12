@@ -10,17 +10,6 @@
       content="Review a merged Worktrunk pull request as if the decision were still open, with its 46-file patch, diagrams, and review evidence on the page."
     />
     <style>
-      /* Navigation starts the stacked reading order; the stretched side track keeps
-         it beside the review on a wide window. Supporting history stays in the body. */
-      #pr-rail {
-        align-self: stretch;
-      }
-
-      #pr-contents-panel {
-        position: sticky;
-        top: calc(var(--lf-top) + var(--sp-4));
-      }
-
       .pr-review-gesture {
         padding-block: var(--sp-2);
         border-block: 1px solid var(--rule);

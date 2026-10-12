@@ -105,7 +105,7 @@ Don't say *widget entry* for an element declaration, *item* for an addressable e
 | **Pane** | One reading region, typically in a workspace's body: an optional header, exactly one body element, an optional footer |
 | **Reading region** | A stable semantic place used by navigation and reading-position recovery |
 | **Effective reading scroller** | The scroll container currently governing one reading region |
-| **Sticky header** | A sticky box of stated height that covers the top of the scroller it sticks in, such as an `lf-diff` file header, a root `lf-tabs` strip, or an open thread's title in the Threads list; `module-authoring.md`, "Reading regions", says how headers stack |
+| **Sticky header** | A sticky box of stated height that covers the top of the scroller it sticks in, such as an `lf-diff` file header, a root `lf-tabs` strip, or an open thread's title in the Threads list; `module-authoring.md`, "Sticky headers", says how headers stack |
 | **Reading posture** | Whether a region's body scrolls on its own (`bounded`) or its container carries it (`flow`). The stylesheet decides it and the runtime reads it |
 
 A root `lf-tabs` and an embedded `lf-tabs` remain the same element type; placement

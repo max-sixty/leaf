@@ -33,14 +33,15 @@ import { focusThread } from "./thread/focus.js";
 import { landWalkedThread } from "./thread/landing.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 
-// The walk's reading supplies both its destinations and their visible scope. A panel
-// may show resolved threads too; only the closed-panel page walk promises open threads.
-const threadWalk = (panelIsOpen, { threadsBox, openThreads }) => {
+// The walk's reading supplies both its destinations and their visible scope. In the
+// panel they are the cards its list walks (`walkRows`), which may show resolved threads
+// too; only the closed-panel page walk promises open threads.
+const threadWalk = (panelIsOpen, { threadsBox, openThreadsInPageOrder }) => {
   const inPanel = panelIsOpen();
   return {
-    threads:
-      (inPanel ? threadsBox.navigationThreads() : null) ??
-      openThreads({ visibleOnly: inPanel }),
+    threads: inPanel
+      ? threadsBox.walkRows().flatMap(({ thread }) => thread ?? [])
+      : openThreadsInPageOrder(),
     scope: inPanel ? "shown" : "open",
   };
 };
@@ -328,7 +329,8 @@ export function stopGlide(box) {
 
 export function createNavigation({
   panelElements: { threadsBox, inPanel: panelFocusIsInside },
-  openThreads,
+  threadCards,
+  openThreadsInPageOrder,
   panelIsOpen,
   narrowing,
   coveringAuxiliaryScroller,
@@ -377,7 +379,7 @@ export function createNavigation({
     },
   };
   const inPanel = () => panelFocusIsInside(panelIsOpen);
-  const threadList = { threadsBox, openThreads };
+  const threadList = { threadsBox, openThreadsInPageOrder };
   const move = (amount, unit) => stepReading(amount, unit, coveringAuxiliaryScroller);
   const walkThreads = (dir) =>
     stepThread(dir, threadDestinations, panelIsOpen, narrowing, threadList);
@@ -482,7 +484,9 @@ export function createNavigation({
   async function arriveAtThreadById(id) {
     const intent = retainUserIntent();
     const card = () =>
-      openThreads({ visibleOnly: false }).find((thread) => thread.dataset.id === id);
+      (panelIsOpen() ? threadCards() : openThreadsInPageOrder()).find(
+        (thread) => thread.dataset.id === id,
+      );
     if (panelIsOpen() && card()?.hidden) await narrowing.revealThread(id);
     const next = card();
     if (!next) return false;
@@ -495,5 +499,8 @@ export function createNavigation({
     seenScroller: () => seenScroller(coveringAuxiliaryScroller),
     stepReading: move,
     stepThread: walkThreads,
+    // Where the thread walk stands, which the panel's arrows report as `t` does.
+    threadPosition: () =>
+      threadPosition(threadDestinations.threadHere, panelIsOpen, narrowing, threadList),
   };
 }

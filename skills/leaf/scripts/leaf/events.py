@@ -152,7 +152,9 @@ class UndoReading:
         for thread in threads.values():
             messages = thread["msgs"]
             for message in messages:
-                if not is_reaction(message) and message.get("parent") in reaction_ids:
+                # Any message naming the reaction stands on it, a reaction to it
+                # included, and a withdrawn parent would leave it rootless.
+                if message.get("parent") in reaction_ids:
                     answered_reactions.add(message["parent"])
                 if thread["resolved"] and message["id"] in reaction_ids:
                     resolved_reactions.add(message["id"])
@@ -244,12 +246,10 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     it replaced: each shows as its message's wording and stands in the exchange as a
     turn of its own (`exchange`), so it resumes the thread as a reply does.
 
-    Each thread is keyed by, and carries as ``id``, the id of the message that
-    opened it: the name every Question, workflow, summary, and title uses for it.
-    ``root`` is the first message the log still holds. The two differ only where
-    a torn line lost the opening message, and then ``root`` is the surviving
-    reply that opens the thread now, under its own id, so a reply or resolve
-    addressed to it names a message the log has.
+    Each thread is keyed by, and carries as ``id``, the id of the comment that
+    opened it, its ``root``: the name every Question, workflow, summary, and title
+    uses for it. Admission keeps every standing message's parent standing
+    (`event_contracts._parent_error`), so each reply lands in a thread.
     """
     if withdrawn is None:
         withdrawn = taken_back(events)
@@ -323,33 +323,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 message["text"] = e["text"]
             continue
         if e["kind"] == "reply":
-            # A reply whose message the log lost opens the thread that message would
-            # have opened, under the id it was known by, which is the id an action
-            # names in `resolves` and the one `thread_names` resolves it to. A person
-            # answers it by its own surviving id; the lost one names no message and
-            # `leaf thread reply` says so.
-            # `read_events` skips a torn line and keeps reading, and `thread_names`
-            # resolves such a reply to the lost id for the same reason: a user who
-            # can see the reply is owed the rest of the page around it. Raising here
-            # instead cost the whole page — `page state` and every browser state read
-            # exited on the KeyError — so one torn line took down every reading of a
-            # log that had already been read.
             message = dict(e)
-            thread = thread_for.get(e["parent"])
-            if thread is None:
-                thread = {
-                    "id": e["parent"],
-                    "root": message,
-                    "title": None,
-                    "anchor": e.get("anchor"),
-                    "detached_from": None,
-                    "rewritten_from": None,
-                    "msgs": [],
-                    "revisions": [],
-                    "resolved": None,
-                }
-                threads[e["parent"]] = thread
-                thread_for[e["parent"]] = thread
+            thread = thread_for[e["parent"]]
             messages[e["id"]] = message
             thread["msgs"].append(message)
             if thread["title"] is None and "title" in e:
@@ -363,8 +338,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 thread["anchor"] = e["anchor"]
                 thread["rewritten_from"] = None
             thread_for[e["id"]] = thread
-        # A resolve names a message rather than opening one, so a thread the log
-        # lost whole — no reply of its own survived either — leaves it nothing to close.
+        # A resolve names a message the user may later take back — a reaction opening
+        # its thread, withdrawn once the thread reopened — and then closes nothing.
         elif e["kind"] == "resolve" and (thread := thread_for.get(e["parent"])):
             thread["resolved"] = e
         elif e["kind"] == "unresolve" and (thread := thread_for.get(e["parent"])):
@@ -560,10 +535,7 @@ def seat_root(thread: dict) -> str | None:
     own view. Narrower than any anchor naming the widget, deliberately: a quote
     anchor points into the widget's words rather than standing in the box it offers,
     and the user can see the difference — one is a note on a phrase, the other is
-    the cell.
-
-    A reply whose root the log lost is its own root, so the thread seats where the
-    thread's latest anchor points, and nowhere at all when no message carried one."""
+    the cell."""
     root = thread["root"]
     anchor = thread["anchor"]
     if root.get("about") or not anchor or len(anchor) != 1:

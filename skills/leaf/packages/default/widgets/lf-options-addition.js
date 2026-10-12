@@ -12,6 +12,7 @@ import {
   watchDraft,
   whileConnected,
   wireInput,
+  move,
 } from "/runtime/widget-api.js";
 
 const ANOTHER = "Another option";
@@ -162,7 +163,7 @@ export class OptionAddition {
         option = document.createElement("lf-option");
         option.id = id;
         option.dataset.lfAdded = "";
-        this.#host.insertBefore(option, this.#form ?? fallbackBefore);
+        move(this.#host, option, this.#form ?? fallbackBefore);
         created.push(option);
       }
       if (option.hasAttribute("data-lf-added")) {

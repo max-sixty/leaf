@@ -12,12 +12,12 @@ import json
 from functools import cache
 from pathlib import Path
 
-SOURCE_ROOT = Path(__file__).with_name("browser")
+SOURCE_ROOT = Path(__file__).with_name("page_scripts")
 
 
 @cache
 def browser_source(name: str) -> str:
-    """Read a test-owned JavaScript file relative to ``tests/browser``."""
+    """Read a test-owned JavaScript file relative to ``tests/page_scripts``."""
     return (SOURCE_ROOT / name).read_text(encoding="utf-8")
 
 

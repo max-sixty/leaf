@@ -123,7 +123,8 @@ Merge a fix that is correct but incomplete, and open an issue for what it leaves
 ## A red `ci` on main is live
 
 Pull requests run the broad selection and the website-worker gate; a push to main
-runs the first tier and `main`, and the daily scheduled run every tier, each
+runs every tier directory but `tests/journeys/`, and the daily scheduled run every
+tier, each
 alongside the runtime, browser-framework and bundle gates (`tests/AGENTS.md`, "Run
 what the change needs"). A red `ci` on main affects whoever pulls next, so treat it
 as live. Pushes to main hold one suite slot and a newer commit replaces the one
@@ -185,12 +186,15 @@ affected Leaf code or workflow, the concrete benefit or breakage, and a proposed
 next step. Distinguish confirmed behavior from an integration hypothesis. When
 nothing qualifies, keep the result in the run summary; do not post a digest.
 
-## Weekly: test cost tiers
+## Weekly: test tier budgets
 
-Refresh the tier each test's cost puts it in from the latest daily `ci` run that
-finished (`gh run list -w ci -e schedule`), as `leaf-dev cost-tiers --help` says, and
-open a pull request with the record's change. Its body lists the tests that moved to
-an earlier tier and those that moved later, with the cost behind each move.
+Read the latest daily `ci` run that finished (`gh run list -w ci -e schedule`): its
+`test` job's summary lists the tests over their directory's budget and the journeys
+within the browser budget (`leaf-dev suite-profile`). A test over budget in two daily
+runs either moves to `tests/journeys/` or gets faster; a journey within the browser
+budget in both moves to `tests/browser/` when its boundary is one page. One run's time
+includes contention, so a single reading moves nothing. Open one pull request with
+the moves, listing each test and the times behind it.
 
 ## Weekly: interface sweep
 

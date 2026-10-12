@@ -102,7 +102,6 @@ import {
 } from "../../vendor/codemirror.esm.js";
 import { LeafEditorView } from "../editor-view.js";
 import { TEXT_FIELD } from "../control-selectors.js";
-import { inputCount } from "../focus.js";
 import { loadMarkdown, markdownReady, placedMarkdownTokens } from "../markdown.js";
 import { sizeObserver } from "../rendering.js";
 
@@ -327,7 +326,6 @@ class LeafText extends HTMLElement {
   #model;
   #view = null;
   #nativeInput = false;
-  #reparentHold = null;
   #root;
   #internals = null;
   #editable = new Compartment();
@@ -487,64 +485,17 @@ class LeafText extends HTMLElement {
     });
   }
 
+  // A move by `moveBefore` keeps the editor and its focus but collapses the native
+  // selection in it, which CodeMirror would read back as a caret at the start. With this
+  // callback the move is no disconnection, and the view puts its caret back as it lands.
+  connectedMoveCallback() {
+    this.#view?.placeSelection();
+  }
+
   connectedCallback() {
-    if (this.#view) {
-      // Reparenting keeps the CodeMirror view but can leave a pending native
-      // selectionchange that replaces its recorded caret with the DOM's reset 0.
-      // Only a focused editor needs the hold. An unfocused move may produce no
-      // selectionchange, leaving a listener to override a later intentional caret.
-      if (!this.#view.hasFocus) {
-        this.#reparentHold?.stop();
-        return;
-      }
-      // CodeMirror hears that event after reconnecting. Consume it once,
-      // restoring the held selection if needed, unless the user acted first.
-      const intent = inputCount();
-      const previous = this.#reparentHold;
-      if (
-        previous?.view === this.#view &&
-        previous.doc === this.#view.state.doc &&
-        previous.intent === intent
-      )
-        return;
-      previous?.stop();
-      const hold = {
-        view: this.#view,
-        doc: this.#view.state.doc,
-        caret: [this.selectionStart, this.selectionEnd, this.selectionDirection],
-        intent,
-      };
-      const stop = () => {
-        document.removeEventListener("selectionchange", onSelectionChange);
-        if (this.#reparentHold === hold) this.#reparentHold = null;
-      };
-      const restore = () => {
-        if (this.#reparentHold !== hold) return;
-        if (
-          this.#view !== hold.view ||
-          !this.isConnected ||
-          !hold.view.hasFocus ||
-          hold.view.state.doc !== hold.doc ||
-          inputCount() !== hold.intent
-        ) {
-          stop();
-          return;
-        }
-        stop();
-        if (
-          this.selectionStart !== hold.caret[0] ||
-          this.selectionEnd !== hold.caret[1] ||
-          this.selectionDirection !== hold.caret[2]
-        ) {
-          this.setSelectionRange(...hold.caret);
-        }
-      };
-      const onSelectionChange = () => queueMicrotask(restore);
-      hold.stop = stop;
-      this.#reparentHold = hold;
-      document.addEventListener("selectionchange", onSelectionChange);
-      return;
-    }
+    // A move by `insertBefore` reconnects within the task, keeping the view
+    // (`disconnectedCallback`); the hold that returns the user restores the caret.
+    if (this.#view) return;
     if (!this.hasAttribute("role")) this.setAttribute("role", "textbox");
     if (!this.hasAttribute("aria-multiline"))
       this.setAttribute("aria-multiline", "true");
@@ -594,7 +545,6 @@ class LeafText extends HTMLElement {
   disconnectedCallback() {
     queueMicrotask(() => {
       if (this.isConnected || !this.#view) return;
-      this.#reparentHold?.stop();
       this.#model = this.#view.state;
       this.#sizes.disconnect();
       this.#overflow.disconnect();

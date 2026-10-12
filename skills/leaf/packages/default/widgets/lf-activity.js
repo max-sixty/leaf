@@ -59,6 +59,7 @@ import {
   keepsHidden,
   keepsText,
   excerptWords,
+  move,
 } from "/runtime/widget-api.js";
 
 import {
@@ -191,6 +192,7 @@ customElements.define(
       for (const row of JSON.parse(drawing.reading.shown))
         this.#bind(this.#rows.get(row.id).item, row);
       this.#reading = new HeldReading(
+        this,
         () => [this.#notice, this.#list, this.#empty],
         () => this.#watching.refresh(),
       );
@@ -207,7 +209,6 @@ customElements.define(
       };
       whileConnected(this, (signal) => {
         paper.addEventListener("change", printing, { signal });
-        return () => this.#reading.dispose();
       });
       this.#watching = watchHistory(this, (history, { ready }) => {
         this.#ready = ready;
@@ -312,7 +313,7 @@ customElements.define(
         // Read synchronously, so the shared clock repaints this reading when it turns.
         const time = item.querySelector(".lf-activity-time");
         keepsText(time, ago(row.ts));
-        if (item !== next) this.#list.insertBefore(item, next);
+        if (item !== next) move(this.#list, item, next);
         else next = next.nextElementSibling;
       }
       for (const [id, { item }] of this.#rows)

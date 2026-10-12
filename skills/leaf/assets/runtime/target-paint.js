@@ -9,6 +9,7 @@
 import { cancelRender, nextRender } from "./rendering.js";
 import { el } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
+import { move } from "./dom-move.js";
 import { inChrome } from "./passages.js";
 import {
   SVG_NS,
@@ -112,12 +113,12 @@ export function labelAim(node) {
       : -1;
   if (index >= 0) {
     const home = aimStand.levels[index].frame;
-    if (node.parentElement !== home) home.append(node);
+    if (node.parentElement !== home) move(home, node, null);
     const { band } = levels[index];
     standBox(node, at, { anchored: false, origin: { x: band.left, y: band.top } });
     return;
   }
-  if (node.parentElement !== aimStand.carrier) aimStand.carrier.append(node);
+  if (node.parentElement !== aimStand.carrier) move(aimStand.carrier, node, null);
   standBox(node, at, aimStood, aimStood.anchor, aimStood.at);
 }
 

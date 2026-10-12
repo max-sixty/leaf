@@ -46,12 +46,11 @@
         send,
         receive: (callback) => listeners.add(callback),
         present() {
-          if (!settings.passive)
-            document.documentElement.lfInitial.setRuntimeRootAttribute(
-              document.body,
-              "inert",
-              null,
-            );
+          document.documentElement.lfInitial.setRuntimeRootAttribute(
+            document.body,
+            "inert",
+            null,
+          );
         },
       };
       root.lfSample = bridge;
@@ -66,15 +65,14 @@
       // trusted input enters the browsing context before those handlers run.
       const nativeWindowFocus = window.focus;
       const enterSample = (event) => {
-        if (event.isTrusted && !settings.passive && !document.hasFocus())
-          nativeWindowFocus.call(window);
+        if (event.isTrusted && !document.hasFocus()) nativeWindowFocus.call(window);
       };
       bridge.install = () => {
         const root = document.documentElement;
         root.lfInitial.setRuntimeRootAttribute(
           root,
           "data-lf-sample-block",
-          !settings.passive && !settings.window ? "" : null,
+          settings.window ? null : "",
         );
         dress(worn);
         for (const type of ["pointerdown", "keydown"])
@@ -102,9 +100,17 @@
         port.postMessage({ type: "connected", nonce });
         bridge.install();
         dress(settings.dress);
+        root.lfInitial.setRuntimeRootAttribute(root, "data-lf-sample-connecting", null);
         readyResolve();
         for (const value of queued.splice(0)) port.postMessage(value);
       };
+      // What the document wears, its dress and whether it stands as a block, comes in
+      // the containing page's answer, which can land frames after the document could
+      // first paint. Until it does the document paints nothing (theme.css), so no frame
+      // shows a playground's candidate undressed. Opened as a window of its own, it
+      // has no containing page to answer and paints at once.
+      if (window.parent !== window)
+        root.lfInitial.setRuntimeRootAttribute(root, "data-lf-sample-connecting", "");
       window.addEventListener("message", connect);
       window.parent.postMessage({ type: "leaf-sample-connect", sample, nonce }, "*");
       window.addEventListener("pagehide", () => send({ type: "departed" }));
@@ -357,8 +363,10 @@
   // far it gets, so the notice stands until a server that can start the page replaces
   // this one. An uncaught error in code that did load leaves nothing to wait for: the
   // same server would serve the same bytes, so if the page presents it has started
-  // with everything it is going to get.
-  function recover(reason, awaits) {
+  // with everything it is going to get. A fault that is the page's own (`page`) is
+  // answered by no server: the page holds what its author wrote, so the notice says
+  // the page has a problem and waits for nothing.
+  function recover(reason, awaits, page) {
     recordStartupFault(reason);
     stopHoldingKeys();
     if (recovering) return;
@@ -368,12 +376,15 @@
     status.className = "lf-chrome";
     status.setAttribute("data-lf-runtime", "");
     status.setAttribute("role", "status");
-    status.textContent = "Leaf couldn't start. Waiting for the server to update.";
+    status.textContent = page
+      ? "Leaf couldn't start: this page has a problem its author needs to fix."
+      : "Leaf couldn't start. Waiting for the server to update.";
     const show = () => {
       if (!started) document.body.prepend(status);
     };
     if (document.body) show();
     else document.addEventListener("DOMContentLoaded", show, { once: true });
+    if (page) return;
 
     // The notice says the page has not started, and a page that presents has started,
     // so a user who is using the page would otherwise be reading that Leaf could not
@@ -438,7 +449,7 @@
 
   // The prepaint names each startup fault and marks the page for it (prepaint.js).
   window.addEventListener("lf-startup-fault", (event) =>
-    recover(event.detail.reason, event.detail.incomplete),
+    recover(event.detail.reason, event.detail.incomplete, event.detail.page),
   );
   holdEarlyKeys();
   try {

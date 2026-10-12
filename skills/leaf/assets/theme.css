@@ -193,6 +193,14 @@ html:not([data-lf-live]) {
     --lf-bottom-status-translate: none;
   }
 }
+html[data-lf-live][data-lf-floating-chrome] {
+  --lf-floating-row: max(48px, calc(var(--aim-floor) + 8px));
+  --lf-floating-gap: 14px;
+  --lf-banner-h: var(--lf-safe-top);
+  --lf-bottom-bar-h: calc(var(--lf-floating-row) + 2 * var(--lf-floating-gap) + var(--lf-safe-bottom));
+  --lf-bottom-status-bottom: calc(var(--lf-bottom-bar-h) + 4px);
+  --lf-bottom-status-translate: none;
+}
 @media (pointer: coarse) {
   :root {
     --aim-floor: 44px;

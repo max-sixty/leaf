@@ -62,6 +62,7 @@ export function createQuestionBannerControls(activateBulk) {
       control,
       rank: BANNER_CONTROL_RANK.blanket,
       conditional: true,
+      row: { label: () => control.textContent, group: "page" },
     });
     showNews(control, false);
     bulk.set(outcome, { control, owner });

@@ -115,6 +115,7 @@ export function createPageComment({
     control,
     rank: BANNER_CONTROL_RANK.pageComment,
     seat: { desk: "row", phone: "menu" },
+    row: { label: "Comment on the page", group: "page" },
   });
 
   function open() {

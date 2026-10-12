@@ -368,6 +368,7 @@ export function createNavigation({
     description:
       "Align the current reading item at the top, keeping focus and selection",
     touch: "Align current item at top",
+    menu: "navigate",
     retainStanding: true,
     covering: true,
     when: () => Boolean(currentItem()),

@@ -587,6 +587,7 @@ export function createResponseSurface({
     rank: BANNER_CONTROL_RANK.commentSelection,
     seat: "gesture",
     present: false,
+    row: { label: "Comment on selection", group: "annotate" },
   });
   const offerSelection = (anchor) => {
     selectionOffered = Boolean(anchor);

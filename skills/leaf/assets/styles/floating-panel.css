@@ -1,0 +1,181 @@
+/* The floating panel (runtime/floating-panel.js): one box over the foot of the page in
+   place of the banner and the bottom bar, where the user chose it
+   (`html[data-lf-floating-chrome]`, prepaint.js). The theme keeps its row's room at the
+   page's foot (theme.css).
+
+   The surface is restrained: an opaque ground a step lighter than the paper, a hairline
+   ring, one soft shadow, and concentric corners. Structure is spacing and hairlines;
+   the leaf is the one symbol at rest, and its colour is the agent's state. Every row is
+   one line. */
+html[data-lf-floating-chrome] .lf-chrome {
+  .lf-banner, .lf-shortcut-bar { display: none !important; }
+}
+@scope (.lf-chrome) {
+  .lf-floating-panel {
+    --lf-fp-surface: light-dark(#fffefb, #22211d);
+    --lf-fp-ring: color-mix(in srgb, var(--ink) 13%, transparent);
+    --lf-fp-hover: color-mix(in srgb, var(--ink) 5%, transparent);
+    --lf-fp-inset: 6px;
+    --lf-fp-radius: 14px;
+    --lf-fp-width: min(580px, calc(100vw - 24px - var(--lf-safe-left) - var(--lf-safe-right)));
+    --lf-fp-view-height: min(440px, calc(100dvh - var(--lf-bottom-bar-h) - 72px));
+    position: fixed; z-index: var(--lf-z-banner); pointer-events: auto;
+    left: 50%; translate: -50% 0;
+    bottom: calc(var(--lf-floating-gap) + var(--lf-safe-bottom));
+    width: var(--lf-fp-width);
+    font: var(--t-5) / var(--lf-ui-lh) var(--sans); color: var(--ink);
+  }
+  .lf-fp-card {
+    display: flex; flex-direction: column; justify-content: flex-end; overflow: clip;
+    background: var(--lf-fp-surface); border-radius: var(--lf-fp-radius);
+    box-shadow: 0 0 0 0.5px var(--lf-fp-ring), 0 16px 32px -10px rgb(20 18 12 / 0.18),
+      0 2px 6px -2px rgb(20 18 12 / 0.06);
+  }
+  .lf-fp-inner { flex: none; display: flex; flex-direction: column; }
+  :where(.lf-floating-panel) :is(button, input) { font: inherit; color: inherit; }
+  :where(.lf-floating-panel) button {
+    background: none; border: 0; border-radius: 8px; cursor: pointer; white-space: nowrap;
+    padding: 0 10px; min-height: 32px;
+  }
+  :where(.lf-floating-panel) button:hover { background: var(--lf-fp-hover); }
+  :where(.lf-floating-panel) button:disabled { color: var(--muted); cursor: default;
+    background: none; }
+  :where(.lf-floating-panel) :is(button, input):focus-visible {
+    outline: var(--focus-ring-w) solid var(--focus-ring); outline-offset: -2px; }
+
+  /* The row at rest: the leaf, the field, and what waits. */
+  .lf-fp-row {
+    display: flex; align-items: center; gap: 2px; order: 4;
+    min-height: var(--lf-floating-row); padding: var(--lf-fp-inset);
+    box-sizing: border-box;
+  }
+  .lf-fp-leaf { flex: none; display: grid; place-items: center;
+    width: 36px; min-height: 36px; padding: 0; }
+  .lf-fp-leaf .lf-dot { --lf-mark-w: 21px; }
+  .lf-fp-field { flex: 1; min-width: 0; display: flex; align-items: center; }
+  .lf-fp-box { flex: 1; min-width: 0; display: flex; align-items: flex-end;
+    border: 0; background: none; padding: 0; margin: 0; box-shadow: none; }
+  .lf-fp-box .lf-compose-field { flex: 1; min-width: 0; display: flex; align-items: flex-end;
+    gap: 4px; border: 0; background: none; padding: 0; box-shadow: none; }
+  .lf-fp-box leaf-text { flex: 1; min-width: 0; border: 0; background: none;
+    box-shadow: none; padding: 7px 6px; min-height: 36px; max-height: 30dvh;
+    box-sizing: border-box; font: var(--t-5) / 22px var(--sans); }
+  .lf-fp-box leaf-text[data-lf-focus] { outline: none; }
+  /* The field shows it holds the caret by a quiet ground, not a frame. */
+  .lf-fp-box .lf-compose-field { border-radius: 9px; transition: background-color 120ms; }
+  .lf-fp-box .lf-compose-field:has(> leaf-text[data-lf-focus]) { background: var(--lf-fp-hover); }
+  .lf-fp-box .lf-compose-placeholder kbd { display: none; }
+  .lf-fp-box :is(.lf-compose-submit, .lf-compose-dictate):not([hidden]) { flex: none; display: grid;
+    place-items: center; width: 32px; min-height: 32px; padding: 0; margin: 2px 0;
+    border-radius: 8px; }
+  .lf-fp-box .lf-action-icon { width: 16px; height: 16px; }
+  .lf-fp-quick { flex: none; display: flex; align-items: center; gap: 0; }
+  .lf-fp-chip { color: var(--muted); padding-inline: 9px; }
+  .lf-fp-chip:hover { color: var(--ink); }
+  .lf-fp-num { color: var(--ink); font-variant-numeric: tabular-nums; margin-left: 3px; }
+  .lf-fp-news { color: var(--accent); }
+
+  /* Folded to the leaf: the row is the mark and what waits, nothing else. */
+  .lf-floating-panel[data-rest="mark"]:not([data-open]) {
+    width: auto; left: auto; right: calc(var(--lf-floating-gap) + var(--lf-safe-right));
+    translate: none;
+    .lf-fp-field, .lf-fp-desk, .lf-fp-foot { display: none; }
+  }
+
+  /* Where the user is, and the way back, just above the field. */
+  .lf-fp-head {
+    order: 2; display: flex; align-items: center; gap: 8px;
+    padding: 4px var(--lf-fp-inset); border-top: 1px solid var(--rule);
+    min-height: 44px; box-sizing: border-box;
+  }
+  .lf-fp-head:empty, .lf-fp-to[hidden], .lf-fp-foot:empty { display: none; }
+  .lf-fp-back, .lf-fp-close { color: var(--muted); flex: none; min-width: 64px; }
+  .lf-fp-back { text-align: start; }
+  .lf-fp-back[hidden] { display: block; visibility: hidden; }
+  .lf-fp-title { flex: 1; min-width: 0; margin: 0; font: inherit; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+  .lf-fp-count { font-weight: 400; color: var(--muted); margin-left: 7px;
+    font-variant-numeric: tabular-nums; }
+  /* Who the words go to, and what the user can do to that thread. */
+  .lf-fp-to {
+    order: 3; display: flex; align-items: center; gap: 4px;
+    padding: 2px var(--lf-fp-inset) 0 calc(var(--lf-fp-inset) + 44px);
+    font-size: var(--t-6); color: var(--muted); border-top: 1px solid var(--rule);
+    min-height: 30px; box-sizing: border-box;
+  }
+  .lf-fp-head:not(:empty) + .lf-fp-to { border-top: 0; }
+  .lf-fp-dest { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; }
+  .lf-fp-to button { font-size: var(--t-6); color: var(--muted); min-height: 26px;
+    padding-inline: 8px; }
+  .lf-fp-foot {
+    order: 5; display: flex; justify-content: space-between; gap: 12px;
+    padding: 0 calc(var(--lf-fp-inset) + 8px) 6px; margin-top: -2px;
+    font-size: var(--t-6); color: var(--muted);
+  }
+  .lf-fp-foot kbd { font: inherit; color: var(--ink); }
+
+  /* The open view, above the head. An inventory keeps one height however it is
+     filtered; a short view fits its contents. */
+  .lf-fp-stage { order: 1; position: relative; display: grid; min-height: 0; }
+  .lf-fp-stage:empty { display: none; }
+  .lf-fp-view { grid-area: 1 / 1; min-height: 0; max-height: var(--lf-fp-view-height);
+    overflow-y: auto; overscroll-behavior: contain; padding: 8px var(--lf-fp-inset);
+    box-sizing: border-box; scrollbar-width: thin; }
+  /* The view leaving fades where it stood, out of the stage's height, so the card
+     tweens once, to the view arriving. */
+  .lf-fp-view[data-leaving] { pointer-events: none; position: absolute;
+    inset-inline: 0; bottom: 0; }
+  .lf-fp-view:is([data-view="threads"], [data-view="thread"]) {
+    height: var(--lf-fp-view-height); }
+  .lf-fp-view[data-view="threads"] { padding-top: 0; }
+  .lf-fp-view hr { border: 0; border-top: 1px solid var(--rule); margin: 6px 10px; }
+  .lf-fp-item, .lf-fp-thread {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    width: 100%; min-height: 36px; text-align: start; }
+  .lf-fp-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lf-fp-value { flex: none; color: var(--muted); font-size: var(--t-6);
+    font-variant-numeric: tabular-nums; }
+  .lf-fp-item[data-lf-urgent] .lf-fp-value { color: var(--accent); }
+  .lf-fp-reading { margin: 4px 10px 8px; color: var(--muted); font-size: var(--t-6);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lf-fp-empty { margin: 16px 10px; color: var(--muted); }
+  .lf-fp-tools { position: sticky; top: 0; z-index: 1; background: var(--lf-fp-surface);
+    padding: 8px 0 2px; }
+  .lf-fp-search { box-sizing: border-box; width: 100%; height: 36px; padding: 0 12px;
+    border: 1px solid var(--rule); border-radius: 9px; background: none; }
+  .lf-fp-filters { display: flex; gap: 2px; padding: 4px 0 2px; }
+  .lf-fp-filters button { color: var(--muted); font-size: var(--t-6); min-height: 28px; }
+  .lf-fp-filters [aria-pressed="true"] { color: var(--ink); text-decoration: underline;
+    text-underline-offset: 5px; }
+  .lf-fp-thread { border-radius: 0; border-bottom: 1px solid var(--rule); min-height: 42px; }
+  .lf-fp-thread:last-child { border-bottom: 0; }
+  .lf-fp-thread[data-unread] .lf-fp-label { font-weight: 600; }
+  .lf-fp-thread[data-unread] .lf-fp-value { color: var(--accent); }
+  .lf-fp-thread[data-resolved] .lf-fp-label { color: var(--muted); }
+  .lf-fp-messages { padding: 8px 10px; }
+  .lf-fp-message { margin-bottom: 18px; user-select: text; -webkit-user-select: text; }
+  .lf-fp-message header { color: var(--muted); font-size: var(--t-6); margin-bottom: 4px; }
+  .lf-fp-body { line-height: 1.6; overflow-wrap: anywhere; }
+  .lf-fp-body > :first-child { margin-top: 0; }
+  .lf-fp-body > :last-child { margin-bottom: 0; }
+
+  /* The status in full, on hover or focus of the leaf, while nothing is open. */
+  .lf-fp-peek { position: absolute; bottom: calc(100% + 8px); left: 0; max-width: 100%;
+    box-sizing: border-box; padding: 7px 12px; border-radius: 9px;
+    background: var(--lf-fp-surface); box-shadow: 0 0 0 0.5px var(--lf-fp-ring),
+      0 8px 20px -8px rgb(20 18 12 / 0.18);
+    color: var(--muted); font-size: var(--t-6); pointer-events: none;
+    opacity: 0; translate: 0 4px; transition: opacity 120ms, translate 120ms; }
+  .lf-fp-peek[data-shown] { opacity: 1; translate: 0 0; }
+
+  @media screen and (width <= 480px) {
+    .lf-fp-desk { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lf-fp-peek { transition: none; }
+  }
+  @media (forced-colors: active) {
+    .lf-fp-card, .lf-fp-peek { border: 1px solid CanvasText; }
+  }
+}

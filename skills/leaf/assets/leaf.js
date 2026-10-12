@@ -86,6 +86,7 @@ import {
 } from "./runtime/thread/landing.js";
 import { createThreadPanelKeys } from "./runtime/thread/panel.js";
 import { createPageComment } from "./runtime/thread/page-comment.js";
+import { createFloatingPanel } from "./runtime/floating-panel.js";
 import { standingThreadId } from "./runtime/thread/focus.js";
 import { createThreadListController } from "./runtime/thread/thread-list.js";
 import { createThreadNarrowing } from "./runtime/thread/narrowing.js";
@@ -591,6 +592,15 @@ pageComment = createPageComment({
   showThread: landing.showThread,
   threadsToggle: toggleBtn,
 });
+// The floating panel stands in for the banner and bottom bar where the user chose it
+// (prepaint.js, `lfChrome`); a choice made later reloads the page.
+const floatingPanel =
+  document.documentElement.lfChrome?.mode === "floating"
+    ? createFloatingPanel({
+        wireInput: inputs.wireInput,
+        threadActions: app.threadActions,
+      })
+    : null;
 const passageSelection = createPassageSelection({
   restore: anchorTravel.restoreSelection,
 });
@@ -861,6 +871,7 @@ if (!offlineInteractive) {
   narrowing.mount();
   await panelKeys.mount();
   pageComment.mount(chromeForeground);
+  floatingPanel?.mount(chromeForeground);
   responseSurface.mount();
   holdToRead();
   reactions.mount();

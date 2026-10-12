@@ -512,6 +512,19 @@ html:not([data-lf-live]) {
   --lf-bottom-status-bottom: calc(14px + var(--lf-safe-bottom));
   --lf-bottom-status-translate: none;
 } }
+/* The floating panel replaces both bars (prepaint.js, `lfChrome`): the page reserves no
+   banner, and its foot keeps the panel's resting row and the gap below it, so the end
+   of the page can scroll clear of the panel as it could of the bottom bar. A status
+   stands just above the row. */
+html[data-lf-live][data-lf-floating-chrome] {
+  --lf-floating-row: max(48px, calc(var(--aim-floor) + 8px));
+  --lf-floating-gap: 14px;
+  --lf-banner-h: var(--lf-safe-top);
+  --lf-bottom-bar-h: calc(var(--lf-floating-row) + 2 * var(--lf-floating-gap)
+    + var(--lf-safe-bottom));
+  --lf-bottom-status-bottom: calc(var(--lf-bottom-bar-h) + 4px);
+  --lf-bottom-status-translate: none;
+}
 /* The other half of --aim-floor and --entry-floor, and the whole of what a coarse pointer
    changes about how small a control, or the words typed in one, may be. Every rule that
    states a floor reads its token, so a control joins both answers by joining one of them. */

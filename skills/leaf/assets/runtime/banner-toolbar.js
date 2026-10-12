@@ -37,6 +37,13 @@
  * A contribution whose seat differs by face names one per face (`{ desk, phone }`). The
  * face is the window's, the stylesheet-owned --lf-banner-face that also dresses
  * the banner, so the partition changes only when the window crosses that width.
+ *
+ * Each contribution also says what it is as one line of a menu (`row`): its `label`,
+ * a terse `value` such as a count, the `group` of controls it belongs with, and the
+ * `press` that acts as the control would. The floating panel (floating-panel.js) draws
+ * the run from these rows rather than from the native nodes, so a control appears
+ * there without the panel naming it. `bannerRows` reads the run's rows in order, and
+ * `watchBannerRows` calls back after each change to which stand.
  */
 import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
 import { scrollIntoView } from "./landing-scroll.js";
@@ -94,6 +101,9 @@ overflowBtn.setAttribute("popovertarget", overflowMenu.id);
 overflowBtn.append(iconElement("more", "lf-action-icon"));
 
 const SEATS = ["row", "menu", "gesture"];
+// What a row is about, which decides where a menu built from rows puts it: on the menu
+// itself (`page`), or behind its Navigate, Annotations or About entry.
+export const ROW_GROUPS = Object.freeze(["page", "navigate", "annotate", "about"]);
 // The render-blocking theme decides posture once, before the banner arrives.
 const bannerFace = () =>
   getComputedStyle(document.documentElement)
@@ -155,6 +165,29 @@ function placeRuns() {
     [overflowMenu, menu.map((entry) => entry.control)],
   ]);
   paintDoor();
+  for (const listener of rowListeners) listener();
+}
+
+const rowListeners = new Set();
+const rowOf = (entry) => {
+  const read = (value) => (typeof value === "function" ? value() : value);
+  return Object.freeze({
+    key: entry.key,
+    label: read(entry.row.label),
+    value: read(entry.row.value) ?? "",
+    group: entry.row.group,
+    urgent: entry.urgent,
+    gesture: seatOf(entry) === "gesture",
+    disabled: entry.focusTarget.matches(":disabled, [aria-disabled='true']"),
+    press: entry.row.press ?? (() => entry.focusTarget.click()),
+  });
+};
+/** The run's rows standing now, in the run's order, each read as it reads now. */
+export const bannerRows = () => ordered().filter(onOffer).map(rowOf);
+/** Call `listener` after each change to the run; returns the way to stop. */
+export function watchBannerRows(listener) {
+  rowListeners.add(listener);
+  return () => rowListeners.delete(listener);
 }
 
 placeRuns();
@@ -292,6 +325,7 @@ export function registerBannerControl({
   present = true,
   offered = !conditional,
   urgent = null,
+  row: menuRow,
 }) {
   const seats = typeof seat === "string" ? [seat] : [seat?.desk, seat?.phone];
   if (
@@ -302,6 +336,10 @@ export function registerBannerControl({
   )
     throw new TypeError(
       "A banner control needs a key, native control, numeric rank, and row, menu, or gesture seat, or one for each of desk and phone",
+    );
+  if (!menuRow?.label || !ROW_GROUPS.includes(menuRow.group))
+    throw new TypeError(
+      `Banner control ${key} needs a row: a label and one of the groups ${ROW_GROUPS.join(", ")}`,
     );
   const byKey = [...controls.values()].find((entry) => entry.key === key);
   if (byKey && byKey.control !== control)
@@ -321,6 +359,7 @@ export function registerBannerControl({
       present: Boolean(present),
       offered: Boolean(offered),
       urgent,
+      row: menuRow,
     }),
   );
   seatControls();

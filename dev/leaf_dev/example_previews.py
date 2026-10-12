@@ -22,16 +22,16 @@ from pathlib import Path
 import click
 import leaf_website
 from leaf.hosting import LeafHTTPServer
-from leaf.render_checks import wait_until_ready
 from leaf.render_gate.scheme import collect_page_exceptions
 from PIL import Image
 from playwright.sync_api import Page, sync_playwright
 
 from leaf_dev import site as site_build
+from leaf_dev.browser import load, tab
 from leaf_dev.example_data import catalog_sources
 from leaf_dev.leaf_assets import catalog_updates, pinned_assets, publish, stage
 
-VIEWPORT = {"width": 1120, "height": 700}
+VIEWPORT = (1120, 700)
 # docs/index.html and docs/examples.html reserve this 8:5 box before a preview loads.
 OUTPUT_SIZE = (896, 560)
 REQUIRED_FONTS = {
@@ -123,16 +123,16 @@ def refresh_previews() -> None:
         # `serve_examples` runs this checkout's website adapter, which serves only the
         # pages this checkout's Leaf vendored.
         site_build.build_examples(site, site_build.checkout_leaf(), assets=assets)
+        # The locked headless shell the browser suite runs, not the host's Chrome
+        # (`chrome()`), so the published pixels do not follow each host's Chrome.
         browser = playwright.chromium.launch()
         try:
-            with serve_examples(site) as origin:
-                page = browser.new_page(viewport=VIEWPORT, color_scheme="light")
+            with serve_examples(site) as origin, tab(browser, VIEWPORT) as page:
                 errors = []
                 collect_page_exceptions(page, errors)
                 for source in catalog_sources():
                     errors.clear()
-                    page.goto(f"{origin}/examples/{source.stem}/", wait_until="load")
-                    wait_until_ready(page)
+                    load(page, f"{origin}/examples/{source.stem}/")
                     if not captures:
                         require_capture_fonts(page)
                     png = page.screenshot(animations="disabled", caret="hide")

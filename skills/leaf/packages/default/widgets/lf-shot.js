@@ -93,10 +93,8 @@ customElements.define(
     #frameLabels = new Map();
     #captions = new Map();
     #openers = new Map();
-    #settleDifference;
-    difference = new Promise((resolve) => {
-      this.#settleDifference = resolve;
-    });
+    #difference = Promise.withResolvers();
+    difference = this.#difference.promise;
 
     static observedAttributes = ["alt"];
 
@@ -345,7 +343,7 @@ customElements.define(
       const registered = this.register(shots);
       present(registered);
       void registered.then(() => this.#requestComparison());
-      this.#settleDifference(
+      this.#difference.resolve(
         registered.then((aligned) =>
           aligned
             ? afterPresentation(() => inTurn(() => this.#markDifference(shots)))

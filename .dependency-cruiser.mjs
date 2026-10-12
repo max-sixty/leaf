@@ -5,28 +5,24 @@
 // whole graph; `eslint.config.mjs` keeps the rules a module's own source answers, such
 // as which specifiers an owner may name and who may write the document root.
 //
-// The graph includes core owners and the bundled physical renderer. Browser-absolute
-// imports resolve through the same canonical resource roots as layer composition.
-// The boot entry selects the actual renderer and is outside the owner graph. Vendored
-// bundles have no owner edges; every other unresolved specifier is an error.
+// The graph is the runtime directory, the physical annotation overlay included.
+// Everything outside it is excluded, the boot entry and the vendored bundles among
+// them: no route between owners runs through either. The boot entry imports the overlay
+// only when the page asks for it, and `core-independent-of-overlay` keeps every other
+// owner from reaching it. Site-absolute `/vendor/` and `/checks/` specifiers, which the
+// browser resolves and Node does not, are excluded by name; every other unresolvable
+// specifier is a missing module and an error.
 
 import fs from "node:fs";
-import path from "node:path";
 
 const assets = "skills/leaf/assets/";
 const runtime = `${assets}runtime/`;
-const overlay = "skills/leaf/packages/default/runtime/annotation-overlay/";
-export const runtimeAliases = {
-  "/runtime/annotation-overlay": path.resolve(overlay),
-  "/runtime": path.resolve(runtime),
-};
-const owners = `^(?:${runtime}|${overlay})`;
-const modulePath = (name) =>
-  fs.existsSync(`${runtime}${name}`) ? `${runtime}${name}` : `${overlay}${name}`;
+const overlay = `${runtime}annotation-overlay/`;
+const owners = `^${runtime}`;
 
 const escaped = (name) => name.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const isModule = (name) => `^${escaped(modulePath(name))}$`;
-const isOneOf = (names) => `^(?:${names.map(modulePath).map(escaped).join("|")})$`;
+const isModule = (name) => `^${runtime}${escaped(name)}$`;
+const isOneOf = (names) => `^${runtime}(?:${names.map(escaped).join("|")})$`;
 
 // Each root reaches these modules and nothing else. The pure record folds take values
 // and return values; the keyboard dispatcher resolves a key against the register and
@@ -122,12 +118,12 @@ const forbiddenClosures = Object.fromEntries([
     "addressable-names.js",
     "anchor-resolution.js",
     "anchor-controls.js",
-    "anchor-paint.js",
+    "annotation-overlay/anchor-paint.js",
     "anchor-travel.js",
     "chrome-layout.js",
-    "composing/drawing-paint.js",
+    "annotation-overlay/composing/drawing-paint.js",
     "indication.js",
-    "margin-layout.js",
+    "annotation-overlay/margin-layout.js",
     "page-geometry.js",
     "target-paint.js",
   ].map((root) => [root, [...applicationOwners, "thread/presentation.js"]]),
@@ -140,7 +136,7 @@ for (const name of new Set(
     Object.entries(closures).flatMap(([root, names]) => [root, ...names]),
   ),
 ))
-  if (!fs.existsSync(new URL(`./${modulePath(name)}`, import.meta.url)))
+  if (!fs.existsSync(new URL(`./${runtime}${name}`, import.meta.url)))
     throw new Error(`.dependency-cruiser.mjs names a missing runtime module: ${name}`);
 
 export default {
@@ -169,9 +165,10 @@ export default {
     {
       name: "core-independent-of-overlay",
       comment:
-        "Core owners cannot load the selected package's physical annotation graph.",
+        "Core owners cannot load the physical annotation overlay; only leaf.js " +
+        "imports it, for a page that presents annotations with it.",
       severity: "error",
-      from: { path: `^${runtime}` },
+      from: { path: owners, pathNot: `^${overlay}` },
       to: { reachable: true, path: `^${overlay}` },
     },
     {
@@ -212,6 +209,5 @@ export default {
     // Resolve as the browser does: a specifier names its file exactly. Without this,
     // `./repaint` finds `repaint.js` and passes here while the browser 404s it.
     enhancedResolveOptions: { extensions: [] },
-    webpackConfig: { fileName: ".dependency-cruiser-resolve.mjs" },
   },
 };

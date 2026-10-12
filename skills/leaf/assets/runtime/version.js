@@ -258,16 +258,22 @@ const pairSources = (source, live, pairs) => {
   }
   return pairs;
 };
-const servedMain = pageDocument();
-const initialDocument = {
-  authoredBodyAttributes: authoredAttributes(document.body),
-  authoredHeadNodes: new Set([...document.head.children].filter(versionedHeadNode)),
-  authoredHtmlAttributes: authoredAttributes(document.documentElement),
-  source: servedMain ? unmarkedCopy(servedMain) : null,
-};
-const initialPairs = servedMain
-  ? pairSources(initialDocument.source, servedMain, new WeakMap())
-  : new WeakMap();
+// The served baseline is read here, before any widget upgrades, and the version
+// controller takes it whole, replacing each part with every revision. Nothing else
+// keeps it: its source routes each copied node back to the live node it came from
+// (its pairs, and prepaint.js's `origins`), so a reference kept past the first revision
+// would hold every node the page was served with after that revision removed it.
+let initialDocument = (() => {
+  const main = pageDocument();
+  const source = main ? unmarkedCopy(main) : null;
+  return {
+    authoredBodyAttributes: authoredAttributes(document.body),
+    authoredHeadNodes: new Set([...document.head.children].filter(versionedHeadNode)),
+    authoredHtmlAttributes: authoredAttributes(document.documentElement),
+    source,
+    pairs: main ? pairSources(source, main, new WeakMap()) : new WeakMap(),
+  };
+})();
 
 // ---------- the version picker ----------
 // Version facts are selectors of the accepted application reading.
@@ -999,14 +1005,19 @@ export function createVersionController({
   captureQuestionStanding = () => null,
   restoreQuestionStanding = () => {},
 }) {
-  let { authoredBodyAttributes, authoredHeadNodes, authoredHtmlAttributes } =
-    initialDocument;
+  let {
+    authoredBodyAttributes,
+    authoredHeadNodes,
+    authoredHtmlAttributes,
+    source: authoredSource,
+  } = initialDocument;
+  // Every revision pairs its own source here; a superseded source's pairs leave with it.
+  const sourcePairs = initialDocument.pairs;
+  initialDocument = null;
   // What this document's widgets were written as, and the source each live node stands
   // for. Both are replaced by every revision this document takes on.
   let authoredWidgets = servedWidgets;
-  let authoredSource = initialDocument.source;
   let authoredRoot = layerRoot(document);
-  let sourcePairs = initialPairs;
   // Semantic reading position preserved across authored-document replacement.
   const VIEW_KEY = "lf-view";
   const HANDOFF_KEY = "lf-revision-handoff";

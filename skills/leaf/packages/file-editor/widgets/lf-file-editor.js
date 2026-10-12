@@ -42,9 +42,18 @@ import { createEditor } from "./editor.js";
 customElements.define(
   "lf-file-editor",
   class extends HTMLElement {
+    #placeSelection = null;
+
     connectedCallback() {
       if (!once(this)) return;
       this.initialize();
+    }
+
+    // A move keeps the views and the user's focus in one, since their connection
+    // lifetime follows the arrival batch (`whileConnected`), but `moveBefore` collapses
+    // the native selection, which CodeMirror would read back as a caret at the start.
+    connectedMoveCallback() {
+      this.#placeSelection?.();
     }
 
     initialize() {
@@ -320,6 +329,10 @@ customElements.define(
         recovering = true;
       }
       paint();
+      this.#placeSelection = () => {
+        editor.placeSelection();
+        comparison?.placeSelection();
+      };
       let initial = true;
       whileConnected(this, (signal) => {
         connected = true;

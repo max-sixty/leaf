@@ -14,9 +14,9 @@ command rather than copying its callback.
 
 Core owns commands on the page, chrome, navigation, comments, and shared thread state;
 a widget owns commands that interpret or change its content, and its scopes join the
-register only while the instance exists. Element scopes declare through `keys(element,
-…)` and `commandScope(…)` in `scopes.js`, core scopes through `pageScope`,
-`pageCommand`, and `pageRung` in `register.js`. A new scope, page command, or Escape
+register only while the instance exists. Element scopes declare through
+`keys(element, …)`, a template's `commandsOn(…)`, and `commandScope(…)` in `scopes.js`,
+core scopes through `pageScope`, `pageCommand`, and `pageRung` in `register.js`. A new scope, page command, or Escape
 rung also needs its place in `STACK`, `PAGE_COMMANDS`, or `RUNG_LADDER`.
 
 ## Scope resolution

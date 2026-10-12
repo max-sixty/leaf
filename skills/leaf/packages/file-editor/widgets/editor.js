@@ -279,6 +279,10 @@ export function createEditor(
       );
       dispatch({ effects: originalDocChangeEffect(reading(), changes) });
     },
+    // A move by `moveBefore` collapses the native selection in the view it keeps.
+    placeSelection() {
+      view?.placeSelection();
+    },
     connect() {
       if (view) return;
       view = new LeafEditorView({ state: retained, parent });

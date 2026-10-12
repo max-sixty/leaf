@@ -375,11 +375,12 @@
   const residency = () => {
     const body = document.body;
     if (!body) return false;
-    const main = document.querySelector("main");
+    // The page's `main` (passages.js, `pageDocument`), read here before any module runs.
+    const main = document.querySelector("body > main");
     // CSS declares the column's requested shell, without making the runtime read a
     // Layout class or making a root :has() re-check the whole page on every insertion.
     const tracksRequested =
-      main?.parentElement === body &&
+      Boolean(main) &&
       getComputedStyle(main).getPropertyValue("--lf-column-shell").trim() === "grid";
     const shellChanged = body.hasAttribute("data-lf-column-shell") !== tracksRequested;
     if (!sourceShells.has(body)) sourceShells.set(body, body.cloneNode(false));

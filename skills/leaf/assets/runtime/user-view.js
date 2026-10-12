@@ -6,7 +6,7 @@
    must never share a lease. */
 import { darkPreference, shownScheme } from "./color-scheme.js";
 import { offlineInteractive, passiveSample, pageUrl, runtime } from "./context.js";
-import { seenRect, shownWindow } from "./geometry.js";
+import { layoutWindow, seenRect, shownWindow } from "./geometry.js";
 import { randomId } from "./ids.js";
 import { sessionIsActive } from "./layer-client.js";
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
@@ -31,10 +31,8 @@ export function observeUserView() {
 
   function context() {
     const visual = window.visualViewport;
-    const viewport = {
-      width: document.documentElement.clientWidth,
-      height: document.documentElement.clientHeight,
-    };
+    const { right: width, bottom: height } = layoutWindow();
+    const viewport = { width, height };
     if (
       viewport.width <= 0 ||
       viewport.height <= 0 ||

@@ -1,5 +1,5 @@
 import { shownParts, TEXT_BOX } from "/runtime/widget-api.js";
-import { shownBox } from "/runtime/check-api.js";
+import { shownBox, userScrollport } from "/runtime/check-api.js";
 import { at } from "./locate.js";
 import { coveredWords } from "./words.js";
 
@@ -94,8 +94,8 @@ export function clippedControls() {
       // (MISPLACED_BOXES reads the same fact for its ancestors), and it denies
       // the way in exactly where the axis has no scroller of its own.
       const contained = /paint|strict|content/.test(s.contain);
-      const scrollX = s.overflowX === "auto" || s.overflowX === "scroll";
-      const scrollY = s.overflowY === "auto" || s.overflowY === "scroll";
+      const scrollX = userScrollport(s.overflowX);
+      const scrollY = userScrollport(s.overflowY);
       const across =
         s.overflowX === "hidden" || s.overflowX === "clip" || (contained && !scrollX);
       const down =

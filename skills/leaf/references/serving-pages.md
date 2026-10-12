@@ -7,7 +7,7 @@ URL returned by `leaf server start`.
 ## Exported files
 
 When `$ARGUMENTS` asks for `--export`, build the page as a finished record (the main
-skill's "Quick pages and records" step), since only a stamped version exports, then
+skill's "Review and stamp a record" step), since only a stamped version exports, then
 run:
 
 ```bash
@@ -38,9 +38,10 @@ tunnel. Binding beyond loopback exposes the port to that network.
 The OS chooses a page's first port. Leaf retains its host and port in
 `<page>/service.json`, and its key in the machine's state home. Re-serving,
 re-vendoring and reviving it use the same URL. `--host` changes the hostname while
-preserving the port. A restart waits for TCP to release that port. If the port
-stays occupied beyond the startup wait, serving refuses rather than moving the
-page. A stop issued during startup waits for that preparation.
+preserving the port. On macOS, restarting a `--host` page can wait about 30
+seconds for TCP to release that port. If the port stays occupied beyond the
+startup wait, serving refuses rather than moving the page. A stop issued during
+startup waits for that preparation.
 
 ## Unreachable URLs and `--host`
 

@@ -345,5 +345,5 @@ application. Recheck the affected Leaf journey when resolving this entry.
 - **Recheck:** run
   `test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor`
   and `test_touch_capture_can_cancel_and_reopen_before_attaching` in
-  `tests/test_render_threads.py`. Compare the rasterizer's same crop with a
+  `tests/*/test_render_threads.py`. Compare the rasterizer's same crop with a
   native screenshot in each installed engine when updating SnapDOM.

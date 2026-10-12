@@ -16,9 +16,8 @@ The user follows your work on the page:
 | Page | the revised content in place, and a stamp's changelog | saving `index.html`, `leaf page stamp` |
 
 Leaf itself marks each update **Sent**, **Queued**, and **Picked up**, including
-one that owes you nothing, such as a moved card. A pick before the Done its ask
-waits for is marked with that Done. Your harness
-contract may add its own current step to the banner.
+one that owes you nothing, such as a moved card. Your harness contract may add its
+own current step to the banner.
 
 Readings in `leaf page state <page>` describe the user's side between their
 updates. `viewed` says whether they are there: the last time a browser tab had the page
@@ -30,35 +29,24 @@ has no such reading, so one they have not reacted to may not have been seen.
 
 ## The user's view
 
-`user_views` in `leaf page state <page>` supplies context from the actual browser
-rather than a headless preview. Each document reports its layout viewport, visual
-viewport (pinch zoom and the software keyboard included), the window area left by
-Leaf's chrome, color scheme, pointer type, reduced-motion preference, scroll position,
-and visible reading-region ids. A visible region is a measured place on screen,
-not evidence that the user read it.
+`user_views` in `leaf page state <page>` reports each page load in a browser over the
+last day: its layout and visual viewport, the window area Leaf's chrome leaves, color
+scheme, pointer type, reduced-motion preference, scroll position, and which reading
+regions are on screen. Use it to judge whether a revision fits the window the user
+actually has. Each load is its own entry, so two visible tabs can show different
+widths or revisions, and a tab that reloads adds an entry. `visible` says whether
+the load showed the page at its last report, `freshness` turns `stale` after 45
+seconds without a report, and `matches_active_revision` says whether it shows your
+latest revision. An empty list means no browser has reported. A region on screen
+does not show that the user read it.
 
-Sessions remain separate: two visible tabs may show different widths or revisions.
-`visible` records the last visibility report; `freshness` becomes `stale` after
-45 seconds without a report. `matches_active_revision` says whether this document
-shows the current authored revision. Recent hidden and stale readings remain
-available for a day. An empty list means there is no observation, not that the page
-has no reader.
-
-Each session's `checks` has its own revision, log position, viewport, visual viewport,
-window area, scheme, and `checked_at`. Its `freshness` and `matches_view` distinguish
-current checks from a recent context carrying an older sample. Checks measure the
-rendered arrangement, including content below the screen: sideways overflow,
-scrolling workspace regions, and drawing labels below the attached size threshold.
-Arrangement rows and margin residents are context alongside those findings. These
-are observations and heuristics, not a required layout or a complete render gate;
-the author decides whether a finding warrants a revision. They do not establish
-that the user saw a finding.
-
-Observation starts after presentation, renews about every ten seconds while visible,
-and follows viewport and preference changes. It creates no update, agent turn,
-or automatic edit. A public website page starts observing once the user's interaction
-has activated its private page. The readings are also available through the
-page's authenticated `GET /api/user-view`; captured render previews record none.
+Each entry's `checks` holds layout findings measured in that browser, including
+content below the screen: sideways overflow, scrolling workspace regions, and
+drawing labels below the size threshold. Their own `freshness` says whether they
+were measured in the last 45 seconds, and `matches_view` says whether they were
+measured in the view the entry now reports. They are context
+for your judgment rather than a required layout, and they do not replace
+`leaf page check --render`.
 
 ## When to write
 
@@ -123,7 +111,7 @@ User input comes before the work in hand, in this order:
    the last step before the interruption.
 
 Then do the work, and reply once its revision passes `leaf page check`, the only
-check the main skill's "Quick pages and records" step asks before a reply.
+check the main skill's "Check the page" step asks before a reply.
 
 ## Status and handoff
 
@@ -142,9 +130,8 @@ the exact page URL in every turn's final response; intermediate progress message
 do not repeat it. An export hands over its file URL, and a harness that already
 presents the page uses its own handoff surface.
 
-A `waiting` puts down every item you
-started before it, so the banner shows what you want back; a to-do stays open on
-you until you end it.
+A `waiting` ends every start you made before it, so the banner shows what you want
+back; a to-do stays open on you until you end it.
 
 What ends a start depends on its item. Your reply answering an update ends that
 update's start, and so does a stamped version whose markup records a press on an
@@ -184,14 +171,13 @@ inherits your conversation inherits the page with it and may otherwise treat the
 as its own. Work that needs its own conversation with the user belongs to a session
 of its own, with its own page.
 
-A start holds its item for the turn that wrote it. The page is told when that turn
-ends, an interrupted one included, so a start nothing has renewed within a couple of
-minutes of the ending stops being believed: the banner reports that your turn ended,
-and its explanation keeps the start's line. A start nobody renews at all ages out
-after about a quarter of an hour. An update whose answer a worker is producing takes a
-start while your turn runs; a start written in this turn lets the turn end before the
-answer. In the turn that a worker's result or the user's next comment wakes, start
-the item again or answer it. What holds the work after the turn is a to-do (below).
+A `leaf task start` line lasts for the turn that wrote it. A couple of minutes after
+that turn ends, interrupted or not, the banner says your turn ended and keeps the line
+in its explanation, unless you start the item again; a line nothing renews expires
+after about a quarter of an hour. While a worker produces an update's answer, start
+that update in your turn: the start lets the turn end before the answer. In the turn
+that the worker's result or the user's next comment wakes, start the item again or
+answer it. To hold work past the turn, open a to-do (below).
 Within a turn, the banner shows the line of the item you started last, so start the
 item that best describes what is running; each item you have in hand shows its own
 line beside its thread or widget.
@@ -219,16 +205,18 @@ chat alone do not register it. A recommendation leaves its decision open. An
 optional invitation to comment creates no obligation; if you need feedback before
 continuing, make it an ask.
 
-The banner's Questions count and the Questions panel show everything waiting on the user;
-**Tasks** shows yours. The user can open either list and press `q` to reach their
-next item. Questions contains these requests and any failed send that needs the
-user to send again. Done holds ended items.
+The banner's Questions count and the Questions panel show everything waiting on the
+user: these requests, and any update whose send failed and needs sending again.
+**Tasks** shows what waits on you. Done holds ended items. The user presses `q` to
+step through Questions in page order. Each press lands where the next item is
+answered, such as an ask's answering widget or the thread holding a prose ask, and
+an ask's displayed `1`–`9` actions answer it there.
 
 | Request | Register it | What answers it |
 | --- | --- | --- |
 | A decision or input recorded by a widget | Author a decision widget (`authoring-questions.md`); optional `lf-ask` frames its question and evidence | The widget's declared answer; a multiple-choice ask also needs the user's Done |
 | A conversational answer | Open an agent thread with the question, or add `--ask` to a reply (`threads.md`) | The user's next reply there or a settling reaction |
-| Required version sign-off | Declare sign-off and stamp the version (`authoring-questions.md`, "Asks and sign-off") | That version's banner approval |
+| Required version sign-off | Declare sign-off and stamp the version (`authoring-questions.md`, "Sign-off") | That version's banner approval |
 | An action neither route records, such as trying a build or connecting a browser | `leaf task open <page> <id> "<direct question naming the action>" --on user`, on its widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
 
 A widget ask has id `widget:<widget-id>`, a prose ask has `reply:<message-id>`,
@@ -276,5 +264,3 @@ the user's to-do with `leaf task end`. Withdraw a prose ask that no longer
 applies with `leaf task end <page> reply:<message-id> dropped "<why>"`; this records
 withdrawal, not a user answer. Keep finished requests off the user's Questions;
 answered and withdrawn ask records remain available in the complete reading.
-A page declaring required banner sign-off adds an approval ask for its stamped version automatically; its approval answers that
-ask, and undo reopens it. Stamp a draft before requesting its sign-off.

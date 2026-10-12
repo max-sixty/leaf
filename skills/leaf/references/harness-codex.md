@@ -6,15 +6,16 @@ including in the desktop app, IDE, and an ordinary terminal session.
 
 ## Full Leaf handoff
 
-Use the canonical browser page by default. Run `leaf server start <page>` and
-retain its exact keyed URL. When Codex exposes `open_in_codex`, open that URL as a
-browser target beside this task; otherwise hand over the URL for a local browser.
-This runs Leaf's theme, package widgets, anchored comments, versions, and state
-stream unchanged.
+Run `leaf server start <page>` and keep the exact keyed URL it prints. When Codex
+exposes `open_in_codex`, open that URL as a browser target beside this task;
+otherwise hand over the URL for a local browser. Follow
+`references/conversation-loop.md`, "Status and handoff".
 
 Serving connects delivery before returning the URL, including when the page's
-server is already running. Follow `references/conversation-loop.md`, "Status and handoff". The browser pane is the presentation; the adapter
-below carries input back to this same task.
+server is already running. If serving refuses to connect delivery, follow its
+diagnostic before handing the page over. Serving honors a direct `leaf wait` this
+task already runs, and an explicit `leaf codex start` refuses while that wait holds
+the task's single wait lease.
 
 ## Delivery
 
@@ -46,11 +47,8 @@ chat and never reaches the page.
 The hooks and adapter share one delivery record, so input confirmed during work is
 not queued again. Without a running trusted tool hook, delivery uses the queue.
 
-If serving refuses to connect delivery, follow its diagnostic before handing the
-page over: a Codex without the `codex queue` command cannot receive later turns.
-Serving honors a direct `leaf wait` this task already runs; that route keeps the
-current turn open as described below. An explicit `leaf codex start` refuses while
-that wait holds the task's single wait lease.
+A Codex without the `codex queue` command cannot receive later turns, so serving
+refuses to connect delivery there.
 
 ## Routes without the adapter
 

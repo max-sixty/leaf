@@ -12,11 +12,9 @@
    status.
 
    A thread's `id` is its one identity: the id the server keys it by, which every Question,
-   workflow, placement, and view names it by. Its `root` is the first message it still
-   holds, a message like any other, and what a reply or settlement addresses as its
-   `parent`. The two differ where the log lost a thread's opening message
-   (`events.build_threads`), and for a thread this tab opened, whose id is its pending
-   message's until the log answers. */
+   workflow, placement, and view names it by. Its `root` is its opening message, a
+   message like any other, and what a reply or settlement addresses as its `parent`. A
+   thread this tab opened goes by its pending message's id until the log answers. */
 import { sameAnchor } from "../anchor-coordinate.js";
 import { PENDING } from "./identity.js";
 

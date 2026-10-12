@@ -95,11 +95,11 @@ other page files and the external state listed below.
   event log remains the durable record of accepted decisions.
   Browser admission validates the diagnostic transport fields (timestamps,
   sequences, target paths, node identities, and split-record coordinates), while
-  observation types and other payload fields remain open. The reader reports
-  damaged stored rows and conflicting duplicates as `interaction_invalid`, with
-  their line, reason, and original record. Rows without a usable timestamp remain
-  visible under time filters as `unknown-time`; those without a usable session
-  remain visible under session filters.
+  observation types and other payload fields remain open. The reader trusts what
+  admission wrote: it skips a line a crash tore, keeps the first copy of a retried
+  row, and reassembles split records, marking a group whose parts join into no
+  entry as `interaction_unreadable`. Rows without a timestamp remain visible
+  under time filters as `unknown-time`.
 
 - `user-views.json` — replaceable per-document browser
   observations (`user_views.py`). These are author
@@ -137,9 +137,10 @@ other page files and the external state listed below.
   `/api/deferred` come from the value in these same publications.
 
 - `status.json` — the agent's `waiting` or `idle` declaration, observed activity,
-  and reply bindings. The work in hand is no status: it is the log's `start` events.
+  and reply reservations. The work in hand is no status: it is the log's `start` events.
   [session-lifetime.md](session-lifetime.md) owns their writers and lifetimes;
-  `thread.py` owns response reservations and their release. Every reader loads it
+  the `delivery` header defines reply reservations, and `thread.py` reserves and
+  releases them. Every reader loads it
   through `service.read_status`, which reads a missing file as no declaration.
 
 - `waiter.lock` — stable bare-shell wait lease file; harness sessions instead
@@ -204,7 +205,7 @@ document or keeps its widgets (`revision_artifact.py`).
 
 `leaf page state` is an on-demand reading of these authorities. Its
 `layer` object, shared with `/api/state`, reports the vendored generation,
-fingerprint, kernel runtime identity, packages, and producer;
+fingerprint, server identity, packages, and producer;
 `source` names `index.html`, whether that candidate is live, and any validation
 error. `active.file` names the immutable revision the live root actually
 shows when one exists; `data` names the contract file, the value directory, and any source whose

@@ -30,6 +30,7 @@
    a visible accompanying preview remains the current conversation. Canonical page
    targets always come from anchor placement, independently of whichever view draws a
    Thread. */
+import { aborted } from "../abort.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { focusDestination, focused } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
@@ -59,10 +60,6 @@ export function createThreadDestinations({
   let presentation = null;
   let opening = null;
   function register(owner, open, reader) {
-    if (!(owner instanceof Element) || typeof open !== "function")
-      throw new TypeError(
-        "A Thread presentation needs an Element owner and an open callback",
-      );
     if (presentation) throw new Error("The page already has a Thread presentation");
     const registration = { owner, open, reader };
     presentation = registration;
@@ -123,9 +120,7 @@ export function createThreadDestinations({
       opening?.abort();
       const abort = new AbortController();
       opening = abort;
-      const cancelled = new Promise((resolve) =>
-        abort.signal.addEventListener("abort", () => resolve(null), { once: true }),
-      );
+      const cancelled = aborted(abort.signal);
       const whileCurrent = (work) => Promise.race([work, cancelled]);
       const request = {
         message:

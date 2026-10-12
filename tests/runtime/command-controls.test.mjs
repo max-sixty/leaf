@@ -523,6 +523,63 @@ test("each contribution publication validates its current activation capability"
   target.remove();
 });
 
+test("a margin entry refuses what its grammar and its owner cannot state", async () => {
+  const { registerContribution } =
+    await import("../../skills/leaf/assets/runtime/contributions.js");
+  const { contributionEntry } =
+    await import("../../skills/leaf/assets/runtime/contribution-controls.js");
+  const entry = { key: "cancel", icon: "cross", label: "Cancel" };
+  // Every axis has a default, so an axis named wrongly, the way a rename of this
+  // vocabulary reaches a call site, would otherwise state nothing and say nothing.
+  assert.throws(
+    () => contributionEntry({ ...entry, role: "escape" }),
+    /^TypeError: Unknown contribution entry option: role$/,
+  );
+  // Only the keyboard owner mints a scope projected onto shared controls.
+  assert.throws(
+    () => contributionEntry({ ...entry, scope: { scope: { title: "Counterfeit" } } }),
+    /^TypeError: A margin entry scope needs a commandScope capability$/,
+  );
+  const scope = commandScope("Status command", [
+    {
+      id: "fixture.status",
+      keys: ["x"],
+      title: "Act from status",
+      line: "act from status",
+      run: () => {},
+    },
+  ]);
+  assert.throws(
+    () =>
+      contributionEntry({
+        key: "sent",
+        icon: "sent",
+        label: "Sent",
+        behavior: "status",
+        scope,
+      }),
+    /^TypeError: A status contribution entry cannot have a command scope$/,
+  );
+  // One owner plus one entry key identifies one activation source.
+  const target = document.createElement("section");
+  document.body.append(target);
+  assert.throws(
+    () =>
+      registerContribution({
+        key: "ambiguous",
+        target,
+        read: () => ({
+          entries: ["First", "Second"].map((label) =>
+            contributionEntry({ key: "same", icon: "dot", label }),
+          ),
+        }),
+        activate: () => {},
+      }),
+    /^TypeError: Duplicate contribution entry key "same" in contribution "ambiguous"$/,
+  );
+  target.remove();
+});
+
 test("context aliases project the selected source route's availability", async () => {
   const { commandEntries, commandPresentations, bindings, live } =
     await import("../../skills/leaf/assets/runtime/keyboard/bindings.js");
@@ -759,7 +816,7 @@ test("a lent hint inside a button keeps its out-of-flow seat after withdrawal", 
   }
 });
 
-test("a template scope's re-render runs its latest callbacks and reads only its own element", async () => {
+test("a scope's attachment and re-render run its latest callbacks and read only its own element", async () => {
   const { html, render } = await import("/vendor/browser-runtime.js");
   const other = document.createElement("button");
   document.body.append(other);
@@ -802,6 +859,14 @@ test("a template scope's re-render runs its latest callbacks and reads only its 
   assert.equal(element.getAttribute("aria-keyshortcuts"), "y");
   commandsWithin(root)[0].row.run();
   assert.deepEqual(invoked, ["third"]);
+
+  const added = document.createElement("button");
+  root.append(added);
+  keys(added, "Added", [{ id: "probe.added", keys: ["z"], title: "z" }]);
+  reflectFirstScopes();
+  reflectKeys();
+  assert.equal(otherReads, 0, "an imperative attachment reads no other scoped element");
+  assert.equal(added.getAttribute("aria-keyshortcuts"), "z");
   root.remove();
   other.remove();
 });
@@ -819,7 +884,7 @@ test("a template scope refused on re-render withdraws its shortcuts, and its ali
           {
             id: "probe.first",
             keys: ["y"],
-            contextKeys: ["Enter"],
+            contextKeys: ["1"],
             title: "a",
             run() {},
           },
@@ -832,7 +897,7 @@ test("a template scope refused on re-render withdraws its shortcuts, and its ali
   reflectFirstScopes();
   reflectKeys();
   const element = root.querySelector("button");
-  assert.equal(element.getAttribute("aria-keyshortcuts"), "y Enter");
+  assert.equal(element.getAttribute("aria-keyshortcuts"), "y 1");
   paint("Second", false);
   reflectFirstScopes();
   assert.deepEqual(
@@ -845,6 +910,33 @@ test("a template scope refused on re-render withdraws its shortcuts, and its ali
   reflectKeys();
   assert.equal(commandsWithin(root).length, 0);
   assert.equal(element.getAttribute("aria-keyshortcuts"), null);
+  root.remove();
+});
+
+test("a template scope's rows read the element the template renders", async () => {
+  const { html, render } = await import("/vendor/browser-runtime.js");
+  const { DISCLOSE } =
+    await import("../../skills/leaf/assets/runtime/keyboard/disclosure.js");
+  const root = document.createElement("section");
+  document.body.append(root);
+  render(
+    html`<details>
+      <summary
+        ${commandsOn("Disclosure", (summary) => [
+          { id: "probe.disclose", keys: () => DISCLOSE(summary), title: "toggle" },
+        ])}
+      ></summary>
+    </details>`,
+    root,
+  );
+  reflectFirstScopes();
+  reflectKeys();
+  const summary = root.querySelector("summary");
+  assert.match(summary.getAttribute("aria-keyshortcuts"), /ArrowRight/);
+  summary.parentElement.open = true;
+  paintKeys();
+  reflectKeys();
+  assert.match(summary.getAttribute("aria-keyshortcuts"), /ArrowLeft/);
   root.remove();
 });
 

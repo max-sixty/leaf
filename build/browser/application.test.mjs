@@ -233,10 +233,6 @@ test("semantic publication opens before subscribers and seals the newest nested 
     ["seal", 0],
   ]);
 
-  let release;
-  const held = new Promise((resolve) => {
-    release = resolve;
-  });
   let presentation;
   let nested = false;
   app
@@ -246,7 +242,7 @@ test("semantic publication opens before subscribers and seals the newest nested 
       nested = true;
       assert.equal(coordinator.read().semanticEpoch, 1);
       const renderer = coordinator.attach("widget", {});
-      presentation = renderer.present("offline", held);
+      presentation = renderer.present("offline");
       app.acceptData({ version: "empty", sources: {} }, 1);
     });
 
@@ -265,8 +261,8 @@ test("semantic publication opens before subscribers and seals the newest nested 
   });
   await Promise.resolve();
   assert.equal(ready, false);
-  release("proof");
-  await presentation;
+  presentation.resolve("proof");
+  await presentation.ready;
   assert.equal(await readiness, "presented");
 });
 
@@ -1414,57 +1410,6 @@ test("a reply reopening a thread over an Ask puts the Ask back on the user at on
       ["ask", later.id],
     ],
   );
-});
-
-test("a thread whose opening message the log lost is known by its id, not its root", () => {
-  // `build_threads` keeps such a thread under the lost id and gives it the surviving
-  // reply as its root, which is the message a reply to it names.
-  const kept = {
-    kind: "reply",
-    id: "kept",
-    parent: "lost",
-    author: "agent",
-    text: "Which repair?",
-    ts: "now",
-  };
-  const served = (asks) => {
-    const reading = state(2);
-    reading.browser.thread.asks = { all: asks, user: asks, unanswered: asks };
-    reading.browser.thread.threads = [
-      servedThread([kept], {
-        id: "lost",
-        attention: asks.length
-          ? { kind: "needs_user", reason: "ask", workflow: null }
-          : null,
-      }),
-    ];
-    return reading;
-  };
-  const app = setup();
-  const thread = () => app.read().effective.thread.all[0];
-  app.adopt(served([wireQuestion("repair", "lf-ask", "pick", "lf-choice", "lost")]));
-  assert.deepEqual([thread().id, thread().root.id], ["lost", "kept"]);
-  assert.deepEqual(thread().attention, {
-    kind: "needs_user",
-    reason: "ask",
-    workflow: null,
-  });
-
-  app.adopt(served([]));
-  app.enqueue(
-    { kind: "reply", parent: "kept", attempt: "answer", text: "Retry.", revision: 1 },
-    "now",
-  );
-  assert.deepEqual(
-    thread().workflows.map((workflow) => [workflow.id, workflow.subject.id]),
-    [["pending:answer", "lost"]],
-  );
-  app.refuse("answer");
-  assert.deepEqual(thread().attention, {
-    kind: "needs_user",
-    reason: "resend",
-    workflow: "rejected:answer",
-  });
 });
 
 test("a pending resend replaces accepted recovery until refusal", () => {

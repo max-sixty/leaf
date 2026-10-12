@@ -5,12 +5,7 @@ import "./runtime/interaction-log.js";
 // Restored panels and the first keyboard gesture share the ordinary synchronous
 // control routes, so their controls must be upgraded before those routes mount.
 import "./vendor/webawesome-chrome.js";
-import {
-  passiveSample,
-  offlineInteractive,
-  runtime,
-  annotationMode,
-} from "./runtime/context.js";
+import { offlineInteractive, runtime, annotationMode } from "./runtime/context.js";
 import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot, chromeForeground } from "./runtime/chrome.js";
 import { landingPlace } from "./runtime/reading-place.js";
@@ -25,7 +20,6 @@ import {
   whenArrived,
   pageReadiness,
   settlePageInterface,
-  PAGE_INTERFACE,
   PRESENTATION,
 } from "./runtime/presentation.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented } from "./runtime/page-paint.js";
@@ -108,15 +102,9 @@ import {
 import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
 import { createChromeLayout } from "./runtime/chrome-layout.js";
 import { createThreadPanelController } from "./runtime/thread-panel.js";
-import {
-  createDrawers,
-  currentDrawer,
-  othersPanel,
-  queuePanel,
-} from "./runtime/drawers.js";
+import { createDrawers, othersPanel, queuePanel } from "./runtime/drawers.js";
 import { createAuxiliarySurfaces } from "./runtime/auxiliary-surfaces.js";
 import { restoreUserView } from "./runtime/restore-state.js";
-import { watchProjection } from "./runtime/projection-watch.js";
 import { createVersionController } from "./runtime/version.js";
 import { versionMenu } from "./runtime/version-picker.js";
 import {
@@ -289,7 +277,8 @@ const auxiliarySurfaces = createAuxiliarySurfaces({
 });
 const navigation = createNavigation({
   panelElements,
-  openThreads: threadListController.openThreads,
+  threadCards: threadListController.threadCards,
+  openThreadsInPageOrder: threadListController.openThreadsInPageOrder,
   panelIsOpen,
   narrowing,
   coveringAuxiliaryScroller: auxiliarySurfaces.coveringScroller,
@@ -497,7 +486,6 @@ app = mountApplication({
   },
 });
 app.registerThreadPanel({
-  required: true,
   controller: threadListController,
   threadsBox,
   view: {
@@ -589,11 +577,11 @@ const standingTarget = createStandingTarget({
 
 panelKeys = createThreadPanelKeys({
   elements: panelElements,
-  openThreads: threadListController.openThreads,
   narrowing,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   panelIsOpen,
   stepThread: (...args) => navigation.stepThread(...args),
+  threadPosition: () => navigation.threadPosition(),
 });
 pageComment = createPageComment({
   wireInput: inputs.wireInput,
@@ -920,7 +908,7 @@ if (!offlineInteractive) {
   document.body.append(chromeRoot);
   // Exports retain image inspection, but no page controls. Their other standing is
   // what a widget's own box shows, such as an options group's addition field.
-  mountRepaint({ paintInputs: inputs.paintInputs, reflectKeys });
+  mountRepaint({ paintInputs: inputs.paintInputs, reflectFirstScopes, reflectKeys });
 }
 
 // Widget commands belong to interactive documents, including offline exports.
@@ -931,54 +919,17 @@ mountKeyboard({
   reactArmed: reactions.isReactArmed,
   setReact: reactions.setReact,
 });
-
-const replayReady = passiveSample
-  ? import("./runtime/interaction-gallery-frame.js").then(({ mountReplay }) =>
-      mountReplay({
-        toggleBtn,
-        panelIsOpen,
-        setPanel: threadPanelController.setPanel,
-        detachComposer: responseSurface.detachComposer,
-        fabInput,
-        fabFrameAt: () => responseSurface.fabFrameAt(),
-        openComposer: responseSurface.openComposer,
-        closePreview: app.overlay?.closePreview,
-        openThread: app.threadDestinations.openPageThread,
-        threadTransitionOrigin: app.overlay?.threadTransitionOrigin,
-        currentDrawer,
-        setOpenDrawer: drawers.setOpenDrawer,
-      }),
-    )
-  : Promise.resolve();
+// A page declared failed (`lf-startup-failed`) is its readable fallback from then on
+// (prepaint.js) and never presents, though a later state answer asks it to. A page
+// whose module staged words it cannot read (passages.js, `refusesBareText`) reads past
+// them afterwards, and presented, it would pass for a page whose widgets work.
+let startupFailed = false;
+window.addEventListener("lf-startup-failed", () => (startupFailed = true), {
+  once: true,
+});
 
 const initialStateRead = beginRead();
-let interactionGalleryModule;
-let interactionGalleryLoading;
-let failedInteractionGallery;
-async function syncInteractionGallery() {
-  const gallery = document.querySelector("[data-interaction-gallery]");
-  if (gallery && gallery === failedInteractionGallery) return;
-  try {
-    if (!gallery && !interactionGalleryModule) return;
-    if (!interactionGalleryModule) {
-      interactionGalleryLoading ??= import("./runtime/interaction-gallery.js");
-      interactionGalleryModule = await interactionGalleryLoading;
-    }
-    interactionGalleryModule?.installInteractionGallery();
-  } catch (error) {
-    failedInteractionGallery = gallery;
-    if (!interactionGalleryModule) interactionGalleryLoading = null;
-    reportPageError(error, `interaction gallery failed to start`);
-  }
-}
 if (!offlineInteractive) {
-  watchProjection(document.body, () => void syncInteractionGallery());
-  document.addEventListener(PAGE_INTERFACE, (event) =>
-    event.detail.present(syncInteractionGallery()),
-  );
-}
-
-if (!passiveSample && !offlineInteractive) {
   restoreUserView({
     restoreAuxiliarySurface: auxiliarySurfaces.restore,
     setDesignMode: designMode.setActive,
@@ -999,7 +950,7 @@ const { landArrival, savedView } = offlineInteractive
 const savedComposer = offlineInteractive ? null : responseSurface.pendingComposer();
 
 async function presentPage() {
-  if (pagePresented()) return;
+  if (pagePresented() || startupFailed) return;
   await whenApplicationPresented();
   if (pagePresented()) return;
   setAnchoringReady(true);
@@ -1021,10 +972,11 @@ async function presentPage() {
     setAnchoringReady(false);
     throw error;
   }
+  if (startupFailed) return;
   markPagePresented();
   // Optional author context begins after the presented frame. It neither imports
   // checks nor takes geometry on the path that gives the reader the page.
-  if (!offlineInteractive && !passiveSample)
+  if (!offlineInteractive)
     nextFrame(() =>
       setTimeout(() => {
         void import("./runtime/user-view.js")
@@ -1043,7 +995,6 @@ async function presentPage() {
   auxiliarySurfaces.present();
   presentLeaves();
   paintKeys();
-  void syncInteractionGallery();
   paintVersionApproval();
   repaint();
   app.overlay?.flushLayout();
@@ -1072,9 +1023,9 @@ async function startPage() {
     offlineInteractive
       ? Promise.resolve()
       : loadIcon().catch((error) => reportPageError(error, "tab icon failed to load")),
-    replayReady,
   ]);
   if (!upgraded) return;
+  app.watchThreadSurfaces();
   // Initial layout and later residency share prepaint's synchronous computation.
   openResidency({ onRead: annotationRenderer?.syncMarginResidency });
   if (!offlineInteractive) {

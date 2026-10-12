@@ -61,12 +61,15 @@ document. Generic references remain available.
 ## Why defer it
 
 Named interfaces could remove dotted-path resolution and predicate matching
-from typed reference validation. The demonstrated use is small: two typed
-reference declarations in one implementing package, both testing role equality.
-Changing their spelling alone establishes no implementation saving; the role
-table also carries state and projection metadata that still need an owner.
+from typed reference validation. The demonstrated use is small, and every typed
+reference tests role equality: the work vocabulary's `on` and `readings` above,
+and the diff package's `lf-call-diff` `diff`, which names an `lf-diff` through
+`$diff.widgets` with role `patch`. Changing their spelling alone establishes no
+implementation saving. `$work.widgets` also carries state and projection metadata
+that still need an owner; `$diff.widgets` holds only the role its reference tests.
 
-Revisit this with a second package implementing the same interfaces. Compare
+Revisit this with a second package implementing the command `goal` or `readings`
+interface. Compare
 complete declarations, validation, and projection; remove the old typed
 reference interpreter and role-membership path in the candidate. Preserve
 document-local references, exactly-one-owner validation, and package extensibility.
@@ -79,6 +82,8 @@ visual parts under their existing authorities.
 - [Command Hub registry](../examples/command-hub.page/registry.json):
   `$work.widgets` and `lf-atlas-worker.x-refers.on`; the work test fixture
   owns the exclusive-reference contrast.
+- [Diff registry](../skills/leaf/packages/diff/registry.json): `$diff.widgets`
+  and `lf-call-diff.x-refers.diff`.
 - [Registry contract](../skills/leaf/scripts/leaf/registry/contract.py):
   `registry_path` and `reference_relation_error`.
 - [Instance validation](../skills/leaf/scripts/leaf/validation/instances.py):

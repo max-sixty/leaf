@@ -114,9 +114,14 @@ const SENDING = new Set              ([
 const DRAWN_LOCALLY = new Set              (["sending", "accepted"]);
 // The states `release` retires.
 const RELEASABLE = new Set              (["accepted:presented", "refused"]);
-// In an adopted reading that no document pass has presented yet: the semantic root
-// already draws the log's event, and the page may still show what came before it.
-const UNPRESENTED = new Set              (["sending:logged", "accepted:logged"]);
+// Gestures still waiting for a document pass: either locally drawn before their
+// receipt is logged, or logged in an adopted reading the page has not presented.
+const UNPRESENTED = new Set              ([
+  "sending",
+  "accepted",
+  "sending:logged",
+  "accepted:logged",
+]);
 
 /** One unresolved gesture. `admitted` is the log's event for it, known from the
  * POST's answer or from a reading, whichever came first. */
@@ -941,12 +946,11 @@ export function createSemanticApplication({
     // The thread a gesture stands in. A message stands in the thread that draws it,
     // under its pending id or, once the log has it, its attempt. Until one does, a
     // comment opens the thread its own id names, and a reply joins the thread holding
-    // its parent, which need not be that thread's id: a thread that lost its opening
-    // message is answered at the reply that survived, and a parent no thread holds is a
-    // comment of this tab's that the log refused, whose pending id named its thread. A
-    // rewrite stands in its message's thread, a settlement in the thread it settles, and
-    // an action in the thread whose markup froze its widget; a page widget's action stands in
-    // none.
+    // its parent, or, where no thread holds it, the thread its parent names: a comment
+    // of this tab's that the log refused, whose pending id named its thread. A rewrite
+    // stands in its message's thread, a settlement in the thread it settles, and an
+    // action in the thread whose markup froze its widget; a page widget's action stands
+    // in none.
     const named = threadNames(folded);
     const threadOfEntry = ({ event, thread: drawn, namedParent }             ) => {
       const drawnIn = drawn && named.get(drawn.id)?.id;
@@ -1530,7 +1534,7 @@ export function createSemanticApplication({
       publish({ unresolved });
       return left;
     },
-    // The entries an adopted reading logs that the page has not yet presented.
+    // The entries no document pass has presented yet.
     unpresented: () =>
       publisher.read().unresolved.filter((item) => UNPRESENTED.has(item.state)),
     // The entries `release` would retire now, in ledger order.

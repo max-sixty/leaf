@@ -8,7 +8,6 @@ import {
   projectData,
   render,
   watchData,
-  whileConnected,
 } from "/runtime/widget-api.js";
 customElements.define(
   "lf-atlas-tree",
@@ -17,10 +16,10 @@ customElements.define(
     connectedCallback() {
       if (!once(this)) return;
       this.reading = new HeldReading(
+        this,
         () => [...this.children],
         () => this.watching.refresh(),
       );
-      whileConnected(this, () => () => this.reading.dispose());
       this.watching = watchData(this, "worktrees", (snapshot) => this.show(snapshot));
     }
     showLatest() {

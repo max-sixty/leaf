@@ -20,6 +20,8 @@ Rendering work that reaches a resting state uses `nextRender`, `nextFrame` and
 when the element leaves ("Connection lifetimes"). Continuous mechanical motion, such as recording playback, uses
 `nextAnimation` and `cancelAnimation`: it schedules browser frames without holding
 page readiness open. Cancel it when the motion stops or its owner leaves.
+Work that races its own cancellation awaits `aborted(signal)`, which resolves once the
+signal aborts: `Promise.race([work, aborted(signal)])`.
 
 `/runtime/widget-api.js` is the whole Leaf API a behavior module gets: a module imports
 only that public helper surface, and does not reach into the runtime's private owners,
@@ -91,6 +93,50 @@ user outside it waits on the page rather than on a widget it would have to know 
 A declared `x-shadow` widget gets the same transition protection when it builds its root
 with `shadowStage`.
 
+### First paint
+
+Upgrade should add behavior and move nothing: a widget's box at first paint is the
+box it keeps once the page presents. `leaf package check --render` names a widget that
+moves as `keeps-first-box` ([packages.md, "Seeing it"](packages.md#seeing-it)).
+
+- Size the widget in the package theme under `html[data-lf-interactive]`, as its
+  module will draw it. Leaf sets that attribute before first paint wherever its
+  runtime will run, in a served page or an export.
+- Where the module draws a structure of its own whose shape the log does not change,
+  such as a row of count tiles, declare that structure as `x-prepaint` rather than
+  summing its line heights in the theme. Delivery writes it into each occurrence for
+  the first paint, the browser sizes and wraps it as it will the drawing, and the
+  module removes it (`:scope > [data-lf-prepaint]`) in the same step that draws its
+  replacement.
+- Where the structure depends on the instance's authored members or remembered tab
+  values, declare `x-initial` instead: the rooted path of a classic JavaScript bundle
+  that registers one synchronous producer with
+  `document.documentElement.lfInitial.register(tag, render)`. Delivery draws each
+  host with it as soon as the host's source has arrived, so the widget first appears
+  with its complete structure and values while prose before it can paint; with
+  scripts disabled, the authored host stays as written.
+  `render(host, {tabStore, offer, offerElement, keeps})` builds the drawing and
+  returns the node references and mechanical state the behavior module needs. It may move authored nodes within
+  its host, and Leaf keeps their original source and node routes for passages,
+  anchors and version comparison; `keeps` is the helper surface's own, for a later
+  pass over nodes already drawn. The producer does no asynchronous or network work
+  and reads no log-derived state. The behavior module calls `initialRender(host)`
+  from the helper surface, which adopts the existing drawing or produces it for a
+  later revision or a thread arrival, then adds behavior to those nodes without
+  rebuilding their structure. Leaf loads the declared bundle before the behavior
+  module only if it has not already registered. The theme styles the actual initial
+  layout; neither the producer nor the module reserves an estimated height.
+  `x-initial` requires `x-upgrade: true` and cannot accompany `x-prepaint`. Build its
+  classic bundle during development and commit it; installation, serving, and export
+  run the captured bundle without a compiler.
+- Where the markup cannot say how tall the drawing will be, declare `x-height`, add
+  the class `lf-rendered` once the drawing is in, and draw at the stated height where
+  the drawing can take any. `page check --render` advises a page's author the height
+  to state for a drawing that cannot.
+- Where the widget shows one of its members at a time, declare `x-views`, open on
+  `openingView`'s member, and show only the member marked `data-lf-opening` until the
+  module upgrades the element, as `lf-tabs` does.
+
 ## Template rendering
 
 Paint templates with `render(template, container)`, which lands in the turn that
@@ -99,14 +145,21 @@ and receive semantic state through `widgetController`, without a reactive copy o
 that state.
 
 Templates own generated containers or bounded ranges, rather than authored
-children. Key rows with `repeat` to retain their nodes across reorders.
+children. `repeat` keys template rows and keeps a row's nodes across reorders, but
+builds a row that moves to another `repeat` afresh, detaching any retained node in it,
+so place lists of nodes the module retains itself with `setChildren`, and lists that
+trade nodes the user may stand in with `setChildLists`, which moves each straight
+across.
 
 Every placement of a retained node, by `render`, `repeat`, `setChildren` or
 `move`, keeps the user standing in it. Within one composed root it uses native
 `moveBefore` where the browser has it, which keeps focus, caret, typed text and
 iframe documents. Elsewhere, Safari included, it inserts the node and puts the user
 back on it, with a text field's caret, and an iframe in it reloads. A reorder needs no
-focus hold of its own.
+focus hold of its own. A plain `append` or `insertBefore` of a node that already
+stands somewhere takes it out first, which blurs it. A selection in a moved editable
+collapses even under `moveBefore`, so a custom element holding a `LeafEditorView` calls
+the view's `placeSelection()` from its `connectedMoveCallback`.
 
 Once `render(template, container)` owns a container, update its children through
 `render` so Lit retains its markers and disconnects removed directives. `failSoft`
@@ -116,6 +169,8 @@ that box. It also supports native recovery and repeated failures.
 `shadowStage(host, nodes)` owns the shadow root's structure and styles. For a
 template, stage a concrete container with `shadowStage(host, [container])` and
 call `render(template, container)`. Retain that container on later stage updates.
+`failSoft` on a staged host stages its error box in place of your nodes; your next
+`shadowStage` call replaces it.
 
 ## What a behavior module owes
 
@@ -162,7 +217,11 @@ A behavior module follows these rules:
   In templates, `commandsOn(title, rows, options)` attaches that same command scope
   to its element. It attaches once per connection, takes the current declaration on
   each render, and withdraws its attachment when the directive leaves; projected
-  commands on the element remain.
+  commands on the element remain. When rows read the element they stand on, pass a
+  function of that element in place of the rows:
+  `commandsOn(title, (summary) => [{ keys: () => DISCLOSE(summary), … }])`. It runs
+  on each render, so it only builds rows. Declare a template's scope there rather
+  than looking its element up after rendering.
 
 Each helper's header under `runtime/` explains its contract.
 
@@ -229,8 +288,9 @@ Call `subscribe(callback)` once during the widget's initialization. It calls the
 callback with the complete reading while connected and returns cleanup for retiring
 the callback itself. A node connecting before document adoption waits for that reading.
 The controller retains callbacks across removal: it stops semantic updates and releases
-presentation regions while detached, then paints the latest reading and restores
-preparation proof when the same owner reconnects. No unsubscribe or resubscribe belongs
+presentation regions while detached, then restores preparation proof when the same
+owner reconnects and paints by the return rule in "Connection lifetimes": only a
+reading that changed while it was away. No unsubscribe or resubscribe belongs
 in the widget's connection callbacks. Native listeners, timers, reading
 regions, margin contributions, and thread surfaces still follow their own lifetimes.
 For each reading the controller calls the module's `renderState(state)` first and these
@@ -298,7 +358,10 @@ A compound widget whose parts scroll independently registers each with
 `compoundReadingRegionId(owner, localName)`. A composition that hides or reveals regions,
 such as a tab switch, runs the change through `preserveReadingRegions(owner, change)`,
 which awaits the change's returned layout promise before restoring the visible regions'
-scrollers. `runtime/reading-regions.js` describes the region model.
+scrollers. A region that shows one subject of several in turn, as a trace's saved tree
+shows one checkpoint's elements, replaces its body's contents inside
+`showReadingSubject(id, subject, render)`, and the runtime returns the reader to their
+place in each subject. `runtime/reading-regions.js` describes the region model.
 
 A widget that re-renders or resizes content holds the user's place with
 `placeKeeper(scroller, {items, identity})` rather than by restoring a `scrollTop`.
@@ -403,9 +466,10 @@ A widget's own layer, such as a list it opens over its contents, records where i
 opened from with `openLayer(layer)` as it opens, which reads where the user stands.
 Open a native modal dialog or popover with `showNativeLayer(layer, {source})`;
 `modal: false` opens a nonmodal dialog. It suppresses the native opening's automatic
-focus inside a sample; use `focusDestination` for the intended arrival. Close a
-native dialog or popover with `closeNativeLayer(layer)`, which prevents the native
-return from taking input from the containing page. A layer
+focus inside a sample; use `focusDestination` for the intended arrival. A popover keeps
+its `source` when the runtime re-seats it, as it does when a panel starts or stops
+covering the page. Close a native dialog or popover with `closeNativeLayer(layer)`,
+which prevents the native return from taking input from the containing page. A layer
 closes with `closeLayer(close, land)`: `close` hides it, and `land` puts a user who stood
 in it where the close takes them, usually `handBack(openerOf(layer))`, which lets go onto
 the page where the opener is gone. Readers of where the user stands hear only where they
@@ -617,7 +681,8 @@ A module reaches another widget through an attribute its entry declares in `x-re
 ([packages.md, "References between widgets"](packages.md#references-between-widgets)) rather than looking the id up itself. Leaf
 resolves the attribute in the owner's own authored document first, so a widget in a
 reply finds its message's element before a page element with the same id, as the server
-does, and then in the page, which a reply's widget may name. Both verbs below
+does, and then in the page, which a reply's widget may name. A keyed contract resolves
+inside the owner's enclosing scope instead, as the server does. Both verbs below
 throw a `TypeError` for an attribute the owner's entry does not declare.
 
 A key addresses elements under the named widget in one key space: a registered visual
@@ -837,13 +902,15 @@ omitting the attribute keeps the visual as one target.
 
 ## Projection subscriptions
 
-Register `watchQuestions`, `watchReports`, `watchHistory`, and `watchThreads` once for each
-owner. They coalesce reads at the script's microtask checkpoint, pause while the owner
-is absent, and read the latest projection when it returns, even when unchanged.
+Register `watchQuestions`, `watchQueues`, `watchReports`, `watchHistory`, and
+`watchThreads` once for each owner. They coalesce reads at the script's microtask
+checkpoint and pause while the owner is absent. A return reads again by the rule in
+"Connection lifetimes": only when the semantic state, a projection deferral, or the
+page's presentation changed while the owner was away, or a paint was cut short.
 Moving the owner within one mutation batch retains its subscription. Their returned
 cleanup permanently retires the subscription, including queued reads and clock paints.
-Its `refresh()` reruns the same clock-tracked reading synchronously while the owner
-is connected, retaining the watcher's readiness proof. Use it when a mechanical
+Its `refresh()` reruns the same clock-tracked reading synchronously, retaining the
+watcher's readiness proof; asked while the owner is away, it reruns on the return. Use it when a mechanical
 change, such as revealing held news or entering print, needs to repaint; calling
 the renderer directly would leave its new time readings outside the subscription.
 
@@ -870,7 +937,27 @@ resources. An actual departure aborts the signal and calls that cleanup, and a f
 permanently retires the subscription and releases active resources. Call it when the
 element no longer needs them, as a widget that fails soft from a paint it cannot
 repeat does, so a return does not start them again. Register dependent resources
-before `watchData` so they stand when its initial or resumed callback runs.
+before `watchData` so they stand when its callback runs.
+
+`watchData`, the projection subscriptions and a `widgetController` subscription
+pause while their owner is away. On return a subscription calls its callback, and the
+controller its `renderState`, again only when its reading changed while the owner was
+away, or when a callback's returned promise had not settled while the owner stood. A
+callback that throws or rejects is reported once, as a page error naming the element,
+and its subscription stays: that reading stands, failed, and the next changed reading
+calls the callback again. So return the promise of any paint that finishes later, abandon
+unfinished work on departure, keep finished nodes where they are, and have `start`
+restore whatever its cleanup cleared. A `HeldReading` built with its widget,
+`new HeldReading(this, region, changed)`, keeps waiting across a return itself.
+
+A paint that follows a reading of the module's own takes the same rule from
+`readingPaint(element, draw)`; build it once, before `whileConnected`. The returned
+`paint(key, ...args)` calls `draw(...args)` unless `key` names the reading it last
+drew, so calling it from `start` on every connection draws again only a changed
+reading or one whose returned promise the departure cut short. Authored content that
+never changes is one reading, keyed by its text. A `draw` that throws or rejects is
+reported by the same rule and never fails `start`; `paint` then returns a rejected
+promise you may ignore. `paint.stop()` retires it.
 
 ```js
 schedulePaint = frameFor(this, () => this.paint());
@@ -893,8 +980,11 @@ checks connection again before painting. Returning permits fresh scheduling; it 
 not replay cancelled work.
 
 Both helpers decide departures at the arrival mutation batch: a move within that
-batch retains resources. Teardown that must happen synchronously, such as cancelling
-a grab or removing hoisted dialog content, belongs in `disconnectedCallback`.
+batch retains resources. A connecting or returning element's `start` runs only after
+every element that left before it has released, so a widget a revision replaces hands
+a registration only one element may hold, such as `registerThreadPresentation`, to its
+replacement. Teardown that must happen synchronously, such as cancelling a grab or
+removing hoisted dialog content, belongs in `disconnectedCallback`.
 
 ## Data subscriptions and projections
 
@@ -915,13 +1005,13 @@ source's contract, publication, or validity changes. An incompatible contract or
 value delivers `null`, clearing the previous rendering. The subscription stays
 active and recovers when a readable value returns. `page state` and `page check`
 report invalid values; an incompatible subscriber reports the contract it requires.
-Register once for the element. Leaf pauses the subscription when its owner leaves and
-delivers the newest snapshot when it returns, even if its revision is unchanged.
+Register once for the element. Leaf pauses the subscription when its owner leaves,
+and a return delivers by the rule in "Connection lifetimes".
 Moving the owner within one DOM mutation batch retains the subscription. The returned
 cleanup function ends it permanently when the module explicitly stops watching.
 Its `refresh()` repaints the last delivered snapshot through the same clock
-tracking. It neither delivers a pending source reading nor revives an absent or
-retired subscription.
+tracking, on the return when asked while the owner is away. It neither delivers a
+pending source reading nor revives a retired subscription.
 The callback must state the whole rendering and remain idempotent.
 
 Time readings made synchronously in controller, `watchData`, `watchReports`, and
@@ -934,8 +1024,8 @@ grace, the same bound the page's own activity reads. For another
 rounded time reading, use `clockValue((now) => reading)`, whose `now` argument is the
 calibrated server-now value in milliseconds. For a paint outside these
 subscriptions, wrap it with `clocked(element, paint)` and call the returned function
-where state changes; call its `.stop()` on disconnect. If painting is scheduled by a
-presenter, pass its synchronous claim as the third argument,
+where state changes. Its readings pause while the element is away and tick again
+when it returns. If painting is scheduled by a presenter, pass its synchronous claim as the third argument,
 `clocked(element, paint, invalidate)`. A clock change calls `invalidate`; the scheduled
 pass calls the function returned by `clocked`, capturing fresh time readings.
 The claim's return is ignored; the presenter owns its completion and failure. Until that paint runs,
@@ -947,7 +1037,9 @@ redeliver unchanged data to keep a timestamp current.
 `revision`. An unchanged source keeps that origin when another source changes.
 
 The renderer owns its nodes and their placement. Use `setChildren(parent, nodes)`
-for retained native nodes: it moves only what is out of place. For an individual
+for retained native nodes: it moves only what is out of place. Where nodes move
+between parents, place every list at once with `setChildLists([[parent, nodes], …])`,
+outer parents first. For an individual
 placement use `move(parent, node, before)`, with `null` to append;
 `repeat(records, keyOf, template)` retains keyed template rows. Each keeps native state
 as **Template rendering** describes. Leave
@@ -1004,9 +1096,8 @@ from displayed words or datum keys.
 
 If a `watchData` callback renders asynchronously, it returns that promise so Leaf
 publishes the source revision as ready only after the projection settles. A rejection
-is that subscriber's page error and does not make later state reads repeat the
-page-wide failure. A rejection from the callback's first run permanently ends that
-registration.
+is that subscriber's page error, reported once as "Connection lifetimes" says, and does
+not hold the revision back or make later state reads repeat the page-wide failure.
 
 ## Editing a bound file
 
@@ -1083,8 +1174,8 @@ Thread collection as `readThreads()` on its initial presentation and on later
 publications. A Thread waiting on the user has unresolved
 `attention.kind === "needs_user"`, which
 includes recovery after a failed response; `"waiting"` means it is with the agent.
-A Thread's `id` is the name asks and workflows give it; its `root` is the first
-message it still holds, whose id differs where the log lost the opening message.
+A Thread's `id` is the name asks and workflows give it; its `root` is its opening
+message, which a reply or settlement names as its `parent`.
 Each Thread's `key` survives admission of a pending gesture, and its `anchor`
 names the `section` (the widget's id) and `datum` it rests on. A returned promise
 delays that widget's mirror repaint without holding up Leaf's panel, margin, or
@@ -1110,7 +1201,8 @@ this.threads = mountThreadViews(this, (collection, surfaces) => {
 });
 ```
 
-The widget owns outlet creation and layout. Leaf requires every outlet to remain
+The widget owns outlet creation and layout, and Leaf owns the outlet's children.
+Leaf requires every outlet to remain
 inside its owner, and a consumer may render each Thread only once per callback.
 The handle's `update()` requests a new render after a local layout change.
 
@@ -1171,9 +1263,11 @@ version comparison, excluding the owner itself. Omit the owner to read every cha
 Element. It reads the comparison's identities, so CSS markers do not determine
 membership. With no comparison standing it returns an empty array.
 
-`watchComparison(owner, callback)` calls the callback immediately when the owner is
-connected and whenever the comparison changes. It pauses while the owner is detached
-and reads again on reconnection. Its returned function permanently ends the watch.
+`watchComparison(owner, callback)` calls the callback on each change to the
+comparison, and when the owner first connects. It pauses while the
+owner is detached, and a return calls it by the rule in "Connection lifetimes": only
+when the comparison changed while the owner was away. A callback that throws is reported, and
+the next change calls it again. Its returned function permanently ends the watch.
 Use `comparisonChanges` in the callback to update counts or other local presentations.
 
 ## Reading asks and obligation queues
@@ -1275,21 +1369,24 @@ while `phase` is `waiting`, `ready`, or `offline`; activate only a ready collect
 ## Widget-local Thread placement
 
 A widget declares `"x-thread-surface": true` to place Thread UI beside its own
-projected data. Use `placeThreads(owner, render)`. Core hands the callback one ordered
-batch of admitted local targets; return an array of matching outlet Elements or `null`
-in that same order. Each target supplies `{anchor, placement, thread}`;
-`placement.datumElement` is the exact rendered datum, and `thread` is its current Thread
-record or `null` for the active composer. Several targets may share one outlet.
-Here `this.outletFor` stands for the widget's own method, which finds or creates the
-outlet beside the datum (`lf-diff`'s `threadOutletFor` is the worked example):
+projected data. Leaf registers each instance once its module has upgraded it and
+retires it when it leaves the page, so the module neither registers nor unregisters.
+On each reconciliation pass core calls the element's own
+`threadOutlets(targets, {signal, collection, onCommit})` with one ordered batch of admitted local
+targets; return an array of matching outlet Elements or `null` in that same order.
+Each target supplies `{anchor, placement, thread}`; `placement.datumElement` is the
+exact rendered datum, and `thread` is its current Thread record or `null` for the
+active composer. Several targets may share one outlet. Here `this.outletFor` stands for
+the widget's own method, which finds or creates the outlet beside the datum (`lf-diff`'s
+`threadOutletFor` is the worked example):
 
 ```js
-this.threadSurface = placeThreads(this, (targets) => {
+threadOutlets(targets, { onCommit }) {
   this.beginThreadSurface();
   const outlets = targets.map((target) => this.outletFor(target));
-  this.endThreadSurface();
+  onCommit(() => this.retireUnusedOutlets());
   return outlets;
-});
+}
 ```
 
 The batch includes only exact datums belonging to the widget, in current Thread order,
@@ -1298,8 +1395,16 @@ starts at an on-screen datum where the widget draws no thread yet, since opening
 outlet would move what the user is reading: that thread waits in the margin until the
 user presses its marker, adds a turn of their own, or scrolls the datum out of the window.
 The composer may precede any Thread at its datum. The widget owns outlet creation,
-removal, and layout; it returns `null` for data that is filtered, collapsed, or not yet
-hydrated. Core maps each returned outlet to its target and validates target ownership
+removal, and layout, and Leaf owns the outlet's children; it returns `null` for data
+that is filtered, collapsed, or not yet hydrated. An outlet the widget stops returning may still hold the composer the user is
+typing in, until core moves it at commit. Remove such an outlet only from a function
+passed to `onCommit`, which runs once this batch's placement commits, and keep every
+returned outlet in the document when the widget redraws the data around it; moving an
+outlet with `move` keeps the user in it. A widget that removes a node holding outlets
+outside `onCommit`, because its data went (a file dropped, a source cleared, a part
+or the whole widget replaced by `failSoft`'s box), first calls `releaseOutlets(node)`,
+ahead of any `holdFocus` around the removal: core's composer leaves every outlet under
+`node` at once, for where it would go once they are gone, and the user stays in it. Core maps each returned outlet to its target and validates target ownership
 and outlet containment before committing placements.
 Core moves its one composer node or renders retained messages, replies, reactions,
 settlement controls, and receipts into each outlet. A claimed thread does not also
@@ -1310,30 +1415,34 @@ into the panel.
 
 Returning `null` keeps lazy widgets lazy and restores the margin-projection fallback.
 Deliberate thread travel may reveal the datum through `lfRevealDatum`; the ordinary reconciliation pass
-then invokes the consumer again. The registration handle's `update()` invalidates layout-only
-visibility changes, and `unregister()` removes the surface when the widget disconnects.
-A callback may return a Promise for its outlet array. Its second argument supplies
-`{signal, collection}`: the abort signal marks a superseded or unregistered preparation,
-and the immutable complete collection supports retained layout allocations. Returning
-outlets after cancellation cannot claim or move content.
-If a callback throws, Leaf reports a page error, clears that registration's core-owned
-views, and returns its threads to the margin. Other registrations continue, and the
-next ordinary reconciliation retries the consumer. Outlets must remain inside their
+then calls `threadOutlets` again. `threadSurface(this).update()` invalidates layout-only
+visibility changes. `threadOutlets` may return a Promise for its outlet array. Its second
+argument supplies `{signal, collection, onCommit}`: the abort signal marks a preparation
+superseded or left behind by a widget that left the page, the immutable complete
+collection supports retained layout allocations, and `onCommit(run)` registers work for
+the commit, which a cancelled preparation never reaches. Returning outlets after
+cancellation cannot claim or move content.
+If `threadOutlets` throws, Leaf reports a page error, clears that widget's core-owned
+views, and returns its threads to the margin. Other surfaces continue, and the
+next ordinary reconciliation calls it again. Outlets must remain inside their
 widget after the callback completes; disconnected outlets claim no threads. Core message-rendering
 errors still fail the state application rather than accepting a partial thread.
 
-The registration handle's `open(datum, { origin })` accepts one projected element owned
-by the widget. Core captures its full datum coordinate, including external-data source
+`threadSurface(this).open(datum)` accepts one projected element owned
+by the widget. Before Leaf has registered the widget, or once it has left the page,
+`update()` does nothing and `open` returns `false`. Core captures its full datum coordinate, including external-data source
 revision, opens the ordinary anchored draft, and seats the response bar in the consumer's
-outlet when the datum still resolves exactly. `origin` is the widget control to which
-Escape may return focus. Widgets do not receive draft, submission, or event APIs.
+outlet when the datum still resolves exactly. Escape from that draft returns focus to the
+datum element when it can take focus and otherwise to the page, whichever route opened
+it. Widgets do not receive draft, submission, or event APIs.
 
 ## Page annotation presentation
 
 With `data-annotations="page"` on `body`, one connected Element may register
 `placePageThreads(owner, render)` to nominate page-owned conversation outlets; both
 registrations in this section throw on a page without it.
-Its callback receives the same admitted target batch and `{signal, collection}` context,
+Its callback receives the same admitted target batch and `{signal, collection, onCommit}`
+context,
 and returns the same matching outlet array as a widget-local surface. Page targets
 include exact passages and visual details, as well as projected data. The complete
 collection remains available for holding a row's allocation while its live target is

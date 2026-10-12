@@ -41,9 +41,10 @@ const widgetRegions = (widget) =>
   ["render", "preparation"].map((kind) => widgetRegion(widget, kind));
 // A widget preparation is work a widget declared it is still doing in a promise, such
 // as lf-diff loading a file the reader opened, which the rendering loop cannot see.
-// Observers hear each declaration as it is made ("begin") and once its completion
-// settles ("settle"), in the task that committed it, under one frozen identity naming
-// the widget. The declaration runs synchronously in the callback that declared it,
+// Observers hear each declaration as it is made ("begin") and once the coordinator has
+// settled its completion ("settle"), in the task that committed it, under one frozen
+// identity naming the widget. The declaration runs synchronously in the callback that
+// declared it,
 // so a render check can carry that callback's exact source by this identity across
 // native awaits: the input owns its preparation's landing, and no waiting time.
 const preparationObservers = new Set();
@@ -56,7 +57,8 @@ export const attachWidgetPresentation = (widget, kind, renderer) => {
   const handle = presentation.attach(widgetRegion(widget, kind), renderer);
   if (kind !== "preparation") return handle;
   return Object.freeze({
-    present(value, completion, failSoft) {
+    present(value, failSoft) {
+      const presenting = handle.present(value, failSoft);
       const observers = [...preparationObservers];
       if (observers.length) {
         const preparation = Object.freeze({ widget });
@@ -64,9 +66,9 @@ export const attachWidgetPresentation = (widget, kind, renderer) => {
         const settle = () => {
           for (const observer of observers) observer("settle", preparation);
         };
-        Promise.resolve(completion).then(settle, settle);
+        presenting.ready.then(settle, settle);
       }
-      return handle.present(value, completion, failSoft);
+      return presenting;
     },
     disconnect: handle.disconnect,
   });
@@ -174,8 +176,6 @@ export const projectionRegionsPresented = (widgets) =>
 export const watchPresentation = presentation.subscribe;
 export const readApplicationPresentation = presentation.read;
 export function setPresentationFailureReporter(report) {
-  if (typeof report !== "function")
-    throw new TypeError("Presentation failure reporting needs a callback");
   reportPresentationFailure = (reason) => report(reason, "Presentation failed");
 }
 export const watchSemantic = (callback) =>

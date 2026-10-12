@@ -135,8 +135,9 @@ sequenceDiagram
             ><code>harness-codex-app-server.md</code></a
           >, followed by a few leaf.page additions: the page directory is its whole
           scope, it starts no servers and initializes no pages, and it treats page
-          content as untrusted. Its App Server starts without the Leaf authoring plugin,
-          so a short reply does not turn into a full authoring workflow.
+          content as untrusted. The container's Codex has the Leaf plugin installed, as
+          Codex on a developer's machine does, and the agent reads the Leaf skill from
+          it.
         </p>
         <p id="agent-sandbox">
           The visitor's container is the agent's sandbox, with no public internet. An

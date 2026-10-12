@@ -1,6 +1,8 @@
 """Pure folds over the append-only event model."""
 
+from collections import OrderedDict
 from itertools import groupby
+from typing import NamedTuple
 
 from leaf.schema import MESSAGE_KINDS, UNDOABLE_KINDS
 
@@ -150,7 +152,9 @@ class UndoReading:
         for thread in threads.values():
             messages = thread["msgs"]
             for message in messages:
-                if not is_reaction(message) and message.get("parent") in reaction_ids:
+                # Any message naming the reaction stands on it, a reaction to it
+                # included, and a withdrawn parent would leave it rootless.
+                if message.get("parent") in reaction_ids:
                     answered_reactions.add(message["parent"])
                 if thread["resolved"] and message["id"] in reaction_ids:
                     resolved_reactions.add(message["id"])
@@ -242,26 +246,20 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     it replaced: each shows as its message's wording and stands in the exchange as a
     turn of its own (`exchange`), so it resumes the thread as a reply does.
 
-    Each thread is keyed by, and carries as ``id``, the id of the message that
-    opened it: the name every Question, workflow, summary, and title uses for it.
-    ``root`` is the first message the log still holds. The two differ only where
-    a torn line lost the opening message, and then ``root`` is the surviving
-    reply that opens the thread now, under its own id, so a reply or resolve
-    addressed to it names a message the log has.
+    Each thread is keyed by, and carries as ``id``, the id of the comment that
+    opened it, its ``root``: the name every Question, workflow, summary, and title
+    uses for it. Admission keeps every standing message's parent standing
+    (`event_contracts._parent_error`), so each reply lands in a thread.
     """
-    floors = retractions(events)
     if withdrawn is None:
         withdrawn = taken_back(events)
     # Every action at a coordinate competes, including a non-answer. Thread
     # settlement and visible state therefore read the same winning gesture.
-    winners = {}
+    standing = Standing(within, retractions(events), withdrawn)
     for e in events:
-        if (
-            e["kind"] == "action"
-            and e["id"] not in withdrawn
-            and not action_retracted(e, floors, within)
-        ):
-            winners[event_coordinate(e)] = e
+        if e["kind"] == "action":
+            standing.admit(e)
+    winners = standing.winners()
     threads = {}
     thread_for = {}
     messages = {}
@@ -325,33 +323,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 message["text"] = e["text"]
             continue
         if e["kind"] == "reply":
-            # A reply whose message the log lost opens the thread that message would
-            # have opened, under the id it was known by, which is the id an action
-            # names in `resolves` and the one `thread_names` resolves it to. A person
-            # answers it by its own surviving id; the lost one names no message and
-            # `leaf thread reply` says so.
-            # `read_events` skips a torn line and keeps reading, and `thread_names`
-            # resolves such a reply to the lost id for the same reason: a user who
-            # can see the reply is owed the rest of the page around it. Raising here
-            # instead cost the whole page — `page state` and every browser state read
-            # exited on the KeyError — so one torn line took down every reading of a
-            # log that had already been read.
             message = dict(e)
-            thread = thread_for.get(e["parent"])
-            if thread is None:
-                thread = {
-                    "id": e["parent"],
-                    "root": message,
-                    "title": None,
-                    "anchor": e.get("anchor"),
-                    "detached_from": None,
-                    "rewritten_from": None,
-                    "msgs": [],
-                    "revisions": [],
-                    "resolved": None,
-                }
-                threads[e["parent"]] = thread
-                thread_for[e["parent"]] = thread
+            thread = thread_for[e["parent"]]
             messages[e["id"]] = message
             thread["msgs"].append(message)
             if thread["title"] is None and "title" in e:
@@ -365,8 +338,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 thread["anchor"] = e["anchor"]
                 thread["rewritten_from"] = None
             thread_for[e["id"]] = thread
-        # A resolve names a message rather than opening one, so a thread the log
-        # lost whole — no reply of its own survived either — leaves it nothing to close.
+        # A resolve names a message the user may later take back — a reaction opening
+        # its thread, withdrawn once the thread reopened — and then closes nothing.
         elif e["kind"] == "resolve" and (thread := thread_for.get(e["parent"])):
             thread["resolved"] = e
         elif e["kind"] == "unresolve" and (thread := thread_for.get(e["parent"])):
@@ -562,10 +535,7 @@ def seat_root(thread: dict) -> str | None:
     own view. Narrower than any anchor naming the widget, deliberately: a quote
     anchor points into the widget's words rather than standing in the box it offers,
     and the user can see the difference — one is a note on a phrase, the other is
-    the cell.
-
-    A reply whose root the log lost is its own root, so the thread seats where the
-    thread's latest anchor points, and nowhere at all when no message carried one."""
+    the cell."""
     root = thread["root"]
     anchor = thread["anchor"]
     if root.get("about") or not anchor or len(anchor) != 1:
@@ -666,3 +636,111 @@ def action_retracted(event: dict, floors: dict, within: dict) -> bool:
     return any(
         floors.get(i, 0) > event["revision"] for i in action_rests_on(event, within)
     )
+
+
+class Change(NamedTuple):
+    """One coordinate's winner before and after a step of a `Standing` walk."""
+
+    coordinate: tuple
+    before: dict | None
+    after: dict | None
+
+
+class Standing:
+    """The actions standing at each owner-unit-verb coordinate, in log order, the
+    last of them its winner.
+
+    The one reading of which action decides a coordinate. An action stands from its
+    admission until an undo withdraws it or a version note retracts what it rests on
+    (`action_retracted`), and the latest action standing wins, one answering nothing
+    included. A reader of the final state admits the log's actions with `withdrawn`
+    and the log's whole `floors` given (`build_threads`, the projection fold); a
+    reader of what each event changed walks the log in order instead, handing undos
+    to `withdraw` and notes to `restate` where they fall (`thread_memberships`). The
+    two agree on where the walk ends.
+
+    A step reports a `Change` only where the winner moved: taking out an action
+    that was not winning changes no coordinate's reading.
+
+    Each step costs what it touches: a note reaches the actions resting on what it
+    restates through an index of them, never every action standing, and a
+    coordinate's winner is the tail of a linked order, which taking actions out
+    leaves constant to reach. A walk is therefore linear in the log however many
+    actions one coordinate collects."""
+
+    def __init__(self, within: dict, floors: dict | None = None, withdrawn=frozenset()):
+        self.within = within
+        self.floors = dict(floors or {})
+        self.withdrawn = withdrawn
+        self._at: dict[tuple, OrderedDict[str, dict]] = {}
+        self._coordinate: dict[str, tuple] = {}
+        # identity → the standing actions resting on it, in log order.
+        self._resting: dict[str, OrderedDict[str, None]] = {}
+
+    def winner(self, coordinate: tuple) -> dict | None:
+        actions = self._at.get(coordinate)
+        return actions[next(reversed(actions))] if actions else None
+
+    def winners(self) -> dict:
+        """Coordinate → its winner, for every coordinate an action stands at."""
+        return {
+            coordinate: actions[next(reversed(actions))]
+            for coordinate, actions in self._at.items()
+            if actions
+        }
+
+    def ids(self) -> frozenset:
+        """Every action standing."""
+        return frozenset(self._coordinate)
+
+    def admit(self, action: dict) -> Change | None:
+        """Stand `action` at its coordinate, unless it was withdrawn or a version had
+        already retracted it on arrival, as from a tab showing an older version."""
+        if action["id"] in self.withdrawn or action_retracted(
+            action, self.floors, self.within
+        ):
+            return None
+        coordinate = event_coordinate(action)
+        before = self.winner(coordinate)
+        self._at.setdefault(coordinate, OrderedDict())[action["id"]] = action
+        self._coordinate[action["id"]] = coordinate
+        for identity in action_rests_on(action, self.within):
+            self._resting.setdefault(identity, OrderedDict())[action["id"]] = None
+        return Change(coordinate, before, action)
+
+    def withdraw(self, identity: str) -> Change | None:
+        """Take the action `identity` names out, where it stands."""
+        coordinate = self._coordinate.get(identity)
+        if coordinate is None:
+            return None
+        before = self.winner(coordinate)
+        self._remove(identity)
+        after = self.winner(coordinate)
+        return Change(coordinate, before, after) if after is not before else None
+
+    def restate(self, note: dict) -> list[Change]:
+        """Retract what a version note restates from every action made on an
+        earlier version, and raise its floors for actions admitted after it."""
+        restated = note.get("restated", [])
+        for identity in restated:
+            self.floors[identity] = max(self.floors.get(identity, 0), note["revision"])
+        hit: dict[tuple, dict[str, None]] = {}
+        for identity in restated:
+            for action_id in self._resting.get(identity, {}):
+                coordinate = self._coordinate[action_id]
+                if self._at[coordinate][action_id]["revision"] < note["revision"]:
+                    hit.setdefault(coordinate, {})[action_id] = None
+        changes = []
+        for coordinate, retracted in hit.items():
+            before = self.winner(coordinate)
+            for action_id in retracted:
+                self._remove(action_id)
+            if (after := self.winner(coordinate)) is not before:
+                changes.append(Change(coordinate, before, after))
+        return changes
+
+    def _remove(self, identity: str) -> None:
+        coordinate = self._coordinate.pop(identity)
+        action = self._at[coordinate].pop(identity)
+        for rested in action_rests_on(action, self.within):
+            self._resting[rested].pop(identity, None)

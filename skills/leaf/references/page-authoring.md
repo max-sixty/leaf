@@ -102,9 +102,9 @@ stands alone, since whoever reads it there has none of the page around it.
 
 Most pages use a reading column, `<main class="layout-column">`. Text stays within
 the column's measure; wider blocks extend beside it without moving the prose.
-Without a Layout class, `main`'s blocks fill the window's width. A diagram, board,
-or wide table declares its preferred width in the registry; `data-width` makes
-the same request for other blocks ("Bounds and widths", below). Compose the page
+Without a Layout class, `main`'s blocks fill the window's width. A diagram or board
+declares its preferred width in the registry; `data-width` makes the same request
+for other blocks, such as a wide table ("Bounds and widths", below). Compose the page
 from these:
 
 - **Prose read in order** — a plan, a review, a write-up, a decision — is plain
@@ -121,7 +121,7 @@ from these:
   dashboard, such as a queue worked one item at a time or a run's log beside the chart
   it explains, is a workspace (below). A document read top to bottom beside a panel
   kept in view, such as a postmortem beside its timeline, is instead a `layout-sidebar`
-  page whose `aside` sticks ("A wide page", below).
+  page whose `aside` sticks ("A sidebar page", below).
 - **Several views of one artifact** are one `lf-tabs` set: page tabs for
   project-scale views that share one history, Threads panel, ask inventory, and
   revision sequence, and a tabbed section for local alternatives within the
@@ -164,37 +164,41 @@ Write an empty `lf-toc` with a stable id. On a column page, put it in an
 With room in the desktop margin, Leaf presents the column's outline as the contents
 spine; in a narrow window it is an open outline in the page's flow ("The rail and the
 margin"). On a sidebar page, keep the outline and short verdict or status available
-in the opening overview inside the Layout's `aside` ("A wide page"). Keep that
+in the opening overview inside the Layout's `aside` ("A sidebar page"). Keep that
 overview short enough to fit the window, with detailed evidence and history in the
 body or behind a disclosure. Workspaces and root page tabs use their own navigation.
 
 ### Layouts
 
 A Layout is a class that arranges the box it is on. Three set the page's shape, on
-`main`:
+`main` alone:
 
 | Class | The page |
 | --- | --- |
 | `layout-column` | the reading column, and a block's breakout beside it |
-| `layout-wide` | as wide as the window, up to a cap, holding one flow |
+| `layout-sidebar` | a body beside its `aside`, with a `header` and `footer` across both |
 | `layout-workspace` | a screen filling the window: `header`, one body, `footer` |
 
-Two arrange a box's children, on `main` or on any block:
+One arranges a block's children:
 
 | Class | Arranges |
 | --- | --- |
-| `layout-sidebar` | a body beside its `aside`, with a `header` and `footer` across both |
 | `layout-tiles` | equal cells, as many to a row as fit |
 
-On `main`, every class but `layout-column` makes a wide page: every block, the title
-included, starts at one left edge and takes the page's width, while text keeps the
-reading measure, as do an `lf-ask`, a callout and a widget read as text, such as an option
-list or a draft. Give an `lf-ask` or a callout `data-width` where it holds a chart, a table,
-a playground or another surface that needs more room ("Bounds and widths"). A wide,
-sidebar or tiles page is capped at the widest page and sets its title larger; a
-workspace takes the whole window and leaves its title to the theme. `layout-column` on
-a block keeps the measure but gives it no room to break out into, since that room is
-the page's.
+Wide content on a column page breaks out of the column by its own declaration: a board
+or a diagram declares its width, and `data-width` asks for one on any other block, such
+as a table, a trace or a playground ("Bounds and widths"). The
+prose keeps its axis around it.
+
+On a sidebar page or a workspace, every block, the title included, starts at one left
+edge and takes its region's width, while text keeps the reading measure, as does a
+widget read as text, such as an option list or a draft. A sidebar page is capped at the
+widest page and sets its title larger; a workspace takes the whole window and leaves its
+title to the theme.
+
+An `lf-ask` and a callout keep the reading measure in every Layout. Give the chart,
+table, playground or other surface inside one that needs more room its own
+`data-width`.
 
 A Layout is a starting point. The page's own `<style>` comes after it in the cascade, so
 an ordinary rule adjusts it — a different track share, a gap, an order — and a page
@@ -202,12 +206,11 @@ whose arrangement no Layout fits writes its own grid or flex rules on its own bo
 Where a Layout fits, use it rather than rebuilding it, since its tracks already hold
 the widths and wrapping every page needs.
 
-### A wide page
+### A sidebar page
 
 When the regions are the page rather than exhibits in an argument — a board with its
 status, a release dashboard, a long review whose contents and verdict stay beside the
-code — widen the page itself. `<main class="layout-wide">`
-holds one flow at the page's width. `<main class="layout-sidebar">` sets what the reader
+code — widen the page itself. `<main class="layout-sidebar">` sets what the reader
 works through beside what they keep an eye on — status, counts, the verdict's
 follow-ups, the contents — which is the Layout's `aside`, with the page's `header` above
 both:
@@ -327,18 +330,20 @@ Don't make a box scroll vertically with page CSS: Leaf keeps no reading position
 in a scroller it did not make.
 
 An individual block or section may request a responsive allocation with
-`data-width="column"`, `data-width="wide"`, or `data-width="available"`. `column`
-keeps the prose measure and starts where the prose does, including inside a wider
-section or on a wide page. `wide` uses the shared evidence width, `--wide`, in every
-Layout: past a column it grows to that width, and in a wider track or pane it holds
-to it at the track's start. A narrower frame still bounds it. `available` uses all
-room left by the page shell, frames, chrome, and a margin resident that takes its side,
-such as a sidebar standing in the margin or the contents map's spine; the markers beside
-it then stand as pins on it, and it moves below a note hanging level with it. The
-occurrence overrides a widget's or idiom's default, so `data-width="column"` can
-deliberately keep a normally wide widget with the prose. An `lf-ask` or a callout keeps the
-column; give it the width its chart, table or playground needs, and in a wider flow it
-also widens to a block of its own that declares one.
+`data-width="wide"` or `data-width="available"`, which overrides a widget's or idiom's
+default. `wide` uses the shared evidence width, `--wide`, in every Layout: past a
+column it grows to that width, and in a wider body or pane it holds to it at its
+start. A narrower frame still bounds it. `available` uses all room left by the page
+shell, frames, chrome, and a margin resident that takes its side, such as a sidebar
+standing in the margin or the contents map's spine; the markers beside it then stand as
+pins on it, and it moves below a note hanging level with it. A native `table` given
+either takes its columns' natural width up to that room: one that fits where it stands
+starts where the text around it starts, and a wider one grows evenly about the prose
+axis, or to the right where a sidebar stands in the left margin. A block in a list item
+or another indented block takes its room from the column, so it stands where the same
+block in the page's flow would, however deep the indent.
+An `lf-ask` or a callout keeps the column: a block of its own that declares a width
+breaks out of it on a column page, and widens it in a wider flow.
 Use these names on the semantic block itself, including a native `table`, `lf-code`, or
 `lf-diff`; do not reproduce their responsive widths in page CSS.
 
@@ -368,14 +373,14 @@ unused space when the marker is in the rail.
 On a column page, write its contents outline in the first `aside.sidebar` and
 short notes in `aside.sidenote`. Leaf moves them into the margin when they fit;
 in a narrow window they stay where you authored them. A `layout-sidebar` page
-instead has an authored body and `aside` region ("A wide page").
+instead has an authored body and `aside` region ("A sidebar page").
 
 For CSS that depends on a margin resident, use `main`'s `data-lf-margin` tokens
 (`rail`, `map`, `sidebar`, `note`), such as
 `main:not([data-lf-margin~="sidebar"]) #route { display: none }`. Verify the
 page at the widths where a resident returns to the document flow.
 
-`data-rail="right"` on `body` keeps a rail on a wide page.
+`data-rail="right"` on `body` keeps a rail on a sidebar page or a workspace.
 `data-rail="none"` gives a column page's right margin to the page's own content.
 A marker beside a hanging `aside.sidenote` already appears as a pin, so notes
 need neither override.
@@ -599,6 +604,13 @@ The child is temporary: use an ordinary Leaf page when its history must outlive
 the sample. A live sample needs a server, so a page declaring one cannot be
 exported (`references/serving-pages.md`, "Exported files").
 
+A thread message's `--markup` can carry a live sample too, and the user operates it
+in the thread. Its child is checked as the message is posted and uses the layer of
+the version showing the message; that version's captured files are the only page
+files it can load, so keep its code inline in the template. Its
+`data-sample-threads` cannot name the thread the message is in, since the copy would
+hold the same sample again.
+
 To start with fictional conversations or decisions, author an inert JSON script
 in the parent and name its id in the template's `data-sample-events`:
 
@@ -624,7 +636,8 @@ at `page check` and admitted before its first presentation. Give an event an exp
 `id` when a later command references it; omitted ids and timestamps are supplied,
 and the history belongs to revision 1. Several samples can name the same script;
 each gets an independent copy. Reset restores that authored history. The script
-must be inline `application/json` in the template's parent document. Its events
+must be inline `application/json` in the markup declaring the template: the page, or
+the message carrying it. Its events
 never appear in the outer log: leave fictional fixture anchors inside the template,
 and use this declaration rather than posting setup events from a page module.
 
@@ -637,37 +650,30 @@ child. Reset copies those threads again from the parent; subsequent child
 replies remain independent. A template chooses either `data-sample-events` or
 `data-sample-threads`, never both.
 
-The child is a document of its own: a `<style>` or module script in the template
-applies to the child alone, and the surrounding page's styles and scripts do not
-reach it. The child has an opaque sandbox origin: neither page can access the other's
-DOM, browser storage, or runtime functions. A page module can await the element's
-`ready` promise for its presentation, and await `reset()` to replace it. The bubbling
-`lf-sample-ready` event carries `detail.sample` after each child presents, including Reset, so
-host controls can reapply a selected view without inspecting the Reset button.
-Leaf’s own navigation stays inside the child: focus placement requires the child
-to own input, reveals stop at its document, and native layer transitions prevent
-automatic focus before placing their intended arrival. Scripts and embedded frames
-remain permitted. The sandbox isolates DOM and data; arbitrary scripts calling
-native browser focus or reveal APIs keep those APIs’ browser behavior. Forms, popups,
-downloads and pointer lock keep their native routes. The child's unguessable URL
-authorizes its own document, captured assets and APIs, so native resource loaders and
-module-relative URLs work directly. It grants no parent routes. Child responses
-suppress referrers; external requests retain the browser's opaque-origin CORS rules.
-Reload reconnects the child; Reset replaces it with a fresh copy of its initial state.
-Initial document admission failures reject `ready` after releasing the failed
-allocation; the sample keeps its error and Reset control. Later native navigation
-keeps the destination in the frame and Reset available. While that document has no
-Leaf connection, `ready` and presentation commands reject with
-`SampleDepartedError`; a valid Leaf reload reconnects and announces
-`lf-sample-ready` again. The containing page cannot distinguish an external
-destination from a failed reload inside the opaque frame.
+The child is a separate document in a sandbox. A `<style>` or module script in the
+template applies only to the child, and the surrounding page's styles and scripts do
+not reach it; neither page can read the other's DOM, browser storage, or runtime
+functions. Scripts, embedded frames, forms, popups, and downloads work in the child,
+and native resource loaders and module-relative URLs reach its own captured assets. A
+page module can await the element's `ready` promise for the current child's
+presentation; Reset, and the child leaving its page, each replace that promise. `await
+sample.reset()` replaces the child with a fresh copy of its initial state, and a
+reload inside the child reconnects the same child. When the child cannot be loaded,
+`ready` rejects and the sample shows the error with Reset available. The bubbling
+`lf-sample-ready` event carries `detail.sample` after each presentation, including
+Reset and a reload, so host controls can reapply a selected view without inspecting
+the Reset button. Once the child leaves its Leaf page, `ready` waits for the next one,
+which a reload brings. The containing page cannot tell a reload from a link to another
+document, so after such a link the wait lasts until Reset, which rejects it with
+`AbortError`.
 To select a conversation, call `await sample.showThread(id)` with its root event id;
 this shows the same page destination as its marker. To inspect it in Threads,
 call `await sample.showThread(id, {surface: "panel"})`. The panel view accepts
 `status: "open" | "resolved" | "all"` and `waiting: "user" | "agent" | "all"`;
 omitted values restore Open and unrestricted waiting. A panel view may omit the
 id to show its list. Completion means the selected view has presented; it returns
-false when a newer selection or Reset supersedes it. Outer controls keep keyboard
+false when a newer selection or Reset supersedes it. A selection the child leaves
+before presenting waits for the next document, as `ready` does. Outer controls keep keyboard
 focus. Use this method instead of clicking the child's private chrome or observing
 its DOM. Reapply the selected view on `lf-sample-ready` after Reset or reload.
 Author child content in the
@@ -735,7 +741,7 @@ Longer asides belong in prose, a disclosure, or a sidenote.
 
 ## Pre-handover review
 
-The main skill's "Quick pages and records" step decides when a page takes this review.
+The main skill's "Review and stamp a record" step decides when a page takes this review.
 Every source activation already runs the deterministic markup check; this review adds
 the browser gate and a reading:
 
@@ -770,11 +776,11 @@ oriented and able to continue; compare equivalent moves across the page's views.
 
 For a page with asks, the check also saves the window at each of the first eight
 as `q` reaches it from the top, which is how a user working the page meets each
-question. At each arrival, confirm that the question, shared premise, alternatives,
-and evidence that distinguishes them are visible together, the displayed numbers
-match the available actions, and the next press of `q` reaches the next thing waiting
-on the user (an open ask, a thread whose question is theirs, or an update to send again)
-while the complete page remains visible.
+question (`conversation-loop.md`, "Questions and Tasks"). At each arrival, confirm
+that the question, shared premise, alternatives, and evidence that distinguishes them
+are visible together, the displayed numbers match the available actions, and the next
+press of `q` reaches the next item on Questions while the complete page remains
+visible.
 
 Without a way to inspect the rendered page, read `leaf page state <page>`'s
 `state` and `todos` alongside the active HTML to review the words, evidence, and

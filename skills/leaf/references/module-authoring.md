@@ -99,10 +99,11 @@ and receive semantic state through `widgetController`, without a reactive copy o
 that state.
 
 Templates own generated containers or bounded ranges, rather than authored
-children. `repeat` keys template rows, retaining a row's nodes across reorders but
-recreating a row that moves to another `repeat`, so place nodes the module itself
-retains with `setChildren`, and lists that trade nodes the user may stand in with
-`setChildLists`, which moves each straight from the list it leaves.
+children. `repeat` keys template rows and keeps a row's nodes across reorders, but
+builds a row that moves to another `repeat` afresh, detaching any retained node in it,
+so place lists of nodes the module retains itself with `setChildren`, and lists that
+trade nodes the user may stand in with `setChildLists`, which moves each straight
+across.
 
 Every placement of a retained node, by `render`, `repeat`, `setChildren` or
 `move`, keeps the user standing in it. Within one composed root it uses native
@@ -1304,7 +1305,7 @@ starts at an on-screen datum where the widget draws no thread yet, since opening
 outlet would move what the user is reading: that thread waits in the margin until the
 user presses its marker, adds a turn of their own, or scrolls the datum out of the window.
 The composer may precede any Thread at its datum. The widget owns outlet creation,
-removal, and layout; it returns `null` for data that is filtered, collapsed, or not yet
+removal, and layout, and Leaf owns the outlet's children; it returns `null` for data that is filtered, collapsed, or not yet
 hydrated. Core maps each returned outlet to its target and validates target ownership
 and outlet containment before committing placements.
 Core moves its one composer node or renders retained messages, replies, reactions,

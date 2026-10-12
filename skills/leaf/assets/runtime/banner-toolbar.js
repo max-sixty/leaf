@@ -210,16 +210,21 @@ function paintControl(entry) {
 }
 
 // Focus goes on standing on the control where it went, or on the door that reaches
-// it. A move keeps focus on the control even where seating leaves it undrawn, such as
-// behind the shut More, until the browser drops it at the next rendering update, so
-// where it stands is read rather than where focus is.
+// it. A move keeps focus on a control it puts behind the shut More until the browser
+// drops it at the next rendering update, so one standing there goes to the door
+// whether or not focus has left it yet. A control that stays on the row and goes is
+// its caller's to hand on (`focusAfterRemoval`).
 function paint() {
   const held = [...controls.values()].find(
     (entry) => document.activeElement === entry.focusTarget,
   );
   placeRuns();
   for (const entry of controls.values()) paintControl(entry);
-  if (!held) return;
+  if (
+    !held ||
+    (document.activeElement === held.focusTarget && !overflowMenu.contains(held.control))
+  )
+    return;
   // Where the control stands, not whether it would take a press: a refused Approval
   // is still a Tab stop.
   const door = bannerControlDoor(held.control);

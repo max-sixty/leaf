@@ -1,38 +1,16 @@
 # Workspace follow-ups
 
 Briefs for the remaining workspace items in [TODO.md](../TODO.md). IDs are stable
-references; their order here is not a priority ranking. The authoring comparison in
-#19 precedes the instructions experiment in #20. The recurring-use study in #23 requires
-Max's real tasks.
+references; their order here is not a priority ranking. The recurring-use study in #23
+requires Max's real tasks.
 
 ## Authoring comparison
 
-<a id="item-19"></a>
-
-- **#19 — Measure what Leaf saves an authoring agent.** Compare document-review,
-  configuration and queue/detail tasks against plain HTML, including a comment and
-  revision on each result. Give comparable agents the same content and acceptance
-  criteria, and counterbalance task order.
-
-  The [catalog](../evals/README.md) now compares document, dashboard and queue
-  authoring and width revision with actual plain HTML controls. The [agent-usability baseline](agent-usability-evals.md#current-observations)
-  measures reading, revision and the live loop. Neither establishes the advantage of
-  Leaf's complete authoring and feedback cycle over plain HTML.
-
-  The common quality judge reads the original request and screenshots. Leaf-only
-  choice reading and preservation run after the shared comparison. Extend the
-  comparison with equivalent comment/feedback cycles before claiming the whole
-  loop saves author effort; then use repeated paired results to choose improvements.
-
-  Assess usable output independently and retain failures, time/tokens, custom CSS
-  and repair iterations. Use those results to choose which instructions or primitive to
-  improve. Keep render-check defects and Layout choices in [TODO.md](../TODO.md),
-  rather than treating a historical judge's finding as a current defect here.
-
 <a id="item-20"></a>
 
-- **#20 — Teach the compositions that prove useful.** After #19, test short
-  composition suggestions against its observed failures with an unfamiliar author.
+- **#20 — Teach the compositions that prove useful.** Test short composition
+  suggestions against the failures the [plain HTML comparison](agent-usability-evals.md#authoring-against-plain-html-2026-10-12)
+  observed, with an unfamiliar author.
   Keep widget-specific advice in `x-instructions`, cross-widget compositions in package
   instructions, and general selection principles in the authoring reference.
 

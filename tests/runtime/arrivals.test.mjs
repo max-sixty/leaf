@@ -117,6 +117,41 @@ test("synchronous setup is released when its owner leaves before its first arriv
   }
 });
 
+// A revision evicts a replaced widget before its replacement connects, in one batch.
+// A registration only one element may hold passes from the first to the second.
+test("an owner replaced within one batch releases before its replacement starts", async () => {
+  const held = [];
+  const hold = (owner) =>
+    whileConnected(owner, () => {
+      if (held.length) throw new Error("already held");
+      held.push(owner);
+      return () => held.splice(held.indexOf(owner), 1);
+    });
+  const outgoing = document.createElement("section");
+  const arriving = document.createElement("section");
+  document.body.append(outgoing);
+  const stops = [hold(outgoing)];
+  try {
+    await mutate(() => {
+      outgoing.remove();
+      document.body.append(arriving);
+      stops.push(hold(arriving));
+    });
+    assert.deepEqual(held, [arriving]);
+    // A returning owner arrives through the batch, which still releases first.
+    await mutate(() => arriving.remove());
+    assert.deepEqual(held, []);
+    await mutate(() => document.body.append(outgoing));
+    assert.deepEqual(held, [outgoing]);
+    await mutate(() => outgoing.replaceWith(arriving));
+    assert.deepEqual(held, [arriving]);
+  } finally {
+    for (const stop of stops) stop();
+    outgoing.remove();
+    arriving.remove();
+  }
+});
+
 test("failed setup aborts its listeners and permanently retires the subscription", async () => {
   const owner = document.createElement("section");
   document.body.append(owner);
@@ -220,19 +255,26 @@ test("a frame refuses to paint after removal even before departure delivery", as
 test("a returning owner draws a reading again only where its paint did not finish while it stood", async () => {
   const owner = document.createElement("section");
   await mutate(() => document.body.append(owner));
+  // A refused draw is reported, here, and never thrown at its caller.
+  const reports = [];
+  const consoleError = console.error;
+  console.error = (line) => reports.push(line.split("\n")[0]);
   const drawn = [];
   let finish;
+  let abandon;
   const paint = readingPaint(owner, (reading) => {
     drawn.push(reading);
     if (reading === "refused") throw new Error("refused");
     if (reading.startsWith("slow")) return new Promise((resolve) => (finish = resolve));
+    if (reading.startsWith("abandoned"))
+      return new Promise((resolve, reject) => (abandon = reject));
   });
   const leaveAndReturn = async () => {
     await mutate(() => owner.remove());
     await mutate(() => document.body.append(owner));
   };
   try {
-    assert.throws(() => paint("refused", "refused"));
+    await assert.rejects(paint("refused", "refused"), /refused/);
     await leaveAndReturn();
     paint("refused", "refused");
     // Left while the paint was running.
@@ -254,14 +296,56 @@ test("a returning owner draws a reading again only where its paint did not finis
     await mutate(() => document.body.append(owner));
     paint("slow", "refreshed on return");
     finish();
+    // Work abandoned on departure is drawn again on the return, not reported.
+    paint("abandoned", "abandoned");
+    await mutate(() => owner.remove());
+    abandon(new Error("abandoned on departure"));
+    await mutate(() => document.body.append(owner));
+    paint("abandoned", "abandoned again");
+    // So is one a later draw overtook before the departure.
+    paint("slow", "overtaking");
+    await leaveAndReturn();
+    abandon(new Error("overtaken, then abandoned on departure"));
+    await Promise.resolve();
     assert.deepEqual(drawn, [
       "refused",
       "slow",
       "slow again",
       "slow once more",
       "refreshed on return",
+      "abandoned",
+      "abandoned again",
+      "overtaking",
+    ]);
+    assert.deepEqual(reports, ["leaf: paint failed for section: refused"]);
+  } finally {
+    console.error = consoleError;
+    paint.stop();
+    owner.remove();
+  }
+});
+
+test("a reading paint's clock repaint fails by the same rule, reported once", async () => {
+  const { reportCarried } = await import("/runtime/layer-client.js");
+  const owner = document.createElement("section");
+  owner.id = "clocked";
+  await mutate(() => document.body.append(owner));
+  let clock = 0;
+  const paint = readingPaint(owner, () => {
+    if (clockValue(() => clock)) throw new Error("clock refused");
+  });
+  const reports = [];
+  const consoleError = console.error;
+  console.error = (line) => reports.push(line.split("\n")[0]);
+  try {
+    paint("reading");
+    clock = 1;
+    await tickClock(reportCarried);
+    assert.deepEqual(reports, [
+      "leaf: paint failed for section#clocked: clock refused",
     ]);
   } finally {
+    console.error = consoleError;
     paint.stop();
     owner.remove();
   }

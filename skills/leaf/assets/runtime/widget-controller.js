@@ -7,7 +7,8 @@
    proof. Subscriptions belong to the owner; removal pauses them, and reconnecting
    restores preparation and draws the reading by the rule every returning paint follows
    (`readingPaint` in presence.js): only a reading that changed while away draws
-   again, and a render that failed is not reported twice. Time readings in the render
+   again, and a render that failed is reported once, by that paint, and shows the
+   fail-soft box its presentation falls back to. Time readings in the render
    claim a fresh draw through the same publication. Registered preparation also holds full
    rendering readiness until completion or removal; queued updates can independently
    settle while it waits. Local editing defers the render
@@ -79,8 +80,6 @@ const unavailable = (reading) =>
   });
 
 function createWidgetController(owner) {
-  if (!(owner instanceof Element))
-    throw new TypeError("A widget controller needs an Element owner");
   const descriptor = widgetDescriptor(owner);
   if (!descriptor)
     throw new Error(
@@ -139,9 +138,9 @@ function createWidgetController(owner) {
       .present(value, (reason) => failSoftUnreported(owner, reason))
       .resolve(completion);
 
-  const notify = (reading, callbacks) => {
+  const notify = (reading) => {
     const failures = [];
-    for (const subscription of callbacks) {
+    for (const subscription of subscriptions) {
       try {
         subscription(reading);
       } catch (error) {
@@ -175,29 +174,20 @@ function createWidgetController(owner) {
           { cause: error },
         );
       }
-      failed(notify(reading, [...subscriptions]));
+      failed(notify(reading));
       drawn = true;
     },
     () => refresh(),
   );
 
   // Each presentation commits its ticket, so a reading that draws nothing, as on a
-  // return to an unchanged reading, still settles the region.
-  const presentRender = (reading, draw = () => paint(reading, reading)) => {
+  // return to an unchanged reading, still settles the region. A failed draw settles it
+  // with the fail-soft box; the paint has already reported the failure.
+  const presentRender = (reading) => {
     if (!owner.isConnected) return;
-    const handle = render();
-    let failure = null;
-    try {
-      draw();
-    } catch (error) {
-      failure = error;
-    }
-    if (!handle) return;
-    const presenting = handle.present(reading, (reason) =>
-      failSoftUnreported(owner, reason),
-    );
-    if (failure) presenting.reject(failure);
-    else presenting.resolve();
+    render()
+      ?.present(reading, (reason) => failSoftUnreported(owner, reason))
+      .resolve(paint(reading, reading));
   };
 
   // A held reading leaves its ticket open; the next presentation or the handle's
@@ -276,16 +266,11 @@ function createWidgetController(owner) {
   return Object.freeze({
     read,
     subscribe(callback) {
-      if (typeof callback !== "function")
-        throw new TypeError("A widget subscription needs a callback");
       subscriptions.add(callback);
       if (!stopSelection) connect();
-      else {
-        // A reading still owed draws every subscriber when it paints.
-        const reading = read();
-        if (drawn && !paint.owes(reading))
-          presentRender(reading, () => failed(notify(reading, [callback])));
-      }
+      // A reading already drawn draws again, with the new subscriber, by the paint
+      // every draw goes through; a reading still owed draws it when it paints.
+      else if (drawn) refresh();
       return () => {
         subscriptions.delete(callback);
         if (!subscriptions.size) {
@@ -325,7 +310,6 @@ function createWidgetController(owner) {
       };
     },
     present(promise) {
-      if (!promise?.then) throw new TypeError("Widget presentation must be a promise");
       const value = read();
       if (!preparationBatch || preparationBatch.value !== value) {
         preparationBatch = { value, promises: [] };

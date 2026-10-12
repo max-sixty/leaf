@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 from leaf.activity import answer_command
+from leaf.data import read_contracts
 from leaf.data_contracts import data_binding_errors
 from leaf.events import build_threads
 from leaf.files import list_revisions
@@ -15,7 +16,11 @@ from leaf.structure import SourceDocument
 from leaf.thread_context import thread_names, thread_structure
 
 from ..refusals import Refused
-from .instances import reference_errors, thread_markup_contract_errors
+from .instances import (
+    instance_errors,
+    reference_errors,
+    thread_markup_contract_errors,
+)
 from .markup import (
     document_declaration_errors,
     fragment_style_errors,
@@ -136,13 +141,22 @@ def pinned_thread_markup_errors(page_dir: Path, fragment: SourceDocument) -> lis
     newly introduced widget into the log even though an older pinned document has no
     declaration or implementation for it.  Ask every captured registry at the append
     door, while the message can still be refused, and group equal failures so a long
-    page history does not produce one copy per revision.
+    page history does not produce one copy per revision. A live sample's child is
+    allocated from the revision showing the message, so its document's vocabulary
+    answers to each captured registry too.
     """
+    documents = [fragment]
+    for document in documents:
+        documents.extend(sample["document"] for sample in document.samples)
     failures: dict[str, list[int]] = {}
     revisions = list_revisions(page_dir)
     for revision in revisions[:-1]:
         registry = read_revision(page_dir, revision).registry
-        for error in thread_markup_contract_errors(fragment, registry):
+        for error in thread_markup_contract_errors(fragment, registry) + [
+            error
+            for child in documents[1:]
+            for error in instance_errors(child.lf_elements, registry)
+        ]:
             failures.setdefault(error, []).append(revision)
     return [
         "pinned revision"
@@ -160,13 +174,15 @@ def check_markup(
     events: list,
     *,
     page: SourceDocument | None = None,
+    thread: str | None = None,
 ) -> SourceDocument:
     """A message's HTML fragment, validated against the vendored registry at post
     time — the discussion-side `page check`, and the field's one gate: the browser
     door refuses `markup` outright, so nothing reaches the log under that name
     unvalidated. Text needs no vocabulary gate — the runtime renders it with every tag
     escaped, so it cannot claim a widget — but its Markdown can still point at a file,
-    which `read_text_arg` asks about wherever a body arrives. Refuses with
+    which `read_text_arg` asks about wherever a body arrives. `thread` is the thread
+    a reply joins; a comment opens one whose id is not yet assigned. Refuses with
     what's wrong."""
     registry = require_registry(page_dir)
     frag = SourceDocument(markup)
@@ -210,6 +226,8 @@ def check_markup(
         page,
         version_ids(page_dir),
         extra_errors,
+        read_contracts(page_dir),
+        thread,
     ):
         raise Refused(error)
     return frag
@@ -224,12 +242,15 @@ def message_markup_error(
     page: SourceDocument,
     prior_ids: set[str],
     extra_errors: list[str],
+    contracts: dict,
+    thread_id: str | None,
 ) -> str | None:
     """The shared message-fragment gate for a stored or newly constructed page.
 
     Callers supply their lifetime's binding and pinned-vocabulary checks. The
-    fragment's structure, vocabulary, presentation, media, ids and references
-    have one gate regardless of whether its page has been allocated yet.
+    fragment's structure, vocabulary, presentation, media, ids, references and
+    live sample children have one gate regardless of whether its page has been
+    allocated yet. `thread_id` is the thread the message joins, where known.
     """
     errs = (
         thread_markup_contract_errors(frag, registry)
@@ -256,5 +277,26 @@ def message_markup_error(
     ):
         return f"{kind} markup doesn't validate:\n" + "\n".join(
             f"  - {error}" for error in reference_errs
+        )
+    # A child selecting the thread this message joins would hold this sample again,
+    # and its child the same, without end.
+    if looping := sorted(
+        sample["attrs"].get("id", "<unnamed>")
+        for sample in frag.samples
+        if thread_id in sample["attrs"].get("data-sample-threads", "").split()
+    ):
+        return (
+            f"{kind} markup: sample {json_value(looping)} selects thread "
+            f"{thread_id!r}, which holds this message, so its child would hold the "
+            "same sample again; select other threads"
+        )
+    # A live sample's child is a page of its own, built from this message once it is
+    # logged. Imported here because checking a child calls this gate back for each
+    # fixture message in its history.
+    from .source import sample_errors
+
+    if child_errs := sample_errors(page_dir, page, events, frag, registry, contracts):
+        return f"{kind} markup doesn't validate:\n" + "\n".join(
+            f"  - {error}" for error in child_errs
         )
     return None

@@ -347,7 +347,7 @@ flowchart TD
              page and printing its log with `leaf page events PAGE`. The suite replays
              these commands through the append door and fails, printing the records
              to paste here, when the door would store anything different:
-             tests/test_product_page.py::test_the_event_log_page_shows_the_records_the_door_writes -->
+             tests/model/test_product_page.py::test_the_event_log_page_shows_the_records_the_door_writes -->
         <lf-code id="captured-log" language="json" data-width="wide">
           <pre>
 {"kind": "action", "revision": 1, "widget": "ship", "action": "add",

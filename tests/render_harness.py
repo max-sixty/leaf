@@ -47,7 +47,6 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 import pytest
 from browser_sources import browser_function
 from click.testing import CliRunner
-from conftest import tier
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
@@ -1239,12 +1238,15 @@ _TEST = None
 
 
 def watches_shifts(test):
-    """Unmarked tests watch shifts, whatever tier their cost runs them in; surveyed
-    journeys marked with a tier opt in.
+    """Every test watches shifts but those in a module marked `shifts_unsurveyed`,
+    which still await a survey, and of those the ones marked `watch_shifts` watch too.
 
     This selection does not lift the watcher's first-presentation exemption.
     """
-    return tier(test) is None or test.get_closest_marker("watch_shifts") is not None
+    return (
+        test.get_closest_marker("shifts_unsurveyed") is None
+        or test.get_closest_marker("watch_shifts") is not None
+    )
 
 
 @contextmanager
@@ -1474,12 +1476,22 @@ def reported_browser_errors(page, *expected):
     return errors
 
 
+def _names(fragment, line):
+    """Whether an expected fragment names a browser problem's first line. An HTTP
+    status names the entry a failed response is recorded as, `"<status> <url>"`
+    (`render_gate.scheme.console_error`), by its start: elsewhere in a line, a port
+    or a stack's address can hold the same digits."""
+    if fragment.isdigit():
+        return line.startswith(f"{fragment} ")
+    return fragment in line
+
+
 def consume_browser_errors(page, *expected):
     """Assert intentional messages; stack locations cannot authorize a problem."""
     assert expected, "expected browser-error fragments cannot be empty"
     errors = take_browser_errors(page)
     assert errors and all(
-        any(fragment in error.splitlines()[0] for fragment in expected)
+        any(_names(fragment, error.splitlines()[0]) for fragment in expected)
         for error in errors
     ), errors
     return errors

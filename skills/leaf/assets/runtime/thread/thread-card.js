@@ -16,16 +16,23 @@
 
    Immutable descriptors contain generated presentation only. Retained native editors,
    margin controls and frozen message widgets keep their mechanical lifetime outside
-   those values. A quotation whose original words are no longer on the page keeps
-   a local full-reading disclosure, including when a rewritten section still has a
-   navigation destination. Its expansion lives with the card through presentation.
-   The owner alone renders its native card root and all generated descendants; a
-   failed candidate is restored by presenting its committed descriptor again. It owns
-   title gesture policy, outgoing fold paint and local draft repaint. Surfaces receive
+   those values. The transcript and each summary checkpoint's originals are retained
+   containers whose message lists are placed together (`setChildLists`), so a message
+   a summary gathers or releases moves straight across with its frames and focus.
+   Rejected: nesting the originals in a `repeat` inside the transcript's `repeat`,
+   which rebuilt a gathered message's row and reloaded a frame in it.
+
+   A quotation whose original words are no longer on the page keeps a local
+   full-reading disclosure, including when a rewritten section still has a navigation
+   destination. Its expansion lives with the card through presentation. The owner
+   alone renders its native card root and all generated descendants; a failed
+   candidate is restored by presenting its committed descriptor again. It owns title
+   gesture policy, outgoing fold paint and local draft repaint. Surfaces receive
    whole-thread geometry readings rather than descendant nodes. */
 import { nextRender, sizeObserver } from "../rendering.js";
+import { setChildLists, setChildren } from "../dom-children.js";
 import { holdFocus, focusDestination, focused, standsOn } from "../focus.js";
-import { html, render, repeat, nothing, ref } from "../../vendor/browser-runtime.js";
+import { html, render, nothing, ref } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
 import { offer, reachedForWords, measure, reserve } from "../widget-elements.js";
@@ -267,16 +274,20 @@ function navigationSummary(model, control) {
   </summary>`;
 }
 
-function readBoundary(kind) {
-  if (!kind) return nothing;
-  const label =
-    kind === "new" ? "New since you last looked" : "End of this new section";
-  return html`<div
-    class="lf-read-boundary"
-    data-kind=${kind}
-    role="separator"
-    aria-label=${label}
-  ></div>`;
+function readBoundary() {
+  const node = document.createElement("div");
+  node.className = "lf-read-boundary";
+  node.setAttribute("role", "separator");
+  return node;
+}
+
+function paintBoundary(node, kind) {
+  keeps(node, "data-kind", kind);
+  keeps(
+    node,
+    "aria-label",
+    kind === "new" ? "New since you last looked" : "End of this new section",
+  );
 }
 
 let nextViewId = 0;
@@ -317,6 +328,9 @@ export class ThreadView {
   #outletReplyShown = null;
   #settlements = new Map();
   #actions = document.createElement("span");
+  #transcript = document.createElement("div");
+  #checkpoints = new Map();
+  #markers = new Map();
   #expandedSummaries = new Set();
   #quoteExpanded = false;
   #marginControls = null;
@@ -413,6 +427,7 @@ export class ThreadView {
       this.node.dataset.lfOffer = "";
     }
     this.#actions.className = "lf-thread-meta-actions";
+    this.#transcript.className = "lf-thread-transcript";
     // Native disclosure opens at the attribute checkpoint; queued toggle may arrive
     // after paint. Release held news here so the first opened body is current,
     // whether a summary, the panel list's choice (a walk to the card) or a
@@ -494,9 +509,7 @@ export class ThreadView {
   // folded.
   #summaryNode(id) {
     if (this.node.localName === "details" && !this.node.open) return null;
-    return this.node.querySelector(
-      `.lf-thread-checkpoint[data-summary-id="${CSS.escape(id)}"]`,
-    );
+    return this.#checkpoints.get(id)?.node ?? null;
   }
 
   ownsMessage(id) {
@@ -745,14 +758,7 @@ export class ThreadView {
       const actions = marginControls
         ? [marginControls.nav, settlement, marginControls.close].filter(Boolean)
         : [settlement].filter(Boolean);
-      render(
-        repeat(
-          actions,
-          (node) => node,
-          (node) => node,
-        ),
-        this.#actions,
-      );
+      setChildren(this.#actions, actions);
       threadActions = actions.length || model.news ? this.#actions : null;
     }
     const describedRanges = summaryRanges(model.messages, model.summaries);
@@ -802,31 +808,39 @@ export class ThreadView {
     });
     this.#lastMessage = messages.at(-1)?.node ?? null;
     const messageNodes = new Map(messages.map(({ key, node }) => [key, node]));
-    const ranges = rangeState.map((range) => {
+    // Each message, behind its read boundary, in the transcript or its checkpoint.
+    const markers = new Map();
+    const placed = (key, summary) => {
+      const node = messageNodes.get(key);
+      keeps(node, "data-lf-summary", summary);
+      const kind = boundaries.get(key);
+      if (!kind) return [node];
+      const marker = this.#markers.get(key) ?? readBoundary();
+      paintBoundary(marker, kind);
+      markers.set(key, marker);
+      return [marker, node];
+    };
+    const checkpoints = new Map();
+    const transcript = [];
+    const transcriptLists = [[this.#transcript, transcript]];
+    for (const range of rangeState) {
       if (range.kind === "message") {
-        const node = messageNodes.get(range.message.key);
-        delete node.dataset.lfSummary;
-        return { ...range, node };
+        transcript.push(...placed(range.message.key, null));
+        continue;
       }
-      const nodes = range.messages.map((message) => {
-        const node = messageNodes.get(message.key);
-        keeps(node, "data-lf-summary", range.summary.id);
-        return node;
-      });
-      return {
-        ...range,
-        nodes,
-      };
-    });
-    const markerFor = (key) => readBoundary(boundaries.get(key));
-    const transcript = repeat(
-      ranges,
-      (range) => range.key,
-      (range) =>
-        range.kind === "message"
-          ? html`${markerFor(range.message.key)}${range.node}`
-          : this.#summaryRange(range, markerFor),
-    );
+      const id = range.summary.id;
+      const checkpoint = this.#checkpoints.get(id) ?? this.#checkpoint(id);
+      checkpoints.set(id, checkpoint);
+      this.#paintCheckpoint(checkpoint, range);
+      transcript.push(checkpoint.node);
+      transcriptLists.push([
+        checkpoint.originals,
+        range.messages.flatMap((message) => placed(message.key, id)),
+      ]);
+    }
+    this.#checkpoints = checkpoints;
+    this.#markers = markers;
+    keeps(this.#transcript, "data-lf-reflow", panel ? "append" : null);
     if (reply && !this.#reply) this.#reply = this.#createReply(model);
     const body = html`
       ${
@@ -879,12 +893,7 @@ export class ThreadView {
             </header>`
           : nothing
       }
-      <div
-        class="lf-thread-transcript"
-        data-lf-reflow=${model.surface === "panel" ? "append" : nothing}
-      >
-        ${transcript}
-      </div>
+      ${this.#transcript}
       ${
         threadActions
           ? marginControls
@@ -900,6 +909,7 @@ export class ThreadView {
           : nothing
       }
     `;
+    setChildLists(transcriptLists);
     render(
       html`
         ${navigationSummary(
@@ -1100,20 +1110,29 @@ export class ThreadView {
     } else this.#newsReserved = false;
   }
 
-  #summaryRange(range, markerFor) {
-    const id = range.summary.id;
+  // A summary's checkpoint: a retained section whose head the template draws, and
+  // whose originals hold the retained messages the summary covers.
+  #checkpoint(id) {
+    const node = document.createElement("section");
+    node.className = "lf-thread-checkpoint";
+    node.dataset.summaryId = id;
+    const originals = document.createElement("div");
+    originals.id = `lf-summary-originals-${this.#viewId}-${id}`;
+    originals.className = "lf-summary-originals";
+    node.append(originals);
+    return { node, originals };
+  }
+
+  #paintCheckpoint({ node, originals }, range) {
     const progress = Boolean(range.summary.trigger);
-    const originalsId = `lf-summary-originals-${this.#viewId}-${id}`;
-    return html`<section
-      class="lf-thread-checkpoint"
-      data-summary-id=${id}
-      data-expanded=${String(range.expanded)}
-      ?hidden=${progress && !range.expanded}
-    >
-      ${
+    keeps(node, "data-expanded", range.expanded);
+    keepsHidden(node, progress && !range.expanded);
+    keepsHidden(originals, !range.expanded);
+    render(
+      html`${
         progress
           ? nothing
-          : html` <div class="lf-summary-checkpoint">
+          : html`<div class="lf-summary-checkpoint">
               <div class="lf-summary-header">
                 <div class="lf-summary-label">${range.summary.label}</div>
                 ${range.forced ? nothing : this.#summaryToggle([range])}
@@ -1137,18 +1156,10 @@ export class ThreadView {
         progress && range.forced
           ? html`<div class="lf-summary-required">${range.requiredText}</div>`
           : nothing
-      }
-      <div id=${originalsId} class="lf-summary-originals" ?hidden=${!range.expanded}>
-        ${repeat(
-          range.messages,
-          (message) => message.key,
-          (message) =>
-            html`${markerFor(message.key)}${
-              range.nodes[range.messages.indexOf(message)]
-            }`,
-        )}
-      </div>
-    </section>`;
+      }`,
+      node,
+      { renderBefore: originals },
+    );
   }
 
   #summaryToggle(ranges, progress = false) {
@@ -1328,29 +1339,15 @@ export class ThreadView {
           ),
       },
     };
-    const lifetime = createReplyView(model.key, commands, {
+    return createReplyView(model.key, commands, {
       onChange: replyChanged,
       editLast: this.#rewrites.editLast,
+      reveal: panel
+        ? () => this.#commands.listRoot.revealNavigation(this.#model.id)
+        : null,
+      sizes: panel ? replyRowSizes : null,
+      redraw: () => this.repaint(),
     });
-    const { node: row, input } = lifetime;
-    if (panel)
-      input.lfRevealReply = () =>
-        this.#commands.listRoot.revealNavigation(this.#model.id);
-    if (!panel)
-      return {
-        node: row,
-        cancelDictation: lifetime.cancelDictation,
-        dispose: lifetime.dispose,
-      };
-    replyRowSizes.observe(row);
-    return {
-      node: row,
-      cancelDictation: lifetime.cancelDictation,
-      dispose: () => {
-        replyRowSizes.unobserve(row);
-        lifetime.dispose();
-      },
-    };
   }
 
   #prepareLanding(reopen) {

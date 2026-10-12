@@ -14,6 +14,7 @@ import { createLiveLeavesList } from "./live-leaves-list.js";
 import { bannerControlDoor, dismissBannerControls } from "./banner-toolbar.js";
 import { createQueueList, shownItems, walkStops } from "./queue-list.js";
 import { keeps } from "./keeps.js";
+import { move } from "./dom-move.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { registerReadingRegion } from "./reading-regions.js";
 // Two drawers, each a head over a list of rows, selected one at a time with every other
@@ -104,7 +105,7 @@ queueNextBtn.title = "Go to the next question waiting on you (q)";
 // The walk steps on from where the user stands, so a press leaves them standing there
 // rather than moving focus onto the button, as a gesture step on the banner does.
 queueNextBtn.addEventListener("mousedown", (event) => event.preventDefault());
-queueFurniture.head.insertBefore(queueNextBtn, queueFurniture.close);
+move(queueFurniture.head, queueNextBtn, queueFurniture.close);
 
 // Furniture is local to this owner; selection belongs to the auxiliary-surface owner.
 const drawers = new Map();

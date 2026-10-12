@@ -1,6 +1,6 @@
 """Run tests as concurrent copies, so a failure that needs a loaded machine shows.
 
-    uv run leaf-dev flake "tests/test_render_threads.py::test_x[pr-walkthrough]"
+    uv run leaf-dev flake "tests/browser/test_render_threads.py::test_x[pr-walkthrough]"
 
 Repeating a test serially reruns it on the machine that already passes it; a browser
 test that passed 20 serial runs failed twice in 18 concurrent ones. So this runs the

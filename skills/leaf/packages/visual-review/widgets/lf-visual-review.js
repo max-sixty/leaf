@@ -14,7 +14,6 @@ import {
   countAreas,
   describeDifference,
   compoundReadingRegionId,
-  placeThreads,
   placeKeeper,
   failSoft,
   frameFor,
@@ -37,6 +36,7 @@ import {
   projectData,
   readingPosture,
   registerReadingRegion,
+  releaseOutlets,
   scopedMediaUrl,
   scrollerFor,
   scrollIntoReadingBand,
@@ -44,6 +44,7 @@ import {
   scrollBehavior,
   shownWindow,
   sizeObserver,
+  threadSurface,
   watchData,
   whileConnected,
   widgetController,
@@ -123,7 +124,6 @@ customElements.define(
     #selected = null;
     #snapshot = null;
     #sizes = null;
-    #threadSurface = null;
 
     connectedCallback() {
       if (!once(this)) return;
@@ -132,12 +132,7 @@ customElements.define(
         this.#sizes = sizeObserver(this.#scheduleEvidenceLayout);
         this.#bindEvidence();
         window.addEventListener("resize", this.#scheduleEvidenceLayout, { signal });
-        this.#threadSurface = placeThreads(this, (targets) =>
-          targets.map((target) => this.#threadOutlet(target)),
-        );
         return () => {
-          this.#threadSurface.unregister();
-          this.#threadSurface = null;
           this.#sizes.disconnect();
           this.#sizes = null;
           this.#stopEvidence();
@@ -215,12 +210,12 @@ customElements.define(
               ${offered("lf-vr-inspector-choice", true)}
               value=${value}
               appearance="button"
-              ${commandsOn("On visual evidence", [
+              ${commandsOn("On visual evidence", (radio) => [
                 {
                   id: `visual.${kind}.${value}`,
                   keys: PRESS,
                   title: text.toLowerCase(),
-                  run: () => focused().click(),
+                  run: () => radio.click(),
                 },
               ])}
               >${text}</wa-radio
@@ -274,7 +269,6 @@ customElements.define(
     }
 
     #setScope(scope) {
-      if (!(scope in SCOPE)) return;
       if (scope === "focus" && !this.#focusAvailable()) {
         this.#renderInspector();
         return;
@@ -286,21 +280,20 @@ customElements.define(
     }
 
     #setMode(mode) {
-      if (!(mode in INSPECTION) || mode === this.#mode) return;
+      if (mode === this.#mode) return;
       this.#mode = mode;
       this.#paintInspection();
       notice(`${INSPECTION[mode]} view`);
     }
 
     #setScale(scale) {
-      if (!(scale in SCALE) || scale === this.#scale) return;
+      if (scale === this.#scale) return;
       this.#scale = scale;
       this.#paintInspection();
       notice(`${SCALE[scale]} evidence`);
     }
 
     #setOpacity(opacity) {
-      if (!Number.isFinite(opacity)) return;
       this.#opacity = Math.max(0, Math.min(100, opacity));
       this.#renderInspector();
       this.#inspectShots();
@@ -460,6 +453,11 @@ customElements.define(
     }
 
     #show(snapshot) {
+      // A case the run drops goes with its thread outlet, so core's composer leaves it
+      // first, before the hold below would land the user on the evidence instead.
+      const cases = new Set(snapshot?.value?.cases.map(({ id }) => id));
+      for (const [id, { article }] of this.#caseEntries)
+        if (article && !cases.has(id)) releaseOutlets(article);
       const restoreFocus = holdFocus(this);
       const resume = this.#controller.defer();
       try {
@@ -488,7 +486,7 @@ customElements.define(
             this.#selected = fallback?.id ?? this.#run.cases[0].id;
           this.#paintReview();
           this.#project();
-          this.#threadSurface?.update();
+          threadSurface(this).update();
           this.#scheduleEvidenceLayout();
         });
         restoreFocus?.(() => {
@@ -502,6 +500,7 @@ customElements.define(
         // it rebuilds the cases the failure view discarded.
         this.#sourceReady = false;
         this.#caseEntries.clear();
+        releaseOutlets(this);
         failSoft(this, error);
       } finally {
         resume();
@@ -598,7 +597,7 @@ customElements.define(
       this.#selected = id;
       this.#paintReview();
       const selected = this.#caseEntries.get(id);
-      this.#threadSurface?.update();
+      threadSurface(this).update();
       layoutChanged(this);
       this.#scheduleEvidenceLayout();
       paintKeys();
@@ -895,6 +894,11 @@ customElements.define(
             ],
         { snapshot: this.#snapshot },
       );
+    }
+
+    // x-thread-surface: Leaf asks for one outlet, or null, per target it hands over.
+    threadOutlets(targets) {
+      return targets.map((target) => this.#threadOutlet(target));
     }
 
     #threadOutlet({ anchor, placement }) {

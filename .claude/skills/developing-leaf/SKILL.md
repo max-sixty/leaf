@@ -56,6 +56,7 @@ installation instructions and complete references.
 | [Impeccable](https://github.com/pbakaus/impeccable#installation) | `/impeccable critique` for hierarchy, grouping and clarity; `audit` for technical UI quality. Its focused workflows include `layout`, `typeset`, `clarify`, `adapt`, `harden` and `distill`. |
 | [Web Design Guidelines](https://github.com/vercel-labs/agent-skills/tree/main/skills/web-design-guidelines) | `/web-design-guidelines` for interface conventions, accessibility, navigation, forms and motion. |
 | [Frontend Design](https://github.com/anthropics/skills/tree/main/skills/frontend-design) | `/frontend-design` for new compositions or an intentional redesign. |
+| [Emil Kowalski's skills](https://github.com/emilkowalski/skills) | `review-animations` for motion: easing, duration, what moves on a keyboard action, and which properties animate. It refuses model invocation, so read its `SKILL.md` and `STANDARDS.md`. `/break-ui` for realistic worst-case content through a page's own data, such as long names, one item or none; it builds a demo-data toggle into the UI it tests, which stays out of a shipped page. |
 
 ## Leave taste to the authoring agent
 
@@ -432,7 +433,7 @@ whether one module owns it. If one does, the rule goes in that module's header a
 the area file keeps at most a pointer (root `AGENTS.md`, "Where instructions live"),
 so the area file holds only what spans its modules and trimmed text does not come back.
 
-Thread appearance changes run `tests/test_render_thread_snapshots.py` on macOS
+Thread appearance changes run `tests/*/test_render_thread_snapshots.py` on macOS
 before landing. Linux CI runs the same delivery journey without comparing images.
 Review captured Mac images before accepting an intentional change;
 `dev/leaf_dev/thread_snapshots.py` owns capture and acceptance.

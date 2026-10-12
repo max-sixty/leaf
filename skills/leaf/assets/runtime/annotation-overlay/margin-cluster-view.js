@@ -1,16 +1,20 @@
 /* The generated child-order owner for overlay annotation controls.
  *
  * The margin projection supplies one frozen descriptor model before any DOM is
- * materialized. This synchronous light-DOM Lit owner seats shared retained native
- * controls across direct and disclosed positions. The overlay owns selection, keyboard state, and
- * whole-host placement; no other code inserts, moves, or removes a child inside a view.
+ * materialized. This synchronous light-DOM owner seats shared retained native
+ * controls across direct and disclosed positions, placing both lists at once
+ * (`setChildLists`) so a control moving between them keeps the user standing in it.
+ * The overlay owns selection, keyboard state, and whole-host placement; no other code
+ * inserts, moves, or removes a child inside a view.
  */
-import { html, nothing, render, repeat } from "/vendor/browser-runtime.js";
+import { html, render } from "/vendor/browser-runtime.js";
+import { setChildLists } from "../dom-children.js";
 import {
   clearContributionControls,
   materializeContributionControls,
   contributionEntry,
   presentContributionEntry,
+  presentContributionReceipts,
 } from "../contribution-controls.js";
 import { contributionSource } from "../contributions.js";
 import { el, offer } from "../widget-elements.js";
@@ -24,6 +28,7 @@ class MarginClusterView extends HTMLElement {
   #entryKey = null;
   #marker = null;
   #more = null;
+  #options = null;
   #optionsId = null;
   #owner = null;
   #toggle = null;
@@ -100,24 +105,24 @@ class MarginClusterView extends HTMLElement {
     this.toggleAttribute("data-lf-options-open", model.optionsOpen);
     this.toggleAttribute("data-lf-folded", model.folded);
     keeps(this, "data-lf-state", model.state);
-    render(
-      html`
-        ${this.#owner.nodes(direct)} ${this.#marker}
-        ${model.folded ? nothing : this.#more}
-        <div
-          class="lf-margin-options"
-          id=${this.#optionsId}
-          role="group"
-          aria-label=${model.options.label}
-          ?hidden=${model.options.hidden}
-          .lfEntry=${model.entry}
-        >
-          ${this.#owner.nodes(options)}
-        </div>
-        ${model.folded ? this.#more : nothing}
-      `,
-      this,
-    );
+    if (!this.#options) {
+      this.#options = el("div", "lf-margin-options");
+      this.#options.id = this.#optionsId;
+      this.#options.setAttribute("role", "group");
+    }
+    keeps(this.#options, "aria-label", model.options.label);
+    keepsHidden(this.#options, model.options.hidden);
+    this.#options.lfEntry = model.entry;
+    const [marker, more, group] = [this.#marker, this.#more, this.#options];
+    setChildLists([
+      [
+        this,
+        model.folded
+          ? [...direct, marker, group, more]
+          : [...direct, marker, more, group],
+      ],
+      [group, options],
+    ]);
     restoreFocus?.();
     return this.primary;
   }
@@ -128,7 +133,7 @@ class MarginClusterView extends HTMLElement {
     this.#entryKey = null;
     this.#offers = Object.freeze([]);
     this.#surface = null;
-    render(nothing, this);
+    this.replaceChildren();
   }
 }
 
@@ -151,8 +156,9 @@ export function createMarginClusterViews({
 
   function materializeOne(item) {
     if (item.kind === "contribution") {
-      const node = controlsOf(item.offered, item.surface).get(item.record.key);
+      const node = controlsOf(item.offered, "margin").get(item.record.key);
       if (item.cluster) node.lfEntry = item.cluster;
+      presentContributionReceipts(node, item.receipt, false);
       return node;
     }
     if (item.kind === "reading") return materializeReading(item);
@@ -170,12 +176,6 @@ export function createMarginClusterViews({
   }
 
   const materialize = (items) => items.map(materializeOne);
-  const nodes = (items) =>
-    repeat(
-      items,
-      (node) => node,
-      (node) => node,
-    );
   const prepare = (offers, surface) => {
     for (const offered of offers) controlsOf(offered, surface);
   };
@@ -226,7 +226,6 @@ export function createMarginClusterViews({
   const owner = {
     materialize,
     materializeOptions,
-    nodes,
     prepare,
     clearOffers,
     retire: (entryKey) => spills.delete(entryKey),

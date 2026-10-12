@@ -4,7 +4,11 @@
 
    The runtime tree is not the set of importers: package widget modules reach this file
    over HTTP from the served page, as `/runtime/widget-api.js`. What only the render
-   gate's probes read belongs in check-api.js instead. */
+   gate's probes read belongs in check-api.js instead.
+
+   Every export above the `// Internal:` comment is the authoring API, and
+   references/module-authoring.md documents each one; the exports below it serve Leaf's
+   bundled packages and kernel widgets alone (tests/runtime/widget-api.test.mjs). */
 export {
   html,
   nothing,
@@ -28,11 +32,6 @@ export { whileConnected, frameFor } from "./arrivals.js";
 export { aborted } from "./abort.js";
 // The rank a position record carries for a unit dropped at an index in a container.
 export { rankAt } from "./projection/model.js";
-export async function mountSample(frame, options) {
-  const owner = await import("./sample.js");
-  return owner.mountSample(frame, options);
-}
-export { dressSamples, wear } from "./dress.js";
 
 // `fragmentTarget(hash)` is the page element a URL fragment names, read as Leaf's own
 // arrivals and links read it.
@@ -45,7 +44,7 @@ export { authoredScope, elementById } from "./passages.js";
 export { navigateToDatum } from "./application.js";
 // Experimental: one widget marking part of another (indication.js).
 export { indicate } from "./indication.js";
-export { landingInsets, shownParts, shownWindow } from "./geometry.js";
+export { landingInsets, shownWindow } from "./geometry.js";
 // Holding the user's place in a scroller whose contents a widget re-renders.
 export { placeKeeper } from "./user-place.js";
 export { under } from "./shadow.js";
@@ -69,7 +68,7 @@ export {
 } from "./focus.js";
 export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place.
-export { setChildren, setRenderedChildren } from "./dom-children.js";
+export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.js";
 export { readQuestions, watchQuestions } from "./questions/model.js";
 export { comparisonChanges, watchComparison } from "./version.js";
 export { questionWords } from "./questions/answer.js";
@@ -87,7 +86,6 @@ export { queueActions } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
 export {
   threadBox,
-  placeThreads,
   placePageThreads,
   consumeAnnotations,
   mountThreadViews,
@@ -95,13 +93,12 @@ export {
   threadActions,
 } from "./application.js";
 export { readThreads } from "./thread/state.js";
+export { releaseOutlets, threadSurface } from "./thread/surfaces.js";
 export { watchThreads } from "./thread/watch.js";
 export { turns as threadTurns, threadSummary } from "./thread/model.js";
-export { threadInput } from "./thread/landing.js";
 // Holding a region's rows the log or the clock decides while their growth would be seen
 // (assets/AGENTS.md, "Stability").
 export { HeldReading } from "./thread/held-news.js";
-export { landInThread } from "./application.js";
 export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
 export {
@@ -137,6 +134,7 @@ export {
 export {
   contributionEntry,
   presentContributionEntry,
+  presentContributionReceipts,
 } from "./contribution-controls.js";
 export { registerContribution } from "./contributions.js";
 export {
@@ -149,8 +147,9 @@ export {
   renderMarkdown,
 } from "./markdown.js";
 export { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
-// Where two images differ, gathered into regions (image-difference.js).
+// Where two images differ, gathered into regions or as pixels (image-difference.js).
 export {
+  compareImagePixels,
   compareImages,
   countAreas,
   describeDifference,
@@ -161,7 +160,6 @@ export { scrollIntoReadingBand, scrollIntoView } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";
 export { claimTraversals, pushEntry, replaceEntry } from "./history.js";
-export { removeRuntimeRootStyle, setRuntimeRootStyle } from "./root-state.js";
 export {
   compoundReadingRegionId,
   preserveReadingRegions,
@@ -173,8 +171,15 @@ export {
 } from "./reading-regions.js";
 export { announce, notice } from "./notifications.js";
 export { alignText, alignedNodes } from "./text-alignment.js";
-export { inChrome, renderRetired, says, textNodesUnder, wrote } from "./passages.js";
-export { ago, clocked, clockValue, quietSince, shortAgo } from "./presence.js";
+export { inChrome, says, wrote } from "./passages.js";
+export {
+  ago,
+  clocked,
+  clockValue,
+  quietSince,
+  readingPaint,
+  shortAgo,
+} from "./presence.js";
 export { shadowStage } from "./shadow-stage.js";
 export { inBaseLayer } from "./stylesheets.js";
 export { revisionLabel } from "./context.js";
@@ -198,7 +203,7 @@ export {
 // `afterPresentation` is the package's whole route past presentation: it waits and
 // declares the arrival in one call, so a widget cannot defer without the page knowing.
 export { PAGE_INTERFACE, PRESENTATION, afterPresentation } from "./presentation.js";
-export { isPagePaint, quietWord } from "./declared-words.js";
+export { quietWord } from "./declared-words.js";
 export { projectData } from "./application.js";
 export { copyCodeBlock } from "./code-copy.js";
 export { retainUserIntent } from "./user-intent.js";
@@ -225,7 +230,6 @@ export {
   measure,
   motionPreview,
   offer,
-  offerElement,
   offered,
   reachedForWords,
   relabel,
@@ -237,3 +241,17 @@ export {
 export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
 
 export { LeafEditorView } from "./editor-view.js";
+
+// Internal: what Leaf's own bundled packages and kernel widgets import beyond the
+// authoring API module-authoring.md documents. Package authors do not use these.
+export async function mountSample(frame, options) {
+  const owner = await import("./sample.js");
+  return owner.mountSample(frame, options);
+}
+export { dressSamples, wear } from "./dress.js";
+export { landInThread } from "./application.js";
+export { threadInput } from "./thread/landing.js";
+export { removeRuntimeRootStyle, setRuntimeRootStyle } from "./root-state.js";
+export { shownParts } from "./geometry.js";
+export { renderRetired, textNodesUnder } from "./passages.js";
+export { isPagePaint } from "./declared-words.js";

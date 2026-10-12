@@ -61,9 +61,11 @@ export const scrollToEnd = (box, behavior = "instant") =>
 
 // Apply a relative movement to the scroller the caller resolved. Keeping the box explicit
 // lets document reading continuity and anchor travel share the operation without either
-// owning the other's default destination.
-export const moveScrollerBy = (box, top, behavior = "instant") =>
-  box.scrollBy({ top, behavior });
+// owning the other's default destination. A move of less than a pixel is none: written,
+// it would still stop a smooth scroll under way in the box.
+export const moveScrollerBy = (box, top, behavior = "instant") => {
+  if (Math.abs(top) >= 0.5) box.scrollBy({ top, behavior });
+};
 
 // How much of a move a box can make from where it stands: a box at its end moves no
 // further, whatever it is asked.

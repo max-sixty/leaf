@@ -9,7 +9,11 @@
    editing; deliberate Resolve leaves that editing place and closes the editor. Native
    Tab preserves the row's session independently of focus. The complete presentation
    carries its detached native owner through a complete commit, then hands the
-   session and caret to the current same-key route. */
+   session to the current same-key route. The owner's row is the session's, not its
+   view's: the route's view puts it in place of its own row (`carry`), taking it from a
+   view that holds it out of sight, as a closed margin card does, so the editor moves
+   with the thread, its caret and undo history with it. A view that cannot draw
+   another row, a package mirror, takes the session and caret into its own. */
 import {
   captureDraftEditing,
   loadDraft,
@@ -105,7 +109,7 @@ export function holdReplyCompositions(threads, realize) {
           compositionOf(destination) ??
           compositionOf(destination?.querySelector(SAY_ROW));
         if (replacement && replacement.controls.input.checkVisibility())
-          adopt(context, replacement);
+          adopt(context, carry(replacement, owner));
       }
     } finally {
       for (const { session } of displaced) session.continuing = false;
@@ -163,17 +167,45 @@ export const dismissReplyAt = (node) => {
   if (context !== null) dismissContext(context);
 };
 
+// Once no view shows the session's row, the view now drawing its thread puts that row
+// in place of its own, and the user goes on in their own editor, with its undo history.
+// A view holding the row out of sight, as a closed margin card does, gives it up and
+// draws a fresh one. A view that cannot draw another row, a package mirror, keeps its
+// own.
+function carry(target, owner) {
+  const giver = owner.binding;
+  if (
+    target === owner ||
+    owner.retired ||
+    !target.binding?.take ||
+    (giver && (!giver.give || owner.row.checkVisibility()))
+  )
+    return target;
+  const session = compositions.get(owner.context);
+  if (session && session.owner !== owner && session.owner !== target) return target;
+  // The giver lets go before the taker attaches, and draws its fresh row only once the
+  // taker has moved this one out, so the row never leaves the document between them.
+  const redrawGiver = giver?.give();
+  target.binding.take(owner);
+  redrawGiver?.();
+  if (session) session.owner = owner;
+  return owner;
+}
+
 // The producer gives each native control its place in the same row on another view.
-// A handoff carries Send as Send and an editor as that editor, with its caret.
+// A handoff carries Send as Send and an editor as that editor, in the row itself where
+// no view holds it any more (`carry`).
 export function replyControlDestination(node) {
   const composition = compositionOf(node);
   if (!composition) return null;
   const part = Object.keys(composition.controls).find(
     (name) => composition.controls[name] === node,
   );
-  return part
-    ? (thread) => compositionOf(thread?.querySelector(SAY_ROW))?.controls[part] ?? null
-    : null;
+  if (!part) return null;
+  return (thread) => {
+    const target = compositionOf(thread?.querySelector(SAY_ROW));
+    return target ? carry(target, composition).controls[part] : null;
+  };
 }
 
 // A thread's reply draft has several views, and sending claims its exact generation.
@@ -183,32 +215,23 @@ export function replyControlDestination(node) {
 const sendReply = (draftCtx, key, text, owns, actions) =>
   sendMessage(draftCtx, owns, (attempt) => actions.reply(key, text, { attempt }));
 
-// One reply draft, send, and typing continuation across every view of a thread. `key`
-// is the thread's `threadKey`, which names its draft; `parent` reads the message the
-// reply answers when it is sent, since the log can name that message after the draft
-// began. The typed action resolves that target from the current reading.
-function wireReply(
-  key,
-  row,
-  input,
-  send,
-  { actions, wireInput, landSent, onChange, editLast },
-) {
+// One reply row: its native editor, wired once to the thread's draft, send, and typing
+// continuation. `key` is the thread's `threadKey`, which names its draft; `parent` reads
+// the message the reply answers when it is sent, since the log can name that message
+// after the draft began. The typed action resolves that target from the current reading.
+// What the row does for a view, its actions, `onChange` and `editLast`, is the binding
+// of whichever view holds it now (`attach`).
+function wireReply(key, row, input, send, wireInput) {
   row.classList.add("lf-comment-box");
   const draftCtx = replyContext(key);
   const composition = {
     context: draftCtx,
+    row,
     controls: { input, send },
-    changed: onChange,
+    binding: null,
+    changed: () => composition.binding?.onChange(),
   };
   row[REPLY_COMPOSITION] = composition;
-  let instances = views.get(draftCtx);
-  if (!instances) views.set(draftCtx, (instances = new Set()));
-  instances.add(composition);
-  const begin = () => {
-    adopt(draftCtx, composition);
-    onChange();
-  };
   input.value = loadDraft(draftCtx) ?? "";
   const sync = wireInput(input, {
     hint: "Reply",
@@ -226,6 +249,7 @@ function wireReply(
     // The new turn is drawn above the box; the landing shows it with the box the user
     // sent from, around wherever the send left them standing.
     send: (_text, raw, owns) => {
+      const { actions, landSent } = composition.binding;
       if (!sendReply(draftCtx, key, raw, owns, actions)) return;
       landSent(closestAcross(input, THREAD));
       sendLanding(input, focused())();
@@ -239,37 +263,59 @@ function wireReply(
         keys: ["ArrowUp"],
         description: "Edit your last message in the thread",
         title: "edit last message",
-        when: () => !sync.value() && Boolean(editLast?.available()),
-        run: () => editLast?.open(),
+        when: () =>
+          !sync.value() && Boolean(composition.binding?.editLast?.available()),
+        run: () => composition.binding?.editLast?.open(),
       },
     ],
   });
   composition.sync = sync;
   sync();
-  // Construction supplies a mirror, not ownership: a hidden panel mirror cannot
-  // take the session from the current route while that route is being replaced.
-  onChange();
-  const stopMirror = mirrorDraft(input, sync, draftCtx, {
+  return composition;
+}
+
+// A view takes the row: it joins the thread's draft views and mirrors the draft, and
+// focus in it makes it the editing session's owner. The returned detach gives it up.
+function attach(composition, binding) {
+  const { context, row, controls, sync } = composition;
+  composition.binding = binding;
+  controls.input.lfRevealReply = binding.reveal ?? undefined;
+  binding.sizes?.observe(row);
+  let instances = views.get(context);
+  if (!instances) views.set(context, (instances = new Set()));
+  instances.add(composition);
+  const begin = () => {
+    adopt(context, composition);
+    composition.changed();
+  };
+  // A row taken again catches up with words another view or tab wrote meanwhile. The
+  // same words are left alone, with their caret and undo history (drafts.js, `sync.load`).
+  sync.load(loadDraft(context) ?? "");
+  // Attaching supplies a mirror, not ownership: a hidden panel mirror cannot take the
+  // session from the current route while that route is being replaced. Nor does it
+  // tell the view, which draws the row itself (`redraw`): a told view of a settled
+  // thread asks for a presentation, whose continuation would carry again.
+  const stopMirror = mirrorDraft(controls.input, sync, context, {
     retained: true,
     mirrored: true,
     onChange: (value) => {
       // A provisional send masks words; only settlement ends their native session.
       // Refusal restores the same generation unless the user already put it away.
-      if (value === null && !draftHasContent(draftCtx)) dismissContext(draftCtx);
+      if (value === null && !draftHasContent(context)) dismissContext(context);
       remember(composition);
-      onChange();
+      composition.changed();
     },
   });
   row.addEventListener("focusin", begin);
-  return {
-    sync,
-    dispose: () => {
-      sync.cancelDictation();
-      stopMirror();
-      row.removeEventListener("focusin", begin);
-      instances.delete(composition);
-      if (!instances.size) views.delete(draftCtx);
-    },
+  return () => {
+    sync.cancelDictation();
+    stopMirror();
+    binding.sizes?.unobserve(row);
+    delete controls.input.lfRevealReply;
+    row.removeEventListener("focusin", begin);
+    instances.delete(composition);
+    if (!instances.size) views.delete(context);
+    composition.binding = null;
   };
 }
 
@@ -312,22 +358,54 @@ export async function restoreReplyEditing(editing, land) {
 export function createReplyView(
   key,
   commands,
-  { onChange = () => {}, editLast = null } = {},
+  {
+    onChange = () => {},
+    editLast = null,
+    reveal = null,
+    sizes = null,
+    redraw = null,
+  } = {},
 ) {
-  const row = offer("div", "lf-thread-reply");
-  const input = offer(TEXT_FIELD);
-  input.name = "reply";
-  const send = offer("button", "lf-btn lf-thread-send", "Send");
-  row.append(input, send);
-  const lifetime = wireReply(key, row, input, send, {
-    ...commands,
-    onChange,
-    editLast,
-  });
+  const fresh = () => {
+    const row = offer("div", "lf-thread-reply");
+    const input = offer(TEXT_FIELD);
+    input.name = "reply";
+    const send = offer("button", "lf-btn lf-thread-send", "Send");
+    row.append(input, send);
+    return wireReply(key, row, input, send, commands.wireInput);
+  };
+  let composition = fresh();
+  const binding = { ...commands, onChange, editLast, reveal, sizes };
+  let detach = attach(composition, binding);
+  // A view that draws its row again on `redraw` can take the session's in its place,
+  // and give its own up for a fresh one (`carry`), drawn by the step it returns.
+  if (redraw) {
+    binding.give = () => {
+      detach();
+      composition = fresh();
+      detach = attach(composition, binding);
+      return redraw;
+    };
+    binding.take = (owner) => {
+      // The row going holds no place of the user's: whoever carries the owner's row
+      // puts them in it (focus.js, `replyDestination`), not the redraw's focus hold.
+      if (composition.row.contains(focused())) focused().blur();
+      detach();
+      // The row given up is gone for good, so no later hand-off carries it back.
+      composition.retired = true;
+      composition = owner;
+      detach = attach(composition, binding);
+      redraw();
+    };
+  }
   return {
-    node: row,
-    input,
-    cancelDictation: lifetime.sync.cancelDictation,
-    dispose: lifetime.dispose,
+    get node() {
+      return composition.row;
+    },
+    get input() {
+      return composition.controls.input;
+    },
+    cancelDictation: () => composition.sync.cancelDictation(),
+    dispose: () => detach(),
   };
 }

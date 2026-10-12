@@ -79,8 +79,8 @@ const wireQuestion = (
   status: "open",
   next_actor: "user",
 });
-// A view's asks as the served lists hold them: each the user owes on Questions, and
-// each that is answered or withdrawn, done.
+// A view's asks as the served lists hold them: each the user owes on Questions, each
+// that is answered or withdrawn, done, and each open one no one owes, held.
 const askQueues = (asks) => {
   const item = (ask) =>
     servedAskItem(ask, {
@@ -92,6 +92,9 @@ const askQueues = (asks) => {
     done: asks
       .filter((ask) => ask.status !== "open")
       .map((ask) => ({ ...item(ask), state: "done", ended: null, detail: null })),
+    held: asks
+      .filter((ask) => ask.status === "open" && ask.next_actor !== "user")
+      .map(item),
   };
 };
 const coordinate = ["choice", "choice", "decide"];
@@ -131,7 +134,7 @@ const state = (taken, events = []) => ({
         undo: [],
         reports: [],
         published_at: null,
-        queues: { questions: [], tasks: [], done: [] },
+        queues: { questions: [], tasks: [], done: [], held: [] },
         approval_blocking: [],
         document: {
           asks: noAsks(),
@@ -1303,9 +1306,20 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
     user: [frozen],
     unanswered: [frozen],
   };
+  const ask = {
+    attention: { kind: "needs_user", reason: "ask", workflow: null },
+    owed: [frozen.id],
+  };
   accepted.browser.thread.threads = [
     servedThread([root], {
-      attention: { kind: "needs_user", reason: "ask", workflow: null },
+      attention: ask.attention,
+      after: {
+        reply: ask,
+        edit: ask,
+        resolve: { attention: null, owed: [] },
+        unresolve: null,
+        react: null,
+      },
     }),
   ];
   app.adopt(accepted);
@@ -1320,8 +1334,8 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
     },
     "now",
   );
-  // The Ask the thread carries is still the user's, so the obligation does not turn
-  // over and back when the reply lands.
+  // The Ask the thread carries is still the user's, so the server says a reply leaves
+  // the thread with them, and the obligation does not turn over and back when it lands.
   const thread = app.read().effective.thread.all[0];
   assert.deepEqual(thread.attention, {
     kind: "needs_user",
@@ -1330,55 +1344,151 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
   });
 });
 
-test("a thread whose opening message the log lost is known by its id, not its root", () => {
-  // `build_threads` keeps such a thread under the lost id and gives it the surviving
-  // reply as its root, which is the message a reply to it names.
+test("a reply reopening a thread over an Ask puts the Ask back on the user at once", () => {
+  // A resolution suppresses the Ask the thread carries, so the server holds it rather
+  // than listing it on Questions; the reply reopens the thread, and the server read it
+  // giving the Ask back. The thread and Questions both say so in the reply's own turn
+  // rather than one of them when the log answers, and Questions draws it where the
+  // server will list it, before an ask the server lists after it.
+  const root = {
+    kind: "comment",
+    id: "question",
+    author: "agent",
+    text: "Choose in the options below.",
+    ts: "now",
+  };
+  const app = setup();
+  const accepted = state(2);
+  const frozen = {
+    ...wireQuestion("frozen-ask", "lf-ask", "frozen-choice", "lf-choice", root.id),
+    next_actor: null,
+  };
+  const later = wireQuestion("later", "lf-choice", "later", "lf-choice", "elsewhere");
+  accepted.browser.thread.asks = {
+    all: [frozen, later],
+    user: [later],
+    unanswered: [frozen, later],
+  };
+  accepted.browser.views[1].queues = askQueues([frozen, later]);
+  const ask = {
+    attention: { kind: "needs_user", reason: "ask", workflow: null },
+    owed: [frozen.id],
+  };
+  accepted.browser.thread.threads = [
+    servedThread([root], {
+      resolved: { id: "closed", kind: "resolve", author: "user" },
+      after: { reply: ask, edit: ask, resolve: null, unresolve: ask, react: null },
+    }),
+  ];
+  app.adopt(accepted);
+  assert.deepEqual(
+    app.read().effective.asks.user.map(({ id }) => id),
+    [later.id],
+  );
+  assert.deepEqual(
+    app.read().effective.queues.questions.map(({ id }) => id),
+    [later.id],
+  );
+
+  app.enqueue(
+    {
+      kind: "reply",
+      parent: root.id,
+      attempt: "reopen",
+      text: "Back to this.",
+      revision: 1,
+    },
+    "now",
+  );
+  const { thread, asks, queues } = app.read().effective;
+  assert.deepEqual(thread.all[0].attention, ask.attention);
+  assert.deepEqual(
+    asks.user.map(({ id }) => id),
+    [frozen.id, later.id],
+  );
+  assert.deepEqual(
+    queues.questions.map(({ kind, id }) => [kind, id]),
+    [
+      ["ask", frozen.id],
+      ["ask", later.id],
+    ],
+  );
+});
+
+test("taking back a reaction that answered a question puts it back on the user at once", () => {
+  // A settling reaction answered the agent's question, so the server lists the ask as
+  // done. Taking the reaction back reopens it, as the server read it doing; the thread
+  // and Questions both say so in the undo's own turn.
+  const question = {
+    kind: "comment",
+    id: "question",
+    author: "agent",
+    text: "Keep this chart?",
+    ts: "now",
+  };
   const kept = {
     kind: "reply",
     id: "kept",
-    parent: "lost",
-    author: "agent",
-    text: "Which repair?",
+    parent: question.id,
+    author: "user",
+    token: "keep",
     ts: "now",
   };
-  const served = (asks) => {
-    const reading = state(2);
-    reading.browser.thread.asks = { all: asks, user: asks, unanswered: asks };
-    reading.browser.thread.threads = [
-      servedThread([kept], {
-        id: "lost",
-        attention: asks.length
-          ? { kind: "needs_user", reason: "ask", workflow: null }
-          : null,
-      }),
-    ];
-    return reading;
-  };
   const app = setup();
-  const thread = () => app.read().effective.thread.all[0];
-  app.adopt(served([wireQuestion("repair", "lf-ask", "pick", "lf-choice", "lost")]));
-  assert.deepEqual([thread().id, thread().root.id], ["lost", "kept"]);
-  assert.deepEqual(thread().attention, {
-    kind: "needs_user",
-    reason: "ask",
-    workflow: null,
-  });
+  const accepted = state(2, [kept]);
+  const answered = {
+    id: `reply:${question.id}`,
+    source: { kind: "reply", id: question.id },
+    thread: question.id,
+    message: question.id,
+    prompt: { text: question.text, target: question.id },
+    answer: { value: { token: "keep" }, event: kept },
+    status: "answered",
+    next_actor: null,
+  };
+  accepted.browser.thread.asks = { all: [answered], user: [], unanswered: [] };
+  accepted.browser.views[1].queues = {
+    ...askQueues([]),
+    done: [
+      {
+        ...servedAskItem(answered, { subject: { kind: "thread", id: question.id } }),
+        state: "done",
+        ended: null,
+        detail: null,
+      },
+    ],
+  };
+  const reopened = {
+    attention: { kind: "needs_user", reason: "ask", workflow: null },
+    owed: [answered.id],
+  };
+  accepted.browser.thread.threads = [
+    servedThread([question, kept], {
+      after: {
+        reply: null,
+        edit: null,
+        resolve: null,
+        unresolve: null,
+        react: null,
+        unreact: { ...reopened, undoes: kept.id },
+      },
+    }),
+  ];
+  app.adopt(accepted);
+  assert.deepEqual(app.read().effective.queues.questions, []);
 
-  app.adopt(served([]));
-  app.enqueue(
-    { kind: "reply", parent: "kept", attempt: "answer", text: "Retry.", revision: 1 },
-    "now",
+  app.enqueue({ kind: "undo", undoes: kept.id, attempt: "take-back" }, "now");
+  const { thread, asks, queues } = app.read().effective;
+  assert.deepEqual(thread.all[0].attention, reopened.attention);
+  assert.deepEqual(
+    asks.user.map(({ id, status }) => [id, status]),
+    [[answered.id, "open"]],
   );
   assert.deepEqual(
-    thread().workflows.map((workflow) => [workflow.id, workflow.subject.id]),
-    [["pending:answer", "lost"]],
+    queues.questions.map(({ kind, id }) => [kind, id]),
+    [["ask", answered.id]],
   );
-  app.refuse("answer");
-  assert.deepEqual(thread().attention, {
-    kind: "needs_user",
-    reason: "resend",
-    workflow: "rejected:answer",
-  });
+  assert.deepEqual(queues.done, []);
 });
 
 test("a pending resend replaces accepted recovery until refusal", () => {
@@ -1999,7 +2109,9 @@ test("pending prose answer changes next actor without suppressing inventory or s
   const pending = app.read().effective.asks;
   assert.equal(pending.all.length, 2);
   assert.equal(pending.all[1].status, "open");
-  assert.equal(pending.all[1].next_actor, "agent");
+  // The reply answers it, as the server read the reply doing (`after`); the log will
+  // say so once it lands.
+  assert.equal(pending.all[1].next_actor, null);
   assert.deepEqual(pending.user, []);
   assert.equal(app.read().effective.queues.questions.length, 0);
   app.refuse("prose-answer");

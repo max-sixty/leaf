@@ -29,8 +29,8 @@ its next tool result. So once the page is handed over, end the turn: start no
 `leaf wait`. As the turn the input reaches takes it, Leaf's prompt hook puts the
 whole delivery in your context (`references/event-batches.md`, "One envelope on
 every transport") and confirms it, so the user's updates read **Picked up** and its
-`acknowledge` is null: run no acknowledgement command. Large input arrives instead
-as a pointer, `leaf delivery read <id>`. Run it before working or replying, and once
+`acknowledge` is null: run no acknowledgement command. Input it could not confirm,
+large input among it, arrives instead as a pointer, `leaf delivery read <id>`. Run it before working or replying, and once
 you have read every part, follow its confirmation instruction. Input that arrives as
 a turn ends comes through the Stop hook the same way. Where the user turned on
 Leaf's hooks module, the module keeps the same watch, and a wake it opens arrives as

@@ -92,7 +92,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 def test_sort_source_follows_the_initial_step_when_code_arrives_later(browser, serve):

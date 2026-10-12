@@ -184,7 +184,7 @@ page to make room for its growth (`comment-placement.js`), though one a scroll c
 the words typed into it (`off-flow.js`). Only a field in flow, which cannot move apart
 from the page, keeps its controls in view as a browser keeps a caret in view
 (`reply-landing.js`). The
-suite's browser fixture watches ordinary tests and nightly tests marked `watch_shifts`
+suite's browser fixture watches unmarked tests and marked ones that opt in with `watch_shifts`
 for a protected box moving on screen without input, news landing just after a press included,
 or typing carrying its field (`tests/shift_watch.js`).
 
@@ -427,6 +427,42 @@ module's own state is written to its store and read back under the same id; a wa
 restores its standing by declared id. A hold, which defers the revision, is for a
 gesture that is not a value: an open composer, a drag, an unresolved delivery, an
 open menu.
+
+### One answer for each question
+
+A question the runtime asks in many places has one owner, which every caller asks. A
+second copy usually starts where a symptom appeared and its author did not find the
+first, then drifts from it at the edges: under a stuck header, in a shadow tree, in
+right-to-left text. Before writing a predicate or reading, or approving one in review,
+look for its question here. A change that creates an owner adds its row; a caller that
+keeps its own test says why beside it. Rows marked *lint* are enforced in
+`eslint.config.mjs`.
+
+| Question | Owner |
+| --- | --- |
+| Where the user stands: focus inside open shadow trees, or a label press holding them | `focus.js` `focused` |
+| Put the user on an element, saying what moved them | `focus.js` `focusDestination(node, cause)` (*lint*) |
+| Whether a control takes typed letters | `focus.js` `typesText`, `takesLetters` |
+| Which focused control counts as the user's place: shown, and not under a stuck box | `user-place.js` `focusedInView` |
+| Whether a click came from the keyboard | `pointer.js` `pressIsKeyboardActivation` |
+| Whether a press is the plain one a control claims: primary button, no modifier | `pointer.js` `plainPress` |
+| Which arrow means back along a row, in its text direction | `keyboard/bindings.js` `rowArrows` |
+| Whether any of a node is in front of the user | `geometry.js` `seenRect`; past top-layer surfaces, `clipsPastSurfaces` |
+| Whether a change of size there would move what is seen | `geometry.js` `motionBand`, `growthIsSeen`, `growthAfterIsSeen` |
+| When none of some nodes is seen any more | `geometry.js` `whenNone` |
+| How much of the window the page shows | `geometry.js` `shownWindow` |
+| Whether a box is stuck, and the band sticky headers cover | `geometry.js` `stuckBox`, `headerInset` |
+| Whether a box scrolls, for a script or for the user | `geometry.js` `scrollContainer`, `scrollport`, `userScrollport` |
+| Which axes a box clips | `rect.js` `clippingAxes` |
+| Whether a place is already shown, and the room a landing needs | `landing-scroll.js` `alreadyShown`, `landingRoom` |
+| Bring something into view without scrolling the page around it | `landing-scroll.js` `scrollIntoView` (*lint*) |
+| Open or close a native modal or popover | `keyboard/layer-stack.js` `showNativeLayer`, `closeNativeLayer` (*lint*) |
+| Which native layers are open, and whether a modal admits a node | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits` |
+| The element a URL fragment names | `anchor-resolution.js` `fragmentTarget` |
+| The language a file path means | `syntax.js` `langForPath`, from the registry's `$languages` |
+| Paint on the next frame, or watch a size | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (*lint*) |
+| Write a DOM value only when it changed | `keeps.js` `keeps` |
+| Threads, workflow, attention, Questions, settlement | the server's folds, under "One writer for each fact" |
 
 ### Facts both runtimes know
 

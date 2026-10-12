@@ -800,8 +800,8 @@ customElements.define(
           [
             // The walk leads the scope, because the shortcut bar's shortlist is its first
             // two live rows and moving is what a user standing on a diff row does
-            // next: the line used to open with "filter files", which is the press for
-            // someone who has not started reading yet. The rest of the scope is one `?`
+            // next, where "filter files" is the press for someone who has not started
+            // reading yet. The rest of the scope is one `?`
             // away in the compact shortcut bar and complete in the reference dialog.
             //
             // `]` and `[` are the reviewer's own step, and `}` and `{` the same step one

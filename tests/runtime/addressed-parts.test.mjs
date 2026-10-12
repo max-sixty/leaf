@@ -91,3 +91,31 @@ test("an opted-in complete inventory derives targets while omission keeps the wh
   source.removeAttribute("parts");
   assert.deepEqual(frame(source, "two"), []);
 });
+
+test("travel settles a visible part before a pending replacement can retire it", async () => {
+  document.body.innerHTML = "<main></main>";
+  const source = document.createElement("lf-film");
+  source.setAttribute("parts", "one two");
+  let shown = "one";
+  let replacing = true;
+  const surface = document.createElement("span");
+  source.append(surface);
+  document.querySelector("main").append(source);
+  registerVisualParts(
+    source,
+    () => [{ id: shown, element: surface, label: "a frame" }],
+    {
+      reveal: (id) => {
+        replacing = false;
+        shown = id;
+      },
+    },
+  );
+  const replacement = Promise.resolve().then(() => {
+    if (replacing) shown = "two";
+  });
+
+  revealAddressed(source, "one");
+  await replacement;
+  assert.equal(shown, "one", "the requested destination remains the drawn part");
+});

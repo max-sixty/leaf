@@ -78,8 +78,6 @@
     "typescript": "7.0.2",
     "uuid": "14.0.2",
     "viewerjs": "1.15.2",
-    "vis-data": "8.0.5",
-    "vis-timeline": "8.5.4",
     "vitest": "5.0.0",
     "w3c-keyname": "2.2.8",
     "wrangler": "4.149.0",

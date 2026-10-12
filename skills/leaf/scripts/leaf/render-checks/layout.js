@@ -1,9 +1,11 @@
 import { pageScroller, readingPosture, TEXT_BOX } from "/runtime/widget-api.js";
 import {
+  pageDocument,
   readingRegions,
   shownBand,
   shownRegionBounds,
   uiInside,
+  userScrollport,
 } from "/runtime/check-api.js";
 import { laidOutItems } from "./framing.js";
 import { at as element, place } from "./locate.js";
@@ -21,7 +23,7 @@ const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
 // never moves the column. Both a sweep sample and its breakpoint refinement read the
 // tokens the margin layout publishes, rather than rediscovering residency from boxes.
 export function marginResidents() {
-  return (document.querySelector("main")?.getAttribute("data-lf-margin") ?? "")
+  return (pageDocument()?.getAttribute("data-lf-margin") ?? "")
     .split(" ")
     .filter((token) => token && token !== "rail")
     .join(" ");
@@ -64,7 +66,7 @@ export function columnGeometry() {
 // with its place under `main`, a selector another load of the same page resolves to the
 // same box, and the name every finding uses (locate.js).
 export function arrangedBoxes(open) {
-  const main = document.querySelector("main");
+  const main = pageDocument();
   if (!main) return [];
   const opens = new Set(open);
   const boxes = [];
@@ -101,8 +103,8 @@ export function arrangedBoxes(open) {
 // how many share some stretch of the page's height. One is a column of panes; a grid with
 // two stacked on the left of a tall third is two.
 export function heldPanes() {
-  const main = document.querySelector("main.layout-workspace");
-  if (!main) return [];
+  const main = pageDocument();
+  if (!main?.matches(".layout-workspace")) return [];
   const held =
     getComputedStyle(main).getPropertyValue("--lf-full-height").trim() === "1";
   return [...main.children].flatMap((body) => {
@@ -133,9 +135,9 @@ const AUTHORED_PANE = '[data-lf-reading-role="pane"]:not([data-lf-generated])';
 // no screen. Each comes back with its id, the name every finding uses, and how far its
 // body runs past its scrollport.
 export function overflowingRegions() {
-  const main = document.querySelector("body > main.layout-workspace");
+  const main = pageDocument();
   if (
-    !main ||
+    !main?.matches(".layout-workspace") ||
     getComputedStyle(main).getPropertyValue("--lf-full-height").trim() !== "1"
   )
     return [];
@@ -258,7 +260,7 @@ export function misplacedBoxes() {
   // apart — and because `overflow` is one of three ways to draw nothing past an edge.
   // (TRAPPED_MARGINS reads `contain` for the neighbouring question: which margins a
   // formatting context keeps in.)
-  const main = document.querySelector("main");
+  const main = pageDocument();
   if (!main) return [];
   // The column belongs to the page. Visible Leaf chrome still has to fit it, but chrome
   // hidden with opacity or visibility has no box a user can lose. checkVisibility()
@@ -466,7 +468,7 @@ export function misplacedBoxes() {
   // the page scrolls, cannot see one. Wholly inside, because a box half
   // in the clip is half unreadable: the group above leaves 7px of a 192px note
   // showing, which is nothing an "overlaps at all" reading would have objected to.
-  const scrolls = (s) => /^(auto|scroll)$/.test(s.overflowX);
+  const scrolls = (s) => userScrollport(s.overflowX);
   const lost = new Map();
   // Up the containing blocks rather than the markup, since those are the boxes that
   // hold this one: an absolutely-placed box hangs off the nearest ancestor that
@@ -620,7 +622,7 @@ export function misplacedBoxes() {
 // columns with their widths, names the widest, and leaves the diagnosis to the author.
 // A table that scrolls with nothing left to wrap is the theme's honest third case.
 export function squeezedTables() {
-  const main = document.querySelector("main");
+  const main = pageDocument();
   if (!main) return [];
   // What a heading says, for the column's name.
   const says = (cell) => {

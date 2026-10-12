@@ -6,6 +6,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     DRAFTED,
+    FLOW_PAGE,
     PAGE,
     SUGGESTED,
     SUGGESTION,
@@ -184,8 +185,8 @@ def test_a_written_comment_quotes_the_whole_passage(page_dir):
     )
     assert len(passage) > 400, "the fixture no longer outruns the old cap"
     long = PAGE.replace(
-        '  <lf-diagram id="flow"><pre>\ngraph LR\n  A --> B\n  </pre></lf-diagram>\n',
-        f"  <p>{passage}</p>\n  <p>Deploys pause overnight.</p>\n",
+        "</section>",
+        f"  <p>{passage}</p>\n  <p>Deploys pause overnight.</p>\n</section>",
     )
     (page_dir / "index.html").write_text(long)
     event = json.loads(
@@ -202,8 +203,7 @@ def test_a_quote_closing_its_section_stores_the_next_sections_words(page_dir):
     The section the anchor names scopes where the search may land, never what surrounds
     the passage."""
     two = PAGE.replace(
-        '  <lf-diagram id="flow"><pre>\ngraph LR\n  A --> B\n  </pre></lf-diagram>\n',
-        "  <p>Deploys pause overnight.</p>\n",
+        "</section>", "  <p>Deploys pause overnight.</p>\n</section>"
     ).replace(
         "</main>",
         '<section id="rollout">\n  <p>The rollout resumes.</p>\n</section>\n</main>',
@@ -494,6 +494,7 @@ def test_a_widgets_data_body_is_not_quotable_but_the_widget_is(page_dir):
     """A diagram's source is a picture by the time the user sees it, so quoting the
     source anchors on text no search will find. Pointing at the element is what a click
     on that diagram does in the browser, and that is the anchor offered instead."""
+    (page_dir / "index.html").write_text(FLOW_PAGE)
     body = comment(published(page_dir), "--quote", "graph LR", "--text", "x")
     assert body.exit_code != 0
     # Named, not merely refused. "the page doesn't say it" was the old answer, and it is
@@ -510,7 +511,7 @@ def test_a_widgets_data_body_is_not_quotable_but_the_widget_is(page_dir):
 
 
 def test_a_comment_may_name_a_declared_visual_part(page_dir):
-    parted = PAGE.replace(
+    parted = FLOW_PAGE.replace(
         '<lf-diagram id="flow">',
         '<lf-diagram id="flow" parts="node:A node:B">',
     )
@@ -561,6 +562,7 @@ def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
     """A picture drawn from data cannot list its parts in markup, so its widget
     declares their kinds: any id a prefix begins is a part a comment may name, with
     nothing authored on the element, and one outside them is refused by name."""
+    (page_dir / "index.html").write_text(FLOW_PAGE)
     declare_part_prefixes(page_dir, "node:")
     published(page_dir)
 
@@ -607,7 +609,7 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
     """The reply and replacement anchor are one durable act. The raw opening keeps
     where the question was asked, while every current-state reading follows the new
     visual part and releases the old element from version retention."""
-    v1 = PAGE.replace(
+    v1 = FLOW_PAGE.replace(
         '<lf-diagram id="flow">',
         '<p id="old-wording">The retry starts here.</p>'
         '<lf-diagram id="flow" parts="node:A node:B">',
@@ -1151,7 +1153,7 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
     """Removing the thing a thread concerns is a current-state transition,
     not permission to attach that thread to some surviving neighbour. The reply
     and revision land together, while the opening anchor remains immutable history."""
-    v1 = PAGE.replace(
+    v1 = FLOW_PAGE.replace(
         '<lf-diagram id="flow">',
         '<p id="old-wording">The retry starts here.</p><lf-diagram id="flow">',
     )
@@ -1271,6 +1273,7 @@ def test_detach_is_a_distinct_reply_target_transition(page_dir):
 
 
 def test_a_withdrawn_reaction_root_can_still_be_moved_but_not_detached(page_dir):
+    (page_dir / "index.html").write_text(FLOW_PAGE)
     published(page_dir)
     root = append_carried_log_record(
         page_dir,
@@ -1380,7 +1383,9 @@ def test_a_moving_reply_validates_markup_against_the_prospective_revision(page_d
     revision active."""
     published(page_dir)
     root = json.loads(
-        comment(page_dir, "--section", "flow", "--text", "Move this when fixed.").output
+        comment(
+            page_dir, "--section", "backfill-first", "--text", "Move this when fixed."
+        ).output
     )
     source = page_dir / "index.html"
     source.write_text(
@@ -1413,7 +1418,7 @@ def test_a_moving_reply_validates_markup_against_the_prospective_revision(page_d
     assert checked.exit_code == 0, checked.output
 
 
-PARTED = PAGE.replace(
+PARTED = FLOW_PAGE.replace(
     '<lf-diagram id="flow">',
     '<lf-diagram id="flow" parts="node:A node:B">',
 )
@@ -1456,7 +1461,7 @@ def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):
     spanning one of those joins would resolve to nothing in the
     user's browser, so it's refused here, where someone can still do something about
     it. Either side of the join quotes fine."""
-    fenced = PAGE.replace(
+    fenced = FLOW_PAGE.replace(
         '  <lf-diagram id="flow"><pre>\ngraph LR\n  A --> B\n  </pre></lf-diagram>',
         "  <p>Before the diagram.</p>\n"
         '  <lf-diagram id="flow"><pre>\ngraph LR\n  A --> B\n  </pre></lf-diagram>\n'
@@ -1686,9 +1691,9 @@ def test_a_widgets_x_says_attribute_is_quotable_like_any_other_passage(page_dir)
     chip band opens the element, and the gloss's tip closes it."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
-            '  <lf-diagram id="flow">',
+            "</section>",
             '  <lf-gloss id="k-visits" tip="312 daily visits">Traffic</lf-gloss>\n'
-            '  <lf-diagram id="flow">',
+            "</section>",
         )
     )
     published(page_dir)

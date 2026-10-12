@@ -43,6 +43,8 @@ def native_trace(tmp_path, browser):
     expect(first.get_by_role("button", name="Done")).to_be_visible()
     context.tracing.group_end()
     first.locator("input").fill("private-input-value")
+    first.locator("input").press("ArrowLeft")
+    first.keyboard.press("Tab")
     context.tracing.group_end()
     second = context.new_page()
     second.set_content("<button>Review</button><button>Review</button>")
@@ -112,6 +114,53 @@ def test_native_trace_import_keeps_pixels_pages_action_errors_and_saved_tree_ide
         event["callId"]: event for event in native_events if event["type"] == "before"
     }
     by_call = {action["callId"]: action for action in value["actions"]}
+    native_inputs = {
+        event["callId"]: event for event in native_events if event["type"] == "input"
+    }
+    input_viewports = {
+        event["snapshot"]["callId"]: event["snapshot"]["viewport"]
+        for event in native_events
+        if event["type"] == "frame-snapshot"
+        and event["snapshot"].get("isMainFrame")
+        and event["snapshot"]["phase"] == "action"
+    }
+    assert native_inputs
+    assert {by_call[call_id]["method"] for call_id in native_inputs} >= {
+        "click",
+        "fill",
+        "press",
+        "keyboardPress",
+    }
+    for call_id, native in native_calls.items():
+        action = by_call[call_id]
+        assert action["method"] == native["method"]
+        if call_id not in native_inputs:
+            assert action["input"] is None
+            continue
+        assert action["input"] == {
+            "selector": native["params"].get("selector"),
+            "key": native["params"].get("key"),
+            "point": native_inputs[call_id].get("point"),
+            "viewport": input_viewports.get(call_id),
+        }
+    assert any(
+        action["input"] and action["input"]["point"] for action in by_call.values()
+    )
+    keyboard = next(
+        action for action in by_call.values() if action["method"] == "keyboardPress"
+    )
+    assert keyboard["input"] == {
+        "selector": None,
+        "key": "Tab",
+        "point": None,
+        "viewport": input_viewports.get(keyboard["callId"]),
+    }
+    assert "private-input-value" not in json.dumps(
+        [
+            {"method": action["method"], "input": action["input"]}
+            for action in by_call.values()
+        ]
+    )
     nested_group = next(
         event
         for event in native_calls.values()
@@ -222,6 +271,8 @@ def test_multiple_native_streams_and_complete_action_records_keep_distinct_ident
                     **event,
                     "type": "action",
                 }
+            elif event["type"] == "input" and "point" in event:
+                calls[event["callId"]]["point"] = event["point"]
         output.writestr(
             "test.trace",
             "\n".join(json.dumps(event) for event in [context, *calls.values()]),
@@ -250,6 +301,24 @@ def test_multiple_native_streams_and_complete_action_records_keep_distinct_ident
     assert all(action["pageId"] is None for action in runner)
     assert any(action["error"] for action in runner)
     assert any(action["title"] == "Review docs" for action in runner)
+    assert all(
+        action["method"]
+        == next(
+            native["method"]
+            for native in library
+            if native["callId"] == action["callId"]
+        )
+        for action in runner
+    )
+    runner_click = next(action for action in runner if action["input"])
+    library_click = next(
+        action for action in library if action["callId"] == runner_click["callId"]
+    )
+    assert runner_click["input"] == {
+        **library_click["input"],
+        "viewport": None,
+    }
+    assert library_click["input"]["viewport"] == {"width": 640, "height": 480}
 
 
 def test_unreadable_archive_refuses_before_importing_media(media_page, tmp_path):

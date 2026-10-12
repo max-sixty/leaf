@@ -153,10 +153,16 @@ def stage(output):
         target = output / "site" / Path(name).relative_to("public")
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(fixtures / name, target)
-    dependency = ROOT / provenance["dependency"]["path"]
-    if digest(dependency) != provenance["dependency"]["sha256"]:
+    # The recorded viewer's timeline library has left the tree; history keeps its bytes.
+    dependency = output / "site/assets/timeline.esm.js"
+    pinned = provenance["dependency"]
+    dependency.write_bytes(
+        subprocess.check_output(
+            ["git", "show", f"{pinned['commit']}:{pinned['path']}"], cwd=ROOT
+        )
+    )
+    if digest(dependency) != pinned["sha256"]:
         raise click.ClickException("Frozen timeline dependency changed")
-    shutil.copyfile(dependency, output / "site/assets/timeline.esm.js")
     for name in ("cases.yaml", "rubric.json", "provider.mjs", "grade.mjs"):
         shutil.copyfile(SOURCE / name, output / name)
     shutil.copyfile(fixtures / "private/provenance.json", output / "provenance.json")

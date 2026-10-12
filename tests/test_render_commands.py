@@ -58,7 +58,7 @@ from render_harness import (
     shortcut_bar_text,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 def unnamed_browser():

@@ -11,7 +11,9 @@ another. When `AGENT_PREWARM` is `true`, a browser document navigation also star
 identity's container through `waitUntil`. Asset fetches, API clients, and release probes
 do not prewarm. Setting the variable to `false` keeps read-only visits at the edge. The
 first request that needs private, mutable state reaches the canonical Python Leaf
-server. Containers are keyed by both user identity and site release, so a deployment
+server. A page fault the runtime reports from a passive session is not one: it is the
+published page failing, so the edge logs it (see **Browser diagnostics**) rather than
+activating a container to hold it. Containers are keyed by both user identity and site release, so a deployment
 may discard ephemeral demo state instead of routing the new site through an older
 container. Cloudflare activates the Worker and its assets before the container image has
 finished rolling out, so a session opened in that window still starts on the previous
@@ -294,6 +296,16 @@ The deployed site answers that beacon at the edge, so the container never sees i
 served straight from `leaf_website` — the test suite, a local preview — has no edge in front
 of it, so the adapter acknowledges the report itself and keeps no record of it. Startup
 profiles exist only for the deployed release.
+
+A runtime fault after startup, such as a code block that fails to highlight, reaches
+the agent as a page `error` event (`reportPageError`). In a passive session the page is
+the published one, so the edge answers that event itself, with no container, and
+writes one `component=leaf-page-error`, `event=browser_page_error` record carrying the
+session `reference`, route, the document's `release` and the edge's `currentRelease`,
+document `revision`, browser, platform, and the first 300 characters of the runtime's
+words as `reason`, which the startup `reason` caution covers too. Such a fault never
+reaches the agent, even after the visitor's first comment activates the session. Once
+the session is active, faults go to its container's log like any other event.
 
 The deployed site also accepts `POST api/interaction` at the edge and writes each
 validated browser batch as one `component=leaf-interaction`, `event=client_batch`

@@ -115,7 +115,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 @pytest.mark.parametrize("touch", [False, True])
@@ -2237,6 +2237,54 @@ def test_a_window_sample_is_a_whole_leaf_window_that_scrolls_inside(browser, ser
     expect(child_frame.get_by_role("tab", name="Long view")).to_have_attribute(
         "aria-selected", "true"
     )
+
+
+def test_reading_keys_page_on_from_a_sample_to_its_page(browser, serve):
+    """d/u in a sample whose own page is spent move the containing page, as the
+    wheel does; in Full view the modal keeps them inside."""
+    filler = "".join(
+        f'<p id="line-{i}">Line {i} of a long child page.</p>' for i in range(60)
+    )
+    source = leaf_page(
+        "Sample reading keys",
+        f"""
+<h1>Sample reading keys</h1>
+<div style="height: 300px"></div>
+<lf-sample id="block" label="A block sample">
+  <template id="block-page" data-sample>
+    <p id="child-text">A short child page.</p>
+  </template>
+</lf-sample>
+<lf-sample id="window" label="A window sample" window>
+  <template id="window-page" data-sample>{filler}</template>
+</lf-sample>
+<div style="height: 2400px"></div>
+""",
+    )
+    page = open_page(browser, serve(source))
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1200, 800)
+    block = page.locator("#block")
+    block.evaluate("async sample => { await sample.ready; }")
+    child = block.locator("iframe").element_handle().content_frame()
+    assert child.evaluate("() => document.scrollingElement.scrollHeight <= innerHeight")
+    child.locator("#child-text").click()
+    page.keyboard.press("d")
+    expect(page.locator(":root")).not_to_have_js_property("scrollTop", 0)
+    below = page.evaluate("scrollY")
+    page.keyboard.press("u")
+    page.wait_for_function("below => scrollY < below", arg=below)
+
+    window = page.locator("#window")
+    window.evaluate("async sample => { await sample.ready; }")
+    window.get_by_role("button", name="Full view", exact=True).click()
+    inside = window.locator("iframe").element_handle().content_frame()
+    inside.locator("#line-59").click()
+    inside.evaluate("() => scrollTo(0, document.scrollingElement.scrollHeight)")
+    at = page.evaluate("scrollY")
+    page.keyboard.press("d")
+    page.wait_for_timeout(300)
+    assert page.evaluate("scrollY") == at
 
 
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])

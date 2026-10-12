@@ -9,8 +9,11 @@ The archive remains the evidence owner. This producer reads entries in memory,
 never extracts archive paths, and imports original raster bytes through the
 chosen Leaf launcher's page-media command. Stdout is the complete manifest for
 `leaf data set`; diagnostics use stderr. The page must already bind its source.
-API parameters remain in the archive and viewer, since a manifest reaches every
-page user and should not duplicate captured URLs or filled values.
+Native methods and input events retain selector, key, pointer coordinates and the
+input snapshot's viewport for interaction review. Other API parameters remain in the archive and viewer, since
+a manifest reaches every page user and should not duplicate URLs or filled values.
+Input events have no native timestamp: action-phase times describe their captured
+snapshot, not a simultaneous measurement of pointer coordinates and image pixels.
 Native tracing-group ancestry prefixes child action titles; groups retain their
 own titles, and parents outside a stream supply no label.
 
@@ -99,6 +102,36 @@ def _group_contexts(calls, stream_name):
     return contexts
 
 
+def _input(event, native_input, phases, viewport):
+    """Retain native input facts, without inferring gestures from display titles."""
+    if native_input is None:
+        # Complete action records can carry the input point/snapshot directly.
+        # Format-9 action-phase snapshots also establish native input capture.
+        if (
+            event.get("point") is None
+            and event.get("inputSnapshot") is None
+            and "action" not in phases
+        ):
+            return None
+        native_input = event
+    call_id = event["callId"]
+    params = event.get("params", {})
+    point = native_input.get("point")
+    if point is not None:
+        if not isinstance(point, dict) or set(point) != {"x", "y"}:
+            raise TraceError(f"{call_id}: invalid input point")
+        point = {
+            axis: _number(point[axis], f"{call_id} input point {axis}")
+            for axis in ("x", "y")
+        }
+    return {
+        field: _string(params[field], f"{call_id} input {field}")
+        if field in params
+        else None
+        for field in ("selector", "key")
+    } | {"point": point, "viewport": viewport}
+
+
 class _StreamCaptures:
     """One native stream's page identities and captured call phases.
 
@@ -111,6 +144,7 @@ class _StreamCaptures:
         self.identity = identity
         self.pages = {}
         self.phases = {}
+        self.input_viewports = {}
 
     def page_key(self, native_id):
         _string(native_id, "pageId")
@@ -290,7 +324,7 @@ def import_trace(trace: Path, *, page: Path, launcher: Path, viewer_url: str) ->
                     else None,
                 }
             )
-            calls = {}
+            calls, inputs = {}, {}
             capture = _StreamCaptures(stream_name, stream_id)
 
             for index, event in enumerate(events[1:], 1):
@@ -306,6 +340,9 @@ def import_trace(trace: Path, *, page: Path, launcher: Path, viewer_url: str) ->
                     if call_id in calls:
                         raise TraceError(f"{stream_name}: repeated action {call_id!r}")
                     calls[call_id] = dict(event)
+                elif kind == "input":
+                    call_id = _string(event.get("callId"), "input callId")
+                    inputs[call_id] = event
                 elif kind == "after":
                     call_id = _string(event.get("callId"), "after callId")
                     if call_id not in calls:
@@ -331,6 +368,22 @@ def import_trace(trace: Path, *, page: Path, launcher: Path, viewer_url: str) ->
                         held["timestamp"] = _number(
                             snapshot["timestamp"], "DOM timestamp"
                         )
+                        if snapshot["phase"] == "action" and "viewport" in snapshot:
+                            viewport = snapshot["viewport"]
+                            if not isinstance(viewport, dict) or set(viewport) != {
+                                "width",
+                                "height",
+                            }:
+                                raise TraceError("invalid input snapshot viewport")
+                            viewport = {
+                                axis: _number(viewport[axis], f"input viewport {axis}")
+                                for axis in ("width", "height")
+                            }
+                            if any(size <= 0 for size in viewport.values()):
+                                raise TraceError(
+                                    "input viewport dimensions must be positive"
+                                )
+                            capture.input_viewports[snapshot["callId"]] = viewport
                 elif kind in {"screencast-frame", "screenshot"}:
                     raw = read(event["file"])
                     suffix = ".jpg" if kind == "screencast-frame" else ".png"
@@ -443,6 +496,13 @@ def import_trace(trace: Path, *, page: Path, launcher: Path, viewer_url: str) ->
                         "stream": stream_id,
                         "callId": call_id,
                         "pageId": action_page,
+                        "method": _string(event.get("method"), f"{call_id} method"),
+                        "input": _input(
+                            event,
+                            inputs.get(call_id),
+                            phases,
+                            capture.input_viewports.get(call_id),
+                        ),
                         "title": title,
                         "startTime": _number(
                             event.get("startTime"), f"{call_id} startTime"
@@ -454,7 +514,9 @@ def import_trace(trace: Path, *, page: Path, launcher: Path, viewer_url: str) ->
                         "phases": phases,
                     }
                 )
-            unknown_calls = {call_id for call_id, _ in capture.phases} - calls.keys()
+            unknown_calls = (
+                {call_id for call_id, _ in capture.phases} | inputs.keys()
+            ) - calls.keys()
             if unknown_calls:
                 raise TraceError(
                     f"{stream_name}: captures name unknown calls {sorted(unknown_calls)}"

@@ -138,8 +138,16 @@ test("an owner replaced within one batch releases before its replacement starts"
       stops.push(hold(arriving));
     });
     assert.deepEqual(held, [arriving]);
+    // A returning owner arrives through the batch, which still releases first.
+    await mutate(() => arriving.remove());
+    assert.deepEqual(held, []);
+    await mutate(() => document.body.append(outgoing));
+    assert.deepEqual(held, [outgoing]);
+    await mutate(() => outgoing.replaceWith(arriving));
+    assert.deepEqual(held, [arriving]);
   } finally {
     for (const stop of stops) stop();
+    outgoing.remove();
     arriving.remove();
   }
 });

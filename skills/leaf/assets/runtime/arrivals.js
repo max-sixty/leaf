@@ -29,11 +29,13 @@
    An element's connection lifetime is one such watch over every element:
    `watchOwner(owner, {connect, disconnect})` connects while the owner stands and
    disconnects once a batch shows it gone, so a move within one batch keeps it. A new
-   owner connects through `offer`, so whatever left before it has released first: a
-   revision evicts a replaced widget before its replacement connects, and a
-   registration only one element may hold passes from one to the other. The
-   runtime's own subscriptions (data, projections, widget controllers) and clock paints
-   (`clocked` and `readingPaint` in presence.js) hold it directly.
+   owner connects through `offer`, and a batch decides its departures before its
+   arrivals, so whatever left before an owner connects has released first: a revision
+   evicts a replaced widget before its replacement connects, and a registration only
+   one element may hold passes from one to the other. A connection also ends the
+   batch, so an element removed before it and put back after it leaves and returns.
+   The runtime's own subscriptions (data, projections, widget controllers) and clock
+   paints (`clocked` and `readingPaint` in presence.js) hold it directly.
    Widgets hold it through `whileConnected`, for resources, and `frameFor`, for
    scheduled paints, which `widget-api.js` exports in its place.
 
@@ -177,19 +179,18 @@ function* matching(node, selector) {
 
 export function watchArrivals(selector, attributes, { arrive, arriveBatch, leave }) {
   const arrived = new WeakSet();
+  // Every departure a batch shows is decided before any arrival in it.
   const offerMany = (elements) => {
-    if (!arriveBatch) {
-      for (const el of elements) offer(el);
-      return;
-    }
     const standing = [];
     for (const el of elements) {
-      if (stands(el) && el.matches(selector)) {
-        arrived.add(el);
-        standing.push(el);
-      } else if (arrived.delete(el)) leave(el);
+      if (stands(el) && el.matches(selector)) standing.push(el);
+      else if (arrived.delete(el)) leave(el);
     }
-    if (standing.length) arriveBatch(standing);
+    if (!arriveBatch) for (const el of standing) offer(el);
+    else if (standing.length) {
+      for (const el of standing) arrived.add(el);
+      arriveBatch(standing);
+    }
   };
   const offer = (el) => {
     if (stands(el) && el.matches(selector)) {

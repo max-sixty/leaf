@@ -119,10 +119,9 @@ so a red main is no reason to widen a change, its gate, or its test selection. O
 push suite always runs while newer commits land, and each new commit replaces the run
 waiting behind it, which GitHub records as cancelled; the daily run has a queue of its
 own. That is the design working: a suite per merge would report each commit slightly
-sooner at up to twenty times the CI usage. Don't run the broad selection,
-`--run-main`, `--run-nightly`, `-m main`, `-m nightly`, or a whole browser file
-locally outside a landing: each takes minutes to over an hour and slows every other
-session on the machine. To learn what main fails, read that job's run, and reproduce a failure it
+sooner at up to twenty times the CI usage. Root `AGENTS.md`, "Working on the
+repository", says which runs not to start by hand before landing. To learn what main
+fails, read that job's run, and reproduce a failure it
 names by node id. `tend-ci-fix` sees only that run, so a failure on main that it does
 not show, such as one only macOS reproduces, is left to a local session. Check whether
 a live session, worktree or open pull request already covers it; if none does, start a

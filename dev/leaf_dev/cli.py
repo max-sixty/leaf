@@ -28,7 +28,6 @@ COMMANDS = {
     "probe": "probe",
     "profile": "profile",
     "publish-media": "page_fixtures",
-    "publish-distribution": "distribution",
     "record-demo": "record_demo",
     "refresh-previews": "example_previews",
     "setup": "setup",

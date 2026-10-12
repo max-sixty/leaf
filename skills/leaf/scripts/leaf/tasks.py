@@ -398,9 +398,7 @@ def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
     from .event_contracts import append_admitted
 
     claim = page.claim
-    turn = (
-        claim.get("turn") if claim and claim["id"] == identity.get("session") else None
-    )
+    turn = claim["turn"] if claim and claim["id"] == identity.get("session") else None
     record, _ = append_admitted(
         page,
         {

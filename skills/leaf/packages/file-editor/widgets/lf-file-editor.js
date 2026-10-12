@@ -2,17 +2,27 @@
  * Leaf's event log; this owner keeps only the editing buffer, acknowledged file
  * revision and recoverable tab-local draft. CodeMirror owns editing mechanics.
  *
+ * The draft is tab-local because the file on disk is what tabs share: every tab
+ * autosaves to it within half a second, and a copy shared across tabs would set two
+ * live buffers against one file with no log to settle between them. The draft only
+ * has to survive this tab's reloads, including the forced one when Leaf's layer
+ * changes, which is what lets the editor say the draft is kept.
+ *
  * Autosave serializes snapshots, retaining later typing while each receipt adopts
  * exactly the submitted snapshot. A clean editor follows external revisions through
  * CodeMirror transactions; a dirty one retains both versions for explicit review.
+ * The editor reads the file when it connects, when the tab is shown again, and when
+ * the page's state stamps the binding anew (`boundFile().watch`). A read asked for
+ * while another request is in flight, or while a failure or conflict holds the
+ * editor, stays owed until a later read or save covers it.
  * Ordinary writes have no status transition. A write pending for one second earns a
  * quiet, fixed status slot until the newest buffer is acknowledged. Failures and
  * conflicts remain visible. The compared disk version stays fixed for the reader's
  * choice; saving the draft checks that revision again. Connection lifetime pauses
- * polling and listeners while retaining the editor, its history and in-flight receipt.
+ * the file watch and listeners while retaining the editor, its history and in-flight
+ * receipt.
  */
 import {
-  afterPresentation,
   boundFile,
   focusDestination,
   focused,
@@ -59,6 +69,7 @@ customElements.define(
         finishSaving();
         paint();
         focusDestination(editor.contentDOM, "return");
+        if (owed) void refresh();
       };
       const keepDraft = (event) => void flush(true, event.currentTarget);
       const retry = (event) => {
@@ -75,9 +86,10 @@ customElements.define(
         comparison = null;
       let generation = 0,
         timer = null,
-        poll = null,
+        stopWatch = null,
         slowTimer = null;
       let recovering = false,
+        owed = false,
         connected = false,
         slow = false,
         announcement = "";
@@ -220,6 +232,10 @@ customElements.define(
         const against = replace ? latest : base;
         const text = editor.value;
         busy = true;
+        // The host compares the file before writing, so a receipt or a stale answer
+        // covers any read owed before it starts; a failure read nothing.
+        const owedBefore = owed;
+        owed = false;
         if (!slow && slowTimer === null)
           slowTimer = setTimeout(() => {
             slow = true;
@@ -236,7 +252,10 @@ customElements.define(
           if (fault.current) {
             latest = fault.current;
             failure = null;
-          } else failure = { kind: "save", message: fault.message, replace };
+          } else {
+            failure = { kind: "save", message: fault.message, replace };
+            owed ||= owedBefore;
+          }
         } finally {
           busy = false;
           if (connected) remember();
@@ -250,11 +269,17 @@ customElements.define(
           if (returning && returnFrom.hidden)
             focusDestination(editor.contentDOM, "return");
           schedule(0);
+          if (owed) void refresh();
         }
       }
       async function refresh(returnFrom = null) {
-        if (!connected || busy || ((failure || latest) && !returnFrom)) return;
+        if (!connected) return;
+        if (busy || ((failure || latest) && !returnFrom)) {
+          owed = true;
+          return;
+        }
         busy = true;
+        owed = false;
         const seenGeneration = generation;
         try {
           const current = await api.read();
@@ -279,6 +304,7 @@ customElements.define(
           if (returning && returnFrom.hidden)
             focusDestination(editor.contentDOM, "return");
           schedule(0);
+          if (owed) void refresh();
         }
       }
       const beforeUnload = (event) => {
@@ -312,17 +338,12 @@ customElements.define(
             widgetController(this).present(ready);
             initial = false;
           }
-          afterPresentation(() => {
-            if (connected && poll === null)
-              poll = setInterval(() => {
-                if (!document.hidden) void refresh();
-              }, 2000);
-          });
+          stopWatch = api.watch(() => void refresh());
         },
         disconnect: () => {
           connected = false;
-          window.clearInterval(poll);
-          poll = null;
+          stopWatch();
+          stopWatch = null;
           clearTimeout(timer);
           finishSaving();
           paint();

@@ -90,7 +90,7 @@ def test_what_the_user_does_in_a_thread_acknowledges_what_it_said(page_dir, serv
     assert _unread(answer["state"], root) == []
 
     reply = thread_model.post_reply(
-        page_dir, None, "Mounts first, then.", None, for_event=_last_id(page_dir)
+        page_dir, {"for": _last_id(page_dir)}, "Mounts first, then."
     )["id"]
     assert state_json(page_dir)["threads"][0]["unread"] == [reply]
     status, answer = _post(
@@ -99,9 +99,9 @@ def test_what_the_user_does_in_a_thread_acknowledges_what_it_said(page_dir, serv
     assert status == 200, answer
     assert _unread(answer["state"], root) == []
 
-    later = thread_model.post_reply(
-        page_dir, None, "Done.", None, for_event=_last_id(page_dir)
-    )["id"]
+    later = thread_model.post_reply(page_dir, {"for": _last_id(page_dir)}, "Done.")[
+        "id"
+    ]
     status, answer = _post(server, {"kind": "resolve", "parent": root})
     assert status == 200, answer
     assert _unread(answer["state"], root) == []

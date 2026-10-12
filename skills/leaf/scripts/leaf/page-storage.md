@@ -116,7 +116,9 @@ other page files and the external state listed below.
 - `files.json` — explicit local text-file grants, written by `leaf file bind PAGE
   ID PATH` as `{ "bindings": { "ID": "/absolute/canonical/path" } }`.
   `file_bindings.py` owns the grants and current-file reads and writes. Browser
-  requests name only a binding, never a path. These files remain their own authority:
+  requests name only a binding, never a path. The page's reading stamps each bound
+  file and the state answer carries those stamps under `files`, so a tab hears a
+  write from outside Leaf without reading the file on a timer. These files remain their own authority:
   editing is mechanical browser state, outside document revisions and event history.
   The API reads current UTF-8 text up to 256 KiB and saves against a revision of its
   path and exact bytes, preserving LF or CRLF and file permission bits. Mixed line endings,

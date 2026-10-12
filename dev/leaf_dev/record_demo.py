@@ -326,10 +326,8 @@ def record(
 
     post_reply(
         page_dir,
-        None,
+        {"for": comment_id},
         "Yes. The fixed rate limit keeps the backfill online.",
-        None,
-        for_event=comment_id,
         validate_source=True,
     )
     (page_dir / "index.html").write_text(demo_page(2), encoding="utf-8")

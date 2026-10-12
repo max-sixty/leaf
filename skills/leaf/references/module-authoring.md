@@ -16,15 +16,15 @@ a new capability.
 ## Public API
 
 Rendering work that reaches a resting state uses `nextRender`, `nextFrame` and
-`cancelRender`. Continuous mechanical motion, such as recording playback, uses
+`cancelRender`; an element's own paints go through `frameFor`, which cancels them
+when the element leaves ("Connection lifetimes"). Continuous mechanical motion, such as recording playback, uses
 `nextAnimation` and `cancelAnimation`: it schedules browser frames without holding
 page readiness open. Cancel it when the motion stops or its owner leaves.
 
 `/runtime/widget-api.js` is the whole Leaf API a behavior module gets: a module imports
 only that public helper surface, and does not reach into the runtime's private owners,
-query private chrome, or duplicate a runtime helper inside itself. It exports Lit's
-`html`, `svg`, `mathml`, `nothing`, `noChange`, `repeat`, `keyed`, `live`, `ref`,
-`createRef`, `classMap`, `styleMap`, `guard`, `when`, `ifDefined`, and `unsafeHTML`.
+query private chrome, or duplicate a runtime helper inside itself. Of Lit, it exports
+the names under **Lit exports** below.
 Resolve canonical `/media/…` paths from typed data with `scopedMediaUrl(path)` before assigning them to
 generated images or links. It uses the page's public root across ordinary and
 published pages while the source retains its canonical path.
@@ -69,6 +69,11 @@ and paint the current value with `inlineMarkdownFragment()`; repaint that value 
 loading completes. A changing numeric readout keeps surrounding text still with
 tabular numerals and a slot wide enough for its largest value.
 
+### Lit exports
+
+`render`, `html`, `nothing`, `repeat`, `keyed`, `live`, `ref`, `classMap`, `styleMap`,
+`guard`, and `unsafeHTML`.
+
 ## Startup and presentation
 
 `body[data-lf-presented]` means the initial authoritative projection, or the deliberate
@@ -88,18 +93,20 @@ with `shadowStage`.
 
 ## Template rendering
 
-Use Leaf's public `render(template, container)` when a paint must land in the
-turn that caused it, including a forward widget gesture. `LitElement` schedules
-updates on a microtask; use it only for runtime faces whose contract permits that
-delay. Package widgets extend `HTMLElement` and
-receive semantic state through `widgetController`, without a LitElement widget
-base or a reactive copy of that state.
+Paint templates with `render(template, container)`, which lands in the turn that
+caused it, including a forward widget gesture. Package widgets extend `HTMLElement`
+and receive semantic state through `widgetController`, without a reactive copy of
+that state.
 
 Templates own generated containers or bounded ranges, rather than authored
-children. Key rows with `repeat` to retain their nodes across reorders. Leaf's Lit
-build uses the shared move primitive, preserving focus and iframe state where the
-browser supports `moveBefore`; ordinary insertion on other engines still needs
-the focus hold described in **Focus, motion, and travel**, and may reload iframes.
+children. Key rows with `repeat` to retain their nodes across reorders.
+
+Every placement of a retained node, by `render`, `repeat`, `setChildren` or
+`move`, keeps the user standing in it. Within one composed root it uses native
+`moveBefore` where the browser has it, which keeps focus, caret, typed text and
+iframe documents. Elsewhere, Safari included, it inserts the node and puts the user
+back on it, with a text field's caret, and an iframe in it reloads. A reorder needs no
+focus hold of its own.
 
 Once `render(template, container)` owns a container, update its children through
 `render` so Lit retains its markers and disconnects removed directives. `failSoft`
@@ -125,33 +132,37 @@ A behavior module follows these rules:
   `offered` so its press marker reads that type. Bind values and handlers normally, and use
   `repeat(items, identity, template)` to retain keyed controls, subject to the
   container and native-state rules in "Template rendering".
-  `said(true)`, `said(false)`, or `said("echo")` marks a template element's words with
-  the same passage and print meaning as `relabel`; Lit owns the element's content.
+  A template label writes the markers `relabel` writes as static attributes:
+  `data-lf-gen="1"`, plus `data-lf-said` where the label is the page speaking or
+  `data-lf-echo` where it copies words the page says elsewhere.
 - Read UI based on element geometry synchronously from `PRESENTATION` for its
   first paint, then through normal layout signals. Reconcile UI derived from
   authored structure at `PAGE_INTERFACE`, at startup and each in-place revision
   activation. Retain surviving nodes with `setChildren` (the rendering contract
   below describes its native-state guarantees).
-- Use `nextRender`/`cancelRender` for paints and `sizeObserver` for size
-  observation, so checks and tests wait for that work too. `nextRender` runs in
-  the current rendering callback's frame, or in the next frame when called
-  elsewhere. Use `nextFrame` for a step that must run in a later frame, such as
-  an animation tick.
+- Schedule an element's paints with `frameFor` and observe size with
+  `sizeObserver`, so checks and tests wait for that work too. `frameFor` paints through `nextRender`, which runs in the current
+  rendering callback's frame, or in the next frame when called elsewhere. Use
+  `nextFrame` for a step that must run in a later frame, such as an animation tick.
 - Use `afterScript(callback)` to coalesce a stable callback at the current
   script's microtask checkpoint when synchronous updates yield one final
   mechanical reading.
 - Use `keeps(node, name, value)` for names or state a reactive render writes,
   passing booleans and counts directly. Unconditional `setAttribute` repeats
   writes on every publication; `toggleAttribute` already handles flags.
-- Use `once()` in a `connectedCallback` that remains safe after reconnection.
-  In `disconnectedCallback`, remove hoisted UI and clear any `indicate`
-  with `null`.
+- Upgrade once: return from `connectedCallback` unless `once(this)`. Hold the
+  listeners, observers, registrations and indications a connection needs in
+  `whileConnected` ("Connection lifetimes"), which starts them again when the
+  element returns; clear an
+  `indicate` with `null` in its cleanup. Keep `disconnectedCallback` for teardown
+  that must happen synchronously, such as removing hoisted UI.
 - Register `commands()` at upgrade. Use `DISCLOSE(el)` for folding controls,
   whose commands the runtime owns. Check `quoted()` before wiring input and
   controller command availability before a semantic widget’s optimistic gesture.
   In templates, `commandsOn(title, rows, options)` attaches that same command scope
-  to its element. It reads the current declaration on each render and withdraws its
-  attachment when the directive leaves; projected commands on the element remain.
+  to its element. It attaches once per connection, takes the current declaration on
+  each render, and withdraws its attachment when the directive leaves; projected
+  commands on the element remain.
 
 Each helper's header under `runtime/` explains its contract.
 
@@ -272,8 +283,8 @@ words the render gate pairs with the file.
 
 `registerReadingRegion({id, host, body})` binds a region's identity to its host and to
 the body that scrolls it whenever the theme makes it scroll. The host makes focus in a
-pane's header or footer select that pane. Register from `connectedCallback` and call
-the returned cleanup from `disconnectedCallback`, so a reconnect can claim the same id.
+pane's header or footer select that pane. Register it in `whileConnected` and return
+its cleanup there, so an element that returns claims the same id again.
 Containment follows rendered slots, so native conversation parts nominated into a
 shadow reader belong to the region registered around their outlets.
 `readingPosture(node)` is `bounded` exactly while the region's body is its own
@@ -378,15 +389,13 @@ reveals a destination separately with `scrollIntoView(element, {block, behavior}
 from `widget-api.js`; that operation stops at the current document, including when
 its element is in nested overflow.
 
-A module that moves, hides, or replaces nodes the user may be standing in, as a reorder or
-a re-render does, calls `holdFocus(scope)` before the change and the function it returns
-after it. Same-root retained moves, including keyed Lit reorders, preserve native state
-where the browser supports `moveBefore`. The focus hold covers ordinary insertion,
-hiding and replacement: its returned function puts the user back on the node, with its
-caret, or on the first drawn stand-in it is
-passed, such as the replacement keyed on the same identity. It does nothing once focus was
-placed elsewhere in the meantime, and `holdFocus` returns `null` where the user stands
-outside `scope`. A list of keyed items passes `holdFocus(list, { key })`, naming the
+A module that hides or replaces nodes the user may be standing in, as a re-render
+that rebuilds a row does, calls `holdFocus(scope)` before the change and the function it
+returns after it; moves keep the user's place themselves (**Template rendering**). The
+returned function puts the user back on the node, with its caret, or on the first drawn
+stand-in it is passed, such as the replacement keyed on the same identity. It does
+nothing once focus was placed elsewhere in the meantime, and `holdFocus` returns `null`
+where the user stands outside `scope`. A list of keyed items passes `holdFocus(list, { key })`, naming the
 attribute each item carries: the restore then lands on the item keyed the same, or the
 nearest that survived, and on the control in it like the one the user stood on.
 
@@ -559,25 +568,33 @@ icon name). `kind` belongs to the whole reading, never an entry. Entries default
 For example, inside an existing widget whose `saveDraft()` owns the effect:
 
 ```js
-import { contributionEntry, registerContribution } from "/runtime/widget-api.js";
+import {
+  contributionEntry,
+  once,
+  registerContribution,
+  whileConnected,
+} from "/runtime/widget-api.js";
 
 connectedCallback() {
-  this.actions = registerContribution({
-    key: this.id,
-    target: this,
-    read: () => ({
-      kind: "action",
-      subject: this.getAttribute("aria-label"),
-      entries: [contributionEntry({
-        key: "save", glyph: "✓", label: "Save", disabled: this.disabled,
-      })],
-    }),
-    activate: () => this.saveDraft(),
+  if (!once(this)) return;
+  whileConnected(this, () => {
+    this.actions = registerContribution({
+      key: this.id,
+      target: this,
+      read: () => ({
+        kind: "action",
+        subject: this.getAttribute("aria-label"),
+        entries: [contributionEntry({
+          key: "save", glyph: "✓", label: "Save", disabled: this.disabled,
+        })],
+      }),
+      activate: () => this.saveDraft(),
+    });
+    return () => this.actions.unregister();
   });
 }
 
 syncActions() { this.actions.update(); }
-disconnectedCallback() { this.actions.unregister(); }
 ```
 
 Call `syncActions()` when the widget's state changes. Return the actions available
@@ -841,6 +858,44 @@ widget words those facts; it does not fold the log. The callback also receives
 tab-local retained reading keeps it through preparation, then compares it with the
 ready history; a preparation reading is not a new history baseline.
 
+## Connection lifetimes
+
+A widget can leave the page and return, as a revision or a thread presentation moves
+it. Register `whileConnected(element, start)` once, after `once(this)`, for the
+mechanical resources one connection holds: listeners, observers, and registrations.
+It calls `start(signal)` synchronously on a connected element and again on each
+return. Listeners take `{signal}`; `start` may return a cleanup function for other
+resources. An actual departure aborts the signal and calls that cleanup, and a failed
+`start` aborts its signal before reporting the error. Its returned function
+permanently retires the subscription and releases active resources. Call it when the
+element no longer needs them, as a widget that fails soft from a paint it cannot
+repeat does, so a return does not start them again. Register dependent resources
+before `watchData` so they stand when its initial or resumed callback runs.
+
+```js
+schedulePaint = frameFor(this, () => this.paint());
+
+connectedCallback() {
+  if (!once(this)) return;
+  this.build();
+  whileConnected(this, (signal) => {
+    window.addEventListener("resize", this.schedulePaint, { signal });
+    const sizes = sizeObserver(this.schedulePaint);
+    sizes.observe(this);
+    return () => sizes.disconnect();
+  });
+}
+```
+
+`frameFor(element, paint)` returns a scheduling function that coalesces calls through
+`nextRender`. It ignores calls while detached, cancels pending work on departure, and
+checks connection again before painting. Returning permits fresh scheduling; it does
+not replay cancelled work.
+
+Both helpers decide departures at the arrival mutation batch: a move within that
+batch retains resources. Teardown that must happen synchronously, such as cancelling
+a grab or removing hoisted dialog content, belongs in `disconnectedCallback`.
+
 ## Data subscriptions and projections
 
 The source declarations and producer workflow are in [packages.md, "External or derived
@@ -869,25 +924,6 @@ tracking. It neither delivers a pending source reading nor revives an absent or
 retired subscription.
 The callback must state the whole rendering and remain idempotent.
 
-Register `whileConnected(element, start)` once for mechanical resources such as
-listeners, observers, and registrations. It calls `start(signal)` synchronously on a
-connected element and again on each return. Listeners take `{signal}`; `start` may
-return a cleanup function for other resources. An actual departure aborts the signal
-and calls that cleanup, and a failed `start` aborts its signal before reporting the
-error. Its returned function permanently retires the subscription and releases active
-resources. `watchOwner(element, {connect, disconnect})` exposes the same lifetime for
-resources that already have separate hooks. Register dependent resources before
-`watchData` so they stand when its initial or resumed callback runs.
-
-Both helpers decide departures at the arrival mutation batch: a move within that
-batch retains resources. Teardown that must happen synchronously, such as cancelling
-a grab or removing hoisted dialog content, belongs in `disconnectedCallback`.
-
-`frameFor(element, paint)` returns a scheduling function that coalesces calls through
-`nextRender`. It ignores calls while detached, cancels pending work on departure, and
-checks connection again before painting. Returning permits fresh scheduling; it does
-not replay cancelled work.
-
 Time readings made synchronously in controller, `watchData`, `watchReports`, and
 `watchHistory` callbacks subscribe that paint to Leaf's shared clock. Calls to `ago`,
 `shortAgo` and `quietSince` refresh the callback only when their result changes. `ago(ts)`
@@ -912,12 +948,9 @@ redeliver unchanged data to keep a timestamp current.
 
 The renderer owns its nodes and their placement. Use `setChildren(parent, nodes)`
 for retained native nodes: it moves only what is out of place. For an individual
-placement use `move(parent, node, before)`, with `null` to append. Within one
-composed root it uses native `moveBefore` where available, preserving focus, caret
-and iframe documents. Otherwise it uses `insertBefore`, which can reset that state. Leaf's public
-`render(template, container)` restores editor focus and caret after Lit renders;
-`repeat(records, keyOf, template)` retains keyed template rows under the native-state
-rules in **Template rendering**. Leave
+placement use `move(parent, node, before)`, with `null` to append;
+`repeat(records, keyOf, template)` retains keyed template rows. Each keeps native state
+as **Template rendering** describes. Leave
 native disclosure, editor and scroll state with the retained nodes. When the
 application owns a native property the user also changes,
 bind it with `live`, such as `.value=${live(value)}` or `.checked=${live(checked)}`:

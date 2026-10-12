@@ -10,7 +10,7 @@ import {
   readWork,
   render,
   repeat,
-  watchOwner,
+  whileConnected,
   watchReports,
 } from "/runtime/widget-api.js";
 customElements.define(
@@ -28,7 +28,7 @@ customElements.define(
         () => [this.overview.querySelector(".atlas-stopped")],
         () => this.watching.refresh(),
       );
-      watchOwner(this, { disconnect: () => this.hold.dispose() });
+      whileConnected(this, () => () => this.hold.dispose());
       this.button = this.overview.querySelector(".atlas-refresh");
       this.button.addEventListener("click", () => {
         this.hold.release();

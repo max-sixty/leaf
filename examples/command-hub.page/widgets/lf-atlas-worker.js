@@ -10,7 +10,7 @@ import {
   readWork,
   render,
   reportSequence,
-  watchOwner,
+  whileConnected,
   watchReports,
   widgetController,
   workAncestor,
@@ -47,7 +47,7 @@ customElements.define(
         () => [this.querySelector(".atlas-worker-body")],
         () => this.watching.refresh(),
       );
-      watchOwner(this, { disconnect: () => this.reading.dispose() });
+      whileConnected(this, () => () => this.reading.dispose());
       this.#controller.subscribe(() => {});
       this.watching = watchReports(this, () => this.paint());
     }

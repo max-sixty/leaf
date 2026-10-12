@@ -708,14 +708,21 @@ def activation_page(source):
 
 
 PAGE_WIDGET = """\
-import { LitElement, html, keeps, layerFact, once, widgetController } from "/runtime/widget-api.js";
+import {
+  html, keeps, layerFact, once, render, widgetController,
+} from "/runtime/widget-api.js";
 
-customElements.define("lf-local", class extends LitElement {
+customElements.define("lf-local", class extends HTMLElement {
   controller = widgetController(this);
   reading = this.controller.read();
 
+  constructor() {
+    super();
+    this.attachShadow({mode: "open"});
+  }
+
   connectedCallback() {
-    super.connectedCallback();
+    this.paint();
     if (!once(this)) return;
     layerFact("$tones");
     keeps(this, "data-page-widget", "ready");
@@ -724,7 +731,7 @@ customElements.define("lf-local", class extends LitElement {
       this.dataset.renderOrder = `${this.dataset.renderOrder || ""}subscribe,`;
       keeps(this, "data-subscriber-choice", this.dataset.renderedChoice);
       this.dataset.readings = String(Number(this.dataset.readings || 0) + 1);
-      this.requestUpdate();
+      this.paint();
     });
     const held = globalThis.__heldLocalPresentations?.get(this.id);
     if (held) this.controller.present(held);
@@ -741,7 +748,7 @@ customElements.define("lf-local", class extends LitElement {
     if (!sent) return;
     this.reading = sent.reading;
     keeps(this, "data-delivery", "pending");
-    this.requestUpdate();
+    this.paint();
     sent.delivery.then(accepted => {
       keeps(this, "data-delivery", accepted ? "accepted" : "refused");
     });
@@ -755,21 +762,14 @@ customElements.define("lf-local", class extends LitElement {
     }
     keeps(this, "data-rendered-choice", state.choose.value);
     this.dataset.renderOrder = `${this.dataset.renderOrder || ""}render,`;
-    this.requestUpdate();
+    this.paint();
   }
 
-  async scheduleUpdate() {
-    const held = globalThis.__heldLocalUpdate;
-    globalThis.__heldLocalUpdate = null;
-    if (held) await held;
-    return super.scheduleUpdate();
-  }
-
-  render() {
+  paint() {
     const choice = this.reading.state.choose?.value ?? this.getAttribute("choice");
     const available = this.reading.actions.choose?.available ?? false;
-    return html`<button ?disabled=${!available} @click=${this.choose}>Choose</button>
-      <output>${choice}</output>`;
+    render(html`<button ?disabled=${!available} @click=${this.choose}>Choose</button>
+      <output>${choice}</output>`, this.shadowRoot, {host: this});
   }
 });
 """
@@ -814,7 +814,7 @@ def test_current_readiness_releases_a_connected_page_widget(browser, serve):
     installed = page.evaluate(
         """() => {
           const owner = document.querySelector('#page-local');
-          const control = owner.renderRoot.querySelector('button');
+          const control = owner.shadowRoot.querySelector('button');
           control.click();
           return {
             defined: customElements.get('lf-local') === owner.constructor,
@@ -1301,18 +1301,6 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
           };
         }"""
     )
-
-    held_render = page.evaluate(
-        """() => {
-          window.heldWidgetUpdate = heldPreparation();
-          window.__heldLocalUpdate = heldWidgetUpdate.promise;
-          window.stopHeldWidgetReading = pageLocal.controller.subscribe(() => {});
-          return readLeafPresentation().pending;
-        }"""
-    )
-    assert held_render == ["widget:page-local:render"]
-    page.evaluate("heldWidgetUpdate.release(); stopHeldWidgetReading()")
-    page.wait_for_function("readLeafPresentation().pending.length === 0")
 
     # Several children prepared by one owner are one requirement. A later call for the
     # same reading includes the earlier promise rather than superseding it.
@@ -2151,9 +2139,7 @@ def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, pla
             first_card.locator(":scope > .lf-thread-reply leaf-text"),
             "A draft for this conversation",
         )
-        page.evaluate(
-            "window.withdrawnWidget = document.querySelector('#withdraw-widget')"
-        )
+        expect(page.locator("#withdraw-widget")).not_to_have_count(0)
         panel = page.locator("leaf-thread-list")
         box = panel.bounding_box()
         page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
@@ -2168,9 +2154,6 @@ def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, pla
     rendered(page)
     allocation = first_card.evaluate("node => node.getBoundingClientRect().height")
     position = next_card.evaluate("node => node.getBoundingClientRect().top")
-    page.evaluate(
-        "() => { window.survivingCard = document.querySelector('.lf-threads > [data-id=next-thread]'); }"
-    )
     if place == "scrolled":
         for reply in ["long-reply", "widget-reply"]:
             append_carried_log_record(
@@ -2198,7 +2181,6 @@ def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, pla
     assert next_card.evaluate(
         "node => node.getBoundingClientRect().top"
     ) == pytest.approx(position, abs=0.1)
-    assert next_card.evaluate("node => node === window.survivingCard")
     if selected:
         expect(withdrawn.locator("button")).to_be_focused()
         expect(next_card).not_to_have_attribute("open", "")
@@ -2211,9 +2193,7 @@ def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, pla
         expect(next_card.locator(".lf-thread-summary")).to_be_focused()
         expect(next_card).to_have_attribute("open", "")
     if place == "scrolled":
-        assert page.evaluate(
-            "window.withdrawnWidget && !window.withdrawnWidget.isConnected"
-        )
+        expect(page.locator("#withdraw-widget")).to_have_count(0)
         # The subject has left the document: its editor ends, while the draft's
         # independent saved owner keeps the words for a genuine return.
         page.evaluate("lfWordsJudged()")

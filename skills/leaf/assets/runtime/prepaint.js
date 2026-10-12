@@ -692,10 +692,78 @@
     }
     return { changed, breakouts, holders };
   };
+  // Whether each track (`--lf-resident: track`, a sidebar page's `aside`, layouts.css)
+  // stands beside the body, which it says as `data-lf-beside` so the Layout keeps the
+  // block it holds in view only there. Flex wrapping places it, from the window's width,
+  // the shares the page gives the track and the body, and the minimum the body's content
+  // declares, and no query reads that. A track stands beside the body when one of the
+  // other boxes `main` lays out in its flex lines shares its line and stands wholly to
+  // one side of it: a box `main` lays out is a child that draws a box and is not taken
+  // out of the flow, or one inside a child that draws none (`display: contents`), and
+  // another track does not count. A track holding one block runs its line's height
+  // (layouts.css), and a line holds its items' margin boxes whatever margins a page gives
+  // them, so a box on the line is level with the track and one on another line, such as
+  // the header, the footer or a stacked body, is above or below it or spans it. Sticking
+  // moves only the block inside the track, so the track's own box is where the flex line
+  // put it. Every box is read before any track is written.
+  const BESIDE = "data-lf-beside";
+  const items = (element) => {
+    const style = getComputedStyle(element);
+    if (style.display === "contents")
+      return [...element.children].flatMap((child) => items(child));
+    if (!element.checkVisibility() || ["absolute", "fixed"].includes(style.position))
+      return [];
+    const { left, right, top, bottom, width } = element.getBoundingClientRect();
+    return [
+      {
+        element,
+        track: style.getPropertyValue("--lf-resident").trim() === "track",
+        left,
+        right,
+        width,
+        top: top - parseFloat(style.marginTop),
+        bottom: bottom + parseFloat(style.marginBottom),
+      },
+    ];
+  };
+  const stand = () => {
+    const main = document.querySelector("body > main");
+    if (!main) return false;
+    const tracks = [...main.children].filter(
+      (child) =>
+        getComputedStyle(child).getPropertyValue("--lf-resident").trim() === "track",
+    );
+    if (!tracks.length) return false;
+    const laid = [...main.children].flatMap((child) => items(child));
+    const own = laid.filter((item) => !item.track);
+    const readings = tracks.map((track) => {
+      const line = laid.find((item) => item.element === track);
+      return [
+        track,
+        line !== undefined &&
+          own.some(
+            (box) =>
+              box.width > 0 &&
+              box.top < line.bottom - 0.5 &&
+              box.bottom > line.top + 0.5 &&
+              (box.right <= line.left + 0.5 || box.left >= line.right - 0.5),
+          ),
+      ];
+    });
+    let changed = false;
+    for (const [track, beside] of readings) {
+      if (track.hasAttribute(BESIDE) === beside) continue;
+      if (!sourceShells.has(track)) sourceShells.set(track, track.cloneNode(false));
+      track.toggleAttribute(BESIDE, beside);
+      changed = true;
+    }
+    return changed;
+  };
   const residency = () => {
     const seated = seat();
+    const stood = stand();
     const reading = indents();
-    return { ...reading, changed: reading.changed || seated };
+    return { ...reading, changed: reading.changed || seated || stood };
   };
 
   // The id a URL fragment spells, for location.hash and for a link's href alike, from

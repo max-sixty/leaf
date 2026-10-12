@@ -1106,17 +1106,6 @@
 <style>
       @import url("/page/theme.css");
 
-      /* Navigation starts the stacked reading order; the stretched side track keeps
-         it beside the review on a wide window. Supporting history stays in the body. */
-      #pr-rail {
-        align-self: stretch;
-      }
-
-      #pr-contents-panel {
-        position: sticky;
-        top: calc(var(--lf-top) + var(--sp-4));
-      }
-
       .pr-review-gesture {
         padding-block: var(--sp-2);
         border-block: 1px solid var(--rule);
@@ -3336,6 +3325,7 @@ export const summarize = checks =>
 <header>
         <h1>Which alerts should still page?</h1>
         <p id="ar-legend">
+          <lf-tally id="ar-left" for="ar-queue" next></lf-tally>
           <span class="tag warn">7 mostly noise</span>
           <span class="tag">2 wrong owner</span>
           <span class="tag danger">5 caught incidents</span>
@@ -3856,9 +3846,9 @@ export const summarize = checks =>
       </lf-tabs>
       <footer>
         <p id="ar-next">
-          Payments paged 158 times in week 38; 17 needed a person.
-          <strong>Nine decisions open</strong>, in any order; I'll change every rule in
-          one pull request against <code>alerts/payments.yaml</code>.
+          Payments paged 158 times in week 38; 17 needed a person. Decide in any order;
+          I'll change every rule in one pull request against
+          <code>alerts/payments.yaml</code>.
         </p>
       </footer>
 </lf-tab>
@@ -8113,20 +8103,25 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
           </section>
 
           <section id="bg-side-list">
-            <p class="eyebrow">list="side"</p>
+            <p class="eyebrow bg-feature-elements">lf-tabs · lf-tally</p>
             <h2><strong>A queue beside the item it opens</strong></h2>
             <p id="bg-side-list-guide">
               The tab list stands left of the open item: each row shows its name and
               summary, and rows sharing a <code>group</code> sit under that group's
-              heading.
+              heading. The <code>lf-tally</code> above it counts the queue's asks still
+              to answer.
             </p>
             <ul id="bg-side-list-steps">
               <li>
                 Walk the list with the up and down arrows: they pass the headings by.
               </li>
               <li>
-                Answer the first item's ask: its row shows a check and the option you
-                picked. Undo takes them away.
+                Press Next question in the tally: it opens the first item's ask, whose
+                row carries an open mark.
+              </li>
+              <li>
+                Answer the ask: its row shows a check and the option you picked, and the
+                tally says Answered. Undo puts the open mark and the count back.
               </li>
               <li>
                 Narrow the window below the set's 36rem: the list becomes a row above
@@ -8134,6 +8129,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 the check.
               </li>
             </ul>
+            <p id="bg-side-left">
+              <lf-tally id="bg-side-tally" for="bg-side-queue" next></lf-tally>
+            </p>
             <lf-tabs id="bg-side-queue" list="side">
               <lf-tab
                 id="bg-side-4107"

@@ -39,7 +39,7 @@ representative desktop viewport.
   answer another, the owner sets a token describing the box and the reader keys on it
   with a style query: `--lf-full-height` (this box's children have a definite height
   to fill; it does not inherit), `--lf-wide-page` (the page spans the window),
-  `--lf-resident` (what sits in the column's margin), and `--lf-density` (the working
+  `--lf-resident` (what sits in the column's margin, or beside a sidebar page's body), and `--lf-density` (the working
   setting, for what a width alone cannot decide). A width needs no token, since a size
   query on the reader's own container answers it. Before adding a token, ask whether a
   hand-written page giving the same box would want the same answer; if not, the token
@@ -419,6 +419,7 @@ keeps its own test says why beside it. Rows marked *lint* are enforced in
 | Paint on the next frame, or watch a size | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (*lint*) |
 | Write a DOM value only when it changed | `keeps.js` `keeps` |
 | Threads, workflow, attention, asks, settlement | the server's folds, under "One writer for each fact" |
+| Which asks a region of the page holds | `questions/place.js` `asksIn` |
 
 ### Facts both runtimes know
 

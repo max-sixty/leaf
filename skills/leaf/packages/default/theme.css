@@ -1608,7 +1608,12 @@
     flex: none;
     color: var(--ok-ink);
   }
-  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer:not([data-lf-answered]) {
+  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer[data-lf-asks=open]::before {
+    content: "○" / "";
+    font-weight: 400;
+    color: var(--muted);
+  }
+  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer:not([data-lf-asks]) {
     visibility: hidden;
   }
   :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer-words {
@@ -1941,6 +1946,54 @@
   :scope:is(lf-tabs)[list=side] > lf-tab[group]::before {
     content: attr(group) " · " attr(label);
   }
+}
+
+/* skills/leaf/packages/default/styles/tally.css */
+:scope:is(lf-tally) {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: middle;
+}
+:scope:is(lf-tally) .lf-tally-face {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-2);
+  max-width: 100%;
+}
+:scope:is(lf-tally):not([data-lf-ready]) .lf-tally-face {
+  visibility: hidden;
+}
+:scope:is(lf-tally):not([next]) .lf-tally-next {
+  display: none;
+}
+:scope:is(lf-tally) .lf-tally-count {
+  display: inline-grid;
+  font-family: var(--sans);
+  font-size: var(--t-6);
+  line-height: var(--chip-lh);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  padding: var(--chip-pad);
+  border-radius: var(--chip-r);
+  background: var(--chip);
+  color: var(--ink-2);
+}
+:scope:is(lf-tally) .lf-tally-count > * {
+  grid-area: 1 / 1;
+  justify-self: center;
+}
+:scope:is(lf-tally) .lf-tally-room {
+  visibility: hidden;
+}
+:scope:is(lf-tally)[data-lf-done] .lf-tally-count {
+  background: var(--ok-tint);
+  color: var(--ok-ink);
+}
+:scope:is(lf-tally) .lf-tally-next {
+  font-size: var(--t-6);
+  padding-block: 0;
+  min-height: var(--aim-floor);
 }
 
 /* skills/leaf/packages/default/styles/toc.css */

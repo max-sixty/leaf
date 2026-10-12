@@ -40,13 +40,13 @@
  * Every tab's accessible name is its label; what else the tab shows describes it. A
  * side list stands each run of neighbouring panels that share a `group` under a label
  * of that group, which each of their tabs' descriptions names. A side list's row adds
- * the panel's `summary` under the name, and beside the name, once
- * every Question its panel holds is answered, a check with the answer's own words where the
- * panel holds one Question, or the check alone where it holds several. So a queue shows how
- * far the user has worked through it, and an undo that reopens a Question takes the check
- * away again. Which Questions a panel holds and their answers are the Questions API's, read
- * from the admitted Question inventory. A row whose panel authors a Question keeps the check's
- * room either way, so an answer moves no row. While the
+ * the panel's `summary` under the name, and beside the name its asks' state: an open mark
+ * while any ask the panel holds is unanswered, and once every one is answered a check, with
+ * the answer's own words where the panel holds one ask. So a queue shows each item's state
+ * and how far the user has worked through it, and an undo that reopens an ask puts the
+ * open mark back. Which asks a panel holds is `asksIn` (questions/place.js), read from the
+ * admitted ask inventory, so a tally of the queue counts the same asks. A row whose panel
+ * authors an ask keeps the mark's room either way, so an answer moves no row. While the
  * version diff is on, each tab counts the marked passages its panel holds, including
  * inactive panels. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
@@ -55,9 +55,8 @@ import {
   afterScript,
   HIDDEN,
   PRESS,
-  readQuestions,
+  asksIn,
   questionWords,
-  elementById,
   under,
   backgroundFlash,
   beginWalk,
@@ -204,9 +203,8 @@ export default class extends HTMLElement {
         relabel(summary, panel.getAttribute("summary"), { says: true });
         btn.append(summary);
       }
-      // The row's answer, unsaid until every Question in the panel is answered (`#marks`),
-      // stands where the panel authors a Question; before the Δ count, which takes the
-      // next column.
+      // The row's ask state (`#marks`) stands where the panel authors an ask; before the
+      // Δ count, which takes the next column.
       if (side && elementsDeclaring(panel, "x-awaits").length) {
         const answer = document.createElement("span");
         answer.className = "lf-tab-answer";
@@ -366,8 +364,8 @@ export default class extends HTMLElement {
   }
 
   // What each panel holds, said with its summary as the tab's description: the
-  // version diff's marked passages, and in a side list the answer once its Questions are
-  // all answered.
+  // version diff's marked passages, and in a side list its asks' state, with the answer
+  // once they are all answered.
   #marks() {
     for (const [panel, btn] of this.#buttons) {
       const changed = comparisonChanges(panel).length;
@@ -376,22 +374,17 @@ export default class extends HTMLElement {
         changed ? `Δ${changed}` : "",
       );
       const slot = btn.querySelector(":scope > .lf-tab-answer");
-      const questions = slot
-        ? readQuestions().all.filter((question) => {
-            const source =
-              question.status !== "withdrawn" &&
-              question.source.kind === "widget" &&
-              elementById(question.source.id);
-            return source && under(source, panel);
-          })
-        : [];
-      const answered =
-        questions.length > 0 &&
-        questions.every((question) => question.status === "answered");
+      const questions = slot ? asksIn(panel) : [];
+      const done = questions.filter((question) => question.status === "answered");
+      const answered = questions.length > 0 && done.length === questions.length;
       const only = questions.length === 1 ? questions[0] : null;
       const answer = answered && only ? questionWords(only) : "";
       if (slot) {
-        keeps(slot, "data-lf-answered", answered ? "" : null);
+        keeps(
+          slot,
+          "data-lf-asks",
+          answered ? "answered" : questions.length ? "open" : null,
+        );
         keepsText(slot.firstElementChild, answer);
       }
       const group = this.#side && panel.getAttribute("group");
@@ -399,13 +392,17 @@ export default class extends HTMLElement {
         group && `${group} group`,
         panel.getAttribute("summary"),
         changed === 1 ? "1 change" : changed ? `${changed} changes` : "",
-        !answered
+        !questions.length
           ? ""
-          : questions.length > 1
-            ? `All ${questions.length} Questions answered`
-            : answer
-              ? `Answered: ${answer}`
-              : "Answered",
+          : !answered
+            ? only
+              ? "Unanswered"
+              : `${done.length} of ${questions.length} Questions answered`
+            : only
+              ? answer
+                ? `Answered: ${answer}`
+                : "Answered"
+              : `All ${questions.length} Questions answered`,
       ]
         .filter(Boolean)
         .join(". ");

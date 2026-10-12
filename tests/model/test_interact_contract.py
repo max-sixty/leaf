@@ -4860,6 +4860,25 @@ def test_date_time_format_is_an_absolute_rfc3339_instant(value, valid):
     assert registry_schema.json_validator(schema).is_valid(value) is valid
 
 
+def test_uri_format_checks_absolute_urls_with_browser_syntax():
+    validator = registry_schema.json_validator({"type": "string", "format": "uri"})
+
+    for value in (
+        "https://example.org/path?q=1#section",
+        "https:example.org",
+        "https://Bücher.example/",
+        "mailto:reader@example.org",
+    ):
+        assert validator.is_valid(value), value
+    for value in (
+        "relative/path",
+        "http://a.test:99999/",
+        "http://256.0.0.1/",
+        "http://exa%mple.org/",
+    ):
+        assert not validator.is_valid(value), value
+
+
 def test_shared_package_declarations_compose_by_member():
     """One package can extend a shared declaration without copying its peers."""
     board = {"role": "holder", "state": "status"}

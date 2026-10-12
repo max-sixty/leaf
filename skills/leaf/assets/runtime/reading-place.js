@@ -517,7 +517,7 @@ export function capturePlace(region = null, blocks = textBlocks()) {
   let sectioned = null;
   let line = null;
   for (const [block, rect, runs] of blocksOnScreen(region, blocks)) {
-    if (stuckBox(block) || scrollsAlone(block, box)) continue;
+    if (stuckBox(block, box) || scrollsAlone(block, box)) continue;
     const section = closestAcross(block, ADDRESSABLE);
     sectioned ??= section && { block, rect, section };
     line = lineOf(block, rect, runs);
@@ -528,7 +528,7 @@ export function capturePlace(region = null, blocks = textBlocks()) {
     for (const [block, rect, runs] of blocksOnScreen(region, blocks, row)) {
       if (
         block === line.block ||
-        stuckBox(block) ||
+        stuckBox(block, box) ||
         scrollsAlone(block, box) ||
         !spans(block, rect, column)
       )

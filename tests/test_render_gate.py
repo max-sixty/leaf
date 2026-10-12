@@ -1616,7 +1616,9 @@ def test_the_render_gate_resolves_registered_visual_inventories(browser, serve):
     one registered visual per case on one page: one that draws every part, and one
     that draws `inner` only in another state, which resolves through its
     registration's reveal. Reveals come after every other reading, so a defect in the
-    opening state stands even when revealing a part draws it away."""
+    opening state stands even when revealing a part draws it away. A reveal that throws
+    is a caught package fault, and its finding keeps the throw site even without a
+    pageerror event."""
     cases = {
         "lf-test-visual": {},
         "lf-test-visual-staged": {"staged": True},
@@ -1637,21 +1639,48 @@ def test_the_render_gate_resolves_registered_visual_inventories(browser, serve):
     widgets = {}
     for tag, configuration in cases.items():
         widgets |= visual_widgets(tag=tag, **configuration)
+    # Its own copy of the fixture, whose reveal throws, under a path of its own.
+    throws = visual_widgets(tag="lf-test-visual-throws", staged=True)
+    layer["lf-test-visual-throws"] = {
+        **entry,
+        "x-example": '<lf-test-visual-throws id="example" parts="outer inner html">'
+        "</lf-test-visual-throws>",
+    }
+    widgets["throws/visual-fixture.js"] = throws["visual-fixture.js"].replace(
+        'if (id !== "inner") return;',
+        'if (id !== "inner") return; null.revealInner();',
+    )
+    widgets["lf-test-visual-throws.js"] = throws["lf-test-visual-throws.js"].replace(
+        "./visual-fixture.js", "./throws/visual-fixture.js"
+    )
     markup = GENERIC_VISUAL_PAGE.replace(
         "</main>",
         '<lf-test-visual-staged id="staged" parts="outer inner html">'
         "</lf-test-visual-staged>\n"
         '<lf-test-visual-repaired id="repaired" parts="outer inner html">'
-        "</lf-test-visual-repaired>\n</main>",
+        "</lf-test-visual-repaired>\n"
+        '<lf-test-visual-throws id="throws" parts="outer inner html">'
+        "</lf-test-visual-throws>\n</main>",
     )
 
     failures = render_gate_model.render_version(
-        browser, serve(markup, layer_registry=layer, layer_widgets=widgets)
+        browser.unwatched, serve(markup, layer_registry=layer, layer_widgets=widgets)
     ).failures
 
-    assert failures, "the repaired visual's opening fill went unread"
+    thrown = [f for f in failures if "id='throws'" in f]
+    assert len(thrown) == 2, failures
+    assert all('File "' not in failure for failure in thrown), thrown
     assert all(
-        "repaired" in f and "does not resolve to valid fill" in f for f in failures
+        "could not reveal visual parts" in failure
+        and "TypeError:" in failure
+        and "visual-fixture.js:" in failure
+        and "at reveal" in failure
+        for failure in thrown
+    ), thrown
+    rest = [f for f in failures if f not in thrown]
+    assert rest, "the repaired visual's opening fill went unread"
+    assert all(
+        "repaired" in f and "does not resolve to valid fill" in f for f in rest
     ), failures
 
 
@@ -1736,32 +1765,6 @@ def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
         "visual parts but its module registered parts its prefixes do not admit html"
         for scheme in ("light", "dark")
     ]
-
-
-def test_visual_reveal_findings_keep_the_throw_site(browser, serve):
-    """A caught package fault is useful evidence, even without a pageerror event."""
-    widgets = visual_widgets(staged=True)
-    widgets["visual-fixture.js"] = widgets["visual-fixture.js"].replace(
-        'if (id !== "inner") return;',
-        'if (id !== "inner") return; null.revealInner();',
-    )
-    failures = render_gate_model.render_version(
-        browser.unwatched,
-        serve(
-            GENERIC_VISUAL_PAGE,
-            layer_registry=GENERIC_VISUAL_LAYER,
-            layer_widgets=widgets,
-        ),
-    ).failures
-    assert len(failures) == 2, failures
-    assert all('File "' not in failure for failure in failures), failures
-    assert all(
-        "could not reveal visual parts" in failure
-        and "TypeError:" in failure
-        and "visual-fixture.js:" in failure
-        and "at reveal" in failure
-        for failure in failures
-    ), failures
 
 
 def test_replay_findings_keep_the_throw_site(browser, serve):

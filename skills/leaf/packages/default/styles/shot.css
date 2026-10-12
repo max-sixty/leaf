@@ -96,7 +96,7 @@
  * it reads as one, and pressed as the endpoint labels are, in the warning colour its
  * paint takes. */
 :scope:is(lf-shot) .lf-shotdelta[role="button"] { display: flex; align-items: center;
-    align-self: stretch; margin-block: 4px; padding-inline: 8px; border-radius: var(--r);
+    padding-block: 3px; padding-inline: 8px; border-radius: var(--r);
     box-shadow: inset 0 0 0 1px var(--rule); outline-offset: -2px; }
 :scope:is(lf-shot) .lf-shotdelta[role="button"]:hover { background: var(--chip); }
 :scope:is(lf-shot) .lf-shotdelta[role="button"][aria-pressed="true"] {

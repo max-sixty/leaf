@@ -24,8 +24,8 @@
  * control: it opens the Pixels view over the comparison, the after image greyed with
  * each changed pixel painted through `changedPixels`' mask in the theme's warning
  * colour. The mask is built on the first press, since most readers never open it.
- * Choosing an endpoint or moving the divider leaves the view, and clicking the picture
- * returns to the comparison as it stood.
+ * Choosing an endpoint leaves the view, and clicking the picture returns to the
+ * comparison as it stood.
  * Pairs compare one per frame, so a page of large captures does not hold input for the
  * whole batch.
  *
@@ -369,8 +369,6 @@ customElements.define(
       this.#alt = this.getAttribute("alt");
       for (const state of ["before", "after"])
         keeps(this.#captions.get(state), "aria-label", `${state} — ${this.#alt}`);
-      if (this.#reading?.role)
-        keeps(this.#reading, "aria-label", `changed pixels — ${this.#alt}`);
       if (this.#pixelsView)
         keeps(this.#pixelsView, "aria-label", `changed pixels: ${this.#alt}`);
       for (const frame of this.#frames) {
@@ -535,7 +533,8 @@ customElements.define(
             run: () => count.click(),
           },
         ]);
-        keeps(count, "aria-label", `changed pixels — ${this.#alt}`);
+        // The reading stays its name; the press is described.
+        keeps(count, "aria-description", "show changed pixels");
         keeps(count, "aria-pressed", false);
       }
       this.#openers.get("before").after(count);
@@ -543,8 +542,8 @@ customElements.define(
     }
 
     // The Pixels view: the after image greyed, under the changed pixels that a mask
-    // paints in the theme's colour. The view stands at once; its paint lands with the
-    // mask.
+    // paints in the theme's colour. The view stands in the press's turn; the mask is
+    // read on the next frame and its paint lands when encoded.
     #showPixels(shots) {
       this.#chose = true;
       this.#pixelsShown = true;
@@ -569,18 +568,20 @@ customElements.define(
         // over it.
         this.prepend(view);
         this.#pixelsView = view;
-        const { width, height, data } = compareImagePixels(...shots);
-        const canvas = new OffscreenCanvas(width, height);
-        canvas.getContext("2d").putImageData(new ImageData(data, width, height), 0, 0);
-        void canvas
-          .convertToBlob({ type: "image/png" })
-          .then((blob) =>
-            paint.style.setProperty(
-              "--lf-shot-pixels",
-              `url("${URL.createObjectURL(blob)}")`,
-            ),
-          )
-          .catch((reason) => failSoft(this, reason));
+        nextFrame(() => {
+          const { width, height, data } = compareImagePixels(...shots);
+          const canvas = new OffscreenCanvas(width, height);
+          canvas.getContext("2d").putImageData(new ImageData(data, width, height), 0, 0);
+          void canvas
+            .convertToBlob({ type: "image/png" })
+            .then((blob) =>
+              paint.style.setProperty(
+                "--lf-shot-pixels",
+                `url("${URL.createObjectURL(blob)}")`,
+              ),
+            )
+            .catch((reason) => failSoft(this, reason));
+        });
       }
       this.#paint();
     }
@@ -632,13 +633,14 @@ customElements.define(
             : position > 50
               ? "after-side"
               : "before-side";
+      // The covered comparison leaves the tab order while the view stands over it,
+      // including a comparison that upgrades under it.
+      for (const node of [this.#comparison, this.#box])
+        node?.toggleAttribute("inert", this.#pixelsShown);
       if (chromeState === this.#chromeState) return;
       this.#chromeState = chromeState;
       this.#box.checked = position > 50;
       keeps(this, "data-lf-shot-view", this.#pixelsShown ? "pixels" : null);
-      // The covered comparison leaves the tab order while the view stands over it.
-      for (const node of [this.#comparison, this.#box])
-        node?.toggleAttribute("inert", this.#pixelsShown);
       for (const [state, caption] of this.#captions)
         keeps(
           caption,

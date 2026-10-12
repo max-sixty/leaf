@@ -30,8 +30,15 @@
    a composition change with the same
    watchers, as `before` and `after`, retaining only scrollers inside that composition
    when regions become hidden or visible. Hidden connected regions remain registered and
-   return null bounds. Cleanup removes live DOM bindings, so a replacement can reclaim an
-   id.
+   return null bounds. A region whose body is a closed `<details>` is concealed though
+   its summary shows: none of what it holds does, so there is no place in it to read.
+   Cleanup removes live DOM bindings, so a replacement can reclaim an id.
+
+   A region can show one subject of several in turn, as a trace's saved tree shows one
+   checkpoint's elements at a time. Its owner replaces the body's contents through
+   `showReadingSubject(id, subject, render)`, which tells watchers the subject is
+   `leaving` and then `showing`, so a continuity owner keeps the reader's place in each
+   subject and returns them to it.
 
    `onReadingInput` tells a reader where the user explicitly clicked or stepped by Tab.
    It includes unfocusable words, which update the reading region without a focus
@@ -63,7 +70,8 @@ const live = (region) => region?.host?.isConnected && region.body?.isConnected;
 // whether the region has bounds to give now, concealed or clipped away entirely.
 const concealed = (region) =>
   region.host.hidden ||
-  region.host.closest?.("[hidden], [aria-hidden='true']") !== null;
+  region.host.closest?.("[hidden], [aria-hidden='true']") !== null ||
+  (region.body instanceof HTMLDetailsElement && !region.body.open);
 
 const hidden = (region) =>
   !live(region) || concealed(region) || shownRect(region.host, new Map()) === null;
@@ -72,6 +80,7 @@ const regionRecord = (region) => ({
   id: region.id,
   host: region.host,
   body: region.body,
+  subject: region.subject,
 });
 
 export function compoundReadingRegionId(owner, localName) {
@@ -85,7 +94,7 @@ export function registerReadingRegion({ id, host, body }) {
     throw new Error("leaf: a reading region needs id, host, and body");
   if (live(regions.get(id)))
     throw new Error(`leaf: reading region ${id} is already live`);
-  const region = { id, host, body, scroller: null, width: null };
+  const region = { id, host, body, subject: undefined, scroller: null, width: null };
   const stopReaching = reachReadingScroller(body);
   regions.set(id, region);
   sizes.observe(host);
@@ -120,6 +129,21 @@ export function syncLayoutRegion() {
         stop: registerReadingRegion({ id: "lf-region:layout", host: body, body }),
       }
     : null;
+}
+
+// Replace a region's contents with another subject's (see the header). A region not
+// registered yet has no place to keep, so the render runs alone.
+export function showReadingSubject(id, subject, render) {
+  const region = regions.get(id);
+  if (!live(region) || region.subject === subject) {
+    if (region) region.subject = subject;
+    return render();
+  }
+  notify({ phase: "leaving", region: regionRecord(region) });
+  region.subject = subject;
+  const rendered = render();
+  notify({ phase: "showing", region: regionRecord(region) });
+  return rendered;
 }
 
 export const readingRegion = (id) => {

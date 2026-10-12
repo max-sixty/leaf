@@ -1786,9 +1786,13 @@ export function createVersionController({
     takenAt.set(reading, scrollChoices());
     regionViews.set(id, reading);
   };
+  // A region showing one subject of several keeps the readings of those it is not
+  // showing, by subject (reading-regions.js, `showReadingSubject`).
+  const subjectViews = new Map();
   const dropGoneRegions = () => {
     const standing = new Set(readingRegions().map(({ id }) => id));
-    for (const id of regionViews.keys()) if (!standing.has(id)) regionViews.delete(id);
+    for (const views of [regionViews, subjectViews])
+      for (const id of views.keys()) if (!standing.has(id)) views.delete(id);
   };
 
   // Only the page's own regions, only those a scroll moved, and only their own words: a
@@ -1914,14 +1918,45 @@ export function createVersionController({
     recordRegions();
   }
 
+  // A subject leaving keeps the reader's place in it, read now where the region's own
+  // box scrolls it, on screen or not; the one showing returns them to theirs. Neither
+  // waits on a composition around it, which restores where the reader is in what shows
+  // rather than which subject shows.
+  function showSubject(phase, region) {
+    const ownBox =
+      readingPosture(region) === "bounded" && region.body.checkVisibility();
+    if (phase === "leaving") {
+      if (ownBox) keepReading(region.id, capturePlace(region, textBlocks(region.body)));
+      const reading = regionViews.get(region.id);
+      if (!reading) return;
+      if (!subjectViews.has(region.id)) subjectViews.set(region.id, new Map());
+      subjectViews.get(region.id).set(region.subject, reading);
+      return;
+    }
+    const reading = subjectViews.get(region.id)?.get(region.subject);
+    if (!reading) {
+      regionViews.delete(region.id);
+      return;
+    }
+    // The reading stands for this subject from now: the reader's scrolls in the box
+    // under another subject chose nothing in this one.
+    keepReading(region.id, reading);
+    if (ownBox) restorePlace(reading, region);
+  }
+
   function readingRegionTransition({
     phase,
     owner,
+    region,
     regions,
     cancelled,
     retained,
     shifted,
   }) {
+    if (phase === "leaving" || phase === "showing") {
+      showSubject(phase, region);
+      return;
+    }
     // Announced from a resize observer's delivery; restoring there could reveal a
     // region and resize what the observer watches, so it waits for the next frame.
     if (phase === "shift") {

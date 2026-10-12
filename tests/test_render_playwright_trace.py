@@ -972,8 +972,7 @@ def test_trace_bookmarks_jump_to_exact_evidence_in_page_flow(browser, serve):
     assert phone.evaluate("document.documentElement.scrollWidth <= innerWidth")
 
 
-LANDED_ROW = """async () => {
-  const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+STILL = """
   const tree = document.querySelector('#journey .lf-trace-tree');
   // Every scroller stands still for a while, so a late restore has had its turn.
   const where = () => [scrollY, tree.scrollTop].join();
@@ -983,6 +982,11 @@ LANDED_ROW = """async () => {
     still = now === last ? still + 1 : 0;
     last = now;
   }
+"""
+STILL_TREE = f"async () => {{ {STILL} return tree.scrollTop; }}"
+LANDED_ROW = """async () => {
+  const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+  """ + STILL + """
   const rows = tree.querySelectorAll('.lf-trace-node');
   const row = rows[rows.length - 1].getBoundingClientRect();
   const box = tree.getBoundingClientRect();
@@ -998,7 +1002,7 @@ def scrolled_closed_tree(browser, serve, motion):
 
     Opening the tree hands its reading region from the point inspector to the tree's
     own scroller, so the opening is a shift with a reading of the tree to restore.
-    Returns the reader's page and the trace widget.
+    Returns the reader's page, the trace widget, and where the reader left the tree.
     """
     source = ROOT / "examples/developer/playwright-trace-gallery.data.json"
     record = json.loads(source.read_text())["release-journey"]
@@ -1048,10 +1052,11 @@ def scrolled_closed_tree(browser, serve, motion):
     user.mouse.wheel(0, 40)
     user.wait_for_function("document.querySelector('#journey details').scrollTop > 0")
     rendered(user)
+    place = user.evaluate(STILL_TREE)
     summary.click()
     expect(tree).not_to_have_attribute("open", "")
     rendered(user)
-    return user, widget
+    return user, widget, place
 
 
 def assert_row_shown(landed):
@@ -1072,7 +1077,7 @@ def test_trace_moment_lands_its_saved_element_over_the_trees_reading(
     short by any later scroll write, so both motions run. A row inside the window
     but below the tree's own box is not shown either.
     """
-    user, widget = scrolled_closed_tree(browser, serve, motion)
+    user, widget, _ = scrolled_closed_tree(browser, serve, motion)
     saved = widget.locator(".lf-trace-bookmarks").get_by_role(
         "button", name=re.compile("Saved element")
     )
@@ -1106,7 +1111,7 @@ def test_trace_tree_opened_by_the_browser_keeps_its_match(browser, serve):
     intercepts a fragment navigation to travel there itself, so the page makes the
     find's two moves: it opens the tree and scrolls the row into view natively.
     """
-    user, widget = scrolled_closed_tree(browser, serve, "reduce")
+    user, widget, _ = scrolled_closed_tree(browser, serve, "reduce")
     # The reader goes back to reading the page, which takes focus off the summary.
     user.get_by_text("Review note 0 on").click()
     rendered(user)
@@ -1118,6 +1123,43 @@ def test_trace_tree_opened_by_the_browser_keeps_its_match(browser, serve):
     user.context.close()
     assert landed["open"]
     assert_row_shown(landed)
+
+
+def test_trace_tree_opens_at_each_checkpoints_reading(browser, serve):
+    """Opening the tree returns the reader to where they left this checkpoint's tree.
+
+    One scroll box shows every checkpoint's tree, and keeps the offset of whichever it
+    showed last; the reader's place is each checkpoint's own. Here they leave the After
+    tree scrolled and the Action tree at its end, the tree closed between, and open it
+    again on the After checkpoint.
+    """
+    user, widget, place = scrolled_closed_tree(browser, serve, "reduce")
+    tree = widget.locator(".lf-trace-tree")
+    summary = tree.locator("summary")
+    phase = widget.locator(".lf-trace-phase")
+    timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
+    timeline.focus()
+    timeline.press("ArrowLeft")
+    expect(widget.locator(".lf-trace-tree-clock")).to_contain_text("Action checkpoint")
+    summary.click()
+    expect(tree).to_have_attribute("open", "")
+    tree.hover()
+    user.mouse.wheel(0, 2000)
+    user.wait_for_function(
+        "(place) => document.querySelector('#journey details').scrollTop > place",
+        arg=place,
+    )
+    rendered(user)
+    summary.click()
+    expect(tree).not_to_have_attribute("open", "")
+    timeline.focus()
+    timeline.press("ArrowRight")
+    expect(phase).to_contain_text("After checkpoint")
+    summary.click()
+    expect(tree).to_have_attribute("open", "")
+    opened = user.evaluate(STILL_TREE)
+    user.context.close()
+    assert opened == pytest.approx(place, abs=1)
 
 
 def test_trace_comparison_pairs_authored_results_across_delayed_sources(browser, serve):

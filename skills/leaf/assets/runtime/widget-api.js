@@ -164,6 +164,7 @@ export {
   readingRegion,
   registerReadingRegion,
   scrollerFor,
+  showReadingSubject,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 export { announce, notice } from "./notifications.js";

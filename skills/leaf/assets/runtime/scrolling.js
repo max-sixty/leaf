@@ -1,22 +1,22 @@
 /* Scroll positions, and whose each one is.
 
-   A box stands where the reader chose, or where layout forced it. The reader chooses
-   with a wheel, a key or a scrollbar, through a Leaf landing (landing-scroll.js), and
-   through the browser's own navigation, such as find-in-page opening a closed
-   disclosure onto its match. Layout forces a clamp as content shrinks, scroll
-   anchoring's adjustment, and the offset a box keeps when it starts to scroll again. A
-   place keeper that restores a reading after layout moved the words (reading-place.js,
-   `restorePlace`; user-place.js, `placeKeeper`) undoes only layout's moves, so it asks
-   which boxes the reader has chosen for since its reading (`chosenSince`).
+   A box stands where the reader chose, or where layout put it. The reader chooses with
+   a wheel, a key or a scrollbar, through a Leaf landing (landing-scroll.js), and through
+   the browser's own navigation, such as find-in-page opening a closed disclosure onto
+   its match. Layout puts a box where a clamp leaves it as content shrinks, where scroll
+   anchoring adjusts it, and at the offset it kept while it did not scroll. Continuity's
+   shift restore (version.js) undoes only layout's moves, so it asks which boxes the
+   reader has chosen for since its reading (`chosenSince`).
 
-   The platform draws this line: a scroll sequence ends with `scrollend`, whoever
-   started it, and layout's moves start none. So a `scrollend` on a box is a choice,
-   with two exceptions. A keeper's restore is a scroll sequence too but returns the reader
-   to a place they already had, so it says where it left each box (`placeKept`), and a
-   sequence that ends there is the keeper's. A landing in motion is counted when it
-   starts (`chooseScroll`), since a layout it caused can be announced before its
-   sequence ends. A scroll in a shadow root reaches no listener here, as it reaches
-   continuity's record of the reader's place (version.js) none. */
+   The platform draws the line: a scroll sequence ends with `scrollend`, whoever started
+   it, and layout's moves start none (Chromium, measured). So a `scrollend` on a box is
+   a choice, with two exceptions. A place keeper's write returns the reader to a place
+   they already had (reading-place.js, `restorePlace`; user-place.js, `placeKeeper`), so
+   it says where it left each box (`placeKept`), and a sequence ending there is the
+   keeper's. A landing in motion counts from its start (`chooseScroll`), since layout it
+   caused can be announced before its sequence ends. Like continuity's record of the
+   reader's place, this listens on the document, which a scroll inside a shadow root
+   does not reach. */
 
 // The browser's document scrollport. Keeping the platform's root as the one page
 // scroller lets fragment links, history restoration, wheel/touch input, and browser UI

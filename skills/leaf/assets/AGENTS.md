@@ -460,6 +460,7 @@ keeps its own test says why beside it. Rows marked *lint* are enforced in
 | Whether a box scrolls, for a script or for the user | `geometry.js` `scrollContainer`, `scrollport`, `userScrollport` |
 | Which axes a box clips | `rect.js` `clippingAxes` |
 | Whether a box is at its scroll end | `scrolling.js` `atScrollEnd`, `SCROLL_SLACK` |
+| Whether the reader chose where a box stands, or layout put it there | `scrolling.js` `chosenSince`, `placeKept` |
 | The page's `main` | `passages.js` `pageDocument` |
 | Whether a place is already shown, and the room a landing needs | `landing-scroll.js` `alreadyShown`, `landingRoom` |
 | Bring something into view without scrolling the page around it | `landing-scroll.js` `scrollIntoView` (*lint*) |

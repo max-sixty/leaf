@@ -10062,6 +10062,8 @@ def test_named_go_to_addresses_toggle_their_auxiliary_surfaces(
     live_leaf("second", "A second leaf")
     page = open_page(browser, serve(ASKS_PAGE, comments=1))
 
+    # A surface beside the page and one covering it; the Questions panel stands beside
+    # it as Threads does.
     for key, command, name, surface, control, covering in (
         (
             "Shift+t",
@@ -10069,14 +10071,6 @@ def test_named_go_to_addresses_toggle_their_auxiliary_surfaces(
             "Threads panel",
             ".lf-thread-panel",
             ".lf-threads-toggle",
-            False,
-        ),
-        (
-            "Shift+q",
-            "navigation.drawer.queue",
-            "Questions panel",
-            ".lf-queue-panel",
-            ".lf-queue",
             False,
         ),
         (

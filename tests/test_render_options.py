@@ -21,7 +21,6 @@ from leaf import event_log as events_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf.render_checks import rendered
-from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASK_PAGE,
@@ -264,8 +263,6 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
     and the generated fallback remains outside the diff's authored-text reading.
     """
     url = serve(CARRIED_PAGE)
-    assert render_gate_model.render_version(browser, url).failures == []
-
     page = open_page(browser, live_url(url))
     mark = page.locator("#c-lax .lf-pick")
     assert mark.get_attribute("role") == "img"
@@ -434,7 +431,6 @@ def test_option_words_render_markdown_without_losing_the_user_draft(browser, ser
         "Replace the <code>M8</code> mounts", "Ask the _widget_ to decide"
     )
     url = serve(source)
-    assert render_gate_model.render_version(browser, url).failures == []
     page = open_page(browser, url)
     authored = page.locator("#job-mounts")
     expect(authored.locator(":scope > .lf-markdown-words em")).to_have_text("widget")

@@ -79,7 +79,6 @@ import {
 } from "./focus.js";
 import { landingTarget, latestTurn, scrollThreadIntoView } from "./reply-landing.js";
 
-export { SAY_BOX } from "./selectors.js";
 export { scrollThreadIntoView } from "./reply-landing.js";
 const threadReturns = new WeakMap();
 
@@ -546,9 +545,9 @@ const listedThreads = (ids, threadsBox) =>
   ids
     .map((id) => listNode(id, threadsBox))
     .filter((node) => node?.matches(".lf-thread") && !node.closest(".lf-going"));
-export const accompaniedThread = (ids, threadsBox) =>
+const accompaniedThread = (ids, threadsBox) =>
   listedThreads(ids, threadsBox).find((node) => node.open) ?? null;
-export function accompanyThread(ids, threadsBox) {
+function accompanyThread(ids, threadsBox) {
   const expanded = accompaniedThread(ids, threadsBox);
   const thread = expanded ?? listedThreads(ids, threadsBox)[0];
   if (!thread) return;

@@ -347,9 +347,12 @@ When the user is to choose among designs, show the candidates in a playground
 
 Before finishing a feature:
 
-- Give every action a keyboard route, without spending a page-level binding on
-  each one, and a route a finger can take (`runtime/keyboard/AGENTS.md`, "Touch
-  routes").
+- Give every result a pointer reaches a keyboard route, without spending a
+  page-level binding on each one, and a route a finger can take
+  (`runtime/keyboard/AGENTS.md`, "Touch routes"). The route is owed to the result,
+  not to each gesture: ask what a user could no longer see, reach, or decide
+  without the gesture. Dragging a thread card aside needs no route of its own,
+  since Escape also uncovers the passage beneath it.
 - Follow `examples/AGENTS.md` when adding or changing a feature, and regenerate
   the derived corpus.
 - If the feature changes what an agent can do or how it should do it, update

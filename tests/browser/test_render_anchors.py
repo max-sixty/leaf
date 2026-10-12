@@ -2556,6 +2556,65 @@ def test_a_tab_inside_a_shadow_tree_no_stage_watches_still_reaches_standing(
     assert page.evaluate("() => window.heard.at(-1)") == ["two", "step"]
 
 
+@pytest.mark.parametrize("removed", ["layer", "control", "later-close"])
+def test_a_collected_focus_keeps_the_cause_of_leaving_its_layer(
+    browser, serve, removed
+):
+    """An unwatched shadow tree reconciles a return after its old focus is collected.
+    Removing a control alone leaves its layer, so that departure is an ordinary move.
+    """
+    page = open_page(
+        browser, serve(leaf_page("Focus lifetime", "<h1>Focus lifetime</h1>"))
+    )
+    page.evaluate(
+        """async () => {
+          const host = document.createElement('div');
+          host.id = 'own-root';
+          host.attachShadow({mode: 'open'}).innerHTML =
+            '<dialog open><button id="one">First</button></dialog>' +
+            '<button id="two">Next</button>';
+          document.querySelector('main').append(host);
+          const {onStanding} = await window.__lfRuntimeImport('/runtime/focus.js');
+          window.heard = [];
+          onStanding((node, cause) => window.heard.push([node?.id ?? null, cause]));
+          host.shadowRoot.getElementById('one').focus();
+        }"""
+    )
+    page.wait_for_function("() => window.heard.at(-1)?.[0] === 'one'")
+    page.evaluate(
+        """removed => {
+          const root = document.getElementById('own-root').shadowRoot;
+          window.oldFocus = new WeakRef(root.getElementById('one'));
+          // This internal move emits no event at the document. Its next input
+          // reconciles standing, after the place it left has been collected.
+          root.getElementById('two').focus();
+          const layer = root.querySelector('dialog');
+          if (removed === 'later-close') window.detachedLayer = layer;
+          else layer.open = false;
+          (removed === 'control' ? root.getElementById('one') : layer).remove();
+        }""",
+        removed,
+    )
+    rendered(page)
+    if removed == "later-close":
+        page.evaluate(
+            "() => { window.detachedLayer.open = false; window.detachedLayer = null; }"
+        )
+        rendered(page)
+    cdp = page.context.new_cdp_session(page)
+    try:
+        cdp.send("HeapProfiler.collectGarbage")
+    finally:
+        cdp.detach()
+    assert page.evaluate("() => window.oldFocus.deref() === undefined")
+    page.keyboard.press("Shift")
+    page.wait_for_function("() => window.heard.at(-1)?.[0] === 'two'")
+    assert page.evaluate("() => window.heard.at(-1)") == [
+        "two",
+        "move" if removed == "control" else "return",
+    ]
+
+
 def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     """A figure can carry more than one thread. When the page's record of what it drew was
     keyed by the mark, the second comment overwrote the first, and the panel told the

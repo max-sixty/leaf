@@ -290,7 +290,7 @@ function landLabelPress() {
     if (labelPress) return;
     const at = deepFocus();
     if (at && at !== document.body) return reconcile(null, pressedPath);
-    if (!published || !drawn(published)) return;
+    if (!drawn(published?.deref())) return;
     placements += 1;
     stood = null;
     publish(null, cause(null));
@@ -396,11 +396,12 @@ let placements = 0;
 // going on from there, so the dropped place is forgotten: a later owner putting them
 // back in it would take them from whatever they went on to. While they still stand
 // somewhere, the same inputs are them working there, and change nothing.
+// A removed place remains available to its replacement, but owns no node lifetime.
 let stood = null;
 // Every change to where the user stands goes to each reader `onStanding` names, as
 // `read(node, cause, left)`: the node they now stand on, null where they stand nowhere;
 // what moved them there; and the node the readers last heard they stood on, null where
-// that was nowhere. The causes:
+// that was nowhere or the removed node has been collected. The causes:
 //
 // - `return`: the runtime putting them back or handing them across: a placement that
 //   says so (`focusDestination`), a hold restoring its place (`holdFocus`,
@@ -433,6 +434,31 @@ let stood = null;
 const readers = new Set();
 export const onStanding = (read) => readers.add(read);
 let published = null;
+// Reconciliation can follow collection of a removed layer and its old focus.
+// Keep the layer's weak identity and last closed reading, so collection changes
+// neither the cause nor the lifetime of the markup.
+let publishedLayer = null;
+let publishedLayerClosed = false;
+const layerOf = (node) => node?.closest?.("dialog, [popover]");
+const closedLayer = (layer) =>
+  Boolean(layer) && !layer.matches("dialog[open], :popover-open");
+// A detached dialog can still close after the removal pass. Observe its own
+// open attribute until the next standing; observing a node does not own it.
+const layerChanges = new MutationObserver(() => closedPublishedLayer());
+const rememberPublishedLayer = (layer) => {
+  if (layer === publishedLayer?.deref()) return;
+  layerChanges.disconnect();
+  publishedLayer = layer && new WeakRef(layer);
+  if (layer?.localName === "dialog")
+    layerChanges.observe(layer, { attributes: true, attributeFilter: ["open"] });
+};
+const closedPublishedLayer = () => {
+  const node = published?.deref();
+  const layer = node ? layerOf(node) : publishedLayer?.deref();
+  if (node) rememberPublishedLayer(layer);
+  if (node || layer) publishedLayerClosed = closedLayer(layer);
+  return publishedLayerClosed;
+};
 let departed = false;
 let readings = 0;
 // Paint follows the same standing as keyboard routing. Native :focus also matches
@@ -476,8 +502,11 @@ function paintFocus(node) {
 // Retained moves preserve native focus without emitting a focus event. Recompute
 // only its derived ancestry when the rendered tree changes, including slot moves.
 // Attribute paint is outside this observation, so it cannot schedule itself.
-const refreshFocusPaint = () =>
-  paintFocus(paintDestination?.isConnected ? paintDestination : null);
+const refreshFocusPaint = () => {
+  closedPublishedLayer();
+  const node = paintDestination?.deref();
+  paintFocus(node?.isConnected ? node : null);
+};
 let returnPaintPending = false;
 const paintAfterScript = () => {
   if (!returnPaintPending) refreshFocusPaint();
@@ -492,7 +521,10 @@ const queueReturnFocusPaint = () => {
     refreshFocusPaint();
   });
 };
+const paintRoots = new WeakSet();
 function watchFocusPaintIn(root) {
+  if (paintRoots.has(root)) return;
+  paintRoots.add(root);
   new MutationObserver(queueFocusPaint).observe(root, {
     childList: true,
     subtree: true,
@@ -501,7 +533,10 @@ function watchFocusPaintIn(root) {
 }
 watchFocusPaintIn(document);
 function publish(node, cause) {
-  paintDestination = node;
+  // A component's own shadow roots need paint and removal observation too, even
+  // when it does not register a stage to report its internal focus moves.
+  for (let at = node; at; at = renderedParent(at)) watchFocusPaintIn(at.getRootNode());
+  paintDestination = node && new WeakRef(node);
   // A command-reference return may precede the command's own focus move in this
   // gesture. Its ring waits for the frame; a forward move supersedes that return
   // and still paints after the current script, before the next frame is shown.
@@ -510,14 +545,19 @@ function publish(node, cause) {
     returnPaintPending = false;
     queueFocusPaint();
   }
-  if (node === published && !departed) return;
+  if (node === (published?.deref() ?? null) && !departed) return;
   departed = false;
-  const left = published;
+  const left = published?.deref() ?? null;
   const reading = ++readings;
   // A drop leaves the place where readers last heard the user stood, so the next
   // reading, the owner putting them back there included, is told against it.
   if (cause === "drop") departed = true;
-  else published = node;
+  else {
+    published = node && new WeakRef(node);
+    const layer = layerOf(node);
+    rememberPublishedLayer(layer);
+    publishedLayerClosed = closedLayer(layer);
+  }
   if (node) placeInput = "focus";
   // What a reader places is its own act: it names its own cause, and it is a newer word
   // to a hold even inside a hold's restore.
@@ -537,14 +577,17 @@ function publish(node, cause) {
     [placing, restoring] = was;
   }
 }
-// The press the user last made, as the nodes under it, until a key follows it.
+// The press the user last made, as weak readings of the nodes under it, until a
+// key follows it. Remembering the input modality does not own the old markup.
 let pressedPath = null;
 // Whether a node is what that press asked for: a node under it, or the control of a
 // label under it, which the platform focuses at the press's click.
 const pressedOn = (node) =>
   Boolean(pressedPath) &&
-  (pressedPath.has(node) ||
-    [...pressedPath].some((at) => at?.localName === "label" && at.control === node));
+  pressedPath.some((ref) => {
+    const at = ref.deref();
+    return at === node || (at?.localName === "label" && at.control === node);
+  });
 // Whether the user's latest input was a press rather than a key, so that a `move` is a
 // route a press began: what the platform's `:focus-visible` guesses from, read here
 // from the inputs themselves. No input yet reads as no press.
@@ -555,19 +598,10 @@ let stepping = null;
 // back as it closes, whether the platform or the layer's owner moves it. A nonmodal
 // dialog closing hands focus back too, so this asks of every dialog rather than of the
 // native layers layer-stack.js holds, which imports this module.
-const leftClosedLayer = (left) => {
-  const layer = left?.closest?.("dialog, [popover]");
-  return Boolean(layer) && !layer.matches("dialog[open], :popover-open");
-};
-const cause = (node, left = null) =>
+const leftClosedLayer = (left) => closedLayer(layerOf(left));
+const cause = (node, returned = false) =>
   placing ??
-  (leftClosedLayer(left)
-    ? "return"
-    : pressedOn(node)
-      ? "press"
-      : stepping
-        ? "step"
-        : "move");
+  (returned ? "return" : pressedOn(node) ? "press" : stepping ? "step" : "move");
 // One move fires once at the document and again at each stage it crosses into.
 const read = new WeakSet();
 function stand(event) {
@@ -583,8 +617,9 @@ function stand(event) {
   }
   if (!restoring && !(placing === null && leftClosedLayer(event.relatedTarget)))
     placements += 1;
-  stood = deepFocus();
-  publish(stood, cause(stood, event.relatedTarget));
+  const at = deepFocus();
+  stood = at && new WeakRef(at);
+  publish(at, cause(at, leftClosedLayer(event.relatedTarget)));
 }
 document.addEventListener("focusin", stand, true);
 // A shadow stage reads the moves inside it, which reach the document as no event.
@@ -608,7 +643,7 @@ document.addEventListener(
       return;
     }
     const left = event.composedPath()[0];
-    stood = left;
+    stood = new WeakRef(left);
     if (restoring) return;
     queueMicrotask(() => {
       const at = document.activeElement;
@@ -618,7 +653,7 @@ document.addEventListener(
       // A borrowed body stop leaving for nowhere is the release itself, not
       // another placement after the caller began waiting for its return.
       if (left !== document.body) placements += 1;
-      if (stood === left) stood = null;
+      if (stood?.deref() === left) stood = null;
       publish(null, cause(null));
     });
   },
@@ -638,13 +673,13 @@ const sequential = (event) =>
 function reconcile(step, pressed) {
   if (heldByLabel()) return;
   const at = deepFocus();
-  if (!at || at === document.body || at === published) return;
+  if (!at || at === document.body || at === published?.deref()) return;
   placements += 1;
-  stood = at;
+  stood = new WeakRef(at);
   const was = [stepping, pressedPath];
   [stepping, pressedPath] = [step, pressed];
   try {
-    publish(at, cause(at, published));
+    publish(at, cause(at, closedPublishedLayer()));
   } finally {
     [stepping, pressedPath] = was;
   }
@@ -795,7 +830,8 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
   addEventListener(
     type,
     (event) => {
-      if (type === "pointerdown") pressedPath = new Set(event.composedPath());
+      if (type === "pointerdown")
+        pressedPath = event.composedPath().map((node) => new WeakRef(node));
       else if (type === "keydown") pressedPath = null;
       stepping = null;
       if (type === "keydown" || type === "pointerdown") {
@@ -823,7 +859,8 @@ export const drawn = (node) =>
 const dropped = () => {
   const at = deepFocus();
   if (at && at !== document.body) return null;
-  return stood && !drawn(stood) ? stood : null;
+  const node = stood?.deref();
+  return node && !drawn(node) ? node : null;
 };
 // The host of a shadow root, and nothing for any other node: a document names a form
 // called `host` as `document.host`, so a climb reading `.host` off the document walks
@@ -934,7 +971,8 @@ const heldIn = (scope) => {
   if (standing && standing !== document.body && within(scope, standing))
     return standing;
   // Asked of every node `move` inserts, so the cheap containment reading comes first.
-  return stood && within(scope, stood) ? dropped() : null;
+  const node = stood?.deref();
+  return node && within(scope, node) ? dropped() : null;
 };
 
 // Whether the user stands in `scope`, across every shadow tree between them.
@@ -1020,8 +1058,8 @@ export function closeLayer(close, land = null) {
     }
   }
   const at = deepFocus();
-  if (!at || at === document.body || at === published) return;
-  stood = at;
+  if (!at || at === document.body || at === published?.deref()) return;
+  stood = new WeakRef(at);
   publish(at, "return");
 }
 

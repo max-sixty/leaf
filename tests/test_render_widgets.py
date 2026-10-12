@@ -11294,16 +11294,40 @@ def test_a_changed_diff_file_keeps_its_sideways_reader(browser, serve):
     assert after == before, (before, after)
 
 
-@pytest.mark.parametrize("manifest, inserts_line", [(False, True), (True, False)])
-def test_a_diff_refresh_keeps_a_selection_in_unchanged_lines(
-    browser, serve, manifest, inserts_line
-):
-    """A change in another hunk does not take the passage the reader selected."""
-    url = serve(LONG_LINE_DIFF_PAGE)
-    value = patch_manifest if manifest else lambda patch: patch
-    data_model.cmd_data_set(serve.page_dir, "review-patch", value(MULTI_HUNK_PATCH))
+def two_diff_page(serve):
+    """LONG_LINE_DIFF_PAGE with a second diff, `#manifest-patch`, reading its evidence
+    from `review-manifest`, so the raw patch and the manifest each refresh in turn on one
+    page."""
+    return serve(
+        LONG_LINE_DIFF_PAGE.replace(
+            '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>',
+            '<lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>'
+            '<lf-diff id="manifest-patch" source="review-manifest"><pre></pre></lf-diff>',
+        )
+    )
+
+
+DIFF_FORMS = (
+    ("#patch", "review-patch", lambda patch: patch),
+    ("#manifest-patch", "review-manifest", patch_manifest),
+)
+
+
+def test_a_diff_refresh_keeps_a_selection_in_unchanged_lines(browser, serve):
+    """A change in another hunk does not take the passage the reader selected: a raw
+    patch whose change inserts a line, and a manifest whose change does not."""
+    url = two_diff_page(serve)
+    for _, source, value in DIFF_FORMS:
+        data_model.cmd_data_set(serve.page_dir, source, value(MULTI_HUNK_PATCH))
     page = open_page(browser, url)
-    row = page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",41]\']')
+    for (diff, source, value), inserts_line in zip(DIFF_FORMS, (True, False)):
+        diff_refresh_keeps_selection(page, serve, diff, source, value, inserts_line)
+
+
+def diff_refresh_keeps_selection(page, serve, diff, source, value, inserts_line):
+    """Select a word in an unchanged line of `diff`, change another hunk of `source`,
+    and find the selection and every row's gutter pairing intact."""
+    row = page.locator(f'{diff} [data-lf-datum=\'["app/handlers.py","new",41]\']')
     row.scroll_into_view_if_needed()
     ends = row.evaluate("""row => {
       const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
@@ -11325,12 +11349,13 @@ def test_a_diff_refresh_keeps_a_selection_in_unchanged_lines(
             '+    return "new beginning"\n',
             '+    return "new beginning"\n+    inserted = True\n',
         )
-    data_model.cmd_data_set(serve.page_dir, "review-patch", value(patch))
+    data_model.cmd_data_set(serve.page_dir, source, value(patch))
     told(page)
     rendered(page)
-    assert page.evaluate("() => getSelection().toString()") == before
-    gutters = page.evaluate("""() => {
-      const widget = document.querySelector('lf-diff');
+    assert page.evaluate("() => getSelection().toString()") == before, diff
+    gutters = page.evaluate(
+        """diff => {
+      const widget = document.querySelector(diff);
       const entry = widget.fileEntries[0];
       return entry.lines.map(line => {
         const {gutterRow} = widget.threadPair(line.node);
@@ -11345,7 +11370,9 @@ def test_a_diff_refresh_keeps_a_selection_in_unchanged_lines(
           commentCount: gutterRow.querySelectorAll('.lf-diff-line-comment').length,
         };
       });
-    }""")
+    }""",
+        diff,
+    )
     assert all(
         gutter["commentInPairedGutter"]
         and gutter["column"] == gutter["expected"]
@@ -11356,30 +11383,27 @@ def test_a_diff_refresh_keeps_a_selection_in_unchanged_lines(
     ), gutters
 
 
-@pytest.mark.parametrize("starts_as_manifest", [False, True])
-def test_a_closed_diff_file_reads_current_evidence_across_source_forms(
-    browser, serve, starts_as_manifest
-):
-    """File disclosure keeps its owner and loads the current patch in either form."""
+def test_a_closed_diff_file_reads_current_evidence_across_source_forms(browser, serve):
+    """File disclosure keeps its owner and loads the current patch in either form: the
+    evidence goes from a raw patch to a manifest while the file is closed, then back."""
     url = serve(LONG_LINE_DIFF_PAGE)
-    initial = (
-        patch_manifest(MULTI_HUNK_PATCH) if starts_as_manifest else MULTI_HUNK_PATCH
-    )
-    data_model.cmd_data_set(serve.page_dir, "review-patch", initial)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
     page = open_page(browser, url)
     code = page.locator("lf-diff code[data-code]").first
     code.evaluate("node => { node.scrollLeft = 200; }")
     summary = page.locator("lf-diff summary").first
-    summary.click()
-    patch = MULTI_HUNK_PATCH.replace("new first", "new beginning")
-    next_value = patch if starts_as_manifest else patch_manifest(patch)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", next_value)
-    told(page)
-    rendered(page)
-    summary.click()
     row = page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",2]\']')
-    expect(row).to_contain_text("new beginning")
-    assert code.evaluate("node => node.scrollLeft") == 200
+    for words, form in (("new beginning", patch_manifest), ("new start", None)):
+        summary.click()
+        patch = MULTI_HUNK_PATCH.replace("new first", words)
+        data_model.cmd_data_set(
+            serve.page_dir, "review-patch", form(patch) if form else patch
+        )
+        told(page)
+        rendered(page)
+        summary.click()
+        expect(row).to_contain_text(words)
+        assert code.evaluate("node => node.scrollLeft") == 200, words
 
 
 def test_a_diff_recovers_when_a_failed_manifest_file_is_repaired(browser, serve):
@@ -11403,34 +11427,39 @@ def test_a_diff_recovers_when_a_failed_manifest_file_is_repaired(browser, serve)
     ).to_contain_text("new first")
 
 
-@pytest.mark.parametrize("manifest, starts_as_rename", [(False, True), (True, False)])
-def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(
-    browser, serve, manifest, starts_as_rename
-):
-    """A path keeps its controls; comment close and replaced evidence leave focus on its file."""
+def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(browser, serve):
+    """A path keeps its controls; comment close and replaced evidence leave focus on its
+    file: a raw patch that starts as a rename, and a manifest that starts as a change."""
     rename = (
         "diff --git a/old.py b/app/handlers.py\n"
         "similarity index 100%\nrename from old.py\nrename to app/handlers.py\n"
     )
-    regular = MULTI_HUNK_PATCH
-    value = patch_manifest if manifest else lambda patch: patch
-    initial, other = (rename, regular) if starts_as_rename else (regular, rename)
-    url = serve(LONG_LINE_DIFF_PAGE)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", value(initial))
+    url = two_diff_page(serve)
+    for (_, source, value), initial in zip(DIFF_FORMS, (rename, MULTI_HUNK_PATCH)):
+        data_model.cmd_data_set(serve.page_dir, source, value(initial))
     page = open_page(browser, url)
-    owner = page.locator("lf-diff .lf-diff-file").first.element_handle()
-    comment = page.locator("lf-diff .lf-diff-file-comment").first.element_handle()
+    for form, starts_as_rename in zip(DIFF_FORMS, (True, False)):
+        diff_file_keeps_focus(page, serve, *form, rename, starts_as_rename)
+
+
+def diff_file_keeps_focus(page, serve, diff, source, value, rename, starts_as_rename):
+    """Stand on `diff`'s first file, swap its evidence between a rename and a change
+    and back, then change it while the file is closed."""
+    regular = MULTI_HUNK_PATCH
+    initial, other = (rename, regular) if starts_as_rename else (regular, rename)
+    owner = page.locator(f"{diff} .lf-diff-file").first.element_handle()
+    comment = page.locator(f"{diff} .lf-diff-file-comment").first.element_handle()
     if starts_as_rename:
-        page.locator("lf-diff .lf-diff-file-comment").first.click()
+        page.locator(f"{diff} .lf-diff-file-comment").first.click()
         page.keyboard.press("Escape")
         assert owner.evaluate("node => node === node.getRootNode().activeElement")
     else:
-        page.locator("lf-diff summary").first.click()
+        page.locator(f"{diff} summary").first.click()
         page.keyboard.press("ArrowRight")
     scroll_settled(page)
     before = page.evaluate("() => scrollY")
     for patch in (other, initial):
-        data_model.cmd_data_set(serve.page_dir, "review-patch", value(patch))
+        data_model.cmd_data_set(serve.page_dir, source, value(patch))
         told(page)
         rendered(page)
         assert owner.evaluate("node => node.isConnected")
@@ -11438,27 +11467,25 @@ def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(
         assert owner.evaluate("node => node.contains(node.getRootNode().activeElement)")
         if starts_as_rename:
             assert owner.evaluate("node => node === node.getRootNode().activeElement")
-        assert page.evaluate("() => scrollY") == before
+        assert page.evaluate("() => scrollY") == before, diff
         if patch == regular:
             expect(
-                page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",2]\']')
+                page.locator(f'{diff} [data-lf-datum=\'["app/handlers.py","new",2]\']')
             ).to_contain_text("new first")
     if starts_as_rename:
-        data_model.cmd_data_set(serve.page_dir, "review-patch", value(regular))
+        data_model.cmd_data_set(serve.page_dir, source, value(regular))
         told(page)
         rendered(page)
-    summary = page.locator("lf-diff summary").first
+    summary = page.locator(f"{diff} summary").first
     summary.click()
     data_model.cmd_data_set(
-        serve.page_dir,
-        "review-patch",
-        value(regular.replace("new first", "new beginning")),
+        serve.page_dir, source, value(regular.replace("new first", "new beginning"))
     )
     told(page)
     rendered(page)
     summary.click()
     expect(
-        page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",2]\']')
+        page.locator(f'{diff} [data-lf-datum=\'["app/handlers.py","new",2]\']')
     ).to_contain_text("new beginning")
 
 

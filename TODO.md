@@ -99,8 +99,7 @@ has tried; settle that before building it.
   plain HTML's configurations, which put each alert's controls beside its evidence,
   and Leaf's documents, which put decisions on the page.
   [Teach the compositions that prove useful](notes/workspace-followups.md#item-20),
-  starting with per-item controls for configuration and progress through a queue,
-  and say where an owed input's `<answer.ref>` comes from.
+  starting with per-item controls for configuration and progress through a queue.
 - **Keep agent activity intelligible throughout a task.** Run the
   [status evaluations](notes/user-feedback-responsiveness.md) for delivery,
   multi-step work, and delegation. Show the plan as well as the current step;

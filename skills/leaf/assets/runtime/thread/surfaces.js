@@ -182,6 +182,17 @@ function reportFailure({ owner }, error) {
   reportPageError(error, `thread surface ${owner.localName}#${owner.id} failed`);
 }
 
+// A widget removes a node that may hold an outlet only through its placement's
+// `onCommit`, or after this: core's composer, the one node it carries from outlet to
+// outlet, leaves every outlet under `node` now, for where the next commit would put
+// it once `node` is gone, so the removal cannot take the user's editor with it.
+export function releaseOutlets(node) {
+  for (const { outlets, composition } of registrations.values()) {
+    const outlet = composition.outlet();
+    if (outlets.has(outlet) && under(outlet, node)) composition.restore();
+  }
+}
+
 function clearRegistration(registration) {
   registration.cancelRender();
   registration.stopSide();

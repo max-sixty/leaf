@@ -514,9 +514,7 @@ def _approval_error(view, event: dict, events: list, registry: dict):
     )
     if unanswered:
         identities = ", ".join(question["id"] for question in unanswered)
-        return (
-            f"v{event['version']} still has unanswered widget Questions: {identities}"
-        )
+        return f"v{event['version']} still has unanswered widget asks: {identities}"
     return None
 
 
@@ -703,9 +701,9 @@ def _task_error(view, event: dict, readings) -> str | None:
     )
     if start := start_reading(event):
         event = start
-    elif event["kind"] not in {"task", "task_end"}:
+    elif event["kind"] not in {"todo", "todo_end"}:
         return None
-    workflows = readings.work.workflows if event["kind"] != "task_end" else []
+    workflows = readings.work.workflows if event["kind"] != "todo_end" else []
     if progress_parent is not None and not any(
         item["input"] == event["item"]
         and item["next_actor"] == "agent"
@@ -742,7 +740,7 @@ def _task_error(view, event: dict, readings) -> str | None:
             None,
         )
         if question is not None:
-            return f"{widget!r} already has Question {question['id']!r}; use that Question instead of opening duplicate work"
+            return f"{widget!r} already has ask {question['id']!r}; use that ask instead of opening duplicate work"
         return None
 
     owed = {item["input"] for item in workflows if item["next_actor"] == "agent"}
@@ -826,7 +824,7 @@ def admitted_event(view, events: list, event: dict) -> dict:
         raise EventRefused(error)
     if kind in WIDGET_KINDS:
         event = admit_widget_event(view.document(event["revision"]), event, readings)
-    if kind == "task" and event["subject"]["kind"] == "widget":
+    if kind == "todo" and event["subject"]["kind"] == "widget":
         # The revision the task was opened against, which the stamp that completes
         # it must come after (`publishing`).
         event = {**event, "revision": view.revisions[-1]}

@@ -29,7 +29,7 @@ def test_new_reply_and_user_question_share_one_notice_without_moving_focus(
         serve.page_dir,
         {"to": root, "for": root},
         "I changed the route. Does this answer your question?",
-        question=True,
+        ask=True,
     )
     told(page)
     notice = re.compile(r".+ replied; Input needed")

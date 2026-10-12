@@ -34,9 +34,9 @@ def _served(events: tuple[dict, ...]) -> dict:
     }
 
 
-# Something of every kind on each side: an open Ask, a question left in prose, a task
-# the agent put on them, a reply that failed and a page action whose pickup failed are on
-# the user; a comment owed a reply and a task the agent has in hand are on the agent.
+# Something of every kind on each list: a widget ask, a prose ask, a to-do the agent put
+# on the user, a reply that failed and a page action whose pickup failed are on Questions;
+# a comment owed a reply and a to-do the agent has in hand are on Tasks.
 BOTH_SIDES = (
     {"kind": "comment", "text": "Weekly?"},
     {
@@ -46,7 +46,7 @@ BOTH_SIDES = (
         "parent": "e1",
         "responds": "e1",
         "text": "Weekly or daily?",
-        "question": True,
+        "ask": True,
     },
     {"kind": "comment", "text": "Tighten this."},
     {"kind": "comment", "text": "Rebuild the chart."},
@@ -58,7 +58,7 @@ BOTH_SIDES = (
         "parent": "e4",
         "responds": "e4",
         "text": "On it after CI.",
-        "task": "Rebuild the chart",
+        "todo": "Rebuild the chart",
     },
     {"kind": "comment", "text": "Retitle it."},
     {
@@ -95,7 +95,7 @@ BOTH_SIDES = (
         "text": "Redrawing the chart",
     },
     {
-        "kind": "task",
+        "kind": "todo",
         "author": "agent",
         "agent": "Agent",
         "session": "served-records",
@@ -158,11 +158,11 @@ def build() -> dict:
         "thread": threads["e1"],
         "workflow": workflows["e4"],
         "gestures": gesture_sequence(),
-        "question_item": _served_question_item(),
+        "ask_item": _served_ask_item(),
         "state_definitions": state_definition_cases(),
         "readings": {
             # A required approval of the exact stamped document, with no other
-            # Questions. Keep the whole browser reading for local approval folds.
+            # asks. Keep the whole browser reading for local approval folds.
             "approval": served_reading(SIGN_OFF_PAGE, (READY,)),
             # The same version once the user approved it.
             "approved": served_reading(
@@ -181,7 +181,7 @@ def build() -> dict:
                         "parent": "e1",
                         "responds": "e1",
                         "text": "Here is the board. Which card goes first?",
-                        "question": True,
+                        "ask": True,
                         "markup": model_layer()["lf-board"]["x-example"],
                     },
                     {
@@ -200,22 +200,22 @@ def build() -> dict:
                 ASK_PAGE,
                 BOTH_SIDES,
             ),
-            # The same page once the user has marked their task done.
+            # The same page once the user has marked their to-do done.
             "user done": served_reading(
                 ASK_PAGE,
                 (
                     *BOTH_SIDES,
-                    {"kind": "task_end", "task": "e11", "outcome": "done"},
+                    {"kind": "todo_end", "todo": "e11", "outcome": "done"},
                 ),
             ),
-            # Two tasks the agent holds on a page it is working on: a start running
+            # Two to-dos the agent holds on a page it is working on: a start running
             # on one went quiet past the working grace, and the other's is current.
             "quiet start": served_reading(
                 ASK_PAGE,
                 (
                     *(
                         {
-                            "kind": "task",
+                            "kind": "todo",
                             "author": "agent",
                             "agent": "Agent",
                             "session": "served-records",
@@ -260,8 +260,8 @@ def build() -> dict:
                     },
                 ),
             ),
-            # One Ask answered and one open, and a task the agent ended beside one it
-            # still holds: only the answered Ask and the ended task are done.
+            # One ask answered and one open, and a to-do the agent ended beside one it
+            # still holds: only the answered ask and the ended to-do are done.
             "done": served_reading(
                 ASK_PAGE,
                 (
@@ -280,7 +280,7 @@ def build() -> dict:
                         "parent": "e2",
                         "responds": "e2",
                         "text": "Rebuilding it.",
-                        "task": "Rebuild the chart",
+                        "todo": "Rebuild the chart",
                     },
                     {
                         "kind": "reply",
@@ -289,14 +289,14 @@ def build() -> dict:
                         "session": "served-records",
                         "parent": "e2",
                         "text": "And checking the colours.",
-                        "task": "Check the colours",
+                        "todo": "Check the colours",
                     },
                     {
-                        "kind": "task_end",
+                        "kind": "todo_end",
                         "author": "agent",
                         "agent": "Agent",
                         "session": "served-records",
-                        "task": "e4",
+                        "todo": "e4",
                         "outcome": "done",
                         "detail": "Matched the theme",
                     },
@@ -329,13 +329,13 @@ ASK_PAGE = leaf_page(
 )
 
 
-def _served_question_item() -> dict:
-    """One Question as a work queue lists it (`served_state.queues`)."""
+def _served_ask_item() -> dict:
+    """One ask as Questions lists it (`served_state.queues`)."""
     state = served_reading(ASK_PAGE, BOTH_SIDES)
     return next(
         item
-        for item in state["browser"]["views"]["1"]["queues"]["on_you"]
-        if item["kind"] == "question"
+        for item in state["browser"]["views"]["1"]["queues"]["questions"]
+        if item["kind"] == "ask"
     )
 
 

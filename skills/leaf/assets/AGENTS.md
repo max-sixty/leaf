@@ -72,7 +72,7 @@ a passage mark, and everything else in the annotation layer is an overlay: it co
 what lies under it and takes no room. No rule pads, indents,
 widens, or reflows a block, heading, or line to clear a pin, and nothing moves when a
 marker arrives, leaves, or changes place, including a marker that always accompanies
-its target, such as a Question's. Reserved room would make the page's geometry depend on
+its target, such as an ask's. Reserved room would make the page's geometry depend on
 which markers stand and where, which is what the overlay exists to avoid. Where a pin
 covers something the user needs, the answers are `o` (or More's Hide annotations
 under a finger) and a better placement (`TODO.md`), never room made for it.
@@ -157,7 +157,7 @@ behind a notice in a row the thread already draws. A thread the agent starts in 
 also waits there; a thread that would open a seat of its own, as on a diff line with
 no thread, waits in the margin behind its marker (`thread/held-news.js`). It shows
 once a gesture of theirs takes them to it: opening the notice or the thread, walking
-to the thread or one of its Questions, or acting there. In the Threads panel, a card
+to the thread or one of its asks, or acting there. In the Threads panel, a card
 news takes out of the view, as another actor resolving its
 thread under Open does, stays where it stands, holding the news behind that notice
 and, once shown, in the shape it stood in, until its going would move nothing the
@@ -311,7 +311,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Reading regions and scrolling | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
 | Keyboard | `keyboard/AGENTS.md` |
 | Focus and navigation | `focus.js`, `standing-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js` |
-| Questions | `questions/` |
+| Asks | `questions/` |
 | Comment capture | `composing/`, `drafts.js`, `media.js` |
 | Threads | `thread/`, `thread-panel.js` |
 | Annotation inventory and controls | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js` |
@@ -407,7 +407,7 @@ unresolved local work into the one reading every component selects from:
 | version shown | the revision the delivery prelude names; a newer revision with the same executable identity patches in place, a different one navigates to a fresh document |
 | accepted history, and the reading applied | the server event log and its `/api/state` answer, adopted whole by the publisher |
 | unresolved browser work | the publisher's one ordered ledger |
-| thread, workflow, attention, Questions, tasks, activity, unread | the server's folds; the browser adds only its own unresolved sends and the versions it is marking read |
+| thread, workflow, attention, asks, to-dos, activity, unread | the server's folds; the browser adds only its own unresolved sends and the versions it is marking read |
 | what is waiting on the user and on the agent, and what is done | the server's selection (`served_state.queues`), which `page state` prints; the publisher places this tab's sends against it (`localQueues`) |
 | what the DOM represents | the presentation coordinator's renderer tickets and preparation regions |
 | when a document-wide renderer paints | the publication that opened the epoch, in the order `runtime/semantic-state.js` declares |
@@ -469,7 +469,7 @@ keeps its own test says why beside it. Rows marked *lint* are enforced in
 | The language a file path means | `syntax.js` `langForPath`, from the registry's `$languages` |
 | Paint on the next frame, or watch a size | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (*lint*) |
 | Write a DOM value only when it changed | `keeps.js` `keeps` |
-| Threads, workflow, attention, Questions, settlement | the server's folds, under "One writer for each fact" |
+| Threads, workflow, attention, asks, settlement | the server's folds, under "One writer for each fact" |
 
 ### Facts both runtimes know
 
@@ -524,16 +524,16 @@ requires both; readers inspecting intermediate paint can select the first.
 
 ## Authoritative projection
 
-Python owns Question membership, widget completion and thread settlement. The server
-ships complete page and frozen-thread inventories as `document.questions` and
-`thread.questions`; prose Questions join that same thread inventory. A Question
+Python owns ask membership, widget completion and thread settlement. The server
+ships complete page and frozen-thread inventories as `document.asks` and
+`thread.asks`; prose asks join that same thread inventory. An ask
 contains its source, prompt, typed answer, status and next actor. The browser
 selects each widget answer from the same local-inclusive state its controls draw,
 without folding its `x-awaits.answered` completion rule again. A required-version
-approval is another Question source: its local approval or undo updates its contained
+approval is another ask source: its local approval or undo updates its contained
 answer and status immediately, with refusal restoring the admitted reading. Thread attention
 (`needs_user` or `waiting`) changes locally for unresolved sends; a refusal restores
-the admitted reading. Questions derive their queue rows directly, while Tasks hold
+the admitted reading. Asks derive their queue rows directly, while to-dos hold
 explicit committed work. Every state read has
 one `through_seq`, and version comparison asks `/api/view` at the sequence
 already applied. A page widget's projection stops at the current revision; a

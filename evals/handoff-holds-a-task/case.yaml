@@ -10,7 +10,7 @@
 description: handoff-holds-a-task
 metadata:
   purpose: 'Conversation loop: work the agent hands to another session still gets a
-    `leaf task` on the thread that asked for it, and the brief lets that session end
+    to-do on the thread that asked for it, and the brief lets that session end
     it where the result lands.'
   tags:
   - wait-loop
@@ -35,7 +35,7 @@ assert:
   metric: judgment
   value: |
     Pass only if the commands answer 3b9e51a0 with `leaf response reply` carrying
-    `--task "<title>"` for the parser investigation; and if the brief gives the
-    dispatched session what it needs to end that task where its result lands (the
-    page and the task id, with `leaf task end`), or otherwise names how the task
-    is ended. Fail if no task is opened, or if nothing provides for ending it.
+    `--todo "<title>"` for the parser investigation; and if the brief gives the
+    dispatched session what it needs to end that to-do where its result lands (the
+    page and the to-do's id, with `leaf task end`), or otherwise names how the to-do
+    is ended. Fail if no to-do is opened, or if nothing provides for ending it.

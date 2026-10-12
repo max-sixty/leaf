@@ -25,10 +25,10 @@ setup = "uv run --frozen leaf-dev setup"
 [[pre-merge]]
 bundles = "pnpm run check:bundles"
 
-# Broad discovery keeps the local gate quick, adding only the nightly-marked tests the
-# branch edits, as a pull request's gate does. CI runs the rest after main moves.
+# Broad discovery keeps the local gate quick, adding only the `main` and `nightly` tests
+# the branch edits, as a pull request's gate does. CI runs the rest after main moves.
 [[pre-merge]]
-tests = "uv run pytest tests --nightly-changed-since main"
+tests = "uv run pytest tests --changed-since main"
 node-checks = "pnpm run check"
 
 # Prepare a new worktree while the agent starts working. The setup command also

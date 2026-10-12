@@ -563,7 +563,7 @@ def test_demo_waiter_preserves_the_reason_a_wait_delivered_nothing():
         waiter.receive()
 
 
-@pytest.mark.nightly
+@pytest.mark.main
 def test_demo_recording_drives_the_browser_journey(tmp_path):
     output = tmp_path / "demo"
     # Not check=True: with the streams captured, the CalledProcessError it raises

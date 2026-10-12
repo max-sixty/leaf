@@ -109,7 +109,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 # One page for each reason an aimed press can still reach the page underneath it. The

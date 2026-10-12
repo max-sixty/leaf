@@ -20,3 +20,5 @@ export {
   verbatimOwnerIdentity,
 } from "./passages.js";
 export { shallowSigs } from "./projection/presentation.js";
+export { commandDeclarationsWithin } from "./keyboard/scopes.js";
+export { commandRoutes } from "./keyboard/bindings.js";

@@ -123,7 +123,7 @@ DRAG_HELD = (
     "'/runtime/widget-elements.js')).dragHeld()"
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 def test_a_source_widget_releases_its_fallback_face_when_it_renders(browser, serve):
@@ -12851,7 +12851,11 @@ def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
     # band stays inside the pane: the pane draws it inset over the body's cell
     # (theme.css), where outset on the body the workspace body clipped its right and
     # lower runs.
-    page.evaluate("() => document.querySelector('lf-diff').focus()")
+    # The selected row retargets document focus to this host. Leave it first so
+    # focusing the host itself publishes a new standing and its pane band.
+    host = page.locator("lf-diff")
+    host.evaluate("node => { node.blur(); node.focus(); }")
+    expect(host).to_have_attribute("data-lf-focus", "")
     host_ring = page.evaluate(
         """() => {
           const host = document.querySelector('lf-diff');

@@ -14,10 +14,11 @@
    completed native transition, and carries an opening whose earlier declarations this
    module was not yet listening for. An opening arrives once, so a declaration naming a
    layer the stack already holds leaves its entry where the arrival put it, however many
-   more times that same opening is declared. The entry keeps the toggle's `source`, the
-   control the layer was opened from, however it opened: `showPopover({source})`,
-   `popovertarget`, or `commandfor`. Dismissal stays each layer's own `popover`
-   or `closedby` value. A popover opened declaratively inside a shadow root nobody staged
+   more times that same opening is declared. The entry keeps the control the layer was
+   opened from, its `source`: a declarative opening's (`popovertarget`, `commandfor`) as
+   the toggle names it, and a scripted one's from the `showPopover` call itself, since
+   the event retargets a source inside a shadow root to its host and goes unheard from a
+   root nobody staged. Dismissal stays each layer's own `popover` or `closedby` value. A popover opened declaratively inside a shadow root nobody staged
    fires a `toggle` this module cannot hear, so it never reaches the stack; `shadowStage`
    is the declared route for a widget's shadow tree.
 
@@ -105,9 +106,12 @@ HTMLDialogElement.prototype.showModal = function () {
   return nativeDialogShowModal.call(this);
 };
 
-HTMLElement.prototype.showPopover = function (...args) {
-  if (!this.matches(":popover-open")) pushNativeLayer(this);
-  return nativePopoverShow.apply(this, args);
+HTMLElement.prototype.showPopover = function (options) {
+  const opening = !this.matches(":popover-open");
+  if (opening) pushNativeLayer(this);
+  nativePopoverShow.call(this, options);
+  const entry = opening && entries.find((candidate) => candidate.root === this);
+  if (entry && options?.source) entry.source = options.source;
 };
 
 // Leaf opens native layers through this operation. A sample suppresses the

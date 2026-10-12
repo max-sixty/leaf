@@ -3380,22 +3380,26 @@ def test_a_popover_reseated_by_the_panel_stays_on_its_source(browser, serve):
     """A widget in a thread hangs a popover from its button, opened through the package
     API with the button as its source, which anchors it. Resizing the panel into
     covering re-seats the popover, and it reopens from the same source, so it still
-    hangs from the button rather than landing wherever an unanchored popover falls. No
-    shipped popover with a source stays open across a re-seat: this is the package
-    route."""
+    hangs from the button rather than landing wherever an unanchored popover falls. The
+    button stands in the widget's shadow root, where the toggle event names its host
+    instead. No shipped popover with a source stays open across a re-seat: this is the
+    package route."""
     page = open_page(browser, serve(LONG_PAGE, comments=1))
     resized(page, 1200, 800)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     door = page.locator(".lf-thread[open] .lf-msg").first.evaluate_handle("""async message => {
       const {showNativeLayer} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const widget = document.createElement('span');
       const door = Object.assign(document.createElement('button'), {textContent: 'Details'});
+      widget.attachShadow({mode: 'open'}).append(door);
       const popover = Object.assign(document.createElement('div'),
         {id: 'widget-popover', popover: 'auto', textContent: 'Widget details'});
-      // Out of flow, so the thread's own lines keep their places.
-      door.style.position = 'absolute';
+      // Out of flow, so the thread's own lines keep their places; padded, so the host's
+      // box is not the button's.
+      widget.style.cssText = 'position: absolute; padding: 24px';
       popover.style.cssText = 'position-area: bottom span-right; margin: 0';
-      message.append(door, popover);
+      message.append(widget, popover);
       showNativeLayer(popover, {source: door});
       return door;
     }""")

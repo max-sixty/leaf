@@ -34,12 +34,11 @@ last day: its layout and visual viewport, the window area Leaf's chrome leaves, 
 scheme, pointer type, reduced-motion preference, scroll position, and which reading
 regions are on screen. Use it to judge whether a revision fits the window the user
 actually has. Each load is its own entry, so two visible tabs can show different
-widths or revisions, and a tab that reloads or opens a new version adds an entry.
-`visible` says whether the load showed the page at its last report, `freshness`
-turns `stale` after 45 seconds without a report, and `matches_active_revision` says
-whether it shows your latest revision. Hidden and stale entries stay for a day. An
-empty list means no browser has reported. A region on screen does not show that the
-user read it.
+widths or revisions, and a tab that reloads adds an entry. `visible` says whether
+the load showed the page at its last report, `freshness` turns `stale` after 45
+seconds without a report, and `matches_active_revision` says whether it shows your
+latest revision. An empty list means no browser has reported. A region on screen
+does not show that the user read it.
 
 Each entry's `checks` holds layout findings measured in that browser, including
 content below the screen: sideways overflow, scrolling workspace regions, and

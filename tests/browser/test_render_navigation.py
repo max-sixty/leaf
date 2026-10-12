@@ -3288,8 +3288,9 @@ def test_q_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
     """`q` stops, in page order, at a thread whose question waits on the user as well
     as at an open Ask, and passes a thread waiting on the agent; `t` still walks both
     threads. The banner counts what waits on each side, the user's Questions on their
-    door beside Threads and the agent's Tasks beside the status, and a reply the user
-    sends moves its thread from their count to the agent's and off the walk."""
+    door beside Threads and the agent's Tasks beside the status. A reply the user sends
+    joins the agent's count as it is sent, and its thread leaves the user's count and
+    the walk once the server has read the reply."""
     url = serve(QUEUE_PAGE)
     d = serve.page_dir
     asked = append_carried_log_record(
@@ -3363,13 +3364,13 @@ def test_q_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
     page.keyboard.press("Enter")
     box = thread.locator("leaf-text")
     write(box, "Weekly.")
-    # The reply moves from one count to the other in the turn it is sent, before the
-    # server has answered for it.
+    # The reply is the agent's to answer in the turn it is sent; which question it
+    # answers is the server's reading, which takes the thread off the user's count.
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the reply")
-    counts(1, 2)
+    counts(2, 2)
     page.unroute("**/api/event")
     for route in held:
         route.continue_()
@@ -3407,8 +3408,9 @@ def test_the_questions_panel_lists_both_queues_and_what_is_done(browser, serve):
     """The Questions panel lists the queues the `q` walk and the banner's counts read,
     the user's first and then the agent's, and folds what is done at the foot: here a
     task the agent ended. The prose question is an agent opening comment, which
-    asks implicitly. A row arrives where `q` would, and a reply the user sends moves its
-    thread from the user's list to the agent's in the turn it is sent."""
+    asks implicitly. A row arrives where `q` would. A reply the user sends joins the
+    agent's list as it is sent, and its thread leaves the user's once the server has
+    read the reply."""
     url = serve(QUEUE_PAGE)
     d = serve.page_dir
 
@@ -3521,8 +3523,8 @@ def test_the_questions_panel_lists_both_queues_and_what_is_done(browser, serve):
     page.keyboard.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the reply")
     you = panel.locator("[data-lf-queue='you'] .lf-queue-row")
-    expect(you).to_have_count(1)
     expect(panel.locator("[data-lf-queue='agent'] .lf-queue-row")).to_have_count(3)
+    expect(you).to_have_count(2)
     page.unroute("**/api/event")
     for route in held:
         route.continue_()

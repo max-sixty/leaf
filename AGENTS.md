@@ -83,6 +83,18 @@ long as any architectural problem they leave remains easy to fix.
 Make improvements that follow from the repository. Ask the user only when the
 choice depends on purpose or intent the code cannot supply.
 
+### Responsiveness
+
+A gesture shows what it settles by itself in the turn the user makes it: a
+message in its thread, a widget's new state, a thread the user resolves. Facts
+derived from the rest of the log, such as whose turn a thread is, which asks the
+user owes, and what Questions and Tasks list, come back from the server, which
+usually runs on the user's machine and answers within 100 ms. The browser
+does not anticipate them: a prediction is a second copy of the server's rules,
+and each gesture and subject it misses shows the wrong state until the answer
+lands. Where the server cannot answer within 100 ms, make it faster rather than
+predicting its answer.
+
 ### Pages across Leaf updates
 
 A page keeps the layer of the Leaf that vendored it, and each later Leaf serves,
@@ -273,11 +285,10 @@ sends it, before the log answers; a disabled control, spinner, or other delivery
 status is not that result. The page can draw what its own document settles, such as
 a widget's state or the words of a turn the user adds to a thread. Which asks
 the document still holds, which of them the user owes, and whose turn a thread is
-depend on the whole log, so the browser reads them from the server's state and,
-while a thread gesture of its own is unresolved, from what the server read that
-gesture leaving (each thread's `after`). It adds only what it decides itself: a
-required-version approval, a thread it opened, and the resend a refused send
-leaves. A refusal restores the authoritative state.
+depend on the whole log, so the browser reads them from the server's state and
+waits for its reading of a gesture ("Responsiveness"). It adds only what it decides
+itself: a required-version approval, a to-do the user ends, a thread it opened, and
+the resend a refused send leaves. A refusal restores the authoritative state.
 
 The active document has one immutable application publication. Only its publisher
 combines authored baselines, the complete admitted server reading, and the ordered

@@ -246,13 +246,13 @@ than a new split per row whose edges land somewhere new each time.
 
 "Contents navigation" sets where the overview's outline goes at each width.
 
-A track shorter than the window can stay in view while the body scrolls beside it:
-give the `aside` `align-self: stretch`, so it runs the body's height, and the block it
-holds `position: sticky; top: var(--lf-top)`, which keeps that block just below Leaf's
-banner and any page tab strip. The block sticks only inside the track, so wherever the two stack, for either
-reason, the track is only as tall as what it holds and nothing sticks over the body; no
-width is needed. Leave a taller track in flow, since sticking it would hide its end
-until the page ends.
+To keep the track in view while the body scrolls beside it, put everything the track
+holds in one block, as the `div` in the example above does. While the track stands
+beside the body, the Layout sticks that block just below Leaf's banner and any page tab
+strip, and a block taller than the window scrolls on its own, so its end stays
+reachable. Where the two stack, the block scrolls with the page, and a track of several
+blocks always does. Write no `position`, `top`, height or overflow for the track or the
+blocks in it.
 
 Draw each region the same way, as a `section.panel` with a short heading, and keep a
 `.callout` with a status tone (`warn`, `danger`, `ok`) for the one thing the reader must
@@ -264,10 +264,12 @@ glance.
 `<main class="layout-workspace">` is a screen: it fills the window's height below the
 banner, and the reader moves through it, choosing what its regions show, rather than
 scrolling it. Its `header` and `footer` take what they hold, and its one body between
-them takes the rest. The header is one row, the title with the page's state beside it
-as `.tag` chips, so the regions keep the window: write no lede, eyebrow or legend there,
-and put what a lede would say at the top of the region it is about, or in a footer of a
-line or two. The body is one `lf-pane`, a
+them takes the rest. The header is one row, the title with the page's state beside it,
+so the regions keep the window: `.tag` chips for what you state, such as how the items
+divide, and an `lf-tally` for how many of the page's asks are left, which the page
+counts as the user answers. Write no lede, eyebrow or legend there, and put what a
+lede would say at the top of the region it is about, or in a footer of a line or two.
+The body is one `lf-pane`, a
 widget that composes its own regions, or the page's own grid of panes, such as a run's
 log beside the chart it explains, which the page's `<style>` places:
 
@@ -295,12 +297,16 @@ A workspace usually takes it, and so can a dense pane or table on a column page.
 
 A queue whose items open one at a time beside it, such as tickets, cases or findings to
 decide, is one `lf-tabs list="side"` as the body: its list is the queue and each item an
-`lf-tab`, so one opens beside the list and a link or an ask opens its own, and a row
-whose item's asks are all answered shows a check, with the picked answer beside it
-where the item holds one ask. Write no script to select, hide or mark an item; the tab
-set does all three. Where the items fall into kinds the user works through in turn,
-such as merge, close and FYI, give each `lf-tab` its kind as `group` and keep each
-kind's items together: the list sets each run under a heading of its group.
+`lf-tab`, so one opens beside the list and a link or an ask opens its own, and each
+row marks its item's asks: open until they are all answered, then a check, with the
+picked answer beside it where the item holds one ask. Write no script to select, hide
+or mark an item; the tab set does all three. Say how much of the queue is left with an
+`lf-tally` naming it in the header, with `next` for a control to the next open ask: it
+counts the asks as the user answers them, where a count written into a chip or the
+prose is wrong after the first answer. Where the items fall into kinds the user works
+through in turn, such as merge, close and FYI, give each `lf-tab` its kind as `group`
+and keep each kind's items together: the list sets each run under a heading of its
+group.
 
 The page itself does not scroll; a region does, where what it holds runs past it. Each
 pane's body scrolls on its own, and a widget that fills the body, such as a playground's
@@ -537,6 +543,13 @@ awaits server admission, or while the version menu is open.
 Page modules follow `references/module-authoring.md`, "What a behavior module owes". In
 particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-state
 rules keep authored controls correct after reconnection and thread quoting.
+
+A page module that shows the state of the asks in each card, section or item of its
+own layout reads them from Leaf rather than keeping a copy: `watchQuestions()` with
+`asksIn(region)` selects each region's asks, answered or open, by the rule `lf-tabs`
+rows and `lf-tally` read, and `questionActions.next({within})` steps to the next one
+waiting on the user (`references/module-authoring.md`, "Reading asks and obligation
+queues").
 
 `leaf page check` runs a page's own code, a script or a page widget the
 document places, once in the host's browser, and a page with a data widget such as a

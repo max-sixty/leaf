@@ -228,7 +228,8 @@ export function measure(el, take) {
 // input back (a choose path, a drag grip), so an exhibit never takes the user's edits.
 // Presentational upgrades and view state run regardless — a quoted diagram still
 // renders, a quoted settled group still collapses. Inside means strictly within: the
-// exhibit itself is no mention, as the server reads it (`questions.quoted_in`).
+// exhibit itself is no mention, as the server reads it (`questions.quoted_in`);
+// `tests/exhibit_cases.json` holds both runtimes to one set of cases.
 export function quoted(el) {
   const exhibits = tagsDeclaring((entry) => entry["x-exhibit"]);
   return exhibits.length > 0 && el.parentElement?.closest(exhibits.join(",")) != null;

@@ -1845,13 +1845,19 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     elif place in {"choose-earlier", "leave-displaced-title"}:
         selected.locator(".lf-thread-summary").click()
 
-    # Choosing an earlier thread while the failing candidate is held starts two newer
-    # readings (its disclosure's and the publication's), and an attempt a newer one
-    # supersedes restores nothing. Both fail too, so restoring the committed reading is
-    # the last one's to do. Each failure waits at a gate the test opens, so which
-    # attempt is current when it rejects is the test's arrangement, not a race.
-    failures = 3 if place == "choose-earlier" else 1
-    page.evaluate(f"window.listFailures = {failures}")
+    # Choosing an earlier thread while the failing reading is in flight starts two
+    # newer readings (its disclosure's and the publication's), and an attempt a newer
+    # one supersedes restores nothing. Both fail too, so restoring the committed reading
+    # is the last one's to do. There each failing reading waits before it paints and
+    # then fails in the same turn as its paint, as a renderer exception does, so the
+    # test decides which attempt is current and no candidate stands on screen between.
+    choose_earlier = place == "choose-earlier"
+    failures = 3 if choose_earlier else 1
+    page.evaluate(
+        "([failures, gateBeforePaint]) => {"
+        " window.listFailures = failures; window.gateBeforePaint = gateBeforePaint; }",
+        [failures, choose_earlier],
+    )
     page.evaluate(
         """async id => {
           const presentation = await window.__lfRuntimeImport(
@@ -1878,9 +1884,6 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
           let releaseFailure;
           const failedCandidate = new Promise(done => { releaseFailure = done; });
           window.releaseFirstListFailure = releaseFailure;
-          let releaseLater;
-          const laterFailures = new Promise(done => { releaseLater = done; });
-          window.releaseLaterListFailures = releaseLater;
           let releaseNext;
           const next = new Promise(done => { releaseNext = done; });
           window.releaseNextReading = releaseNext;
@@ -1893,13 +1896,14 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
             if (!candidate) return present(model);
             if (failures > 0) {
               const attempt = failures--;
-              await present(model);
-              if (attempt === window.listFailures) {
-                window.failedCandidatePresented = true;
+              if (window.gateBeforePaint) {
+                window.heldCandidates = (window.heldCandidates ?? 0) + 1;
                 await failedCandidate;
+                await present(model);
               } else {
-                window.laterCandidatesStarted = (window.laterCandidatesStarted ?? 0) + 1;
-                await laterFailures;
+                await present(model);
+                window.heldCandidates = 1;
+                await failedCandidate;
               }
               window.completeListFailures = (window.completeListFailures ?? 0) + 1;
               throw new Error('injected complete-list failure');
@@ -1960,34 +1964,21 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     page.unroute("**/api/state*")
     for route in held_readings:
         route.continue_()
-    page.wait_for_function("() => window.failedCandidatePresented === true")
+    page.wait_for_function("() => window.heldCandidates === 1")
     # Later state reads wait too while the failures are arranged, so no reading but
     # the ones the test starts can supersede them.
     held_readings = []
     page.route("**/api/state*", lambda route: held_readings.append(route))
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 4")
-    if place == "choose-earlier":
+    if choose_earlier:
         selected = page.locator('.lf-thread[data-id="earlier-thread"]')
         selected.locator(".lf-thread-summary").click()
-        # Once both of the choice's readings have started, the first attempt is
-        # superseded before it rejects, and that rejection settles before the others.
-        # One script runs the sequence, so the restore still answers the press, as it
-        # does when the choice's own reading fails without waiting at a gate.
-        page.evaluate(
-            """async () => {
-              const until = (condition) => new Promise((done) => {
-                const poll = () => (condition() ? done() : requestAnimationFrame(poll));
-                poll();
-              });
-              await until(() => window.laterCandidatesStarted === 2);
-              window.releaseFirstListFailure();
-              await until(() => window.completeListFailures === 1);
-              await new Promise((done) => setTimeout(done));
-              window.releaseLaterListFailures();
-            }"""
-        )
         expect(selected).to_have_attribute("open", "")
+        # Both of the choice's readings stand at the gate, so the first is superseded,
+        # and all three fail once it opens.
+        page.wait_for_function("() => window.heldCandidates === 3")
+        page.evaluate("window.releaseFirstListFailure()")
     else:
+        expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 4")
         if place == "leave-displaced-title":
             expect(
                 page.locator('[data-withdrawn="selected-thread"] button')
@@ -2035,7 +2026,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     ) == [6, 14, "backward"]
     assert "thread" in page.evaluate("window.readLeafPresentation().pending")
     # The restored card must stand for a frame before the next reading withdraws it;
-    # the choice that dismissed the failed candidate cannot hide a later jump.
+    # the choice made while the reading failed cannot hide a later jump.
     page.evaluate("lfShiftsJudged()")
     restored_top = page.evaluate("window.keptPanel.getBoundingClientRect().top")
 
@@ -2087,10 +2078,6 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     expected_errors = ["leaf: Presentation failed: injected complete-list failure"]
     page.evaluate("lfShiftsJudged()")
     errors = take_browser_errors(page)
-    if place == "choose-earlier":
-        # The test injects renderer failures, and on a loaded host the restore after one
-        # lands outside the 500ms input window: that movement is the fault's, not a shift.
-        errors = [e for e in errors if " moved without input " not in e.splitlines()[0]]
     assert [error.splitlines()[0] for error in errors] == expected_errors, errors
 
 

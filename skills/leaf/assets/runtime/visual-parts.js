@@ -40,14 +40,6 @@ export function registerVisualParts(
   read,
   { reveal = null, label = null } = {},
 ) {
-  if (!(source instanceof Element))
-    throw new TypeError("Visual parts need an Element source");
-  if (typeof read !== "function")
-    throw new TypeError("Visual parts need an ordered reading function");
-  if (reveal !== null && typeof reveal !== "function")
-    throw new TypeError("A visual part reveal must be a function");
-  if (label !== null && typeof label !== "function")
-    throw new TypeError("A visual part label must be a function");
   if (registrations.has(source))
     throw new TypeError("A visual source may register its parts only once");
   registrations.set(source, { read, reveal, label });

@@ -2,10 +2,12 @@
  *
  * Contributors register one stable control with an explicit rank and seat.
  * A compound control also names its retained focus target.
- * This synchronous light-DOM Lit owner is then the only code that decides inventory,
+ * This synchronous light-DOM owner is then the only code that decides inventory,
  * order, presence, row-versus-overflow placement, and the overflow door's state. The
  * native controls are retained islands: their own owners keep commands, words, and
- * local state while this owner retains the same nodes in its two Lit lists.
+ * local state while this owner places the same nodes in its two lists at once
+ * (`setChildLists`), so a control changing seats moves straight across with the user
+ * still standing in it.
  * An open overflow menu retains the seats it opened with until it closes. Semantic
  * availability and news keep advancing: retired controls leave hidden seats and
  * lose focusability, and newly offered rows join the next opening. Thus passive
@@ -38,9 +40,10 @@
  */
 import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
 import { scrollIntoView } from "./landing-scroll.js";
-import { html, render, repeat } from "../vendor/browser-runtime.js";
+import { setChildLists } from "./dom-children.js";
 import { el } from "./widget-elements.js";
-import { iconTemplate } from "./icons.js";
+import { iconElement } from "./icons.js";
+import { keeps, keepsHidden } from "./keeps.js";
 import { repaint } from "./repaint.js";
 import { afterScript } from "./rendering.js";
 import {
@@ -85,6 +88,10 @@ overflowMenu.id = "lf-banner-menu";
 overflowMenu.setAttribute("popover", "auto");
 overflowMenu.setAttribute("role", "group");
 overflowMenu.setAttribute("aria-label", "More page controls");
+const overflowBtn = el("button", "lf-btn lf-banner-more");
+overflowBtn.type = "button";
+overflowBtn.setAttribute("popovertarget", overflowMenu.id);
+overflowBtn.append(iconElement("more", "lf-action-icon"));
 
 const SEATS = ["row", "menu", "gesture"];
 // The render-blocking theme decides posture once, before the banner arrives.
@@ -123,9 +130,9 @@ const visible = (entry) => {
 const currentMenuSeats = () =>
   new Set(menu.filter(visible).map((entry) => entry.control));
 
-// The door is part of the row's template, so Lit writes its state only where it moved.
-// Its name says what its dot stands for: each urgent control behind it names its news.
-function rowTemplate() {
+// The door's name says what its dot stands for: each urgent control behind it names
+// its news.
+function paintDoor() {
   const open = overflowMenu.matches(":popover-open");
   const news = [
     ...new Set(
@@ -133,43 +140,24 @@ function rowTemplate() {
     ),
   ];
   const name = ["More page controls", ...news].join(", ");
+  keeps(overflowBtn, "aria-label", name);
+  keeps(overflowBtn, "title", name);
+  overflowBtn.toggleAttribute("data-lf-news", news.length > 0);
   // Keep the native invoker standing until its open popover has closed. A semantic
   // update can retire the last visible item while the user is inside it; closing then
   // lets paint remove the empty door.
-  return html`
-    ${repeat(
-      row,
-      (entry) => entry.key,
-      (entry) => entry.control,
-    )}
-    <button
-      class="lf-btn lf-banner-more"
-      type="button"
-      popovertarget="lf-banner-menu"
-      aria-expanded=${String(open)}
-      aria-label=${name}
-      title=${name}
-      ?data-lf-news=${news.length > 0}
-      ?hidden=${!open && !menu.some(visible)}
-    >
-      ${iconTemplate("more", "lf-action-icon")}
-    </button>
-  `;
+  keepsHidden(overflowBtn, !open && !menu.some(visible));
 }
 
-function menuTemplate() {
-  return html`${repeat(
-    menu,
-    (entry) => entry.key,
-    (entry) => entry.control,
-  )}`;
+function placeRuns() {
+  setChildLists([
+    [bannerActions, [...row.map((entry) => entry.control), overflowBtn]],
+    [overflowMenu, menu.map((entry) => entry.control)],
+  ]);
+  paintDoor();
 }
 
-render(rowTemplate(), bannerActions);
-render(menuTemplate(), overflowMenu);
-
-const overflowBtn = bannerActions.querySelector(".lf-banner-more");
-overflowMenu.lfInvoker = overflowBtn;
+placeRuns();
 
 // More temporarily borrows the reader's focus. Context-preserving commands return
 // that browser checkpoint before acting; it never becomes a remembered page target.
@@ -221,21 +209,28 @@ function paintControl(entry) {
   entry.control.style.visibility = seated && visible(entry) ? "" : "hidden";
 }
 
-// Lit reseats a control by moving its node, and a moved node drops focus. Focus goes
-// on standing on the control where it went, or on the door that reaches it.
+// Focus goes on standing on the control where it went, or on the door that reaches
+// it. A move keeps focus on a control it puts behind the shut More until the browser
+// drops it at the next rendering update, so one standing there goes to the door
+// whether or not focus has left it yet. A control that stays on the row and goes is
+// its caller's to hand on (`focusAfterRemoval`).
 function paint() {
   const held = [...controls.values()].find(
     (entry) => document.activeElement === entry.focusTarget,
   );
-  render(rowTemplate(), bannerActions);
-  render(menuTemplate(), overflowMenu);
+  placeRuns();
   for (const entry of controls.values()) paintControl(entry);
-  if (!held || document.activeElement === held.focusTarget) return;
+  if (
+    !held ||
+    (document.activeElement === held.focusTarget &&
+      !overflowMenu.contains(held.control))
+  )
+    return;
   // Where the control stands, not whether it would take a press: a refused Approval
   // is still a Tab stop.
   const door = bannerControlDoor(held.control);
   const place = door === held.control ? held.focusTarget : door;
-  if (place) focusDestination(place, "return");
+  if (place && document.activeElement !== place) focusDestination(place, "return");
 }
 
 const focusable = (entry) =>
@@ -250,7 +245,7 @@ overflowMenu.addEventListener("beforetoggle", (event) => {
 });
 overflowMenu.addEventListener("toggle", (event) => {
   const open = event.newState === "open";
-  render(rowTemplate(), bannerActions);
+  paintDoor();
   const first = open && document.activeElement === overflowBtn && menu.find(focusable);
   if (first) {
     focusDestination(first.focusTarget, "move");
@@ -447,9 +442,8 @@ overflowMenu.addEventListener("lf-reveal", (event) => {
 // Null means the toolbar offers no way in, which happens only off the banner.
 export function bannerControlDoor(control = overflowBtn) {
   if (drawn(control)) return control;
-  const menu = control.closest(".lf-banner-menu");
-  if (menu?.lfInvoker?.checkVisibility()) return menu.lfInvoker;
-  return bannerActions.contains(control) && overflowBtn.checkVisibility()
+  return (overflowMenu.contains(control) || bannerActions.contains(control)) &&
+    overflowBtn.checkVisibility()
     ? overflowBtn
     : null;
 }

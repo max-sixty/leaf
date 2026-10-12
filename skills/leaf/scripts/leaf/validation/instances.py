@@ -290,6 +290,41 @@ def reference_contract_error(
     )
 
 
+def enclosing(rec: dict, tag: str) -> dict | None:
+    """The nearest Leaf element of `tag` standing around `rec`, if any."""
+    return next((node for node in enclosing_widgets(rec) if node["tag"] == tag), None)
+
+
+def keyed_members(lf_elements: list, registry: dict) -> dict:
+    """Every member a keyed reference may name, as `(id(owner), tag, key, value)` mapped
+    to the members holding it, in document order; the owner is the member's nearest
+    enclosing element of the tag its x-unique declaration names for that key. A member
+    standing in no such owner is left out: x-owners reports where it stands."""
+    members = {}
+    for rec in lf_elements:
+        for key, scope_tag in registry.get(rec["tag"], {}).get("x-unique", {}).items():
+            value = rec["attrs"].get(key)
+            scope = enclosing(rec, scope_tag)
+            if value is not None and scope is not None:
+                members.setdefault((id(scope), rec["tag"], key, value), []).append(rec)
+    return members
+
+
+def unique_errors(lf_elements: list, registry: dict) -> list:
+    """Each member whose x-unique attribute repeats an earlier member's value within
+    their shared owner: two playground controls with one name, or two choices of one
+    control with one value. Asked of one document, since an owner and its members
+    always stand in the same one."""
+    return [
+        f'{at(extra)}: {key}="{value}" repeats the <{tag}> at line {first["line"]} '
+        f"in the same <{registry[tag]['x-unique'][key]}>"
+        for (_, tag, key, value), (first, *extras) in keyed_members(
+            lf_elements, registry
+        ).items()
+        for extra in extras
+    ]
+
+
 def reference_errors(lf_elements: list, registry: dict, ids: set, by_id: dict) -> list:
     """An attribute the registry marks as naming another element (x-refers) that names
     nothing this version holds. The user follows it, so a typo is a reference to
@@ -302,16 +337,33 @@ def reference_errors(lf_elements: list, registry: dict, ids: set, by_id: dict) -
     browser looks for that target in the referrer's own document: each names an
     element of `lf_elements`' own document, and each element there that the
     contract's predicate selects is named by exactly one referrer, as each readings
-    seat is filled by one command."""
+    seat is filled by one command.
+
+    A keyed reference names a member rather than an id: the `tag` member, inside the
+    referrer's own nearest owner of the tag its `key` is unique within (x-unique),
+    whose `key` attribute holds the value, as a playground preset's setting names a
+    control of the same playground."""
     errors = []
     own = {rec["attrs"].get("id") for rec in lf_elements}
     owners = {}
+    keyed = None
     for rec in lf_elements:
         for attr, reference in registry.get(rec["tag"], {}).get("x-refers", {}).items():
             target = rec["attrs"].get(attr)
             if not target:
                 continue
-            if target not in ids:
+            if member := reference.get("tag"):
+                if keyed is None:
+                    keyed = keyed_members(lf_elements, registry)
+                key = reference["key"]
+                scope_tag = registry[member]["x-unique"][key]
+                scope = enclosing(rec, scope_tag)
+                if (id(scope), member, key, target) not in keyed:
+                    errors.append(
+                        f'{at(rec)}: {attr}="{target}" names no <{member} {key}="{target}"> '
+                        f"in its <{scope_tag}>"
+                    )
+            elif target not in ids:
                 errors.append(
                     f'{at(rec)}: {attr}="{target}" names no element in this version'
                 )
@@ -455,6 +507,7 @@ def instance_errors(lf_elements: list, registry: dict) -> list:
         + addressable_instance_errors(lf_elements, registry)
         + question_context_errors(lf_elements, registry)
         + declared_word_errors(lf_elements, registry)
+        + unique_errors(lf_elements, registry)
     )
 
 

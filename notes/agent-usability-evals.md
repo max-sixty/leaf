@@ -12,8 +12,7 @@ note was condensed; `git log --` on those paths finds them.
 No run so far calls for a new page-reading interface. Every miss was an instruction
 miss or missing information in a declaration, and agents never wrote to the wrong
 place or lost a user's state. These runs establish behavior on particular revisions
-with few samples; the complete authoring and feedback comparison with plain HTML is
-still [#19](workspace-followups.md#item-19).
+with few samples.
 
 ### First baseline, 2026-09-27
 
@@ -90,6 +89,119 @@ Its reasons kept naming tiny text at 900px and on a phone, which the render chec
 now reads at every swept width, and an Ask whose premise and controls fall below the
 first screen (TODO.md, "Measure how often agents produce bad pages").
 
+### Authoring against plain HTML, 2026-10-12
+
+The same request, width revision and user comment, built once with Leaf and once
+with ordinary HTML/CSS/JS and no Leaf payload. Nine pairs at a2cf7a001 with Opus 5.5
+on Claude Code: three each of `document` (a review the team decides from), `queue`
+(eight escalations, list beside detail) and `configuration` (six alert thresholds to
+tune). The first configuration pair ran at 51ef3d615, whose prompts are the same.
+Each sample authors the page, revises it for the 900px standing preference, then
+handles a comment that adds a fact to one passage. Leaf gets the comment anchored on
+the passage, or on the page whole where no candidate quote appears exactly once
+(5 of 9, including every configuration, whose alert text the author's script
+renders), and HTML gets it in chat naming the passage. Agent spend was about $40 at
+API prices on the signed-in login, including a discarded document sample whose
+comment named the wrong weekday; the Codex screenshot judge read about 7M tokens and
+the pairwise judge cost $11.
+
+```sh
+uv run leaf-dev eval document queue configuration --harness claude-code \
+  --condition both --repeat 3 -j 1
+uv run leaf-dev eval-pairs .tmp/eval/<run>
+```
+
+Within each task, the three Leaf samples ran before the three HTML samples, so the
+minutes are confounded with any drift in host load (load average 4 to 7 throughout);
+tokens, cost and code are not. To counterbalance, alternate `--condition leaf` and
+`--condition html` runs of one repeat each, swapping which goes first, and pass
+every run to `eval-pairs`.
+
+Every sample completed every phase and passed its render gate; every page's files
+carried the comment's fact, and every answer named it, on the comment's thread in Leaf and in
+chat in HTML; every Leaf document and queue reader read the seeded choice back
+correctly. The configuration seeds no choice, so whether Leaf reads its settings back
+went unmeasured. The catalog checks the comment's fact in the page's text; only
+`eval-pairs` judges where a reader finds it.
+
+Means per sample over the three phases, with the last version's authored CSS and
+script lines:
+
+| Task | Condition | Minutes | Cost | Turns | Input tokens | CSS | Script | Page writes | Renders |
+|---|---|---|---|---|---|---|---|---|---|
+| document | Leaf | 7.1 | $2.40 | 48 | 3.7M | 14 | 0 | 7.0 | 6.7 |
+| document | HTML | 3.9 | $0.88 | 30 | 0.8M | 99 | 69 | 7.7 | 7.3 |
+| queue | Leaf | 6.0 | $2.03 | 45 | 3.2M | 5 | 0 | 6.3 | 7.7 |
+| queue | HTML | 4.6 | $1.01 | 27 | 1.0M | 121 | 240 | 9.0 | 5.3 |
+| configuration | Leaf | 13.5 | $3.72 | 78 | 7.3M | 44 | 132 | 12.3 | 13.7 |
+| configuration | HTML | 5.8 | $1.31 | 31 | 1.2M | 113 | 217 | 9.7 | 5.3 |
+
+Page writes and renders count tool calls that write the page and that run a check or
+a browser on it; repair iterations show as writes beyond the first, and the two
+conditions repaired about equally often.
+
+- **Leaf authors wrote less code and spent more.** Their CSS was a seventh of HTML's
+  on the document, a twenty-fifth on the queue and two fifths on the configuration,
+  with no script for the document and queue and three fifths of HTML's for the
+  configuration's playground. They cost 2.0–2.8 times as much, over 1.6–2.5 times as
+  many turns, each carrying a larger context: the skill and its references (30–100
+  KB read in the first phase) stay in every later turn. Configuration authors also
+  read the playground's own source (35–46 KB of widget script and theme) to learn
+  it. The page check's screenshot review (11 to 25 screenshots) mostly ran in a
+  subagent, and added little to the author's context.
+- **Answering a comment the agent found on the page took most of the comment phase.**
+  Six of the nine Leaf agents ran `leaf thread reply`. Five were refused because
+  the thread owed a response, with a refusal that names
+  `leaf response reply <answer.ref>` without saying where the reference comes
+  from; one passed a flag it lacks, and three read only its help. All nine then took the page, with `leaf page claim` or
+  `leaf server start`, and ran a timed `leaf wait` to obtain a delivery. Finding
+  the comment and the route took 11 to 15 of each phase's 13 to 22 tool calls, and
+  the phase cost $0.56–1.08 against $0.10–0.46 in HTML. Every phase's prompt says
+  not to wait for input, so the agents reached `leaf wait` only after other routes
+  failed, and a live session's delivery carries the reference; what remains is that
+  the refusal names a reference no command it mentions supplies.
+- **Judged quality is close, and each task's composition decided it.** The Codex
+  screenshot judge failed almost every version in both conditions (Leaf 2 of 27,
+  HTML 4 of 27). Its reasons were mostly evidence it may not open, such as a
+  collapsed disclosure or an unselected queue item, and phone clipping in HTML; the
+  Leaf configurations also left out request facts (24/7 cover, the incidents a 5%
+  threshold misses). `eval-pairs`, judging each pair's final versions in both
+  orders, preferred HTML on all three configurations by a clear margin in each
+  order, Leaf on two of three documents and HTML on one of three queues, slightly;
+  it split on the other three pairs, picking the same position both times. The
+  pairwise judge runs the authors' model, Opus 5.5, and Leaf's viewer chrome in the
+  screenshots shows it which page is Leaf's.
+  - Documents: on the two documents Leaf won, it won on decisions in both orders,
+    since it put both decisions on the page as Questions where HTML offered a reply
+    to copy. HTML's sticky contents ran out of the short 900px window on all three;
+    both conditions' comparison tables lost a column at 390px.
+  - Configurations: every Leaf author used `lf-playground`, whose control panel sits
+    apart from each alert's 30-day evidence. Every HTML author put each alert's
+    choices, evidence and outcome in one card, and HTML won evidence, decisions and
+    the comment in every order.
+  - Queues: HTML won on decisions in every order, with progress through the eight,
+    previous and next, and a decision record; Leaf queues became a sideways strip on
+    a phone. One Leaf author answered the comment by marking ESC-4110's new route
+    outcome as chosen, labelled "your call". Neither condition showed
+    the comment's change in the open ticket, since the commented ticket was not the
+    one open.
+
+What this points #20 and the instructions at, strongest first:
+
+- Configuration wants each item's controls beside its evidence. Test a composition
+  suggestion for per-item controls against the playground's single panel, and
+  check that a configuration keeps the request's facts.
+- A queue worked through in one sitting wants progress and a way to the next
+  undecided item; test that as a composition suggestion.
+- The skill and references an author reads stay in every later turn's context.
+  Measure how much of the cost they account for, and what a first page needs to
+  read, before trimming them.
+- An owed input without a delivery has no stated route to an answer. The refusal
+  from `leaf thread reply` could say where `<answer.ref>` comes from (the delivery
+  `leaf wait` prints, after `leaf page claim` on a page another session held).
+- On-page decisions are where Leaf's documents won; keep them in whatever #20
+  changes.
+
 ## Remaining evaluation gaps
 
 - Recovering a long thread's middle after the agent has lost it. `elided` now
@@ -102,6 +214,6 @@ first screen (TODO.md, "Measure how often agents produce bad pages").
 - Questions that need the user's selected tab or visible content, which needs a
   browser observation.
 
-When a real failure or the #19 comparison supplies a case, state its expected answer
+When a real failure supplies a case, state its expected answer
 and edit owner before running it, and classify a miss as missing information,
 inaccessible information, or information misread.

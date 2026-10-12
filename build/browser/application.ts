@@ -114,9 +114,14 @@ const SENDING = new Set<GestureState>([
 const DRAWN_LOCALLY = new Set<GestureState>(["sending", "accepted"]);
 // The states `release` retires.
 const RELEASABLE = new Set<GestureState>(["accepted:presented", "refused"]);
-// In an adopted reading that no document pass has presented yet: the semantic root
-// already draws the log's event, and the page may still show what came before it.
-const UNPRESENTED = new Set<GestureState>(["sending:logged", "accepted:logged"]);
+// Gestures still waiting for a document pass: either locally drawn before their
+// receipt is logged, or logged in an adopted reading the page has not presented.
+const UNPRESENTED = new Set<GestureState>([
+  "sending",
+  "accepted",
+  "sending:logged",
+  "accepted:logged",
+]);
 
 /** One unresolved gesture. `admitted` is the log's event for it, known from the
  * POST's answer or from a reading, whichever came first. */
@@ -253,9 +258,9 @@ export type Workflow = Omit<WireWorkflow, "quiet" | "dropped" | "stage"> & {
   dropped?: boolean;
 };
 
-/** One task, as `served_state.browser` serves it (`tasks.page_tasks`): `tasks` holds
- * the open ones on either side and `ended_tasks` the ones that ended, with their
- * outcome. Questions are separate records and never appear in this task list. */
+/** One to-do, as `served_state.browser` serves it (`tasks.page_tasks`): `todos` holds
+ * the open ones on either side and `ended_todos` the ones that ended, with their
+ * outcome. Asks are separate records and never appear in this list. */
 interface WireTask {
   id: string;
   owner: "agent" | "user";
@@ -281,17 +286,17 @@ interface WireTask {
   outcome: { id?: string; ts: string | null; detail?: string | null } | null;
 }
 
-/** One item on a work queue, as `served_state.queues` serves it. A Question item
- * keeps its record; a task item the task fields a row draws. */
+/** One item on Questions or Tasks, as `served_state.queues` serves it. An ask item
+ * keeps its record; a to-do item the fields a row draws. */
 interface QueueItem {
-  kind: "question" | "task" | "recovery" | "answer" | "work";
+  kind: "ask" | "todo" | "resend" | "answer" | "work";
   id: string;
   owner?: "user" | "agent";
   subject: { kind: "thread" | "widget"; id: string } | { kind: "page" };
   thread: string | null;
   /** Whether the agent has it in hand now. */
   live: boolean;
-  question?: QuestionRecord;
+  ask?: QuestionRecord;
   [field: string]: unknown;
 }
 
@@ -303,8 +308,8 @@ type DoneItem = QueueItem & {
 };
 
 interface WireQueues {
-  on_you: QueueItem[];
-  on_agent: QueueItem[];
+  questions: QueueItem[];
+  tasks: QueueItem[];
   done: DoneItem[];
 }
 
@@ -364,29 +369,29 @@ interface AuthoritativeState {
         basis: { revision: number; through_seq: number };
         document: {
           projection: WireProjection;
-          questions: WireQuestions;
+          asks: WireQuestions;
         };
         undo: { event: Event }[];
         coverage: Coverage[];
         reports: object[];
         published_at: string | null;
         queues: WireQueues;
-        /** The Questions approving this version waits on (`questions.approval_blocking`). */
+        /** The asks approving this version waits on (`questions.approval_blocking`). */
         approval_blocking: string[];
       }
     >;
     thread: {
       threads: Thread[];
       projection: WireProjection;
-      questions: WireQuestions;
+      asks: WireQuestions;
       approval_history: Event[];
     };
     receipts: Event[];
     /** Every thread whose history each logged event changes
      * (`thread_context.thread_memberships`). */
     thread_memberships: Record<string, string[]>;
-    tasks: WireTask[];
-    ended_tasks: WireTask[];
+    todos: WireTask[];
+    ended_todos: WireTask[];
   };
   activity: unknown;
   reading?: string;
@@ -454,7 +459,7 @@ const NO_QUESTIONS = {
 /* The admitted inventory owns membership and widget completion. Approval and its
  * undo draw their direct result immediately. Widget values come from
  * the same local-inclusive fold used by their controls, so a partial answer is
- * visible before its POST settles the Question. */
+ * visible before its POST settles the ask. */
 function normalizedQuestions(
   view: PageView | null,
   threadView: AuthoritativeState["browser"]["thread"] | undefined,
@@ -463,8 +468,8 @@ function normalizedQuestions(
   projection: ReturnType<typeof foldProjection>,
   local: readonly LedgerEntry[],
 ): WireQuestions {
-  const page = view?.document.questions;
-  const thread = threadView?.questions;
+  const page = view?.document.asks;
+  const thread = threadView?.asks;
   const all = [...(page?.all ?? []), ...(thread?.all ?? [])].map(
     (question): QuestionRecord => {
       if (question.source.kind === "approval") {
@@ -531,21 +536,22 @@ function questionAttention(questions: WireQuestions, threads: Pick<Thread, "id" 
   };
 }
 
-/* Explicit work, open and ended, including Done this tab is sending or undoing. A task the user is ending stands ended in the
- * gesture's own turn, and one whose Done they are undoing stands open again; a refused
- * gesture leaves the ledger and so puts the task back as the log has it. */
+/* To-dos, open and ended, including Done this tab is sending or undoing. A to-do the
+ * user is ending stands ended in the gesture's own turn, and one whose Done they are
+ * undoing stands open again; a refused gesture leaves the ledger and so puts the to-do
+ * back as the log has it. */
 function localTasks(
   state: AuthoritativeState | null,
   local: readonly LedgerEntry[],
 ) {
   const ending = new Set(
-    local.flatMap(({ event }) => (event.kind === "task_end" ? [event.task] : [])),
+    local.flatMap(({ event }) => (event.kind === "todo_end" ? [event.todo] : [])),
   );
   const undoing = new Set(
     local.flatMap(({ event }) => (event.kind === "undo" ? [event.undoes] : [])),
   );
-  const served = state?.browser.tasks ?? [];
-  const ended = state?.browser.ended_tasks ?? [];
+  const served = state?.browser.todos ?? [];
+  const ended = state?.browser.ended_todos ?? [];
   const reopened = (task: WireTask) =>
     task.outcome !== null && undoing.has(task.outcome.id ?? "");
   const open = [
@@ -569,29 +575,29 @@ function localTasks(
   };
 }
 
-const NO_QUEUES: WireQueues = { on_you: [], on_agent: [], done: [] };
+const NO_QUEUES: WireQueues = { questions: [], tasks: [], done: [] };
 
-/* What is on the user, what is on the agent, and what is done: the view's served
- * queues (`served_state.queues`), with this tab's unresolved sends placed against
- * them. A send moves an item the server listed when it changes that item's record: a
- * Done or its undo moves a task between its queue and done, an approval or its undo
- * moves the approval Question, and prose sent in a thread, or settling it, takes that
- * thread's Question and its retry off the user. It adds only the items it alone
- * implies: the answer a pending send is owed, and the retry a refused one leaves. A
- * pending send also stands for the response the thread was already owed. Nothing here
- * selects a queue again. */
+/* What is on the user (Questions), what is on the agent (Tasks), and what is done:
+ * the view's served lists (`served_state.queues`), with this tab's unresolved sends
+ * placed against them. A send moves an item the server listed when it changes that
+ * item's record: a Done or its undo moves a to-do between its list and done, an
+ * approval or its undo moves the approval ask, and prose sent in a thread, or settling
+ * it, takes that thread's ask and its resend off the user. It adds only the items it
+ * alone implies: the answer a pending send is owed, and the resend a refused one
+ * leaves. A pending send also stands for the response the thread was already owed.
+ * Nothing here selects a list again. */
 function localQueues(
   served: WireQueues,
   threads: readonly Pick<Thread, "id" | "resolved" | "attention">[],
   workflows: readonly Workflow[],
-  tasks: ReturnType<typeof localTasks>,
-  questions: WireQuestions,
+  todos: ReturnType<typeof localTasks>,
+  asks: WireQuestions,
 ) {
-  const record = new Map(questions.all.map((question) => [question.id, question]));
-  const open = new Set(tasks.open.map((task) => task.id));
-  const ended = new Set(tasks.ended.map((task) => task.id));
+  const record = new Map(asks.all.map((ask) => [ask.id, ask]));
+  const open = new Set(todos.open.map((todo) => todo.id));
+  const ended = new Set(todos.ended.map((todo) => todo.id));
   const byThread = new Map(threads.map((thread) => [thread.id, thread]));
-  // The forward sends still in flight; a refused one is the user's retry, below.
+  // The forward sends still in flight; a refused one is the user's resend, below.
   const sending = workflows.filter(
     (workflow) =>
       workflow.stage === "sending" &&
@@ -605,22 +611,22 @@ function localQueues(
       reading &&
       !reading.resolved &&
       reading.attention?.kind === "needs_user" &&
-      reading.attention.reason === "recovery",
+      reading.attention.reason === "resend",
     );
   };
   const question = (item: QueueItem) => {
     const local = record.get(item.id);
-    if (!local) throw new Error(`Queue item ${item.id} names no Question`);
+    if (!local) throw new Error(`Queue item ${item.id} names no ask`);
     return local;
   };
   // Whether an item the server listed as open still stands open in this tab.
   const standsOpen = (item: QueueItem) => {
     switch (item.kind) {
-      case "question":
+      case "ask":
         return question(item).next_actor === "user";
-      case "task":
+      case "todo":
         return open.has(item.id);
-      case "recovery":
+      case "resend":
         return item.thread === null || retrying(item.thread);
       case "answer":
         return !resent.has(item.thread);
@@ -630,55 +636,55 @@ function localQueues(
   };
   // Whether an item the server listed as done stands open again in this tab.
   const reopened = (item: DoneItem) =>
-    item.kind === "question"
+    item.kind === "ask"
       ? question(item).status === "open" && question(item).next_actor === "user"
       : open.has(item.id);
   // Whether an item the server listed as open has ended in this tab.
   const endedHere = (item: QueueItem) =>
-    item.kind === "question"
+    item.kind === "ask"
       ? question(item).status !== "open"
-      : item.kind === "task" && ended.has(item.id);
-  // A Question item carries this tab's record of its Question.
+      : item.kind === "todo" && ended.has(item.id);
+  // An ask item carries this tab's record of its ask.
   const current = <T extends QueueItem>(item: T): T =>
-    item.kind === "question" ? { ...item, question: question(item) } : item;
+    item.kind === "ask" ? { ...item, ask: question(item) } : item;
   const asOpen = ({ state: _state, ended: _ended, detail: _detail, ...item }: DoneItem) =>
     current(item as QueueItem);
   const asDone = (item: QueueItem): DoneItem => ({
     ...current(item),
     live: false,
     state:
-      item.kind === "question" && question(item).status !== "answered"
+      item.kind === "ask" && question(item).status !== "answered"
         ? "dropped"
         : "done",
     ended: null,
     detail: null,
   });
   const listed = new Set(
-    [...served.on_you, ...served.on_agent].map((item) => `${item.kind}:${item.id}`),
+    [...served.questions, ...served.tasks].map((item) => `${item.kind}:${item.id}`),
   );
-  const retry = (id: string, subject: QueueItem["subject"], thread: string | null) =>
-    listed.has(`recovery:${id}`)
+  const resend = (id: string, subject: QueueItem["subject"], thread: string | null) =>
+    listed.has(`resend:${id}`)
       ? []
-      : [{ kind: "recovery" as const, id, subject, thread, live: false }];
+      : [{ kind: "resend" as const, id, subject, thread, live: false }];
   const reopenedFor = (owner: "user" | "agent") =>
     served.done.filter((item) => (item.owner ?? "user") === owner && reopened(item));
   return {
-    onYou: [
-      ...served.on_you.filter(standsOpen).map(current),
+    questions: [
+      ...served.questions.filter(standsOpen).map(current),
       ...reopenedFor("user").map(asOpen),
       ...threads.flatMap((thread) =>
         retrying(thread.id)
-          ? retry(thread.id, { kind: "thread", id: thread.id }, thread.id)
+          ? resend(thread.id, { kind: "thread", id: thread.id }, thread.id)
           : [],
       ),
       ...workflows.flatMap((workflow) =>
         workflow.next_actor === "user" && workflow.thread === null
-          ? retry(workflow.id, workflow.subject, null)
+          ? resend(workflow.id, workflow.subject, null)
           : [],
       ),
-    ].toSorted((a, b) => onYouRank(a) - onYouRank(b)),
-    onAgent: [
-      ...served.on_agent.filter((item) => item.kind !== "task" && standsOpen(item)),
+    ].toSorted((a, b) => questionsRank(a) - questionsRank(b)),
+    tasks: [
+      ...served.tasks.filter((item) => item.kind !== "todo" && standsOpen(item)),
       // One answer per thread, as the server lists one for the newest turn owed.
       ...sending
         .filter((workflow, at) =>
@@ -693,19 +699,19 @@ function localQueues(
           answer: workflow.answer,
           stage: workflow.stage,
         })),
-      ...served.on_agent.filter((item) => item.kind === "task" && standsOpen(item)),
+      ...served.tasks.filter((item) => item.kind === "todo" && standsOpen(item)),
       ...reopenedFor("agent").map(asOpen),
     ],
     done: [
       ...served.done.filter((item) => !reopened(item)).map(current),
-      ...[...served.on_you, ...served.on_agent].filter(endedHere).map(asDone),
-    ].toSorted((a, b) => Number(a.kind === "task") - Number(b.kind === "task")),
+      ...[...served.questions, ...served.tasks].filter(endedHere).map(asDone),
+    ].toSorted((a, b) => Number(a.kind === "todo") - Number(b.kind === "todo")),
   };
 }
 
-// The order the server lists what is on the user in: Questions, tasks, then retries.
-const onYouRank = (item: QueueItem) =>
-  item.kind === "question" ? 0 : item.kind === "task" ? 1 : 2;
+// The order the server lists Questions in: asks, to-dos, then resends.
+const questionsRank = (item: QueueItem) =>
+  item.kind === "ask" ? 0 : item.kind === "todo" ? 1 : 2;
 
 function widgetReading(
   root: ReturnType<ReturnType<typeof createSemanticApplication>["read"]>,
@@ -925,12 +931,11 @@ export function createSemanticApplication({
     // The thread a gesture stands in. A message stands in the thread that draws it,
     // under its pending id or, once the log has it, its attempt. Until one does, a
     // comment opens the thread its own id names, and a reply joins the thread holding
-    // its parent, which need not be that thread's id: a thread that lost its opening
-    // message is answered at the reply that survived, and a parent no thread holds is a
-    // comment of this tab's that the log refused, whose pending id named its thread. A
-    // rewrite stands in its message's thread, a settlement in the thread it settles, and
-    // an action in the thread whose markup froze its widget; a page widget's action stands in
-    // none.
+    // its parent, or, where no thread holds it, the thread its parent names: a comment
+    // of this tab's that the log refused, whose pending id named its thread. A rewrite
+    // stands in its message's thread, a settlement in the thread it settles, and an
+    // action in the thread whose markup froze its widget; a page widget's action stands
+    // in none.
     const named = threadNames(folded);
     const threadOfEntry = ({ event, thread: drawn, namedParent }: LedgerEntry) => {
       const drawnIn = drawn && named.get(drawn.id)?.id;
@@ -988,17 +993,17 @@ export function createSemanticApplication({
     }
     const obligated = folded.map((thread): Thread => {
       if (owed.has(thread.id))
-        return thread.attention?.reason === "question"
+        return thread.attention?.reason === "ask"
           ? thread
           : {
               ...thread,
-              attention: { kind: "needs_user", reason: "question", workflow: null },
+              attention: { kind: "needs_user", reason: "ask", workflow: null },
             };
       const retry = recovery.get(thread.id);
       return retry && thread.attention?.kind !== "needs_user"
         ? {
             ...thread,
-            attention: { kind: "needs_user", reason: "recovery", workflow: retry },
+            attention: { kind: "needs_user", reason: "resend", workflow: retry },
           }
         : thread;
     });
@@ -1076,12 +1081,12 @@ export function createSemanticApplication({
     const workflowById = new Map(workflows.map((workflow) => [workflow.id, workflow]));
     const contextual = <T extends { id: string; kind: string }>(
       items: T[],
-      onYou = false,
+      onUser = false,
     ) =>
       items.map((item) => ({
         ...item,
         workflow: workflowById.get(item.id) ?? null,
-        offers: queueOffers(item, ready, onYou),
+        offers: queueOffers(item, ready, onUser),
       }));
     return {
       hostAvailable,
@@ -1104,13 +1109,13 @@ export function createSemanticApplication({
         // included until the reading they restore is drawn (held-news.js, `gesturedOn`).
         gestured: [...new Set(unresolved.flatMap(threadsOfEntry))],
       },
-      questions: { phase, ...questions },
-      // What is on the user, on the agent, and done: the served queues with this
-      // tab's sends placed against them (`localQueues`).
+      asks: { phase, ...questions },
+      // Questions (on the user), Tasks (on the agent), and done: the served lists
+      // with this tab's sends placed against them (`localQueues`).
       queues: {
         phase,
-        onYou: contextual(selectedQueues.onYou, true),
-        onAgent: contextual(selectedQueues.onAgent),
+        questions: contextual(selectedQueues.questions, true),
+        tasks: contextual(selectedQueues.tasks),
         done: contextual(selectedQueues.done),
       },
       // Inside the publication signature, so a read that changes only the view's
@@ -1521,7 +1526,7 @@ export function createSemanticApplication({
       publish({ unresolved });
       return left;
     },
-    // The entries an adopted reading logs that the page has not yet presented.
+    // The entries no document pass has presented yet.
     unpresented: () =>
       publisher.read().unresolved.filter((item) => UNPRESENTED.has(item.state)),
     // The entries `release` would retire now, in ledger order.

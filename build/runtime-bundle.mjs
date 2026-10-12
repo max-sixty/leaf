@@ -25,7 +25,6 @@ import { frameworkPaths, inFramework } from "./browser/build.mjs";
 
 export const runtimeEntries = [
   "leaf.js",
-  "runtime/interaction-gallery-frame.js",
   "runtime/layer-client.js",
   "runtime/media.js",
   "runtime/widget-api.js",
@@ -184,11 +183,7 @@ export async function bundleRuntime(layerRoot, entries, outputRoot, assetRoot = 
 /** Prepared install output is relocatable; package modules need no build. */
 export async function bundleDistribution(layerRoot, outputRoot) {
   layerRoot = await realpath(layerRoot);
-  await bundleRuntime(
-    layerRoot,
-    [...runtimeEntries, "runtime/annotation-overlay/index.js"],
-    outputRoot,
-  );
+  await bundleRuntime(layerRoot, runtimeEntries, outputRoot);
   await mkdir(join(outputRoot, "runtime"), { recursive: true });
   for (const path of [
     GENERATION,

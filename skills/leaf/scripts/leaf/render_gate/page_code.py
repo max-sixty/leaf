@@ -124,15 +124,23 @@ def run_page_code(browser, url: str) -> list[str]:
     cdp.on("Network.responseReceived", cdp_response)
     try:
         page.goto(url)
-        wait_until_ready(page, served(page, url, "/api/state").json())
-        # A widget that paints from a rendering callback throws there, not in its
-        # upgrade; once the rendering has settled, every callback it queued has run.
-        rendered(page)
-        # The report is posted asynchronously, and the route above answers it only
-        # while this process is waiting on the page.
-        wait_for_probe(page, "sendsAcked")
-    except PageNotReady as error:
-        reports.append(str(error))
+        try:
+            wait_until_ready(
+                page, served(page, url, "/api/state").json(), fixed_server=True
+            )
+            # A widget that paints from a rendering callback throws there, not in its
+            # upgrade; once the rendering has settled, every callback it queued has run.
+            rendered(page)
+            answering = True
+        except PageNotReady as error:
+            reports.append(str(error))
+            # A page that refused to start still answers, and posts why; one that
+            # missed a stage may not answer at all.
+            answering = error.stage == "refused"
+        if answering:
+            # The report is posted asynchronously, and the route above answers it only
+            # while this process is waiting on the page.
+            wait_for_probe(page, "sendsAcked")
     except PlaywrightError as error:
         # A wait that timed out names what never arrived; any other browser error
         # is as much a failed run, and the reports already taken still stand.

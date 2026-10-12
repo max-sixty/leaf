@@ -15,8 +15,8 @@ vars:
     and the same element reinserted later. While removed it should do no rendering;
     on return it should show the latest reading without duplicate callbacks.
     It also displays its declared external-data source named "builds" and the
-    page's history. Those readings must catch up when it returns, even if the
-    source revision and page state did not change while it was absent.
+    page's history. Those readings must catch up when it returns with whatever
+    changed while it was absent.
 
     Read the public references and use Leaf's supported semantic widget API. The
     widget also registers a native window resize listener to measure its local

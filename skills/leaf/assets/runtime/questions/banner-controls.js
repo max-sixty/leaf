@@ -68,22 +68,12 @@ export function createQuestionBannerControls(activateBulk) {
     return control;
   }
 
+  // A failure here is view.js's to retain, since only it knows whether this attempt is
+  // still the current one.
   async function present(model) {
-    try {
-      await Promise.all(
-        model.bulk.map((reading) => bulk.get(reading.outcome).owner.present(reading)),
-      );
-    } catch (error) {
-      try {
-        await retainCommitted();
-      } catch (retaining) {
-        throw new AggregateError(
-          [error, retaining],
-          "Question banner presentation and retention failed",
-        );
-      }
-      throw error;
-    }
+    await Promise.all(
+      model.bulk.map((reading) => bulk.get(reading.outcome).owner.present(reading)),
+    );
     return model;
   }
 

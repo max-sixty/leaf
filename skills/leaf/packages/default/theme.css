@@ -2579,6 +2579,7 @@
 :scope:is(lf-chart) .lf-chart-drawing svg {
   display: block;
   font: inherit;
+  height: attr(height px, auto);
 }
 :scope:is(lf-chart) .lf-chart-drawing svg[role=img] {
   --plot-background: var(--paper);

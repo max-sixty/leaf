@@ -47,7 +47,6 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 import pytest
 from browser_sources import browser_function
 from click.testing import CliRunner
-from conftest import tier
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
@@ -956,28 +955,50 @@ def comment_note(page, holder):
     return page.locator(".lf-mark-note").nth(index)
 
 
-def accessible_details(page, selector):
-    """The names of what the element `selector` names as its details, read from the
-    browser's accessibility tree: what a screen reader is given, not the DOM attribute
-    that asked for it."""
+@contextmanager
+def _accessibility(page):
+    """Read nodes of the browser's accessibility tree, by selector or backend node:
+    what a screen reader is given, not the DOM attributes that asked for it."""
     cdp = page.context.new_cdp_session(page)
+
+    def ax(selector=None, **at):
+        if selector is not None:
+            root = cdp.send("DOM.getDocument")["root"]["nodeId"]
+            at = cdp.send("DOM.querySelector", {"nodeId": root, "selector": selector})
+        return cdp.send(
+            "Accessibility.getPartialAXTree", {**at, "fetchRelatives": False}
+        )["nodes"][0]
+
     try:
-        root = cdp.send("DOM.getDocument")["root"]["nodeId"]
-        node = cdp.send("DOM.querySelector", {"nodeId": root, "selector": selector})
+        yield ax
+    finally:
+        cdp.detach()
 
-        def ax(**at):
-            return cdp.send(
-                "Accessibility.getPartialAXTree", {**at, "fetchRelatives": False}
-            )["nodes"][0]
 
+def accessible_details(page, selector):
+    """The names of what the element `selector` names as its details."""
+    with _accessibility(page) as ax:
         return [
             ax(backendNodeId=related["backendDOMNodeId"])["name"]["value"]
-            for prop in ax(nodeId=node["nodeId"]).get("properties", [])
+            for prop in ax(selector).get("properties", [])
             if prop["name"] == "details"
             for related in prop["value"].get("relatedNodes", [])
         ]
-    finally:
-        cdp.detach()
+
+
+def accessible_expanded(page, selector):
+    """Whether the element `selector` is announced expanded, collapsed (False), or as
+    no disclosure at all (None). A `popovertarget` invoker gets this from the
+    platform, with no `aria-expanded` written."""
+    with _accessibility(page) as ax:
+        return next(
+            (
+                prop["value"]["value"]
+                for prop in ax(selector).get("properties", [])
+                if prop["name"] == "expanded"
+            ),
+            None,
+        )
 
 
 def plant_quiet_word(page, selector, holding):
@@ -1217,12 +1238,15 @@ _TEST = None
 
 
 def watches_shifts(test):
-    """Unmarked tests watch shifts, whatever tier their cost runs them in; surveyed
-    journeys marked with a tier opt in.
+    """Every test watches shifts but those in a module marked `shifts_unsurveyed`,
+    which still await a survey, and of those the ones marked `watch_shifts` watch too.
 
     This selection does not lift the watcher's first-presentation exemption.
     """
-    return tier(test) is None or test.get_closest_marker("watch_shifts") is not None
+    return (
+        test.get_closest_marker("shifts_unsurveyed") is None
+        or test.get_closest_marker("watch_shifts") is not None
+    )
 
 
 @contextmanager
@@ -1628,9 +1652,9 @@ _ASKS_ANSWERED = """async () => {
   window.__lfAsksAnswered = () => {
     const application = readApplication();
     if (application.phase !== 'ready') return null;
-    const questions = application.effective.questions;
-    const all = questions.all.filter(question => question.source.kind === "widget");
-    const unanswered = questions.unanswered.filter(question => question.source.kind === "widget");
+    const asks = application.effective.asks;
+    const all = asks.all.filter(ask => ask.source.kind === "widget");
+    const unanswered = asks.unanswered.filter(ask => ask.source.kind === "widget");
     return `${all.length - unanswered.length}/${all.length}`;
   };
 }"""

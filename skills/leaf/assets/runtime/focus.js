@@ -63,18 +63,78 @@
 import { afterScript, nextRender } from "./rendering.js";
 import { keeps } from "./keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
-import { renderedParent } from "./shadow-tree.js";
+import { renderedParent, upFrom } from "./shadow-tree.js";
 
-// The stops Tab walks inside `root` right now, in document order: the candidates above
-// that are in the order, enabled, and drawn. A modal's own Tab loop reads this.
-export const tabStops = (root) =>
-  [...root.querySelectorAll(TAB_STOP)].filter(
-    (node) =>
-      node.tabIndex >= 0 &&
-      !node.matches(":disabled") &&
-      !node.inert &&
-      node.checkVisibility({ visibilityProperty: true }),
+// The elements under `node` in the tree as rendered, in order: a host's shadow tree in
+// place of its children, and a slot's assigned elements, or its fallback, in its place.
+function* renderedElements(node) {
+  const children =
+    node.localName === "slot"
+      ? node.assignedElements({ flatten: true })
+      : (node.shadowRoot ?? node).children;
+  for (const child of children) {
+    yield child;
+    yield* renderedElements(child);
+  }
+}
+const SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
+// The radios that share `node`'s group, `node` included, in document order.
+const radioGroup = (node) =>
+  [...node.getRootNode().querySelectorAll("input[type=radio]")].filter(
+    (radio) => radio.name === node.name && radio.form === node.form,
   );
+const groupedRadio = (node) => node.type === "radio" && Boolean(node.name);
+// Whether a control can take a sequential stop: in the order, enabled, and drawn. A host
+// that delegates its focus is no stop of its own, since Tab enters its tree, and a box
+// `visibility: hidden` keeps its place but no stop.
+const takesStop = (node) =>
+  node.tabIndex >= 0 &&
+  !node.shadowRoot?.delegatesFocus &&
+  !node.matches(":disabled") &&
+  !node.inert &&
+  node.checkVisibility({ visibilityProperty: true });
+// A radio group is one stop, whichever way Tab moves: its checked member where that
+// member takes a stop, and otherwise its first member that does. Tab passes over the
+// rest, as Chromium does. Only members inside `root` count, since a modal makes the
+// rest of the page inert though their own `inert` stays false.
+function passedRadio(node, root) {
+  if (!groupedRadio(node)) return false;
+  const group = radioGroup(node).filter(
+    (radio) => takesStop(radio) && within(root, radio),
+  );
+  return (group.find((radio) => radio.checked) ?? group[0]) !== node;
+}
+const isStop = (node, root) =>
+  node.matches(SEQUENTIAL) && takesStop(node) && !passedRadio(node, root);
+// The stops Tab walks inside `root` right now, in the order it walks them: the candidates
+// above, and the embedded documents and players Tab also enters, that take a stop,
+// through open shadow trees as rendered. Positive `tabindex` ordering is not modelled.
+// The modal Tab loop reads this (layer-stack.js).
+export const tabStops = (root) =>
+  [...renderedElements(root)].filter((node) => isStop(node, root));
+// Where the user at `node` stands among the stops inside `root`, or null where `node`
+// is not inside it: `at` is the stop holding them, the innermost, so a control in a
+// component's shadow tree stands at the stop its host declares, or, where no stop
+// holds them, the number of stops before them, so Tab goes on from their place.
+export function tabStanding(root, node) {
+  const stops = [];
+  let before = -1;
+  for (const element of renderedElements(root)) {
+    if (element === node) before = stops.length;
+    if (isStop(element, root)) stops.push(element);
+  }
+  if (before < 0) return null;
+  for (let at = node; at && at !== root; at = upFrom(at)) {
+    const held = stops.indexOf(at);
+    if (held >= 0) return { stops, at: held, held: true };
+  }
+  return { stops, at: before, held: false };
+}
+// The stop Tab moves to from that standing, or null where it leaves the stops.
+export function nextStop({ stops, at, held }, backward) {
+  const next = backward ? at - 1 : held ? at + 1 : at;
+  return stops[next] ?? null;
+}
 
 // Put the user on an element, saying what moved them there. Every focus the runtime and
 // the packages place goes through here (the lint `architecture/placements` refuses a
@@ -169,7 +229,7 @@ const placed = (cause, move) => {
 const landedOn = (node) =>
   node === document.body
     ? node.matches(":focus")
-    : Node.prototype.getRootNode.call(node).activeElement === node ||
+    : node.getRootNode().activeElement === node ||
       Boolean(node.shadowRoot?.activeElement);
 
 // A stop is lent only to a drawn element that is no control of its own: a control that
@@ -190,7 +250,7 @@ export const wearsLentStop = (element) => lent.has(element);
 // element in light or shadow DOM, in Chromium, Firefox and WebKit.
 export function whenLeft(element, leave) {
   const blur = () => {
-    if (Node.prototype.getRootNode.call(element).activeElement === element) return;
+    if (element.getRootNode().activeElement === element) return;
     element.removeEventListener("blur", blur);
     leave();
   };
@@ -282,7 +342,7 @@ export const focused = () => heldByLabel() ?? deepFocus();
 
 // The selection the user drew in the tree `node` stands in, where the browser keeps it.
 const selectionOf = (node) => {
-  const root = Node.prototype.getRootNode.call(node);
+  const root = node.getRootNode();
   return (root instanceof ShadowRoot && root.getSelection?.()) || getSelection();
 };
 
@@ -429,7 +489,7 @@ function markFocus(node, name, present) {
   keeps(node, `data-lf-${name}`, present ? "" : null);
   if (!present) node.part?.remove(`lf-${name}`);
   else if (
-    Node.prototype.getRootNode.call(node).nodeType === Node.DOCUMENT_FRAGMENT_NODE &&
+    node.getRootNode().nodeType === Node.DOCUMENT_FRAGMENT_NODE &&
     node.hasAttribute("part")
   )
     node.part.add(`lf-${name}`);
@@ -531,7 +591,9 @@ export const pressLed = () => pressedPath !== null;
 // The Tab the user is pressing, from its keydown until the task that moves them ends.
 let stepping = null;
 // Focus coming out of a dialog or popover that no longer stands is that layer handing it
-// back as it closes, whether the platform or the layer's owner moves it.
+// back as it closes, whether the platform or the layer's owner moves it. A nonmodal
+// dialog closing hands focus back too, so this asks of every dialog rather than of the
+// native layers layer-stack.js holds, which imports this module.
 const leftClosedLayer = (left) => {
   const layer = left?.closest?.("dialog, [popover]");
   return Boolean(layer) && !layer.matches("dialog[open], :popover-open");
@@ -835,10 +897,7 @@ export function holdFocus(scope, { key = null } = {}) {
   if (!item || item === scope || !within(scope, item)) return restore;
   // The items are read in the tree the held one stands in, which is the scope's own or a
   // shadow tree inside it.
-  const tree =
-    Node.prototype.getRootNode.call(item) === Node.prototype.getRootNode.call(scope)
-      ? scope
-      : Node.prototype.getRootNode.call(item);
+  const tree = item.getRootNode() === scope.getRootNode() ? scope : item.getRootNode();
   const items = () =>
     [...tree.querySelectorAll(`[${key}]`)].filter((item) => within(scope, item));
   // A key marking several nodes of one place counts once, where it first stands.
@@ -848,10 +907,8 @@ export function holdFocus(scope, { key = null } = {}) {
   // In an item, the control like the one the user stood on, as Remove for Remove, read
   // in the item's own tree, or the item itself where it holds none.
   let control = node;
-  while (
-    Node.prototype.getRootNode.call(control) !== Node.prototype.getRootNode.call(item)
-  ) {
-    const host = shadowHostOf(Node.prototype.getRootNode.call(control));
+  while (control.getRootNode() !== item.getRootNode()) {
+    const host = shadowHostOf(control.getRootNode());
     if (!host) break; // Slotted document controls already name their native kind.
     control = host;
   }
@@ -911,13 +968,12 @@ const heldIn = (scope) => {
   const held = heldByLabel();
   if (held) return within(scope, held) ? held : null;
   const standing = deepFocus(
-    Node.prototype.getRootNode.call(scope).activeElement ??
-      scope.ownerDocument.activeElement,
+    scope.getRootNode().activeElement ?? scope.ownerDocument.activeElement,
   );
   if (standing && standing !== document.body && within(scope, standing))
     return standing;
-  const lost = dropped();
-  return lost && within(scope, lost) ? lost : null;
+  // Asked of every node `move` inserts, so the cheap containment reading comes first.
+  return stood && within(scope, stood) ? dropped() : null;
 };
 
 // Whether the user stands in `scope`, across every shadow tree between them.

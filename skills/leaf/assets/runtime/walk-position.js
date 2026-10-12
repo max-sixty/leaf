@@ -67,10 +67,12 @@ export function walkPosition() {
 // `<id>.edge`, for the owner's own scope; `id` is also the walk's position key and the
 // prefix of each route. `steps` names the four routes and their words, in the order
 // ArrowUp, ArrowDown, Home, End, for a list whose ends have a meaning of their own.
-// `items` is the list a position counts, where it is narrower than the stops the walk
-// lands on, as a fold's door between items is a stop and not an item; a landing off
-// every item reports no position. `landed(row)` runs after a press that moved focus to
-// another row. `scroll: false`
+// `position` reads where a landing stands, by default its place among the rows. A list
+// passes its own where the items it counts are narrower than the stops the walk lands
+// on, as a fold's door between items is a stop and not an item, or where another walk
+// over the same items already reports their position, so both say the same. A reader
+// returns null for a landing it counts no item at, which shows no position.
+// `landed(row)` runs after a press that moved focus to another row. `scroll: false`
 // holds the page still for a list read off what is in view, such as the Page Map's
 // visible markers, where scrolling to the landed row would change the list the walk
 // is over. Tabs and spatial grids own cyclic policies; the page's queue walk steps by
@@ -82,7 +84,7 @@ export function rowWalk({
   noun,
   plural,
   rows,
-  items = rows,
+  position = () => listWalkPosition(rows(), focused()),
   steps = STEPS,
   landed,
   scroll = true,
@@ -99,7 +101,7 @@ export function rowWalk({
     if (!row) return;
     focusDestination(row, "move");
     if (scroll) scrollIntoView(row, { block: "nearest" });
-    beginWalk(id, noun, () => listWalkPosition(items(), focused()));
+    beginWalk(id, noun, position);
     if (row !== was) landed?.(row);
   };
   return [
@@ -131,8 +133,6 @@ export function rowWalk({
 // A keyboard walk has arrived. The caller still owns and announces the motion; this
 // records the owner's live reading so every such walk gets one boundary treatment.
 export function beginWalk(key, noun, read) {
-  if (!key || typeof read !== "function")
-    throw new Error("leaf: a walk position needs an owner and a reading");
   const position = read();
   if (!position) {
     clearTimeout(boundaryTimer);

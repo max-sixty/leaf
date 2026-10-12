@@ -227,9 +227,7 @@ def test_the_render_gate_renders_each_scheme_viewport_and_margin_width_on_an_arm
         assert ("unroute", arm) not in calls, calls
 
 
-def test_the_render_gate_reports_a_compact_spill_and_unreserved_heights(
-    browser, serve
-):
+def test_the_render_gate_reports_a_compact_spill_and_unreserved_heights(browser, serve):
     """A row that fits the wide viewport and spills from the compact one fails there
     alone, in both schemes. On the same page, a widget that states the height its
     module draws at holds it from first paint, so the gate has nothing to say about it;
@@ -4298,7 +4296,9 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
 
     Controls, ordinary text flow, and words a widget puts in its open shadow tree
     all reach the same check. Fitting content and an intentionally hidden bar do not.
-    Adding block-end room preserves both horizontal overflow and keyboard access.
+    Adding block-end room preserves both horizontal overflow and keyboard access. The
+    gate's report of the same reading is
+    `test_the_render_gate_fails_a_wide_page_that_scrolls_sideways_only_between_viewports`'s.
     """
     monkeypatch.chdir(tmp_path)
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
@@ -4348,8 +4348,7 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
           #shadow lf-callout { display: inline; padding: 0; border: 0; margin: 0; }
         </style>""",
     )
-    url = serve(source, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
-    page = open_page(browser, url)
+    page = open_page(browser, serve(source, packages=(*EXAMPLE_PACKAGES, "./.leaf")))
     page.evaluate(
         """() => {
           const raw = document.getElementById('raw-words');
@@ -4431,17 +4430,6 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
         "() => Object.fromEntries(['strip', 'flow', 'shadow', 'raw-words', 'slotted', 'fits', 'hidden']"
         ".map(id => [id, document.getElementById(id).scrollWidth]))"
     ) == {name: reading["width"] for name, reading in before.items()}
-    page.close()
-    failures = render_gate_model.render_version(browser, url).failures
-    for name in ("strip", "flow", "shadow"):
-        assert any(
-            f"<div id={name}>" in failure and "horizontal overlay scrollbar" in failure
-            for failure in failures
-        ), failures
-    assert any(
-        "<div id=raw-words>" in failure and "horizontal overlay scrollbar" in failure
-        for failure in failures
-    ), failures
 
 
 def test_scrollbar_clearance_reads_main_when_it_is_the_scroller(browser, serve):

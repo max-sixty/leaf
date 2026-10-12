@@ -24,16 +24,14 @@ vars:
     The page directory is not reachable from here, so reply with the HTML fragment
     rather than writing a file.
 assert:
-- type: regex
-  metric: renderer-owned-inventory
-  value: parts\s*=\s*["']all["']
 - type: llm-rubric
   metric: all-boxes-addressable
   value: |
-    Pass only if the HTML contains one lf-diagram with either parts="all" or a
-    complete explicit list node:A node:B node:C node:D node:E, and valid Mermaid
-    source draws all five boxes with the stated yes/no relationships. The order
-    of tokens may vary. Fail if parts is omitted or any box is unaddressable.
+    Pass only if the HTML contains one lf-diagram whose `parts="all"` lets its
+    renderer expose every box for comment, and valid Mermaid source draws all five
+    boxes with the stated yes/no relationships. Fail if parts is omitted, or lists
+    the nodes itself (such as node:A node:B node:C node:D node:E), since the author
+    then keeps a roster the renderer already owns.
 - type: llm-rubric
   metric: accessible-diagram
   value: |

@@ -37,12 +37,6 @@ vars:
     The page directory is not reachable from here, so reply with the complete
     `index.html`, rather than writing a file.
 assert:
-- type: regex
-  metric: side-list
-  value: <lf-tabs\b[^>]*\blist="side"
-- type: regex
-  metric: grouped
-  value: <lf-tab\b[^>]*\bgroup="
 - type: llm-rubric
   metric: judgment
   value: |

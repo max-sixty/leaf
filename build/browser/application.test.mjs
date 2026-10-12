@@ -79,7 +79,7 @@ const wireQuestion = (
   next_actor: "user",
 });
 // A view's asks as the served lists hold them: each the user owes on Questions, and
-// each that is answered or withdrawn, done.
+// each that is no longer open, done.
 const askQueues = (asks) => {
   const item = (ask) =>
     servedAskItem(ask, {

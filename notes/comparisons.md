@@ -46,7 +46,7 @@ The remaining cutover waits for Claude Code to load modules without an opt-in;
 the module's header owns that condition. Durable input, pickup, and response
 identity still belong to Leaf. The decisive case is a running turn
 ending without reading its offered hook pointer: the existing
-[delivery tests](../tests/model/test_interact_session.py) cover falling back to the
+[delivery tests](../tests/model/test_codex_adapter.py) cover falling back to the
 queue without losing that input. An offer or queue acknowledgment is not pickup. I
 inspected those tests, without rerunning them. No peer demonstrated a general
 same-chat Codex solution; Plannotator's public sharing demo did not exercise a

@@ -404,9 +404,10 @@ contexts another retained case already covers. The leading comment records the
 case's origin and whether it distinguished the instructions.
 
 The prompt never states the behavior under test. A prompt pointing at a file beyond
-the references names that file from the skill's base directory. Grade a fixed form
-with a `regex` assertion, and a judgment with an `llm-rubric` assertion whose `value`
-states the passing reading without requiring particular wording.
+the references names that file from the skill's base directory. Grade what the agent
+wrote with an `llm-rubric` assertion whose `value` states the passing reading without
+requiring particular wording, and keep `regex` for a literal such as a command name or
+a URL (`evals/README.md`, "Case format").
 
 Run cold, a case that states the situation plainly usually passes on both arms: the
 failing session had its own earlier turns or a competing instruction pulling the

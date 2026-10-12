@@ -86,7 +86,11 @@ completion timing; it is never filled in as zero.
 ## Case format
 
 A short case is one prompt with native assertions: `vars.prompt` carries the
-request, and `assert` holds `regex`, `llm-rubric` or JavaScript assertions. The
+request, and `assert` judges what the agent wrote, its markup, code and prose, with
+`llm-rubric` assertions that each state the property the case is about. A `regex`
+or `not-regex` matches only a literal the reply must or must not contain, such as a
+command name or a URL: replies spell markup and commands in too many ways (attribute
+order, quoting, launcher paths, continued lines) for a pattern to grade them. The
 runner prepends a line telling the agent to use the Leaf skill for shipped-skill
 cases. The agent may only
 read (Claude Code's Skill and Read tools; Codex's read-only sandbox), so a prompt
@@ -138,10 +142,6 @@ the contrasting bounded live stream. The primary judge reads the rendered record
 the completed log grows in document flow, and checks and navigation stay reachable
 while reading, including in the short window. Source-property checks in the
 instruction diagnostic do not establish that rendered behavior.
-
-Case-insensitive patterns use native `regex` or `not-regex` assertions with
-`transform: output.toLowerCase()`. Workflow checks use inline JavaScript over the
-provider's check metadata.
 
 ## Isolation and models
 

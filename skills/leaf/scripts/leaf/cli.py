@@ -876,8 +876,8 @@ def status(dir: str, state: str, detail: str) -> None:
 
     Use waiting with DETAIL naming the answer you want from the user; waiting
     without DETAIL invites text comments. Use idle when you are finished; it is
-    refused while the page has updates nobody has picked up, updates you owe an
-    answer, or to-dos of yours still open. Either one clears every
+    refused while the page has updates, workers' reports or page errors nobody has
+    picked up, updates you owe an answer, or to-dos of yours still open. Either one clears every
     `leaf task start` you made, so no update or to-do reads Working; your to-dos
     stay open. Status has no working state: to show what you are working on, run
     `leaf task start`.
@@ -1034,8 +1034,9 @@ def response_reply(
     Progress (--ephemeral) and failure receipts (--failure) take none of them.
 
     The same command sets text, frozen HTML, the thread's title and a new anchor.
-    It validates and activates saved page edits, then posts the reply at once, and
-    your turn's final message is not posted as a second reply. Rerunning a reply
+    It validates and activates saved page edits, then posts the reply at once. Once
+    an answer posts, your turn's final message is not posted as a second reply;
+    progress (--ephemeral) does not stop that. Rerunning a reply
     that posted prints the earlier reply instead of posting again; give a retried
     --ephemeral progress line an --attempt so it posts once.
     """

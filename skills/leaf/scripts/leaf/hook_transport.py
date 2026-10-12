@@ -5,9 +5,11 @@ pointers through `codex`. All three use this module's continuation policy and
 reminders for already-receipted work. A reminder freezes the currently owed inputs
 with the ordinary delivery producer, recovering their exact response references
 even when the original pointer is lost. It does not make those inputs pending
-again or reserve another Codex transport offer. A Stop hook continues the turn
-for every answer still owed, but a repeated Stop (`stop_hook_active`) continues it
-only for a newly delivered update that owes an answer.
+again or reserve another Codex transport offer. A Stop hook continues the turn for
+each owed answer this turn has not started (`activity.turn_obligations`), and for a
+page whose watcher is not running while it has input pending or is not idle
+(`stop_continues`). A repeated Stop (`stop_hook_active`) continues the turn only for
+a newly delivered update that owes an answer.
 
 `hooks` reaches this module for active ownership or a reconnect notice about a
 page the session previously served.

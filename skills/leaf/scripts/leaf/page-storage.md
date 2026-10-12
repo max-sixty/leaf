@@ -139,7 +139,8 @@ other page files and the external state listed below.
 - `status.json` — the agent's `waiting` or `idle` declaration, observed activity,
   and reply reservations. The work in hand is no status: it is the log's `start` events.
   [session-lifetime.md](session-lifetime.md) owns their writers and lifetimes;
-  `thread.py` owns response reservations and their release. Every reader loads it
+  the `delivery` header defines reply reservations, and `thread.py` reserves and
+  releases them. Every reader loads it
   through `service.read_status`, which reads a missing file as no declaration.
 
 - `waiter.lock` — stable bare-shell wait lease file; harness sessions instead

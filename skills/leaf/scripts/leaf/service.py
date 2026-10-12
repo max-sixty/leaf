@@ -284,7 +284,7 @@ class PageTransaction:
 
     def standing_reply_reservation(self, responds: str) -> dict | None:
         """The reply reservation on `responds` while the claim turn it names is open
-        (`delivery`, "Reply reservation")."""
+        (`delivery` header)."""
         from leaf.activity import reply_reservation_stands
 
         reservation = (

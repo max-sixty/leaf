@@ -20,10 +20,8 @@ update, on a harness whose turn's final message becomes that reply (a Codex App
 Server turn). Freezing with `turn_replies` marks each reply answer
 `writer: "turn"`, and the harness reserves the answer's address before it starts
 the turn (`thread.reserve_delivery_reply`); the page's status keeps the
-reservation under `stream.reply_reservations`. It stands while the claim turn it
-names is open (`activity.reply_reservation_stands`) and is released when the reply
-commits or the harness gives the answer up (`thread.release_delivery_reply`).
-While it stands, no other delivery can reserve the address, the turn's final
+reservation under `stream.reply_reservations`, and session-lifetime.md says when it
+stands and when it clears. While it stands, no other delivery can reserve the address, the turn's final
 message commits as the reply, and failure receipts and other provider finals are
 refused or write nothing. A direct `leaf response reply` still commits at once,
 and the turn's final then yields to it. `writer` is the hint captured at freeze;

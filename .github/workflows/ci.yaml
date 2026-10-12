@@ -83,10 +83,13 @@ jobs:
       # process's CPU as it exits, so the run's CPU reads back by command afterwards;
       # py-spy samples the stacks of every Python process the run starts, waits
       # included, so wall time reads back by function. py-spy reads a process it did
-      # not start only where Yama allows any same-user trace.
+      # not start only where Yama allows any same-user trace. The package's daily cron
+      # job would restart accounting onto its own file at 06:25 UTC, ending the
+      # suite's record partway through any run that crosses that time.
       - name: Install the suite's profilers
         run: |
           sudo apt-get install -y acct
+          sudo rm /etc/cron.daily/acct
           sudo sysctl -w kernel.yama.ptrace_scope=0
           uvx py-spy@0.4.2 --version
 

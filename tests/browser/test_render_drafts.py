@@ -6961,6 +6961,44 @@ def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(
     assert comments[0]["anchor"]["quote"] == "The words first shown."
 
 
+def test_revisiting_a_passage_recaptures_its_revision_without_losing_words(
+    browser, serve
+):
+    """A fresh aim keeps saved words but captures the document currently on screen."""
+    source = editing_revision_source("revisit")
+    page = open_page(browser, live_url(serve(source)))
+    select_words(page, "#passage")
+    page.keyboard.press("c")
+    words = "An observation captured on the first revision."
+    write(page.locator(".lf-fab-input"), words)
+    select_words(page, "#subject")
+    rendered(page)
+    _publish(
+        serve.page_dir,
+        2,
+        source.replace(
+            "<title>Editor continuity</title>", "<title>A newer revision</title>"
+        ),
+        "A new revision",
+    )
+    told(page)
+    page.keyboard.press("Control+Alt+r")
+    wait_for_revision(page, 2)
+    select_words(page, "#passage")
+    page.keyboard.press("c")
+    editor = page.locator(".lf-fab-input")
+    expect(editor).to_have_js_property("value", words)
+    editor.press("ControlOrMeta+Enter")
+    round_trip(page)
+    sent = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("text") == words
+    ]
+    assert len(sent) == 1
+    assert sent[0]["revision"] == 2
+
+
 def test_a_shared_composer_sends_the_revision_its_draft_last_aimed_at(
     browser, serve, one_user
 ):

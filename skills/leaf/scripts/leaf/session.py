@@ -111,7 +111,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
         )
         if owed:
             raise Refused(
-                f"{unanswered(owed, 'acknowledged')}; answer before idling. "
+                f"{unanswered(owed, page_dir, 'acknowledged')}; answer before idling. "
                 + ANSWER_ASK_INSTRUCTION
             )
         # A task is work the agent still owes, which closing the page would leave

@@ -24,6 +24,12 @@ Answers are one of:
   a stamped version that writes it in. A pick of an option the user added is the
   log's to hold, so the stamped version takes that part in without writing it.
 
+A workflow's `receipt_refs` map each claim its update's deliveries were captured
+under to the newest `answer.ref` a receipt's pickup recorded under it
+(`delivery.record_pickup`); `activity` makes the one under the page's current claim
+the answer's `ref`.
+An update no receipt has carried has none: only its delivery mints one.
+
 Two kinds of update have workflows with no answer of their own. An update a
 newer one in the same thread covers is answered through the newest, whose one
 answer settles both. A widget action that answers no Question, such as an edit to a
@@ -246,11 +252,16 @@ def canonical_workflows(
         for input_id, response in responses.items()
         if response.get("failure")
     }
+    # The newest `answer.ref` receipts recorded for each input (`record_pickup`)
+    # under each claim its deliveries were captured under.
+    refs: dict[str, dict[str | None, str]] = {}
     for event in events:
         if event["kind"] != "pickup":
             continue
         for event_id in event["events"]:
             deliveries.setdefault(event_id, {})[event["phase"]] = event
+        for event_id, ref in event.get("refs", {}).items():
+            refs.setdefault(event_id, {})[ref["claim"]] = ref["ref"]
 
     log = task_reading or TaskReading(events)
     starts = log.starts
@@ -332,6 +343,7 @@ def canonical_workflows(
             "delivery_seq": fallback["seq"] if fallback else None,
             "delivery_session": fallback.get("session") if fallback else None,
             "delivery_turn": fallback.get("turn") if fallback else None,
+            "receipt_refs": refs.get(source["id"], {}),
             "detail": start["text"] if start else None,
             "agent": start.get("agent") if start else None,
             "session": start.get("session") if start else None,

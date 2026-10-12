@@ -387,7 +387,9 @@ def _write_page_state(
     if target is not None:
         subject = page_subject(page_dir, events, target)
         if subject is None:
-            held = logged_id(events, target, current_responses(page_dir, events))
+            held = logged_id(
+                page_dir, events, target, current_responses(page_dir, events)
+            )
             raise Refused(
                 f"{target!r} names no thread or widget on this page"
                 + (f"; {held}" if held else "")

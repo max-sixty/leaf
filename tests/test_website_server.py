@@ -5360,6 +5360,34 @@ class _Text:
         return self.text
 
 
+def test_release_verifier_waits_for_the_revision_to_finish_presenting(browser):
+    """The revision marker can advance while the live document patch is pending."""
+    page = browser.unwatched.new_page()
+    page.route(
+        "http://release-verifier.test/",
+        lambda route: route.fulfill(
+            content_type="text/html",
+            body=(
+                "<!doctype html><head><meta name='lf-revision' content='2'>"
+                "<script data-lf-entry></script></head><body data-lf-presented='1'>"
+                "<main>Previous release</main></body>"
+            ),
+        ),
+    )
+    page.add_init_script(path=verify_site.VERIFIER_SCRIPT)
+    page.goto("http://release-verifier.test/")
+    page.evaluate(
+        "document.querySelector('script[data-lf-entry]').lfReadiness = "
+        "() => 'presented'"
+    )
+    assert not page.evaluate("window.__leafVerifier.revisionAtLeast(2)")
+    page.evaluate(
+        "document.querySelector('main').textContent = 'Release 3531f4e6'; "
+        "document.querySelector('script[data-lf-entry]').lfReadiness = () => null"
+    )
+    assert page.evaluate("window.__leafVerifier.revisionAtLeast(2)")
+
+
 class _DeployedPage:
     """The page the agent pass opens, reloads after its turn, and reads back."""
 
@@ -5371,6 +5399,7 @@ class _DeployedPage:
         reload_ok: bool = True,
         banner: str | None = None,
         follows_revision: bool = False,
+        presentation_pending: bool = False,
         initial_presented_at: float | None = None,
     ):
         self.recorded = recorded
@@ -5379,6 +5408,7 @@ class _DeployedPage:
         self.reload_ok = reload_ok
         self.banner = banner
         self.follows_revision = follows_revision
+        self.presentation_pending = presentation_pending
         self.initial_presented_at = (
             presented_at if initial_presented_at is None else initial_presented_at
         )
@@ -5406,7 +5436,7 @@ class _DeployedPage:
     ) -> None:
         assert expression == "window.__leafVerifier.revisionAtLeast" and arg is not None
         self.revision_waits.append((arg, timeout))
-        if self.revision >= arg:
+        if self.revision >= arg and not self.presentation_pending:
             return
         if self.follows_revision:
             self.revision = arg
@@ -5454,6 +5484,8 @@ class _DeployedPage:
             return self.presented_at
         if script == "window.__leafVerifier.revision":
             return str(self.revision)
+        if script == "window.__leafVerifier.revisionAtLeast":
+            return self.revision >= arg and not self.presentation_pending
         if script == "window.__leafVerifier.status":
             return self.banner
         return []
@@ -5896,6 +5928,20 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
         )
     assert refused.presentation_waits == [30_000]
     assert refused.revision_waits == []
+
+    pending = _DeployedPage(
+        recorded, revision=2, presented_at=28444.0, presentation_pending=True
+    )
+    with pytest.raises(RuntimeError, match="did not finish presenting it"):
+        run_browser_journey(
+            journey.website_session(
+                _DeployedSite(_DeployedContainer(release, pending)),
+                release,
+                origin="https://leaf.page",
+                direct_agent=False,
+            )
+        )
+    assert pending.revision_waits == [(2, journey.TURN_PRESENTATION)]
 
 
 def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(

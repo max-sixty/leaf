@@ -1,11 +1,13 @@
 name: ci
 
 # Every event runs the runtime, browser-framework and bundle gates; the Python suite's
-# selection follows the test tiers (`tests/conftest.py`, `TIERS`):
-# - a pull request runs the unmarked tests, plus the `main` and `nightly` tests it edits,
+# selection follows the test tiers, set by a test's marks and its measured cost
+# (`tests/conftest.py`, `run_tier`):
+# - a pull request runs the first tier, plus the `main` and `nightly` tests it edits,
 #   and the website gate;
-# - a push to main runs the unmarked and `main` tests;
-# - the daily schedule and a manual dispatch run every test.
+# - a push to main runs the first tier and `main`;
+# - the daily schedule and a manual dispatch run every test, and their junit report is
+#   what `leaf-dev cost-tiers` measures the tiers from.
 # Relevant pushes to main run the website gate in publish-site before deploy.
 on:
   push:
@@ -97,14 +99,11 @@ jobs:
 
       # The bundles build from the installed lock, so a rebuild reproduces the
       # tracked bytes exactly and any difference is a lock nobody rebuilt from.
-      - name: Check vendored bundles
-        run: pnpm run check:bundles
-
-      - name: Check browser, runtime, Worker and eval assertions
+      - name: Check bundles, browser, runtime, Worker and eval assertions
         run: pnpm run check
 
-      # Rebuilds above finish writing tracked source before lint reads it. Hooks
-      # only check source, so they can overlap Python and the private website build.
+      # Hooks only check source, so they can overlap Python and the private website
+      # build.
       - name: 🔍 Pre-commit hooks
         id: lint
         background: true

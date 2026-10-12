@@ -46,35 +46,6 @@ def event_fault(event: dict, error: str) -> EventAnswer:
     return 500, body
 
 
-def _accepted_retry(
-    page: PageTransaction, event: dict
-) -> tuple[bool, EventAnswer | None]:
-    """Read an attempted retry before mutable-state validation."""
-    if "attempt" not in event:
-        return False, None
-    # The append gate enriches an abbreviated text anchor with its canonical
-    # context. A later retry still carries the original browser payload, so compare
-    # it as that same payload rather than treating server-added fields as a conflict.
-    existing = next(
-        (logged for logged in page.events if logged.get("attempt") == event["attempt"]),
-        None,
-    )
-    if (
-        existing
-        and event.get("kind") == existing.get("kind") == "comment"
-        and isinstance(event.get("anchor"), dict)
-        and isinstance(existing.get("anchor"), dict)
-    ):
-        for field, value in existing["anchor"].items():
-            event["anchor"].setdefault(field, value)
-    event["author"] = "user"
-    try:
-        existing = page.matching_attempt(event)
-    except AttemptConflict as error:
-        return False, event_rejection(event, str(error), 409)
-    return bool(existing), None
-
-
 def accept_event(
     page_dir: Path,
     event: dict,
@@ -103,6 +74,7 @@ def _receive_event(page_dir: Path, event: dict) -> EventAnswer:
     # copies before validation prevents them from entering attempt identity too.
     for field in kernel_event_ownership()["browser_discard"]:
         event.pop(field, None)
+    event["author"] = "page" if kind == "error" else "user"
     if error := browser_command_error(contracts[kind], event):
         return event_rejection(event, f"{kind} event is invalid: {error}")
     # A fault raises out of here, before or after the append, and the transport's
@@ -127,19 +99,17 @@ def _execute_event(
     """
     spoken = None
     with PageTransaction(page_dir) as page:
-        # Acceptance outranks mutable state validation. A retry for an accepted
-        # attempt asks for its state; it does not repeat the gesture.
-        accepted, rejection = _accepted_retry(page, event)
-        if rejection:
-            return rejection
-        if not accepted:
-            event["author"] = "page" if event["kind"] == "error" else "user"
-            try:
-                admitted = append_admitted(page, event)
-            except EventRefused as error:
-                return event_rejection(event, error.user)
-            except RegistryError as error:
-                return event_rejection(event, str(error))
+        try:
+            # A retry for an accepted attempt asks for its state; the door returns
+            # that record unappended rather than repeating the gesture.
+            admitted, appended = append_admitted(page, event)
+        except AttemptConflict as error:
+            return event_rejection(event, str(error), 409)
+        except EventRefused as error:
+            return event_rejection(event, error.user)
+        except RegistryError as error:
+            return event_rejection(event, str(error))
+        if appended:
             claim = page.active_claim
             # Input that asks for the agent reaches it even when no watcher will.
             if requires_agent_attention(admitted):

@@ -12,6 +12,7 @@ import shutil
 import signal
 import subprocess
 import threading
+import traceback
 import weakref
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
@@ -67,6 +68,7 @@ from leaf import publishing as publishing_model
 from leaf import revision_artifact as artifact_model
 from leaf import revision_delivery as revision_delivery_model
 from leaf import revisioning as revisioning_model
+from leaf import samples as samples_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
@@ -250,6 +252,65 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     historical = artifact_model.read_artifact(page_dir, first.revision)
     assert historical.resources["/page/value.js"].data == b"export const value = 1;"
     assert historical.resources["/leaf.js"].data == artifact.resources["/leaf.js"].data
+
+
+def test_a_revision_keeps_its_bytes_when_a_layer_file_is_edited_in_place(page_dir):
+    """A page's layer files are the user's to edit, in place if their editor does,
+    so a revision holds its own copy of each and never shares one's inode."""
+    first = revisioning_model.activate_source(page_dir)
+    assert first.error is None, first.error
+    captured = (
+        files_model.revision_path(page_dir, first.revision).with_suffix("")
+        / "resources"
+    )
+    for layer_file in ("leaf.js", "theme.css", "runtime/layer-generation.js"):
+        assert (captured / layer_file).stat().st_ino != (
+            page_dir / layer_file
+        ).stat().st_ino, layer_file
+    theme = (captured / "theme.css").read_bytes()
+    with (page_dir / "theme.css").open("r+b") as stream:
+        stream.write(b"/* edited in place */")
+    assert (captured / "theme.css").read_bytes() == theme
+
+
+def test_a_sample_child_stages_its_revision_without_fsync(page_dir, monkeypatch):
+    """A sample's child is Leaf's own and deleted on release, so nothing reads its
+    revision after a crash and staging it pays for no fsync, while a page's own
+    revision is still made durable."""
+    template = (
+        '<template id="practice" data-sample><h1>Practice</h1>'
+        "<p>Child text.</p></template>"
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
+    synced = []
+    fsync = os.fsync
+
+    def recording(descriptor):
+        if any(
+            frame.filename.endswith("revision_artifact.py")
+            for frame in traceback.extract_stack()
+        ):
+            synced.append(descriptor)
+        return fsync(descriptor)
+
+    monkeypatch.setattr(os, "fsync", recording)
+    parent = revisioning_model.activate_source(page_dir)
+    assert parent.error is None, parent.error
+    assert synced, "a page's own revision is made durable"
+
+    synced.clear()
+    artifact = artifact_model.read_artifact(page_dir, parent.revision)
+    document = artifact_model.read_revision(page_dir, parent.revision).document
+    samples = samples_model.Samples()
+    identity = samples.create(
+        page_dir, artifact, document, [], {"sources": {}}, "practice", False, None
+    )
+    try:
+        child = samples.pages[identity].directory
+        assert files_model.latest_revision(child) == 1
+        assert synced == []
+    finally:
+        samples.close()
 
 
 def test_the_captured_executable_digest_separates_code_from_content(page_dir):
@@ -512,12 +573,7 @@ def test_an_interrupted_capture_never_publishes_a_partial_revision(
     )
 
 
-def test_artifact_cache_refuses_a_replaced_immutable_manifest(page_dir):
-    activated = revisioning_model.activate_source(page_dir)
-    assert activated.error is None and activated.revision == 1
-    revision = files_model.latest_revision(page_dir)
-    first = artifact_model.read_artifact(page_dir, revision)
-    assert artifact_model.read_artifact(page_dir, revision) is first
+def _replace_manifest(page_dir, revision):
     manifest_path = (
         files_model.revision_path(page_dir, revision).with_suffix("") / "manifest.json"
     )
@@ -527,8 +583,27 @@ def test_artifact_cache_refuses_a_replaced_immutable_manifest(page_dir):
         [(manifest_path, json.dumps(manifest, sort_keys=True).encode(), False)]
     )
 
+
+def test_artifact_read_refuses_a_replaced_immutable_manifest(page_dir):
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None and activated.revision == 1
+    revision = files_model.latest_revision(page_dir)
+    _replace_manifest(page_dir, revision)
+
     with pytest.raises(artifact_model.ArtifactError, match="manifest digest"):
         artifact_model.read_artifact(page_dir, revision)
+
+
+def test_artifact_cache_holds_a_bundle_by_its_content_addressed_path(page_dir):
+    """A revision's name carries its manifest's digest, so a held bundle is read
+    once; a later change to its files is not reread."""
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None and activated.revision == 1
+    revision = files_model.latest_revision(page_dir)
+    first = artifact_model.read_artifact(page_dir, revision)
+    _replace_manifest(page_dir, revision)
+
+    assert artifact_model.read_artifact(page_dir, revision) is first
 
 
 def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):

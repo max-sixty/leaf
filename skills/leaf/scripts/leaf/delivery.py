@@ -610,7 +610,7 @@ def record_pickup(
         return None
     from .event_contracts import append_admitted
 
-    return append_admitted(
+    record, _ = append_admitted(
         page,
         {
             "kind": "pickup",
@@ -622,6 +622,7 @@ def record_pickup(
             **({"failure": failure} if failure is not None else {}),
         },
     )
+    return record
 
 
 class ReceiptRefused(Refused):

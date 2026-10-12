@@ -573,9 +573,10 @@ visible change").
 
 ## Working on the runtime
 
-`../references/module-authoring.md`, "Template rendering", owns template timing
-and container ownership. Paints whose contract requires the current turn use the
-public `render`; `LitElement` belongs only to faces that permit its microtask delay.
+`../references/module-authoring.md`, "Template rendering", owns container ownership
+and how placements keep the user's place. Paints whose contract requires the current
+turn use `render`; `LitElement` schedules updates on a microtask and belongs only to
+runtime faces that permit that delay.
 
 `build/browser/build.mjs` compiles the TypeScript foundation into
 `vendor/browser-runtime.js` and the modules beside it in `vendor/browser-runtime/`,

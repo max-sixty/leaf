@@ -184,10 +184,7 @@ function createWidgetController(owner) {
       // commits so the provisional publication can settle. Its subscribers first run
       // when the publisher supplies every declared verb.
       if (failure) presenting.reject(failure);
-      else
-        presenting.resolve(
-          complete && owner.updateComplete?.then ? owner.updateComplete : undefined,
-        );
+      else presenting.resolve();
     }
   };
 

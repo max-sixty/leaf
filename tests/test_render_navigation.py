@@ -13850,7 +13850,7 @@ def test_vertical_landing_crosses_a_quarter_turn_without_changing_horizontal_rea
     page = open_page(browser, serve(source))
     page.emulate_media(reduced_motion="reduce")
     before = page.evaluate("""async () => {
-      const {scrollAxes} = await window.__lfRuntimeImport('/runtime/geometry.js');
+      const {scrollAxes} = await window.__lfRuntimeImport('/runtime/element-frame.js');
       const {scrollersOf} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
       const target = document.querySelector('#quarter-target');
       const boxes = [...scrollersOf(target)].filter(box => box !== document.scrollingElement);

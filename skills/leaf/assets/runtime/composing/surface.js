@@ -46,8 +46,8 @@
    Boot supplies composer, travel, and mode commands to one surface owner. Its
    constructor binds no document listeners; mount installs the selection gesture
    lifecycle and field-focus tracking after all capabilities have been composed. */
+import { addressableWord } from "../addressable-names.js";
 import {
-  addressableWord,
   anchoringIsReady,
   lightSeat,
   resolveAnchor,

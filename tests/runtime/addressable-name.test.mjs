@@ -15,7 +15,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { addressableLabel, addressableName } from "/runtime/anchor-resolution.js";
+import { addressableLabel, addressableName } from "/runtime/addressable-names.js";
 import { registry } from "/runtime/registry.js";
 
 const named = (markup) => {

@@ -54,9 +54,8 @@
    Experimental: the lists and the walk over them are new, and their shape is
    expected to change a lot (notes/what-needs-you/). Change them freely.
 */
-import { cycledRow } from "./keyboard/bindings.js";
+import { cycledRow, savedReadingReady } from "./keyboard/bindings.js";
 import { pageCommand, pageScope } from "./keyboard/register.js";
-import { savedReadingReady } from "./keyboard/bindings.js";
 import { documentFocused, paintKeys } from "./keyboard/scopes.js";
 import { onStanding } from "./focus.js";
 import { coarsePointer } from "./pointer.js";

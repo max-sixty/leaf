@@ -12,10 +12,10 @@ import {
   anchorHolder,
   anchorName,
   anchorReading,
-  inTopLayer,
   nameAnchor,
   scrollsWith,
 } from "./css-anchors.js";
+import { nativeLayerHolding } from "./keyboard/layer-stack.js";
 import { nearObserver, nearWindow, paintClips, shownBox } from "./geometry.js";
 import { hasArea, intersect } from "./rect.js";
 import { atLayoutPrecision, keeps, layoutPx } from "./keeps.js";
@@ -214,7 +214,7 @@ function reaches(anchor, root) {
   return (
     Boolean(order & Node.DOCUMENT_POSITION_FOLLOWING) &&
     !(order & Node.DOCUMENT_POSITION_CONTAINED_BY) &&
-    !inTopLayer(holder)
+    !nativeLayerHolding(holder)
   );
 }
 

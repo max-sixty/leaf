@@ -3958,16 +3958,14 @@ export const summarize = checks =>
               <thead>
                 <tr>
                   <th>Review unit</th>
-                  <th>Files</th>
-                  <th>Change</th>
                   <th>Review focus</th>
                 </tr>
               </thead>
               <tbody>
                 <tr id="pr-focus-safety">
-                  <th scope="row">1 · Git repository layer</th>
-                  <td>4</td>
-                  <td><code>+312 −30</code></td>
+                  <th scope="row">
+                    1 · Git repository layer<br /><code>+312 −30</code> in 4 files
+                  </th>
                   <td>
                     Untracked files enter while the
                     <lf-gloss
@@ -3977,36 +3975,36 @@ export const summarize = checks =>
                   </td>
                 </tr>
                 <tr id="pr-focus-latency">
-                  <th scope="row">2 · Picker runtime</th>
-                  <td>17</td>
-                  <td><code>+823 −466</code></td>
+                  <th scope="row">
+                    2 · Picker runtime<br /><code>+823 −466</code> in 17 files
+                  </th>
                   <td>
                     Off-screen worktrees load on demand without breaking tab or row
                     identity.
                   </td>
                 </tr>
                 <tr>
-                  <th scope="row">3 · Integration tests</th>
-                  <td>8</td>
-                  <td><code>+308 −92</code></td>
+                  <th scope="row">
+                    3 · Integration tests<br /><code>+308 −92</code> in 8 files
+                  </th>
                   <td>Tests observe index bytes and filesystem residue.</td>
                 </tr>
                 <tr>
-                  <th scope="row">4 · Other runtime</th>
-                  <td>6</td>
-                  <td><code>+42 −61</code></td>
+                  <th scope="row">
+                    4 · Other runtime<br /><code>+42 −61</code> in 6 files
+                  </th>
                   <td>Prior diff callers move to the shared abstraction.</td>
                 </tr>
                 <tr>
-                  <th scope="row">5 · Docs and shipped skills</th>
-                  <td>9</td>
-                  <td><code>+69 −42</code></td>
+                  <th scope="row">
+                    5 · Docs and shipped skills<br /><code>+69 −42</code> in 9 files
+                  </th>
                   <td>The Git 2.34 floor is discoverable in every published copy.</td>
                 </tr>
                 <tr>
-                  <th scope="row">6 · Benchmarks</th>
-                  <td>2</td>
-                  <td><code>+13 −10</code></td>
+                  <th scope="row">
+                    6 · Benchmarks<br /><code>+13 −10</code> in 2 files
+                  </th>
                   <td>Prewarm cost moves to selected-row demand.</td>
                 </tr>
               </tbody>
@@ -4247,74 +4245,74 @@ index b856171b57..cfa4f0448e 100644
                 <tr>
                   <th>Claim</th>
                   <th>Evidence</th>
-                  <th>Status</th>
-                  <th>Review reading</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
                   <th scope="row">
+                    <span class="tag ok">passed</span>
                     Unified and subsidiary tabs show the intended changes
                   </th>
                   <td>
                     <code
                       >unified_diff_is_net_change_and_subsidiary_diffs_include_untracked</code
-                    >
-                  </td>
-                  <td><span class="tag ok">passed</span></td>
-                  <td>
+                    ><br />
                     The same test requires the real index to remain byte-identical.
                   </td>
                 </tr>
                 <tr>
                   <th scope="row">
+                    <span class="tag ok">passed</span>
                     Sparse checkouts retain out-of-cone untracked files
                   </th>
                   <td>
                     <code
                       >test_picker_dry_run_includes_untracked_outside_sparse_checkout</code
-                    >
+                    ><br />
+                    Exercises the regression the first review found.
                   </td>
-                  <td><span class="tag ok">passed</span></td>
-                  <td>Exercises the regression the first review found.</td>
                 </tr>
                 <tr>
                   <th scope="row">
+                    <span class="tag ok">passed</span>
                     Worktree-local temp directories leave no index artifacts
                   </th>
                   <td>
                     <code
                       >test_picker_dry_run_tempdir_inside_worktree_has_no_index_artifacts</code
-                    >
+                    ><br />
+                    Also tests glob escaping with a bracketed path.
                   </td>
-                  <td><span class="tag ok">passed</span></td>
-                  <td>Also tests glob escaping with a bracketed path.</td>
                 </tr>
                 <tr>
-                  <th scope="row">Off-screen worktrees are demand-loaded</th>
+                  <th scope="row">
+                    <span class="tag ok">passed</span>
+                    Off-screen worktrees are demand-loaded
+                  </th>
                   <td>
                     <code
                       >initial_precompute_skips_offscreen_worktrees_but_warms_branches</code
-                    >
+                    ><br />
+                    Proves scheduling shape, not selected-row latency.
                   </td>
-                  <td><span class="tag ok">passed</span></td>
-                  <td>Proves scheduling shape, not selected-row latency.</td>
                 </tr>
                 <tr>
-                  <th scope="row">Selected-row demand remains fast</th>
-                  <td>No latency benchmark</td>
-                  <td><span class="tag warn">gap</span></td>
+                  <th scope="row">
+                    <span class="tag warn">gap</span>
+                    Selected-row demand remains fast
+                  </th>
                   <td>
+                    No latency benchmark<br />
                     The correctness test allows up to 60 seconds and cannot answer this.
                   </td>
                 </tr>
                 <tr>
                   <th scope="row">
+                    <span class="tag warn">gap</span>
                     Commit dry-run excludes its own temp index under local TMPDIR
                   </th>
-                  <td>No focused regression in this PR</td>
-                  <td><span class="tag warn">gap</span></td>
                   <td>
+                    No focused regression in this PR<br />
                     The captured hunk moves the existing staging path onto
                     <code>TempIndex</code> without changing its <code>git add</code>
                     semantics; a reviewer reproduced the extra index and lock entries

@@ -36,16 +36,31 @@ class PatchError(ValueError):
 _PATH_ONLY_RENAME = re.compile(
     r"diff --git .+\nsimilarity index 100%\nrename from .+\nrename to .+\n*"
 )
+_RENAME = re.compile(r"^rename from (.+)\nrename to (.+)$", re.MULTILINE)
 
 
-def _git_path(token: str) -> str | None:
-    """The path one ---/+++ side names, with Git's C-style quoting decoded and its
-    `a/` or `b/` marker removed, or None for /dev/null."""
+def _unquote(token: str) -> str:
+    """One path as Git writes it, with its C-style quoting decoded."""
+    if token.startswith('"'):
+        return codecs.escape_decode(token[1:-1].encode())[0].decode()
+    return token
+
+
+def _git_path(token: str, marker: str) -> str | None:
+    """The path one ---/+++ side names, its `a/` or `b/` marker removed, or None for
+    /dev/null.
+
+    lf-diff reads only Git's default markers, and without them nothing says where the
+    path starts, so a patch written with `--no-prefix` or other markers is refused."""
     if token == "/dev/null":
         return None
-    if token.startswith('"'):
-        token = codecs.escape_decode(token[1:-1].encode())[0].decode()
-    return token[2:]
+    token = _unquote(token)
+    if not token.startswith(marker):
+        raise PatchError(
+            f"{token} lacks Git's {marker} prefix; write the patch with "
+            "`git diff --src-prefix=a/ --dst-prefix=b/`"
+        )
+    return token[len(marker) :]
 
 
 def _manifest_file(section: str) -> dict:
@@ -56,8 +71,21 @@ def _manifest_file(section: str) -> dict:
             "hunks for an edited destination"
         )
     (patched,) = PatchSet.from_string(section)
-    previous = _git_path(patched.source_file)
-    path = _git_path(patched.target_file) or previous
+    previous = _git_path(patched.source_file, "a/")
+    path = _git_path(patched.target_file, "b/") or previous
+    # A rename names both paths on lines of their own, where a path-only one has no
+    # ---/+++ sides and its `diff --git` line is ambiguous once a path holds " b/".
+    if renamed := _RENAME.search(section):
+        previous, path = map(_unquote, renamed.groups())
+    # unidiff stops reading a hunk at the length its @@ header gives, so a line past
+    # it would leave the stored counts short of what lf-diff refuses on opening.
+    # Lines end only at "\n", as Git writes them.
+    body = section.partition("\n@@")[2].split("\n")
+    if sum(line[:1] in ("+", "-") for line in body) != patched.added + patched.removed:
+        raise PatchError(
+            f"hunk line counts in {path} do not match their @@ headers; pass "
+            "`git diff` output alone"
+        )
     # Only Git's exact path-only rename omits textual hunks; a binary rename is
     # hunkless too, and listing it as a rename would hide its content change.
     path_only = _PATH_ONLY_RENAME.fullmatch(section) is not None
@@ -68,7 +96,7 @@ def _manifest_file(section: str) -> dict:
         )
     return {
         "path": path,
-        **({"previousPath": previous} if patched.is_rename else {}),
+        **({"previousPath": previous} if renamed else {}),
         "kind": "rename" if path_only else "patch",
         "additions": patched.added,
         "deletions": patched.removed,

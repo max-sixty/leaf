@@ -43,6 +43,13 @@
       ]
     },
     {
+      "id": "path-only-rename-through-b-directory",
+      "patch": "diff --git a/a b x.txt b/c b/d.txt\nsimilarity index 100%\nrename from a b x.txt\nrename to c b/d.txt\n",
+      "files": [
+        "c b/d.txt"
+      ]
+    },
+    {
       "id": "quoted-edit",
       "patch": "diff --git \"a/caf\\303\\251.py\" \"b/caf\\303\\251.py\"\n--- \"a/caf\\303\\251.py\"\n+++ \"b/caf\\303\\251.py\"\n@@ -1 +1 @@\n-old\n+new\n",
       "files": [
@@ -72,9 +79,16 @@
       ]
     },
     {
+      "id": "no-prefix",
+      "patch": "diff --git app.py app.py\n--- app.py\n+++ app.py\n@@ -1 +1 @@\n-old\n+new\n",
+      "manifest": "app.py lacks Git's a/ prefix",
+      "widget": "parsePatchContent: invalid git diff header"
+    },
+    {
       "id": "wrong-count",
       "patch": "diff --git a/example.js b/example.js\n--- a/example.js\n+++ b/example.js\n@@ -1 +1 @@\n-old\n+new\n+silently-lost\n",
-      "widget": "parsePatchContent: hunk has more lines than expected"
+      "widget": "parsePatchContent: hunk has more lines than expected",
+      "manifest": "hunk line counts in"
     },
     {
       "id": "missing-hunk",

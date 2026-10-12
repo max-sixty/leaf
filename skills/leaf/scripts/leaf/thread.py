@@ -606,7 +606,7 @@ def _compose_and_append(
     detach reads them."""
     page_dir, events = page.page_dir, page.events
     to, thread_id, responds, in_hand = obligation
-    opening = _messages(events).get(thread_id)
+    opening = _messages(events)[thread_id]
     moving = bool(quote or section or part)
     if ephemeral and (ask or todo or markup or failure or moving or detach):
         raise Refused(
@@ -615,11 +615,6 @@ def _compose_and_append(
     if detach and moving:
         raise Refused("--detach cannot be combined with --quote, --section, or --part")
     relocating = moving or detach
-    if relocating and opening is None:
-        raise Refused(
-            f"thread {thread_id!r} has no surviving opening comment, so its "
-            "anchor cannot be changed"
-        )
     if relocating and opening.get("holds"):
         raise Refused(
             f"thread {thread_id!r} holds the command goal named by its opening "

@@ -146,9 +146,6 @@ export function threadReading(thread, surface, commands, options) {
       thread.attention.reason === "workflow",
     unreadCount: thread.unread.length,
     id: thread.id,
-    // The message a reply or settlement addresses, which is not the thread's id where
-    // the log lost the message that opened it.
-    root: thread.root.id,
     attempt: thread.root.attempt ?? null,
     surface,
     visible,
@@ -1265,7 +1262,7 @@ export class ThreadView {
     this.#showNews();
     if (!model.resolved) dismissReply(model.key);
     void settleThread({
-      parent: () => this.#model.root,
+      parent: () => this.#model.id,
       key: model.key,
       resolved: model.resolved,
       prepareLanding:

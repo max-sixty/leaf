@@ -378,6 +378,7 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
         ('import "./escape.js";', "symlink"),
         ('import "./data\\u002ejson";', "unescaped string literals"),
         ("export const = ;", "invalid JavaScript"),
+        ("export const view = <div />;", "JSX is not executable JavaScript"),
     ]:
         (authored / "app.js").write_text(source)
         refused = revisioning_model.activate_source(page_dir)

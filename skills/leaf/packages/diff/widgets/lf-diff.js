@@ -872,8 +872,8 @@ customElements.define(
         }
         return () => {
           this.rendering = (this.rendering ?? 0) + 1;
-          // Leaf retires this surface on the same departure, taking core's views out of
-          // every outlet, so all of them go.
+          // Leaf retires this surface when it leaves, after this cleanup, and puts
+          // core's views back, so every outlet goes.
           if (this.threadSeats) {
             for (const record of this.threadSeats.values()) record.active = false;
             this.retireThreadOutlets();

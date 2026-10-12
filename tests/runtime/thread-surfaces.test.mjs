@@ -4,11 +4,11 @@ import test from "node:test";
 import { adoptRegistry } from "/runtime/registry.js";
 import { watchThreadSurfaces } from "/runtime/thread/surfaces.js";
 
-test("a surface widget whose constructor threw is not waited for again", async () => {
-  // A failed upgrade leaves the element undefined while its definition stands, and the
-  // definition has resolved, so a watch that waited for it again would re-offer the
-  // element on every resolution and spin forever. Waits are counted, and capped so
-  // that spin fails here rather than starving the event loop.
+test("a surface widget whose constructor threw is not waited for", async () => {
+  // A failed upgrade leaves the element undefined while its definition stands, so a
+  // watch that waited for the definition would re-offer the element on every
+  // resolution and spin forever. Waits are counted, and capped so that spin fails here
+  // rather than starving the event loop.
   adoptRegistry({ "lf-broken-surface": { "x-thread-surface": true } });
   const real = customElements.whenDefined.bind(customElements);
   let waits = 0;

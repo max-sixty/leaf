@@ -20,12 +20,12 @@ const identity = (record) => record.attempt ?? record.id;
 // the document is a pinned version), a Question the active revision adds is not on this
 // page yet; it becomes news when a revision holding it is presented.
 export function semanticNewsReading(root) {
-  const page = root.effective.view?.document;
-  if (!page) throw new Error("The shown page has no browser reading");
+  const view = root.effective.view;
+  if (!view) throw new Error("The shown page has no browser reading");
   const state = root.authoritative;
   return {
-    page,
-    thread: state.browser.thread,
+    page: view.document,
+    thread: view.thread,
     workflows: state.workflows,
     activity: state.activity,
   };

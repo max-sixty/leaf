@@ -28,6 +28,7 @@ from interact_support import (
     publish,
     published,
     response_reference,
+    served_thread,
     state_json,
 )
 from leaf import cli as cli_model
@@ -1140,7 +1141,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     assert completed["responds"] == root["id"]
     state = page_state(claimed)
     assert state["workflows"] == []
-    [thread] = state["browser"]["thread"]["threads"]
+    [thread] = served_thread(state["browser"])["threads"]
     assert thread["summaries"][0]["covers"] == [
         update["id"],
         json.loads(again.output.splitlines()[0])["id"],

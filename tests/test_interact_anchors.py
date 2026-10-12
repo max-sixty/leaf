@@ -497,12 +497,7 @@ def test_a_widgets_data_body_is_not_quotable_but_the_widget_is(page_dir):
     (page_dir / "index.html").write_text(FLOW_PAGE)
     body = comment(published(page_dir), "--quote", "graph LR", "--text", "x")
     assert body.exit_code != 0
-    # Named, not merely refused. "the page doesn't say it" was the old answer, and it is
-    # a wider claim than this reading can make — for a widget whose body does reach the
-    # user as text it is simply false, and it sent the writer to fix a page that was
-    # never wrong.
-    assert "§ flow's data body" in body.output
-    assert "Name § flow as the section" in body.output
+    assert "doesn't say 'graph LR'" in body.output and "name the section" in body.output
     element = comment(
         page_dir, "--section", "flow", "--text", "the retry edge is missing"
     )
@@ -1476,8 +1471,7 @@ def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):
         "--text",
         "x",
     )
-    assert across.exit_code != 0
-    assert "across separate reading regions" in across.output
+    assert across.exit_code != 0 and "doesn't say" in across.output
     assert (
         comment(page_dir, "--quote", "Before the diagram.", "--text", "x").exit_code
         == 0
@@ -1563,18 +1557,17 @@ def test_comments_reach_user_generated_choices_without_source_copying(page_dir):
     assert json.loads(later.output)["anchor"]["section"] == identity
 
 
-def test_a_quote_of_words_an_edit_replaced_is_refused_naming_the_edit(page_dir):
+def test_a_quote_of_words_an_edit_replaced_is_refused(page_dir):
     """The authored body is still in the file, but the user is no longer reading
-    it — posted, the comment would detach in front of them. Refused at write time
-    naming what removed the words, the retired slot's own treatment; a quote merely
-    reaching into the replaced body from outside is the same detachment."""
+    it — posted, the comment would detach in front of them. Refused at write time,
+    the retired slot's own treatment; a quote merely reaching into the replaced body
+    from outside is the same detachment."""
     drafted(page_dir)
     edit(page_dir, "Adds --dry-run to purge and rebuild only.")
     result = comment(page_dir, "--quote", "every mutating command", "--text", "x")
-    assert result.exit_code != 0
-    assert "rewrote § note" in result.output and "their edit" in result.output
+    assert result.exit_code != 0 and "doesn't say" in result.output
     across = comment(page_dir, "--quote", "Plan Adds --dry-run to every", "--text", "x")
-    assert across.exit_code != 0 and "rewrote § note" in across.output
+    assert across.exit_code != 0 and "doesn't say" in across.output
 
 
 # The draft rewritten under `restated`, taking back whatever the user wrote over it.
@@ -1681,7 +1674,7 @@ def test_an_unhonored_edit_outlives_a_republish(page_dir):
     kept = comment(page_dir, "--quote", "purge and rebuild only", "--text", "x")
     assert kept.exit_code == 0, kept.output
     gone = comment(page_dir, "--quote", "every mutating command", "--text", "x")
-    assert gone.exit_code != 0 and "rewrote § note" in gone.output
+    assert gone.exit_code != 0 and "doesn't say" in gone.output
 
 
 def test_a_widgets_x_says_attribute_is_quotable_like_any_other_passage(page_dir):
@@ -1717,14 +1710,13 @@ def test_a_decision_retires_its_losing_slot_from_comments_reach(page_dir):
     gone = comment(
         page_dir, "--quote", "Refill every feeder each morning.", "--text", "x"
     )
-    assert gone.exit_code != 0
-    assert "chose to accept § sug-refill" in gone.output and "retired" in gone.output
+    assert gone.exit_code != 0 and "doesn't say" in gone.output
     kept = comment(page_dir, "--quote", "camera shows it half-empty", "--text", "x")
     assert kept.exit_code == 0, kept.output
 
     decide(page_dir, "reject")
     gone = comment(page_dir, "--quote", "camera shows it half-empty", "--text", "x")
-    assert gone.exit_code != 0 and "chose to reject § sug-refill" in gone.output
+    assert gone.exit_code != 0 and "doesn't say" in gone.output
     kept = comment(
         page_dir, "--quote", "Refill every feeder each morning.", "--text", "x"
     )

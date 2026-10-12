@@ -51,8 +51,8 @@ from .codex import (
     app_server_delivery_id,
     app_server_handshake,
     app_server_request,
+    app_server_socket_path,
     append_batch,
-    check_app_server_endpoint,
     delivery_records,
     delivery_stream_reply_target,
     offer_delivery,
@@ -154,7 +154,6 @@ class TaskConnection:
     """
 
     def __init__(self, endpoint: str, thread_id: str):
-        check_app_server_endpoint(endpoint)
         self.endpoint = endpoint
         self.thread_id = thread_id
         self.turns: dict[str, TurnFold] = {}
@@ -933,7 +932,7 @@ def preparing_adapter(
     session_id = harness.session
     app_server = app_server or os.environ.get(APP_SERVER_ENV)
     if app_server is not None:
-        check_app_server_endpoint(app_server)
+        app_server_socket_path(app_server)
     launch_lock = adapter_start_lock_path(session_id)
     with flocked(launch_lock):
         record = _running_adapter(session_id)

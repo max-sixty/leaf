@@ -40,16 +40,11 @@ from typing import Literal
 from xml.etree import ElementTree
 
 from .files import read_json
-from .harness import claim_harness, session_harness
+from .harness import session_harness
 from .machine import state_home
 from .refusals import Refused
 from .schema import CURSOR_FILE, WIDGET_KINDS
-from .service import (
-    PageTransaction,
-    owned_pages,
-    requires_agent_attention,
-    unacknowledged,
-)
+from .service import PageTransaction, requires_agent_attention
 from .state import (
     flocked,
     open_session_turn,
@@ -585,8 +580,6 @@ def record_pickup(
     transition may therefore be followed by an opened transition for the same
     events, while a retry of the same transition appends nothing.
     """
-    if phase not in {"queued", "opened", "failed"}:
-        raise ValueError(f"unknown pickup phase {phase!r}")
     claim = page.claim
     if session is None and claim:
         session = claim["id"]
@@ -749,28 +742,3 @@ def receive_one(
             turn = observed["turn"]
         record_pickup(page, events, session=session_id, turn=turn)
     return page_dir
-
-
-def pending_batches(session_id: str) -> list[dict]:
-    """Every page's pending input for a session whose hooks carry it, one batch
-    per page, captured under that page's transaction and not yet confirmed.
-
-    Receipt is a separate step, taken once those batches are handed over:
-    it rechecks ownership and the captured events, and anything appended between
-    the two readings stays pending, above the cursor it advances."""
-    batches = []
-    for page_dir in owned_pages(session_id):
-        try:
-            with PageTransaction(page_dir) as page:
-                claim = page.active_claim
-                if not (
-                    claim
-                    and claim["id"] == session_id
-                    and claim_harness(claim).hooks_carry()
-                ):
-                    continue
-                if batch := unacknowledged(page.events, page.cursor):
-                    batches.append(batch_data(page_dir, page, batch))
-        except FileNotFoundError:
-            continue
-    return batches

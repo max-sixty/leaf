@@ -133,24 +133,20 @@ def codex_start(
 
 @codex.command("run", hidden=True)
 @click.option("--codex-path", required=True)
-@click.option("--handshake", type=int)
+@click.option("--handshake", type=int, required=True)
 @click.option("--app-server", hidden=True)
 def codex_run(
     codex_path: str,
-    handshake: int | None,
+    handshake: int,
     app_server: str | None,
 ) -> None:
     """Run the detached adapter child."""
-    from contextlib import nullcontext
-
     from leaf.codex_adapter import run_adapter
     from leaf.detached import Handshake
     from leaf.leases import release_on_termination
 
     release_on_termination()
-
-    # Tests run the adapter in the foreground, where nobody waits on a handshake.
-    with Handshake(handshake) if handshake is not None else nullcontext() as answer:
+    with Handshake(handshake) as answer:
         sys.exit(run_adapter(codex_path, answer, app_server))
 
 
@@ -699,18 +695,8 @@ def data_set(dir: str, source: str, input_file) -> None:
     """Validate and replace SOURCE with one complete JSON value."""
     from leaf.data import cmd_data_set
 
-    text = input_file.read()
-    if not text.strip():
-        # Usually a producer upstream in the pipe failed and wrote nothing, and
-        # its own error is the one to read; a JSON parse error would bury it.
-        raise click.ClickException(
-            "no value arrived on stdin; if a command piped into this one, it "
-            "likely failed, and its error above says why"
-            if input_file.name == "<stdin>"
-            else f"{input_file.name} is empty; it holds no JSON value"
-        )
     try:
-        value = json.loads(text)
+        value = json.loads(input_file.read())
     except json.JSONDecodeError as error:
         raise click.ClickException(
             f"invalid JSON ({error.msg}, line {error.lineno})"

@@ -1949,8 +1949,8 @@ def test_candidate_vocabulary_can_change_after_frozen_thread_actions(page_dir):
 @pytest.mark.parametrize(
     ("contracts", "message"),
     [
-        ({"Bad Name": {"description": "x", "schema": {}}}, "invalid contract name"),
-        ({"builds": {"schema": {}}}, "description and schema"),
+        ({"Bad Name": {"description": "x", "schema": {}}}, "'Bad Name' does not match"),
+        ({"builds": {"schema": {}}}, "'description' is a required property"),
         (
             {"builds": {"description": "Build facts.", "schema": {"type": "nope"}}},
             "invalid JSON Schema",
@@ -1991,7 +1991,7 @@ def test_candidate_vocabulary_can_change_after_frozen_thread_actions(page_dir):
                     "resources": "images[].url",
                 }
             },
-            "resources must be a list",
+            '"images[].url" is not of type "array"',
         ),
         (
             {
@@ -3800,10 +3800,7 @@ def test_init_refuses_handling_that_a_batch_could_not_carry(
         ],
     )
     assert result.exit_code != 0
-    assert (
-        "$events.handling must map declared kinds to a non-empty list of clauses"
-        in result.output
-    )
+    assert "$events" in result.output and "handling" in result.output
 
 
 def test_the_events_reference_names_the_fields_each_kind_declares():
@@ -4455,7 +4452,7 @@ def test_init_requires_tones_to_be_a_list_membership_can_be_tested_against(
         ],
     )
     assert result.exit_code != 0
-    assert "$tones.names must be a unique list of strings" in result.output
+    assert "$.$tones.names" in result.output
 
 
 def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path):
@@ -5412,6 +5409,35 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     answer = json.loads(body)
     assert answer["final"] is True, body
     assert "already been taken back" in answer["error"], body
+    # Every thread fold drops a withdrawn message, so nothing may name it as a parent:
+    # a reply to it would open a thread with no root.
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {"kind": "reply", "revision": 1, "parent": nod["id"], "token": "keep"}
+        ).encode(),
+    )
+    assert status == 400 and "has been taken back" in json.loads(body)["error"]
+    # Nor may a message another stands on be withdrawn, a reaction to it included.
+    mark = json.loads(
+        fetch(
+            f"{server}/api/event",
+            data=json.dumps(
+                {
+                    "kind": "reply",
+                    "revision": 1,
+                    "parent": reaction["id"],
+                    "token": "keep",
+                }
+            ).encode(),
+        )[1]
+    )["state"]["events"][-1]
+    assert mark["parent"] == reaction["id"]
+    status, body = fetch(
+        f"{server}/api/event",
+        data=json.dumps({"kind": "undo", "undoes": reaction["id"]}).encode(),
+    )
+    assert status == 400 and "has been answered" in json.loads(body)["error"]
     # Answered, the page reaction is a thread, and the withdrawal would orphan
     # the answer; the user's move is in the thread it opened.
     thread_model.post_reply(page_dir, {"to": reaction["id"]}, "Which part is long?")

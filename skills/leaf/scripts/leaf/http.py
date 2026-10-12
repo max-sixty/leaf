@@ -1139,11 +1139,7 @@ class PageEndpoint:
         entries = self.posted.get("entries")
         if not isinstance(session, str) or not session:
             return self._refuse("interaction requires a nonempty session")
-        if (
-            not isinstance(entries, list)
-            or not entries
-            or any(not isinstance(entry, dict) for entry in entries)
-        ):
+        if not isinstance(entries, list) or not entries:
             return self._refuse("interaction requires a nonempty array of entries")
         # Every sample directory is temporary, including a nested sample's
         # parent. Retain all descendants in the authored page's trace, with

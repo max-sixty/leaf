@@ -703,7 +703,10 @@
           "dependentSchemas": {
             "start": {
               "required": ["ephemeral", "text"],
-              "properties": {"author": {"const": "agent"}}
+              "properties": {
+                "author": {"const": "agent"},
+                "text": {"pattern": "\\S", "not": {"pattern": "\\S\\s*[\\r\\n]\\s*\\S"}}
+              }
             },
             "title": {"properties": {"author": {"const": "agent"}}},
             "publication": {"required": ["revision"], "properties": {"author": {"const": "agent"}}},

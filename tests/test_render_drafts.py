@@ -4657,8 +4657,8 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
     the DOM replay builds from the same two. An edited draft is where those readings
     used to drift — the file holds words the page stopped showing — so write the anchor
     blind, on the user's own words, and prove the page paints it. The words the edit
-    replaced are refused at the CLI, naming the edit, because posted they would detach
-    in front of the user."""
+    replaced are refused at the CLI, because posted they would detach in front of the
+    user."""
     url = serve(JOURNEY_V1)
     d = serve.page_dir
     append_command(
@@ -4676,7 +4676,7 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
         cli_model.cli,
         ["thread", "open", str(d), "--quote", "It is online.", "--text", "x"],
     )
-    assert refused.exit_code != 0 and "rewrote § draft-ops" in refused.output
+    assert refused.exit_code != 0 and "doesn't say" in refused.output
     written = CliRunner().invoke(
         cli_model.cli,
         [

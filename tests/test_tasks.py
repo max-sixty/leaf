@@ -319,10 +319,11 @@ def test_the_door_refuses_a_task_off_the_page_and_an_outcome_twice(page_dir):
     unknown = leaf("task", "end", page_dir, "no-such-task", "done")
     assert unknown.exit_code != 0
     assert "unknown task" in unknown.output
-    # Work in a thread is opened by the reply that promises it.
+    # Work in a thread is opened by the reply that promises it, so a task's subject
+    # is never a thread.
     threaded = leaf("task", "open", page_dir, comment["id"], "Look into it")
     assert threaded.exit_code != 0
-    assert "--task <title>" in threaded.output
+    assert "task event is invalid" in threaded.output
 
     task = written(leaf("task", "open", page_dir, "page", "Look into it"))
     written(leaf("task", "end", page_dir, task["id"], "dropped", "not needed"))
@@ -861,7 +862,7 @@ def test_a_start_line_is_one_sentence(page_dir):
     for line in ("", "   ", "two\nlines"):
         refused = leaf("task", "start", page_dir, task["id"], line)
         assert refused.exit_code != 0
-        assert "names the work and its subject in one sentence" in refused.output
+        assert "start event is invalid" in refused.output
 
 
 def asking(page_dir):

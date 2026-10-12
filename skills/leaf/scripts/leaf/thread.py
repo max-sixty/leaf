@@ -36,7 +36,6 @@ from leaf.registry.schema import json_value
 from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.schema import MESSAGE_KINDS
 from leaf.service import PageTransaction, delivery_reply_attempt, same_claim
-from leaf.tasks import start_line_error
 from leaf.thread_context import thread_message, thread_names
 from leaf.validation.admission import (
     check_markup,
@@ -612,12 +611,6 @@ def _compose_and_append(
     if ephemeral and (question or task or markup or failure or moving or detach):
         raise Refused(
             "--ephemeral is for progress text; it cannot ask a question, open a task, carry widgets, report failure, or move the thread"
-        )
-    if in_hand is not None and start_line_error(text.strip()):
-        raise Refused(
-            f"progress on {in_hand!r}, an update you owe, takes it in hand, and its "
-            "text is the Working line beside the thread and in the banner: write "
-            "it as one line saying what you are doing"
         )
     if detach and moving:
         raise Refused("--detach cannot be combined with --quote, --section, or --part")

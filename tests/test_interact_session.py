@@ -5749,7 +5749,7 @@ def test_a_terminated_page_server_stops_its_title_server(
 )
 def test_codex_activity_rejects_nonlocal_or_invalid_app_servers(endpoint):
     with pytest.raises(Refused, match="local|valid"):
-        codex_model.check_app_server_endpoint(endpoint)
+        codex_model.app_server_socket_path(endpoint)
 
 
 def test_unheld_activity_drops_interaction_claims_from_the_same_reading(
@@ -12694,6 +12694,32 @@ start_server(live, harness=session_harness())
         cleanup_model.end_session("codex-thread")
 
 
+def spawn_codex_adapter(spawn, program, **options) -> subprocess.Popen:
+    """Run `leaf codex run` as `leaf codex start` does, accepting its announcement,
+    so the adapter returns holding its leases with its start committed."""
+    caller, end = socket.socketpair()
+    adapter = spawn(
+        [
+            *LEAF_COMMAND,
+            "codex",
+            "run",
+            "--codex-path",
+            str(program),
+            "--handshake",
+            str(end.fileno()),
+        ],
+        pass_fds=(end.fileno(),),
+        **options,
+    )
+    end.close()
+    caller.settimeout(STATED_TIMEOUT)
+    with caller, caller.makefile("rb") as reader:
+        assert json.loads(reader.readline()) == {}
+        caller.sendall(b"\n")
+        assert json.loads(reader.readline()) == {}
+    return adapter
+
+
 def test_a_codex_adapter_whose_start_was_never_committed_exits(
     codex_claimed_page, spawn, codex_env, tmp_path
 ):
@@ -12737,8 +12763,9 @@ def test_codex_adapter_exits_when_delivery_retries_outlive_its_claim(
     page = codex_claimed_page
     program, log = fake_codex_cli(tmp_path)
     session_model.cmd_waiting(page, "comment on the prototype")
-    adapter = spawn(
-        [*LEAF_COMMAND, "codex", "run", "--codex-path", str(program)],
+    adapter = spawn_codex_adapter(
+        spawn,
+        program,
         env=codex_env
         | {
             "CODEX_THREAD_ID": "codex-thread",
@@ -12795,8 +12822,9 @@ def test_codex_adapter_keeps_transferred_input_unreceived(
     program, log = fake_codex_cli(tmp_path)
     session_model.cmd_waiting(page, "comment on the prototype")
     queue_wait = tmp_path / "held-queue"
-    adapter = spawn(
-        [*LEAF_COMMAND, "codex", "run", "--codex-path", str(program)],
+    adapter = spawn_codex_adapter(
+        spawn,
+        program,
         env=codex_env
         | {
             "CODEX_THREAD_ID": "codex-thread",
@@ -17565,7 +17593,7 @@ def test_summary_suggestions_only_accompany_new_input(claimed, older_texts, sugg
         },
     )
     receive_through(claimed, last_deliverable_seq(claimed))
-    assert delivery_model.pending_batches("s1") == []
+    assert not any(plan.batch for plan in hook_transport_model.read_plans("s1"))
 
     current = append_carried_log_record(
         claimed,
@@ -17599,7 +17627,7 @@ def test_summary_suggestions_only_accompany_new_input(claimed, older_texts, sugg
         {"to": current["id"], "for": current["id"]},
         "Proceed with the rollout.",
     )
-    assert delivery_model.pending_batches("s1") == []
+    assert not any(plan.batch for plan in hook_transport_model.read_plans("s1"))
     [plan] = hook_transport_model.read_plans("s1")
     assert not plan.owed
     assert plan.state["activity"]["obligations"] == []
@@ -19171,7 +19199,9 @@ def test_hook_snapshot_serializes_receipt_and_reply(claimed, monkeypatch):
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "why B?"}
     )
-    [batch] = delivery_model.pending_batches("s1")
+    [batch] = [
+        plan.batch for plan in hook_transport_model.read_plans("s1") if plan.batch
+    ]
     projected = hook_transport_model.read_page
     lock_proved = threading.Event()
     errors = []
@@ -19224,7 +19254,9 @@ def test_prompt_pickup_does_not_restamp_a_response_settled_after_planning(claime
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Already handled"}
     )
-    [batch] = delivery_model.pending_batches("s1")
+    [batch] = [
+        plan.batch for plan in hook_transport_model.read_plans("s1") if plan.batch
+    ]
     delivery_model.receive_one(batch, "s1")
     plans = hook_transport_model.read_plans("s1")
     assert plans[0].acknowledged
@@ -20768,8 +20800,11 @@ def test_addressed_progress_is_one_atomic_message_and_work_start(page_dir):
         page_dir, {"kind": "comment", "author": "user", "text": "Answer this"}
     )
     reference = response_reference(page_dir, comment)
+    # Progress is the Working line, so the kernel schema holds it to one line.
+    with pytest.raises(Refused, match="reply event is invalid"):
+        thread_model.post_response(reference, "Checking\nthe store.", ephemeral=True)
     progress = thread_model.post_response(
-        reference, "Checking the store.", ephemeral=True
+        reference, "Checking the store.\n", ephemeral=True
     )
     events = events_model.read_events(page_dir)
     assert [event["kind"] for event in events] == ["comment", "reply"]

@@ -31,14 +31,8 @@ AWAITING_KINDS = {"awaiting_approval", "awaiting_input", "awaiting_user"}
 
 
 def _moment(value: str | None) -> datetime | None:
-    if not value:
-        return None
-    try:
-        return datetime.fromisoformat(value)
-    except ValueError:
-        # Old page-local status files were not schema-validated. They remain
-        # evidence with no usable age rather than taking the whole state route down.
-        return None
+    # Every stamp read here is Leaf's own `now_iso`, or None where nothing was stamped.
+    return datetime.fromisoformat(value) if value else None
 
 
 def _quiet(ts: str | None, now: datetime, grace: timedelta) -> bool:

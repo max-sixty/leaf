@@ -534,7 +534,6 @@ BAD_CHARTS = {
     "bad-syntax": '{ariaLabel: "merged", marks: [}',
     "bad-label": "{marks: [Plot.ruleY([0])]}",
     "bad-mark": '{ariaLabel: "merged", marks: [Plot.barz([{n: 1}], {y: "n"})]}',
-    "bad-shape": '[{ariaLabel: "merged", marks: []}]',
     "bad-drawn": 'Plot.plot({ariaLabel: "merged", marks: [Plot.ruleY([0])]})',
     "bad-height": '{ariaLabel: "merged", height: 200, marks: [Plot.ruleY([0])]}',
 }

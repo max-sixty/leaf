@@ -1027,28 +1027,22 @@ customElements.define(
     // will, so it offers no Retry and reports to the agent, which stored it: the
     // manifest's producer leaves judging a patch to this widget.
     async prepareEntry(snapshot, record, renderKey, sharedStyles) {
-      let file = record.parsed;
-      if (!file) {
-        let patch;
+      let patch;
+      if (!record.parsed)
         try {
           patch = await loadDeferred(snapshot, record.path);
         } catch (error) {
           return { error, retry: true };
         }
-        try {
-          file = await deferredFile(patch, record.path);
-        } catch (error) {
-          reportFailure(this, error);
-          return { error };
-        }
-      }
       try {
+        const file = record.parsed ?? (await deferredFile(patch, record.path));
         const nextKey = JSON.stringify(file);
         const rendered =
           renderKey === nextKey ? null : await renderFile(file, sharedStyles);
         return { renderKey: nextKey, rendered };
       } catch (error) {
-        return { error, retry: true };
+        reportFailure(this, error);
+        return { error };
       }
     }
 
@@ -1228,7 +1222,7 @@ customElements.define(
         if (rendering === this.sourceRendering) break;
       }
       if (!this.fileEntries?.includes(entry)) return;
-      if (entry.loaded || entry.prepared) return;
+      if (entry.loaded || entry.prepared || entry.refused) return;
       // A disconnect abandons a load, and the entry stays loadable: an inline patch
       // keeps its entries across a reconnection, so a later open starts afresh.
       if (entry.loading?.rendering === this.rendering) return entry.loading.promise;
@@ -1259,7 +1253,7 @@ customElements.define(
       entry.prepared = null;
       if (error) {
         entry.failed = true;
-        // Reopening retries a load, and nothing retries a patch this widget refused.
+        // Reopening retries a load; nothing loads a patch this widget refused again.
         entry.refused = !retry;
         entry.lines = [];
         entry.renderKey = null;

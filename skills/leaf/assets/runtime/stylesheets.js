@@ -7,11 +7,11 @@
    request and no await. A CSS module import read the same way and WebKit has none; a
    fetch awaited here would work everywhere and make every page module that imports the
    widget API evaluate after DOMContentLoaded instead. */
-const carrier = document.querySelector(
-  'script[type="application/json"][data-lf-runtime][data-lf-sheets]',
+const sheets = JSON.parse(
+  document.querySelector(
+    'script[type="application/json"][data-lf-runtime][data-lf-sheets]',
+  ).textContent,
 );
-if (!carrier) throw new Error("leaf: the document carries no runtime stylesheets");
-const sheets = JSON.parse(carrier.textContent);
 
 // A widget module's own rules join the theme's cascade layer (layer.py, CASCADE_LAYERS), so
 // specificity, scope proximity, then order rank their rules, below Layouts, semantic
@@ -22,17 +22,13 @@ const sheets = JSON.parse(carrier.textContent);
 // their own indication face (marks.css).
 export const inBaseLayer = (text) => `@layer lf-base {\n${text}\n}`;
 
-export function constructSheet(text, name) {
-  // An empty sheet is a page with no chrome and no marks, and nothing about it looks
-  // wrong, so a block that is not the text it claims fails here rather than painting.
-  if (typeof text !== "string")
-    throw new TypeError(`leaf: the document's ${name} stylesheet is not text`);
+export function constructSheet(text) {
   const sheet = new CSSStyleSheet();
   sheet.replaceSync(text);
   return sheet;
 }
 
-export const chromeSheet = constructSheet(sheets.chrome, "chrome");
+export const chromeSheet = constructSheet(sheets.chrome);
 
 // The chrome sheet's shared vocabulary: every class a rule outside its `@scope (.lf-chrome)`
 // block names, and so every class with which that sheet reaches an element in the page.
@@ -51,13 +47,10 @@ export const chromeSharedClasses = Object.freeze([
   "lf-version-inline",
   "lf-version-inline-deletion",
 ]);
-export const marksSheet = constructSheet(sheets.marks, "marks");
+export const marksSheet = constructSheet(sheets.marks);
 export const annotationMarkSheets = sheets.annotations
-  ? [constructSheet(sheets.annotations.marks, "annotation marks")]
+  ? [constructSheet(sheets.annotations.marks)]
   : [];
 export const annotationSheets = sheets.annotations
-  ? [
-      constructSheet(sheets.annotations.chrome, "annotation chrome"),
-      ...annotationMarkSheets,
-    ]
+  ? [constructSheet(sheets.annotations.chrome), ...annotationMarkSheets]
   : [];

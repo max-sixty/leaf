@@ -462,7 +462,8 @@ surfaces keep their own lifetimes.
 
 `dispatch({kind: "action", verb, detail, attempt?})` and
 `dispatch({kind: "undo", target})` return `null` when the newest reading refuses the
-command, otherwise `{reading, delivery}`. The returned reading already holds the
+command, otherwise `{reading, delivery}`; an action whose verb is not one of the
+reading's `actions` throws. The returned reading already holds the
 optimistic result; `delivery` later yields the admitted event or `null`, and a refusal
 restores authoritative state. Undo targets only a stable `id` or `attempt` from the
 current entry's candidates. The server remains final admission for every command.

@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script --quiet
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["unidiff>=1"]
+# dependencies = []
 # ///
 """Build the `unified-diff` contract's file manifest from a Git patch.
 
@@ -14,11 +14,11 @@ The manifest is the form of the contract whose `patch` fields `/api/state` defer
 (`records.deferred`), so a large review sends each file's patch only when its
 disclosure opens.
 
-This only splits the patch into files and reads each one's paths and counts. `lf-diff`
-alone judges what it can present, so an entry it refuses, such as a binary or copy
-diff or a malformed hunk, is stored and refused when its file opens, where the
-widget's failure reaches the agent. `tests/diff_patch_cases.json` holds both readers to
-the paths of the patches lf-diff accepts.
+This only splits the patch into files and reads each one's paths and counts; it
+judges nothing. `lf-diff` alone judges what it can present, so an entry it refuses,
+such as a binary or copy diff or a malformed hunk, is stored and refused when its
+file opens, where the widget's failure reaches the agent. `tests/diff_patch_cases.json`
+holds both readers to the paths of the patches lf-diff accepts.
 """
 
 import codecs
@@ -26,12 +26,10 @@ import json
 import re
 import sys
 
-from unidiff import PatchSet, UnidiffParseError
-
 _PATH_ONLY_RENAME = re.compile(
     r"diff --git .+\nsimilarity index 100%\nrename from .+\nrename to .+\n*"
 )
-_RENAME = re.compile(r"^rename from (.+)\nrename to (.+)$", re.MULTILINE)
+_MOVE = re.compile(r"^(rename|copy) from (.+)\n\1 to (.+)$", re.MULTILINE)
 
 
 def _git_path(token: str) -> str:
@@ -43,21 +41,25 @@ def _git_path(token: str) -> str:
 
 def _manifest_file(section: str) -> dict:
     """One manifest entry for one `diff --git` section of the captured patch."""
-    (patched,) = PatchSet.from_string(section)
-    # A rename names both paths on lines of their own, where a path-only one has no
-    # ---/+++ sides and its `diff --git` line is ambiguous once a path holds " b/".
-    if renamed := _RENAME.search(section):
-        previous, path = map(_git_path, renamed.groups())
+    header, _, rest = section.partition("\n")
+    # A rename or copy names both paths on lines of their own. Otherwise Git's header
+    # names one path twice, `a/<path> b/<path>`, so its first half is the path behind
+    # its marker, whatever spaces or " b/" the path holds.
+    if moved := _MOVE.search(rest):
+        previous, path = map(_git_path, moved.group(2, 3))
     else:
-        path = _git_path(patched.path)
+        both = header.removeprefix("diff --git ")
+        previous, path = None, _git_path(both[: (len(both) - 1) // 2])[2:]
+    lines = rest.partition("\n@@")[2].split("\n")
+    renamed = moved is not None and moved.group(1) == "rename"
     return {
         "path": path,
         **({"previousPath": previous} if renamed else {}),
         # A binary rename is hunkless too, and listing it as a rename would hide its
         # content change.
         "kind": "rename" if _PATH_ONLY_RENAME.fullmatch(section) else "patch",
-        "additions": patched.added,
-        "deletions": patched.removed,
+        "additions": sum(line.startswith("+") for line in lines),
+        "deletions": sum(line.startswith("-") for line in lines),
         "patch": section,
     }
 
@@ -66,8 +68,7 @@ def patch_manifest(source: str) -> dict:
     """One captured Git patch as the `unified-diff` contract's file manifest.
 
     Each entry carries the file's paths, its change counts, and the verbatim section
-    of the captured text that `lf-diff` renders once its disclosure opens, which is
-    why the source is split here rather than rebuilt from unidiff's reading."""
+    of the captured text that `lf-diff` renders once its disclosure opens."""
     return {
         "files": [
             _manifest_file(section)
@@ -82,7 +83,7 @@ def main() -> int:
     sys.stdout.reconfigure(encoding="utf-8")
     try:
         manifest = patch_manifest(sys.stdin.read())
-    except (UnidiffParseError, UnicodeDecodeError) as error:
+    except UnicodeDecodeError as error:
         print(f"patch_manifest: {error}", file=sys.stderr)
         return 1
     json.dump(manifest, sys.stdout, ensure_ascii=False)

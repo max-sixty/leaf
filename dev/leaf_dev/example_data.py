@@ -118,10 +118,9 @@ def patch_manifest(patch: str) -> dict:
     """The `diff` package's producer script's manifest for one patch.
 
     It runs as a process, reading stdin and writing stdout as an agent's pipeline
-    does, but under this project's interpreter rather than `leaf package run`: the
-    tooling package carries the script's `unidiff` (locked in the checkout), so the
-    fixtures and the suite read the same manifest on every machine and fetch nothing.
-    A refused patch raises with the script's stderr."""
+    does, but under this project's interpreter rather than `leaf package run`, so the
+    fixtures and the suite fetch nothing. A failed run raises with the script's
+    stderr."""
     produced = subprocess.run(
         [sys.executable, str(PATCH_MANIFEST)],
         input=patch.encode("utf-8"),

@@ -94,9 +94,7 @@ dev = [
   "pytest-regtest>=2.7",
   # The YAML snapshots `interact_support.yaml_document` writes.
   "pyyaml>=6",
-  # Every requirement a bundled package script's header declares, repeated here so
-  # this lock pins what the suite runs those scripts against and a fresh machine
-  # needs no network after setup.
+  # Reads the example review's captured patch by line (`test_product_page.py`).
   "unidiff>=1",
   # The developer tooling package in `dev/`.
   "leaf-dev",

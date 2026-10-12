@@ -79,7 +79,7 @@ told. A check that fires mostly on pages that already work, because delivery or 
 page's own CSS handles what it looks for, costs more than it catches. Prefer widening a
 general reading to adding a narrow one beside it.
 
-## Be a helpful linter, not a nanny or a partial checker
+## Be a helpful linter, not a nanny nor a complicated partial checker
 
 Leaf's checks exist to tell the agent about a mistake it would not otherwise hear of.
 The agent that writes a page or sets its data reads what comes back: a `page check`

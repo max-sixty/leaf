@@ -418,7 +418,6 @@ dependencies = [
     { name = "click" },
     { name = "pillow" },
     { name = "pyyaml" },
-    { name = "unidiff" },
 ]
 
 [package.metadata]
@@ -426,7 +425,6 @@ requires-dist = [
     { name = "click", specifier = ">=8" },
     { name = "pillow", specifier = ">=12.1" },
     { name = "pyyaml", specifier = ">=6" },
-    { name = "unidiff", specifier = ">=1" },
 ]
 
 [[package]]

@@ -236,24 +236,32 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     > .lf-msg-body > .lf-msg-editor leaf-text {
     --lf-field-end-room: var(--lf-comment-send-room); }
   .lf-margin-preview-close { flex: none; }
-  /* The grip a floating comment surface is carried by (surface-grip.js): a bar centred
-     on its top edge, shown while the pointer is on the surface, and always under a
-     finger, which has no hover to find it with. Keys cannot carry it, so focus alone
-     does not show it. On the comment box it stands over the field, in the room the
-     card's header will take. */
-  .lf-surface-grip { position: absolute; top: 0; left: 50%; translate: -50% 0;
-    width: 48px; height: 12px; display: grid; place-items: center;
+  /* A floating comment surface is carried by its edge (surface-grip.js): a band
+     `--lf-grip-out` outside its box and `--lf-grip-in` inside, cut out of a box over
+     the surface by an even-odd clip, which also bounds where it takes a press, so the
+     surface's own controls and words keep theirs. The band tints while the pointer is
+     on it. The card's band is its padding, inside the border its overflow clips at;
+     the comment box's hugs its field, whose inside is the caret's, from outside. */
+  .lf-surface-grip { --lf-grip-out: 0px; --lf-grip-in: var(--lf-comment-inset);
+    --lf-grip-band: calc(var(--lf-grip-out) + var(--lf-grip-in));
+    position: absolute; inset: calc(-1 * var(--lf-grip-out));
+    clip-path: polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0,
+      var(--lf-grip-band) var(--lf-grip-band),
+      var(--lf-grip-band) calc(100% - var(--lf-grip-band)),
+      calc(100% - var(--lf-grip-band)) calc(100% - var(--lf-grip-band)),
+      calc(100% - var(--lf-grip-band)) var(--lf-grip-band),
+      var(--lf-grip-band) var(--lf-grip-band));
     cursor: grab; touch-action: none; user-select: none; pointer-events: auto;
-    opacity: 0; transition: opacity 120ms; }
-  .lf-surface-grip::before { content: ""; width: 28px; height: 4px; border-radius: 2px;
-    background: var(--border-2); }
-  .lf-surface-grip:hover::before, [data-lf-carried] > .lf-surface-grip::before {
-    background: var(--muted-2); }
-  :is(.lf-margin-preview, .lf-fab-bar):is(:hover, [data-lf-carried])
-    > .lf-surface-grip { opacity: 1; }
-  @media (pointer: coarse) { .lf-surface-grip { opacity: 1; } }
+    border-radius: 9px; }
+  .lf-surface-grip:hover, [data-lf-carried] > .lf-surface-grip {
+    background: color-mix(in srgb, var(--accent) 12%, transparent); }
   [data-lf-carried], [data-lf-carried] * { cursor: grabbing; }
-  .lf-fab-bar > .lf-surface-grip { top: calc(var(--lf-comment-frame-top) - 14px); }
+  .lf-fab-bar > .lf-surface-grip { --lf-grip-out: 6px; --lf-grip-in: 1px;
+    inset: calc(var(--lf-comment-frame-top) - var(--lf-grip-out))
+      calc(var(--lf-comment-frame-inline) - var(--lf-grip-out))
+      calc(var(--lf-comment-frame-bottom) - var(--lf-grip-out));
+    border-radius: calc(6px + var(--lf-grip-out)); }
+  @media (pointer: coarse) { .lf-fab-bar > .lf-surface-grip { --lf-grip-out: 12px; } }
   .lf-fab-bar:is([data-lf-presentation="inline"], [data-lf-target-only]) > .lf-surface-grip {
     display: none; }
   .lf-margin-preview-nav { display: flex; flex: none; align-items: center;

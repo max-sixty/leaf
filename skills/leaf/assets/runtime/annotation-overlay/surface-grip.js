@@ -1,15 +1,16 @@
-/* The grip a floating comment surface is carried by: the comment box
-   (composing/floating-response.js) and the thread card (thread-preview.js).
+/* The grip a floating comment surface is carried by, a band along its edge: the comment
+   box (composing/floating-response.js) and the thread card (thread-preview.js).
+   annotation-chrome.css draws the band and bounds where it takes a press.
 
-   While the pointer is down the surface stays under it by a CSS `translate`, held inside
-   the boundary its placement would stand it in now (`bounds`). Its owner places it afresh
-   only once the carry ends (`data-lf-carried`); the browser's anchoring still carries it
-   through a scroll, so each frame of the carry measures the translate against where it
-   stands then, and the surface stays under the pointer. On release the owner is told (`dropped`), with the
-   surface's moved box where it moved, which it hands to its placement as a frame to adopt
-   (comment-placement.js, `adopt`), the same handoff a sent comment's box makes to its
-   card, so from then on the surface stands where the user put it relative to what it
-   is about, and scrolling carries it there. The move lasts as long as that placement
+   While the pointer is down the surface stays under it by a CSS `translate`, held
+   inside the boundary its placement would stand it in now (`bounds`). Its owner places
+   it afresh only once the carry ends (`data-lf-carried`); the browser's anchoring still
+   carries it through a scroll, so each frame of the carry measures the translate
+   against where it stands then, and the surface stays under the pointer. On release
+   the owner is told (`dropped`), with the surface's moved box where it moved, which it
+   hands to its placement as a frame to adopt (comment-placement.js, `adopt`), the same
+   handoff a sent comment's box makes to its card, so from then on the surface stands
+   where the user put it relative to what it is about, and scrolling carries it there. The move lasts as long as that placement
    holds its side: a resize, another thread, or closing the surface chooses afresh.
 
    A press on the grip takes no focus, so the comment being written keeps its caret. The

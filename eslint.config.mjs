@@ -104,6 +104,27 @@ const browserGlobals = Object.fromEntries(
 
 const RENDERING_MESSAGE =
   "Use nextRender, nextFrame, cancelRender, or sizeObserver (runtime/rendering.js) so the settled reading counts it.";
+const RENDERING_NAMES = [
+  "requestAnimationFrame",
+  "cancelAnimationFrame",
+  "ResizeObserver",
+];
+const RENDERING_PROPERTIES = ["window", "globalThis"].flatMap((object) =>
+  RENDERING_NAMES.map((property) => ({ object, property, message: RENDERING_MESSAGE })),
+);
+const HISTORY_PROPERTIES = ["pushState", "replaceState"].map((property) => ({
+  object: "history",
+  property,
+  message:
+    "Add and rename history entries through runtime/history.js (pushEntry, replaceEntry), which owns traversal among them.",
+}));
+const ID_PROPERTIES = [
+  {
+    property: "randomUUID",
+    message:
+      "Mint ids with runtime/ids.js: crypto.randomUUID is absent outside a secure context, such as a page `leaf --host` serves over plain HTTP.",
+  },
+];
 
 const entryBoundary = {
   "no-restricted-imports": [
@@ -1350,17 +1371,7 @@ export default [
     rules: {
       "no-restricted-globals": [
         "error",
-        ...["requestAnimationFrame", "cancelAnimationFrame", "ResizeObserver"].map(
-          (name) => ({ name, message: RENDERING_MESSAGE }),
-        ),
-      ],
-      "no-restricted-properties": [
-        "error",
-        ...["window", "globalThis"].flatMap((object) =>
-          ["requestAnimationFrame", "cancelAnimationFrame", "ResizeObserver"].map(
-            (property) => ({ object, property, message: RENDERING_MESSAGE }),
-          ),
-        ),
+        ...RENDERING_NAMES.map((name) => ({ name, message: RENDERING_MESSAGE })),
       ],
     },
   },
@@ -1517,31 +1528,32 @@ export default [
     languageOptions: { sourceType: "script" },
   },
   {
+    // Properties the layer and its packages reach only through their owner. A file
+    // takes a rule's options from the last block matching it, not a merge of every
+    // block's, so all of them stand in this one list, and the history owners' block
+    // below repeats the others.
+    files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/*/**/*.js"],
+    ignores: ["skills/leaf/assets/vendor/**", "skills/leaf/packages/*/vendor/**"],
+    rules: {
+      "no-restricted-properties": [
+        "error",
+        ...RENDERING_PROPERTIES,
+        ...HISTORY_PROPERTIES,
+        ...ID_PROPERTIES,
+      ],
+    },
+  },
+  {
     // runtime/history.js owns this document's session history: a Back to an entry the
     // page added returns to the place it was left at only because that owner takes the
     // traversal. The prepaint bootstrap runs before any module, and only cleans marks
     // off the address the document arrived at.
-    files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/**/*.js"],
-    ignores: [
+    files: [
       "skills/leaf/assets/runtime/history.js",
       "skills/leaf/assets/runtime/bootstrap.js",
     ],
     rules: {
-      "no-restricted-properties": [
-        "error",
-        {
-          object: "history",
-          property: "pushState",
-          message:
-            "Add and rename history entries through runtime/history.js (pushEntry, replaceEntry), which owns traversal among them.",
-        },
-        {
-          object: "history",
-          property: "replaceState",
-          message:
-            "Add and rename history entries through runtime/history.js (pushEntry, replaceEntry), which owns traversal among them.",
-        },
-      ],
+      "no-restricted-properties": ["error", ...RENDERING_PROPERTIES, ...ID_PROPERTIES],
     },
   },
   {

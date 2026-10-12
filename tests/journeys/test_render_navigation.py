@@ -974,21 +974,23 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
 
     status = page.locator(".lf-bottom-status")
     ordinary = status.evaluate("node => getComputedStyle(node).color")
+    # Past the last thread the walk comes round to the first, and the position says so.
     page.keyboard.press("t")
-    expect(second).to_be_focused()
-    expect(position).to_have_text("Thread 2 of 2")
+    expect(first).to_be_focused()
+    expect(position).to_have_text("Thread 1 of 2")
     expect(position).to_have_attribute("data-lf-boundary", "")
     assert status.evaluate("node => getComputedStyle(node).color") != ordinary
     expect(position).not_to_have_attribute("data-lf-boundary", "")
 
     page.keyboard.press("Shift+t")
-    expect(first).to_be_focused()
-    expect(position).to_have_text("Thread 1 of 2")
+    expect(second).to_be_focused()
+    expect(position).to_have_text("Thread 2 of 2")
+    expect(position).to_have_attribute("data-lf-boundary", "")
 
     page.keyboard.press("Shift+t")
     expect(first).to_be_focused()
     expect(position).to_have_text("Thread 1 of 2")
-    expect(position).to_have_attribute("data-lf-boundary", "")
+    expect(position).not_to_have_attribute("data-lf-boundary", "")
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -1044,9 +1046,8 @@ def test_a_panel_thread_closes_with_the_panel_as_go_to_threads_does(browser, ser
         for next_key in ("t", "Shift+t", "Tab"):
             page.keyboard.press("g")
             page.keyboard.press("Shift+t")
-            # The walk stops at its ends, so two steps back stand on the first thread
-            # whichever one was left open.
-            for key in ("Shift+t", "Shift+t", "t"):
+            # Home stands on the first thread whichever one was left open.
+            for key in ("Home", "t"):
                 page.keyboard.press(key)
             expect(summary(second)).to_be_focused()
             if release == "Escape":

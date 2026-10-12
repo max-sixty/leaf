@@ -53,8 +53,6 @@ import { keeps } from "./keeps.js";
 import { move } from "./dom-move.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { recordInteraction } from "./interaction-log.js";
-import { focusDestination } from "./focus.js";
-import { enterFrameBy, inLoop, movePast } from "./keyboard/layer-stack.js";
 import { aborted } from "./abort.js";
 
 // A page can carry many samples. Their child documents each import the runtime;
@@ -189,16 +187,7 @@ export function mountSample(
       sampleVisibility()?.visible !== false
     );
   }
-  // What the containing page admits changes with what stands over the frame, and so
-  // does whether the frame stands in a Tab loop (keyboard/layer-stack.js). The child
-  // hears the loop first, so its own samples tell theirs on the admission it publishes.
-  let looped = null;
   function visibility() {
-    const standing = inLoop(frame);
-    if (channel && standing !== looped) {
-      channel.postMessage({ type: "tab-loop", detail: { standing } });
-      looped = standing;
-    }
     channel?.postMessage({ type: "visibility", detail: { visible: admitted() } });
   }
   async function readVisibility(port, id) {
@@ -226,7 +215,6 @@ export function mountSample(
   function disconnect(reason) {
     channel?.close();
     channel = null;
-    looped = null;
     lost = reason;
     connectedNonce = null;
     for (const { reject } of pending.values()) reject(reason);
@@ -356,8 +344,6 @@ export function mountSample(
       } else if (data.type === "ready") {
         record("presented");
         readyResolve(data.detail);
-        // A loop told before the child's runtime listened never reached it.
-        looped = null;
         visibility();
       } else if (data.type === "error") {
         failure(
@@ -369,7 +355,6 @@ export function mountSample(
         );
       } else if (data.type === "return")
         frame.dispatchEvent(new Event("lf-sample-return"));
-      else if (data.type === "tab") movePast(frame, data.detail.backward);
       else if (data.type === "step")
         frame.dispatchEvent(
           new CustomEvent("lf-sample-step", {
@@ -414,10 +399,6 @@ export function mountSample(
   for (const type of ["beforetoggle"])
     document.addEventListener(type, nativeTransition, true);
   const unwatch = onSampleVisibility(visibility);
-  const unenter = enterFrameBy(frame, (backward) => {
-    focusDestination(frame, "step");
-    channel?.postMessage({ type: "tab-enter", detail: { backward } });
-  });
   const undress = registerSampleDress(frame, (dress) =>
     channel?.postMessage({ type: "dress", detail: dress }),
   );
@@ -564,7 +545,6 @@ export function mountSample(
         document.removeEventListener(type, nativeTransition, true);
       lifetime.disconnect();
       unwatch();
-      unenter();
       undress();
       closing = Promise.all([retire("destroyed"), operation?.catch(() => {})]);
       return closing;

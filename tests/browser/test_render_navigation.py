@@ -485,7 +485,9 @@ def test_the_thread_panel_and_a_page_thread_carry_names(browser, serve):
     page = open_page(browser, serve(READING_REGIONS_PAGE))
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.get_by_role("dialog", name="Threads", exact=True)).to_be_visible()
+    dialog = page.get_by_role("dialog", name="Threads", exact=True)
+    expect(dialog).to_have_attribute("open", "")
+    expect(dialog.locator(".lf-thread-panel")).to_be_visible()
     page.keyboard.press("Escape")
 
     page.keyboard.press("/")
@@ -3182,13 +3184,13 @@ def test_the_ask_walk_position_shares_the_shortcut_line(browser, serve):
     status = page.locator(".lf-bottom-status")
     ordinary = status.evaluate("node => getComputedStyle(node).color")
     page.keyboard.press("q")
-    expect(position).to_have_text("4 of 4 waiting on you · Ask")
+    expect(position).to_have_text("1 of 4 waiting on you · Ask")
     expect(position).to_have_attribute("data-lf-boundary", "")
     assert (
         status.evaluate("node => node.getBoundingClientRect().left")
         == geometry["status"]["left"]
     )
-    # The end of the walk is news, ink where the resting line is muted.
+    # Coming round the end of the walk is news, ink where the resting line is muted.
     assert status.evaluate("node => getComputedStyle(node).color") != ordinary
     assert (
         position.evaluate("node => getComputedStyle(node).backgroundColor")
@@ -3348,7 +3350,12 @@ def test_q_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
     expect(position).to_have_text("2 of 2 waiting on you · Ask")
     expect(page.locator("#channel-ask")).to_be_focused()
     page.keyboard.press("q")
+    expect(position).to_have_text("1 of 2 waiting on you · Thread")
     expect(position).to_have_attribute("data-lf-boundary", "")
+    expect(thread).to_be_focused()
+    page.keyboard.press("Shift+q")
+    expect(position).to_have_text("2 of 2 waiting on you · Ask")
+    expect(page.locator("#channel-ask")).to_be_focused()
     page.keyboard.press("Shift+q")
     expect(position).to_have_text("1 of 2 waiting on you · Thread")
     expect(thread).to_be_focused()
@@ -3590,6 +3597,81 @@ def test_the_questions_panels_next_question_walks_as_q_does(browser, serve):
     expect(panel.locator("[data-lf-queue='you'] .lf-queue-row")).to_have_count(0)
     expect(panel).to_have_class(re.compile(r"\bopen\b"))
     expect(button).to_be_hidden()
+
+
+def test_a_tally_counts_its_regions_asks_and_walks_them(browser, serve):
+    """An `lf-tally` counts the asks its region holds, by the rule a queue row's mark
+    reads, and leaves out one outside it. Its Next question is `q` within the region: a
+    press keeps the user standing where they are and steps on, coming round at the end,
+    and the walk announces its place among the region's asks. Reached by Shift+Tab from
+    an ask, through the queue's own rows, Enter counts from that ask, so the keyboard
+    steps on too. An answer leaves the count once the log admits it; with none left the
+    tally says so and Next question is disabled."""
+
+    def item(key, label):
+        return (
+            f'<lf-tab id="t-{key}" label="{label}"><lf-ask id="{key}-decision">'
+            f'<h2>Pick the {key}</h2><lf-options id="{key}" choose>'
+            f'<lf-option id="{key}-a">Alpha</lf-option>'
+            f'<lf-option id="{key}-b">Beta</lf-option></lf-options></lf-ask></lf-tab>'
+        )
+
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "A tallied queue",
+                '<header><h1>Queue</h1><p><lf-tally id="left" for="queue" next>'
+                "</lf-tally></p></header>"
+                '<lf-ask id="outside-decision"><h2>Outside</h2>'
+                '<lf-options id="outside" choose><lf-option id="outside-a">Out</lf-option>'
+                "</lf-options></lf-ask>"
+                '<lf-tabs id="queue" list="side">'
+                + item("first", "First")
+                + item("second", "Second")
+                + "</lf-tabs>",
+            )
+        ),
+    )
+    words = page.locator("#left .lf-tally-words")
+    button = page.locator("#left").get_by_role("button", name="Next question")
+    position = page.locator(".lf-walk-position")
+    first, second = page.locator("#first-decision"), page.locator("#second-decision")
+    expect(words).to_have_text("2 of 2 to answer")
+    box = page.locator("#left").bounding_box()
+
+    def back_to_the_tally():
+        for _ in range(30):
+            if button.evaluate("button => button === document.activeElement"):
+                return
+            page.keyboard.press("Shift+Tab")
+        raise AssertionError("Shift+Tab never reached Next question")
+
+    button.click()
+    expect(first).to_be_focused()
+    expect(position).to_have_text("1 of 2 waiting on you here · Ask")
+    button.click()
+    expect(second).to_be_focused()
+    expect(position).to_have_text("2 of 2 waiting on you here · Ask")
+    back_to_the_tally()
+    page.keyboard.press("Enter")
+    expect(first).to_be_focused()
+    back_to_the_tally()
+    page.keyboard.press("Enter")
+    expect(second).to_be_focused()
+
+    with sending(page, "the answer to the second decision"):
+        page.locator("#second-decision .lf-pick").first.click()
+    round_trip(page)
+    expect(words).to_have_text("1 of 2 to answer")
+    button.click()
+    expect(first).to_be_focused()
+    with sending(page, "the answer to the first decision"):
+        page.locator("#first-decision .lf-pick").first.click()
+    round_trip(page)
+    expect(words).to_have_text("All 2 answered")
+    expect(button).to_be_disabled()
+    assert page.locator("#left").bounding_box() == box
 
 
 def test_the_arrows_walk_the_thread_titles_in_the_threads_panel(browser, serve):
@@ -5565,7 +5647,14 @@ def test_the_page_marks_the_comment_the_user_is_standing_in(browser, serve):
     # wears, so the two kinds of anchor answer one question and not two.
     page.keyboard.press("t")
     wait_standing(page, "", ["fig"])
+    # Past the last comment the walk comes round to the first, and back again.
+    first = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-thread="{roots[0]}"]'
+    )
     page.keyboard.press("t")
+    expect(first).to_be_focused()
+    wait_standing(page, "bold text")
+    page.keyboard.press("Shift+t")
     expect(
         page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{roots[2]}"]')
     ).to_be_focused()
@@ -5573,11 +5662,6 @@ def test_the_page_marks_the_comment_the_user_is_standing_in(browser, serve):
     page.keyboard.press("Shift+t")
     wait_standing(page, "neighbouring block")
     page.keyboard.press("Shift+t")
-    wait_standing(page, "bold text")
-    page.keyboard.press("Shift+t")
-    first = page.locator(
-        f'.lf-margin-preview .lf-page-thread[data-thread="{roots[0]}"]'
-    )
     expect(first).to_be_focused()
     wait_standing(page, "bold text")
 
@@ -7145,11 +7229,12 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
 
 
 def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
-    """The reference has a visible close control and keeps Tab inside the surface.
+    """The reference has a visible close control and keeps Tab off the page behind it.
 
-    It claims the keyboard while open, so letting native Tab fall through to the page
-    behind it makes the visible scope and the focus scope disagree. Forward and reverse
-    Tab use the same registered walk, while Escape closes and restores the opener."""
+    It claims the keyboard while open, so Tab falling through to the page behind it
+    would make the visible scope and the focus scope disagree. As a native modal it
+    leaves Tab to the browser, which walks the reference and its own interface, while
+    Escape closes and restores the opener."""
     page = open_page(browser, serve(CONTROL_LABEL_PAGE))
     page.evaluate(
         """async () => {
@@ -7193,7 +7278,6 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     for command in [
         "test.projected-only",
         "response.reaction.choose",
-        "response.tab",
         "response.move",
         "response.activate",
         "response.close",
@@ -7209,13 +7293,16 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
         help_el.locator('tr[data-lf-command="response.reaction.choose"] kbd')
     ).to_have_text("1–6")
 
+    # Tab is the browser's in the modal: it walks the reference and out to the browser's
+    # own interface on its way round, never onto the page beneath.
     seen = set()
     for _ in range(6):
         page.keyboard.press("Tab")
         active = page.evaluate(
             """() => {
               const e = document.activeElement;
-              return {inside: document.querySelector('.lf-command-reference').contains(e),
+              return {inside: e === document.body
+                        || document.querySelector('.lf-command-reference').contains(e),
                       name: e.getAttribute('aria-label') || e.className || e.tagName};
             }"""
         )
@@ -7225,7 +7312,8 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
 
     page.keyboard.press("Shift+Tab")
     assert page.evaluate(
-        "() => document.querySelector('.lf-command-reference').contains(document.activeElement)"
+        "() => document.activeElement === document.body"
+        "   || document.querySelector('.lf-command-reference').contains(document.activeElement)"
     )
     page.keyboard.press("Escape")
     expect(help_el).to_be_hidden()
@@ -9933,9 +10021,8 @@ def test_the_ask_walk_measures_from_chrome_only_where_the_chrome_holds_an_ask(
     browser, serve
 ):
     """The user's place has to be a place in the walk's own ordered space. The chrome is
-    appended after the whole page, so a user standing on a thread in the panel measures
-    as past every ask there is, and a walk clamped at its edges sends both `q` and `Q` to
-    the last one rather than to the first.
+    appended after the whole page, so a user standing on a thread in the panel would
+    measure as past every ask there is.
 
     The route runs through the chrome all the same: a widget frozen into a reply is an ask
     the walk visits, and a user working its controls is standing in the space the step

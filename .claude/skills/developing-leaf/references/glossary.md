@@ -105,7 +105,7 @@ Don't say *widget entry* for an element declaration, *item* for an addressable e
 | **Pane** | One reading region, typically in a workspace's body: an optional header, exactly one body element, an optional footer |
 | **Reading region** | A stable semantic place used by navigation and reading-position recovery |
 | **Effective reading scroller** | The scroll container currently governing one reading region |
-| **Sticky header** | A sticky box of stated height that covers the top of the scroller it sticks in, such as an `lf-diff` file header, a root `lf-tabs` strip, or an open thread's title in the Threads list; `module-authoring.md`, "Reading regions", says how headers stack |
+| **Sticky header** | A sticky box of stated height that covers the top of the scroller it sticks in, such as an `lf-diff` file header, a root `lf-tabs` strip, or an open thread's title in the Threads list; `module-authoring.md`, "Sticky headers", says how headers stack |
 | **Reading posture** | Whether a region's body scrolls on its own (`bounded`) or its container carries it (`flow`). The stylesheet decides it and the runtime reads it |
 
 A root `lf-tabs` and an embedded `lf-tabs` remain the same element type; placement
@@ -182,6 +182,7 @@ the document's height.
 | **Tasks** | The agent's list, everything waiting on the agent (`queues.tasks`): answers it owes, work in hand, and its own to-dos. The banner ends with its count, and the Questions panel shows it as its Tasks section. A message the user sends counts among Tasks as an answer the agent owes before any to-do exists |
 | **Ask** | One core record of a request for the user's input, with its typed answer and its lifecycle. A widget ask has identity `widget:<source-id>`; a prose ask, from a reply sent with `--ask`, has `reply:<agent-message-id>`; an approval ask, `approval:v<version>`, tracks a stamped version's sign-off. Widget state owns a widget ask's values, and the conversation owns a prose ask's settlement. An optional `lf-ask` frames one or more asks with prompt context without changing their identity. An ask is distinct from a to-do and from a resend |
 | **To-do** | Explicit work owed until it ends (`todo` in the protocol), by the agent or by the user. An ask is a separate record, not a to-do |
+| **Tally** | `lf-tally`: how many of the asks a region holds (`asksIn`) are still open, “7 of 8 to answer”, with an optional Next question that walks the region's asks waiting on the user |
 | **Resend** | An update the user has to send again, which stays on Questions until they do |
 | **Done** | The control with which the user ends a to-do the agent put on them; it writes `todo_end`. A widget may also name its own answer-submission control Done |
 | **Done fold** | The Questions panel's third list, below Questions and Tasks: asks answered or withdrawn and to-dos ended |
@@ -248,6 +249,9 @@ These terms name Leaf concepts that no standard term covers, so they stay:
   *top layer*, which the platform keeps but does not expose.
 - **Key badge**: a keycap-shaped label that carries a hint code as well as a binding,
   so *keycap* alone would misname half its uses.
+- **Tally**: a *progress indicator* draws completion as a bar or ring and a *counter*
+  counts anything; a tally counts what is left of one region's asks against their whole
+  and leads to the next, so neither name says what it counts or that it navigates.
 
 **Pin**, **Banner**, **Drawer**, **Toolbar**, and **Picker** keep their ordinary UI
 meanings. Qualify **picker** (the target picker, the version picker) where the reaction

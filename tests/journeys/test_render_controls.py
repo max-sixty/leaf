@@ -35,6 +35,7 @@ from render_cases_layout import (
     SHOTS,
     banner_control,
     displaced,
+    overlapped_words,
     page_at_rest,
     ring_faults,
     rings_drawn,
@@ -3094,7 +3095,8 @@ def test_covering_threads_keeps_the_user_inside(browser, serve):
     resized(page, 400, 640)
     panel_settled(page)
 
-    # A complete pass through more stops than this panel holds has to wrap within it.
+    # A complete pass through more stops than this panel holds goes out to the browser's
+    # own interface and comes back round to the panel, never behind it.
     focus_stops = page.locator(
         ".lf-thread-panel button:visible, .lf-thread-panel input:visible, "
         ".lf-thread-panel leaf-text:visible, .lf-thread-panel [tabindex='0']:visible, "
@@ -3111,10 +3113,11 @@ def test_covering_threads_keeps_the_user_inside(browser, serve):
     for _ in range(focus_stops.count() + 3):
         page.keyboard.press("Tab")
         assert page.evaluate(
-            "() => document.querySelector('.lf-thread-panel').contains(document.activeElement)"
+            "() => document.activeElement === document.body"
+            "   || document.querySelector('.lf-thread-panel').contains(document.activeElement)"
         ), "Tab reached a control behind the covering Threads panel"
         wrapped = wrapped or edge.evaluate("el => el === document.activeElement")
-    assert wrapped, "Tab never wrapped to the panel's first stop"
+    assert wrapped, "Tab never came back round to the panel's first stop"
 
     page.locator(".lf-thread-filter-toggle").click()
     open_filter = page.locator('[data-filter-value="open"]')
@@ -3442,6 +3445,11 @@ def test_the_feature_gallery_has_no_serious_wcag_a_or_aa_violations(browser, ser
             violations, report = serious_axe_violations(page)
             if violations:
                 findings.append(f"[{width}px {color_scheme}]\n{report}")
+            if unread := overlapped_words(page):
+                findings.append(
+                    f"[{width}px {color_scheme}] no contrast read under a box that paints "
+                    "nothing: " + ", ".join(unread)
+                )
 
     assert findings == [], "\n\n".join(findings)
 
@@ -3486,6 +3494,9 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     page.keyboard.press("Shift+t")
     shown = page.locator(".lf-threads > .lf-thread:not([hidden])[open]")
     expect(shown.locator(":scope > .lf-thread-summary")).to_be_focused()
+    # Read mid-slide, the panel's words stand past the window's edge, where axe reads no
+    # contrast for them and the sweep passes them unread.
+    panel_settled(page)
     sweep("standing on the open thread")
     page.keyboard.press("c")
     expect(shown.locator("leaf-text")).to_be_focused()

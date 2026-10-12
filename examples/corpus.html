@@ -1101,17 +1101,6 @@
 <style>
       @import url("/page/theme.css");
 
-      /* Navigation starts the stacked reading order; the stretched side track keeps
-         it beside the review on a wide window. Supporting history stays in the body. */
-      #pr-rail {
-        align-self: stretch;
-      }
-
-      #pr-contents-panel {
-        position: sticky;
-        top: calc(var(--lf-top) + var(--sp-4));
-      }
-
       .pr-review-gesture {
         padding-block: var(--sp-2);
         border-block: 1px solid var(--rule);
@@ -3329,6 +3318,7 @@ export const summarize = checks =>
 <header>
         <h1>Which alerts should still page?</h1>
         <p id="ar-legend">
+          <lf-tally id="ar-left" for="ar-queue" next></lf-tally>
           <span class="tag warn">7 mostly noise</span>
           <span class="tag">2 wrong owner</span>
           <span class="tag danger">5 caught incidents</span>
@@ -3849,9 +3839,9 @@ export const summarize = checks =>
       </lf-tabs>
       <footer>
         <p id="ar-next">
-          Payments paged 158 times in week 38; 17 needed a person.
-          <strong>Nine decisions open</strong>, in any order; I'll change every rule in
-          one pull request against <code>alerts/payments.yaml</code>.
+          Payments paged 158 times in week 38; 17 needed a person. Decide in any order;
+          I'll change every rule in one pull request against
+          <code>alerts/payments.yaml</code>.
         </p>
       </footer>
 </lf-tab>
@@ -3958,16 +3948,14 @@ export const summarize = checks =>
               <thead>
                 <tr>
                   <th>Review unit</th>
-                  <th>Files</th>
-                  <th>Change</th>
                   <th>Review focus</th>
                 </tr>
               </thead>
               <tbody>
                 <tr id="pr-focus-safety">
-                  <th scope="row">1 · Git repository layer</th>
-                  <td>4</td>
-                  <td><code>+312 −30</code></td>
+                  <th scope="row">
+                    1 · Git repository layer<br /><code>+312 −30</code> in 4 files
+                  </th>
                   <td>
                     Untracked files enter while the
                     <lf-gloss
@@ -3977,36 +3965,36 @@ export const summarize = checks =>
                   </td>
                 </tr>
                 <tr id="pr-focus-latency">
-                  <th scope="row">2 · Picker runtime</th>
-                  <td>17</td>
-                  <td><code>+823 −466</code></td>
+                  <th scope="row">
+                    2 · Picker runtime<br /><code>+823 −466</code> in 17 files
+                  </th>
                   <td>
                     Off-screen worktrees load on demand without breaking tab or row
                     identity.
                   </td>
                 </tr>
                 <tr>
-                  <th scope="row">3 · Integration tests</th>
-                  <td>8</td>
-                  <td><code>+308 −92</code></td>
+                  <th scope="row">
+                    3 · Integration tests<br /><code>+308 −92</code> in 8 files
+                  </th>
                   <td>Tests observe index bytes and filesystem residue.</td>
                 </tr>
                 <tr>
-                  <th scope="row">4 · Other runtime</th>
-                  <td>6</td>
-                  <td><code>+42 −61</code></td>
+                  <th scope="row">
+                    4 · Other runtime<br /><code>+42 −61</code> in 6 files
+                  </th>
                   <td>Prior diff callers move to the shared abstraction.</td>
                 </tr>
                 <tr>
-                  <th scope="row">5 · Docs and shipped skills</th>
-                  <td>9</td>
-                  <td><code>+69 −42</code></td>
+                  <th scope="row">
+                    5 · Docs and shipped skills<br /><code>+69 −42</code> in 9 files
+                  </th>
                   <td>The Git 2.34 floor is discoverable in every published copy.</td>
                 </tr>
                 <tr>
-                  <th scope="row">6 · Benchmarks</th>
-                  <td>2</td>
-                  <td><code>+13 −10</code></td>
+                  <th scope="row">
+                    6 · Benchmarks<br /><code>+13 −10</code> in 2 files
+                  </th>
                   <td>Prewarm cost moves to selected-row demand.</td>
                 </tr>
               </tbody>
@@ -4247,74 +4235,74 @@ index b856171b57..cfa4f0448e 100644
                 <tr>
                   <th>Claim</th>
                   <th>Evidence</th>
-                  <th>Status</th>
-                  <th>Review reading</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
                   <th scope="row">
+                    <span class="tag ok">passed</span>
                     Unified and subsidiary tabs show the intended changes
                   </th>
                   <td>
                     <code
                       >unified_diff_is_net_change_and_subsidiary_diffs_include_untracked</code
-                    >
-                  </td>
-                  <td><span class="tag ok">passed</span></td>
-                  <td>
+                    ><br />
                     The same test requires the real index to remain byte-identical.
                   </td>
                 </tr>
                 <tr>
                   <th scope="row">
+                    <span class="tag ok">passed</span>
                     Sparse checkouts retain out-of-cone untracked files
                   </th>
                   <td>
                     <code
                       >test_picker_dry_run_includes_untracked_outside_sparse_checkout</code
-                    >
+                    ><br />
+                    Exercises the regression the first review found.
                   </td>
-                  <td><span class="tag ok">passed</span></td>
-                  <td>Exercises the regression the first review found.</td>
                 </tr>
                 <tr>
                   <th scope="row">
+                    <span class="tag ok">passed</span>
                     Worktree-local temp directories leave no index artifacts
                   </th>
                   <td>
                     <code
                       >test_picker_dry_run_tempdir_inside_worktree_has_no_index_artifacts</code
-                    >
+                    ><br />
+                    Also tests glob escaping with a bracketed path.
                   </td>
-                  <td><span class="tag ok">passed</span></td>
-                  <td>Also tests glob escaping with a bracketed path.</td>
                 </tr>
                 <tr>
-                  <th scope="row">Off-screen worktrees are demand-loaded</th>
+                  <th scope="row">
+                    <span class="tag ok">passed</span>
+                    Off-screen worktrees are demand-loaded
+                  </th>
                   <td>
                     <code
                       >initial_precompute_skips_offscreen_worktrees_but_warms_branches</code
-                    >
+                    ><br />
+                    Proves scheduling shape, not selected-row latency.
                   </td>
-                  <td><span class="tag ok">passed</span></td>
-                  <td>Proves scheduling shape, not selected-row latency.</td>
                 </tr>
                 <tr>
-                  <th scope="row">Selected-row demand remains fast</th>
-                  <td>No latency benchmark</td>
-                  <td><span class="tag warn">gap</span></td>
+                  <th scope="row">
+                    <span class="tag warn">gap</span>
+                    Selected-row demand remains fast
+                  </th>
                   <td>
+                    No latency benchmark<br />
                     The correctness test allows up to 60 seconds and cannot answer this.
                   </td>
                 </tr>
                 <tr>
                   <th scope="row">
+                    <span class="tag warn">gap</span>
                     Commit dry-run excludes its own temp index under local TMPDIR
                   </th>
-                  <td>No focused regression in this PR</td>
-                  <td><span class="tag warn">gap</span></td>
                   <td>
+                    No focused regression in this PR<br />
                     The captured hunk moves the existing staging path onto
                     <code>TempIndex</code> without changing its <code>git add</code>
                     semantics; a reviewer reproduced the extra index and lock entries
@@ -6921,7 +6909,9 @@ observe --cohort staff</code></pre>
                 <code>answer.value</code> contains option ids, and
                 <code>prompt.target</code> names the surrounding context.
               </p>
-              <button id="bg-read-question" type="button">Read current ask</button>
+              <button id="bg-read-question" class="button" type="button">
+                Read current ask
+              </button>
               <pre id="bg-question-reading" hidden></pre>
             </details>
             <section id="bg-task-on-you">
@@ -6953,10 +6943,13 @@ observe --cohort staff</code></pre>
                 normally. Leave the sample: <kbd>1</kbd> no longer focuses the note.
               </p>
               <div id="bg-local-shortcuts" tabindex="0">
-                <button id="bg-shortcut-focus-note" type="button">
+                <button id="bg-shortcut-focus-note" class="button" type="button">
                   Write sample note
                 </button>
-                <label>Sample note <input id="bg-shortcut-note" type="text" /></label>
+                <label>
+                  Sample note
+                  <input id="bg-shortcut-note" class="field" type="text" />
+                </label>
               </div>
             </section>
             <section id="bg-keyboard-preference">
@@ -7823,7 +7816,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   lettering. Reset starts a fresh untitled thread. Reduced motion shows
                   solid muted text.
                 </p>
-                <button id="bg-title-sheen-show" type="button">
+                <button id="bg-title-sheen-show" class="button" type="button">
                   Open sample thread
                 </button>
                 <lf-sample
@@ -8007,7 +8000,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               with the author. On the public site, make a decision or comment first to
               activate your private page, then return here.
             </p>
-            <button id="bg-read-user-view" type="button">Read observed views</button>
+            <button id="bg-read-user-view" class="button" type="button">
+              Read observed views
+            </button>
             <pre id="bg-user-view-reading" hidden></pre>
           </section>
 
@@ -8043,25 +8038,24 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </table>
           </section>
 
-          <section id="bg-ask-track">
+          <section id="bg-ask-across">
             <p class="eyebrow bg-feature-elements">lf-ask · lf-chart · lf-options</p>
             <h2>
-              <strong>An ask beside its figure</strong
-              ><span class="bg-feature-detail">: the options track</span>
+              <strong>An ask around its figure</strong
+              ><span class="bg-feature-detail">: options laid across</span>
             </h2>
-            <p id="bg-ask-track-guide">
-              This ask holds a chart and ends in one option list, and it takes the wide
-              measure. In a window wide enough for both, the list stands in a column
-              beside the chart and stays put while the evidence scrolls past it; narrow
-              the window and the list drops below the chart again.
+            <p id="bg-ask-across-guide">
+              This ask holds a chart and ends in one list of titled options. Under the
+              chart the three cards stand side by side, so the question, the chart and
+              every option fit one window; narrow the window and the cards stack.
             </p>
-            <lf-ask id="bg-track-ask" data-width="wide">
+            <lf-ask id="bg-across-ask">
               <h3>Which trail should the sample team hike on Saturday?</h3>
-              <p id="bg-track-premise">
+              <p id="bg-across-premise">
                 The team walks at a sample pace of 300 m of climb an hour, and the last
                 bus leaves the trailhead at 17:00.
               </p>
-              <lf-chart id="bg-track-climb" data-height="180">
+              <lf-chart id="bg-across-climb" data-height="180">
                 <pre>
 {
   ariaLabel: "Climb by sample trail: Ridge loop 900 m, Lake path 350 m, Pass traverse 1,250 m",
@@ -8082,19 +8076,19 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
 }
 </pre>
               </lf-chart>
-              <p id="bg-track-reading">
+              <p id="bg-across-reading">
                 The traverse's climb takes a little over four hours on its own, which
                 leaves no margin before the bus.
               </p>
-              <lf-options id="bg-track-choice" choose>
-                <lf-option id="bg-track-ridge">
+              <lf-options id="bg-across-choice" choose>
+                <lf-option id="bg-across-ridge">
                   <strong>Ridge loop</strong> Three hours of climbing with views the
                   whole way.
                 </lf-option>
-                <lf-option id="bg-track-lake">
+                <lf-option id="bg-across-lake">
                   <strong>Lake path</strong> An easy morning, back long before the bus.
                 </lf-option>
-                <lf-option id="bg-track-pass">
+                <lf-option id="bg-across-pass">
                   <strong>Pass traverse</strong> The longest day, and a tight finish.
                 </lf-option>
               </lf-options>
@@ -8102,20 +8096,25 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
           </section>
 
           <section id="bg-side-list">
-            <p class="eyebrow">list="side"</p>
+            <p class="eyebrow bg-feature-elements">lf-tabs · lf-tally</p>
             <h2><strong>A queue beside the item it opens</strong></h2>
             <p id="bg-side-list-guide">
               The tab list stands left of the open item: each row shows its name and
               summary, and rows sharing a <code>group</code> sit under that group's
-              heading.
+              heading. The <code>lf-tally</code> above it counts the queue's asks still
+              to answer.
             </p>
             <ul id="bg-side-list-steps">
               <li>
                 Walk the list with the up and down arrows: they pass the headings by.
               </li>
               <li>
-                Answer the first item's ask: its row shows a check and the option you
-                picked. Undo takes them away.
+                Press Next question in the tally: it opens the first item's ask, whose
+                row carries an open mark.
+              </li>
+              <li>
+                Answer the ask: its row shows a check and the option you picked, and the
+                tally says Answered. Undo puts the open mark and the count back.
               </li>
               <li>
                 Narrow the window below the set's 36rem: the list becomes a row above
@@ -8123,6 +8122,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 the check.
               </li>
             </ul>
+            <p id="bg-side-left">
+              <lf-tally id="bg-side-tally" for="bg-side-queue" next></lf-tally>
+            </p>
             <lf-tabs id="bg-side-queue" list="side">
               <lf-tab
                 id="bg-side-4107"
@@ -9009,7 +9011,7 @@ gallery/
                   page; another origin cannot frame it.
                 </p>
                 <div id="bg-durable-frame-host">
-                  <button id="bg-durable-frame-open" type="button">
+                  <button id="bg-durable-frame-open" class="button" type="button">
                     Open the earlier map decision
                   </button>
                   <iframe
@@ -9389,8 +9391,7 @@ switch --readers checkout-api,orders-api</code></pre>
         <lf-tab id="bg-view-interactions" label="Interactions">
           <section id="bg-interactions" aria-labelledby="bg-interactions-title">
             <p class="eyebrow bg-feature-elements">
-              lf-sample · lf-suggestion · lf-old · lf-new · lf-board · lf-column ·
-              lf-card
+              lf-sample · lf-suggestion · lf-old · lf-new
             </p>
             <h2 id="bg-interactions-title">
               <strong>Interactions</strong
@@ -9400,7 +9401,8 @@ switch --readers checkout-api,orders-api</code></pre>
               Each sample below is a complete Leaf page running the production
               components and transitions. Do what its caption asks and watch the page
               answer. What you do stays in that sample's own log; “Reset” starts it
-              again, and nothing reaches this page.
+              again, and nothing reaches this page. To move a card, drag one on
+              <a id="bg-interactions-board" href="#bg-delivery">the delivery board</a>.
             </p>
 
             <section id="bg-interaction-accept">
@@ -9421,30 +9423,6 @@ switch --readers checkout-api,orders-api</code></pre>
                     >
                     before the next run begins.
                   </p>
-                </template>
-              </lf-sample>
-            </section>
-
-            <section id="bg-interaction-move">
-              <h3>Move a card</h3>
-              <p id="bg-interaction-move-guide">
-                Drag the card to “Tried”, or press <kbd>Enter</kbd> on its grip and move
-                it with the arrow keys. Leaf plays the same placement transition for
-                either route.
-              </p>
-              <lf-sample id="bg-motion-board-sample" label="migration checklist">
-                <template id="bg-motion-board-page" data-sample>
-                  <p class="eyebrow">migration checklist</p>
-                  <h1>Schema migration</h1>
-                  <lf-board id="bg-motion-board">
-                    <lf-column id="bg-motion-ready" label="Ready">
-                      <lf-card id="bg-motion-card"
-                        ><strong>Verify migration</strong> Run the schema
-                        sample.</lf-card
-                      >
-                    </lf-column>
-                    <lf-column id="bg-motion-tried" label="Tried"></lf-column>
-                  </lf-board>
                 </template>
               </lf-sample>
             </section>

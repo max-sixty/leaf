@@ -621,8 +621,20 @@
   // style and layout: it keeps its last reading, and one never read stands as if its
   // holder were the column. Every edge is read before any is written, so the page is
   // laid out once however many breakouts it holds. Read with the column, so a breakout
-  // parsed before first paint is placed before it paints; one inserted or revealed
-  // later is read as it arrives (content-layout.js).
+  // parsed before first paint is placed before it paints; one inserted, revealed or
+  // moved later is read as it arrives or moves (content-layout.js).
+  //
+  // A breakout grows out of the column only down a chain of block flow: each box from
+  // the breakout up to `main` a block-level box its holder lays out one under another.
+  // Where the breakout, or a box between it and the column, is an item of a grid, a
+  // flex line, a table or one of a holder's columns, is an inline block, floats or is
+  // positioned, the page arranged that box itself, and the room beside it is the page's
+  // own, such as a sibling track's text: grown into it, a wide block in a grid cell
+  // stood over the other cell's words, and a table widened its own track and crushed
+  // the other to 30px. A link or other inline around a block is no such box, since the
+  // browser sets the block in its holder's flow (`holderOf`). Such a breakout
+  // wears `data-lf-arranged` and keeps to the box it is laid out in (layouts.css), so
+  // the indent is read only where the holder's content box is the breakout's block.
   const contentEdges = (element) => {
     const box = element.getBoundingClientRect();
     const style = getComputedStyle(element);
@@ -634,35 +646,82 @@
     };
   };
   const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
+  const ARRANGED = "data-lf-arranged";
   // The box a breakout is laid out in: its slot's where a widget slots it, past any
-  // ancestor that draws no box of its own (shadow-tree.js, `renderedParent`).
+  // ancestor that draws no box of its own (shadow-tree.js, `renderedParent`), and past
+  // an inline one, such as a link around a chart or an unknown element, since the
+  // browser sets a block inside an inline in an anonymous block of the inline's own
+  // holder's flow.
   const holderOf = (breakout, main) => {
     let holder = breakout;
-    do
+    let display;
+    do {
       holder = holder.assignedSlot ?? holder.parentElement ?? holder.getRootNode().host;
-    while (holder !== main && getComputedStyle(holder).display === "contents");
+      if (holder === main) break;
+      display = getComputedStyle(holder).display;
+    } while (display === "contents" || display === "inline");
     return holder;
   };
-  // Returns whether any breakout's indent changed, and the holders it measured, each
-  // with its content box's width and the breakouts it holds, for content-layout.js to
-  // watch: a class or style that pads a holder moves its breakout without inserting
-  // anything. The reading keeps none of them.
+  // A holder whose inner display is flow or flow-root, and which sets no columns, lays
+  // its children out one under another at its full width; the computed display names
+  // that by its short keyword or in full. One that sets columns computes as a block too,
+  // and a wide block in its second column stood over the first's words.
+  const FLOWS =
+    /^(block|flow-root|list-item|inline-block|table-cell|table-caption)$|\bflow\b|\bflow-root\b|\blist-item\b/;
+  const inFlow = (box, holder) => {
+    const style = getComputedStyle(box);
+    const held = getComputedStyle(holder);
+    return (
+      FLOWS.test(held.display) &&
+      held.columnCount === "auto" &&
+      held.columnWidth === "auto" &&
+      !/^(inline|table-|ruby)/.test(style.display) &&
+      style.float === "none" &&
+      style.position !== "absolute" &&
+      style.position !== "fixed"
+    );
+  };
+  // Whether the page arranged `holder` or a box above it, once per holder a reading
+  // meets however many breakouts it holds.
+  const arrangedAbove = (holder, main, verdicts) => {
+    if (holder === main) return false;
+    if (!verdicts.has(holder)) {
+      const above = holderOf(holder, main);
+      verdicts.set(
+        holder,
+        !inFlow(holder, above) || arrangedAbove(above, main, verdicts),
+      );
+    }
+    return verdicts.get(holder);
+  };
+  // Returns whether any breakout's indent or arrangement changed, every breakout it
+  // answers for, and the holders it measured, each with its content box's width and
+  // the breakouts it holds, for content-layout.js to watch: a class or style that pads
+  // a holder changes its breakouts' room without inserting anything, and a box that
+  // moves moves its breakout. The reading keeps none of them.
   const indents = () => {
     const holders = new Map();
+    const breakouts = [];
     const main = document.querySelector("body > main");
-    if (!main) return { changed: false, holders };
+    if (!main) return { changed: false, breakouts, holders };
     const grows = document.body.hasAttribute("data-lf-column-shell");
     const readings = [];
+    const verdicts = new Map();
     let column = null;
     for (const breakout of main.querySelectorAll(BREAKOUT)) {
       if (breakout.parentElement.closest(BREAKOUT)) continue;
       if (!grows) {
-        readings.push([breakout, 0, 0]);
+        readings.push([breakout, 0, 0, false]);
         continue;
       }
+      breakouts.push(breakout);
       if (!breakout.checkVisibility()) continue;
-      column ??= contentEdges(main);
       const holder = holderOf(breakout, main);
+      if (!inFlow(breakout, holder) || arrangedAbove(holder, main, verdicts)) {
+        readings.push([breakout, 0, 0, true]);
+        continue;
+      }
+      column ??= contentEdges(main);
       const edges = contentEdges(holder);
       const held = holders.get(holder);
       if (held) held.breakouts.push(breakout);
@@ -675,28 +734,102 @@
         breakout,
         Math.max(0, Math.round(edges.left - column.left)),
         Math.max(0, Math.round(column.right - edges.right)),
+        false,
       ]);
     }
     let changed = false;
-    for (const [breakout, left, right] of readings)
-      for (const [property, length] of [
+    for (const [breakout, left, right, arranged] of readings) {
+      const writes = [
         ["--lf-indent-l", left],
         ["--lf-indent-r", right],
-      ]) {
-        const value = length ? `${length}px` : "";
-        if (breakout.style.getPropertyValue(property) === value) continue;
-        if (!sourceShells.has(breakout))
-          sourceShells.set(breakout, breakout.cloneNode(false));
-        if (value) setRuntimeRootStyle(breakout, property, value);
+      ].filter(
+        ([property, length]) =>
+          breakout.style.getPropertyValue(property) !== (length ? `${length}px` : ""),
+      );
+      const rearranged = breakout.hasAttribute(ARRANGED) !== arranged;
+      if (!writes.length && !rearranged) continue;
+      if (!sourceShells.has(breakout))
+        sourceShells.set(breakout, breakout.cloneNode(false));
+      for (const [property, length] of writes)
+        if (length) setRuntimeRootStyle(breakout, property, `${length}px`);
         else removeRuntimeRootStyle(breakout, property);
-        changed = true;
-      }
-    return { changed, holders };
+      if (rearranged) setRuntimeRootAttribute(breakout, ARRANGED, arranged ? "" : null);
+      changed = true;
+    }
+    return { changed, breakouts, holders };
+  };
+  // Whether each track (`--lf-resident: track`, a sidebar page's `aside`, layouts.css)
+  // stands beside the body, which it says as `data-lf-beside` so the Layout keeps the
+  // block it holds in view only there. Flex wrapping places it, from the window's width,
+  // the shares the page gives the track and the body, and the minimum the body's content
+  // declares, and no query reads that. A track stands beside the body when one of the
+  // other boxes `main` lays out in its flex lines shares its line and stands wholly to
+  // one side of it: a box `main` lays out is a child that draws a box and is not taken
+  // out of the flow, or one inside a child that draws none (`display: contents`), and
+  // another track does not count. A track holding one block runs its line's height
+  // (layouts.css), and a line holds its items' margin boxes whatever margins a page gives
+  // them, so a box on the line is level with the track and one on another line, such as
+  // the header, the footer or a stacked body, is above or below it or spans it. Sticking
+  // moves only the block inside the track, so the track's own box is where the flex line
+  // put it. Every box is read before any track is written.
+  const BESIDE = "data-lf-beside";
+  const items = (element) => {
+    const style = getComputedStyle(element);
+    if (style.display === "contents")
+      return [...element.children].flatMap((child) => items(child));
+    if (!element.checkVisibility() || ["absolute", "fixed"].includes(style.position))
+      return [];
+    const { left, right, top, bottom, width } = element.getBoundingClientRect();
+    return [
+      {
+        element,
+        track: style.getPropertyValue("--lf-resident").trim() === "track",
+        left,
+        right,
+        width,
+        top: top - parseFloat(style.marginTop),
+        bottom: bottom + parseFloat(style.marginBottom),
+      },
+    ];
+  };
+  const stand = () => {
+    const main = document.querySelector("body > main");
+    if (!main) return false;
+    const tracks = [...main.children].filter(
+      (child) =>
+        getComputedStyle(child).getPropertyValue("--lf-resident").trim() === "track",
+    );
+    if (!tracks.length) return false;
+    const laid = [...main.children].flatMap((child) => items(child));
+    const own = laid.filter((item) => !item.track);
+    const readings = tracks.map((track) => {
+      const line = laid.find((item) => item.element === track);
+      return [
+        track,
+        line !== undefined &&
+          own.some(
+            (box) =>
+              box.width > 0 &&
+              box.top < line.bottom - 0.5 &&
+              box.bottom > line.top + 0.5 &&
+              (box.right <= line.left + 0.5 || box.left >= line.right - 0.5),
+          ),
+      ];
+    });
+    let changed = false;
+    for (const [track, beside] of readings) {
+      if (track.hasAttribute(BESIDE) === beside) continue;
+      if (!sourceShells.has(track)) sourceShells.set(track, track.cloneNode(false));
+      track.toggleAttribute(BESIDE, beside);
+      changed = true;
+    }
+    return changed;
   };
   const residency = () => {
     const seated = seat();
-    const { changed, holders } = indents();
-    return { changed: changed || seated, holders };
+    const stood = stand();
+    const reading = indents();
+    return { ...reading, changed: reading.changed || seated || stood };
   };
 
   // The id a URL fragment spells, for location.hash and for a link's href alike, from

@@ -425,6 +425,7 @@ const inputs = createCompositionInputs({
 
 app = mountApplication({
   arriveAtQueueItem: (item) => queueWalk.arriveAtItem(item),
+  nextQuestionWithin: (options) => queueWalk.nextWithin(options),
   panel,
   firstUnreadBtn: panelElements.firstUnreadBtn,
   accompaniedThread: (...args) => landing.accompaniedThread(...args),

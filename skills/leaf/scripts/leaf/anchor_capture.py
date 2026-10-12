@@ -38,10 +38,11 @@ def occurrences(text: str, quote: str, lo: int, hi: int, fences=frozenset()) -> 
 def _context(passages, lo: int, hi: int) -> tuple[str, str]:
     """The trimmed words before `lo` and after `hi`, each reaching only to the nearest
     passage-cell fence: the file side of `passages.js.neighbourhood`, which capture
-    stores and resolution compares against."""
+    stores and resolution compares against. The text is collapsed, so the space is
+    the only collapse character left to trim; Python's own whitespace is wider."""
     text, fences = passages.text, passages.fences
-    before = text[max([0, *[f for f in fences if f <= lo]]) : lo].strip()
-    after = text[hi : min([len(text), *[f for f in fences if f >= hi]])].strip()
+    before = text[max([0, *[f for f in fences if f <= lo]]) : lo].strip(" ")
+    after = text[hi : min([len(text), *[f for f in fences if f >= hi]])].strip(" ")
     return before, after
 
 

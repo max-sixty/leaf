@@ -53,6 +53,7 @@ from interact_support import (
     suggest,
     write_revision,
 )
+from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import data_contracts as data_contracts_model
@@ -737,6 +738,19 @@ def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries(
     )
     assert separated[0] == {"text": "set up"}
     assert non_js_whitespace == [{"text": "\u0085edge\u0085"}]
+
+
+def test_an_anchor_resolves_by_context_the_browser_keeps():
+    """Context is trimmed of the collapse class alone, as the browser trims it, so a
+    character only Python calls whitespace stays part of the context the browser
+    captured. U+0085 before the first of two equal words is all that tells them apart."""
+    passages = passages_model.page_passages(
+        structure_model.SourceDocument(f'<p id="p">\u0085repeat {"x" * 40} repeat</p>'),
+        {},
+    )
+    anchor = {"quote": "repeat", "prefix": "\u0085", "suffix": "x" * 24}
+
+    assert anchor_capture_model.resolve_quote(passages, anchor) == 1
 
 
 def test_file_readings_follow_browser_tree_recovery():

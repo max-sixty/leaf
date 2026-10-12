@@ -2440,11 +2440,11 @@ def test_a_wheel_gesture_does_not_own_later_passive_carry(browser):
     consume_browser_errors(page, "textarea#field moved without input")
 
 
-@pytest.mark.parametrize("subject", ["background", "older", "current"])
-@pytest.mark.parametrize("reverse", [False, True])
-def test_native_modality_keeps_its_exposed_controls_in_place(
-    browser, serve, subject, reverse
-):
+def test_native_modality_keeps_its_exposed_controls_in_place(browser, serve):
+    """Only the top modal's controls are exposed, whichever dialog opened last: under
+    each opening order each control moves in turn, and only the current one's move is
+    reported. Each order names its controls afresh, since the watch reports a message
+    once."""
     from render_harness import leaf_page, open_page
 
     page = open_page(
@@ -2460,22 +2460,31 @@ def test_native_modality_keeps_its_exposed_controls_in_place(
             )
         ),
     )
-    page.evaluate(
-        """reverse => {
-      const dialogs = [document.querySelector('#first'), document.querySelector('#second')];
-      if (reverse) dialogs.reverse();
-      dialogs[0].showModal(); dialogs[1].showModal();
-      dialogs[0].querySelector('button').id = 'older';
-      dialogs[1].querySelector('button').id = 'current';
-    }""",
-        reverse,
-    )
-    page.screenshot()
-    page.locator("#" + subject).evaluate("node => node.style.left = '30px'")
-    page.screenshot()
-    judge_watches()
-    if subject == "current":
-        consume_browser_errors(page, "button#current moved without input")
+    for order, reverse in enumerate((False, True)):
+        page.evaluate(
+            """([reverse, order]) => {
+          const dialogs = [document.querySelector('#first'), document.querySelector('#second')];
+          for (const dialog of dialogs) dialog.close();
+          if (reverse) dialogs.reverse();
+          dialogs[0].showModal(); dialogs[1].showModal();
+          dialogs[0].querySelector('button').id = `older-${order}`;
+          dialogs[1].querySelector('button').id = `current-${order}`;
+        }""",
+            [reverse, order],
+        )
+        page.screenshot()
+        judge_watches()
+        assert take_browser_errors(page) == [], reverse
+        for subject in ("background", f"older-{order}", f"current-{order}"):
+            page.locator("#" + subject).evaluate(
+                "node => node.style.left = `${parseFloat(node.style.left) + 20}px`"
+            )
+            page.screenshot()
+            judge_watches()
+            if subject.startswith("current"):
+                consume_browser_errors(page, f"button#{subject} moved without input")
+            else:
+                assert take_browser_errors(page) == [], (reverse, subject)
 
 
 @pytest.mark.parametrize("sticky", [False, True])
@@ -3005,141 +3014,166 @@ def test_real_floating_plane_retains_local_motion(
 # style (`clippingAxes`), so one case stands for each way Chrome answers either: a
 # transform for every property that makes a fixed box's containing block, and paint
 # containment for `contain: strict`.
-@pytest.mark.parametrize(
-    "outer,inner,field,hit,painted,delta",
-    [
-        pytest.param(
-            "width:100px;height:100px;overflow:hidden",
-            "",
-            "position:fixed;left:200px;top:200px",
-            True,
-            True,
-            20,
-            id="viewport-fixed",
-        ),
-        pytest.param(
-            "width:100px;height:100px;overflow:hidden;transform:translateX(0)",
-            "",
-            "position:fixed;left:200px;top:200px",
-            False,
-            False,
-            20,
-            id="transformed",
-        ),
-        pytest.param(
-            "width:100px;height:100px;overflow:hidden;opacity:0",
-            "",
-            "position:fixed;left:200px;top:200px",
-            True,
-            False,
-            20,
-            id="transparent",
-        ),
-        pytest.param(
-            "position:relative;width:500px;height:400px",
-            "width:100px;height:100px;overflow:hidden",
-            "position:absolute;left:200px;top:200px",
-            True,
-            True,
-            20,
-            id="absolute-outer",
-        ),
-        pytest.param(
-            "position:relative;width:500px;height:400px",
-            "position:relative;width:100px;height:100px;overflow:hidden",
-            "position:absolute;left:200px;top:200px",
-            False,
-            False,
-            20,
-            id="absolute-inner",
-        ),
-        pytest.param(
-            "width:100px;height:100px;overflow:hidden;transform:scale(2);transform-origin:0 0",
-            "",
-            "position:fixed;left:75px;top:20px",
-            True,
-            True,
-            3,
-            id="scaled",
-        ),
-        pytest.param(
-            "width:100px;height:100px;overflow:visible;contain:paint",
-            "",
-            "position:fixed;left:200px;top:200px",
-            False,
-            False,
-            20,
-            id="paint-contained",
-        ),
-        pytest.param(
-            "width:100px;height:100px;overflow:visible;content-visibility:auto",
-            "",
-            "position:fixed;left:200px;top:200px",
-            False,
-            False,
-            20,
-            id="content-visibility",
-        ),
-        pytest.param(
-            "position:relative;width:100px;height:100px;overflow-x:clip;overflow-y:visible",
-            "",
-            "position:absolute;left:20px;top:200px",
-            True,
-            True,
-            20,
-            id="visible-y",
-        ),
-        pytest.param(
-            "position:relative;width:100px;height:0;overflow-x:clip;overflow-y:visible",
-            "",
-            "position:absolute;left:20px;top:200px",
-            True,
-            True,
-            20,
-            id="zero-height-x",
-        ),
-    ],
+CLIPPING_CASES = (
+    # name, outer, inner, field, hit, painted, delta
+    (
+        "viewport-fixed",
+        "width:100px;height:100px;overflow:hidden",
+        "",
+        "position:fixed;left:200px;top:200px",
+        True,
+        True,
+        20,
+    ),
+    (
+        "transformed",
+        "width:100px;height:100px;overflow:hidden;transform:translateX(0)",
+        "",
+        "position:fixed;left:200px;top:200px",
+        False,
+        False,
+        20,
+    ),
+    (
+        "transparent",
+        "width:100px;height:100px;overflow:hidden;opacity:0",
+        "",
+        "position:fixed;left:200px;top:200px",
+        True,
+        False,
+        20,
+    ),
+    (
+        "absolute-outer",
+        "position:relative;width:500px;height:400px",
+        "width:100px;height:100px;overflow:hidden",
+        "position:absolute;left:200px;top:200px",
+        True,
+        True,
+        20,
+    ),
+    (
+        "absolute-inner",
+        "position:relative;width:500px;height:400px",
+        "position:relative;width:100px;height:100px;overflow:hidden",
+        "position:absolute;left:200px;top:200px",
+        False,
+        False,
+        20,
+    ),
+    (
+        "scaled",
+        "width:100px;height:100px;overflow:hidden;transform:scale(2);transform-origin:0 0",
+        "",
+        "position:fixed;left:75px;top:20px",
+        True,
+        True,
+        3,
+    ),
+    (
+        "paint-contained",
+        "width:100px;height:100px;overflow:visible;contain:paint",
+        "",
+        "position:fixed;left:200px;top:200px",
+        False,
+        False,
+        20,
+    ),
+    (
+        "content-visibility",
+        "width:100px;height:100px;overflow:visible;content-visibility:auto",
+        "",
+        "position:fixed;left:200px;top:200px",
+        False,
+        False,
+        20,
+    ),
+    (
+        "visible-y",
+        "position:relative;width:100px;height:100px;overflow-x:clip;overflow-y:visible",
+        "",
+        "position:absolute;left:20px;top:200px",
+        True,
+        True,
+        20,
+    ),
+    (
+        "zero-height-x",
+        "position:relative;width:100px;height:0;overflow-x:clip;overflow-y:visible",
+        "",
+        "position:absolute;left:20px;top:200px",
+        True,
+        True,
+        20,
+    ),
 )
-def test_native_clipping_preserves_only_painted_carry(
-    browser, serve, outer, inner, field, hit, painted, delta
-):
+
+
+def test_native_clipping_preserves_only_painted_carry(browser, serve):
+    """Each case stands alone on one page in turn: its boxes shown, the others' out of
+    the box tree, so no case's field stands under another's point or clip."""
     source = leaf_page(
         "Native clipping",
-        f'<div id="outer" style="{outer}"><div id="inner" style="{inner}"><textarea id="field" style="{field};width:14px;height:20px"></textarea></div></div><div id="evidence" style="position:absolute;left:10px;top:400px;width:300px;height:30px;background:red"></div>',
+        "".join(
+            f'<div id="case-{name}" hidden><div id="outer-{name}" style="{outer}">'
+            f'<div style="{inner}"><textarea id="field-{name}" style="{field};width:14px;'
+            'height:20px"></textarea></div></div></div>'
+            for name, outer, inner, field, *_ in CLIPPING_CASES
+        )
+        + '<div id="evidence" style="position:absolute;left:10px;top:400px;width:300px;'
+        'height:30px;background:red"></div>',
         layout=None,
     )
     page = open_page(browser, serve(source))
-    paint(page)
-    state = page.evaluate("""async()=>{
-      const field=document.querySelector('#field'), box=field.getBoundingClientRect();
-      const geometry=await window.__lfRuntimeImport('/runtime/geometry.js');
-      return {hit:document.elementFromPoint(box.x+3,box.y+3)===field,
-        shown:!!geometry.shownRect(field,new Map()),
-        opacity:field.checkVisibility({checkOpacity:true})};
-    }""")
-    assert state == {"hit": hit, "shown": hit, "opacity": painted or hit is False}
-    before = page.locator("#field").bounding_box()
-    page.evaluate(
-        """delta=>{
-      window.nativeClipEntries=[];
-      new PerformanceObserver(list=>nativeClipEntries.push(...list.getEntries())).observe({type:'layout-shift'});
-      document.querySelector('#field').style.marginLeft=delta+'px';
-      document.querySelector('#evidence').style.marginLeft='40px';
-    }""",
-        delta,
-    )
-    page.screenshot()
-    judge_watches()
-    errors = take_browser_errors(page)
-    assert page.evaluate("nativeClipEntries.length")
-    after = page.locator("#field").bounding_box()
-    assert after["x"] - before["x"] == (6 if delta == 3 else delta)
-    if painted:
-        assert any("textarea#field moved without input" in error for error in errors), (
-            errors
+    for name, _, _, _, hit, painted, delta in CLIPPING_CASES:
+        page.evaluate(
+            "name => document.getElementById(`case-${name}`).hidden = false", name
         )
-    else:
-        assert errors == [], errors
+        paint(page)
+        field = page.locator(f"#field-{name}")
+        state = field.evaluate("""async field=>{
+          const box=field.getBoundingClientRect();
+          const geometry=await window.__lfRuntimeImport('/runtime/geometry.js');
+          return {hit:document.elementFromPoint(box.x+3,box.y+3)===field,
+            shown:!!geometry.shownRect(field,new Map()),
+            opacity:field.checkVisibility({checkOpacity:true})};
+        }""")
+        assert state == {
+            "hit": hit,
+            "shown": hit,
+            "opacity": painted or hit is False,
+        }, name
+        before = field.bounding_box()
+        field.evaluate(
+            """(field, delta)=>{
+          window.nativeClipEntries=[];
+          window.nativeClipObserver?.disconnect();
+          window.nativeClipObserver=new PerformanceObserver(list=>nativeClipEntries.push(...list.getEntries()));
+          nativeClipObserver.observe({type:'layout-shift'});
+          field.style.marginLeft=delta+'px';
+          evidence.style.marginLeft=evidence.style.marginLeft==='40px'?'0px':'40px';
+        }""",
+            delta,
+        )
+        page.screenshot()
+        judge_watches()
+        errors = take_browser_errors(page)
+        assert page.evaluate("nativeClipEntries.length"), name
+        after = field.bounding_box()
+        assert after["x"] - before["x"] == (6 if delta == 3 else delta), name
+        if painted:
+            assert any(
+                f"textarea#field-{name} moved without input" in error
+                for error in errors
+            ), (name, errors)
+        else:
+            assert errors == [], (name, errors)
+        page.evaluate(
+            "name => document.getElementById(`case-${name}`).hidden = true", name
+        )
+        paint(page)
+        judge_watches()
+        assert take_browser_errors(page) == [], name
 
 
 @pytest.mark.parametrize("mode", ["typing", "passive"])
@@ -3181,7 +3215,9 @@ def test_new_anchor_relation_cannot_credit_scroll_before_activation(browser, mod
     assert any(expected in error for error in errors), errors
 
 
-@pytest.mark.parametrize("fault", ["", "holder", "child", "missing-source"])
+# Each fault runs the clean placement and its quiet judgement first, which is the
+# control a separate faultless case would add.
+@pytest.mark.parametrize("fault", ["holder", "child", "missing-source"])
 def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, fault):
     source = leaf_page(
         "Floating tenure",
@@ -3230,38 +3266,34 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
     assert take_browser_errors(page) == []
     page.keyboard.press("Shift")
     paint(page)
-    if fault:
-        page.evaluate(
-            """fault=>{document.querySelector(fault==='child'?'#field':'#holder').style.marginLeft='80px';document.querySelector('#evidence').style.marginLeft='40px'}""",
-            fault,
-        )
-        page.screenshot()
+    page.evaluate(
+        """fault=>{document.querySelector(fault==='child'?'#field':'#holder').style.marginLeft='80px';document.querySelector('#evidence').style.marginLeft='40px'}""",
+        fault,
+    )
+    page.screenshot()
     judge_watches()
     errors = take_browser_errors(page)
-    if fault:
-        assert any("textarea#field moved without input" in error for error in errors), (
-            errors
-        )
-        if fault == "missing-source":
-            error = next(e for e in errors if "textarea#field moved without input" in e)
-            evidence = shift_evidence(error)
-            assert any(
-                not comparison["scroll_terms"]
-                and any(
-                    attachment["owner"] == "div#holder"
-                    and attachment["before"]["plane"] == "window"
-                    and attachment["after"]["plane"] == "window"
-                    and attachment["before"]["scrollOffsets"] is None
-                    and attachment["after"]["scrollOffsets"] is None
-                    and attachment["after_surface"]["left"]
-                    - attachment["before_surface"]["left"]
-                    == 80
-                    for attachment in comparison["scroll_attachments"]
-                )
-                for comparison in evidence["comparisons"]
-            ), evidence
-    else:
-        assert errors == [], errors
+    assert any("textarea#field moved without input" in error for error in errors), (
+        errors
+    )
+    if fault == "missing-source":
+        error = next(e for e in errors if "textarea#field moved without input" in e)
+        evidence = shift_evidence(error)
+        assert any(
+            not comparison["scroll_terms"]
+            and any(
+                attachment["owner"] == "div#holder"
+                and attachment["before"]["plane"] == "window"
+                and attachment["after"]["plane"] == "window"
+                and attachment["before"]["scrollOffsets"] is None
+                and attachment["after"]["scrollOffsets"] is None
+                and attachment["after_surface"]["left"]
+                - attachment["before_surface"]["left"]
+                == 80
+                for attachment in comparison["scroll_attachments"]
+            )
+            for comparison in evidence["comparisons"]
+        ), evidence
 
 
 @pytest.mark.parametrize("mode", ["pointer", "keyboard"])

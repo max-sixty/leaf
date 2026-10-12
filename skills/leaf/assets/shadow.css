@@ -52,6 +52,27 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     margin-right: 0;
   }
 }
+.lf-error {
+  border: 1px solid var(--danger);
+  background: var(--danger-tint);
+  color: var(--danger-ink);
+  border-radius: var(--r);
+  padding: 8px 12px;
+  font-family: var(--sans);
+  font-size: var(--t-5);
+  font-variant-numeric: tabular-nums;
+  white-space: normal;
+  --lf-block-frame: 1;
+}
+.lf-error pre {
+  margin: 8px 0 0;
+  white-space: pre;
+}
+@media print {
+  .lf-error pre {
+    white-space: pre-wrap;
+  }
+}
 .lf-key-badge {
   box-sizing: border-box;
   min-width: var(--lf-key-badge-size);

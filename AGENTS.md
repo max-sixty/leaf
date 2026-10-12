@@ -28,8 +28,7 @@ primitive must give the user something that site would not:
   as text and semantic anchors.
 - **Public website.** Visitors try interactive examples on leaf.page.
 - **Consistency.** One interface across sessions and agents — keybindings,
-  threads, and how a widget answers a move — so the user learns it
-  once.
+  threads, and how a widget answers an action — so the user learns it once.
 - **Trust.** An action records its meaning when taken, so a control does what
   it says and the record shows what the user decided.
 - **Presentation craft.** Layout, type, and composition that hold at every
@@ -70,10 +69,10 @@ obligation. Packages, harnesses, integrations, and consumers of the references a
 all in this tree. When a different contract makes the code simpler, update it
 and every consumer together, including prose that relies on the old shape.
 
-Leaf's own restrictions do not settle what a feature may do either. When a
-content security policy, a validator's refusal, an import allowlist, or a limit
-on what some markup may carry stands between the user and a feature, raise it
-with the user rather than dropping the feature or working around it quietly.
+A restriction Leaf itself imposes does not decide whether a feature is allowed.
+When a content security policy, a validator's refusal, an import allowlist, or a
+limit on what some markup may carry stands between the user and a feature, raise
+it with the user rather than dropping the feature or working around it quietly.
 Name the restriction, what it blocks, what it protects, and what lifting it
 would cost. It may guard something the user values, or it may be a side effect
 nobody chose, and only the user can weigh the feature against it.
@@ -98,13 +97,14 @@ composing the existing API cannot provide; extend the canonical API when its
 existing responsibility is incomplete.
 
 Every change and every review must assess whether the immediate problem is a
-symptom of an underlying problem. Follow its causes until the next boundary is
-right as designed; the wrong boundary below it is where the fix belongs. If the
-current change cannot make that fix, the author or reviewer names and proposes
-it. A passing test for the reported case establishes only that case. A second
-special case, a caller repeating its callee's rule, a guard restating a rule
-the code never states, or a flag passed through a stack to reach one use
-suggests the shared boundary remains unsettled.
+symptom of an underlying problem. Trace the cause upward through each layer
+that produced it. The fix belongs in the highest layer that is wrong, just
+beneath the first one that is correct as designed. If the current change cannot
+make that fix, the author or reviewer names and proposes it. A passing test for
+the reported case establishes only that case. A second special case, a caller
+repeating its callee's rule, a guard restating a rule the code never states, or
+a flag passed through a stack to reach one use suggests the shared boundary
+remains unsettled.
 
 Do not add another patch on top of the ones already there. A change that
 settles the immediate symptom and leaves the code harder to maintain does not
@@ -227,7 +227,7 @@ file over 500 KB.
 
 Authored markup is a page's initial state. The append-only event log records
 transitions. Every current-state projection starts from the markup and
-applies the standing events, those not withdrawn. Add no database, derived
+applies the events still in force, those not withdrawn. Add no database, derived
 current-state file, widget-specific replay list, or DOM-backed authority beside them.
 
 A later version keeps a user decision unless it explicitly retracts what the

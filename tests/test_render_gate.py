@@ -3694,8 +3694,11 @@ def test_reader_state_observes_behavior_without_freezing_the_dom(browser, serve)
 OPEN_THREADS = '.lf-threads-toggle[data-lf-count]:not([data-lf-count="0"])'
 # Where the focus stands in a thread, by the runtime's own selectors
 # (thread/selectors.js): "reply" in that thread's reply field, "card" elsewhere in it,
-# or null outside every thread or where the user sees none of the focused node
-# (`seenRect`, geometry.js, which counts the viewport and every clip).
+# or null outside every thread or where the user sees none of the focused node. Seeing
+# it takes both what the browser draws, which `checkVisibility` reads through every
+# ancestor's display, visibility and opacity, and where it is drawn, which `seenRect`
+# (geometry.js) holds to the viewport, every clip and the chrome, as
+# anchor-resolution.js composes the two for a passage.
 IN_THREAD = """async () => {
   const {THREAD, SAY_BOX} = await window.__lfRuntimeImport('/runtime/thread/selectors.js');
   const {focused} = await window.__lfRuntimeImport('/runtime/focus.js');
@@ -3703,7 +3706,8 @@ IN_THREAD = """async () => {
   const {seenRect} = await window.__lfRuntimeImport('/runtime/geometry.js');
   const at = focused();
   const thread = at && closestAcross(at, THREAD);
-  if (!thread || !seenRect(at, new Map())) return null;
+  const drawn = at?.checkVisibility({opacityProperty: true, visibilityProperty: true});
+  if (!thread || !drawn || !seenRect(at, new Map())) return null;
   return [...thread.querySelectorAll(SAY_BOX)].includes(at) ? 'reply' : 'card';
 }"""
 SURFACES = {

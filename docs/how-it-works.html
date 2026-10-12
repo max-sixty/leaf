@@ -1295,8 +1295,10 @@ flowchart LR
               <li id="updates-written-question">
                 <strong><code>leaf response reply … --ask</code></strong> A prose ask
                 for the user, which stays open until they reply or settle it with a
-                reaction. The thread reads <em>On you to answer</em>, and the ask joins
-                the user's Questions, in the Questions panel.
+                reaction, or the agent ends it with <code>leaf task end</code>: as
+                answered elsewhere when the user answered in chat, or as withdrawn. The
+                thread reads <em>On you to answer</em>, and the ask joins the user's
+                Questions, in the Questions panel.
               </li>
               <li id="updates-written-on-you">
                 <strong><code>leaf task open … --on user</code></strong> Something the

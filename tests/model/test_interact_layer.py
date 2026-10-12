@@ -130,8 +130,8 @@ def test_wait_help_says_where_a_delivery_says_how_to_confirm_it():
 def test_agent_interaction_command_help(regtest):
     """The complete help an agent follows between receiving and answering input.
 
-    Keep the full CLI output, including options, beside the dynamic interaction
-    snapshots in test_interact_session. A prose review can then follow a command
+    Keep the full CLI output, including options, beside the snapshots of what the
+    hooks and waits print to the agent. A prose review can then follow a command
     named by a reminder without reconstructing its help from source docstrings.
     """
     outputs = []

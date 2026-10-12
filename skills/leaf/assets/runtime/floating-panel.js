@@ -50,7 +50,7 @@ import {
 import { textField } from "./composing/text-field.js";
 import { queueItemKey, readQueues, watchQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
-import { questionWords } from "./questions/answer.js";
+import { questionEnding } from "./questions/answer.js";
 import { versionMenu, versionPicker } from "./version-picker.js";
 import { reducedMotion } from "./motion.js";
 import { pagePresented } from "./page-paint.js";
@@ -745,9 +745,7 @@ export function createFloatingPanel({
           >${item.running?.text ?? workflowLabel(item.workflow) ?? ""}</span
         >${thread ? discuss : nothing}`;
     else if (answered)
-      answers = html`<span class="lf-fp-said"
-          >${ask.status === "withdrawn" ? "Withdrawn" : `Answered ${questionWords(ask) ?? ""}`.trim()}</span
-        >${
+      answers = html`<span class="lf-fp-said">${questionEnding(ask)}</span>${
           gesture
             ? html`<button
                 type="button"

@@ -1871,23 +1871,23 @@ def test_the_render_gate_rejects_invalid_visual_inventory_records(browser, serve
             layer_widgets=widgets,
         ),
     ).failures
-    assert [failure.splitlines()[0] for failure in failures] == [
-        (
-            "[light] <lf-test-visual id='missing'> declares addressable visual parts "
-            "but its module did not register declared parts absent"
-        ),
-        (
-            "[light] <lf-test-visual id='outside'> declares addressable visual parts "
-            "but its module could not read visual parts: Visual part outer has no descendant Element surface"
-        ),
-        (
-            "[dark] <lf-test-visual id='missing'> declares addressable visual parts "
-            "but its module did not register declared parts absent"
-        ),
-        (
-            "[dark] <lf-test-visual id='outside'> declares addressable visual parts "
-            "but its module could not read visual parts: Visual part outer has no descendant Element surface"
-        ),
+    # The throwing read can also fail the runtime's presentation, which the console
+    # reports in its own line; this test holds the inventory's.
+    headlines = [failure.splitlines()[0] for failure in failures]
+    assert [line for line in headlines if "] console: " not in line] == [
+        line
+        for scheme in ("light", "dark")
+        for line in (
+            (
+                f"[{scheme}] <lf-test-visual id='missing'> declares addressable "
+                "visual parts but its module did not register declared parts absent"
+            ),
+            (
+                f"[{scheme}] <lf-test-visual id='outside'> declares addressable "
+                "visual parts but its module could not read visual parts: Visual "
+                "part outer has no descendant Element surface"
+            ),
+        )
     ]
 
     inventory_errors = [
@@ -1938,13 +1938,36 @@ def test_the_gate_passes_every_diagram_type_that_carries_addressable_parts(
     )
 
 
-def test_the_render_gate_rejects_a_partial_diagram_parts_list(browser, serve):
-    page = PART_DIAGRAM_PAGE
+def test_the_render_gate_reports_each_refusing_diagram(browser, serve):
+    """A parts list leaving a node unlisted and a class sharing its namespace's
+    identity, which layout cannot traverse, are independent refusals, and the gate
+    reports both: an invalid inventory ends a scheme's reading early but keeps what
+    the console already said."""
+    page = PART_DIAGRAM_PAGE.replace(
+        "</lf-diagram>",
+        """</lf-diagram>
+<lf-diagram id="model"><pre>
+classDiagram
+  namespace Job {
+    class Job
+  }
+</pre></lf-diagram>""",
+        1,
+    )
     failures = render_gate_model.render_version(browser.unwatched, serve(page)).failures
-    assert failures == [
-        f"[{scheme}] <lf-diagram id='flow'> declares addressable visual parts "
-        "but its module leaves nameable parts unlisted node:U"
+    assert [failure.splitlines()[0] for failure in failures] == [
+        line
         for scheme in ("light", "dark")
+        for line in (
+            (
+                f'[{scheme}] console: leaf: <lf-diagram id="model"> failed: '
+                "Mermaid declares diagram identity Job more than once"
+            ),
+            (
+                f"[{scheme}] <lf-diagram id='flow'> declares addressable visual parts "
+                "but its module leaves nameable parts unlisted node:U"
+            ),
+        )
     ]
 
 
@@ -1992,32 +2015,6 @@ classDiagram
     assert (
         drawn.locator("#model").evaluate("e => e.visualParts.get('node:Jobs').label")
         == "Jobs"
-    )
-
-
-def test_diagram_identity_collisions_fail_before_layout(browser, serve):
-    """A node and its container cannot share the graph identity used by layout."""
-    url = serve(
-        leaf_page(
-            "colliding class",
-            """
-<h1 id="title">Colliding class</h1>
-<lf-diagram id="model"><pre>
-classDiagram
-  namespace Job {
-    class Job
-  }
-</pre></lf-diagram>
-""",
-        )
-    )
-    failures = render_gate_model.render_version(browser.unwatched, url).failures
-    assert (
-        sum(
-            "Mermaid declares diagram identity Job more than once" in f
-            for f in failures
-        )
-        == 2
     )
 
 

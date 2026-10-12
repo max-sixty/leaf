@@ -27,7 +27,8 @@
    An element's connection lifetime is one such watch over every element:
    `watchOwner(owner, {connect, disconnect})` connects while the owner stands and
    disconnects once a batch shows it gone, so a move within one batch keeps it. The
-   runtime's own subscriptions (data, projections, widget controllers) hold it directly.
+   runtime's own subscriptions (data, projections, widget controllers) and clock paints
+   (`clocked` and `readingPaint` in presence.js) hold it directly.
    Widgets hold it through `whileConnected`, for resources, and `frameFor`, for
    scheduled paints, which `widget-api.js` exports in its place.
 

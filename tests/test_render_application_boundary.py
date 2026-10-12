@@ -1226,11 +1226,68 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     page.locator("#package-a").click()
     round_trip(page)
     assert page.evaluate("Number(pageLocal.dataset.readings)") == readings
+    # Another widget's action leaves this one's reading as it was, so its return draws
+    # nothing again.
     page.evaluate("document.querySelector('main').append(pageLocal)")
-    expect(page.locator("#page-local")).to_have_attribute(
-        "data-readings", str(readings + 1)
-    )
+    rendered(page)
+    assert page.evaluate("Number(pageLocal.dataset.readings)") == readings
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
+
+
+def test_a_returning_controller_widget_draws_again_only_a_changed_reading(
+    browser, serve
+):
+    """A controller-driven widget follows the return rule data and projection watchers
+    follow: a render that failed stands across a departure and return, so the author
+    is told once, and a return draws nothing again while the reading is unchanged."""
+    source = LIVE_V1.replace(
+        "</main>", '<lf-local id="page-local" choice="idle"></lf-local></main>'
+    )
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                source,
+                page_files={
+                    "registry.json": json.dumps(PAGE_DECLARATION),
+                    "widgets/lf-local.js": PAGE_WIDGET,
+                },
+            )
+        ),
+    )
+    expect(page.locator("#page-local")).to_have_attribute("data-page-widget", "ready")
+    leave_and_return = """async () => {
+      const settle = () => new Promise((resolve) => setTimeout(resolve));
+      const {readApplicationPresentation} =
+        await window.__lfRuntimeImport('/runtime/semantic-state.js');
+      const owner = document.querySelector('#page-local');
+      const parent = owner.parentNode;
+      const readings = Number(owner.dataset.readings);
+      owner.remove();
+      await settle();
+      parent.append(owner);
+      await settle();
+      return {
+        drawn: Number(owner.dataset.readings) - readings,
+        failed: Number(globalThis.__failedLocalRenders || 0),
+        pending: readApplicationPresentation().pending,
+      };
+    }"""
+    assert page.evaluate(leave_and_return) == {"drawn": 0, "failed": 0, "pending": []}
+
+    # Resuming a deferral draws the same reading again, and this draw fails.
+    page.evaluate(
+        "globalThis.__failLocalRender = true; "
+        "document.querySelector('#page-local').controller.defer()(); true"
+    )
+    expect(page.locator("#page-local .lf-error")).to_have_text(
+        "<lf-local> failed: <lf-local> renderState threw: deliberate render failure"
+    )
+    assert page.evaluate(leave_and_return) == {"drawn": 0, "failed": 1, "pending": []}
+    errors = take_browser_errors(page)
+    assert [error.splitlines()[0] for error in errors] == [
+        "leaf: Presentation failed: <lf-local> renderState threw: deliberate render failure"
+    ]
 
 
 @pytest.mark.parametrize("lifetime", ["light", "shadow-child", "shadow-host"])
@@ -2226,6 +2283,74 @@ def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, pla
         }""")
             == "A draft for this conversation"
         )
+
+
+@pytest.mark.parametrize("route", ["t", "Shift+T", "ArrowDown", "click"])
+def test_choosing_beside_a_withdrawn_notice_holds_the_chosen_card(
+    browser, serve, route
+):
+    """From a withdrawn thread's notice, `t`, `T`, an arrow or a press chooses the card
+    beside it, and releasing the notice's room moves none of what the user sees there."""
+    before = [f"before-{i}" for i in range(12)]
+    after = [f"after-{i}" for i in range(20)]
+    sections = [*before, "withdrawn", *after]
+    url = serve(
+        leaf_page(
+            "Withdrawn among threads",
+            "<h1>Review</h1>"
+            + "".join(f'<p id="{name}">Passage {name}.</p>' for name in sections),
+        )
+    )
+    for name in sections:
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "id": name,
+                "author": "user",
+                "revision": 1,
+                "anchor": {"section": name},
+                "text": f"Conversation {name}.",
+            },
+        )
+    page = open_page(browser, live_url(url))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator('.lf-threads > [data-id="withdrawn"]')
+    card.locator(".lf-thread-summary").scroll_into_view_if_needed()
+    card.locator(".lf-thread-summary").click()
+    rendered(page)
+    # Cards in view on both sides of the open one, and room scrolled past to take its
+    # release.
+    page.locator("leaf-thread-list").evaluate(
+        "(list, card) => { list.scrollTop += card.getBoundingClientRect().top"
+        " - list.getBoundingClientRect().top - 100; }",
+        card.element_handle(),
+    )
+    scroll_settled(page, "leaf-thread-list")
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "undo", "author": "user", "revision": 1, "undoes": "withdrawn"},
+    )
+    told(page)
+    notice = page.locator('[data-withdrawn="withdrawn"]')
+    expect(notice.locator("button")).to_be_focused()
+    chosen = page.locator(
+        f'.lf-threads > [data-id="{before[-1] if route == "Shift+T" else after[0]}"]'
+    )
+    top = chosen.evaluate("node => node.getBoundingClientRect().top")
+
+    if route == "click":
+        chosen.locator(".lf-thread-summary").click()
+    else:
+        page.keyboard.press(route)
+    rendered(page)
+    expect(notice).to_have_count(0)
+    expect(chosen).to_have_attribute("open", "")
+    expect(chosen.locator(".lf-thread-summary")).to_be_focused()
+    assert chosen.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
+        top, abs=0.5
+    )
 
 
 def test_an_unavailable_list_preserves_the_selected_conversation(browser, serve):

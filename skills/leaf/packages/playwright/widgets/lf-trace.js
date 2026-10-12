@@ -34,19 +34,21 @@
  * does not. Authored bookmark keys pair semantic results in a comparison group;
  * equal labels or clocks never establish correspondence between recordings.
  *
- * Scope-specific image views, time windows and saved-tree reading places outlive
- * their renderers. Same-page captures retain inspected scale and origin; fitted
- * images continue to fit. A pending Viewer prepares offscreen, then atomically
- * commits decoded pixels, caption and comment identity before retiring the old
- * surface. Inspection can settle on the still-visible capture during that wait.
- * Filmstrip frames retain the latest same-page saved checkpoint and its exact
- * comment identity. Saved elements has one stable disclosure; reading restoration
- * respects its current closure, while explicit destination navigation opens it.
+ * Scope-specific image views and time windows outlive their renderers. Same-page
+ * captures retain inspected scale and origin; fitted images continue to fit. A
+ * pending Viewer prepares offscreen, then atomically commits decoded pixels, caption
+ * and comment identity before retiring the old surface. Inspection can settle on the
+ * still-visible capture during that wait. Filmstrip frames retain the latest
+ * same-page saved checkpoint and its exact comment identity. Saved elements has one
+ * stable disclosure, a reading region whose subject is the checkpoint whose tree it
+ * shows: the runtime keeps the reader's place in each checkpoint's tree, and returns
+ * them to it as the tree opens or the checkpoint returns
+ * (reading-regions.js, `showReadingSubject`). Explicit destination navigation opens
+ * the disclosure and lands on its destination instead.
  */
 import {
   commands,
   authoredScope,
-  capturePlace,
   declarationFor,
   dragging,
   cancelAnimation,
@@ -54,8 +56,6 @@ import {
   frameFor,
   compoundReadingRegionId,
   registerReadingRegion,
-  readingRegion,
-  restorePlace,
   keepsHidden,
   el,
   focusDestination,
@@ -88,6 +88,7 @@ import {
   scrollBehavior,
   scrollIntoReadingBand,
   setChildren,
+  showReadingSubject,
   sizeObserver,
   watchData,
   whileConnected,
@@ -209,8 +210,6 @@ customElements.define(
     #trace = null;
     #scope = null;
     #selected = null;
-    #treeScope = null;
-    #treePlaces = new Map();
     #parts = null;
     #inventory = [];
     #targets = new Map();
@@ -506,23 +505,6 @@ customElements.define(
         path.includes(this.#imageTools.value)
       )
         this.#inspectEvidence();
-    }
-
-    #rememberTreePlace() {
-      if (this.#tree.value.open && this.#treeScope)
-        this.#treePlaces.set(
-          this.#treeScope,
-          capturePlace(readingRegion(compoundReadingRegionId(this, "saved-elements"))),
-        );
-    }
-
-    #treeToggled() {
-      this.#draw();
-      if (this.#tree.value.open)
-        restorePlace(
-          this.#treePlaces.get(this.#treeScope),
-          readingRegion(compoundReadingRegionId(this, "saved-elements")),
-        );
     }
 
     #id(kind, value) {
@@ -904,8 +886,6 @@ customElements.define(
         this.#images.clear();
         this.#scopeViews.clear();
         this.#metadataPoint = null;
-        this.#treePlaces.clear();
-        this.#treeScope = null;
         this.#scope = null;
         this.#selected = null;
         this.#cursorTime = null;
@@ -1105,16 +1085,22 @@ customElements.define(
       if (!travel) return;
       await this.#pendingPicture?.ready;
       if (!mayArrive() || this.#chosenBookmark !== bookmark) return;
-      const target = this.#targets.get(id);
-      const destination = target?.node
-        ? this.#inventory.find((part) => part.id === id)?.element
-        : this.#pictureId
-          ? this.#stage.value
-          : null;
-      const shown = destination?.getBoundingClientRect();
-      const view = target?.node ? shown : this.#viewport.value.getBoundingClientRect();
-      if (destination && !(view.top >= 0 && view.bottom <= innerHeight))
-        scrollIntoReadingBand(destination, destination, "center", scrollBehavior());
+      // A saved element's row stands in the tree's own scroll box, which can hide it
+      // inside the window. A nearest landing reveals it there and the tree in the page,
+      // and moves nothing that already shows it.
+      if (this.#targets.get(id)?.node) {
+        const row = this.#inventory.find((part) => part.id === id)?.element;
+        if (row) scrollIntoReadingBand(row, row, "nearest", scrollBehavior());
+        return;
+      }
+      const view = this.#viewport.value.getBoundingClientRect();
+      if (this.#pictureId && !(view.top >= 0 && view.bottom <= innerHeight))
+        scrollIntoReadingBand(
+          this.#stage.value,
+          this.#stage.value,
+          "center",
+          scrollBehavior(),
+        );
     }
 
     #stream() {
@@ -2022,8 +2008,7 @@ customElements.define(
                 <details
                   class="lf-trace-tree"
                   ${ref(this.#tree)}
-                  @scroll=${() => this.#rememberTreePlace()}
-                  @toggle=${() => this.#treeToggled()}
+                  @toggle=${() => this.#draw()}
                 >
                   <summary>Saved elements</summary>
                   <p class="lf-trace-tree-clock">
@@ -2099,13 +2084,6 @@ customElements.define(
       const treeScope = treePoint
         ? this.#phaseId(treePoint.action, treePoint.phase)
         : null;
-      const treeChanged = treeScope !== this.#treeScope;
-      const treeRegion = readingRegion(compoundReadingRegionId(this, "saved-elements"));
-      // Saved trees replace each other under their archive phase identity. Keep
-      // each reading through empty frames and returns using Leaf's place owner,
-      // independent of the recreated rows.
-      if (treeChanged && this.#treeScope && this.#tree.value.open)
-        this.#treePlaces.set(this.#treeScope, capturePlace(treeRegion));
       if (image) {
         if (!this.#images.has(image.id)) {
           const figure = el("figure", "lf-trace-image");
@@ -2171,7 +2149,13 @@ customElements.define(
         );
       }
       this.#drawPicture(image);
-      this.#paint(point, evidence, rows);
+      // Saved trees replace each other under their archive phase identity, and the
+      // reader's place in each is kept through empty frames and returns.
+      showReadingSubject(
+        compoundReadingRegionId(this, "saved-elements"),
+        treeScope,
+        () => this.#paint(point, evidence, rows),
+      );
       keepsHidden(this.#waiting, !!this.#trace);
       keepsHidden(this.#missingImage, !!this.#pictureId);
       keepsText(
@@ -2246,11 +2230,6 @@ customElements.define(
         })),
         { snapshot: this.#snapshot },
       );
-      if (treeChanged) {
-        this.#treeScope = treeScope;
-        if (this.#tree.value.open)
-          restorePlace(this.#treePlaces.get(treeScope), treeRegion);
-      }
       this.#parts.update();
       paintKeys();
     }

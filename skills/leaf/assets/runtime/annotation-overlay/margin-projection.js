@@ -21,7 +21,10 @@
    target, cluster and card are one place. Standing elsewhere, releasing the target,
    or pressing outside that place dismisses it. Escape inside lands on the target;
    Send keeps focus on its thread. With Threads open, the list's expanded thread
-   supplies the accompaniment and declares its own target association.
+   supplies the accompaniment and declares its own target association. The card shows
+   the threads of the innermost target holding the user's place that has any (its own,
+   else an enclosing one's), never those of a target inside it: a thread on an ask's
+   options shows from the options, not from the ask (`threadEntryAt`).
 
    Each frozen cluster model names controls by contribution and entry identity. The Lit view
    retains their native nodes, so a state refresh cannot cancel a held pointer or move focus.
@@ -106,6 +109,7 @@ import { readingRegionFor } from "../reading-regions.js";
 
 import { keys, paintKeys } from "../keyboard/scopes.js";
 import { pageRung, pageScope } from "../keyboard/register.js";
+import { nativeLayerHolding } from "../keyboard/layer-stack.js";
 
 import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
 import { repaint } from "../repaint.js";
@@ -256,14 +260,16 @@ export function createMarginProjection({
   let highlighted = null;
   let highlightFrame = 0;
   let rovingFrame = 0;
-  // A modal or contextual thread surface temporarily owns focus without ending the
-  // document interaction beneath it. Preserve that context so its commands remain
-  // true and its owning margin entry can receive focus when the surface closes.
+  // A native layer over the page (a modal, or a popover) or a contextual thread surface
+  // temporarily owns focus without ending the document interaction beneath it. Preserve
+  // that context so its commands remain true and its owning margin entry can receive
+  // focus when the surface closes. A side surface standing beside the page, such as
+  // Questions, is somewhere else the user went.
   const inRetainedContext = (node) =>
     node instanceof Element &&
-    (Boolean(node.closest("dialog[open]")) ||
-      preview.contains(node) ||
-      (panelIsOpen() && panel.contains(node)));
+    (Boolean(nativeLayerHolding(node)) ||
+      under(node, preview) ||
+      (panelIsOpen() && under(node, panel)));
   function readingMarginEntry(entry, kind) {
     const marker = hosts.get(entry.key)?.marker;
     if (marker && !marker.hidden && primaryReading(entry)?.kind === kind) return marker;
@@ -750,11 +756,7 @@ export function createMarginProjection({
       if (!under(left, host) || (node && under(node, host))) continue;
       nextRender(refreshHighlight);
       const current = host.lfEntry;
-      if (
-        current &&
-        expandedOptionsKey === current.key &&
-        !inRetainedContext(node && hostIn(node, document))
-      )
+      if (current && expandedOptionsKey === current.key && !inRetainedContext(node))
         setOptionsOpen(current, false);
     }
   });
@@ -1549,7 +1551,7 @@ export function createMarginProjection({
       ...document.querySelectorAll(`.lf-page-thread[data-thread="${CSS.escape(id)}"]`),
     ].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
   // The innermost target holding the node whose threads the card would show. A thread is
-  // about exactly its anchor's target (glossary, Standing target), reached from anywhere
+  // about exactly its anchor's target (header), reached from anywhere
   // inside it and never from outside: after `q` the user stands on the Question element, so
   // the card shows a thread on the Question but not one on its options or a phrase in its
   // heading. Treating a Question as one target for its threads is a possible refinement. It

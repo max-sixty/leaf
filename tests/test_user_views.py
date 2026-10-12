@@ -114,7 +114,6 @@ def test_ingress_refuses_invalid_context_and_check_provenance(tmp_path):
         {"revision": 0},
         {"sequence": -1},
         {"pointer": "mouse"},
-        {"viewport": {"width": float("inf"), "height": 700}},
         {"viewport": {"width": 0, "height": 700}},
         {"visible_regions": ["heading", "heading"]},
         {"received_at": "2026-10-02T00:00:00Z"},

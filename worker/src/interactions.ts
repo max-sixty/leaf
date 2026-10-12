@@ -8,8 +8,7 @@
  * coordinates, element tags and positions, node ids, command ids, bindings, and
  * statuses. Authored ids and names, typed or selected text, URL details, and
  * unknown client fields never reach the log, and a sample's capability and
- * document identity are logged only as support handles. `worker/README.md`,
- * "Browser diagnostics", lists the fields a record keeps.
+ * document identity are logged only as support handles.
  */
 
 import * as z from "zod/mini";

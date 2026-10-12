@@ -27,6 +27,9 @@
 # ada-url binds Ada, the WHATWG URL parser Node uses, to check the `uri` format
 # (`registry/schema.py`), so a URL `data set` accepts is one the page's `new URL`
 # accepts too. It is a compiled extension as well.
+# regress is an ECMAScript regular-expression engine; schema `pattern`s are read
+# with it (`registry/schema.py`) so they mean what they mean to the browser rather
+# than Python's `re`, whose `$` also matches before a final newline.
 # watchfiles supplies the native subscriptions shared by page maintenance,
 # delivery waits and developer previews, avoiding repeated idle filesystem scans.
 #
@@ -56,6 +59,7 @@ dependencies = [
   "packaging>=22",
   "playwright>=1.63",
   "psutil>=6",
+  "regress>=2026.9",
   "starlette>=0.48",
   "tinycss2>=1.4",
   "tree-sitter>=0.25.2",

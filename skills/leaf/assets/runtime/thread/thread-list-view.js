@@ -29,7 +29,9 @@
    the user's words, its semantic membership ends, and a selected allocation holds off
    fallback disclosure. Dismissal or choosing another card releases it at once, outside
    the geometry rule (#2387's choice): the allocation has no closed form to shrink to
-   when another card opens. The model builder asks both questions while it builds the
+   when another card opens, and the list's place hold keeps the chosen card where it
+   stood, as it does for an open card closing above it (thread-list.js,
+   `holdThroughDisclosure`). The model builder asks both questions while it builds the
    reading (thread-list.js), so a kept allocation is a row of that reading, committed
    and restored with the cards beside it. Rejected: deciding withdrawals by a copy of
    the rule beside `keeping`, as paint the list spliced into each reading it drew
@@ -40,7 +42,7 @@ import { holdFocus, onStanding, focusDestination, focused } from "../focus.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
 import { threadHoldsDraft } from "./replies.js";
-import { forwardToThread } from "./focus.js";
+import { forwardToThread, threadFocusStop } from "./focus.js";
 import { passOn, retainUserIntent } from "../user-intent.js";
 import { layoutChanged } from "../widget-elements.js";
 import { isFolding } from "./folding.js";
@@ -68,6 +70,10 @@ const turnOnItsWay = (thread) =>
     (message) =>
       (message.id.startsWith(PENDING) && !message.token) || message.edited?.pending,
   );
+
+// The focus stop of drawn card or notice `row`: a card's title, a notice's Dismiss.
+const rowStop = (row) =>
+  row.kind === "thread" ? threadFocusStop(row.node) : row.node.querySelector("button");
 
 class ThreadListView extends RetainedFace {
   #commands = null;
@@ -246,8 +252,19 @@ class ThreadListView extends RetainedFace {
         );
   }
 
-  navigationThreads() {
-    return this.#visibleRows().map((row) => row.node);
+  // The rows the list's walks step through, in its order, each as its focus `stop` and
+  // the card it shows, `thread`, null for a withdrawn notice: every shown card, a card
+  // the list keeps outside the view included, and each withdrawn notice. A card folding
+  // out is in none of them, since its room is about to go. The arrows walk the stops
+  // (panel.js), and `t`/`T` and every walk position count the threads (navigation.js).
+  walkRows() {
+    const shown = new Set(this.#visibleRows());
+    return this.#rows
+      .filter((row) => (row.kind === "withdrawn" ? row.node : shown.has(row)))
+      .map((row) => ({
+        stop: rowStop(row),
+        thread: row.kind === "thread" ? row.node : null,
+      }));
   }
 
   // The shown cards in the page's order, whichever order the list stands in.

@@ -1649,18 +1649,38 @@ def test_a_decision_undone_leaves_every_suggestion_pin_where_it_stood(browser, s
                 )
 
 
+# A block suggestion, whose slots keep their padding transition, beside a paragraph news
+# can arrive on.
+BLOCK_SUGGESTION_PAGE = leaf_page(
+    "Block suggestion",
+    """
+<h1 id="t">Block suggestion</h1>
+<lf-suggestion id="s-block"><lf-old><p>The sample meeting starts at nine in the
+  courtyard, and the practice session follows it.</p></lf-old><lf-new><p>The sample
+  meeting starts at ten on the covered terrace.</p></lf-new></lf-suggestion>
+<p id="crowded-line">Bring a notebook and a pencil.</p>
+""",
+)
+
+
+@pytest.mark.parametrize(
+    ("source", "target"),
+    [(MARGIN_ACTIONS_PAGE, "s-replace"), (BLOCK_SUGGESTION_PAGE, "s-block")],
+    ids=["inline", "block"],
+)
 def test_a_decided_suggestions_pin_stays_put_when_news_arrives_elsewhere(
-    browser, serve
+    browser, serve, source, target
 ):
-    """A decision changes the surviving words' width, and their pin takes its seat by
+    """A decision changes the surviving words' box, and their pin takes its seat by
     them as the decision lands. Nothing that arrives afterwards moves it: an agent's
     comment on another paragraph re-lays the margin and leaves this pin where the
     decision put it, and the shift watch sees no control move without input. The same
-    holds once Undo puts the words back. At 390px the pin perches over the words."""
-    page = open_page(browser, serve(MARGIN_ACTIONS_PAGE))
+    holds once Undo puts the words back. At 390px the pin perches over the words; an
+    inline survivor settles its padding at once, and a block one over the fold."""
+    page = open_page(browser, serve(source))
     resized(page, 390, 900)
     margins_laid_out(page)
-    item = page.locator('[data-lf-margin-for="s-replace"]')
+    item = page.locator(f'[data-lf-margin-for="{target}"]')
 
     def news_leaves_the_pin(text):
         margins_laid_out(page)
@@ -1685,14 +1705,14 @@ def test_a_decided_suggestions_pin_stays_put_when_news_arrives_elsewhere(
 
     _unfold(item)
     applied = int(page.locator("body").get_attribute("data-lf-applied"))
-    with sending(page, "accept s-replace"):
+    with sending(page, f"accept {target}"):
         item.get_by_role("button", name=re.compile("^Accept the ")).click()
     expect(page.locator("body")).to_have_attribute("data-lf-applied", str(applied + 1))
     render_checks_model.wait_until_ready(page)
     news_leaves_the_pin("News after the decision.")
 
-    with sending(page, "undo s-replace"):
-        _unfold_suggestion_undo(page, "s-replace").click()
+    with sending(page, f"undo {target}"):
+        _unfold_suggestion_undo(page, target).click()
     expect(page.locator("body")).to_have_attribute("data-lf-applied", str(applied + 2))
     render_checks_model.wait_until_ready(page)
     page.mouse.move(0, 0)

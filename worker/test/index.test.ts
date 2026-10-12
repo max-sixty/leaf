@@ -1582,6 +1582,7 @@ describe("website page agent", () => {
       const ctx = { storage, container: { running: false } };
       const session = new LeafWebsiteSession(ctx as never, environment());
       const responses: Record<string, { status: number; headers: Record<string, string>; chunks: string[] }> = {};
+      const blobs = new Map<string, Uint8Array>();
       for (const [path, body] of [
         ["api/state?revision=2", JSON.stringify({ saved: "comment and choice", taken: 1 })],
         ["api/news", "saved-reading"],
@@ -1590,12 +1591,16 @@ describe("website page agent", () => {
       ]) {
         const bytes = new TextEncoder().encode(body);
         const digest = Buffer.from(await crypto.subtle.digest("SHA-256", bytes)).toString("hex");
-        await session.saveBlob(digest, bytes.buffer);
+        blobs.set(digest, bytes);
         responses[path] = { status: 200, headers: {}, chunks: [digest] };
       }
-      await session.savePublication({
-        root: "/examples/triage-board", release: RELEASE, record: { chunks: [] }, responses,
-      });
+      const publication = {
+        root: "/examples/triage-board", release: RELEASE, record: {}, responses,
+      };
+      for (const digest of await session.preparePublication(publication)) {
+        await session.saveBlob(digest, blobs.get(digest)!.slice().buffer);
+      }
+      await session.savePublication(publication);
       forwardedContainerFetch.mockClear();
       const state = await session.fetch(new Request("https://leaf.page/examples/triage-board/api/state", {
         headers: { "Leaf-View-Revision": "2" },
@@ -1628,8 +1633,11 @@ describe("website page agent", () => {
       const digest = Buffer.from(await crypto.subtle.digest("SHA-256", bytes)).toString("hex");
       const context = { containerId: "trusted-owner", className: "LeafWebsiteSession" };
       const absent = "f".repeat(64);
-      const missing = () => handler(new Request("https://leaf-state.internal/missing", {
-        method: "PUT", body: JSON.stringify({ digests: [digest, absent] }),
+      const missing = () => handler(new Request("https://leaf-state.internal/prepare", {
+        method: "PUT", body: JSON.stringify({
+          root: "/examples/triage-board", release: RELEASE,
+          record: { "events.jsonl": { chunks: [digest, absent], modified: 1_700_000_000 } }, responses: {},
+        }),
       }) as never, env as never, context as never);
       expect(await (await missing()).json()).toEqual({ missing: [digest, absent] });
       const put = await handler(new Request(`https://leaf-state.internal/blobs/${digest}`, {

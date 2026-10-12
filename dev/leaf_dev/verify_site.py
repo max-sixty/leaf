@@ -421,9 +421,22 @@ def startup_line(path: str, startup: dict) -> str:
     return line
 
 
-def verify_cross_tab_activation(browser, *, origin: str) -> None:
+def verify_cross_tab_activation(
+    browser, *, origin: str, settle_after_activation: Callable[[], None] | None = None
+) -> None:
     """One interacting tab must wake another tab sharing its browser session."""
     context = browser.new_context()
+    if settle_after_activation is not None:
+        # Allocate this identity's local container before Chrome's interaction.
+        # Docker changes host interfaces; the page under test must remain passive.
+        neighbor = f"{origin}/"
+        state_url = urljoin(neighbor, "api/state")
+        state = answered(context.request.get(state_url), state_url).json()
+        check(
+            activation_read(context, activation_url(neighbor, state)) is not None,
+            f"{neighbor} {STILL_STARTING}",
+        )
+        settle_after_activation()
     url = f"{origin}/examples/triage-board/"
     state_url = urljoin(url, "api/state")
     leader = context.new_page()
@@ -441,9 +454,17 @@ def verify_cross_tab_activation(browser, *, origin: str) -> None:
     follower.evaluate("window.__leafVerifier.observeCrossTabActivation")
     # Admit the response that really allocated this session, not a synthetic active
     # header whose background news request could allocate after this fixture closes.
-    activated = leader.evaluate(
-        "window.__leafVerifier.activateSession", activation_url(url, passive.json())
-    )
+    activation = activation_url(url, passive.json())
+    with leader.expect_response(
+        lambda response: response.url == activation, timeout=30_000
+    ) as response:
+        leader.evaluate(
+            """(url) => {
+                window.__leafVerifier.activateSession(url).catch(console.error);
+            }""",
+            activation,
+        )
+    activated = answered(response.value, activation).json()
     check(
         isinstance(activated.get("browser"), dict),
         "activation returned no browser view",
@@ -1073,7 +1094,9 @@ def run_verification(
             )
             profiles[path] = startup_profile(profile)
             print(startup_line(path, profile), flush=True)
-        verify_cross_tab_activation(browser, origin=origin)
+        verify_cross_tab_activation(
+            browser, origin=origin, settle_after_activation=settle_after_activation
+        )
         if worker is not None:
             recalled = verify_saved_state(browser, worker)
             for phase, profile in recalled.items():

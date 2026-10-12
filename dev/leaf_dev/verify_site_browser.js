@@ -196,7 +196,10 @@
     },
     async activateSession(activation) {
       const client = await runtimeModule("layer-client");
-      const response = await fetch(activation, { headers: client.layerHeaders() });
+      const response = await fetch(activation, {
+        headers: client.layerHeaders(),
+        signal: window.AbortSignal.timeout(30_000),
+      });
       if (!response.ok || response.headers.get("Leaf-Session") !== "active")
         throw new Error(`Session activation returned HTTP ${response.status}`);
       if (!client.admitResponse(response))

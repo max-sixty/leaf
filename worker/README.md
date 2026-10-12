@@ -489,8 +489,8 @@ ask, which leaves the answer standing and lets the user answer again
 at once on any other failure receipt.
 
 The Worker starts each turn inside the request's `waitUntil`, which Cloudflare allows
-30 seconds. Nothing stores the accepted event or the running turn in Durable Object
-storage, and nothing recovers a start that outlasts that window.
+30 seconds. The accepted event is durable; the running turn is not, and nothing
+recovers a start that outlasts that window.
 
 ## Configuration
 
@@ -502,9 +502,15 @@ stopped. A write or a missing saved response starts Python, which restores the
 canonical page record before accepting requests. `leaf_website.storage` publishes
 canonical files and matching Python-produced responses atomically before a write
 is acknowledged; a failed publication fails the request and permits an idempotent
-retry. A release selects fresh demo records, while container replacement preserves
-the current release's records. `docs/website.html`, **Private sessions**, owns the
+retry. File modification dates survive restore, including the publication date of
+an unstamped revision. A release selects fresh demo records, while container
+replacement preserves the current release's records. `docs/website.html`, **Private sessions**, owns the
 storage and identity contract.
+
+The append lease admits one staged successor per page. Replacing or committing it
+collects chunks no committed record, staged successor or streaming response uses.
+An interrupted upload therefore retains at most one successor until that page
+retries; other pages' concurrent uploads and readers remain protected.
 
 `max_instances` caps concurrent `basic` containers: 5,900 for production and 90 for
 `dev`, under Cloudflare's account limit of 6,000. A container with no requests stops

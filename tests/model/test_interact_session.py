@@ -12469,6 +12469,46 @@ def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkey
     assert presence_model.presence(page_dir, [])["session_alive"] is False
 
 
+def test_a_process_free_publication_keeps_input_without_claimant_facts(claimed):
+    """Captured host delivery retains the log but cannot publish a sleeping process."""
+    comment = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "Keep this input"}
+    )
+    session_model.cmd_waiting(claimed, "Review the result")
+    claim = service_model.page_claim(claimed)
+    lease = leases_model.take_lease(
+        leases_model.waiter_lease_path(claimed, claim["id"])
+    )
+    assert lease
+    try:
+        live, _ = presence_model.presence_with_activity(claimed, [comment])
+        assert live["listening"]
+        assert live["claim_session"] == claim["id"]
+        captured, stream = presence_model.presence_with_activity(
+            claimed, [comment], process=False
+        )
+        assert stream is None
+        assert captured["cursor"] == live["cursor"]
+        assert captured["pending"] == live["pending"] == 1
+        assert captured["status"] == {"state": "waiting", "detail": ""}
+        assert captured["agent"] == schema_model.UNNAMED_AGENT
+        assert not captured["listening"]
+        for field in (
+            "session_alive",
+            "live_turn",
+            "claim_session",
+            "claim_turn",
+            "turn_closed",
+            "turn_opened",
+            "session_cwd",
+            "viewed",
+        ):
+            assert captured[field] is None
+        assert not captured["turn_takes_input"]
+    finally:
+        leases_model.release_lease(lease)
+
+
 def test_reinitializing_a_deleted_page_path_drops_its_old_claim(page_dir, monkeypatch):
     """A regenerated page is not the deleted page that occupied its path."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "old-session")

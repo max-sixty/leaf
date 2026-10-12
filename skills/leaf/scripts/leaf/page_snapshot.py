@@ -121,6 +121,7 @@ def capture_page_snapshot(
     url: str,
     artifact: RevisionArtifact | None = None,
     transaction: PageTransaction | None = None,
+    process: bool = True,
 ) -> PageSnapshot:
     """Freeze a candidate and every page authority it is projected against.
 
@@ -196,15 +197,21 @@ def capture_page_snapshot(
         revision_names[revision] = (
             artifact_name(revision, artifacts[revision]) + ".html"
         )
-        present, live_stream = presence_with_activity(page_dir, list(events))
-        others = tuple(copy.deepcopy(other_leaves(page_dir)))
+        present, live_stream = presence_with_activity(
+            page_dir, list(events), process=process
+        )
+        others = tuple(copy.deepcopy(other_leaves(page_dir))) if process else ()
         observed_at = now_iso()
         snapshot_active = document_descriptor(
             revision,
             list(events),
             url=url,
             executable=selected.executable,
-            activated_at=observed_at,
+            activated_at=(
+                shown.activated_at
+                if shown is not None and shown.digest == selected.digest
+                else observed_at
+            ),
         )
         taken = time.time()
     files_reading = hashlib.sha256(

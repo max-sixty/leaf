@@ -174,9 +174,17 @@ def durable_page_store():
                 assert hashlib.sha256(body).hexdigest() == digest
                 stored["blobs"][digest] = body
                 stored["uploads"].append(digest)
-            elif self.path == "/missing":
+            elif self.path == "/prepare":
                 stored["inventories"] += 1
-                digests = json.loads(body)["digests"]
+                publication = json.loads(body)
+                digests = {
+                    digest
+                    for entry in (
+                        *publication["record"].values(),
+                        *publication["responses"].values(),
+                    )
+                    for digest in entry["chunks"]
+                }
                 self.send_response(200)
                 self.end_headers()
                 self.wfile.write(
@@ -208,6 +216,66 @@ def durable_page_store():
 
     with running_http_server(ThreadingHTTPServer(("127.0.0.1", 0), Store)) as server:
         yield f"http://127.0.0.1:{server.server_address[1]}", stored
+
+
+def test_public_and_private_snapshots_keep_a_stored_revisions_publication_date(
+    page_dir, monkeypatch
+):
+    from leaf import page_snapshot
+
+    activation = website_server.activate_source(page_dir)
+    assert activation.error is None
+    revision = activation.revision
+    assert not any(event["kind"] == "note" for event in read_events(page_dir))
+    marker = revision_path(page_dir, revision)
+    os.utime(marker, (1_700_000_000, 1_700_000_000))
+    captured_at = "2030-01-01T00:00:00+00:00"
+    monkeypatch.setattr(page_snapshot, "now_iso", lambda: captured_at)
+    live = website_server.PageStateService(page_dir).page_state()
+    public = website_server.initial_state(page_dir, "/example", "example", "release")
+    expected = live["browser"]["views"][str(revision)]["published_at"]
+    assert expected == "2023-11-14T22:13:20+00:00"
+    assert public["browser"]["views"][str(revision)]["published_at"] == expected
+    candidate = page_snapshot.capture_page_snapshot(
+        page_dir,
+        SourceDocument(PAGE.replace("Plan", "A fresh candidate")),
+        revision + 1,
+        url="/",
+    )
+    assert candidate.context.active["activated_at"] == captured_at
+
+
+def test_saved_website_record_keeps_an_unstamped_revisions_publication_date(
+    page_dir, tmp_path, monkeypatch
+):
+    from leaf_website.storage import restore
+
+    site = tmp_path / "site"
+    private = site / "page"
+    shutil.copytree(page_dir, private)
+    write_manifest(site, {"/example": ("page", "example")})
+    activation = website_server.activate_source(private)
+    assert activation.error is None
+    os.utime(revision_path(private, activation.revision), (1_700_000_000,) * 2)
+    expected = website_server.PageStateService(private).page_state()["browser"][
+        "views"
+    ][str(activation.revision)]["published_at"]
+    monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
+    with durable_page_store() as (store_url, _stored):
+        monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
+        restore(site)
+        with PageTransaction(private):
+            pass
+        replacement = tmp_path / "replacement"
+        shutil.copytree(site, replacement)
+        restore(replacement)
+    recovered = website_server.initial_state(
+        replacement / "page", "/example", "example", "release"
+    )
+    assert (
+        recovered["browser"]["views"][str(activation.revision)]["published_at"]
+        == expected
+    )
 
 
 def test_saved_website_record_restores_comments_choices_and_private_revision(

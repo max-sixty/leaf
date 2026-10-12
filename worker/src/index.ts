@@ -29,7 +29,7 @@ import {
 export { ContainerProxy } from "@cloudflare/containers";
 import { type DurableObject } from "cloudflare:workers";
 import * as z from "zod/mini";
-import { CHUNK_BYTES, PageStore, dateStateDelivery, readDigests, readPublication, type PagePublication } from "./storage";
+import { CHUNK_BYTES, PageStore, dateStateDelivery, readPublication, type PagePublication } from "./storage";
 
 import { agentLog, dispatchAgentTask } from "./agent";
 import { projectInteractionBatch, sampleInteractionReference } from "./interactions";
@@ -162,17 +162,21 @@ export class LeafWebsiteSession extends Container<Env> {
     return this.pages.blob(digest);
   }
 
-  missingBlobs(value: unknown): string[] {
-    return this.pages.missing(readDigests(value));
-  }
-
-  async savePublication(value: unknown): Promise<void> {
+  private async publication(value: unknown): Promise<PagePublication> {
     const publication = readPublication(value);
     const manifest = await siteManifest(new Request("https://leaf.page/"), this.env);
     if (!(publication.root in manifest.pages) || publication.release !== manifest.release) {
       throw new Error("publication does not name a page in this website release");
     }
-    this.pages.publish(publication);
+    return publication;
+  }
+
+  async preparePublication(value: unknown): Promise<string[]> {
+    return this.pages.prepare(await this.publication(value));
+  }
+
+  async savePublication(value: unknown): Promise<void> {
+    this.pages.publish(await this.publication(value));
   }
 
   override async fetch(request: Request): Promise<Response> {
@@ -220,8 +224,8 @@ LeafWebsiteSession.outboundByHost = {
     if (request.method === "GET" && path === "/records") {
       return Response.json(await session.savedRecords());
     }
-    if (request.method === "PUT" && path === "/missing") {
-      return Response.json({ missing: await session.missingBlobs(await request.json()) });
+    if (request.method === "PUT" && path === "/prepare") {
+      return Response.json({ missing: await session.preparePublication(await request.json()) });
     }
     const blob = /^\/blobs\/([0-9a-f]{64})$/.exec(path);
     if (blob !== null && request.method === "PUT") {

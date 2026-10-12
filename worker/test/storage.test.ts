@@ -1,36 +1,84 @@
 import { describe, expect, it } from "vitest";
-import { CHUNK_BYTES, PageStore } from "../src/storage";
+import { CHUNK_BYTES, PageStore, type PagePublication } from "../src/storage";
 import { sqliteStorage } from "./sqlite";
 
-async function upload(store: PageStore, bytes: Uint8Array): Promise<string[]> {
+async function capture(bytes: Uint8Array, blobs: Map<string, Uint8Array>): Promise<string[]> {
   const chunks = [];
   for (let offset = 0; offset < bytes.length; offset += CHUNK_BYTES) {
     const chunk = bytes.slice(offset, offset + CHUNK_BYTES);
     const digest = Buffer.from(await crypto.subtle.digest("SHA-256", chunk)).toString("hex");
-    await store.saveBlob(digest, chunk.buffer);
+    blobs.set(digest, chunk);
     chunks.push(digest);
   }
   return chunks;
 }
 
+async function stage(store: PageStore, publication: PagePublication, blobs: Map<string, Uint8Array>) {
+  const missing = store.prepare(publication);
+  for (const digest of missing) await store.saveBlob(digest, blobs.get(digest)!.slice().buffer);
+}
+
+function page(root: string, chunks: string[]): PagePublication {
+  return { root, release: "release", record: { "events.jsonl": { chunks, modified: 1_700_000_000.125 } }, responses: {} };
+}
+
 describe("durable website page records", () => {
+  it("keeps revision descriptors below the SQL row limit as history exceeds 2 MB", async () => {
+    const { storage, close } = sqliteStorage();
+    try {
+      const store = new PageStore(storage);
+      const blobs = new Map<string, Uint8Array>();
+      const chunks = await capture(new TextEncoder().encode("immutable module"), blobs);
+      const publication = page("/examples/heat-loss", []);
+      // Heat-loss captures roughly 155 resources per revision. Thirty revisions
+      // exceed the platform's 2 MB row limit even with one tiny shared body.
+      for (let revision = 1; revision <= 30; revision++) {
+        for (let resource = 0; resource < 155; resource++) {
+          const path = `revisions/r${revision}-0123456789abcdef/runtime/modules/resource-${resource}.js`;
+          publication.record[path] = { chunks, modified: 1_700_000_000.125 };
+          publication.responses[path] = {
+            status: 200,
+            headers: {
+              "content-type": "application/javascript; charset=utf-8",
+              "content-length": "16",
+              "cache-control": "private, no-store",
+              etag: `"${"a".repeat(64)}"`,
+              "leaf-server": "website-release",
+            },
+            chunks,
+          };
+        }
+      }
+      expect(Buffer.byteLength(JSON.stringify(publication))).toBeGreaterThan(2_000_000);
+      await stage(store, publication, blobs);
+      store.publish(publication);
+      expect(new PageStore(storage).records()[publication.root]).toEqual(publication.record);
+      const sizes = storage.sql.exec<{ bytes: number }>(`SELECT MAX(
+        length(root) + length(path) + length(headers) + length(chunks) + 16
+      ) AS bytes FROM leaf_responses`).toArray();
+      expect(sizes[0].bytes).toBeLessThan(2_000_000);
+      const last = Object.keys(publication.responses).at(-1)!;
+      expect(await (await store.response(publication.root, last, false))!.text()).toBe("immutable module");
+    } finally {
+      close();
+    }
+  });
+
   it("commits matching records and streamed delivery atomically, without bulk RPC bodies", async () => {
     const { storage, close } = sqliteStorage();
     try {
       const store = new PageStore(storage);
+      const blobs = new Map<string, Uint8Array>();
       // A single allowed image spans storage chunks; manifests carry references.
       const body = new Uint8Array(2_500_000).fill(137);
-      const image = await upload(store, body);
-      const manifestBytes = new TextEncoder().encode(JSON.stringify({
-        "media/private.png": { chunks: image },
-      }));
-      const state = await upload(store, new TextEncoder().encode(JSON.stringify({
+      const image = await capture(body, blobs);
+      const state = await capture(new TextEncoder().encode(JSON.stringify({
         saved: "choice", taken: 1, now: "1970-01-01T00:00:01.000Z",
         activity: { status: "waiting", since: "1970-01-01T00:00:01.000Z" },
-      })));
-      const entry = await upload(store, new TextEncoder().encode('import "./runtime/private.js";'));
+      })), blobs);
+      const entry = await capture(new TextEncoder().encode('import "./runtime/private.js";'), blobs);
       const publication = {
-        root: "/examples/board", release: "release", record: { chunks: await upload(store, manifestBytes) },
+        root: "/examples/board", release: "release", record: { "media/private.png": { chunks: image, modified: 1_700_000_000.125 } },
         responses: {
           "api/state": { status: 200, headers: { "Content-Type": "application/json", "Content-Length": "28" }, chunks: state },
           "media/private.png": { status: 200, headers: { "Content-Type": "image/png" }, chunks: image },
@@ -38,11 +86,12 @@ describe("durable website page records", () => {
         },
       };
       expect(JSON.stringify(publication).length).toBeLessThan(10_000);
+      await stage(store, publication, blobs);
       store.publish(publication);
-      store.publish({ root: "/", release: "release", record: { chunks: [] }, responses: {} });
+      const empty = page("/", []);
+      await stage(store, empty, blobs);
+      store.publish(empty);
       const restored = new PageStore(storage);
-      expect(restored.missing([...image, "f".repeat(64), "f".repeat(64)]))
-        .toEqual(["f".repeat(64)]);
       expect(restored.records()["/examples/board"]).toEqual(publication.record);
       const response = (await restored.response("/examples/board", "media/private.png", false))!;
       expect(Buffer.from(await response.arrayBuffer()).equals(body)).toBe(true);
@@ -59,19 +108,79 @@ describe("durable website page records", () => {
       expect(delivered).toMatchObject({
         saved: "choice", activity: { status: "waiting", since: "1970-01-01T00:00:01.000Z" },
       });
-      // A saved response must not pull the browser's clock back to publication.
       expect(Date.parse(delivered.now)).toBe(delivered.taken * 1000);
       expect(Date.parse(delivered.now)).toBeGreaterThanOrEqual(requestedAt);
 
-      // Unfinished uploads cannot replace either the record or its delivery.
-      expect(() => restored.publish({
-        root: "/examples/board", release: "release", record: { chunks: [] },
+      const unfinished = {
+        ...publication, record: {},
         responses: { "api/state": { status: 200, headers: {}, chunks: ["f".repeat(64)] } },
-      })).toThrow("missing page storage chunk");
+      };
+      restored.prepare(unfinished);
+      expect(() => restored.publish(unfinished)).toThrow("missing page storage chunk");
       expect(await (await restored.response("/examples/board", "api/state", false))!.json()).toMatchObject({ saved: "choice" });
       expect(restored.records()["/examples/board"]).toEqual(publication.record);
       await expect(store.saveBlob("a".repeat(64), new Uint8Array(CHUNK_BYTES + 1).buffer)).rejects.toThrow("exceeds 1 MiB");
       await expect(store.saveBlob("a".repeat(64), new Uint8Array([1]).buffer)).rejects.toThrow("digest does not match");
+    } finally {
+      close();
+    }
+  });
+
+  it("reclaims old log tails and interrupted successors while protecting another page's upload", async () => {
+    const { storage, close } = sqliteStorage();
+    try {
+      const store = new PageStore(storage);
+      const blobs = new Map<string, Uint8Array>();
+      const held = page("/other", await capture(new Uint8Array([7]), blobs));
+      await stage(store, held, blobs);
+      for (let index = 0; index < 30; index++) {
+        const tail = new Uint8Array(512_000 + index).fill(97);
+        tail[tail.length - 1] = index;
+        const publication = page("/", await capture(tail, blobs));
+        await stage(store, publication, blobs);
+        store.publish(publication);
+      }
+      expect(store.blob(held.record["events.jsonl"].chunks[0])).not.toBeNull();
+      store.publish(held);
+      expect(storage.sql.exec<{ size: number }>("SELECT sum(length(bytes)) size FROM leaf_blobs").toArray()[0].size)
+        .toBe(512_030);
+      const abandoned = page("/", await capture(new Uint8Array([8]), blobs));
+      await stage(store, abandoned, blobs);
+      const next = page("/", await capture(new Uint8Array([9]), blobs));
+      await stage(store, next, blobs);
+      expect(store.blob(abandoned.record["events.jsonl"].chunks[0])).toBeNull();
+      expect(store.records()["/"]["events.jsonl"].chunks).not.toEqual(next.record["events.jsonl"].chunks);
+      store.publish(next);
+      expect(storage.sql.exec<{ size: number }>("SELECT sum(length(bytes)) size FROM leaf_blobs").toArray()[0].size).toBe(2);
+      const rogue = new Uint8Array([10]);
+      const [digest] = await capture(rogue, blobs);
+      await expect(store.saveBlob(digest, rogue.buffer)).rejects.toThrow("no staged owner");
+    } finally {
+      close();
+    }
+  });
+
+  it("retains chunks of a replaced response until its existing reader finishes or cancels", async () => {
+    const { storage, close } = sqliteStorage();
+    try {
+      const store = new PageStore(storage);
+      const blobs = new Map<string, Uint8Array>();
+      const bytes = new Uint8Array(2_500_000);
+      bytes.fill(1, 0, CHUNK_BYTES);
+      bytes.fill(2, CHUNK_BYTES, 2 * CHUNK_BYTES);
+      const chunks = await capture(bytes, blobs);
+      const first = { ...page("/", []), responses: { "media/file": { status: 200, headers: {}, chunks } } };
+      await stage(store, first, blobs);
+      store.publish(first);
+      const reading = (await store.response("/", "media/file", false))!;
+      const cancelled = (await store.response("/", "media/file", false))!;
+      const next = page("/", []);
+      await stage(store, next, blobs);
+      store.publish(next);
+      expect(Buffer.from(await reading.arrayBuffer()).equals(bytes)).toBe(true);
+      expect(store.blob(chunks[2])).not.toBeNull();
+      await cancelled.body!.cancel();
+      expect(store.blob(chunks[2])).toBeNull();
     } finally {
       close();
     }

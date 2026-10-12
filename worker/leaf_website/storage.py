@@ -24,7 +24,7 @@ from typing import BinaryIO
 from urllib.parse import urlencode, urlsplit
 
 from leaf.data import deferred_records
-from leaf.files import active_descriptor, latest_revision, revision_path
+from leaf.files import latest_revision, revision_path
 from leaf.layer import running_leaf
 from leaf.machine import state_home
 from leaf.page_snapshot import capture_page_snapshot
@@ -34,8 +34,8 @@ from leaf.schema import (
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
     PAGE_PROCESS_FILES,
-    UNNAMED_AGENT,
 )
+from leaf.served_state.reading import record_reading
 from leaf.service import PageTransaction
 from leaf.state import page_key, write_json
 from starlette.requests import Request
@@ -100,9 +100,6 @@ def restore(site_root: Path) -> None:
 
     manifest = json.loads((site_root / SITE_MANIFEST).read_text())
     for root, record in _request("/records").items():
-        record = json.loads(
-            b"".join(_request(f"/blobs/{digest}") for digest in record["chunks"])
-        )
         directory = (site_root / manifest["pages"][root]["directory"]).resolve()
         if not directory.is_relative_to(site_root.resolve()):
             raise ValueError("stored page directory escapes site root")
@@ -111,7 +108,7 @@ def restore(site_root: Path) -> None:
             target = (directory / name).resolve()
             if not target.is_relative_to(directory) or target == directory:
                 raise ValueError("invalid stored page record path")
-            targets.append((content["chunks"], target))
+            targets.append((content, target))
         # These trees are complete inputs, not patches over the release.
         # Replacing them also preserves deletion of a published input.
         for name in PAGE_OWNED_DIRS:
@@ -121,11 +118,12 @@ def restore(site_root: Path) -> None:
                 shutil.rmtree(directory / name)
         for name in PAGE_OWNED_FILES:
             (directory / name).unlink(missing_ok=True)
-        for chunks, target in targets:
+        for content, target in targets:
             target.parent.mkdir(parents=True, exist_ok=True)
             with target.open("wb") as output:
-                for digest in chunks:
+                for digest in content["chunks"]:
                     output.write(_request(f"/blobs/{digest}"))
+            os.utime(target, (content["modified"], content["modified"]))
     os.environ["LEAF_PAGE_COMMIT"] = "leaf_website.storage:publish"
 
 
@@ -148,11 +146,13 @@ def _record_files(page_dir: Path, published: set[int]) -> list[Path]:
 
 
 def _record(page_dir: Path, files: list[Path], blobs: _BlobSet) -> dict:
-    record = {
-        path.relative_to(page_dir).as_posix(): blobs.chunks(path.read_bytes())
+    return {
+        path.relative_to(page_dir).as_posix(): {
+            **blobs.chunks(path.read_bytes()),
+            "modified": path.stat().st_mtime,
+        }
         for path in files
     }
-    return blobs.chunks(json.dumps(record, separators=(",", ":")).encode())
 
 
 def _responses(
@@ -173,35 +173,9 @@ def _responses(
         revision,
         url=f"/revisions/{revision_path(page.page_dir, revision).name}",
         transaction=page,
+        process=False,
     )
-    # An asleep publication is a reading without a process. Feed that fact into
-    # the same activity fold rather than persisting a claim or expiring it in JS.
-    presence = {
-        **snapshot.context.presence,
-        "status": {"state": "waiting", "detail": ""},
-        "listening": False,
-        "session_alive": None,
-        "live_turn": None,
-        "agent": UNNAMED_AGENT,
-        "claim_session": None,
-        "claim_turn": None,
-        "turn_closed": None,
-        "turn_opened": None,
-        "turn_takes_input": False,
-        "session_cwd": None,
-        "viewed": None,
-    }
-    snapshot = replace(
-        snapshot,
-        context=replace(
-            snapshot.context,
-            active=active_descriptor(page.page_dir, page.events),
-            presence=presence,
-            live_stream=None,
-        ),
-        others=(),
-        source_error=source_error,
-    )
+    snapshot = replace(snapshot, source_error=source_error)
     paths = {"", "api/state", "api/news", "api/user-view", "registry.json"}
     paths.update(f"api/state?revision={item}" for item in snapshot.artifacts)
     for source_name, reading in snapshot.context.data["sources"].items():
@@ -296,39 +270,26 @@ def publish(page: PageTransaction) -> None:
     if root is None:
         return
     activation = activate_source(page.page_dir, transaction=page)
-    files = _record_files(
-        page.page_dir, set(map(int, manifest["pages"][root]["states"]))
-    )
-    fingerprint = hashlib.sha256(
-        repr(
-            [
-                (
-                    str(path.relative_to(page.page_dir)),
-                    path.stat().st_mtime_ns,
-                    path.stat().st_size,
-                )
-                for path in files
-            ]
-        ).encode()
-    ).hexdigest()
+    fingerprint = record_reading(page.page_dir)
     token = state_home() / "website-publications" / f"{page_key(page.page_dir)}.json"
     if token.is_file() and json.loads(token.read_text())["fingerprint"] == fingerprint:
         return
+    files = _record_files(
+        page.page_dir, set(map(int, manifest["pages"][root]["states"]))
+    )
     with TemporaryFile() as buffer:
         blobs = _BlobSet(buffer)
         record = _record(page.page_dir, files, blobs)
         responses = _responses(page, site_root, manifest, root, activation.error, blobs)
-        missing = _request("/missing", {"digests": list(blobs.offsets)})["missing"]
+        publication = {
+            "root": root,
+            "release": manifest["release"],
+            "record": record,
+            "responses": responses,
+        }
+        missing = _request("/prepare", publication)["missing"]
         for digest in missing:
             _request(f"/blobs/{digest}", blobs.body(digest))
-        _request(
-            "/publication",
-            {
-                "root": root,
-                "release": manifest["release"],
-                "record": record,
-                "responses": responses,
-            },
-        )
+        _request("/publication", publication)
     token.parent.mkdir(parents=True, exist_ok=True)
     write_json(token, {"fingerprint": fingerprint})

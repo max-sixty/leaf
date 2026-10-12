@@ -16,6 +16,7 @@ from ..schema import (
     DATA_DIR,
     INTERACTIONS_FILE,
     LOG_STATE_FILES,
+    PAGE_PROCESS_FILES,
     SESSION_FILES,
     USER_VIEWS_FILE,
     USER_VIEWS_LOCK,
@@ -79,6 +80,20 @@ def page_reading(page_dir: Path) -> str:
         stamps.append(
             ("$session", file_stamp(session_file(claim["id"], SESSION_SUFFIX)))
         )
+    return _token(stamps)
+
+
+def record_reading(page_dir: Path) -> str:
+    """Name durable page inputs with the same file stamps as live readings.
+
+    Claim, lease, status and browser observations belong to a serving process.
+    A dormant publication excludes them, while log acknowledgement and bound
+    external files still change what its canonical state answers.
+    """
+    stamps = [
+        stamp for stamp in _page_stamps(page_dir) if stamp[0] not in PAGE_PROCESS_FILES
+    ]
+    stamps.append(("$files", binding_stamps(page_dir)))
     return _token(stamps)
 
 

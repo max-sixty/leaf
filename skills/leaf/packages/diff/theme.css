@@ -207,6 +207,10 @@
   .lf-call-group:not([open]) > .lf-call-group-body {
     display: block;
   }
+  .lf-call-group-summary .lf-call-body {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
 }
 @container (max-width: 34rem) {
   .lf-call-tools {

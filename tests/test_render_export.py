@@ -49,7 +49,6 @@ from render_cases_navigation import (
     source_revision,
 )
 from render_harness import (
-    EXAMPLE_PACKAGES,
     REPLAYED_PAGE,
     example_media,
     leaf_page,

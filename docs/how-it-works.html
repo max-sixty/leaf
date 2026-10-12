@@ -4,7 +4,7 @@
     <title>How leaf works</title>
     <meta
       name="description"
-      content="The mechanism behind leaf, one part per tab: the loop, progress, revisions, pages, layout, navigation, data, runtime, and phones."
+      content="The mechanism behind leaf, one part per tab: the loop, progress, revisions, pages, layout, navigation, ontology, data, runtime, and phones."
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <style>
@@ -17,13 +17,17 @@
       }
       #turn-end-check .node.ends rect,
       #progress-diagram .node.leaf rect,
-      #data-flow .node.computed rect {
+      #data-flow .node.computed rect,
+      #ontology-graph .node.computed rect,
+      #ontology-flow .node.computed rect {
         fill: var(--ok-tint);
         stroke: var(--ok);
       }
       #turn-end-check .node.ends :is(text, tspan),
       #progress-diagram .node.leaf :is(text, tspan),
-      #data-flow .node.computed :is(text, tspan) {
+      #data-flow .node.computed :is(text, tspan),
+      #ontology-graph .node.computed :is(text, tspan),
+      #ontology-flow .node.computed :is(text, tspan) {
         fill: var(--ok-ink);
       }
 
@@ -109,6 +113,13 @@
       svg.drawing .thumb {
         fill: var(--muted);
         opacity: 0.6;
+      }
+
+      /* The Ontology tab's tables group their rows under a heading row. */
+      #ontology-table th[scope="colgroup"] {
+        text-align: start;
+        color: var(--muted);
+        font-weight: 600;
       }
 
       /* The Data tab's survival table: a mark per cell, centred under its column. */
@@ -3478,6 +3489,327 @@ flowchart TD
                 shortcuts with the editor.
               </p>
             </details>
+          </section>
+        </lf-tab>
+
+        <lf-tab id="ontology" label="Ontology">
+          <section id="ontology-kinds">
+            <h2>The kinds of record</h2>
+            <p id="ontology-lede">
+              Leaf keeps few records and derives everything else from them. A page
+              directory records three kinds of thing. The server folds them into the
+              threads, workflows, asks and lists a page shows, afresh on every read. The
+              browser combines that reading with the authored page and the updates it is
+              still sending. Each kind below has one writer, and every other part of
+              Leaf reads it from that writer.
+            </p>
+            <table id="ontology-table">
+              <thead>
+                <tr>
+                  <th>Kind</th>
+                  <th>What it is</th>
+                  <th>Identity</th>
+                </tr>
+              </thead>
+              <tbody id="ontology-recorded">
+                <tr>
+                  <th colspan="3" scope="colgroup">Recorded in the page directory</th>
+                </tr>
+                <tr id="ontology-revision">
+                  <td>Revision</td>
+                  <td>
+                    An immutable copy of the page's HTML, written by the agent's valid
+                    save. The active revision gives each widget its initial state.
+                  </td>
+                  <td>its number, such as v4</td>
+                </tr>
+                <tr id="ontology-event">
+                  <td>Event</td>
+                  <td>
+                    One recorded transition: a comment, reply, reaction, widget action,
+                    undo, pickup or to-do. The browser and the agent's commands write
+                    events through the same validation step.
+                  </td>
+                  <td>its position in the log</td>
+                </tr>
+                <tr id="ontology-source">
+                  <td>Data source</td>
+                  <td>The latest value of one external feed, replaced whole.</td>
+                  <td>its name</td>
+                </tr>
+              </tbody>
+              <tbody id="ontology-folded">
+                <tr>
+                  <th colspan="3" scope="colgroup">
+                    Folded by the server on each read
+                  </th>
+                </tr>
+                <tr id="ontology-thread">
+                  <td>Thread</td>
+                  <td>
+                    One conversation, anchored to a passage, a widget, or the page as a
+                    whole. It holds its messages, an optional title, its attention, and
+                    which agent messages the user has not read.
+                  </td>
+                  <td>the id of its opening message</td>
+                </tr>
+                <tr id="ontology-message">
+                  <td>Message</td>
+                  <td>
+                    One turn in a thread: the user's comment or reply, the agent's reply
+                    or progress message, or a reaction. An edit is a new version of the
+                    same message.
+                  </td>
+                  <td>the id of the event that wrote it</td>
+                </tr>
+                <tr id="ontology-workflow">
+                  <td>Workflow</td>
+                  <td>
+                    How far the agent has got with one user update: Sent, Queued, Picked
+                    up, Working, Replying, Answered, or a condition such as Failed. It
+                    names the thread it stands in, if any.
+                  </td>
+                  <td>the update's event id</td>
+                </tr>
+                <tr id="ontology-ask">
+                  <td>Ask</td>
+                  <td>
+                    A request for the user's input, holding its typed answer and whether
+                    it is open, answered or withdrawn.
+                  </td>
+                  <td>
+                    <code>widget:</code>, <code>reply:</code> or
+                    <code>approval:</code> and its source
+                  </td>
+                </tr>
+                <tr id="ontology-todo">
+                  <td>To-do</td>
+                  <td>
+                    Explicit work the agent or the user owes until it ends. One the
+                    agent opens on a thread holds that thread.
+                  </td>
+                  <td>its event id</td>
+                </tr>
+                <tr id="ontology-attention">
+                  <td>Attention</td>
+                  <td>
+                    Whose move a thread waits on, and why: the user, for an ask or an
+                    update to send again; the agent, for a workflow or a to-do; or
+                    neither.
+                  </td>
+                  <td>one per thread</td>
+                </tr>
+                <tr id="ontology-queues">
+                  <td>Questions, Tasks, Done</td>
+                  <td>
+                    The user's list, the agent's list, and what has finished, selected
+                    from the asks, to-dos and workflows.
+                  </td>
+                  <td>one selection per reading</td>
+                </tr>
+              </tbody>
+              <tbody id="ontology-browser">
+                <tr>
+                  <th colspan="3" scope="colgroup">Combined in the browser</th>
+                </tr>
+                <tr id="ontology-publication">
+                  <td>Publication</td>
+                  <td>
+                    The one read-only reading of current state: the authored initial
+                    values, the server's latest reading, and the updates awaiting an
+                    answer.
+                  </td>
+                  <td>its epoch number</td>
+                </tr>
+                <tr id="ontology-proof">
+                  <td>Presentation proof</td>
+                  <td>Which parts of the page have drawn which epoch.</td>
+                  <td>one per renderer and epoch</td>
+                </tr>
+                <tr id="ontology-local">
+                  <td>Browser-owned state</td>
+                  <td>
+                    Focus, scroll, standing, open disclosures and unsent drafts. They
+                    last as long as the element holding them and never enter the
+                    publication.
+                  </td>
+                  <td>the element, or the draft's thread</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section id="ontology-relations">
+            <h2>How they relate</h2>
+            <p id="ontology-relations-lede">
+              A thread is the unit most surfaces show. The user's messages and widget
+              actions are both updates, and each update has one workflow tracking the
+              agent's progress on it. A thread's attention is decided from the workflows
+              standing in it, the asks it carries, and any to-do holding it. Each
+              workflow and to-do names the thread it stands in, and the lists add up the
+              same asks, to-dos and workflows across the page.
+            </p>
+            <lf-diagram id="ontology-graph" parts="all">
+              <pre>
+flowchart TD
+  accTitle: How threads, messages, updates, workflows, asks and to-dos relate
+  accDescr: A thread is anchored to a passage, a widget or the page and holds messages. A user's message, like an action on a widget, is an update, and each update has one workflow. A reply or a widget may carry an ask. Workflows, asks and to-dos decide each thread's attention, and together they make the Questions, Tasks and Done lists.
+  Thread["thread"]
+  Place["passage, widget or page"]
+  Message["message"]
+  Widget["widget"]
+  Update["update"]
+  Workflow["workflow"]
+  Ask["ask"]
+  Todo["to-do"]
+  Attention["each thread's attention"]
+  Lists["Questions · Tasks · Done"]
+  Thread -- "anchored to" --&gt; Place
+  Thread -- "holds" --&gt; Message
+  Message -- "the user's is an" --&gt; Update
+  Widget -- "an action on it is an" --&gt; Update
+  Message -- "a reply may carry" --&gt; Ask
+  Widget -- "may hold" --&gt; Ask
+  Update -- "tracked by one" --&gt; Workflow
+  Workflow --&gt; Attention
+  Ask --&gt; Attention
+  Todo --&gt; Attention
+  Workflow --&gt; Lists
+  Ask --&gt; Lists
+  Todo --&gt; Lists
+  class Attention,Lists computed
+</pre>
+            </lf-diagram>
+          </section>
+
+          <section id="ontology-flow-section">
+            <h2>From the log to a surface</h2>
+            <p id="ontology-flow-lede">
+              Every surface draws from the same publication, so each step below has one
+              owner. The server owns whatever depends on the whole log: whose turn a
+              thread is, how far a workflow has got, which asks are open. The browser
+              adds only the updates it is still sending. Between the publication and the
+              surfaces sit the readings: one function per question a surface asks of a
+              thread, such as its name or its word. An update the user makes joins the
+              updates awaiting an answer and goes to the log (<code
+                >POST /api/event</code
+              >), so its result shows before the log answers.
+            </p>
+            <lf-diagram id="ontology-flow" parts="all">
+              <pre>
+flowchart TD
+  accTitle: Data flow from the page directory to each surface
+  accDescr: Revisions, the event log and data sources feed the server's folds. The browser combines the folds' reading with the revision's authored state and the updates awaiting an answer into one publication. One owner per reading reads it, and every surface paints those readings.
+  Rev[("revisions")]
+  Log[("event log")]
+  Data[("data/")]
+  Folds["server folds: threads, workflows, asks, to-dos, attention, unread, lists"]
+  Authored["authored initial state"]
+  Ledger["updates awaiting an answer"]
+  Pub["publication"]
+  Readings["one owner per reading: name, word, id"]
+  Surfaces["Threads · margin · Page Map · Questions · activity feed · widgets"]
+  Rev --&gt; Folds
+  Log --&gt; Folds
+  Data --&gt; Folds
+  Rev -- "document" --&gt; Authored
+  Folds -- "GET /api/state" --&gt; Pub
+  Authored --&gt; Pub
+  Ledger --&gt; Pub
+  Pub --&gt; Readings
+  Readings --&gt; Surfaces
+  class Folds,Pub,Readings computed
+</pre>
+            </lf-diagram>
+            <p id="ontology-flow-rule">
+              A surface decides where a reading stands and how much of it fits, and
+              nothing else. It does not decide what a thread is called or whose turn it
+              is, and it never reads a fact back from what another surface drew. The one
+              exception is identity: a press lands on a drawn thread, which carries its
+              thread's id so the press can find the thread.
+            </p>
+          </section>
+
+          <section id="ontology-readings">
+            <h2>What every surface says about a thread</h2>
+            <p id="ontology-readings-lede">
+              A thread appears on several surfaces at once: its card in Threads, its
+              entry in the margin, its row in the Page Map, its item in Questions, and
+              its line in an activity feed. Each says the same things about it from the
+              same owner.
+            </p>
+            <table id="ontology-readings-table">
+              <thead>
+                <tr>
+                  <th>Reading</th>
+                  <th>Owner</th>
+                  <th>Where it shows</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="reading-name">
+                  <td>
+                    Its name: the title, else the words of its opening message, else
+                    Drawing
+                  </td>
+                  <td><code>threadName</code></td>
+                  <td>
+                    Threads, Questions, the margin, the Page Map, an activity feed
+                  </td>
+                </tr>
+                <tr id="reading-word">
+                  <td>
+                    Its word: On you to answer, Working, To-do open, Waiting, or a
+                    workflow's word
+                  </td>
+                  <td><code>threadAttention</code></td>
+                  <td>
+                    Threads, as its status; the margin and the Page Map, as its line
+                    (<code>threadMarks</code>)
+                  </td>
+                </tr>
+                <tr id="reading-workflow">
+                  <td>An update's word: Sent, Queued, Replying, Failed</td>
+                  <td><code>workflowLabel</code></td>
+                  <td>a message's receipt; the margin and Page Map controls</td>
+                </tr>
+                <tr id="reading-face">
+                  <td>The agent's progress face: picked up, or at work</td>
+                  <td><code>progressFace</code></td>
+                  <td>the margin and Page Map controls</td>
+                </tr>
+                <tr id="reading-todo">
+                  <td>An open to-do's word: To-do open, or Working while it runs</td>
+                  <td><code>todoLabel</code></td>
+                  <td>a thread's status; a widget's margin entry</td>
+                </tr>
+                <tr id="reading-unread">
+                  <td>How many agent messages the user has not read</td>
+                  <td>the server's <code>unread</code>, summed where several meet</td>
+                  <td>Threads, the margin, the Page Map</td>
+                </tr>
+                <tr id="reading-id">
+                  <td>The thread a drawn thread, or a name, stands for</td>
+                  <td><code>drawnThreadId</code>, <code>threadNamed</code></td>
+                  <td>every press on a thread; trips, previews, Back and Forward</td>
+                </tr>
+                <tr id="reading-draft">
+                  <td>The draft a thread holds: its reply, or a rewrite</td>
+                  <td><code>threadDraft</code></td>
+                  <td>the reply box, wherever the thread is open</td>
+                </tr>
+              </tbody>
+            </table>
+            <p id="ontology-readings-owners">
+              The runtime's
+              <a
+                href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/assets/AGENTS.md#one-answer-for-each-question"
+                >owner table</a
+              >
+              lists these readings beside the runtime's other shared questions. A new
+              surface asks the owner. A new reading gets an owner and a row there. A
+              surface that keeps its own copy says why in a comment beside it.
+            </p>
           </section>
         </lf-tab>
 

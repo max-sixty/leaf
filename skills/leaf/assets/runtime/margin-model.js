@@ -251,7 +251,7 @@ export function threadMarks(thread) {
 }
 
 // A reading of one item says that item's own line, as a thread's says its word or its
-// unread count (`threadLine`); an aggregate says the turn it owes the user, else what
+// unread count (`threadMarks`); an aggregate says the turn it owes the user, else what
 // its threads hold unread.
 export function readingContext(choice) {
   const items = choice?.items ?? [];

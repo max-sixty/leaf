@@ -29,7 +29,8 @@ function residencyPass(time) {
   readResidency();
 }
 function readResidency() {
-  const { changed, breakouts, holders } = document.documentElement.lfInitial.residency();
+  const { changed, breakouts, holders } =
+    document.documentElement.lfInitial.residency();
   watchHolders(holders);
   watchMoves(breakouts);
   if (changed) layoutChanged(pageDocument());
@@ -157,7 +158,8 @@ function observeMove(breakout, watch, threshold, settled = false) {
 }
 function watchMoves(breakouts) {
   const answered = new Set(breakouts);
-  for (const breakout of moves.keys()) if (!answered.has(breakout)) unwatchMove(breakout);
+  for (const breakout of moves.keys())
+    if (!answered.has(breakout)) unwatchMove(breakout);
   const root = pageDocument();
   if (!root) return;
   let frame = null;

@@ -600,7 +600,8 @@
   // its children out one under another at its full width; the computed display names
   // that by its short keyword or in full. One that sets columns computes as a block too,
   // and a wide block in its second column stood over the first's words.
-  const FLOWS = /^(block|flow-root|list-item|inline-block|table-cell|table-caption)$|\bflow\b|\bflow-root\b|\blist-item\b/;
+  const FLOWS =
+    /^(block|flow-root|list-item|inline-block|table-cell|table-caption)$|\bflow\b|\bflow-root\b|\blist-item\b/;
   const inFlow = (box, holder) => {
     const style = getComputedStyle(box);
     const held = getComputedStyle(holder);

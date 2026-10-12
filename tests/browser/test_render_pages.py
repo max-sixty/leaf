@@ -1472,7 +1472,11 @@ NOTE = '<aside class="sidenote" id="note"><p>A note that needs a sidenote.</p></
         ("", "even", "browser"),
         ('<aside class="sidebar"><lf-toc id="toc"></lf-toc></aside>', "map", "browser"),
         (NOTE, "note", "browser"),
-        ('<aside class="sidebar"><p>Owner: payments.</p></aside>', "sidebar", "browser"),
+        (
+            '<aside class="sidebar"><p>Owner: payments.</p></aside>',
+            "sidebar",
+            "browser",
+        ),
         ("", "even", "firefox_browser"),
         ("", "even", "webkit_browser"),
     ],
@@ -1557,7 +1561,7 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
         assert at["turned"][edge] == pytest.approx(at["wide"][edge], abs=1), at
         for kept in ("celled", "itemed"):
             assert at[kept][edge] == pytest.approx(at["cell"][edge], abs=1), (kept, at)
-    width = lambda box: box["right"] - box["left"]  # noqa: E731
+    width = lambda box: box["right"] - box["left"]
     assert width(at["beside"]) == pytest.approx(width(at["cell"]), abs=1), at
     assert root_overflow(page) == 0
 
@@ -1793,8 +1797,11 @@ def test_a_breakout_in_an_indented_holder_measures_its_room_from_the_column(
     assert in_column["right"] - in_column["left"] == pytest.approx(
         (columns["right"] - columns["left"] - 16) / 2, abs=1
     ), at
-    assert columns["left"] - 1 <= in_column["left"] < in_column["right"] <= (
-        columns["right"] + 1
+    assert (
+        columns["left"] - 1
+        <= in_column["left"]
+        < in_column["right"]
+        <= (columns["right"] + 1)
     ), at
     assert root_overflow(page) == 0
 

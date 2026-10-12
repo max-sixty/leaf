@@ -464,17 +464,33 @@ def test_option_words_render_markdown_without_losing_the_user_draft(browser, ser
     expect(added.locator("strong")).to_have_text("both")
 
 
-@pytest.mark.parametrize(
-    "case",
-    json.loads((Path(__file__).parent / "option_markdown_cases.json").read_text()),
-)
-def test_option_markdown_visible_words_match_file_reading(browser, serve, case):
-    source = ASK_PAGE.replace("Replace the <code>M8</code> mounts", case["source"])
-    page = open_page(browser, serve(source))
-    words = page.locator("#job-mounts").evaluate(
-        "async el => (await window.__lfRuntimeImport('/runtime/widget-api.js')).wrote(el)"
+def test_option_markdown_visible_words_match_file_reading(browser, serve):
+    """Each case's option, read in the browser, says the words the file reading says
+    (`test_option_markdown_file_words_match_browser_cases`); one page holds them all."""
+    cases = json.loads(
+        (Path(__file__).parent / "option_markdown_cases.json").read_text()
     )
-    assert words == case["words"]
+    options = "".join(
+        f'<lf-option id="case-{n}">{case["source"]}</lf-option>'
+        for n, case in enumerate(cases)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "markdown options",
+                '<h1 id="h">Cases</h1><lf-ask id="cases-ask"><h2>Which reads?</h2>'
+                f'<lf-options id="cases" choose multiple>{options}</lf-options></lf-ask>',
+            )
+        ),
+    )
+    words = page.locator("#cases > lf-option").evaluate_all(
+        """async options => {
+          const {wrote} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          return options.map(wrote);
+        }"""
+    )
+    assert words == [case["words"] for case in cases]
 
 
 def test_unchanged_markdown_option_is_not_a_version_change(browser, serve):

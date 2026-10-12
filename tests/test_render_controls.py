@@ -4486,20 +4486,19 @@ def assert_banner_as_stated(read, wrapped):
 @pytest.mark.parametrize(
     ("width", "touch", "signoff", "wrapped"),
     [
-        # A tablet's window holds the status and the queue counts beside Threads, and
-        # beside Approval too.
+        # A tablet's window holds the status and the queue counts beside Threads.
         (820, True, False, False),
-        (820, True, True, False),
         # Below that, a landscape phone gives the run, led by the counts, a row of its
         # own, so the sentence keeps a row of its own too.
         (740, True, False, True),
-        # Capability arrival cannot change this window's row allocation.
+        # Capability arrival cannot change this window's row allocation. Approval
+        # arriving or leaving at the other widths is
+        # test_approval_capability_changes_keep_banner_targets.
         (600, False, False, True),
         (600, False, True, True),
         # A phone held upright is one row: the status, Threads and More, with Approval
-        # behind More, so sign-off changes nothing there either.
+        # behind More.
         (390, True, False, False),
-        (390, True, True, False),
         (470, True, False, False),
     ],
 )
@@ -9877,6 +9876,36 @@ def _each_aim_surface(page, page_dir):
     yield
 
 
+# Every kind of box AIM_SURFACES names, beside the widgets whose built controls the
+# sweep reads at rest: tabs, a board's grips, a question with its own Done and field,
+# and a suggestion's margin pair.
+AIM_PAGE = leaf_page(
+    "aims",
+    """<h1 id="t">Aims</h1>
+<p id="aim-lead">The first view holds the board and the question.</p>
+<lf-tabs id="aim-views">
+  <lf-tab id="aim-first" label="First">
+    <lf-board id="aim-board">
+      <lf-column id="aim-todo" label="Todo">
+        <lf-card id="aim-card"><strong>Heated perch</strong></lf-card>
+        <lf-card id="aim-other"><strong>Squirrel baffle</strong></lf-card>
+      </lf-column>
+      <lf-column id="aim-done" label="Done"></lf-column>
+    </lf-board>
+    <lf-ask id="aim-ask"><h2>Which jobs?</h2>
+      <lf-options id="aim-jobs" choose multiple>
+        <lf-option id="aim-mounts">Replace the mounts</lf-option>
+        <lf-option id="aim-bath">Heat the bird bath</lf-option>
+      </lf-options>
+    </lf-ask>
+    <p>Start at <lf-suggestion id="aim-change"><lf-old>nine.</lf-old><lf-new>ten.</lf-new>
+    </lf-suggestion></p>
+  </lf-tab>
+  <lf-tab id="aim-second" label="Second"><p>The second view.</p></lf-tab>
+</lf-tabs>""",
+)
+
+
 @pytest.mark.parametrize("touch", (False, True))
 def test_every_control_the_layer_offers_is_a_box_the_user_can_hit(
     browser, serve, touch
@@ -9906,12 +9935,13 @@ def test_every_control_the_layer_offers_is_a_box_the_user_can_hit(
         if touch
         else None
     )
-    example = next(e for e in EXAMPLES if e.stem == "corpus")
     # A preview record, because the badge it puts in the banner is one of the aims and
-    # exists on no page that was not served by the preview script.
+    # exists on no page that was not served by the preview script. The comment anchored
+    # on a quote puts a quote in its thread.
     served = serve(
-        example,
+        AIM_PAGE,
         comments=2,
+        anchored=[("aim-lead", "first view")],
         preview={
             "kind": "example",
             "example": "corpus",
@@ -9920,9 +9950,26 @@ def test_every_control_the_layer_offers_is_a_box_the_user_can_hit(
             "started": "2026-08-31T12:00:00+00:00",
         },
     )
+    # An agent's answer on a thread the walk leaves open carries a reaction strip,
+    # whose chips are aims. The walk resolves the first thread.
+    second = [
+        e["id"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "comment"
+    ][1]
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": second,
+            "text": "An answer to react to.",
+        },
+    )
     # A second version, published the way a page gets one and read from, so the versions
     # menu has an earlier version to compare against and Compare exists to be aimed at.
-    _publish(serve.page_dir, 2, example.read_text(), "Same page, said twice.")
+    _publish(serve.page_dir, 2, AIM_PAGE, "Same page, said twice.")
     page = open_page(browser, served.replace("/v1.html", "/v2.html"), context=context)
     floor = 44 if touch else 24
     assert page.evaluate("() => matchMedia('(pointer: coarse)').matches") == touch, (

@@ -29,7 +29,6 @@ import {
   html,
   nothing,
   render,
-  repeat,
   offer,
   offered,
   once,
@@ -55,6 +54,7 @@ customElements.define(
       // mounts are persistent node values within the template.
       const view = offer("div", "lf-file-editor-view");
       const mount = offer("div", "lf-file-editor-edit");
+      const comparisonMount = offer("div", "lf-file-editor-comparison");
       view.append(mount);
       shadowStage(this, [view]);
       this.replaceChildren();
@@ -124,6 +124,11 @@ customElements.define(
         const label = base?.label ?? thisBinding;
         editor.setLabel(label);
         editor.readOnly = base === null || !api.writable;
+        const explanation = failure
+          ? `${failure.message}${base && dirty() ? " Your draft is kept." : ""}`
+          : latest
+            ? "The file changed on disk. Use the file version to discard your draft, or save your draft over the version shown below."
+            : "";
         render(
           html`
             <div ${offered("lf-file-editor-head")}>
@@ -144,31 +149,20 @@ customElements.define(
             </div>
             ${mount}
             <div ${offered("lf-file-editor-problem")} ?hidden=${!latest && !failure}>
-              <p
-                ${offered("lf-file-editor-explanation")}
-                role="alert"
-                .textContent=${
-                  failure
-                    ? `${failure.message}${base && dirty() ? " Your draft is kept." : ""}`
-                    : latest
-                      ? "The file changed on disk. Use the file version to discard your draft, or save your draft over the version shown below."
-                      : ""
-                }
-              ></p>
+              <p ${offered("lf-file-editor-explanation")} role="alert">
+                ${explanation}
+              </p>
               <p ${offered("lf-file-editor-legend")} ?hidden=${!latest}>
                 Removed text is on disk. Added text is your draft.
               </p>
               <div ${offered("lf-file-editor-actions")}>
-                ${repeat(
-                  [
-                    ["Use file version", !latest, useFile],
-                    ["Save my version", !latest, keepDraft],
-                    ["Retry", !failure || !api.writable, retry],
-                  ],
-                  ([label]) => label,
+                ${[
+                  ["Use file version", !latest, useFile],
+                  ["Save my version", !latest, keepDraft],
+                  ["Retry", !failure || !api.writable, retry],
+                ].map(
                   ([label, hidden, run]) => html`
                     <button
-                      type="button"
                       ${offered("button")}
                       ?hidden=${hidden}
                       aria-disabled=${busy ? "true" : nothing}
@@ -179,7 +173,7 @@ customElements.define(
                   `,
                 )}
               </div>
-              <div ${offered("lf-file-editor-comparison")} ?hidden=${!latest}></div>
+              ${latest ? comparisonMount : nothing}
             </div>
             <span
               ${offered("lf-file-editor-announcement")}
@@ -190,7 +184,6 @@ customElements.define(
           `,
           view,
         );
-        const comparisonMount = view.querySelector(".lf-file-editor-comparison");
         if (latest) {
           if (!comparison)
             comparison = createEditor(comparisonMount, {

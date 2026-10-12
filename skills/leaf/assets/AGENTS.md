@@ -316,7 +316,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Annotation inventory and controls | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js` |
 | Annotation records and Page Map | `margin-model.js`, `margin-map-model.js`, `page-map-dialog.js`, `pointed-place.js` |
 | Physical annotation presentation | `../../packages/default/runtime/annotation-overlay/` |
-| Passages and target identity | `passages.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js`, `addressable-names.js` |
+| Passages and target identity | `passages.js`, `passage-facts.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js`, `addressable-names.js` |
 | Anchor placement, decoration and travel | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`, `indication.js` |
 | Banner and approvals | `banner*.js` |
 | Drawers and neighboring pages | `drawers.js`, `queue-panel.js`, `queue-list.js`, `live-leaves*.js` |
@@ -451,9 +451,15 @@ keeps its own test says why beside it. Rows marked *lint* are enforced in
 | Whether a change of size there would move what is seen | `geometry.js` `motionBand`, `growthIsSeen`, `growthAfterIsSeen` |
 | When none of some nodes is seen any more | `geometry.js` `whenNone` |
 | How much of the window the page shows | `geometry.js` `shownWindow` |
+| The window's box, less its scrollbars | `geometry.js` `layoutWindow` |
+| Whether the page puts a node before the user at all, what the pages holding it show of its window, and when either may have changed | `geometry.js` `presented`, `containingView`, `frameView`, `watchRoom` |
+| Whether a box standing against a target belongs in layout yet | `geometry.js` `nearWindow`, `nearObserver` |
+| Where an element-or-Range destination stands, and what clips leave of it | `geometry.js` `placeBox`, `clippedPlace` |
 | Whether a box is stuck, and the band sticky headers cover | `geometry.js` `stuckBox`, `headerInset` |
 | Whether a box scrolls, for a script or for the user | `geometry.js` `scrollContainer`, `scrollport`, `userScrollport` |
 | Which axes a box clips | `rect.js` `clippingAxes` |
+| Whether a box is at its scroll end | `scrolling.js` `atScrollEnd`, `SCROLL_SLACK` |
+| The page's `main` | `passages.js` `pageDocument` |
 | Whether a place is already shown, and the room a landing needs | `landing-scroll.js` `alreadyShown`, `landingRoom` |
 | Bring something into view without scrolling the page around it | `landing-scroll.js` `scrollIntoView` (*lint*) |
 | Open or close a native modal or popover | `keyboard/layer-stack.js` `showNativeLayer`, `closeNativeLayer` (*lint*) |

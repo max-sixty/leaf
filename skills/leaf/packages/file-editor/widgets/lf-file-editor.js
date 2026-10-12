@@ -2,6 +2,12 @@
  * Leaf's event log; this owner keeps only the editing buffer, acknowledged file
  * revision and recoverable tab-local draft. CodeMirror owns editing mechanics.
  *
+ * The draft is tab-local because the file on disk is what tabs share: every tab
+ * autosaves to it within half a second, and a copy shared across tabs would set two
+ * live buffers against one file with no log to settle between them. The draft only
+ * has to survive this tab's reloads, including the forced one when Leaf's layer
+ * changes, which is what lets the editor say the draft is kept.
+ *
  * Autosave serializes snapshots, retaining later typing while each receipt adopts
  * exactly the submitted snapshot. A clean editor follows external revisions through
  * CodeMirror transactions; a dirty one retains both versions for explicit review.

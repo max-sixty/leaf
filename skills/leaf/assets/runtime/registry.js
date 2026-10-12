@@ -22,15 +22,10 @@ export const tokenEntry = (name) => registry.$reactions.tokens[name];
 export const elementDeclarations = () =>
   Object.entries(registry).filter(([tag]) => isElementName(tag));
 
-// Take in the fetched vocabulary. A verb's writer is resolved here, once: `agent` where
-// its declaration says so, else `user`, the rule Python's `registry.contract.verb_writer`
-// states and `tests/verb_writer_cases.json` holds both to. Every browser reading, a
-// widget descriptor's captured declaration included, then reads `spec.writer` as one of
-// the two sides rather than restating the default.
+// Take in the fetched vocabulary. A verb's writer is read from `$states`
+// (`registry-contract.js`), where composition stamped it.
 export function adoptRegistry(declarations) {
   Object.assign(registry, declarations);
-  for (const [, entry] of elementDeclarations())
-    for (const spec of Object.values(entry["x-state"] ?? {})) spec.writer ??= "user";
 }
 
 let stateIndex;

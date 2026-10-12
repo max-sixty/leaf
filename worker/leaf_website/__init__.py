@@ -49,7 +49,7 @@ from leaf.layer import incompatible_layer
 from leaf.leases import release_lease, take_lease, waiter_lease_path
 from leaf.page_memory import Slot, memo
 from leaf.refusals import Refused
-from leaf.registry.storage import layer_metadata
+from leaf.registry.storage import layer_metadata, load_registry
 from leaf.revision_delivery import Delivery
 from leaf.revisioning import activate_source
 from leaf.schema import PAGE_ROUTE_DIRS, VENDORED_FILES
@@ -249,7 +249,7 @@ def page_binding(page_dir: Path) -> tuple[dict, dict | None]:
 
     def bind() -> tuple[dict, dict | None]:
         identity = layer_metadata(page_dir)
-        if refusal := incompatible_layer(page_dir, identity):
+        if refusal := incompatible_layer(page_dir, load_registry(page_dir)):
             raise RuntimeError(refusal)
         return identity, preview_metadata(page_dir)
 

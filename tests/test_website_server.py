@@ -3886,7 +3886,7 @@ def test_the_website_refuses_a_page_vendored_at_another_protocol(page_dir, tmp_p
     shutil.copytree(page_dir, published)
     registry_path = published / "registry.json"
     registry = json.loads(registry_path.read_text())
-    registry["$layer"]["protocol"] = 999
+    registry["$events"]["protocol"] = 999
     registry_path.write_text(json.dumps(registry))
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
     httpd = LeafHTTPServer(("127.0.0.1", 0), website_server.site_endpoint(site))

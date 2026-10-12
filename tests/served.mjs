@@ -42,3 +42,6 @@ export const servedGestureSequence = () => structuredClone(RECORDS.gestures);
 
 // Cross-runtime typed Question values use the same real server fold.
 export const servedQuestionValues = () => structuredClone(RECORDS.question_values);
+
+// `state_definition_cases.json`'s pairs as the definitions Python records.
+export const servedStateDefinitions = () => structuredClone(RECORDS.state_definitions);

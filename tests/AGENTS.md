@@ -1,10 +1,8 @@
 # Testing leaf
 
-A test here is evidence about behavior a user depends on. The suite's quality varies:
-agents wrote most of it, and many tests assert the shape the code had when they were
-written rather than that behavior. Under root `AGENTS.md`'s **Stage**, the suite does
-not constrain new code: rewriting or deleting an overfit test is an ordinary part of a
-change, and the commit says which behavior moved.
+Root `AGENTS.md`'s **Stage** says what a test here protects and when to rewrite or
+delete one. Agents wrote most of this suite, and many of its tests assert the shape the
+code had when they were written rather than the behavior a user depends on.
 
 Prove each contract at the lowest boundary that preserves it, and keep a browser test
 only where it proves boundaries working together. Before adding cases or steps, choose

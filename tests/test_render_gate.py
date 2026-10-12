@@ -155,39 +155,25 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
 )
 
 
-def _rendered(browser, url):
-    """The gate's reading of a page, with each viewport and scheme it rendered in, in
-    order."""
-    seen = []
+def test_the_render_gate_renders_each_scheme_viewport_and_margin_width_on_an_armed_page(
+    browser, serve
+):
+    """The gate renders both color schemes at both viewports, in that order, and then
+    the page in the light scheme at each width where its margin content changes. A
+    sidebar and a sidenote stand in the margin only where the room beside the column
+    holds them, which is above the desktop viewport for a sidebar beside a note, so
+    the gate finds each width where the page's own residents change, the sidebar's and
+    the note's, and renders the page there too, where each has the least room it will
+    ever have. The rail holds only Leaf's markers, so its width is not one of them.
 
-    def record_page(page):
-        viewport = page.viewport_size
-        dark = page.evaluate("() => matchMedia('(prefers-color-scheme: dark)').matches")
-        seen.append(
-            (viewport["width"], viewport["height"], "dark" if dark else "light")
-        )
-
-    return render_gate_model.render_version(primed(browser, record_page), url), seen
-
-
-def test_the_render_gate_exercises_both_schemes_at_both_viewports(browser, serve):
-    reading, seen = _rendered(browser, serve(BOUNDED_WORKSPACE_PAGE, packages=()))
-    assert reading.failures == []
-    assert seen == [
-        (1200, 900, "light"),
-        (1200, 900, "dark"),
-        (540, 720, "light"),
-        (540, 720, "dark"),
-        *((width, 900, "light") for width in reading.margin_widths),
-    ]
-
-
-def test_the_render_gate_renders_where_the_margin_content_changes(browser, serve):
-    """A sidebar and a sidenote stand in the margin only where the room beside the column
-    holds them, which is above the desktop viewport for a sidebar beside a note. So the
-    gate finds each width where the page's own residents change, the sidebar's and the
-    note's, and renders the page there too, where each has the least room it will ever
-    have. The rail holds only Leaf's markers, so its width is not one of them."""
+    The gate also empties a page's route list, and that is what takes interception
+    down. It holds the Leaf entry through a route and takes that route away again, so
+    the `unroute` is a real teardown on a page nothing else has routed. A loaded
+    document is not an idle one: measured on the corpus page, `/api/state`,
+    `/registry.json` and `/icon.svg` are still open at that call, and losing the first
+    is a page that never finishes upgrading with nothing on the console to say so. The
+    arm goes on before any route the gate adds and is never taken away, so the list
+    the browser consults is never empty and no such transition is sent at all."""
     source = leaf_page(
         "margin residents in the gate",
         """
@@ -198,11 +184,49 @@ def test_the_render_gate_renders_where_the_margin_content_changes(browser, serve
 <p>Shift one cohort at a time while keeping the old readers available.</p>
 """,
     )
-    reading, seen = _rendered(browser, serve(source, packages=()))
+    seen = []
+    per_page = []
+
+    def record_page(page):
+        viewport = page.viewport_size
+        dark = page.evaluate("() => matchMedia('(prefers-color-scheme: dark)').matches")
+        seen.append(
+            (viewport["width"], viewport["height"], "dark" if dark else "light")
+        )
+        calls = []
+        per_page.append(calls)
+        route, unroute = page.route, page.unroute
+
+        def recorded_route(url, handler, **kwargs):
+            calls.append(("route", url))
+            return route(url, handler, **kwargs)
+
+        def recorded_unroute(url, handler=None):
+            calls.append(("unroute", url))
+            return unroute(url, handler)
+
+        page.route = recorded_route
+        page.unroute = recorded_unroute
+
+    reading = render_gate_model.render_version(
+        primed(browser, record_page), serve(source, packages=())
+    )
+
     assert reading.failures == []
     assert len(reading.margin_widths) == 2, reading.margin_widths
     assert reading.margin_widths == sorted(reading.margin_widths)
-    assert seen[4:] == [(width, 900, "light") for width in reading.margin_widths]
+    assert seen == [
+        (1200, 900, "light"),
+        (1200, 900, "dark"),
+        (540, 720, "light"),
+        (540, 720, "dark"),
+        *((width, 900, "light") for width in reading.margin_widths),
+    ]
+    arm = render_gate_scheme.INTERCEPTION_ARM
+    assert len(per_page) == len(seen)
+    for calls in per_page:
+        assert calls[0] == ("route", arm), calls
+        assert ("unroute", arm) not in calls, calls
 
 
 def test_the_render_gate_reports_trapped_margins_as_advice(browser, serve):
@@ -581,8 +605,22 @@ def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_
     spans and its smallest label at the narrowest of them: the drawing whose 11px
     labels came out at 5px on the desktop at every width, and the one whose halved
     28px labels read fine on the desktop only where a narrower window takes them
-    under 10px."""
-    url = serve(DRAWN_LABELS_PAGE, packages=())
+    under 10px. Side by side in one figure, two id-less drawings share the name the
+    advice gives them, and each is still told its own smallest label: the one fitted
+    from 1600 units as well as the one fitted from 900."""
+    compared = """
+<figure id="compare">
+  <svg class="drawing" viewBox="0 0 900 120" role="img" aria-label="Before">
+    <text x="20" y="40">before</text>
+  </svg>
+  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="After">
+    <text x="20" y="40">canary</text>
+    <text x="560" y="40">region</text>
+    <text x="1100" y="40">global</text>
+  </svg>
+</figure>
+"""
+    url = serve(DRAWN_LABELS_PAGE.replace("</main>", compared + "</main>"), packages=())
     page = open_page(browser, url)
     drawn = page.evaluate(
         """() => Object.fromEntries([...document.querySelectorAll('figure')].map(f => {
@@ -609,7 +647,12 @@ def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_
     reading = render_gate_model.render_version(browser, url)
 
     assert reading.failures == []
-    squeezed, large = reading.advice
+
+    def named(figure):
+        return [line for line in reading.advice if f"<figure id={figure}>" in line]
+
+    assert len(reading.advice) == 4, reading.advice
+    (squeezed,), (large,) = named("squeezed"), named("large")
     assert squeezed.startswith(
         "at 360–1920px wide <svg> in <figure id=squeezed> draws labels below 10px, "
         "3 at 360px, the smallest ("
@@ -621,39 +664,14 @@ def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_
         large,
     )
     assert spans and 540 <= int(spans[1]) < 1200, large
-
-
-def test_two_id_less_drawings_in_one_figure_are_advised_on_apart(browser, serve):
-    """Side by side in one figure, two id-less drawings share the name the advice gives
-    them, and each is still told its own smallest label: the one fitted from 1600 units
-    as well as the one fitted from 900."""
-    source = leaf_page(
-        "compared drawings",
-        """
-<h1>Before and after</h1>
-<figure id="compare">
-  <svg class="drawing" viewBox="0 0 900 120" role="img" aria-label="Before">
-    <text x="20" y="40">before</text>
-  </svg>
-  <svg class="drawing" viewBox="0 0 1600 120" role="img" aria-label="After">
-    <text x="20" y="40">canary</text>
-    <text x="560" y="40">region</text>
-    <text x="1100" y="40">global</text>
-  </svg>
-</figure>
-""",
-    )
-
-    reading = render_gate_model.render_version(browser, serve(source, packages=()))
-
-    assert reading.failures == []
-    assert len(reading.advice) == 2, reading.advice
-    named = "<svg> in <figure id=compare> draws labels below 10px, "
-    assert all(named in advice for advice in reading.advice), reading.advice
-    assert {re.search(r"\(('\w+')\)", advice)[1] for advice in reading.advice} == {
+    compare = named("compare")
+    assert len(compare) == 2, reading.advice
+    named_compare = "<svg> in <figure id=compare> draws labels below 10px, "
+    assert all(named_compare in advice for advice in compare), compare
+    assert {re.search(r"\(('\w+')\)", advice)[1] for advice in compare} == {
         "'before'",
         "'canary'",
-    }, reading.advice
+    }, compare
 
 
 def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
@@ -1062,49 +1080,6 @@ def test_the_pre_upgrade_proof_holds_its_entry_route_past_the_load_event(
 
     assert registrations == [("**/leaf.js", {})], registrations
     assert order == ["route **/leaf.js", "reached load", "unroute **/leaf.js"], order
-
-
-def test_the_render_gate_arms_every_page_it_opens_against_an_empty_route_list(
-    browser, serve
-):
-    """The gate empties a page's route list, and that is what takes interception down.
-
-    It holds the Leaf entry through a route and takes that route away again, so the
-    `unroute` is a real teardown on a page nothing else has routed. A loaded document
-    is not an idle one: measured on the corpus page, `/api/state`, `/registry.json`
-    and `/icon.svg` are still open at that call, and losing the first is a page that
-    never finishes upgrading with nothing on the console to say so. The arm goes on
-    before any route the gate adds and is never taken away, so the list the browser
-    consults is never empty and no such transition is sent at all."""
-    per_page = []
-
-    def record_page(page):
-        calls = []
-        per_page.append(calls)
-        route, unroute = page.route, page.unroute
-
-        def recorded_route(url, handler, **kwargs):
-            calls.append(("route", url))
-            return route(url, handler, **kwargs)
-
-        def recorded_unroute(url, handler=None):
-            calls.append(("unroute", url))
-            return unroute(url, handler)
-
-        page.route = recorded_route
-        page.unroute = recorded_unroute
-
-    assert (
-        render_gate_model.render_version(
-            primed(browser, record_page), serve(BOUNDED_WORKSPACE_PAGE, packages=())
-        ).failures
-        == []
-    )
-    arm = render_gate_scheme.INTERCEPTION_ARM
-    assert per_page, "the gate opened no page"
-    for calls in per_page:
-        assert calls[0] == ("route", arm), calls
-        assert ("unroute", arm) not in calls, calls
 
 
 def test_the_render_gate_reads_content_through_bounded_pane_regions(browser, serve):

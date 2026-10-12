@@ -14,13 +14,13 @@
    stylesheets (theme.css, marks.css, chrome.css), keeps it for the tab, and tells each
    watcher, so the margin can take focus and its card off what it hides. Readers ask
    `annotationsHidden()` rather than the root attribute, which is a rendering. */
-import { tabStore } from "/runtime/storage.js";
-import { setRuntimeRootAttribute } from "/runtime/root-state.js";
-import { pageCommand } from "/runtime/keyboard/register.js";
-import { notice } from "/runtime/notifications.js";
-import { coarsePointer } from "/runtime/pointer.js";
+import { tabStore } from "../storage.js";
+import { setRuntimeRootAttribute } from "../root-state.js";
+import { pageCommand } from "../keyboard/register.js";
+import { notice } from "../notifications.js";
+import { coarsePointer } from "../pointer.js";
 
-import { ANNOTATIONS_KEY } from "/runtime/restore-state.js";
+import { ANNOTATIONS_KEY } from "../restore-state.js";
 
 let hidden = false;
 const watchers = new Set();

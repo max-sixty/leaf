@@ -282,7 +282,7 @@ let saidActionableWork;
 // Threads (queue-panel.js paints its count), and on a phone's one row it waits in More.
 // What waits on the agent, its Tasks, stands beside the status, apart from the sentence,
 // as the banner's whole account of the agent's side, with the disclosure naming both
-// sides' kinds and each open task's title. The Tasks count is a page fact, like the
+// sides' kinds and each open to-do's title. The Tasks count is a page fact, like the
 // Threads count, and stands apart from the sentence so the agent's words changing never
 // carries it. On one row it ends the status's room, which gives up its words to the
 // ellipsis first; where the banner takes two rows, the sentence has the first to itself
@@ -294,13 +294,13 @@ let saidActionableWork;
 // agent's in the turn it is sent. A press on either opens the Questions panel, which
 // lists both.
 const QUEUE_WORDS = Object.freeze({
-  question: ["question", "questions"],
+  ask: ["ask", "asks"],
   approval: ["approval", "approvals"],
-  recovery: ["update to send again", "updates to send again"],
+  resend: ["update to send again", "updates to send again"],
   answer: ["answer", "answers"],
   reply: ["reply", "replies"],
   work: ["update with work started", "updates with work started"],
-  task: ["task", "tasks"],
+  todo: ["to-do", "to-dos"],
 });
 function queueKinds(items) {
   const byKind = new Map();
@@ -308,21 +308,23 @@ function queueKinds(items) {
     byKind.set(taskNoun(item), [...(byKind.get(taskNoun(item)) ?? []), item]);
   return [...byKind].map(([kind, all]) => {
     const words = `${all.length} ${QUEUE_WORDS[kind][all.length === 1 ? 0 : 1]}`;
-    // A task outlasts the turns and the thread that opened it (`tasks.py`), so each
+    // A to-do outlasts the turns and the thread that opened it (`tasks.py`), so each
     // open one is named, including one on a thread the user has resolved.
-    return kind === "task"
-      ? `${words} (${all.map((task) => task.title).join(" · ")})`
+    return kind === "todo"
+      ? `${words} (${all.map((todo) => todo.title).join(" · ")})`
       : words;
   });
 }
 function queueWords() {
-  const { onYou, onAgent } = readQueues();
+  const { questions, tasks } = readQueues();
   const agent = agentName();
   const named = (items, whom) =>
     items.length ? `Waiting on ${whom}: ${queueKinds(items).join(", ")}.` : "";
   return {
-    summary: onAgent.length ? `Tasks: ${onAgent.length}` : "",
-    explanation: [named(onYou, "you"), named(onAgent, agent)].filter(Boolean).join(" "),
+    summary: tasks.length ? `Tasks: ${tasks.length}` : "",
+    explanation: [named(questions, "you"), named(tasks, agent)]
+      .filter(Boolean)
+      .join(" "),
     // The widest the count usually reaches, under ten, which its box keeps; more
     // widens it once (banner-status-view.js).
     widest: "Tasks: 9",
@@ -581,7 +583,7 @@ const publicationWords = (published) => [
 ];
 
 // The updates an open turn picked up, by kind: a comment in a thread, or an answer to a
-// Question. A lone update is the user's own; several are counted.
+// ask. A lone update is the user's own; several are counted.
 function pickedUpWords({ comments, answers }) {
   if (comments + answers === 1) return comments ? "your comment" : "your answer";
   const counted = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
@@ -865,7 +867,7 @@ function reserveBannerControls() {
 
 let approving = false;
 
-// `blockingQuestions` is the unanswered Questions that hold approval, or null before the page has
+// `blockingQuestions` is the unanswered asks that hold approval, or null before the page has
 // read the log and so cannot say which those are.
 export function paintApproval(blockingQuestions) {
   const approved = readQuestions().all.some(
@@ -885,7 +887,7 @@ export function paintApproval(blockingQuestions) {
       : !signoff || !pagePresented() || blockingQuestions === null
         ? AWAITING_STATE
         : blockingQuestions.length
-          ? "Answer every Question before approving this work"
+          ? "Answer every ask before approving this work"
           : null;
   presentApproval({
     reason: reason ?? (approving ? "Approving this version" : null),
@@ -894,7 +896,7 @@ export function paintApproval(blockingQuestions) {
   });
   // Approval is open while a press would approve this version, and behind More, on a
   // phone, that puts More's dot up. A refused press does not: the dot comes up when the
-  // last Question holding approval is answered, which is when the user can act on it.
+  // last ask holding approval is answered, which is when the user can act on it.
   markBannerControl(approveBtn, reason === null ? "approval open" : null);
   repaint();
 }

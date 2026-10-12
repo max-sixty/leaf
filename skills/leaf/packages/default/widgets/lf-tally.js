@@ -12,8 +12,9 @@
  * the region (`questionActions.next`), from where the user stands, so a press keeps
  * them standing there rather than taking focus onto the control, as the Questions
  * panel's Next question does. It is a native button: Tab and Enter reach it, and a
- * finger taps it. Pressed from outside the region, as it is from a header above it, it
- * enters at the region's first ask waiting on the user. With none waiting it is disabled.
+ * finger taps it. Pressed by keyboard, focus is on the control outside the region, so
+ * the walk counts from the ask the user last went to there, else the first in sight,
+ * else the region's start (queue-walk.js says how). With none waiting it is disabled.
  *
  * The structure is the registry's `x-prepaint`, which delivery writes for the first
  * paint and this module fills in. Its room holds the widest count two digits wide, so

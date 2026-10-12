@@ -6,7 +6,7 @@ import { execFileSync } from "node:child_process";
 import { lstatSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-export function generated(path) {
+function generated(path) {
   return (
     /^(?:skills\/leaf\/assets\/vendor|skills\/leaf\/packages\/[^/.]+\/vendor)\/(?:[^/.][^/]*\/)*[^/.][^/]*\.(?:js|css|LICENSES\.txt)$/.test(
       path,

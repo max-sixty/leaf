@@ -39,7 +39,17 @@ def test_pairwise_counts_only_a_winner_both_orders_name(tmp_path, monkeypatch):
             brief = (out.parent / "brief.md").read_text()
             a = brief.split("Page A:")[1].split("Page B:")[0]
             winner = prefer(a)
-            return [{"type": "result", "result": json.dumps({"overall": winner})}]
+            schema = json.loads(args[args.index("--json-schema") + 1])
+            verdict = {
+                **dict.fromkeys(eval_pairs.ASPECTS, "tie"),
+                "overall": winner,
+                "margin": "clear",
+                "defects_A": [],
+                "defects_B": [],
+                "reason": "",
+            }
+            assert set(verdict) == set(schema["required"])
+            return [{"type": "result", "structured_output": verdict}]
 
         return model
 

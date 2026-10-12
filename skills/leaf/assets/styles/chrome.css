@@ -1,3 +1,4 @@
+@import "./floating-panel.css";
 /* The comment layer's private stylesheet: everything the runtime draws that is not
    the document, from banner to shortcut bar. The boot module (leaf.js) adopts it as a
    constructed sheet, so it stands in no head node and a version activation's head

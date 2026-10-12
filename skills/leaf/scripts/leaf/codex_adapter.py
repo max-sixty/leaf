@@ -21,6 +21,29 @@ turn. It observes the user's turns and Leaf delivery turns alike. Losing the
 connection disconnects the folds; reconnecting reconciles them with the provider's
 transcript, because a terminal task keeps running after this adapter disconnects.
 
+The adapter holds the task's wait lease and a lease of its own, since a generic wait
+lease cannot prove its output can enter a later Codex turn. Over App Server, a delivery
+start first resumes the task for fresh idle evidence; cached activity only holds an
+offer back. The record is marked `starting` before the request goes out, and a start
+whose response is lost is never sent blindly again, even after a restart or with no
+streamed reply seat: resuming reconciles the exact delivery identity in the provider
+transcript, and a rejected stale snapshot never marks the observer running. Losing the subscription disconnects the turn's reply and clears live
+activity without inventing an ending or releasing a running turn's reservation. A later
+provider completion settles it, and a later session turn withdraws the old reply
+binding, so an explicit reply wins over a recovered final message.
+
+Recovery reads the full, paginated provider history, because a summary or an unloaded
+item can neither settle an answer nor prove absence. Accepted or abandoned deliveries
+without a successful exact reply hydrate from it too, even when the first resume omits
+their turns or the user resolved the thread. When complete history and a fresh idle
+reading show no matching delivery, Leaf abandons its own attempt, releases its reply
+seat, and reports that the delivery could not be confirmed and is not retried, without
+claiming that a provider turn failed (`codex.abandon_uncertain_delivery`). A manual
+reply retires an unknown offer through receipt recovery, even while disconnected. Only
+a start or the task's exact offered delivery introduces live authority, and an ordinary
+item notification updates only a fold matching the subscription's epoch. The
+interactive client continues to handle approvals and user-input requests.
+
 `codex.py` owns the protocol, the per-turn fold every App Server client runs, the
 delivery records, and the page writers both transports share. What is here is the
 process around them.

@@ -43,7 +43,9 @@
    new reply. So is an answer folding the progress before it into Previous updates
    where that progress is the run at the thread's end, as the agent's acknowledgement
    is, unless the user stands on a message the fold puts away, by focus or by a
-   selection reaching into it (`standsOn`, focus.js). Changes to other existing
+   selection reaching into it (`standsOn`, focus.js). A run on screen stays open where
+   it stood, its group's border drawn around it (components/surfaces.css), so the fold
+   moves none of its words; a run off screen folds away. Changes to other existing
    messages, reactions, folds and settlement use the same hold as a seat in page flow,
    and a notice calls a changed message an edit.
    A closed card holds nothing, since its title row draws at one size whatever it says.
@@ -98,10 +100,14 @@
    them back had to opt out of.
 
    `HeldReading` is the same rule for a widget's region whose rows only the log or the
-   clock decides, such as a command's lists of stopped goals and live workers: a reading
-   that would change its size waits, the region standing as it was, while its growth
-   would be seen, and a control of fixed size the widget already draws says so and
-   shows it. */
+   clock decides, such as a command's lists of stopped goals and live workers. No first
+   paint can size such a region, so it shows no rows until the reader opens it through
+   a control of fixed size the widget already draws, as the Atlas plan's Stopped work
+   disclosure does (`examples/command-hub.page/widgets/lf-atlas-plan.js`). After that,
+   a reading that would change its size waits, the region standing as it was, while its
+   growth would be seen, and that control says so and shows it. A fixed-height box that
+   scrolls the rows is no answer: a scroller shows no edge until it is scrolled, so
+   nothing tells the reader a row is cut off. */
 import { growthAfterIsSeen, growthIsSeen, whenNone } from "../geometry.js";
 import { offer } from "../widget-elements.js";
 import { keeps, keepsText, layoutPx } from "../keeps.js";

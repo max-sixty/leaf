@@ -21,7 +21,10 @@
    target, cluster and card are one place. Standing elsewhere, releasing the target,
    or pressing outside that place dismisses it. Escape inside lands on the target;
    Send keeps focus on its thread. With Threads open, the list's expanded thread
-   supplies the accompaniment and declares its own target association.
+   supplies the accompaniment and declares its own target association. The card shows
+   the threads of the innermost target holding the user's place that has any (its own,
+   else an enclosing one's), never those of a target inside it: a thread on an ask's
+   options shows from the options, not from the ask (`threadEntryAt`).
 
    Each frozen cluster model names controls by contribution and entry identity. The Lit view
    retains their native nodes, so a state refresh cannot cancel a held pointer or move focus.
@@ -1549,7 +1552,7 @@ export function createMarginProjection({
       ...document.querySelectorAll(`.lf-page-thread[data-thread="${CSS.escape(id)}"]`),
     ].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
   // The innermost target holding the node whose threads the card would show. A thread is
-  // about exactly its anchor's target (glossary, Standing target), reached from anywhere
+  // about exactly its anchor's target (header), reached from anywhere
   // inside it and never from outside: after `q` the user stands on the Question element, so
   // the card shows a thread on the Question but not one on its options or a phrase in its
   // heading. Treating a Question as one target for its threads is a possible refinement. It

@@ -578,6 +578,14 @@ The sample's gutter contains only the content being demonstrated. Keep labels,
 host controls, and instructions about using the sample outside that gutter;
 instructions that belong to the demonstrated page remain inside it.
 
+A sample that explains how a widget, verb, or event flow behaves also holds an
+`lf-activity` feed of its own log, so each gesture the user tries shows the event it
+writes. The parent's prose beside the sample lists the gestures to try, in an order
+that exercises each verb the page explains, undo included. Before handing the page
+over, operate the sample using only what that prose tells the user, and read each
+line the feed prints for those gestures: a probe that knows more than the prose
+shows that the sample works, not that a user can work it.
+
 The child uses the parent's selected layer and starts with its own event log. It
 stands in the surrounding page as a block as tall as its content, with only the
 Threads row of its chrome. When the window itself is what the sample shows, such as

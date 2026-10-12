@@ -3692,6 +3692,18 @@ def test_reader_state_observes_behavior_without_freezing_the_dom(browser, serve)
 # its `data-lf-count` (banner.js). Its words are no door: Playwright's `:text-matches`
 # matches the smallest element holding them, the label inside the control.
 OPEN_THREADS = '.lf-threads-toggle[data-lf-count]:not([data-lf-count="0"])'
+# Where the focus stands in a thread the page shows, by the runtime's own selectors
+# (thread/selectors.js): "reply" in that thread's reply field, "card" elsewhere in it,
+# or null outside every shown thread.
+IN_THREAD = """async () => {
+  const {THREAD, SAY_BOX} = await window.__lfRuntimeImport('/runtime/thread/selectors.js');
+  const {focused} = await window.__lfRuntimeImport('/runtime/focus.js');
+  const {closestAcross} = await window.__lfRuntimeImport('/runtime/passages.js');
+  const at = focused();
+  const thread = at && closestAcross(at, THREAD);
+  if (!thread?.checkVisibility({visibilityProperty: true})) return null;
+  return [...thread.querySelectorAll(SAY_BOX)].includes(at) ? 'reply' : 'card';
+}"""
 SURFACES = {
     "composer": (["c"], None),
     "target picker": (["s"], None),
@@ -3708,6 +3720,9 @@ SURFACES = {
     "shortcut bar": (["?"], None),
     "command reference": (["?", "?"], None),
 }
+# A surface whose keys change the page even where it fails to open, as `t` announces
+# its walk, is open only where this reading finds it.
+SHOWN = {"thread card": lambda page: page.evaluate(IN_THREAD) is not None}
 UNWIND = 3
 # Round trips after the first, which may build what the surface keeps for next time.
 AGAIN = 3
@@ -3761,7 +3776,7 @@ def surface_findings(page):
         if door and not page.locator(door).first.is_visible():
             continue
         press(keys)
-        opened = reader_state(page) != left
+        opened = reader_state(page) != left and SHOWN.get(surface, lambda _: True)(page)
         first = settled_state(left := unwind())
         if not opened:
             findings.append(f"{'+'.join(keys)} opened no {surface}")
@@ -3925,6 +3940,9 @@ TYPED_BOXES = {
         page.locator(OPEN_THREADS).first.is_visible() and ["t", "c"]
     ),
 }
+# A box another box's keys could reach instead, as `c` outside a thread opens the page's
+# comment, is reached only where this reading finds the focus in it.
+IN_BOX = {"thread card reply": lambda page: page.evaluate(IN_THREAD) == "reply"}
 
 
 def typed_box_findings(page):
@@ -3946,7 +3964,9 @@ def typed_box_findings(page):
         for key in keys:
             page.keyboard.press(key)
             rendered(page)
-        if page.evaluate(FOCUSED_WORDS) is None:
+        if page.evaluate(FOCUSED_WORDS) is None or not IN_BOX.get(box, lambda _: True)(
+            page
+        ):
             findings.append(f"{'+'.join(keys)} put the user in no {box} to type in")
             continue
         words = f"Words for the {box}"

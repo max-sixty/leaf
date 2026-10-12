@@ -59,14 +59,19 @@ ones keep their own asks. A selected set, answered in one `lf-options` with
 `multiple`, is for items whose answers depend on each other, such as a limit on how
 many or a combination that has to work together.
 
-For an interface or behavior choice, make the relevant interaction work inside
-each option so the user can try every alternative before choosing. For a choice
-between arrangements, structures, or mechanisms that nothing can run yet, draw each
-option inside it, all in one frame at one scale. Either way, hold everything except
-the disputed treatment constant, and include the current or no-treatment case as a
-neutral control. Put longer rationale or provenance in a disclosure after the
-ask. The `lf-ask`, `lf-options`, and `lf-option` entries say how to word the
-question and shape each option.
+An ask whose subject has a shape (`page-authoring.md`, "Draw the subject") shows it
+inside the ask, on any page, a plan or a list of mixed items included. For an
+interface or behavior choice, make the relevant interaction work inside each option
+so the user can try every alternative before choosing. For a choice between
+arrangements, structures, or mechanisms that nothing can run yet, draw each option
+inside it, all in one frame at one scale. A proposal to accept or reject is a choice
+between today and the change: show today as it is, a visible defect in a capture
+cropped or marked where it goes wrong, and draw or demonstrate the change beside it
+in one frame or in the accepting option. In each case, hold everything except the
+disputed treatment constant, and include the current or no-treatment case as a
+neutral control. Put longer rationale or provenance in a disclosure after the ask.
+The `lf-ask`, `lf-options`, and `lf-option` entries say how to word the question and
+shape each option.
 
 When the page exists for the user to choose among approaches, it is organized
 around that choice. Its title and headings name the question and state what the

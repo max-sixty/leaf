@@ -72,6 +72,11 @@ has tried; settle that before building it.
   result is hidden. Decide whether a page needs one progress reading across Questions,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
+- **#28 — Overhaul the floating panel's appearance.** The opt-in floating panel
+  (`?lf-chrome=floating`, off by default) works, but the user doesn't like its
+  aesthetic. It landed so work can continue from `main`. Redesign how it looks
+  before offering it to anyone; [its goal](notes/floating-panel/GOAL.md) holds the
+  spec, the approved prototype, and the departures taken so far.
 
 ### Agent and author experience
 

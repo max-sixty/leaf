@@ -545,7 +545,7 @@ def gesture_sequence() -> dict:
     try:
         served_reading({1: documents[1]}, [*commands[:4], duplicate])
     except EventRefused as error:
-        assert "already been taken back" in str(error), str(error)
+        assert error.findings[0].code == "withdrawn-gesture", str(error)
     else:
         raise AssertionError("The duplicate undo must be refused")
     layer = model_layer()

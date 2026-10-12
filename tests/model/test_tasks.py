@@ -20,6 +20,7 @@ from interact_support import (
     page_state,
     publish,
     record_claim,
+    refused_on,
     response_reference,
     served_thread,
     serving,
@@ -148,7 +149,7 @@ def test_required_approval_is_a_question_for_its_exact_stamp_until_approved(page
     status, response = endpoint_model.accept_event(
         page_dir, {"kind": "done", "version": 1}, dict
     )
-    assert status == 400 and "unanswered widget asks" in json.dumps(response)
+    assert status == 400 and refused_on(response).code == "unanswered-asks"
     append_command(
         page_dir,
         {
@@ -966,7 +967,7 @@ def test_a_thread_question_remains_distinct_from_explicit_user_work(page_dir):
 
     status, answer = done(page_dir, "reply:" + question["id"])
     assert status == 400, answer
-    assert "reply or settling reaction answers a prose ask" in json.dumps(answer)
+    assert refused_on(answer).code == "users-prose-ask"
     assert ("ask", "reply:" + question["id"]) in kinds(
         state_json(page_dir)["queues"]["questions"]
     )

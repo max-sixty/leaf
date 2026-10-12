@@ -46,6 +46,7 @@ from interact_support import (
     model_layer,
     publish,
     read_page_data,
+    refused_on,
     response_reference,
     stamp,
     state_json,
@@ -934,10 +935,10 @@ def test_a_move_on_a_replaced_revision_lands_only_where_its_column_held(page_dir
     publish(page_dir)
     _write_board(page_dir, "nabc", "x")
     publish(page_dir)
-    with pytest.raises(
-        events_model.EventRefused, match="authors 'c-todo' differently"
-    ) as refused:
+    with pytest.raises(events_model.EventRefused) as refused:
         _move(page_dir, "x", "c-todo", "1i")
+    stale = refused_on(refused.value)
+    assert (stale.code, stale.values["container"]) == ("stale-move", "c-todo")
     assert refused.value.user == "The page changed while you moved this; move it again."
     _move(page_dir, "x", "c-todo", "2i", revision=2)
     assert _todo_order(page_dir) == ["n", "a", "x", "b", "c"]
@@ -1769,11 +1770,16 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
     )
     with pytest.raises(Refused) as refused:
         thread_model.post_reply(page_dir, {"to": "c1"}, "Answered.", attempt="r1")
-    assert "'r1' does not match" in str(refused.value)
+    invalid = refused_on(refused.value)
+    assert (invalid.code, invalid.values["field"]) == ("invalid-event", "/attempt")
 
     with pytest.raises(Refused) as unknown_widget:
         thread_model.cmd_report(page_dir, "no-such-widget", "status", ())
-    assert "unknown report widget 'no-such-widget'" in str(unknown_widget.value)
+    assert refused_on(unknown_widget.value).values == {
+        "kind": "report",
+        "widget": "no-such-widget",
+        "revision": 1,
+    }
 
     assert [event["kind"] for event in events_model.read_events(page_dir)] == [
         "note",

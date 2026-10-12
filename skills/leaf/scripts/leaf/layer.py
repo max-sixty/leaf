@@ -9,6 +9,7 @@ from functools import cache
 from pathlib import Path
 from typing import NamedTuple
 
+from .findings import Finding
 from .locations import located, locations_overlap
 from .machine import package_store
 from .refusals import Refused
@@ -392,7 +393,7 @@ def payload_server_fingerprint() -> str:
     )
 
 
-def incompatible_layer(page_dir: Path, registry: dict) -> str | None:
+def incompatible_layer(page_dir: Path, registry: dict) -> Finding | None:
     """Why this Leaf can neither serve a page nor write its log, given the registry it
     would serve the page under: that registry's `$events` were vendored at another
     `protocol` than this Leaf's own (`registry.kernel.kernel_protocol`). None when it
@@ -408,15 +409,18 @@ def incompatible_layer(page_dir: Path, registry: dict) -> str | None:
     """
     if (vendored := _foreign_protocol(registry)) is None:
         return None
-    return (
-        f"{page_dir} was vendored by a Leaf at page protocol {vendored}, and this "
-        f"Leaf ({PLUGIN_ROOT}) speaks protocol {kernel_protocol()}, so it cannot "
-        f"serve the page or write its log. Re-vendor it with "
-        f"`leaf page init {page_dir}`."
+    return Finding(
+        "foreign-layer",
+        values={
+            "page": str(page_dir),
+            "vendored": vendored,
+            "leaf": str(PLUGIN_ROOT),
+            "protocol": kernel_protocol(),
+        },
     )
 
 
-def incompatible_revision(revision: int, registry: dict) -> str | None:
+def incompatible_revision(revision: int, registry: dict) -> Finding | None:
     """Why this Leaf can neither serve one of a page's revisions nor admit input made
     against it, given the registry that revision captured: it was saved at another
     protocol. None when it may.
@@ -432,12 +436,9 @@ def incompatible_revision(revision: int, registry: dict) -> str | None:
     """
     if (saved := _foreign_protocol(registry)) is None:
         return None
-    return (
-        f"Revision {revision} was saved at page protocol {saved}, and this Leaf "
-        f"speaks protocol {kernel_protocol()}, so it cannot serve that revision or "
-        f"accept input made against it. Revisions saved since the page was "
-        f"re-vendored still open, and serving the page saves one from its source; "
-        f"where that fails, `leaf page check` names why."
+    return Finding(
+        "foreign-revision",
+        values={"revision": revision, "saved": saved, "protocol": kernel_protocol()},
     )
 
 

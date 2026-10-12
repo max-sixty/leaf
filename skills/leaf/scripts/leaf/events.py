@@ -4,6 +4,7 @@ from collections import OrderedDict
 from itertools import groupby
 from typing import NamedTuple
 
+from leaf.findings import Finding
 from leaf.schema import MESSAGE_KINDS, UNDOABLE_KINDS
 
 
@@ -161,41 +162,34 @@ class UndoReading:
         self.answered_reactions = answered_reactions
         self.resolved_reactions = resolved_reactions
 
-    def error(self, event: dict) -> str | None:
-        """Return the existing rejection for one proposed ``undo`` event."""
-        target_id = event["undoes"]
-        target = self.events_by_id.get(target_id)
+    def error(self, event: dict) -> Finding | None:
+        """The finding the append door refuses one proposed ``undo`` event on."""
+        named = {"undoes": event["undoes"]}
+        target = self.events_by_id.get(event["undoes"])
         if target is None:
-            return f"unknown undoes {target_id!r}"
+            return Finding("unknown-undo", values=named)
+        named["target"] = target["kind"]
         if target["author"] != "user":
-            return f"{target['kind']} {target['id']} is not the user's own gesture"
+            return Finding("foreign-gesture", values=named)
         if target["id"] in self.withdrawn:
-            return f"{target['id']} has already been taken back"
+            return Finding("withdrawn-gesture", values=named)
         if target["kind"] in MESSAGE_KINDS:
             if not is_reaction(target):
-                return (
-                    f"{target['kind']} {target['id']} is not a reaction; a message "
-                    "with words in it is said rather than unsaid"
-                )
+                return Finding("said-message", values=named)
             if target["id"] in self.answered_reactions:
-                return (
-                    f"reaction {target['id']} has been answered; withdraw it in the "
-                    "thread the answer opened"
-                )
+                return Finding("answered-reaction", values=named)
             if target["id"] in self.resolved_reactions:
-                return f"reaction {target['id']} stands on a resolved thread"
+                return Finding("resolved-reaction", values=named)
         elif target["kind"] not in UNDOABLE_KINDS:
-            return (
-                f"{target['kind']} events cannot be taken back (the kinds that can "
-                f"are {', '.join(sorted(UNDOABLE_KINDS))} and a reaction)"
+            return Finding(
+                "unundoable", values={**named, "undoable": sorted(UNDOABLE_KINDS)}
             )
         elif target["kind"] == "action" and target["id"] in self.absorbed:
             # The newest revision's markup places the unit
             # (`StateProjection.absorbed`), so taking the move back would restore
             # nothing; a new move changes where the unit stands.
-            return (
-                f"move {target['id']} was made on r{target['revision']}, and a "
-                "later revision's markup now places its unit; move it again instead"
+            return Finding(
+                "absorbed-move", values={**named, "revision": target["revision"]}
             )
         return None
 
@@ -205,7 +199,7 @@ def undo_error(
     events: list,
     within: dict,
     absorbed: frozenset,
-) -> str | None:
+) -> Finding | None:
     """Why this undo may not take back the event it names, or None.
 
     Checked once here, at the door the browser writes through, so nothing

@@ -11,8 +11,10 @@ from interact_support import (
     append_carried_log_record,
     append_command,
     check,
+    check_findings,
     comment,
     decide,
+    found,
     publish,
     published,
     stamp,
@@ -72,9 +74,9 @@ def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
     # The file lists none of these parts, so markup cannot drop one; a declaration
     # that stops admitting a part a thread holds is what drops it.
     declare_part_prefixes(page_dir, "edge:")
-    dropped = check(page_dir)
-    assert dropped.exit_code == 0, dropped.output
-    assert root["id"] in dropped.output
+    status, findings = check_findings(page_dir)
+    assert status == 0
+    assert found(findings, "relocated-anchor", thread=root["id"], section="flow")
     assert stamp(page_dir, "Changed the diagram's parts").exit_code == 0
     thread = build_threads(events_model.read_events(page_dir), {})[root["id"]]
     assert thread["anchor"] == {"section": "flow"}
@@ -221,13 +223,14 @@ def test_revising_quotes_reparents_every_open_thread_without_answering_it(page_d
     (page_dir / "index.html").write_text(
         original.replace("Alpha", "Beta").replace("Gamma", "Delta")
     )
-    checked = check(page_dir)
-    assert checked.exit_code == 0, checked.output
-    assert all(
-        root["id"] in checked.output for root in (roots["Alpha"], roots["Gamma"])
-    )
-    assert roots["Unchanged"]["id"] not in checked.output
-    assert closed["id"] not in checked.output
+    status, findings = check_findings(page_dir)
+    assert status == 0
+    # The reaction mark follows its subject; the unchanged and closed threads stay.
+    assert {f.values["thread"] for f in found(findings, "relocated-anchor")} == {
+        roots["Alpha"]["id"],
+        roots["Gamma"]["id"],
+        reaction["id"],
+    }
     assert not any(e["kind"] == "reanchor" for e in events_model.read_events(page_dir))
     state = state_json(page_dir)
     threads = {t["id"]: t for t in state["threads"]}

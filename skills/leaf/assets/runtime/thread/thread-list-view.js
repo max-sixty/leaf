@@ -29,7 +29,9 @@
    the user's words, its semantic membership ends, and a selected allocation holds off
    fallback disclosure. Dismissal or choosing another card releases it at once, outside
    the geometry rule (#2387's choice): the allocation has no closed form to shrink to
-   when another card opens. The model builder asks both questions while it builds the
+   when another card opens, and the list's place hold keeps the chosen card where it
+   stood, as it does for an open card closing above it (thread-list.js,
+   `holdThroughDisclosure`). The model builder asks both questions while it builds the
    reading (thread-list.js), so a kept allocation is a row of that reading, committed
    and restored with the cards beside it. Rejected: deciding withdrawals by a copy of
    the rule beside `keeping`, as paint the list spliced into each reading it drew

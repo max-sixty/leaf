@@ -2240,6 +2240,74 @@ def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, pla
         )
 
 
+@pytest.mark.parametrize("route", ["t", "Shift+T", "click"])
+def test_choosing_beside_a_withdrawn_notice_holds_the_chosen_card(
+    browser, serve, route
+):
+    """From a withdrawn thread's notice, `t`, `T` or a press chooses the card beside
+    it, and releasing the notice's room moves none of what the user sees there."""
+    before = [f"before-{i}" for i in range(12)]
+    after = [f"after-{i}" for i in range(20)]
+    sections = [*before, "withdrawn", *after]
+    url = serve(
+        leaf_page(
+            "Withdrawn among threads",
+            "<h1>Review</h1>"
+            + "".join(f'<p id="{name}">Passage {name}.</p>' for name in sections),
+        )
+    )
+    for name in sections:
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "id": name,
+                "author": "user",
+                "revision": 1,
+                "anchor": {"section": name},
+                "text": f"Conversation {name}.",
+            },
+        )
+    page = open_page(browser, live_url(url))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator('.lf-threads > [data-id="withdrawn"]')
+    card.locator(".lf-thread-summary").scroll_into_view_if_needed()
+    card.locator(".lf-thread-summary").click()
+    rendered(page)
+    # Cards in view on both sides of the open one, and room scrolled past to take its
+    # release.
+    page.locator("leaf-thread-list").evaluate(
+        "(list, card) => { list.scrollTop += card.getBoundingClientRect().top"
+        " - list.getBoundingClientRect().top - 100; }",
+        card.element_handle(),
+    )
+    scroll_settled(page, "leaf-thread-list")
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "undo", "author": "user", "revision": 1, "undoes": "withdrawn"},
+    )
+    told(page)
+    notice = page.locator('[data-withdrawn="withdrawn"]')
+    expect(notice.locator("button")).to_be_focused()
+    chosen = page.locator(
+        f'.lf-threads > [data-id="{before[-1] if route == "Shift+T" else after[0]}"]'
+    )
+    top = chosen.evaluate("node => node.getBoundingClientRect().top")
+
+    if route == "click":
+        chosen.locator(".lf-thread-summary").click()
+    else:
+        page.keyboard.press(route)
+    rendered(page)
+    expect(notice).to_have_count(0)
+    expect(chosen).to_have_attribute("open", "")
+    expect(chosen.locator(".lf-thread-summary")).to_be_focused()
+    assert chosen.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
+        top, abs=0.5
+    )
+
+
 def test_an_unavailable_list_preserves_the_selected_conversation(browser, serve):
     """A placeholder has no identity inventory from which to retire a choice."""
     url = serve(

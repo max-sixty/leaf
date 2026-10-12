@@ -1,6 +1,7 @@
 """Event, registry, replay-contract, and media tests."""
 
 import contextlib
+import itertools
 import json
 import os
 import re
@@ -5327,6 +5328,78 @@ def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_standing_there
         {"sug-note": ["sug-a", "sug-note"]},
     )
     assert (restored["reject"], restored["v2"]) == (["c1"], ["c1"])
+    # Taking back an answer another has since superseded moves no winner, so the
+    # undo concerns only the thread its own gesture did.
+    behind = thread_memberships(
+        [
+            *comments,
+            decide("accept", "accept", "c1"),
+            decide("again", "accept", "c2"),
+            {"kind": "undo", "id": "unaccept", "undoes": "accept"},
+        ],
+        names,
+        {},
+        {},
+    )
+    assert behind["unaccept"] == ["c1"]
+
+
+def test_every_change_to_a_threads_resolution_reaches_its_membership():
+    """Membership names every thread whose resolution an event changes, as
+    `build_threads` reads it before and after that event, over every three-step
+    history of answers, non-answers, undos, and version notes at one coordinate."""
+    from leaf.events import build_threads
+    from leaf.thread_context import thread_memberships
+
+    within = {"x": ("w", "x"), "y": ("w", "y")}
+    comments = [
+        {"kind": "comment", "id": thread, "author": "user", "ts": "t", "text": thread}
+        for thread in ("c1", "c2")
+    ]
+    steps = [
+        ("act", answer, depends)
+        for answer in ("c1", "c2", None)
+        for depends in ((), ("x",), ("y",))
+    ] + [("undo",), ("note", "x"), ("note", "y")]
+
+    def resolved(events):
+        return {
+            thread: folded["resolved"] and folded["resolved"]["id"]
+            for thread, folded in build_threads(events, within).items()
+        }
+
+    for history in itertools.product(steps, repeat=3):
+        events, revision, standing = list(comments), 1, []
+        for index, step in enumerate(history):
+            if step[0] == "act":
+                event = {
+                    "kind": "action",
+                    "id": f"a{index}",
+                    "revision": revision,
+                    "widget": "w",
+                    "action": "decide",
+                    "detail": {},
+                    "meaning": {"unit": "w", "depends": [*step[2]], "answer": step[1]},
+                }
+                standing.append(event["id"])
+            elif step[0] == "undo":
+                if not standing:
+                    break
+                event = {"kind": "undo", "id": f"u{index}", "undoes": standing.pop()}
+            else:
+                revision += 1
+                event = {
+                    "kind": "note",
+                    "id": f"n{index}",
+                    "revision": revision,
+                    "restated": [step[1]],
+                }
+            events.append(event)
+        memberships = thread_memberships(events, {"c1": "c1", "c2": "c2"}, {}, within)
+        for at in range(len(comments), len(events)):
+            before, after = resolved(events[:at]), resolved(events[: at + 1])
+            changed = {thread for thread in after if before[thread] != after[thread]}
+            assert changed <= set(memberships[events[at]["id"]]), (history, at)
 
 
 def test_a_sampled_thread_starts_as_its_source_log_leaves_it():

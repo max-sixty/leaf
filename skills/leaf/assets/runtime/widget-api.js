@@ -4,7 +4,11 @@
 
    The runtime tree is not the set of importers: package widget modules reach this file
    over HTTP from the served page, as `/runtime/widget-api.js`. What only the render
-   gate's probes read belongs in check-api.js instead. */
+   gate's probes read belongs in check-api.js instead.
+
+   Every export above the `// Internal:` comment is the authoring API, and
+   references/module-authoring.md documents each one; the exports below it serve Leaf's
+   bundled packages and kernel widgets alone (tests/runtime/widget-api.test.mjs). */
 export {
   html,
   nothing,
@@ -28,11 +32,6 @@ export { whileConnected, frameFor } from "./arrivals.js";
 export { aborted } from "./abort.js";
 // The rank a position record carries for a unit dropped at an index in a container.
 export { rankAt } from "./projection/model.js";
-export async function mountSample(frame, options) {
-  const owner = await import("./sample.js");
-  return owner.mountSample(frame, options);
-}
-export { dressSamples, wear } from "./dress.js";
 
 // `fragmentTarget(hash)` is the page element a URL fragment names, read as Leaf's own
 // arrivals and links read it.
@@ -47,7 +46,7 @@ export { navigateToDatum } from "./application.js";
 export { indicate } from "./indication.js";
 // `growthIsSeen(element)`: whether the element changing size now would move what the
 // user sees, as scroll anchoring and the chrome leave it.
-export { growthIsSeen, landingInsets, shownParts, shownWindow } from "./geometry.js";
+export { growthIsSeen, landingInsets, shownWindow } from "./geometry.js";
 // Holding the user's place in a scroller whose contents a widget re-renders.
 export { placeKeeper } from "./user-place.js";
 export { under } from "./shadow.js";
@@ -99,11 +98,9 @@ export { readThreads } from "./thread/state.js";
 export { releaseOutlets, threadSurface } from "./thread/surfaces.js";
 export { watchThreads } from "./thread/watch.js";
 export { turns as threadTurns, threadSummary } from "./thread/model.js";
-export { threadInput } from "./thread/landing.js";
 // Holding a region's rows the log or the clock decides while their growth would be seen
 // (assets/AGENTS.md, "Stability").
 export { HeldReading } from "./thread/held-news.js";
-export { landInThread } from "./application.js";
 export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
 export { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
@@ -160,7 +157,6 @@ export { scrollIntoReadingBand, scrollIntoView } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";
 export { claimTraversals, pushEntry, replaceEntry } from "./history.js";
-export { removeRuntimeRootStyle, setRuntimeRootStyle } from "./root-state.js";
 export {
   compoundReadingRegionId,
   preserveReadingRegions,
@@ -172,7 +168,7 @@ export {
 } from "./reading-regions.js";
 export { announce, notice } from "./notifications.js";
 export { alignText, alignedNodes } from "./text-alignment.js";
-export { inChrome, renderRetired, says, textNodesUnder, wrote } from "./passages.js";
+export { inChrome, says, wrote } from "./passages.js";
 export {
   ago,
   clocked,
@@ -210,7 +206,7 @@ export {
   afterPresentation,
   deferredArrival,
 } from "./presentation.js";
-export { isPagePaint, quietWord } from "./declared-words.js";
+export { quietWord } from "./declared-words.js";
 export { projectData } from "./application.js";
 export { copyCodeBlock } from "./code-copy.js";
 export { retainUserIntent } from "./user-intent.js";
@@ -237,7 +233,6 @@ export {
   measure,
   motionPreview,
   offer,
-  offerElement,
   offered,
   reachedForWords,
   relabel,
@@ -249,3 +244,17 @@ export {
 export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
 
 export { LeafEditorView } from "./editor-view.js";
+
+// Internal: what Leaf's own bundled packages and kernel widgets import beyond the
+// authoring API module-authoring.md documents. Package authors do not use these.
+export async function mountSample(frame, options) {
+  const owner = await import("./sample.js");
+  return owner.mountSample(frame, options);
+}
+export { dressSamples, wear } from "./dress.js";
+export { landInThread } from "./application.js";
+export { threadInput } from "./thread/landing.js";
+export { removeRuntimeRootStyle, setRuntimeRootStyle } from "./root-state.js";
+export { shownParts } from "./geometry.js";
+export { renderRetired, textNodesUnder } from "./passages.js";
+export { isPagePaint } from "./declared-words.js";

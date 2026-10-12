@@ -2282,15 +2282,18 @@ NOTE = '<aside class="sidenote" id="note"><p>A note that needs a sidenote.</p></
         ('<aside class="sidebar"><p>Owner: payments.</p></aside>', "sidebar"),
     ],
 )
+@pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_a_table_granted_room_stands_on_the_prose_axis(
-    browser, serve, resident, posture
+    browser, serve, resident, posture, direction
 ):
     """A table given `data-width` keeps its columns' natural width and stands centred on
     the prose axis, however unevenly the margins share the room: a contents map's spine
     or a column moved over for a sidenote leaves one side narrower. One that fits the
     column keeps its natural width and starts where the prose starts. Where a sidebar
     stands in the left margin the room is all on the right, so the table starts at the
-    prose and grows right."""
+    prose's left edge and grows right. In a right-to-left page the same holds with the
+    narrow table at the prose's right edge, where its text starts; the sidebar stands
+    on the left there too."""
     head = "".join(f"<th>Column {i}</th>" for i in range(8))
     row = "".join(f"<td>measured value {i}</td>" for i in range(8))
     body = (
@@ -2302,7 +2305,10 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
         '<table id="narrow" data-width="available"><tr><th>Plan</th><td>60</td></tr>'
         "</table>"
     )
-    page = open_page(browser, serve(leaf_page("Tables granted room", body)))
+    source = leaf_page("Tables granted room", body).replace(
+        '<html lang="en">', f'<html lang="en" dir="{direction}">', 1
+    )
+    page = open_page(browser, serve(source))
     resized(page, 1440, 900)
     margins_laid_out(page)
     at = page.evaluate("""() => {
@@ -2321,12 +2327,49 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
     if posture != "even":
         assert posture in at["margin"].split(), at
     prose = at["prose"]
-    assert at["narrow"]["left"] == pytest.approx(prose["left"], abs=1), at
+    start = "left" if direction == "ltr" else "right"
+    assert at["narrow"][start] == pytest.approx(prose[start], abs=1), at
     assert at["wide"]["right"] - at["wide"]["left"] > prose["right"] - prose["left"], at
     if posture == "sidebar":
         assert at["wide"]["left"] == pytest.approx(prose["left"], abs=1), at
     else:
         assert at["wide"]["centre"] == pytest.approx(prose["centre"], abs=1), at
+    assert root_overflow(page) == 0
+
+
+@pytest.mark.parametrize("direction", ["ltr", "rtl"])
+def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
+    browser, serve, direction
+):
+    """A table granted room sizes its box to its columns, so it is no longer the
+    container its caption reads its width from; the caption is held to the box instead.
+    On a phone, where the room is the column and an eight-column table scrolls, a long
+    caption stays inside the scrollport at either end of the scroll."""
+    cells = "".join(f"<td>measured value {i}</td>" for i in range(8))
+    caption = "Services in the migration, by stage, with their owners and windows"
+    body = (
+        "<h1>Tables</h1><p>A paragraph at the measure.</p>"
+        f'<table id="wide" data-width="available"><caption>{caption}</caption>'
+        f"<tr>{cells}</tr></table>"
+    )
+    source = leaf_page("Caption", body).replace(
+        '<html lang="en">', f'<html lang="en" dir="{direction}">', 1
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 390, 844)
+    table = page.locator("#wide")
+    assert table.evaluate("t => t.scrollWidth > t.clientWidth")
+    reading = """t => {
+      const box = t.getBoundingClientRect(), cap = t.querySelector('caption')
+        .getBoundingClientRect();
+      return {box: [box.left, box.right], caption: [cap.left, cap.right]};
+    }"""
+    for end in (0, -10_000 if direction == "rtl" else 10_000):
+        table.evaluate("(t, x) => { t.scrollLeft = x; }", end)
+        rendered(page)
+        at = table.evaluate(reading)
+        assert at["caption"][0] >= at["box"][0] - 1, (end, at)
+        assert at["caption"][1] <= at["box"][1] + 1, (end, at)
     assert root_overflow(page) == 0
 
 

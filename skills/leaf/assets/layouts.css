@@ -266,41 +266,68 @@
      * an even span about its holder's axis, so it grows the same distance each way. The
      * margin moves the box by half its holder's width and the translation back by half
      * its own, since each percentage reads the box it names, so its centre lands on the
-     * holder's centre, which on a column page is the prose axis. Where the margins are
-     * uneven, beside a contents map's spine or a column moved over for a sidenote, the
-     * even span is twice the narrower side's growth, so a grid wider than it wraps or
-     * scrolls that much sooner: 48px sooner beside a map's spine at 1440px. Where the
-     * left margin is spoken for, as by a sidebar standing there, an even span would be
-     * the column alone, so the box starts at the prose and grows right.
+     * holder's centre, which on a column page is the prose axis. Wider than its holder,
+     * the box is over-constrained, and the browser keeps the margin at the holder's
+     * inline start, so the margin is that one and the translation's sign follows the
+     * direction. Where the margins are uneven, beside a contents map's spine or
+     * a column moved over for a sidenote, the even span is twice the narrower side's
+     * growth, so a grid wider than it wraps or scrolls that much sooner: 48px sooner
+     * beside a map's spine at 1440px. Where the left margin is spoken for, as by a
+     * sidebar standing there, an even span would be the column alone, so the box starts
+     * at the prose's left edge and grows right, in either direction, since the sidebar
+     * stands on the left in both.
      *
      * The box's width is its content's, so it gives up the size containment above:
      * inside a box that sizes itself to what it holds, such as a page's own grid track
-     * at its content's minimum, the table can widen it, as any table without a width
-     * of its own can. A caption reads the page's width rather than the table's, which
-     * differs only where the columns scroll. Only where the room is the page's: in a
-     * frame, or in a breakout of its own (`--lf-room: 100%`), the table fills or starts
-     * at its holder as every table there does. Margins, percentages and translation
-     * place it the same in every engine; two layouts this replaced did not: aligning the
-     * anonymous table grid inside a box the allocation's width (Firefox and WebKit left
-     * it at the box's left edge), and translating the table's parts (column backgrounds
-     * and collapsed borders stayed behind). A display of grid on the table set its head
-     * and body apart. */
+     * at its content's minimum, the table can widen it, as any table without a width of
+     * its own can. Nor is the table the container its caption reads its width from
+     * (reading.css), so the caption is held to the widest the box can be
+     * (`--lf-table-span`), which is the box's width wherever the columns scroll. Only
+     * where the room is the page's: in a frame or inside another breakout, the table
+     * fills or starts at its holder as every table there does. Margins, percentages and
+     * translation place it the same in every engine. Two layouts this replaced did not:
+     * aligning the anonymous table grid inside a box the allocation's width (Firefox and
+     * WebKit left it at the box's left edge), and translating the table's parts (column
+     * backgrounds and collapsed borders stayed behind). A display of grid on the table
+     * set its head and body apart. */
     @container not (style(--lf-room: 100%) or style(--lf-block-frame: 1)) {
-      main.layout-column table[data-lf-space]:not([data-lf-space="column"]) {
+      main.layout-column table:is([data-lf-space="wide"], [data-lf-space="available"]):not(
+        :is([data-lf-space="wide"], [data-lf-space="available"]) table) {
         contain: none;
         container-type: scroll-state;
         width: max-content;
         min-width: 100%;
         max-width: calc(100% + 2 * min(var(--lf-grow-l), var(--lf-grow-r)));
-        margin-left: 50%;
-        margin-right: 0;
+        margin-inline: 50% 0;
         translate: -50% 0;
+        --lf-table-span: min(100cqi,
+          var(--lf-width) + 2 * min(var(--lf-free-l), var(--lf-free-r)));
+      }
+      main.layout-column table[data-lf-space="wide"]:not(
+        :is([data-lf-space="wide"], [data-lf-space="available"]) table) {
+        --lf-table-span: min(100cqi, var(--wide),
+          var(--lf-width) + 2 * min(var(--lf-free-l), var(--lf-free-r)));
       }
       main.layout-column[data-lf-margin~="sidebar"]
-        table[data-lf-space]:not([data-lf-space="column"]) {
+        table:is([data-lf-space="wide"], [data-lf-space="available"]):not(
+        :is([data-lf-space="wide"], [data-lf-space="available"]) table) {
         max-width: calc(100% + var(--lf-grow-r));
-        margin-left: 0;
+        margin-inline-start: 0;
         translate: none;
+        --lf-table-span: var(--lf-width);
+      }
+      main.layout-column table:is([data-lf-space="wide"], [data-lf-space="available"]):dir(rtl):not(
+        :is([data-lf-space="wide"], [data-lf-space="available"]) table) {
+        translate: 50% 0;
+      }
+      main.layout-column[data-lf-margin~="sidebar"]
+        table:is([data-lf-space="wide"], [data-lf-space="available"]):dir(rtl):not(
+        :is([data-lf-space="wide"], [data-lf-space="available"]) table) {
+        translate: calc(100% - var(--lf-width)) 0;
+      }
+      main.layout-column table:is([data-lf-space="wide"], [data-lf-space="available"])
+        > caption {
+        max-inline-size: var(--lf-table-span, 100cqi);
       }
     }
     /* A breakout inside another takes its holder's width. A box allocated the column is

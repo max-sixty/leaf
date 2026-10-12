@@ -224,10 +224,16 @@ def read_interactions(
                 )
                 continue
             # Ingress checks each part, not the record they join into, so a group
-            # that does not join into an entry is marked rather than read.
+            # that does not join into the entry its parts name is marked rather
+            # than read.
             try:
                 restored = json.loads("".join(row["json"] for row in group))
                 validate_client_entry(restored)
+                if (restored.get("sequence"), restored["type"]) != (
+                    first["partOf"],
+                    first["originalType"],
+                ):
+                    raise ValueError("the joined entry is not the one its parts name")
             except (TypeError, ValueError) as error:
                 records.append(
                     {

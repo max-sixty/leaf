@@ -249,3 +249,26 @@ def test_a_split_record_that_joins_into_no_entry_is_marked_not_read(tmp_path):
         ("keydown", 2),
     ]
     assert records[0]["originalType"] == "input"
+
+    # Parts that join into a valid entry other than the one they name are marked too.
+    mislabelled = client_records(
+        "tab",
+        "/",
+        [
+            {
+                "type": "interaction_part",
+                "sequence": 3,
+                "partOf": 3,
+                "part": 0,
+                "parts": 1,
+                "originalType": "input",
+                "json": json.dumps({"type": "command", "sequence": 9}),
+            },
+        ],
+    )
+    append_interactions(tmp_path, mislabelled)
+    records = read_interactions(tmp_path, session="tab")
+    assert [(row["type"], row["sequence"]) for row in records][-1] == (
+        "interaction_unreadable",
+        3,
+    )

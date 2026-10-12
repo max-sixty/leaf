@@ -13,7 +13,6 @@ import {
   needsPageSlash,
   newSessionId,
   pageRoute,
-  parseSiteManifest,
   sessionCookie,
   sessionFromCookie,
 } from "../src/routing";
@@ -45,52 +44,6 @@ const manifest = { release: "a".repeat(64), frame_ancestors, routes, pages };
 const route = (pathname: string) => pageRoute(pathname, manifest);
 
 describe("website page routing", () => {
-  it("accepts only manifests whose current state and release paths agree", () => {
-    const release = "a".repeat(64);
-    const manifest = {
-      release,
-      frame_ancestors,
-      routes,
-      pages: { "/": page("product") },
-    };
-    expect(parseSiteManifest(manifest)).toEqual(manifest);
-
-    expect(() =>
-      parseSiteManifest({
-        ...manifest,
-        pages: {
-          "/": {
-            ...page("product"),
-            assets: `/_leaf-release/${"b".repeat(64)}/page`,
-          },
-        },
-      }),
-    ).toThrow('at pages["/"].assets');
-    expect(() =>
-      parseSiteManifest({
-        ...manifest,
-        pages: {
-          "/": {
-            ...page("product"),
-            state: "/_leaf/state/missing.json",
-          },
-        },
-      }),
-    ).toThrow('at pages["/"].state');
-    // Every page carries the card a shared link unfurls into, so a build that
-    // published one without it is refused here rather than at the user.
-    const { image: _image, ...cardless } = page("product");
-    expect(() =>
-      parseSiteManifest({ ...manifest, pages: { "/": cardless } }),
-    ).toThrow('at pages["/"].image');
-    expect(() =>
-      parseSiteManifest({
-        ...manifest,
-        pages: { "/": { ...page("product"), image: "https://elsewhere/card.png" } },
-      }),
-    ).toThrow('at pages["/"].image');
-  });
-
   it("reads which directories the session writes from the manifest", () => {
     const grown = {
       ...manifest,

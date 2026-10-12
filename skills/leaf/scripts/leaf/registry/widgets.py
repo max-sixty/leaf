@@ -1,7 +1,6 @@
 """Widget structure and interaction contract validation."""
 
 import turbohtml
-from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
 from leaf.schema import (
@@ -18,7 +17,7 @@ from .contract import (
     state_specs,
     visual_part_attribute,
 )
-from .schema import json_validator, json_value, schema_error_message
+from .schema import check_schema, json_validator, json_value, schema_error_message
 from .state import (
     validate_deciding_verb,
     validate_widget_record_contracts,
@@ -32,7 +31,7 @@ def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
     # pass, so their result cannot depend on which widget happened to be written first.
     for tag, entry in declarations.items():
         try:
-            Draft202012Validator.check_schema(entry)
+            check_schema(entry)
         except SchemaError as error:
             raise RegistryError(
                 f"{path}: <{tag}> is not a valid JSON Schema: {schema_error_message(error)}"
@@ -61,7 +60,7 @@ def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
             if spec.get("record"):
                 continue
             try:
-                Draft202012Validator.check_schema(spec["detail"])
+                check_schema(spec["detail"])
             except SchemaError as error:
                 raise RegistryError(
                     f"{path}: <{tag}> x-state verb `{verb}` has an invalid "

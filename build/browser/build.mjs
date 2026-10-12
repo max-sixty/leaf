@@ -8,8 +8,9 @@
  * without writing them. This module owns its source root, outputs, and their layer
  * paths, and writes and checks every other committed Node-built output beside them:
  * the initial renderers (`build/initial.mjs`), the stylesheets (`build/styles.mjs`),
- * the modules generated from the registry (`build/registry.mjs`), and the
- * third-party bundles (`build/vendor.mjs`). The layer's `vendor/` and each package's
+ * the modules generated from the registry (`build/registry.mjs`), the kernel
+ * event contract and the protocol baseline `protocol.test.ts` holds it to
+ * (`event-types.mjs`), and the third-party bundles (`build/vendor.mjs`). The layer's `vendor/` and each package's
  * hold nothing else, so a file there that no build writes is stale. Leaf
  * installation, vendoring, activation, and export never invoke this tool.
  *
@@ -185,11 +186,38 @@ async function litModule() {
   ];
 }
 
+// The event contract as it last stood at the current page protocol, which
+// `protocol.test.ts` holds every later contract at that protocol to taking. A build
+// whose typecheck passes moves it forward to the contract it built; a new protocol
+// starts it again (`layer-registry.md`, "Page protocol").
+const protocolContractPath = path.join(root, sourceRoot, "protocol-contract.d.ts");
+
+async function protocolContract(contract) {
+  const registry = JSON.parse(
+    await readFile(path.join(root, assets, "registry.json"), "utf8"),
+  );
+  const protocol = registry.$events.protocol;
+  const header = `// The event contract pages vendored at protocol ${protocol} speak, as it last stood (protocol.test.ts).`;
+  return { header, text: `${header}\n${contract.slice(contract.indexOf("\n") + 1)}` };
+}
+
+async function protocolHeader() {
+  try {
+    const text = await readFile(protocolContractPath, "utf8");
+    return text.slice(0, text.indexOf("\n"));
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    return null;
+  }
+}
+
 export async function buildOutputs() {
   const contractPath = path.join(root, sourceRoot, "event-contract.d.ts");
   const contract = await eventTypes(new URL("../../", import.meta.url));
   if ((await readFile(contractPath, "utf8")) !== contract)
     throw new Error("Stale kernel event types; run pnpm run build:browser");
+  if ((await protocolHeader()) !== (await protocolContract(contract)).header)
+    throw new Error("Stale protocol contract; run pnpm run build:browser");
   const typecheck = spawnSync(
     process.execPath,
     [
@@ -321,12 +349,15 @@ async function main(args) {
   if (args.length > 1 || (args.length && args[0] !== "--check")) {
     throw new Error("Usage: node build/browser/build.mjs [--check]");
   }
-  if (args[0] !== "--check")
-    await writeFile(
-      path.join(root, sourceRoot, "event-contract.d.ts"),
-      await eventTypes(new URL("../../", import.meta.url)),
-    );
+  const contract = await eventTypes(new URL("../../", import.meta.url));
+  const protocol = await protocolContract(contract);
+  if (args[0] !== "--check") {
+    await writeFile(path.join(root, sourceRoot, "event-contract.d.ts"), contract);
+    if ((await protocolHeader()) !== protocol.header)
+      await writeFile(protocolContractPath, protocol.text);
+  }
   const outputs = await buildOutputs();
+  if (args[0] !== "--check") await writeFile(protocolContractPath, protocol.text);
   if (args[0] === "--check") await checkOutputs(outputs);
   else {
     for (const owned of await vendorDirectories(root))

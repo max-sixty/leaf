@@ -10392,6 +10392,50 @@ def test_codex_ignores_delivery_records_from_the_previous_id_vocabulary(state):
     assert codex_model.delivery_records("codex-thread") == []
 
 
+def test_codex_retires_a_receipt_on_a_page_its_leaf_cannot_write(codex_claimed_page):
+    """A Codex receipt on a page vendored at another protocol retires its batch, as
+    one whose page went or changed hands does, rather than failing every retry: the
+    input stays unpicked on the page, so a Leaf that can write it delivers it again
+    once `leaf page init` re-vendors the page."""
+    page = codex_claimed_page
+    append_carried_log_record(
+        page, {"kind": "comment", "id": "asked", "author": "user", "text": "Why?"}
+    )
+    (event,) = events_model.read_events(page)[-1:]
+    with service_model.PageTransaction(page) as transaction:
+        batch = delivery_model.batch_data(page, transaction, [event])
+    delivery_model.freeze_delivery([batch], delivery_id="bbbbbbbb")
+    directory = codex_state_model.delivery_dir("codex-thread")
+    directory.mkdir(parents=True)
+    cleanup_model.write_json(
+        directory / "bbbbbbbb.json",
+        {
+            "format": codex_model.RECORD_FORMAT,
+            "state": "queued",
+            "created_at": 1,
+            "pending": [0],
+            "batches": [
+                {
+                    "page": str(page),
+                    "session": "codex-thread",
+                    "threads": [],
+                    "events": [event],
+                }
+            ],
+        },
+    )
+    vendored_at_another_protocol(page)
+
+    assert codex_model.recover_codex_receipt("codex-thread")
+    assert not codex_model.recover_codex_receipt("codex-thread")
+    assert not [
+        recorded
+        for recorded in events_model.read_events(page)
+        if recorded["kind"] == "pickup"
+    ]
+    assert events_model.read_cursor(page) < event["seq"]
+
+
 def test_codex_recovers_page_receipts_in_sequence_order(codex_claimed_page):
     page = codex_claimed_page
     for event_id in ("first", "second"):
@@ -19490,6 +19534,29 @@ def test_a_hook_hands_input_it_cannot_confirm_to_its_reader(claimed, capsys):
     assert confirmed.exit_code == 0, confirmed.output
     assert events_model.read_cursor(claimed) >= comment["seq"]
     assert not hook_transport_model.hands_delivery(prompt())
+
+
+def test_a_watch_delivers_nothing_from_a_page_its_leaf_cannot_write(claimed):
+    """Input on a page vendored at another protocol waits for a Leaf that can write
+    the page: no receipt could be recorded for it here, so a watch that delivered it
+    woke the session again on every pass, and a Codex watch offered it as a new turn
+    each time. The prompt still names the page and the re-vendor that frees it."""
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "Please answer"}
+    )
+    vendored_at_another_protocol(claimed)
+
+    def delivered(reading):
+        pytest.fail(f"{reading.page_dir} delivered input its Leaf cannot receipt")
+
+    watch = session_model.Watch(harness_model.session_harness())
+    try:
+        assert watch.acquire()
+        ticks = list(watch.tick())
+        session_model.read_watch_pass(watch, None, delivered)
+    finally:
+        watch.release()
+    assert [tick.batch for tick in ticks if tick.page_dir == claimed] == [[]]
 
 
 def test_a_prompt_reminds_of_debt_on_a_page_its_leaf_cannot_write(claimed, capsys):

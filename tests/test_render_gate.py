@@ -1788,40 +1788,37 @@ def test_replay_findings_keep_the_throw_site(browser, serve):
     assert "replayProjection" in findings[0]
 
 
-def test_the_render_gate_rejects_a_partial_diagram_parts_list(browser, serve):
-    page = PART_DIAGRAM_PAGE
-    failures = render_gate_model.render_version(browser.unwatched, serve(page)).failures
-    assert failures == [
-        f"[{scheme}] <lf-diagram id='flow'> declares addressable visual parts "
-        "but its module leaves nameable parts unlisted node:U"
-        for scheme in ("light", "dark")
-    ]
-
-
-def test_diagram_identity_collisions_fail_before_layout(browser, serve):
-    """A node and its container cannot share the graph identity used by layout."""
-    url = serve(
-        leaf_page(
-            "colliding class",
-            """
-<h1 id="title">Colliding class</h1>
+def test_the_render_gate_reports_each_refusing_diagram(browser, serve):
+    """A parts list leaving a node unlisted and a class sharing its namespace's
+    identity, which layout cannot traverse, are independent refusals, and the gate
+    reports both: an invalid inventory ends a scheme's reading early but keeps what
+    the console already said."""
+    page = PART_DIAGRAM_PAGE.replace(
+        "</lf-diagram>",
+        """</lf-diagram>
 <lf-diagram id="model"><pre>
 classDiagram
   namespace Job {
     class Job
   }
-</pre></lf-diagram>
-""",
-        )
+</pre></lf-diagram>""",
+        1,
     )
-    failures = render_gate_model.render_version(browser.unwatched, url).failures
-    assert (
-        sum(
-            "Mermaid declares diagram identity Job more than once" in f
-            for f in failures
+    failures = render_gate_model.render_version(browser.unwatched, serve(page)).failures
+    assert [failure.splitlines()[0] for failure in failures] == [
+        line
+        for scheme in ("light", "dark")
+        for line in (
+            (
+                f'[{scheme}] console: leaf: <lf-diagram id="model"> failed: '
+                "Mermaid declares diagram identity Job more than once"
+            ),
+            (
+                f"[{scheme}] <lf-diagram id='flow'> declares addressable visual parts "
+                "but its module leaves nameable parts unlisted node:U"
+            ),
         )
-        == 2
-    )
+    ]
 
 
 def test_diagrams_preserve_late_state_labels_and_sequence_titles(browser, serve):

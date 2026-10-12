@@ -36,6 +36,7 @@ import {
   wear,
   whileConnected,
   widgetController,
+  focused,
 } from "/runtime/widget-api.js";
 import "./lf-playground-output.js";
 
@@ -222,7 +223,7 @@ customElements.define(
               // Return focus after that default takes it, so dragging remains native
               // while the preview keeps showing its focused state. An opaque sample
               // restores its own standing through its private port.
-              let standing = document.activeElement;
+              let standing = focused(document);
               while (standing?.contentDocument)
                 standing = standing.contentDocument.activeElement;
               range.addEventListener(
@@ -281,7 +282,7 @@ customElements.define(
     // take focus to be operated, and a key reaches any control by moving focus onto it
     // first, so the keyboard still acts where it stands.
     #standsInPreview() {
-      let at = document.activeElement;
+      let at = focused(document);
       if (!this.#preview.contains(at)) return false;
       // A sample's frame holds focus for its child page, which may stand on nothing.
       while (at?.contentDocument) at = at.contentDocument.activeElement;

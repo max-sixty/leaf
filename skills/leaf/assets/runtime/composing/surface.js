@@ -55,7 +55,7 @@ import {
   visualAt,
 } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
-import { WORKS } from "../control-selectors.js";
+import { CARET_KEYS, selectsAll, WORKS } from "../control-selectors.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import {
   BANNER_CONTROL_RANK,
@@ -123,13 +123,14 @@ import {
   focusDestination,
   focused,
   closeLayer,
+  standingIn,
 } from "../focus.js";
 import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
 import { under, upFrom } from "../shadow.js";
 import { nativeLayers } from "../keyboard/layer-stack.js";
 import { heldQuestion } from "../standing-target.js";
 
-import { coarsePointer, pointerAt } from "../pointer.js";
+import { coarsePointer, pointerAt, pressIsKeyboardActivation } from "../pointer.js";
 import { anchorLabel } from "../thread/messages.js";
 
 import { standingPoint } from "../pointed-place.js";
@@ -186,7 +187,7 @@ export function createResponseSurface({
   let usesPlacement = false;
   let fabInlineOutlet = null;
   let fabPositionWaiters = [];
-  const fabFocused = () => (fabInlineOutlet ? focused() : document.activeElement);
+  const fabFocused = () => focused(fabInlineOutlet ? null : document);
 
   const fabDrawn = () => drawn(composerOpen ? fabInput : fabBar);
   const answerFabPosition = (positioned) => {
@@ -370,8 +371,7 @@ export function createResponseSurface({
       // The shared return tests each place in turn: a subject that cannot take focus
       // yields to its proxy. If neither remains, it lands on the page.
       else if (leavingBar && !toPage) handBack(...places);
-      else if (leavingBar || (toPage && places.includes(document.activeElement)))
-        letGo();
+      else if (leavingBar || (toPage && places.includes(focused(document)))) letGo();
     });
   }
   function putAwayFab() {
@@ -1118,20 +1118,7 @@ export function createResponseSurface({
       const target = ev.composedPath()[0];
       if (takesLetters(target) || inChrome(target)) return;
       if (!pageWords(target) && !pageSelection()) return;
-      if (
-        (ev.shiftKey &&
-          [
-            "ArrowLeft",
-            "ArrowRight",
-            "ArrowUp",
-            "ArrowDown",
-            "Home",
-            "End",
-            "PageUp",
-            "PageDown",
-          ].includes(ev.key)) ||
-        (ev.key.toLowerCase() === "a" && (ev.metaKey || ev.ctrlKey))
-      ) {
+      if ((ev.shiftKey && CARET_KEYS.includes(ev.key)) || selectsAll(ev)) {
         rememberSelection();
         scheduleSelectionUpdate();
       } else observeSelection();
@@ -1187,7 +1174,9 @@ export function createResponseSurface({
       // A click with no press behind it carries 0,0 rather than a position — `offer` calls
       // click() to supply the keys a span doesn't come with — and the record would answer
       // for wherever the pointer is parked, so that one keeps reading the event.
-      const point = ev.detail ? pointerAt() : { x: ev.clientX, y: ev.clientY };
+      const point = pressIsKeyboardActivation(ev)
+        ? { x: ev.clientX, y: ev.clientY }
+        : pointerAt();
       const threadId = markAt?.(point.x, point.y);
       if (threadId)
         return void openPageThread(threadId, {
@@ -1246,7 +1235,7 @@ export function createResponseSurface({
       inline &&
       (inline.dataset.thread ?? inline.dataset.id) === threadId &&
       (!here ||
-        inline.contains(focused()) ||
+        standingIn(inline) ||
         (target && under(target, heldQuestion() ?? here.element))) &&
       threadInput(inline);
     const said =

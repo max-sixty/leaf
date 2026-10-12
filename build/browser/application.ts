@@ -306,7 +306,8 @@ interface WireQueues {
   questions: QueueItem[];
   tasks: QueueItem[];
   done: DoneItem[];
-  /** Open asks no one owes now, a resolved thread's, which a reopening gives back. */
+  /** Open asks no one owes now, such as a resolved thread's, which a reopening gives
+   * back. */
   held: QueueItem[];
 }
 
@@ -597,6 +598,7 @@ function localQueues(
   asks: WireQuestions,
 ) {
   const record = new Map(asks.all.map((ask) => [ask.id, ask]));
+  const asked = new Map(asks.all.map((ask, at) => [ask.id, at]));
   const open = new Set(todos.open.map((todo) => todo.id));
   const ended = new Set(todos.ended.map((todo) => todo.id));
   const byThread = new Map(threads.map((thread) => [thread.id, thread]));
@@ -686,7 +688,11 @@ function localQueues(
           ? resend(workflow.id, workflow.subject, null)
           : [],
       ),
-    ].toSorted((a, b) => questionsRank(a) - questionsRank(b)),
+    ].toSorted(
+      (a, b) =>
+        questionsRank(a) - questionsRank(b) ||
+        (a.kind === "ask" && b.kind === "ask" ? asked.get(a.id)! - asked.get(b.id)! : 0),
+    ),
     tasks: [
       ...served.tasks.filter((item) => item.kind !== "todo" && standsOpen(item)),
       // One answer per thread, as the server lists one for the newest turn owed.
@@ -713,7 +719,8 @@ function localQueues(
   };
 }
 
-// The order the server lists Questions in: asks, to-dos, then resends.
+// The order the server lists Questions in: asks, to-dos, then resends; asks among
+// themselves in the order the view's ask inventory holds them.
 const questionsRank = (item: QueueItem) =>
   item.kind === "ask" ? 0 : item.kind === "todo" ? 1 : 2;
 

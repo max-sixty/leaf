@@ -15,8 +15,8 @@ subject and the thread it stands in, and whether the agent has it in hand now
 (`live`): a to-do a start holds, or an update the agent is at work on whose work has
 not gone quiet or stopped. An ask item keeps its canonical record, and a to-do item
 the fields a row draws. Each done item adds how it ended (`state`), when (`ended`),
-and the outcome's detail. `held` lists the open asks no one owes now, those of a
-resolved thread, as items, so the browser can put one on Questions while a gesture
+and the outcome's detail. `held` lists the open asks no one owes now, such as a
+resolved thread's, as items, so the browser can put one on Questions while a gesture
 it sent reopens that thread (`after`, `served_state.browser`), and selects nothing.
 """
 

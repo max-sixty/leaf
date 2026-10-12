@@ -1352,7 +1352,8 @@ test("a reply reopening a thread over an Ask puts the Ask back on the user at on
   // A resolution suppresses the Ask the thread carries, so the server holds it rather
   // than listing it on Questions; the reply reopens the thread, and the server read it
   // giving the Ask back. The thread and Questions both say so in the reply's own turn
-  // rather than one of them when the log answers.
+  // rather than one of them when the log answers, and Questions draws it where the
+  // server will list it, before an ask the server lists after it.
   const root = {
     kind: "comment",
     id: "question",
@@ -1366,8 +1367,13 @@ test("a reply reopening a thread over an Ask puts the Ask back on the user at on
     ...wireQuestion("frozen-ask", "lf-ask", "frozen-choice", "lf-choice", root.id),
     next_actor: null,
   };
-  accepted.browser.thread.asks = { all: [frozen], user: [], unanswered: [frozen] };
-  accepted.browser.views[1].queues = askQueues([frozen]);
+  const later = wireQuestion("later", "lf-choice", "later", "lf-choice", "elsewhere");
+  accepted.browser.thread.asks = {
+    all: [frozen, later],
+    user: [later],
+    unanswered: [frozen, later],
+  };
+  accepted.browser.views[1].queues = askQueues([frozen, later]);
   const ask = {
     attention: { kind: "needs_user", reason: "ask", workflow: null },
     owed: [frozen.id],
@@ -1379,8 +1385,11 @@ test("a reply reopening a thread over an Ask puts the Ask back on the user at on
     }),
   ];
   app.adopt(accepted);
-  assert.deepEqual(app.read().effective.asks.user, []);
-  assert.deepEqual(app.read().effective.queues.questions, []);
+  assert.deepEqual(app.read().effective.asks.user.map(({ id }) => id), [later.id]);
+  assert.deepEqual(
+    app.read().effective.queues.questions.map(({ id }) => id),
+    [later.id],
+  );
 
   app.enqueue(
     {
@@ -1396,11 +1405,14 @@ test("a reply reopening a thread over an Ask puts the Ask back on the user at on
   assert.deepEqual(thread.all[0].attention, ask.attention);
   assert.deepEqual(
     asks.user.map(({ id }) => id),
-    [frozen.id],
+    [frozen.id, later.id],
   );
   assert.deepEqual(
     queues.questions.map(({ kind, id }) => [kind, id]),
-    [["ask", frozen.id]],
+    [
+      ["ask", frozen.id],
+      ["ask", later.id],
+    ],
   );
 });
 

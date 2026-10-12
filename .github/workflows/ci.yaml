@@ -26,15 +26,6 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Keep the existing required check until the rename lands and branch protection
-  # can require `test`. This check succeeds only after the complete test gate does.
-  lint:
-    needs: test
-    if: always()
-    runs-on: ubuntu-24.04
-    steps:
-      - run: test '${{ needs.test.result }}' = success
-
   test:
     concurrency:
       # One push suite at a time: it holds a runner for over an hour, and GitHub's

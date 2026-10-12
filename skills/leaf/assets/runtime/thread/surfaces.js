@@ -97,7 +97,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
       const thread = readThreads().threads.find((item) => item.key === key);
       return thread ? reveal(thread.id) : false;
     },
-    open(node, { origin = null } = {}) {
+    open(node) {
       if (!active) return false;
       if (kind === "widget") requireSurface(owner);
       const target = kind === "widget" ? datumAimTarget(node) : aimTargetAt(node);
@@ -111,7 +111,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
             ? `placeThreads(${owner.localName}) can open only its own projected datum`
             : "The page Thread presentation needs an addressable source target",
         );
-      composition.open(target, { origin });
+      composition.open(target);
       return true;
     },
     update: () => update(registration),

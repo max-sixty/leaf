@@ -5849,6 +5849,7 @@ def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(
           }),
         })"""
     )
+    syntax = unread_syntax(page)
     page.close()
     assert {"var(--syn-comment)", "var(--syn-keyword)", "var(--syn-string)"} <= set(
         population["document"]
@@ -5860,9 +5861,6 @@ def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(
     assert readable["background"] == faint["background"], population
     assert readable["ink"] != faint["ink"], population
 
-    page = open_page(browser, serve(CODE_FAULT_PAGE))
-    syntax = unread_syntax(page)
-    page.close()
     assert len(syntax) == 4, "\n".join(syntax)
     for appearance, color in (
         ("light", "keyword"),
@@ -5888,7 +5886,6 @@ def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(
     )
     assert population["document"] > 0 and population["shadow"] > 0, population
     assert unread_syntax(page) == []
-    page.close()
 
 
 def test_an_authored_project_widget_loads_through_the_real_layer(

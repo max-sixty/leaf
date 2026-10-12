@@ -2,6 +2,11 @@
 
 ## Biggest current challenges
 
+- **Improve our outputs against a standard HTML output.** Agents given plain
+  HTML wrote pages judges preferred on every configuration and some queues, at a
+  third to a half of Leaf's cost ([comparison](notes/agent-usability-evals.md#authoring-against-plain-html-2026-10-12)).
+  Make Leaf's pages at least as good, and find which widgets and instructions
+  help an author rather than constrain one.
 - **Simplify the harness, host, and CLI workflow.** Make feedback delivery and
   agent wake-up reliable, including Codex's message back into the session and
   Claude Code's potentially overcomplicated state machine.

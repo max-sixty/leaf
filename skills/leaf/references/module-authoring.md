@@ -883,9 +883,10 @@ omitting the attribute keeps the visual as one target.
 ## Projection subscriptions
 
 Register `watchQuestions`, `watchReports`, `watchHistory`, and `watchThreads` once for each
-owner. They coalesce reads at the script's microtask checkpoint, pause while the owner
-is absent, and read the latest projection when it returns, even when unchanged.
-Moving the owner within one mutation batch retains its subscription. Their returned
+owner. They coalesce reads at the script's microtask checkpoint and pause while the
+owner is absent. A return reads again by the rule in "Connection lifetimes": only
+when the semantic state, a projection deferral, or the page's presentation changed
+while the owner was away, or a paint was cut short. Moving the owner within one mutation batch retains its subscription. Their returned
 cleanup permanently retires the subscription, including queued reads and clock paints.
 Its `refresh()` reruns the same clock-tracked reading synchronously while the owner
 is connected, retaining the watcher's readiness proof. Use it when a mechanical
@@ -915,8 +916,16 @@ resources. An actual departure aborts the signal and calls that cleanup, and a f
 permanently retires the subscription and releases active resources. Call it when the
 element no longer needs them, as a widget that fails soft from a paint it cannot
 repeat does, so a return does not start them again. Register dependent resources
-before `watchData` so they stand when its callback runs. A return repaints only data
-that changed, so `start` restores whatever its cleanup cleared.
+before `watchData` so they stand when its callback runs.
+
+`watchData` and the projection subscriptions pause while their owner is away. On
+return a subscription calls its callback again only when its reading changed while
+the owner was away, or when a callback's returned promise had not settled while the
+owner stood. A finished rendering, a failure included, stands, so a refusal is
+reported once. So return the promise of any paint that finishes later, abandon
+unfinished work on departure, keep finished nodes where they are, and have `start`
+restore whatever its cleanup cleared. A `HeldReading` built with its widget,
+`new HeldReading(this, region, changed)`, keeps waiting across a return itself.
 
 ```js
 schedulePaint = frameFor(this, () => this.paint());
@@ -961,12 +970,8 @@ source's contract, publication, or validity changes. An incompatible contract or
 value delivers `null`, clearing the previous rendering. The subscription stays
 active and recovers when a readable value returns. `page state` and `page check`
 report invalid values; an incompatible subscriber reports the contract it requires.
-Register once for the element. Leaf pauses the subscription when its owner leaves. On
-return it delivers the newest snapshot only when that reading differs from the last
-one delivered or the departure interrupted a callback whose returned promise had not
-settled. A finished rendering, a failure included, stands. So return the promise of
-any paint that finishes later, abandon unfinished work on departure, and keep
-finished nodes where they are.
+Register once for the element. Leaf pauses the subscription when its owner leaves,
+and a return delivers by the rule in "Connection lifetimes".
 Moving the owner within one DOM mutation batch retains the subscription. The returned
 cleanup function ends it permanently when the module explicitly stops watching.
 Its `refresh()` repaints the last delivered snapshot through the same clock

@@ -5840,7 +5840,8 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
 def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
     browser, serve
 ):
-    """Refresh acquires clock work; retiring a read cannot revive that subscription."""
+    """Refresh acquires clock work; a return reads nothing unchanged, though its time
+    readings tick again; retiring a read cannot revive that subscription."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     result = page.evaluate(
         """async () => {
@@ -5892,6 +5893,8 @@ def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
           await changed(() => document.body.append(owner));
           await Promise.resolve();
           const resumed = calls;
+          await tickClock(message => { throw new Error(message); });
+          const ticked = calls;
           stop.refresh();
           const refreshed = calls;
           stop();
@@ -5902,7 +5905,7 @@ def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
           await tickClock(message => { throw new Error(message); });
           owner.remove();
           return {cancelled, initial, untracked, subscribed, clocked,
-            moved, detached, resumed, refreshed, stopped: calls};
+            moved, detached, resumed, ticked, refreshed, stopped: calls};
         }"""
     )
     assert result == {
@@ -5913,10 +5916,116 @@ def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
         "clocked": 3,
         "moved": 3,
         "detached": 3,
-        "resumed": 4,
+        "resumed": 3,
+        "ticked": 4,
         "refreshed": 5,
         "stopped": 5,
     }
+
+
+def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_cut_the_paint(
+    browser, serve
+):
+    """A projection reading that failed stands across a departure and return, so the
+    author is told once, as a data subscriber's is; a paint the departure cut short is
+    owed again."""
+    page = open_page(browser, serve(SUGGESTION_PAGE))
+    result = page.evaluate(
+        """async () => {
+          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const settle = () => new Promise((resolve) => setTimeout(resolve));
+          const owned = (id) => {
+            const owner = document.createElement('div');
+            owner.id = id;
+            document.body.append(owner);
+            return owner;
+          };
+          const leaveAndReturn = async (owner) => {
+            owner.remove();
+            await settle();
+            document.body.append(owner);
+            await settle();
+          };
+          const failed = {};
+          const stops = [];
+          for (const name of ['watchQuestions', 'watchReports', 'watchHistory']) {
+            const owner = owned(`failing-${name}`);
+            failed[name] = 0;
+            stops.push(api[name](owner, () => {
+              failed[name] += 1;
+              throw new Error(`${name} paint failed`);
+            }));
+            await settle();
+            await leaveAndReturn(owner);
+          }
+          const owner = owned('pending-paint');
+          let paints = 0;
+          let finish;
+          const finished = new Promise((resolve) => { finish = resolve; });
+          stops.push(api.watchQuestions(owner, () => {
+            paints += 1;
+            return finished;
+          }));
+          await settle();
+          await leaveAndReturn(owner);
+          const interrupted = paints;
+          finish();
+          await finished;
+          await leaveAndReturn(owner);
+          const kept = paints;
+          for (const stop of stops) stop();
+          return {failed, interrupted, kept};
+        }"""
+    )
+    assert result == {
+        "failed": {"watchQuestions": 1, "watchReports": 1, "watchHistory": 1},
+        "interrupted": 2,
+        "kept": 2,
+    }
+    errors = consume_browser_errors(page, "paint failed")
+    reported = sorted(error.splitlines()[0] for error in errors)
+    assert reported == sorted(
+        f"{prefix}Error: {name} paint failed"
+        for name in ["watchQuestions", "watchReports", "watchHistory"]
+        for prefix in ["", "leaf: "]
+    )
+
+
+def test_a_held_reading_shows_once_unseen_after_its_owner_returns(browser, serve):
+    """A widget's held reading waits for its growth to go unseen across a departure
+    and return, though the return draws nothing again."""
+    page = open_page(browser, serve(SUGGESTION_PAGE))
+    result = page.evaluate(
+        """async () => {
+          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const settle = () => new Promise((resolve) => setTimeout(resolve));
+          const owner = document.createElement('div');
+          const region = document.createElement('p');
+          region.textContent = 'Rows';
+          owner.append(region);
+          document.body.prepend(owner);
+          let current = 'first';
+          let shown = null;
+          let watching;
+          const held = new api.HeldReading(owner, () => [region], () => watching.refresh());
+          watching = api.watchQuestions(owner, () => { shown = held.hold(current); });
+          await settle();
+          current = 'second';
+          watching.refresh();
+          const waiting = shown;
+          owner.remove();
+          await settle();
+          document.body.prepend(owner);
+          await settle();
+          region.hidden = true;
+          for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
+          await settle();
+          watching();
+          owner.remove();
+          return {waiting, shown};
+        }"""
+    )
+    assert result == {"waiting": "first", "shown": "second"}
 
 
 def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, serve):

@@ -12,7 +12,7 @@ globalThis.requestAnimationFrame = (callback) => {
 };
 globalThis.cancelAnimationFrame = (id) => frames.delete(id);
 
-const { whileConnected, frameFor } = await import("/runtime/arrivals.js");
+const { whileConnected, frameFor, readingPaint } = await import("/runtime/arrivals.js");
 const { observeQueuedWork } = await import("/runtime/queued-work.js");
 
 // A second observer acknowledges delivery of the same mutation batch as arrivals.
@@ -213,4 +213,42 @@ test("a frame refuses to paint after removal even before departure delivery", as
   await renderFrame();
   assert.equal(paints, 0);
   stop();
+});
+
+test("a returning owner draws a reading again only where its paint did not finish while it stood", async () => {
+  const owner = document.createElement("section");
+  await mutate(() => document.body.append(owner));
+  const drawn = [];
+  let finish;
+  const paint = readingPaint(owner, (reading) => {
+    drawn.push(reading);
+    if (reading === "refused") throw new Error("refused");
+    if (reading.startsWith("slow")) return new Promise((resolve) => (finish = resolve));
+  });
+  const leaveAndReturn = async () => {
+    await mutate(() => owner.remove());
+    await mutate(() => document.body.append(owner));
+  };
+  try {
+    assert.throws(() => paint("refused", "refused"));
+    await leaveAndReturn();
+    paint("refused", "refused");
+    // Left while the paint was running.
+    paint("slow", "slow");
+    await leaveAndReturn();
+    paint("slow", "slow again");
+    // Settled after the owner was removed, before its departure was delivered.
+    finish();
+    await mutate(() => owner.remove());
+    await mutate(() => document.body.append(owner));
+    paint("slow", "slow once more");
+    finish();
+    await Promise.resolve();
+    await leaveAndReturn();
+    paint("slow", "slow, finished");
+    assert.deepEqual(drawn, ["refused", "slow", "slow again", "slow once more"]);
+  } finally {
+    paint.stop();
+    owner.remove();
+  }
 });

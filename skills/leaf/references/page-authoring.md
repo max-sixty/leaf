@@ -646,22 +646,24 @@ not reach it; neither page can read the other's DOM, browser storage, or runtime
 functions. Scripts, embedded frames, forms, popups, and downloads work in the child,
 and native resource loaders and module-relative URLs reach its own captured assets. A
 page module can await the element's `ready` promise for the current child's
-presentation; Reset and a reload inside the child each replace that promise. `await
+presentation; Reset, and the child leaving its page, each replace that promise. `await
 sample.reset()` replaces the child with a fresh copy of its initial state, and a
 reload inside the child reconnects the same child. When the child cannot be loaded,
 `ready` rejects and the sample shows the error with Reset available. The bubbling
 `lf-sample-ready` event carries `detail.sample` after each presentation, including
 Reset and a reload, so host controls can reapply a selected view without inspecting
-the Reset button. While the child shows a document that is not its Leaf page, such
-as one a link navigated to, `ready` and presentation commands reject with
-`SampleDepartedError`.
+the Reset button. Once the child leaves its Leaf page, `ready` waits for the next one,
+which a reload brings. The containing page cannot tell a reload from a link to another
+document, so after such a link the wait lasts until Reset, which rejects it with
+`AbortError`.
 To select a conversation, call `await sample.showThread(id)` with its root event id;
 this shows the same page destination as its marker. To inspect it in Threads,
 call `await sample.showThread(id, {surface: "panel"})`. The panel view accepts
 `status: "open" | "resolved" | "all"` and `waiting: "user" | "agent" | "all"`;
 omitted values restore Open and unrestricted waiting. A panel view may omit the
 id to show its list. Completion means the selected view has presented; it returns
-false when a newer selection or Reset supersedes it. Outer controls keep keyboard
+false when a newer selection or Reset supersedes it. A selection the child leaves
+before presenting waits for the next document, as `ready` does. Outer controls keep keyboard
 focus. Use this method instead of clicking the child's private chrome or observing
 its DOM. Reapply the selected view on `lf-sample-ready` after Reset or reload.
 Author child content in the

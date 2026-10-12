@@ -354,7 +354,7 @@ test("a pending gesture leaves its thread as the server read that gesture leavin
     owed: undefined,
   });
   // A reaction closes nothing, so a resolve still pending keeps the thread closed; and
-  // one this tab takes back before the log has it stands nowhere.
+  // one this tab takes back before the log has it answers nothing.
   assert.deepEqual(fold(prose, resolve, keep), closed);
   const undo = { id: "pending:undo", kind: "undo", author: "user", undoes: keep.id };
   assert.deepEqual(fold(prose, keep, undo), { attention: owed, owed: undefined });

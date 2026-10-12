@@ -227,13 +227,6 @@ export function foldThreads(threads, gestures, settles = () => false) {
       ...change,
     });
   for (const gesture of gestures) {
-    // A gesture this tab takes back before the log has it, as a reaction pressed
-    // twice, stands nowhere.
-    if (
-      (gesture.kind === "comment" || gesture.kind === "reply") &&
-      withdrawn.has(gesture.id)
-    )
-      continue;
     if (gesture.kind === "comment") {
       const reaction = isReaction(gesture);
       /** @type {Thread} */
@@ -265,12 +258,15 @@ export function foldThreads(threads, gestures, settles = () => false) {
       const streaming = thread.msgs.at(-1)?.provisional ? 1 : 0;
       thread.msgs.splice(thread.msgs.length - streaming, 0, gesture);
       if (isReaction(gesture)) {
+        // It answers less than a turn and closes nothing, so a pending turn or resolve
+        // still decides; one this tab takes back before the log has it answers
+        // nothing. It stays drawn until the log answers the undo, which refuses it
+        // once a reply of the user's stands on it.
         if (
+          !withdrawn.has(gesture.id) &&
           gesture.parent === thread.user_prompt?.message &&
           settles(gesture.token ?? "")
         )
-          // It answers less than a turn and closes nothing, so a pending turn or
-          // resolve still decides.
           note(thread, { reacted: true });
         continue;
       }

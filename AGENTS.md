@@ -251,7 +251,7 @@ a widget's state or the words of a turn the user adds to a thread. Which Questio
 the document still holds, which of them the user owes, and whose turn a thread is
 depend on the whole log, so the browser reads them from the server's state and,
 while a thread gesture of its own is unresolved, from what the server read that
-gesture leaving (each thread's `after`). It adds only what it settles itself: a
+gesture leaving (each thread's `after`). It adds only what it decides itself: a
 required-version approval, a thread it opened, and a refused send's recovery. A
 refusal restores the authoritative state.
 

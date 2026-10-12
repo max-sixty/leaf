@@ -456,6 +456,11 @@ class for them: `lf-options button`, `lf-board .lf-btn`, or, for controls a page
 module builds with `offer`, the page's own element (`my-explorer .toolbar`). A token
 such as `--accent` on `:root` changes every surface that reads it.
 
+A control the page writes itself matches Leaf's own when it carries Leaf's class:
+`class="button"` on a button, `class="button primary"` on the committing action, and
+`class="field"` on a text input or select. Without one it takes Leaf's type and keeps
+the browser's frame.
+
 Widget attributes carry scalars; children carry prose; a titled compound member uses a
 leading `<strong>`. A data-bodied widget such as `lf-code` holds escaped
 notation in `<pre>`, because its whitespace is part of the data. Escape `&`

@@ -753,8 +753,12 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   /* A covering auxiliary surface takes the whole window: the banner is one of the inert siblings,
      not an available strip above it. Its shared scrim therefore stands above the banner
      and below the active surface. Chrome-owned targeting and native top-layer dialogs
-     keep their higher planes so a command inside the auxiliary surface can still show its aim. */
-  .lf-auxiliary-envelope { position: absolute; inset: 0 auto auto 0; width: 100vw; height: 100vh;
+     keep their higher planes so a command inside the auxiliary surface can still show its aim.
+     The envelope itself is an empty box at the origin: what it holds positions itself
+     against the window, and a window-sized transparent box would stand over the page's
+     first screen for anything reading the page by hit-testing, so axe could measure the
+     contrast of none of the words under it. */
+  .lf-auxiliary-envelope { position: absolute; inset: 0 auto auto 0; width: 0; height: 0;
     max-width: none; max-height: none; margin: 0; padding: 0; border: 0; overflow: visible;
     background: transparent; color: inherit; pointer-events: none; }
   .lf-auxiliary-envelope::backdrop { background: transparent; }

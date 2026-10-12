@@ -1376,6 +1376,37 @@ def serious_axe_violations(page):
     return violations, report
 
 
+def overlapped_words(page):
+    """Words axe read no contrast for because a box stands over them, one line each.
+
+    Axe answers these as incomplete, not as violations, so a sweep keeping violations
+    alone passes words it never measured. A window-sized transparent layer over the
+    first screen hid every word under it this way (#2559). A gradient or image behind
+    the words stays unmeasured too; that is their paint, not something in the way."""
+    axe = Axe()
+    for frame in page.frames:
+        frame.evaluate(axe.axe_script)
+    result = axe.run(
+        page,
+        options={
+            "runOnly": {"type": "rule", "values": ["color-contrast"]},
+            "resultTypes": ["incomplete"],
+        },
+    )
+    return [
+        " ".join(
+            sel if isinstance(sel, str) else " >>> ".join(sel) for sel in node["target"]
+        )
+        for incomplete in result.response["incomplete"]
+        for node in incomplete["nodes"]
+        if any(
+            isinstance(check.get("data"), dict)
+            and check["data"].get("messageKey") == "bgOverlap"
+            for check in node["any"]
+        )
+    ]
+
+
 # Chips whose words are a price and nothing else, which is two or three characters and
 # about 30px — and an inline suggestion swapping one letter for another, about the same.
 # Nothing else on the page is unusual, so these are the only things on it that a floor

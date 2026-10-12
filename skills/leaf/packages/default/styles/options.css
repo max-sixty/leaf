@@ -82,8 +82,15 @@
    Avoid general rules followed by a reset for the other form; specificity can leave
    the wrong state partially active. A rule stays general only when its effect is true
    in every form. */
+/* The line an option's words stand on, as a length the group resolves from its own
+ * line, which its options inherit: a card's is the page's prose line at any density, a
+ * row's the face below. The field the user writes an option in stands on the same line
+ * whatever size its words take there (--entry-floor), so the option that replaces the
+ * field keeps the row's height. */
+@property --lf-option-line { syntax: "<length>"; inherits: true; initial-value: 0px; }
 :scope:is(lf-options) { display: block; margin: 14px 0; --lf-joined: 0;
              --lf-option-font: var(--t-4)/1.6 var(--serif);
+             --lf-option-line: 1lh;
              container-type: inline-size; }
 :scope:is(lf-options):not(:has(> lf-option > strong)) {
              --lf-option-font: var(--t-5)/1.5 var(--sans);
@@ -106,6 +113,9 @@
 @container style(--lf-joined: 0) {
   :scope:is(lf-options):has(> lf-option > strong) > lf-option { border: 1px solid var(--rule);
               border-radius: var(--r); background: var(--card); }
+  /* The field takes the border's room unpainted, so the card it becomes is its size. */
+  :scope:is(lf-options):has(> lf-option > strong) > .lf-another {
+              border: 1px solid transparent; }
 }
 /* A titled option's title heads its card, or, at working density (`--lf-density`,
  * theme.css) in a group wide enough to hold a row, runs into its consequence on one
@@ -281,17 +291,19 @@
                      position: absolute; left: var(--sp-3); bottom: 9px; }
 @media screen {
  :scope:is(lf-options)[choose]:not(:where([data-lf-exhibit]) *):has(> lf-option > strong){
-   --lf-card-state-room: 80px;
+   --lf-card-state-room: 80px; --lf-card-state-height: 22px;
    & > :is(lf-option, .lf-another) { padding-inline-start: var(--sp-3); }
    & > lf-option { padding-bottom: var(--sp-3); }
    /* The field holds the card it becomes, so it takes the card's inset rather than the
-    * cell floor: the row stays the same height when the add lands, as the row form's
-    * does. */
+    * cell floor, and the state band's height where that outgrows one line (the float
+    * below): the row stays the same height when the add lands, as the row form's does. */
    & > .lf-another:not([hidden]) { padding-block: var(--sp-3); }
+   & > .lf-another > .lf-compose-field { min-height: var(--lf-card-state-height); }
    /* A float is the exclusion, rather than margin on one authored child: every chip and
     * title line that reaches the status band wraps around the same reserved rectangle. */
    & > lf-option::before { content: ""; float: inline-end;
-                     width: var(--lf-card-state-room); height: 22px;
+                     width: var(--lf-card-state-room);
+                     height: var(--lf-card-state-height);
                      pointer-events: none; }
    /* The mark's box is the whole seat the binding badge takes in its place, the mark
     * centred in it as the badge's digit is. A margin pin standing in the card's corner
@@ -326,9 +338,15 @@
                      inset-inline-start: auto;
                      inset-inline-end: var(--lf-option-add-badge-inset);
                      top: auto;
-                     bottom: var(--lf-option-add-badge-inset);
+                     bottom: var(--lf-option-add-badge-end);
                      margin: 0; }
+   /* The card's inset puts the field's one line well above the frame's corner, so the
+    * seat rises from the corner to stand centred on that line, as the words it sends
+    * do. */
    & > .lf-another {
+                     --lf-option-add-seat-end:
+                       calc(var(--sp-3)
+                         + (var(--lf-option-line) - var(--lf-option-action-size)) / 2);
                      --lf-option-action-room:
                        calc(var(--lf-option-write-badge-inset)
                          + var(--lf-key-badge-size) + var(--sp-2)); }
@@ -504,13 +522,13 @@
     overflow: clip;
     /* Where the runtime runs, the authored options paint before their generated Add
      * and Done cells. Keep their rows occupied until upgrade so the next block stays
-     * put. The form is one line of the option face inside the inset of the option it
-     * becomes: a row's 5px around var(--t-5)/1.5, a card's --sp-3 around
-     * var(--t-4)/1.6 (`--lf-option-font`). */
-    --lf-add-cell-height: calc(1.5 * var(--t-5) + 2 * 5px);
+     * put. The form is one option line inside the inset of the option it becomes: a
+     * row's 5px, a card's --sp-3. */
+    --lf-add-cell-height: calc(var(--lf-option-line) + 2 * 5px);
     --lf-done-cell-height: 32px;
     &:has(> lf-option > strong) {
-      --lf-add-cell-height: calc(1.6 * var(--t-4) + 2 * var(--sp-3)); }
+      --lf-add-cell-height: calc(max(var(--lf-option-line), var(--lf-card-state-height))
+        + 2 * var(--sp-3)); }
     &:where([data-lf-interactive] *)::after { content: "";
       display: block; height: var(--lf-missing-cells, 0px); }
     &:not(:where(.lf-chrome *)):not(:has(> .lf-another)) {
@@ -637,8 +655,12 @@
   }
   .lf-another { --lf-option-action-size: max(28px, var(--aim-floor));
                 --lf-option-add-seat-inset: var(--sp-1);
+                --lf-option-add-seat-end: var(--lf-option-add-seat-inset);
                 --lf-option-add-badge-inset:
                   calc(var(--lf-option-add-seat-inset)
+                    + (var(--lf-option-action-size) - var(--lf-key-badge-size)) / 2);
+                --lf-option-add-badge-end:
+                  calc(var(--lf-option-add-seat-end)
                     + (var(--lf-option-action-size) - var(--lf-key-badge-size)) / 2);
                 --lf-option-write-badge-inset:
                   calc(var(--lf-option-add-seat-inset) + var(--lf-option-action-size)
@@ -663,11 +685,13 @@
                      margin-inline-start: var(--lf-compose-text-margin-inline-start, 0px);
                      --lf-field-end-room: var(--lf-option-action-room);
                      border: 0; outline: none; background: transparent; color: inherit;
-                     font: var(--lf-option-font); resize: none; }
-  .lf-another .lf-compose-placeholder { font: var(--lf-option-font); }
+                     font: var(--lf-option-font); line-height: var(--lf-option-line);
+                     resize: none; }
+  .lf-another .lf-compose-placeholder { font: var(--lf-option-font);
+                     line-height: var(--lf-option-line); }
   .lf-another .lf-compose-submit { --lf-icon-action-hit: var(--lf-option-action-size);
                                   inset-inline-end: var(--lf-option-add-seat-inset);
-                                  inset-block-end: var(--lf-option-add-seat-inset); }
+                                  inset-block-end: var(--lf-option-add-seat-end); }
   /* Keep an empty Add press visible while it owns focus after submission. */
   .lf-another .lf-compose-submit[data-lf-empty]:not([data-lf-focus]) { visibility: hidden; }
   /* The leading column holds the key badge and the gap before the option's

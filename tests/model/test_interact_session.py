@@ -16867,6 +16867,45 @@ def test_a_pick_of_an_added_option_settles_without_writing_the_option_in(claimed
     assert state_json(claimed)["workflows"] == []
 
 
+def test_done_hands_over_a_pick_the_markup_must_still_record(claimed):
+    """Done finishes a multiple-choice answer without replacing it: the version that
+    takes the answer in still marks the authored picks `chosen`, beside an added option
+    that stays the log's, and a version without them leaves the answer owed."""
+    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose multiple>')
+    (claimed / "index.html").write_text(source)
+    publish(claimed)
+    for action, detail in [
+        ("add", {"option": "choice-option-mine", "text": "Both, staged."}),
+        ("choose", {"value": ["flag-first", "choice-option-mine"]}),
+        ("answer", {}),
+    ]:
+        done = append_command(
+            claimed,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "choice",
+                "action": action,
+                "detail": detail,
+            },
+        )
+    [workflow] = owed(state_json(claimed))
+    assert workflow["answer"] == {"kind": "markup", "action": done["id"]}
+
+    (claimed / "index.html").write_text(source.replace("Ship dark.", "Ship it dark."))
+    assert stamp(claimed, "Forgot the pick").exit_code == 0
+    assert [item["input"] for item in owed(state_json(claimed))] == [done["id"]]
+
+    (claimed / "index.html").write_text(
+        source.replace(
+            '<lf-option id="flag-first">', '<lf-option id="flag-first" chosen>'
+        )
+    )
+    assert stamp(claimed, "Flag first, staged").exit_code == 0
+    assert state_json(claimed)["workflows"] == []
+
+
 @pytest.mark.parametrize("declared", ["shipped", "done-only"])
 def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared):
     """A multiple-choice Ask finishes with Done. Until then a tick is the user's

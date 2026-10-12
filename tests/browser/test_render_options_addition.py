@@ -67,9 +67,15 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
         "button", name="Add and select option", exact=True, include_hidden=True
     )
 
+    # The field reads the option's line as a resolved length, which keeps only layout
+    # precision (1/64px), so the line heights agree to that.
     typography = """el => { const s = getComputedStyle(el);
-                             return [s.fontFamily, s.fontSize, s.lineHeight]; }"""
-    assert field.evaluate(typography) == option.evaluate(typography)
+                             return [s.fontFamily, s.fontSize, parseFloat(s.lineHeight)]; }"""
+
+    def same_face(a, b):
+        return a[:2] == b[:2] and a[2] == pytest.approx(b[2], abs=1 / 64)
+
+    assert same_face(field.evaluate(typography), option.evaluate(typography))
     option_text_x = option.evaluate(
         """el => {
              const text = [...el.childNodes].find(
@@ -88,7 +94,7 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
 
     card_words = page.locator("#br-steel > strong")
     card_field = page.locator("#bracket > .lf-another leaf-text")
-    assert card_field.evaluate(typography) == card_words.evaluate(typography)
+    assert same_face(card_field.evaluate(typography), card_words.evaluate(typography))
     assert abs(card_field.bounding_box()["x"] - card_words.bounding_box()["x"]) < 0.5
 
     expect(add).to_have_text("")

@@ -32,6 +32,7 @@ from render_cases_interaction import (
     COLLAPSED_PAGE,
     HOLD_MOTION,
     MESSAGE_ROOM_PAGE,
+    NESTED_PROPOSAL_PAGE,
     PROPOSED_PAGE,
     QUEUE_ROW_SAYS,
     REBUILT_INLINE_PAGE,
@@ -77,7 +78,6 @@ from render_cases_widgets import (
 )
 from render_harness import (
     BOARD_PAGE,
-    FEATURE_GALLERY,
     LONG_PAGE,
     RELEASE_FOCUS,
     REPLY_HOST_PAGE,
@@ -7478,16 +7478,16 @@ def test_suggestion_emphasis_skips_generated_interface_between_changed_words(
     browser, serve
 ):
     """A changed span may cross a nested widget without painting its generated UI."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
-    page.locator('[data-lf-margin-for="bg-route-ask"] .lf-margin-marker').click()
-    page.locator("#bg-route .lf-pick").first.focus()
-    badges = page.locator("#bg-route > lf-option > .lf-key-badge")
+    page = open_page(browser, serve(NESTED_PROPOSAL_PAGE))
+    page.locator('[data-lf-margin-for="route-ask"] .lf-margin-marker').click()
+    page.locator("#route .lf-pick").first.focus()
+    badges = page.locator("#route > lf-option > .lf-key-badge")
     expect(
-        page.locator("#bg-route > lf-option > .lf-key-badge[data-lf-binding-badge]")
+        page.locator("#route > lf-option > .lf-key-badge[data-lf-binding-badge]")
     ).to_have_count(2)
     expect(badges).to_have_text(["1", "2"])
 
-    assert page.locator("#bg-nested-change > lf-new > p").evaluate(
+    assert page.locator("#nested-change > lf-new > p").evaluate(
         """node => [...(CSS.highlights.get('lf-sug-ins') ?? [])]
           .some(range => range.intersectsNode(node.firstChild))"""
     ), "the proposal has to carry word-level insertion emphasis"

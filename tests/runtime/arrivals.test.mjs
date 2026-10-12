@@ -13,6 +13,8 @@ globalThis.requestAnimationFrame = (callback) => {
 globalThis.cancelAnimationFrame = (id) => frames.delete(id);
 
 const { whileConnected, frameFor } = await import("/runtime/arrivals.js");
+const { clocked, clockValue, readingPaint, tickClock } =
+  await import("/runtime/presence.js");
 const { observeQueuedWork } = await import("/runtime/queued-work.js");
 
 // A second observer acknowledges delivery of the same mutation batch as arrivals.
@@ -163,10 +165,25 @@ test("owner frames coalesce calls and keep pending work through a same-batch mov
 test("departure cancels queued rendering and reconnection accepts fresh work", async () => {
   const owner = document.createElement("section");
   document.body.append(owner);
+  // Only this frame's own job: the runtime queues other work on any mutation, such as
+  // focus.js refreshing its paint.
   const phases = [];
-  const stop = observeQueuedWork((phase) => phases.push(phase));
+  const own = new Set();
+  let scheduling = false;
+  const stop = observeQueuedWork((phase, job) => {
+    if (scheduling && phase === "enqueue") own.add(job);
+    if (own.has(job)) phases.push(phase);
+  });
   let paints = 0;
-  const schedule = frameFor(owner, () => paints++);
+  const frame = frameFor(owner, () => paints++);
+  const schedule = () => {
+    scheduling = true;
+    try {
+      frame();
+    } finally {
+      scheduling = false;
+    }
+  };
   try {
     schedule();
     await mutate(() => owner.remove());
@@ -198,4 +215,86 @@ test("a frame refuses to paint after removal even before departure delivery", as
   await renderFrame();
   assert.equal(paints, 0);
   stop();
+});
+
+test("a returning owner draws a reading again only where its paint did not finish while it stood", async () => {
+  const owner = document.createElement("section");
+  await mutate(() => document.body.append(owner));
+  const drawn = [];
+  let finish;
+  const paint = readingPaint(owner, (reading) => {
+    drawn.push(reading);
+    if (reading === "refused") throw new Error("refused");
+    if (reading.startsWith("slow")) return new Promise((resolve) => (finish = resolve));
+  });
+  const leaveAndReturn = async () => {
+    await mutate(() => owner.remove());
+    await mutate(() => document.body.append(owner));
+  };
+  try {
+    assert.throws(() => paint("refused", "refused"));
+    await leaveAndReturn();
+    paint("refused", "refused");
+    // Left while the paint was running.
+    paint("slow", "slow");
+    await leaveAndReturn();
+    paint("slow", "slow again");
+    // Settled after the owner was removed, before its departure was delivered.
+    finish();
+    await mutate(() => owner.remove());
+    await mutate(() => document.body.append(owner));
+    paint("slow", "slow once more");
+    finish();
+    await Promise.resolve();
+    await leaveAndReturn();
+    paint("slow", "slow, finished");
+    // A refresh asked for while away is owed to the return.
+    await mutate(() => owner.remove());
+    paint.refresh();
+    await mutate(() => document.body.append(owner));
+    paint("slow", "refreshed on return");
+    finish();
+    assert.deepEqual(drawn, [
+      "refused",
+      "slow",
+      "slow again",
+      "slow once more",
+      "refreshed on return",
+    ]);
+  } finally {
+    paint.stop();
+    owner.remove();
+  }
+});
+
+test("a clock paint pauses while its owner is away and ticks again on its return", async () => {
+  const owner = document.createElement("section");
+  await mutate(() => document.body.append(owner));
+  let clock = 0;
+  const shown = [];
+  const paint = clocked(owner, () => shown.push(clockValue(() => clock)));
+  const tick = () =>
+    tickClock((message) => {
+      throw new Error(message);
+    });
+  try {
+    paint();
+    await mutate(() => owner.remove());
+    clock = 1;
+    await tick();
+    assert.deepEqual(shown, [0]);
+    await mutate(() => document.body.append(owner));
+    await tick();
+    assert.deepEqual(shown, [0, 1]);
+    // A stopped paint stays off the clock across a departure and return.
+    paint.stop();
+    await mutate(() => owner.remove());
+    await mutate(() => document.body.append(owner));
+    clock = 2;
+    await tick();
+    assert.deepEqual(shown, [0, 1]);
+  } finally {
+    paint.stop();
+    owner.remove();
+  }
 });

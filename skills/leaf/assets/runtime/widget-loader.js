@@ -245,7 +245,10 @@ export async function patchDocument(scope, patch) {
 // before any module could turn that input into presentation. `presented` is the wait
 // each caller owes: the whole application at startup, the widgets it brought for a patch.
 async function settle(presentation, scope, arrived, presented) {
-  await presentation.present(scope, Promise.all(arrived.map(paintDeclaredWords)));
+  const painted = Promise.all(arrived.map(paintDeclaredWords));
+  const presenting = presentation.present(scope);
+  presenting.resolve(painted);
+  await presenting.ready;
   await presented();
   reachScrollers(scope);
 }
@@ -256,23 +259,7 @@ export async function upgradeWidgets({ buildReactionBar }) {
   if (!response.ok)
     throw new Error(`leaf: registry failed to load (${response.status})`);
   adoptRegistry(await response.json());
-  const registryGeneration = registry.$layer?.generation;
-  if (typeof registryGeneration !== "string" || !registryGeneration)
-    throw new Error("leaf: registry lacks $layer.generation");
-  if (!sameLayer(registryGeneration)) return false;
-  if (
-    !registry.$events?.kinds ||
-    !registry.$languages?.names ||
-    !registry.$languages?.paths ||
-    !registry.$tones?.names ||
-    !registry.$reactions?.tokens ||
-    !registry.$decisions ||
-    !registry.$states ||
-    !registry.$marks
-  )
-    throw new Error(
-      "leaf: registry lacks $events, $languages, $tones, $reactions, $decisions, $states or $marks",
-    );
+  if (!sameLayer(registry.$layer.generation)) return false;
   revealLayer();
   buildReactionBar();
   await installDocument(document.body);

@@ -260,10 +260,10 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         # deliberately returns none there. Everywhere else, ask the merged registry
         # for the instances and the module's own marker for the host it placed.
         missing_threads = evaluate_probe(page, "missingThreads", declarations)
-        # Behind the caught-up wait above: a report moves a painted attribute and
-        # the pass that speaks it runs before the stamp, so a reading taken any
-        # earlier asks after a word the page has not been asked to say yet. A page
-        # that never caught up is already reported there and read no further.
+        # Behind the caught-up wait above: a report moves a declared attribute, so
+        # a reading taken any earlier asks after a word the page has not been asked
+        # to say yet. A page that never caught up is already reported there and
+        # read no further.
         if replayed:
             silent = evaluate_probe(page, "silentWords", declarations)
             # Behind the same wait, because reconciliation is one of the two

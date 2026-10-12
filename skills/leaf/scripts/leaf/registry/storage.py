@@ -10,7 +10,7 @@ from leaf.page_memory import Slot, memo
 
 from ..refusals import Refused
 from .contract import RegistryError, read_registry_declarations
-from .layer import required_layer_declarations
+from .layer import layer_facts_error
 
 
 class _Layer(Slot):
@@ -43,8 +43,8 @@ def load_registry(page_dir: Path):
 def _read_layer(page_dir: Path, path: Path) -> dict | None:
     try:
         registry = read_registry_declarations(path)
-        if registry is not None:
-            required_layer_declarations(registry, path)
+        if registry is not None and (error := layer_facts_error(registry)):
+            raise RegistryError(f"{path}: {error}")
     except RegistryError as error:
         raise _revendor(page_dir, error) from None
     return registry
@@ -182,17 +182,15 @@ def layer_metadata(page_dir: Path) -> dict:
         and re.fullmatch(r"sha256:[0-9a-f]{64}", fingerprint)
     ):
         raise RegistryError(f"{path}: $layer.fingerprint must be a SHA-256 identity")
-    # A page vendored before this identity existed reads as having none, which is what
-    # the browser gates refuse on: nothing here can say which runtime it carries.
+    # A page vendored before this identity existed reads as having none.
     identities = {}
-    for key in ("runtime", "server"):
-        value = layer.get(key)
-        if value is not None:
-            if not (
-                isinstance(value, str) and re.fullmatch(r"sha256:[0-9a-f]{64}", value)
-            ):
-                raise RegistryError(f"{path}: $layer.{key} must be a SHA-256 identity")
-            identities[key] = value
+    server = layer.get("server")
+    if server is not None:
+        if not (
+            isinstance(server, str) and re.fullmatch(r"sha256:[0-9a-f]{64}", server)
+        ):
+            raise RegistryError(f"{path}: $layer.server must be a SHA-256 identity")
+        identities["server"] = server
     producer = layer.get("producer")
     if producer is not None and not isinstance(producer, dict):
         raise RegistryError(f"{path}: $layer.producer must be an object")

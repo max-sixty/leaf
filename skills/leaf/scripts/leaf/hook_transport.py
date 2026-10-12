@@ -5,8 +5,11 @@ pointers through `codex`. All three use this module's continuation policy and
 reminders for already-receipted work. A reminder freezes the currently owed inputs
 with the ordinary delivery producer, recovering their exact response references
 even when the original pointer is lost. It does not make those inputs pending
-again or reserve another Codex transport offer. Repeated Stop skips old debt;
-only newly owed input warrants another continuation.
+again or reserve another Codex transport offer. A Stop hook continues the turn for
+each owed answer this turn has not started (`activity.turn_obligations`), and for a
+page whose watcher is not running while it has input pending or is not idle
+(`stop_continues`). A repeated Stop (`stop_hook_active`) continues the turn only for
+a newly delivered update that owes an answer.
 
 `hooks` reaches this module for active ownership or a reconnect notice about a
 page the session previously served.
@@ -27,15 +30,16 @@ read Picked up without waiting on the model; the envelope's `acknowledge` is nul
 and its reader confirms nothing. So it hands an envelope over inline only once it
 has confirmed every batch: an inline envelope it could not confirm would leave its
 input pending, and every later hook and watch would offer it again as new. A
-batch's receipt can be refused for good, as when this Leaf may not write a log
-vendored at another protocol (`event_contracts.write_refusal`), so whatever the hook
-could not confirm goes as a pointer, whose reader's explicit `leaf delivery ack`
-either confirms it or shows the refusal. The plan reads that refusal once per
-page: the hook then records no other pickup there and names the refusal in the
-turn's attention, so it never fails on a page it cannot write. Claude Code cuts
-context over a limit to a preview (`HOOK_CONTEXT_LIMIT`), so a delivery that
-large goes as a pointer too, unconfirmed, as do pointers Codex's tool hook
-offers.
+batch's receipt can still be refused, as when the page changed hands after the plan
+read it, so whatever the hook could not confirm goes as a pointer, whose reader's
+explicit `leaf delivery ack` either confirms it or shows the refusal. A page vendored
+at another protocol, whose log this Leaf may not write
+(`event_contracts.write_refusal`), offers no new input at all (`delivery.deliverable`):
+the hook records no pickup there and names the refusal in the turn's attention, so
+it never fails on a page it cannot write, nor offers input it could never confirm.
+Claude Code cuts context over a limit to a preview (`HOOK_CONTEXT_LIMIT`), so a
+delivery that large goes as a pointer too, unconfirmed, as do pointers Codex's tool
+hook offers.
 
 A harness reads a hook's output only once it exits, and discards it for a hook it
 times out, so the hook confirms only by a deadline well inside its timeout
@@ -55,6 +59,7 @@ from pathlib import Path
 from .activity import acknowledged_obligations, turn_obligations, unanswered
 from .delivery import (
     batch_data,
+    deliverable,
     delivery_pointer_prompt,
     freeze_delivery,
     receive_held,
@@ -70,7 +75,6 @@ from .served_state.context import read_page
 from .service import (
     PageTransaction,
     owned_pages,
-    unacknowledged,
 )
 from .state import flocked, session_lock_path, session_record
 
@@ -90,8 +94,9 @@ def restart(obligations: list[dict]) -> str:
     if not items:
         return ""
     return (
-        f"; your start on {', '.join(items)} is older than its pickup: answer once "
-        "that work is done, or while it still runs start it again with "
+        f"; your start on {', '.join(items)} came before this turn, or before a "
+        "newer update in its thread was picked up. Answer once that work is done, "
+        "or, while it still runs, start it again in this turn with "
         '`leaf task start <page> <id> "<what is still running>"`'
     )
 
@@ -143,7 +148,7 @@ def read_plans(session_id: str) -> list[PagePlan]:
                         break
                 if claim is None or claim["id"] != session_id:
                     continue
-                pending = unacknowledged(page.events, state["cursor"])
+                pending = deliverable(page)
                 watched = harness.watcher_live(listening=state["listening"])
                 owed = turn_obligations(state, watched=watched)
                 owed_ids = {item["input"] for item in owed}

@@ -12,6 +12,7 @@
    what the reader reads, is held out of what the widget is handed (`HeldArrivals`,
    held-news.js): its target stays out of the batch, so the selected annotation
    presentation notices it, and `revealHeld` is how the margin's marker shows it. */
+import { aborted } from "../abort.js";
 import { reportPageError } from "../layer-client.js";
 import { aimTargetAt, datumAimTarget } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
@@ -56,20 +57,6 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
   if (!(owner instanceof Element))
     throw new TypeError("placeThreads needs an Element owner");
   if (kind === "widget") requireSurface(owner);
-  if (typeof render !== "function")
-    throw new TypeError("placeThreads needs a render callback");
-  if (typeof invalidate !== "function")
-    throw new TypeError("placeThreads needs an invalidation function");
-  if (
-    !composition ||
-    typeof composition.open !== "function" ||
-    typeof composition.active !== "function" ||
-    typeof composition.node !== "function" ||
-    typeof composition.seat !== "function" ||
-    typeof composition.restore !== "function" ||
-    typeof composition.outlet !== "function"
-  )
-    throw new TypeError("placeThreads needs composition presentation");
   if (registrations.has(owner))
     throw new Error(`placeThreads(${owner.localName}) registered twice`);
   const registration = {
@@ -229,14 +216,8 @@ export function renderSurfaces(collection, placements, commands) {
       registration.placements = placements;
       const byOutlet = new Map();
       const abort = new AbortController();
-      let cancel;
-      const cancelled = new Promise((resolve) => {
-        cancel = resolve;
-      });
-      registration.cancelRender = () => {
-        abort.abort();
-        cancel();
-      };
+      const cancelled = aborted(abort.signal);
+      registration.cancelRender = () => abort.abort();
       let compositionOutlet = null;
       try {
         const byKey = new Map(collection.threads.map((thread) => [thread.key, thread]));

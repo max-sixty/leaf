@@ -1494,7 +1494,7 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
                 "agent": "Codex",
                 "parent": first,
                 "text": "Which of the two should stay?",
-                "question": True,
+                "ask": True,
             },
         )
     page = open_page(browser, url)
@@ -2275,7 +2275,7 @@ def test_a_refused_approval_says_why_to_the_keyboard_and_the_finger(browser, ser
     page = open_page(browser, url)
     resized(page, 1440, 900)
     approval = page.locator(".lf-signoff")
-    reason = "Answer every Question before approving this work"
+    reason = "Answer every ask before approving this work"
     expect(approval).to_have_attribute("aria-disabled", "true")
     expect(approval).to_have_attribute("aria-description", reason)
     expect(approval).to_be_disabled()
@@ -2304,7 +2304,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
     expect(page.locator(".lf-others")).to_have_text("All pages (2)")
     expect(page.locator(".lf-signoff")).to_be_disabled()
     expect(page.locator(".lf-signoff")).to_have_attribute(
-        "title", "Answer every Question before approving this work"
+        "title", "Answer every ask before approving this work"
     )
     banner_control(page, ".lf-answer-all")
 
@@ -3374,6 +3374,46 @@ def test_auxiliary_posture_keeps_live_browser_state(engine, request, serve):
             frame.contentDocument.querySelector('#reading').scrollTop === 40;
         }""")
         assert kept, width
+
+
+def test_a_popover_reseated_by_the_panel_stays_on_its_source(browser, serve):
+    """A widget in a thread hangs a popover from its button, opened through the package
+    API with the button as its source, which anchors it. Resizing the panel into
+    covering re-seats the popover, and it reopens from the same source, so it still
+    hangs from the button rather than landing wherever an unanchored popover falls. The
+    button stands in the widget's shadow root, where the toggle event names its host
+    instead. No shipped popover with a source stays open across a re-seat: this is the
+    package route."""
+    page = open_page(browser, serve(LONG_PAGE, comments=1))
+    resized(page, 1200, 800)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    door = page.locator(".lf-thread[open] .lf-msg").first.evaluate_handle("""async message => {
+      const {showNativeLayer} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const widget = document.createElement('span');
+      const door = Object.assign(document.createElement('button'), {textContent: 'Details'});
+      widget.attachShadow({mode: 'open'}).append(door);
+      const popover = Object.assign(document.createElement('div'),
+        {id: 'widget-popover', popover: 'auto', textContent: 'Widget details'});
+      // Out of flow, so the thread's own lines keep their places; padded, so the host's
+      // box is not the button's.
+      widget.style.cssText = 'position: absolute; padding: 24px';
+      popover.style.cssText = 'position-area: bottom span-right; margin: 0';
+      message.append(widget, popover);
+      showNativeLayer(popover, {source: door});
+      return door;
+    }""")
+    popover = page.locator("#widget-popover")
+    hangs = """([door, popover]) => {
+      const from = door.getBoundingClientRect(), box = popover.getBoundingClientRect();
+      return Math.abs(box.top - from.bottom) < 1 && Math.abs(box.left - from.left) < 1;
+    }"""
+    expect(popover).to_be_visible()
+    assert page.evaluate(hangs, [door, popover.element_handle()])
+    resized(page, 390, 800)
+    assert popover.evaluate("el => el.closest('dialog').matches(':modal')")
+    expect(popover).to_be_visible()
+    assert page.evaluate(hangs, [door, popover.element_handle()])
 
 
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])

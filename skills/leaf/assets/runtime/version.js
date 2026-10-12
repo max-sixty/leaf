@@ -14,8 +14,12 @@
  * `inlineComparison` / `toggleInlineComparison` disclose a block's text diff on
  * request. `comparisonBase` names the standing base. `comparisonChanges(owner)` selects
  * changed descendants from the same comparison reading; `watchComparison(owner,
- * callback)` reads on connection and each comparison change, pauses while detached,
- * and returns a function that ends the subscription.
+ * callback)` reads it on each comparison change and on the microtask after a
+ * connection, pauses while detached, and returns a function that ends the subscription.
+ * Each announced change advances the comparison's generation, which keys the reading,
+ * so a return reads again by the one return rule (`readingPaint` in presence.js): only
+ * a comparison that changed while away is read, and a reading that threw stands
+ * without ending the subscription.
  *
  * Executable identity selects the install. An unchanged registry, module graph, and
  * inline module bodies permit an in-place patch; changed executable inputs require a
@@ -66,6 +70,7 @@
  */
 import { nextRender } from "./rendering.js";
 import { whileConnected } from "./arrivals.js";
+import { readingPaint } from "./presence.js";
 import { LIVE_ROOT, layerRoot, pageUrl, revisionLabel, runtime } from "./context.js";
 import {
   documentWidgetDigests,
@@ -92,6 +97,7 @@ import {
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { focusedInView } from "./user-place.js";
 import { patchTree, patchRetains } from "./dom-children.js";
+import { move } from "./dom-move.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
 import { commandShortcut } from "./keyboard/control-keys.js";
 import { keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
@@ -113,7 +119,13 @@ import {
   prepareDeclaredMarkdown,
   formatDeclaredMarkdown,
 } from "./markdown.js";
-import { moveScrollerBy, pageScroller } from "./scrolling.js";
+import {
+  chosenSince,
+  moveScrollerBy,
+  pageScroller,
+  placeKept,
+  scrollChoices,
+} from "./scrolling.js";
 import {
   containingReadingRegionFor,
   effectiveScroller,
@@ -448,6 +460,8 @@ const diffOpaqueSel = () =>
 // owns the marked identities; the CSS marks are only their rendering.
 let diffOn = false;
 let diffBase = null;
+// Advanced with each announced change, so a watcher knows which reading it painted.
+let comparisonGeneration = 0;
 let diffPendingBase = null;
 const diffMarked = new Set();
 // What each marked block said in the base version, and which of those readings the
@@ -535,9 +549,7 @@ async function baseReading(baseRevision, throughSeq) {
   });
   const res = await fetch(pageUrl(`api/view?${params}`));
   if (!res.ok) throw new Error(`couldn't project revision r${baseRevision}`);
-  const answer = await res.json();
-  if (!answer.browser) throw new Error(`revision r${baseRevision} has no projection`);
-  return answer.browser;
+  return (await res.json()).browser;
 }
 // The longest run of `after` that keeps the order `before` gave the same units:
 // the units that did not move.
@@ -561,10 +573,7 @@ function inOrder(before, after) {
   return kept;
 }
 function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
-  const baseRevision = stamped(baseVersion)?.revision;
-  if (baseRevision == null) throw new Error(`version v${baseVersion} has no revision`);
-  const baseView = baseReading?.views?.[String(baseRevision)];
-  if (!baseView) throw new Error(`revision r${baseRevision} has no projection`);
+  const baseView = baseReading.views[String(stamped(baseVersion).revision)];
   // The base version's widget state, folded as the publisher folds the current one:
   // its authored values, staged before its Markdown was formatted, under the
   // projection the server read for it. A report standing at the base painted there
@@ -691,14 +700,14 @@ function pointAt(target, reading, offset) {
 function insertAt(target, reading, offset, node) {
   const point = pointAt(target, reading, offset);
   if (point.node.nodeType === Node.ELEMENT_NODE) {
-    point.node.insertBefore(node, point.node.childNodes[point.offset] ?? null);
+    move(point.node, node, point.node.childNodes[point.offset] ?? null);
     return;
   }
   const text = point.node;
-  if (point.offset === 0) text.parentNode.insertBefore(node, text);
+  if (point.offset === 0) move(text.parentNode, node, text);
   else if (point.offset === text.data.length)
-    text.parentNode.insertBefore(node, text.nextSibling);
-  else text.parentNode.insertBefore(node, text.splitText(point.offset));
+    move(text.parentNode, node, text.nextSibling);
+  else move(text.parentNode, node, text.splitText(point.offset));
 }
 
 function rangeAt(reading, start, end) {
@@ -809,7 +818,7 @@ export function toggleInlineComparison(target) {
   const said = inlineOpen.has(target)
     ? closeInlineComparison(target)
     : openInlineComparison(target);
-  document.dispatchEvent(new CustomEvent("lf-comparison"));
+  announceComparison();
   return said;
 }
 
@@ -842,6 +851,10 @@ function setDiff(on, base, pendingBase = null) {
   presentPicker();
   // Consumers read the settled comparison projection: on/off and its marks move
   // together, rather than announcing an applied DOM diff before it is standing.
+  announceComparison();
+}
+function announceComparison() {
+  comparisonGeneration += 1;
   document.dispatchEvent(new CustomEvent("lf-comparison"));
 }
 // The one way a comparison starts, from a row's press, from the walk through the menu,
@@ -875,8 +888,6 @@ async function showComparison(base) {
   try {
     while (mine === diffRequest) {
       const throughSeq = runtime.lastEventSeq;
-      if (!Number.isInteger(throughSeq))
-        throw new Error("the current reading has no log sequence");
       [doc, reading] = await Promise.all([
         documentRequest,
         baseReading(baseRevision, throughSeq),
@@ -927,16 +938,17 @@ export function comparisonChanges(owner = null) {
 }
 
 export function watchComparison(owner, callback) {
-  if (!(owner instanceof Element))
-    throw new TypeError("A comparison watcher needs an Element owner");
-  if (typeof callback !== "function")
-    throw new TypeError("A comparison watcher needs a callback");
-  // Each watcher holds its own listener, so one callback can serve two subscriptions.
-  const read = () => callback();
-  return whileConnected(owner, (signal) => {
+  const paint = readingPaint(owner, () => callback());
+  const read = () => paint(comparisonGeneration);
+  const stop = whileConnected(owner, (signal) => {
     document.addEventListener("lf-comparison", read, { signal });
-    read();
+    // Read outside the connection, so a reading that throws ends no subscription.
+    queueMicrotask(() => signal.aborted || read());
   });
+  return () => {
+    stop();
+    paint.stop();
+  };
 }
 
 // ---------- another version's document ----------
@@ -949,8 +961,6 @@ async function authoredDocument(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`couldn't load ${url} (${response.status})`);
   const doc = new DOMParser().parseFromString(await response.text(), "text/html");
-  if (doc.querySelectorAll("body > main").length !== 1)
-    throw new Error(`${url} has no single authored main`);
   // First-paint delivery wrappers have no place in the authored revision.
   return restoreInitialSource(doc);
 }
@@ -1711,7 +1721,7 @@ export function createVersionController({
       if (!shownRegionBounds(region)) continue;
       const reading = capturePlace(region, blocks);
       if (readingPosture(region) === "bounded" || region.id === active?.id) {
-        regionViews.set(region.id, reading);
+        keepReading(region.id, reading);
         view.regions[region.id] = reading;
       }
     }
@@ -1773,9 +1783,20 @@ export function createVersionController({
   // left to keep: its reading goes when the next reading is taken, so a page whose
   // blocks come and go carries only the regions it has.
   const regionViews = new Map();
+  // The reader's choices counted when each reading was taken: a box they have chosen
+  // for since stands where they put it, and that reading no longer says where it is.
+  const takenAt = new WeakMap();
+  const keepReading = (id, reading) => {
+    takenAt.set(reading, scrollChoices());
+    regionViews.set(id, reading);
+  };
+  // A region showing one subject of several keeps the readings of those it is not
+  // showing, by subject (reading-regions.js, `showReadingSubject`).
+  const subjectViews = new Map();
   const dropGoneRegions = () => {
     const standing = new Set(readingRegions().map(({ id }) => id));
-    for (const id of regionViews.keys()) if (!standing.has(id)) regionViews.delete(id);
+    for (const views of [regionViews, subjectViews])
+      for (const id of views.keys()) if (!standing.has(id)) views.delete(id);
   };
 
   // Only the page's own regions, only those a scroll moved, and only their own words: a
@@ -1795,7 +1816,7 @@ export function createVersionController({
     const active = activeReadingRegion(shown, [...words.values()].flat());
     for (const region of shown)
       if (readingPosture(region) === "bounded" || region.id === active?.id)
-        regionViews.set(region.id, capturePlace(region, words.get(region.id)));
+        keepReading(region.id, capturePlace(region, words.get(region.id)));
   }
   let recordQueued = false;
   const scrolled = new Set();
@@ -1875,26 +1896,71 @@ export function createVersionController({
   // the banner takes another row: the line the user was reading went under it. So the
   // page moves with its band first, and a region the page carries lands against the new
   // band from its own record.
+  //
+  // A shift restores only what layout moved. A navigation that changes layout, as
+  // opening a disclosure hands a region to a scroller of its own, can move the reader
+  // before the shift it caused is announced: a landing, or find-in-page scrolling to its
+  // match. That choice is newer than the record, so a region whose scroller the reader
+  // has chosen for since keeps where they put it (scrolling.js, `chosenSince`).
   function restoreShifted(shifted, currentIntent, views) {
     if (compositionChanges.size) return;
     if (!currentIntent()) return;
     const page = shifted.find(({ region }) => !region);
-    if (page?.band) moveScrollerBy(pageScroller, -page.band);
+    if (page?.band) {
+      moveScrollerBy(pageScroller, -page.band);
+      placeKept(pageScroller);
+    }
     const candidates = shifted
       .map(({ region }) => region)
-      .filter((region) => region && shownRegionBounds(region));
+      .filter(
+        (region) =>
+          region &&
+          shownRegionBounds(region) &&
+          !chosenSince(effectiveScroller(region), takenAt.get(views.get(region.id))),
+      );
     restoreRegions(candidates, currentIntent, null, views);
     recordRegions();
+  }
+
+  // A subject leaving keeps the reader's place in it, read now where the region's own
+  // box scrolls it, on screen or not; the one showing returns them to theirs. Neither
+  // waits on a composition around it, which restores where the reader is in what shows
+  // rather than which subject shows.
+  function showSubject(phase, region) {
+    const ownBox =
+      readingPosture(region) === "bounded" && region.body.checkVisibility();
+    if (phase === "leaving") {
+      if (ownBox) keepReading(region.id, capturePlace(region, textBlocks(region.body)));
+      const reading = regionViews.get(region.id);
+      if (!reading) return;
+      if (!subjectViews.has(region.id)) subjectViews.set(region.id, new Map());
+      subjectViews.get(region.id).set(region.subject, reading);
+      return;
+    }
+    const reading = subjectViews.get(region.id)?.get(region.subject);
+    if (!reading) {
+      regionViews.delete(region.id);
+      return;
+    }
+    // The reading stands for this subject from now: the reader's scrolls in the box
+    // under another subject chose nothing in this one.
+    keepReading(region.id, reading);
+    if (ownBox) restorePlace(reading, region);
   }
 
   function readingRegionTransition({
     phase,
     owner,
+    region,
     regions,
     cancelled,
     retained,
     shifted,
   }) {
+    if (phase === "leaving" || phase === "showing") {
+      showSubject(phase, region);
+      return;
+    }
     // Announced from a resize observer's delivery; restoring there could reveal a
     // region and resize what the observer watches, so it waits for the next frame.
     if (phase === "shift") {
@@ -1925,7 +1991,7 @@ export function createVersionController({
       const blocks = textBlocks();
       for (const region of regions)
         if (shownRegionBounds(region))
-          regionViews.set(region.id, capturePlace(region, blocks));
+          keepReading(region.id, capturePlace(region, blocks));
       compositionChanges.set(owner, {
         currentIntent: retainUserIntent(),
         regions: regions.map(({ id }) => id),
@@ -1949,7 +2015,11 @@ export function createVersionController({
     if (readingContinuityInstalled) return;
     readingContinuityInstalled = true;
     watchReadingRegionTransitions(readingRegionTransition);
-    document.addEventListener("scroll", queueRecord, { capture: true, passive: true });
+    // A scroll's end is the reader's choice (scrolling.js), and a reading taken before
+    // it would read as older than that choice. WebKit, and Chromium for touch, end a
+    // scroll frames after its last scroll event, so the end takes a reading of its own.
+    for (const type of ["scroll", "scrollend"])
+      document.addEventListener(type, queueRecord, { capture: true, passive: true });
     // Arriving or editing changes the reading place even when no scroller moves.
     // Keep the intact place now: an immediate resize can invalidate geometry before
     // the queued record runs. Record again after any seat or layout commits.

@@ -73,6 +73,7 @@ from render_harness import (
     RELEASE_FOCUS,
     SAID_PAGE,
     _traffic,
+    command_reference_rows,
     compare_with,
     consume_browser_errors,
     hold_selection,
@@ -82,6 +83,7 @@ from render_harness import (
     open_versions,
     panel_settled,
     post_event,
+    reported_browser_errors,
     resized,
     scroll_settled,
     select,
@@ -1611,8 +1613,12 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     page.evaluate("document.querySelector('main').append(detachedCodeSource)")
     expect(page.locator(".lf-chrome > .lf-code-copy")).to_have_count(2)
     page.locator("#source").focus()
+    assert "copy code" in shortcut_bar_text(page)
     page.keyboard.press("Tab")
     expect(page.locator("#code-link")).to_be_focused()
+    # A link inside the block keeps its Enter from the block's Copy.
+    on_link = shortcut_bar_text(page)
+    assert "Follow" in on_link and "copy code" not in on_link, on_link
     page.keyboard.press("Enter")
     expect(page).to_have_url(re.compile(r"#destination$"))
 
@@ -1834,12 +1840,22 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
         assert 0 <= overlay[1] - frame[1] <= 8, before
         assert 0 <= frame[0] + frame[2] - overlay[0] - overlay[2] <= 8, before
         if keyboard:
-            # Enter on the source reaches its copy control even though the control
-            # stands outside authored markup.
+            # Enter on the source copies it, though the control stands outside
+            # authored markup and the Tab sequence. The register names that press
+            # wherever it names keys: the shortcut bar, the command reference and
+            # the block's aria-keyshortcuts.
             pre.focus()
-            page.keyboard.press("Enter")
-            expect(button).to_be_focused()
-            assert button.evaluate("el => el.matches(':focus-visible')")
+            assert "copy code" in shortcut_bar_text(page)
+            expect(pre).to_have_attribute("aria-keyshortcuts", "Enter")
+            page.keyboard.press("?")
+            page.keyboard.press("?")
+            expect(
+                command_reference_rows(page, "On a code block").get_by_text(
+                    "Copy this block's code to the clipboard"
+                )
+            ).to_be_visible()
+            page.keyboard.press("Escape")
+            expect(pre).to_be_focused()
         else:
             pre.hover()
             expect(control).to_have_css("opacity", "1")
@@ -1850,9 +1866,11 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             assert after[box] == pytest.approx(before[box], abs=0.5), (before, after)
         if keyboard:
             page.keyboard.press("Enter")
+            expect(pre).to_be_focused()
         else:
             button.click()
         expect(button).to_have_attribute("aria-label", "Code copied")
+        expect(page.locator(".lf-notice")).to_have_text("Code copied")
         assert page.evaluate("navigator.clipboard.readText()") == expected
 
     copy("#colored", document_controls.nth(0), colored)
@@ -2036,10 +2054,12 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     expect(touch_control).to_have_css("opacity", "1")
     touch_pre.tap(position={"x": 20, "y": 20})
     expect(touch_control).to_have_css("opacity", "0")
+    # The control refuses a second copy until its last result has shown.
+    expect(touch_button).to_have_accessible_name("Copy code")
     touch.keyboard.press("Enter")
-    expect(touch_button).to_be_focused()
-    assert touch_button.evaluate("button => button.matches(':focus-visible')")
-    expect(touch_control).to_have_css("opacity", "1")
+    expect(touch_button).to_have_accessible_name("Code copied")
+    assert touch.evaluate("navigator.clipboard.readText()") == fitting
+    expect(touch_pre).to_be_focused()
     expect(touch_pre).to_have_attribute("tabindex", "0")
     assert touch_pre.bounding_box() == frame
 
@@ -4419,6 +4439,16 @@ def test_the_number_hint_names_only_versions_that_still_exist(browser, serve):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "note" and event["version"] == 1
     )
+    # An interrupted publication is repaired when state is read. Model an
+    # unavailable older revision whose note has no recoverable publication.
+    log = serve.page_dir / "events.jsonl"
+    events = events_model.read_events(serve.page_dir)
+    for event in events:
+        if event.get("revision") == first["revision"]:
+            event.pop("publication", None)
+    log.write_text(
+        "".join(json.dumps(event) + "\n" for event in events), encoding="utf-8"
+    )
     files_model.revision_path(serve.page_dir, first["revision"]).unlink()
     page = open_page(browser, url.replace("v1.html", "v3.html"))
 
@@ -6575,15 +6605,16 @@ def test_a_deferred_diff_tracks_each_write_and_retries_a_failed_file(browser, se
     def refuse_once(route):
         if not refused:
             refused.append(True)
-            route.fulfill(status=200, json={"revision": -1})
+            route.fulfill(status=500, json={"error": "the patch is unavailable"})
         else:
             route.continue_()
 
     page.route("**/api/deferred*", refuse_once)
     summary.click()
     expect(page.locator("lf-diff .lf-error")).to_contain_text(
-        "deferred value response does not match its request"
+        "the patch is unavailable"
     )
+    consume_browser_errors(page, "500 http")
     summary.click()
     summary.click()
     expect(
@@ -6739,7 +6770,7 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
 
     def refuse(route):
         requests.append(True)
-        route.fulfill(status=200, json={"revision": -1})
+        route.fulfill(status=500, json={"error": "the patch is unavailable"})
 
     page = open_page(browser, url)
     page.route("**/api/deferred*", refuse)
@@ -6748,10 +6779,11 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
     page.locator(".lf-thread-summary").click()
     page.locator(".lf-threads > .lf-thread .lf-quote").click()
     expect(page.locator("lf-diff .lf-error")).to_contain_text(
-        "deferred value response does not match its request"
+        "the patch is unavailable"
     )
     page.wait_for_timeout(250)
     assert len(requests) == 1, "thread hydration retried without another user gesture"
+    consume_browser_errors(page, "500 http")
 
     summary = page.locator("lf-diff summary")
     summary.click()
@@ -6762,9 +6794,12 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
     # them over is not the page's to state and not this test's to depend on. The
     # fulfilled response exists only because the handler ran, so it is the fact this
     # count is made of.
-    with page.expect_response(lambda response: "/api/deferred" in response.url):
+    with page.expect_response(
+        lambda response: "/api/deferred" in response.url
+    ) as retried:
         summary.click()
     assert len(requests) == 2
+    reported_browser_errors(page, f"500 {retried.value.url}")
 
 
 def test_shadow_staging_replaces_all_nodes_without_disturbing_a_retained_editor(

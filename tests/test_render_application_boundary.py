@@ -2,6 +2,7 @@
 
 import json
 import re
+import time
 from itertools import pairwise
 
 import pytest
@@ -708,14 +709,21 @@ def activation_page(source):
 
 
 PAGE_WIDGET = """\
-import { LitElement, html, keeps, layerFact, once, widgetController } from "/runtime/widget-api.js";
+import {
+  html, keeps, layerFact, once, render, widgetController,
+} from "/runtime/widget-api.js";
 
-customElements.define("lf-local", class extends LitElement {
+customElements.define("lf-local", class extends HTMLElement {
   controller = widgetController(this);
   reading = this.controller.read();
 
+  constructor() {
+    super();
+    this.attachShadow({mode: "open"});
+  }
+
   connectedCallback() {
-    super.connectedCallback();
+    this.paint();
     if (!once(this)) return;
     layerFact("$tones");
     keeps(this, "data-page-widget", "ready");
@@ -724,7 +732,7 @@ customElements.define("lf-local", class extends LitElement {
       this.dataset.renderOrder = `${this.dataset.renderOrder || ""}subscribe,`;
       keeps(this, "data-subscriber-choice", this.dataset.renderedChoice);
       this.dataset.readings = String(Number(this.dataset.readings || 0) + 1);
-      this.requestUpdate();
+      this.paint();
     });
     const held = globalThis.__heldLocalPresentations?.get(this.id);
     if (held) this.controller.present(held);
@@ -741,7 +749,7 @@ customElements.define("lf-local", class extends LitElement {
     if (!sent) return;
     this.reading = sent.reading;
     keeps(this, "data-delivery", "pending");
-    this.requestUpdate();
+    this.paint();
     sent.delivery.then(accepted => {
       keeps(this, "data-delivery", accepted ? "accepted" : "refused");
     });
@@ -755,21 +763,14 @@ customElements.define("lf-local", class extends LitElement {
     }
     keeps(this, "data-rendered-choice", state.choose.value);
     this.dataset.renderOrder = `${this.dataset.renderOrder || ""}render,`;
-    this.requestUpdate();
+    this.paint();
   }
 
-  async scheduleUpdate() {
-    const held = globalThis.__heldLocalUpdate;
-    globalThis.__heldLocalUpdate = null;
-    if (held) await held;
-    return super.scheduleUpdate();
-  }
-
-  render() {
+  paint() {
     const choice = this.reading.state.choose?.value ?? this.getAttribute("choice");
     const available = this.reading.actions.choose?.available ?? false;
-    return html`<button ?disabled=${!available} @click=${this.choose}>Choose</button>
-      <output>${choice}</output>`;
+    render(html`<button ?disabled=${!available} @click=${this.choose}>Choose</button>
+      <output>${choice}</output>`, this.shadowRoot, {host: this});
   }
 });
 """
@@ -814,7 +815,7 @@ def test_current_readiness_releases_a_connected_page_widget(browser, serve):
     installed = page.evaluate(
         """() => {
           const owner = document.querySelector('#page-local');
-          const control = owner.renderRoot.querySelector('button');
+          const control = owner.shadowRoot.querySelector('button');
           control.click();
           return {
             defined: customElements.get('lf-local') === owner.constructor,
@@ -967,7 +968,7 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(
     expect_asks_answered(page, "0/1")
     expect(approval).to_be_disabled()
     expect(approval).to_have_attribute(
-        "title", "Answer every Question before approving this work"
+        "title", "Answer every ask before approving this work"
     )
 
     if expanded:
@@ -1226,11 +1227,68 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     page.locator("#package-a").click()
     round_trip(page)
     assert page.evaluate("Number(pageLocal.dataset.readings)") == readings
+    # Another widget's action leaves this one's reading as it was, so its return draws
+    # nothing again.
     page.evaluate("document.querySelector('main').append(pageLocal)")
-    expect(page.locator("#page-local")).to_have_attribute(
-        "data-readings", str(readings + 1)
-    )
+    rendered(page)
+    assert page.evaluate("Number(pageLocal.dataset.readings)") == readings
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
+
+
+def test_a_returning_controller_widget_draws_again_only_a_changed_reading(
+    browser, serve
+):
+    """A controller-driven widget follows the return rule data and projection watchers
+    follow: a render that failed stands across a departure and return, so the author
+    is told once, and a return draws nothing again while the reading is unchanged."""
+    source = LIVE_V1.replace(
+        "</main>", '<lf-local id="page-local" choice="idle"></lf-local></main>'
+    )
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                source,
+                page_files={
+                    "registry.json": json.dumps(PAGE_DECLARATION),
+                    "widgets/lf-local.js": PAGE_WIDGET,
+                },
+            )
+        ),
+    )
+    expect(page.locator("#page-local")).to_have_attribute("data-page-widget", "ready")
+    leave_and_return = """async () => {
+      const settle = () => new Promise((resolve) => setTimeout(resolve));
+      const {readApplicationPresentation} =
+        await window.__lfRuntimeImport('/runtime/semantic-state.js');
+      const owner = document.querySelector('#page-local');
+      const parent = owner.parentNode;
+      const readings = Number(owner.dataset.readings);
+      owner.remove();
+      await settle();
+      parent.append(owner);
+      await settle();
+      return {
+        drawn: Number(owner.dataset.readings) - readings,
+        failed: Number(globalThis.__failedLocalRenders || 0),
+        pending: readApplicationPresentation().pending,
+      };
+    }"""
+    assert page.evaluate(leave_and_return) == {"drawn": 0, "failed": 0, "pending": []}
+
+    # Resuming a deferral draws the same reading again, and this draw fails.
+    page.evaluate(
+        "globalThis.__failLocalRender = true; "
+        "document.querySelector('#page-local').controller.defer()(); true"
+    )
+    expect(page.locator("#page-local .lf-error")).to_have_text(
+        "<lf-local> failed: <lf-local> renderState threw: deliberate render failure"
+    )
+    assert page.evaluate(leave_and_return) == {"drawn": 0, "failed": 1, "pending": []}
+    errors = take_browser_errors(page)
+    assert [error.splitlines()[0] for error in errors] == [
+        "leaf: Presentation failed: <lf-local> renderState threw: deliberate render failure"
+    ]
 
 
 @pytest.mark.parametrize("lifetime", ["light", "shadow-child", "shadow-host"])
@@ -1301,18 +1359,6 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
           };
         }"""
     )
-
-    held_render = page.evaluate(
-        """() => {
-          window.heldWidgetUpdate = heldPreparation();
-          window.__heldLocalUpdate = heldWidgetUpdate.promise;
-          window.stopHeldWidgetReading = pageLocal.controller.subscribe(() => {});
-          return readLeafPresentation().pending;
-        }"""
-    )
-    assert held_render == ["widget:page-local:render"]
-    page.evaluate("heldWidgetUpdate.release(); stopHeldWidgetReading()")
-    page.wait_for_function("readLeafPresentation().pending.length === 0")
 
     # Several children prepared by one owner are one requirement. A later call for the
     # same reading includes the earlier promise rather than superseding it.
@@ -1830,7 +1876,13 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
             "text": "Keep this thread and its editor.",
         },
     )
-    page = open_page(browser, live_url(url))
+    # A fixed wall clock keeps every age label still, so no clock repaint starts a
+    # reading of its own while the failing ones are arranged.
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, color_scheme="light"
+    )
+    context.clock.set_fixed_time(time.time())
+    page = open_page(browser, live_url(url), context=context)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     selected = page.locator('.lf-thread[data-id="selected-thread"]')
@@ -1850,6 +1902,19 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     elif place in {"choose-earlier", "leave-displaced-title"}:
         selected.locator(".lf-thread-summary").click()
 
+    # Choosing an earlier thread while the failing reading is in flight starts two
+    # newer readings (its disclosure's and the publication's), and an attempt a newer
+    # one supersedes restores nothing. Both fail too, so restoring the committed reading
+    # is the last one's to do. There each failing reading waits before it paints and
+    # then fails in the same turn as its paint, as a renderer exception does, so the
+    # test decides which attempt is current and no candidate stands on screen between.
+    choose_earlier = place == "choose-earlier"
+    failures = 3 if choose_earlier else 1
+    page.evaluate(
+        "([failures, gateBeforePaint]) => {"
+        " window.listFailures = failures; window.gateBeforePaint = gateBeforePaint; }",
+        [failures, choose_earlier],
+    )
     page.evaluate(
         """async id => {
           const presentation = await window.__lfRuntimeImport(
@@ -1872,14 +1937,14 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
 
           const list = document.querySelector('leaf-thread-list');
           const present = list.present.bind(list);
-          let failures = 2;
+          let failures = window.listFailures;
           let releaseFailure;
           const failedCandidate = new Promise(done => { releaseFailure = done; });
           window.releaseFirstListFailure = releaseFailure;
-          let releaseRetry;
-          const retry = new Promise(done => { releaseRetry = done; });
-          window.releaseThreadRetry = releaseRetry;
-          window.threadRetryReleased = false;
+          let releaseNext;
+          const next = new Promise(done => { releaseNext = done; });
+          window.releaseNextReading = releaseNext;
+          window.nextReadingReleased = false;
           list.present = async model => {
             const candidate = model.rows.some(
               row => row.kind === 'thread' &&
@@ -1888,17 +1953,21 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
             if (!candidate) return present(model);
             if (failures > 0) {
               const attempt = failures--;
-              await present(model);
-              if (attempt === 2) {
-                window.failedCandidatePresented = true;
+              if (window.gateBeforePaint) {
+                window.heldCandidates = (window.heldCandidates ?? 0) + 1;
+                await failedCandidate;
+                await present(model);
+              } else {
+                await present(model);
+                window.heldCandidates = 1;
                 await failedCandidate;
               }
               window.completeListFailures = (window.completeListFailures ?? 0) + 1;
               throw new Error('injected complete-list failure');
             }
-            if (!window.threadRetryReleased) {
-              window.threadRetryHeld = true;
-              await retry;
+            if (!window.nextReadingReleased) {
+              window.nextReadingHeld = true;
+              await next;
             }
             return present(model);
           };
@@ -1909,7 +1978,8 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     # One departed root and two arrivals distinguish candidate and committed counts.
     # Hold delivery while the admitted undo and arriving frozen content become one
     # application reading. The failed candidate removes the selected root; retention
-    # must restore the complete committed reading before the held retry proceeds.
+    # must restore the complete committed reading before the next reading, held here,
+    # proceeds.
     held_readings = []
     page.route("**/api/state*", lambda route: held_readings.append(route))
     append_carried_log_record(
@@ -1951,21 +2021,37 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     page.unroute("**/api/state*")
     for route in held_readings:
         route.continue_()
-    page.wait_for_function("() => window.failedCandidatePresented === true")
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 4")
-    if place == "choose-earlier":
+    page.wait_for_function("() => window.heldCandidates === 1")
+    # Later state reads wait too while the failures are arranged, so no reading but
+    # the ones the test starts can supersede them.
+    held_readings = []
+    page.route("**/api/state*", lambda route: held_readings.append(route))
+    if choose_earlier:
         selected = page.locator('.lf-thread[data-id="earlier-thread"]')
         selected.locator(".lf-thread-summary").click()
         expect(selected).to_have_attribute("open", "")
-    elif place == "leave-displaced-title":
-        expect(
-            page.locator('[data-withdrawn="selected-thread"] button')
-        ).to_be_focused()
-        page_comment(page)
-    page.evaluate("window.releaseFirstListFailure()")
+        # Both of the choice's readings stand at the gate, so the first is superseded,
+        # and all three fail once it opens.
+        page.wait_for_function("() => window.heldCandidates === 3")
+        page.evaluate("window.releaseFirstListFailure()")
+    else:
+        expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 4")
+        if place == "leave-displaced-title":
+            expect(
+                page.locator('[data-withdrawn="selected-thread"] button')
+            ).to_be_focused()
+            page_comment(page)
+        page.evaluate("window.releaseFirstListFailure()")
     page.wait_for_function(
-        """() => window.completeListFailures === 2 &&
-          window.threadRetryHeld === true""",
+        "failures => window.completeListFailures === failures", arg=failures
+    )
+    page.unroute("**/api/state*")
+    for route in held_readings:
+        route.continue_()
+    page.wait_for_function(
+        """failures => window.completeListFailures === failures &&
+          window.nextReadingHeld === true""",
+        arg=failures,
     )
 
     assert page.evaluate("() => !window.threadPreparationSettled")
@@ -1996,17 +2082,17 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
     ) == [6, 14, "backward"]
     assert "thread" in page.evaluate("window.readLeafPresentation().pending")
-    # The restored card must stand for a frame before retrying its withdrawal;
-    # the choice that dismissed the failed candidate cannot hide a later jump.
+    # The restored card must stand for a frame before the next reading withdraws it;
+    # the choice made while the reading failed cannot hide a later jump.
     page.evaluate("lfShiftsJudged()")
     restored_top = page.evaluate("window.keptPanel.getBoundingClientRect().top")
 
-    # The retry paints the whole candidate again and then reaches the independently
-    # held frozen-widget preparation. Only that complete reading may commit.
+    # The next reading paints the whole candidate again and then reaches the
+    # independently held frozen-widget preparation. Only that complete reading may commit.
     page.evaluate(
         """() => {
-          window.threadRetryReleased = true;
-          window.releaseThreadRetry();
+          window.nextReadingReleased = true;
+          window.releaseNextReading();
         }"""
     )
     page.wait_for_function(
@@ -2039,23 +2125,15 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
             inline.querySelector(':scope > .lf-thread-reply leaf-text') === window.keptEditor;
         }""",
         kept["id"],
-    ), "successful list retry replaced a committed panel card, seat, or editor"
+    ), "the next reading replaced a committed panel card, seat, or editor"
     expect(editor).to_have_js_property("value", "draft survives sibling rollback")
     if place == "choose-earlier":
         expect(page.locator('[data-withdrawn="selected-thread"]')).to_have_count(1)
         assert page.evaluate(
             "window.keptPanel.getBoundingClientRect().top"
         ) == pytest.approx(restored_top, abs=0.1)
-    expected_errors = (
-        []
-        if place == "choose-earlier"
-        else [
-            (
-                "leaf: Presentation failed: Thread list presentation retry failed: "
-                "injected complete-list failure; injected complete-list failure"
-            )
-        ]
-    )
+    expected_errors = ["leaf: Presentation failed: injected complete-list failure"]
+    page.evaluate("lfShiftsJudged()")
     errors = take_browser_errors(page)
     assert [error.splitlines()[0] for error in errors] == expected_errors, errors
 
@@ -2240,6 +2318,74 @@ def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, pla
         )
 
 
+@pytest.mark.parametrize("route", ["t", "Shift+T", "ArrowDown", "click"])
+def test_choosing_beside_a_withdrawn_notice_holds_the_chosen_card(
+    browser, serve, route
+):
+    """From a withdrawn thread's notice, `t`, `T`, an arrow or a press chooses the card
+    beside it, and releasing the notice's room moves none of what the user sees there."""
+    before = [f"before-{i}" for i in range(12)]
+    after = [f"after-{i}" for i in range(20)]
+    sections = [*before, "withdrawn", *after]
+    url = serve(
+        leaf_page(
+            "Withdrawn among threads",
+            "<h1>Review</h1>"
+            + "".join(f'<p id="{name}">Passage {name}.</p>' for name in sections),
+        )
+    )
+    for name in sections:
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "id": name,
+                "author": "user",
+                "revision": 1,
+                "anchor": {"section": name},
+                "text": f"Conversation {name}.",
+            },
+        )
+    page = open_page(browser, live_url(url))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator('.lf-threads > [data-id="withdrawn"]')
+    card.locator(".lf-thread-summary").scroll_into_view_if_needed()
+    card.locator(".lf-thread-summary").click()
+    rendered(page)
+    # Cards in view on both sides of the open one, and room scrolled past to take its
+    # release.
+    page.locator("leaf-thread-list").evaluate(
+        "(list, card) => { list.scrollTop += card.getBoundingClientRect().top"
+        " - list.getBoundingClientRect().top - 100; }",
+        card.element_handle(),
+    )
+    scroll_settled(page, "leaf-thread-list")
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "undo", "author": "user", "revision": 1, "undoes": "withdrawn"},
+    )
+    told(page)
+    notice = page.locator('[data-withdrawn="withdrawn"]')
+    expect(notice.locator("button")).to_be_focused()
+    chosen = page.locator(
+        f'.lf-threads > [data-id="{before[-1] if route == "Shift+T" else after[0]}"]'
+    )
+    top = chosen.evaluate("node => node.getBoundingClientRect().top")
+
+    if route == "click":
+        chosen.locator(".lf-thread-summary").click()
+    else:
+        page.keyboard.press(route)
+    rendered(page)
+    expect(notice).to_have_count(0)
+    expect(chosen).to_have_attribute("open", "")
+    expect(chosen.locator(".lf-thread-summary")).to_be_focused()
+    assert chosen.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
+        top, abs=0.5
+    )
+
+
 def test_an_unavailable_list_preserves_the_selected_conversation(browser, serve):
     """A placeholder has no identity inventory from which to retire a choice."""
     url = serve(
@@ -2345,8 +2491,8 @@ def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
     write(left, "where the user was")
     expect(left).to_be_focused()
 
-    # The reading that brings the arriving thread waits at a gate, and both its paints
-    # (the attempt and the list's own retry) fail, so the whole reading is refused.
+    # The reading that brings the arriving thread waits at a gate, and its paint fails,
+    # so the whole reading is refused.
     page.evaluate(
         """() => {
           const list = document.querySelector('leaf-thread-list');
@@ -2381,10 +2527,7 @@ def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
     page.evaluate("() => window.openGate()")
     reported_browser_errors(
         page,
-        (
-            "leaf: Presentation failed: Thread list presentation retry failed: "
-            "injected refusal; injected refusal"
-        ),
+        "leaf: Presentation failed: injected refusal",
     )
     expect(page.locator('[data-id="arriving"]')).to_have_count(0)
 
@@ -2893,7 +3036,7 @@ def package_workspace(serve, *, before_reader="", primary=True):
         },
         {
             "id": "proofread",
-            "kind": "task",
+            "kind": "todo",
             "author": "agent",
             "agent": "Agent",
             "session": "proofread",
@@ -2925,12 +3068,12 @@ def test_package_answer_summary_waits_for_widget_completion(browser, serve):
     counts = workspace.locator(".counts")
     workspace.get_by_role("button", name="Which extras? Chat", exact=True).click()
     expect(workspace.locator("#extra-chat").get_by_role("checkbox")).to_be_checked()
-    expect(counts).to_have_text("2 Questions on you")
+    expect(counts).to_have_text("2 asks on you")
     with sending(page, "complete the selected extras"):
         workspace.locator("#extras").get_by_role(
             "button", name="Done: my picks here are complete", exact=True
         ).click()
-    expect(counts).to_have_text("1 Questions on you · 1 answered · Chat")
+    expect(counts).to_have_text("1 asks on you · 1 answered · Chat")
 
 
 @pytest.mark.parametrize("width", [1440, 390])
@@ -2956,7 +3099,7 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
                 "revision": 1,
                 "parent": "opening",
                 "text": text,
-                "question": True,
+                "ask": True,
             },
         )
     page = open_page(browser, url, context=context)
@@ -2994,7 +3137,7 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
     # One reply answers both prose Questions. Counts include them, while the
     # compact answer summary names only widget choices instead of repeating prose.
     expect(workspace.locator(".counts")).to_have_text(
-        "0 Questions on you · 3 answered · Email"
+        "0 asks on you · 3 answered · Email"
     )
     with sending(page, "create a real conversation from a package"):
         workspace.get_by_role("textbox", name="New conversation").fill(
@@ -3018,17 +3161,17 @@ def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, 
         "async () => { window.api = await window.__lfRuntimeImport('/runtime/widget-api.js'); }"
     )
     key = page.evaluate(
-        "api.queueItemKey(api.readQueues().onYou.find(item => item.id === 'proofread'))"
+        "api.queueItemKey(api.readQueues().questions.find(item => item.id === 'proofread'))"
     )
     assert page.evaluate(
-        "api.queueActions.done(api.queueItemKey(api.readQueues().onYou.find(item => item.question?.source.kind === 'widget'))) === null"
+        "api.queueActions.done(api.queueItemKey(api.readQueues().questions.find(item => item.ask?.source.kind === 'widget'))) === null"
     )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.evaluate("key => { window.doneDelivery = api.queueActions.done(key); }", key)
     holding(page, held, 1, "a package Done awaiting admission")
     assert page.evaluate(
-        "!api.readQueues().onYou.some(item => item.id === 'proofread')"
+        "!api.readQueues().questions.some(item => item.id === 'proofread')"
     )
     assert page.evaluate("api.readQueues().done.some(item => item.id === 'proofread')")
     assert page.evaluate("key => api.queueActions.done(key) === null", key)
@@ -3047,7 +3190,9 @@ def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, 
     page.unroute("**/api/event")
     assert page.evaluate("doneDelivery") is None
     round_trip(page)
-    assert page.evaluate("api.readQueues().onYou.some(item => item.id === 'proofread')")
+    assert page.evaluate(
+        "api.readQueues().questions.some(item => item.id === 'proofread')"
+    )
     with sending(page, "a current package Done"):
         page.locator("#workspace").get_by_role(
             "button", name="Done", exact=True
@@ -3058,8 +3203,8 @@ def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, 
     assert [
         event["kind"]
         for event in events_model.read_events(serve.page_dir)
-        if event.get("task") == "proofread"
-    ] == ["task_end"]
+        if event.get("todo") == "proofread"
+    ] == ["todo_end"]
 
 
 def test_failed_primary_reader_restores_the_same_native_ask_in_core(browser, serve):
@@ -3269,7 +3414,7 @@ def test_queue_ask_arrival_selects_the_primary_reader(browser, serve):
         "async () => { window.api = await window.__lfRuntimeImport('/runtime/widget-api.js'); }"
     )
     assert page.evaluate(
-        "async () => { const item = api.readQueues().onYou.find(item => item.question?.source.kind === 'widget'); return await api.queueActions.open(api.queueItemKey(item)); }"
+        "async () => { const item = api.readQueues().questions.find(item => item.ask?.source.kind === 'widget'); return await api.queueActions.open(api.queueItemKey(item)); }"
     )
     expect(workspace.locator("lf-option#email")).to_be_visible()
     assert page.evaluate(

@@ -1399,6 +1399,135 @@ def fail_sample_startup(route):
     )
 
 
+RADIO_DIALOG_PAGE = leaf_page(
+    "Radio dialog",
+    """<p id="intro">A page with its own dialog.</p>
+<label><input type="radio" name="cross" value="outside"> Outside</label>
+<dialog id="pick-cross">
+  <button type="button" id="cross-first">First</button>
+  <label><input type="radio" name="cross" value="inside"> Inside</label>
+</dialog>
+<dialog id="pick">
+  <button type="button" id="pick-first">First</button>
+  <label><input type="radio" name="size" value="s"> Small</label>
+  <label><input type="radio" name="size" value="l"> Large</label>
+</dialog>
+<dialog id="pick-disabled">
+  <button type="button" id="disabled-first">First</button>
+  <label><input type="radio" name="tone" value="off" disabled> Off</label>
+  <label><input type="radio" name="tone" value="on"> On</label>
+</dialog>
+<dialog id="pick-split">
+  <label><input type="radio" name="side" value="a"> A</label>
+  <button type="button" id="split-middle">Middle</button>
+  <label><input type="radio" name="side" value="b"> B</label>
+</dialog>""",
+)
+
+
+def test_tab_leaves_a_radio_group_ending_a_modal_for_its_first_stop(browser, serve):
+    """A radio group is one Tab stop, its checked member or else its first, so Tab from
+    any of its members leaves the group. Where the group ends a modal, the browser would
+    carry the user out to its own interface; the modal takes them round to its first
+    stop instead."""
+    page = open_page(browser, serve(RADIO_DIALOG_PAGE))
+    page.evaluate("() => document.getElementById('pick').showModal()")
+    first = page.locator("#pick-first")
+    small = page.locator("input[value=s]")
+    large = page.locator("input[value=l]")
+    first.focus()
+    page.keyboard.press("Tab")
+    expect(small).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(first).to_be_focused()
+
+    large.check()
+    first.focus()
+    page.keyboard.press("Shift+Tab")
+    expect(large).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(first).to_be_focused()
+
+    # A disabled member takes no stop, so the group's stop is its enabled member.
+    page.evaluate("() => document.getElementById('pick').close()")
+    page.evaluate("() => document.getElementById('pick-disabled').showModal()")
+    page.locator("#disabled-first").focus()
+    page.keyboard.press("Tab")
+    expect(page.locator("input[value=on]")).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(page.locator("#disabled-first")).to_be_focused()
+
+    # A group split by another stop is still one stop, its first member: Tab passes
+    # over the second, and leaves from it where script put the user there.
+    page.evaluate("() => document.getElementById('pick-disabled').close()")
+    page.evaluate("() => document.getElementById('pick-split').showModal()")
+    middle = page.locator("#split-middle")
+    middle.focus()
+    page.keyboard.press("Tab")
+    expect(page.locator("input[value=a]")).to_be_focused()
+    page.locator("input[value=b]").focus()
+    page.keyboard.press("Tab")
+    expect(page.locator("input[value=a]")).to_be_focused()
+
+    # Checked, the split group is its checked member alone, at either end.
+    page.locator("input[value=a]").check()
+    middle.focus()
+    page.keyboard.press("Tab")
+    expect(page.locator("input[value=a]")).to_be_focused()
+    page.locator("input[value=b]").check()
+    middle.focus()
+    page.keyboard.press("Shift+Tab")
+    expect(page.locator("input[value=b]")).to_be_focused()
+
+    # A member outside the modal is inert there, so the group's stop is the one inside.
+    page.evaluate("() => document.getElementById('pick-split').close()")
+    page.evaluate("() => document.getElementById('pick-cross').showModal()")
+    page.locator("#cross-first").focus()
+    page.keyboard.press("Tab")
+    expect(page.locator("input[value=inside]")).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(page.locator("#cross-first")).to_be_focused()
+
+
+def test_tab_wraps_through_a_full_view_sample(browser, serve):
+    """Full view is modal and holds its frame last, and a key pressed in the frame is
+    the child's. Shift+Tab from the view's first stop enters the child at its last
+    stop, and Tab from there comes back to the first, where the browser would carry the
+    user out to its own interface."""
+    page = open_page(browser, serve(LIVE_SAMPLES_PAGE))
+    sample = page.locator("#first-practice")
+    frame = sample.locator("iframe")
+    child = frame.element_handle().content_frame()
+    sample.get_by_role("button", name="Full view", exact=True).click()
+    expect(
+        sample.get_by_role("button", name="Return to page", exact=True)
+    ).to_be_focused()
+    first = sample.get_by_role("button", name="Reset", exact=True)
+    first.focus()
+
+    page.keyboard.press("Shift+Tab")
+    expect(frame).to_be_focused()
+    child.wait_for_function(
+        "() => document.activeElement && document.activeElement !== document.body"
+    )
+    page.keyboard.press("Tab")
+    expect(first).to_be_focused()
+
+    # Back on the page the frame stands in no loop, so Tab past the child's last stop
+    # is the browser's own move on to the page's next stop.
+    page.keyboard.press("Escape")
+    expect(sample.get_by_role("button", name="Full view", exact=True)).to_be_focused()
+    child.evaluate(
+        """async () => {
+          const { tabStops } = await import("/runtime/focus.js");
+          tabStops(document.body).at(-1).focus();
+        }"""
+    )
+    expect(frame).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(frame).not_to_be_focused()
+
+
 def test_live_sample_full_view_keeps_the_child_and_returns_after_inner_escape(
     browser, serve
 ):
@@ -2986,99 +3115,6 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
     ), "the field retained its public focus part after focus left"
 
 
-# One interaction demo, the gallery's suggestion replay, under the opt-in that installs
-# the runtime's playback row, laid out as the feature gallery lays that row out. The
-# `accept` scenario (interaction-gallery.js) names its suggestion `bg-motion-accept`.
-INTERACTION_PLAYBACK_PAGE = leaf_page(
-    "Interaction playback",
-    """
-<section class="interaction-gallery" id="demos" data-interaction-gallery
-         data-interaction-viewport="2">
-<h2>Interactions</h2>
-<lf-tabs id="demo-tabs">
-  <lf-tab id="demo-accept" label="Accept a suggestion">
-    <figure class="interaction-demo" data-interaction-demo="accept">
-      <template id="demo-accept-page" data-sample>
-        <p id="demo-accept-copy">The importer now
-          <lf-suggestion id="bg-motion-accept"><lf-old>usually finishes</lf-old><lf-new>finishes</lf-new></lf-suggestion>
-          before the next run begins.</p>
-      </template>
-      <div class="interaction-stage interaction-frame-stage">
-        <iframe class="interaction-frame" data-interaction-frame name="interaction-accept"
-                title="Contained Leaf suggestion animation" tabindex="-1"
-                aria-hidden="true"></iframe>
-        <span class="interaction-pointer" hidden aria-hidden="true"></span>
-      </div>
-      <figcaption>The pointer presses Accept.</figcaption>
-    </figure>
-  </lf-tab>
-</lf-tabs>
-</section>
-""",
-    head="""<style>
-.interaction-gallery .lf-interaction-controls {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-}
-.interaction-gallery .lf-interaction-status { flex-basis: 100%; }
-</style>""",
-)
-
-
-def test_departing_gallery_cancels_pending_samples_without_reporting_failure(
-    browser, serve
-):
-    """Departure cancels loading even while the old document's nodes remain connected."""
-    page = browser.new_page()
-    held = []
-    page.route("**/api/samples", lambda route: held.append(route))
-    page.goto(serve(INTERACTION_PLAYBACK_PAGE))
-    holding(page, held, 1, "the gallery's sample allocation")
-    page.evaluate("window.dispatchEvent(new PageTransitionEvent('pagehide'))")
-    assert page.locator("[data-interaction-demo]").evaluate(
-        "figure => figure.isConnected"
-    )
-    response = held[0].fetch()
-    held[0].fulfill(response=response)
-    page.evaluate("""async () => {
-        const {whenArrived} = await window.__lfRuntimeImport('/runtime/presentation.js');
-        await whenArrived();
-    }""")
-    rendered(page)
-    expect(page.locator(".lf-interaction-status")).not_to_have_text("Could not play")
-    assert not [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "error"
-    ]
-
-
-def test_gallery_reconfigures_a_sample_document_that_reloads(browser, serve):
-    """A reloaded sample starts unconfigured, during the gallery's load or after it."""
-    page = browser.new_page(reduced_motion="reduce")  # Play waits for the press.
-    held = []
-
-    def hold_first_state(route):
-        if held:
-            route.continue_()
-        else:
-            held.append(route)
-
-    page.route("**/api/samples/*/api/state*", hold_first_state)
-    page.goto(serve(INTERACTION_PLAYBACK_PAGE))
-    holding(page, held, 1, "the first sample document's state read")
-    toggle = page.get_by_role("button", name="Play Accept a suggestion animation")
-    status = page.locator(".lf-interaction-status")
-    child = page.locator("[data-interaction-frame]").element_handle().content_frame()
-    for moment in ("while loading", "after loading"):
-        with child.expect_navigation(wait_until="domcontentloaded"):
-            child.evaluate("location.reload()")
-        if moment == "while loading":
-            held[0].abort()
-        expect(toggle, moment).to_be_enabled()
-        toggle.click()
-        expect(status, moment).to_have_text(re.compile("Playing|Complete"))
-
-
 SIGNOFF_STABILITY_PAGE = LONG_PAGE.replace(
     "<title>long</title>",
     '<title>long</title><meta name="lf-review" content="sign-off">',
@@ -3124,15 +3160,6 @@ CONTROL_ARCHETYPES = (
         "target": '#stable-shot .lf-shotcap[data-lf-state="after"]',
     },
     {
-        # The interaction gallery's playback row. The runtime injects one
-        # Play/Pause/Replay control beside Loop and Viewport, so the changing word must
-        # cost the button no width. Pressing Replay sends it through every word it has.
-        # Its own page because the row exists only under the gallery opt-in.
-        "name": "interaction-playback",
-        "source": INTERACTION_PLAYBACK_PAGE,
-        "target": "[data-interaction-toggle]",
-    },
-    {
         # The case queue's Previous, case selector, and Next controls share the
         # row above the evidence. Selecting another title changes the select's
         # contents without moving the buttons around it.
@@ -3148,7 +3175,7 @@ CONTROL_ARCHETYPES = (
         "name": "visual-review-inspection",
         "source": VISUAL_REVIEW_GALLERY,
         "open": ".lf-vr-inspection-summary",
-        "target": '.lf-vr-mode-group > [data-mode="flip"]',
+        "target": '.lf-vr-mode-group > [value="flip"]',
     },
     {
         # A disposition changes both its selected paint and the case's durable review
@@ -4148,7 +4175,7 @@ def test_send_returns_to_more_when_a_gesture_step_displaced_the_comment_control(
     append_carried_log_record(
         serve.page_dir,
         {
-            "kind": "task",
+            "kind": "todo",
             "author": "agent",
             "agent": "Agent",
             "session": "displaced-row",
@@ -9172,7 +9199,6 @@ RING_CASES = (
                 (".lf-find-box input", "text-entry"),
                 (".lf-thread-panel leaf-text", "text-box"),
             ),
-            "command-hub": ((".lf-code-copy:visible button", "code-copy"),),
             "feature-gallery": (
                 ("lf-option > .lf-pick", "options-row"),
                 (
@@ -9758,9 +9784,6 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 expected = {expected} if isinstance(expected, str) else set(expected)
                 if selector:
                     target = page.locator(selector).first
-                    if name == "command-hub" and scope == "the page":
-                        page.locator("#ledger-fixture pre").scroll_into_view_if_needed()
-                        rendered(page)
                     # A sample can stand inside a container that is closed on arrival —
                     # the corpus holds each example in a tab, and only one panel is open.
                     # Nothing inside a hidden panel is focusable, so the ring would read
@@ -9783,17 +9806,8 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                     )
                     rendered(page)
                     open_containing_thread(target)
-                    if name == "command-hub" and scope == "the page":
-                        # A code block lends the keyboard an Enter route to its
-                        # copy control. Tab from elsewhere can scroll the source
-                        # away and withdraw that conditional control.
-                        source = page.locator("#ledger-fixture pre")
-                        source.scroll_into_view_if_needed()
-                        source.focus()
-                        source.press("Enter")
-                    else:
-                        page.keyboard.press("Tab")
-                        target.focus()
+                    page.keyboard.press("Tab")
+                    target.focus()
                     # A note on the details shelf is reached from the element that
                     # names it (details-shelf.js), never by Tab, and is focused here as
                     # a screen reader moving to it would focus it.
@@ -10386,27 +10400,23 @@ def test_a_reference_command_finishes_its_gesture_before_a_newer_control(
 def test_retained_moves_keep_native_editor_and_frame_state(
     browser, serve, native_move, renderer
 ):
-    """Moves survive named form fields; native moves also retain frame state."""
+    """A reorder or a move to another parent keeps the user typing in the moved row,
+    with no focus hold of the caller's, whether or not the browser has `moveBefore`;
+    a native move also keeps the row's iframe document."""
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "Retained rows",
-                "<h1>Retained rows</h1>"
-                + "".join(
-                    f'<form id="{id}"><input name="moveBefore"><input name="getRootNode">'
-                    '<input name="insertBefore"></form>'
-                    for id in ["rows", "other"]
-                ),
+                '<h1>Retained rows</h1><div id="rows"></div><div id="other"></div>',
             )
         ),
     )
     page.evaluate(
         """async ([nativeMove, renderer]) => {
-      const {repeat} = await window.__lfRuntimeImport('/vendor/browser-runtime.js');
-      const {render} = await window.__lfRuntimeImport('/runtime/dom-children.js');
+      const {render, repeat} = await window.__lfRuntimeImport('/vendor/browser-runtime.js');
       const {orderChildren} = await window.__lfRuntimeImport('/runtime/dom-children.js');
-      const {move, holdFocus} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {move} = await window.__lfRuntimeImport('/runtime/widget-api.js');
       const rows = document.querySelector('#rows');
       if (!nativeMove) Element.prototype.moveBefore = undefined;
       const nodes = ['a', 'b', 'c'].map(id => {
@@ -10426,16 +10436,12 @@ def test_retained_moves_keep_native_editor_and_frame_state(
       editor.addEventListener('keydown', event => {
         if (event.key === 'ArrowUp' && event.altKey) {
           event.preventDefault();
-          const restore = holdFocus(rows);
           paint([nodes[2], nodes[0], nodes[1]]);
-          restore?.();
         } else if (event.key === 'ArrowDown' && event.altKey) {
           event.preventDefault();
-          const restore = holdFocus(rows);
           const other = document.querySelector('#other');
           if (renderer === 'lit') render(nodes[2], other);
-          else move(other, editor.closest('[data-row]'), null);
-          restore?.();
+          else move(other, nodes[2], null);
         }
       });
     }""",
@@ -10449,10 +10455,7 @@ def test_retained_moves_keep_native_editor_and_frame_state(
         "Retained frame"
     )
     frame.evaluate("node => window.heldDocument = node.contentDocument")
-    moves = [("Alt+ArrowUp", "#rows")]
-    if native_move:
-        moves.append(("Alt+ArrowDown", "#other"))
-    for key, parent in moves:
+    for key, parent in [("Alt+ArrowUp", "#rows"), ("Alt+ArrowDown", "#other")]:
         page.keyboard.press(key)
         expect(page.locator(f"{parent} > [data-row=c]")).to_have_count(1)
         if key == "Alt+ArrowUp":
@@ -10471,52 +10474,6 @@ def test_retained_moves_keep_native_editor_and_frame_state(
             )
         else:
             assert page.evaluate("window.blurs") > 0
-    assert page.evaluate(
-        """async () => {
-      const {selectionBackward} = await window.__lfRuntimeImport('/runtime/passages.js');
-      const form = document.querySelector('#rows');
-      const first = document.createElement('label'), last = document.createElement('label');
-      first.textContent = 'First'; last.textContent = 'Second';
-      form.prepend(first); form.append(last);
-      const selection = getSelection();
-      selection.setBaseAndExtent(first.firstChild, 0, last.firstChild, 6);
-      return [selection.getRangeAt(0).commonAncestorContainer === form,
-              selectionBackward(selection)];
-    }"""
-    ) == [True, False]
-
-
-def test_editor_caret_hold_releases_after_unchanged_selection(browser, serve):
-    page = open_page(
-        browser,
-        serve(leaf_page("Editor caret", "<h1>Editor caret</h1><div id='seat'></div>")),
-    )
-    page.evaluate("""() => {
-      const field = document.createElement('leaf-text');
-      field.value = 'Intentional selection';
-      document.querySelector('#seat').append(field);
-      field.focus();
-      field.setSelectionRange(4, 4);
-    }""")
-    field = page.locator("#seat leaf-text")
-    expect(field).to_be_focused()
-    # Exercise the reconnect path after the initial focus events have settled.
-    field.evaluate(
-        "node => { node.setSelectionRange(4, 4); node.connectedCallback(); }"
-    )
-    # The first selectionchange leaves the held caret intact. It still consumes
-    # the hold, so a later programmatic change belongs to its caller.
-    page.evaluate("""() => new Promise(resolve => {
-      document.addEventListener('selectionchange', () => queueMicrotask(resolve), {once: true});
-      document.dispatchEvent(new Event('selectionchange'));
-    })""")
-    assert field.evaluate("node => node.selectionStart") == 4
-    field.evaluate("node => node.setSelectionRange(9, 9)")
-    page.evaluate("""() => new Promise(resolve => {
-      document.addEventListener('selectionchange', () => queueMicrotask(resolve), {once: true});
-      document.dispatchEvent(new Event('selectionchange'));
-    })""")
-    assert field.evaluate("node => [node.selectionStart, node.selectionEnd]") == [9, 9]
 
 
 def test_unfocused_editor_move_leaves_later_selection_alone(browser, serve):
@@ -10541,7 +10498,7 @@ def test_unfocused_editor_move_leaves_later_selection_alone(browser, serve):
       const field = document.querySelector('#first leaf-text');
       field.blur();
       const unfocused = !field.matches(':focus');
-      document.querySelector('#second').append(field);
+      document.querySelector('#second').moveBefore(field, null);
       return [field.selectionStart, unfocused];
     }""")
     assert held == [4, True]
@@ -10554,32 +10511,3 @@ def test_unfocused_editor_move_leaves_later_selection_alone(browser, serve):
     })""")
     expect(editor).to_be_focused()
     assert editor.evaluate("node => [node.selectionStart, node.selectionEnd]") == [9, 9]
-
-
-def test_named_form_controls_leave_shadow_scroll_and_standing_readings_available(
-    browser, serve
-):
-    page = open_page(browser, serve(leaf_page("Named forms", "<h1>Named forms</h1>")))
-    page.evaluate(
-        """async () => {
-      const {watchArrivalsIn, watchScrolls} = await window.__lfRuntimeImport('/runtime/arrivals.js');
-      const host = document.createElement('div');
-      document.querySelector('main').append(host);
-      const stage = host.attachShadow({mode: 'open'});
-      stage.innerHTML = '<form style="height:40px;overflow:auto"><input name="getRootNode"><p style="height:200px">Scrollable words</p></form>';
-      const form = stage.querySelector('form');
-      watchArrivalsIn(stage);
-      watchScrolls(event => { if (event.target === form) window.namedFormScrolled = true; });
-      form.scrollTop = 50;
-    }"""
-    )
-    page.wait_for_function("window.namedFormScrolled === true")
-    assert (
-        page.evaluate(
-            """async () => {
-      const {standsOn} = await window.__lfRuntimeImport('/runtime/focus.js');
-      return standsOn(document.querySelector('main > div').shadowRoot.querySelector('form'));
-    }"""
-        )
-        is False
-    )

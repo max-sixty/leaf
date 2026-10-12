@@ -25,7 +25,7 @@ def page(attrs="choose", context=None):
 
 
 def questions(state, revision=1):
-    return state["views"][str(revision)]["document"]["questions"]
+    return state["views"][str(revision)]["document"]["asks"]
 
 
 def test_context_changes_prompt_target_without_changing_question_identity_or_value():
@@ -45,7 +45,7 @@ def test_context_changes_prompt_target_without_changing_question_identity_or_val
     assert question["prompt"] == {"text": "Which route?", "target": "evidence"}
     assert question["answer"]["value"] == ["a"]
     assert question["status"] == "answered"
-    assert state["tasks"] == []
+    assert state["todos"] == []
 
 
 def test_questions_name_their_exact_owning_message_without_conflating_thread_identity():
@@ -85,7 +85,7 @@ def test_questions_name_their_exact_owning_message_without_conflating_thread_ide
     state = model.reading(document, events)
     inventory = {
         question["id"]: (question["thread"], question["message"])
-        for question in [*questions(state)["all"], *state["thread"]["questions"]["all"]]
+        for question in [*questions(state)["all"], *state["thread"]["asks"]["all"]]
     }
     assert inventory == {
         "widget:choice": (None, None),
@@ -234,7 +234,7 @@ def test_display_only_widget_does_not_suppress_a_prose_question():
         ],
     )
     assert [
-        question["source"]["kind"] for question in state["thread"]["questions"]["all"]
+        question["source"]["kind"] for question in state["thread"]["asks"]["all"]
     ] == ["reply"]
 
 
@@ -505,16 +505,16 @@ def test_task_validation_does_not_rewrite_question_identity_and_refuses_bare_sou
         )
     ]
     command = {
-        "kind": "task_end",
+        "kind": "todo_end",
         "id": "end",
         "author": "agent",
-        "task": "reply:prompt",
+        "todo": "reply:prompt",
         "outcome": "dropped",
     }
     admitted = admitted_event(door, events, command)
-    assert command["task"] == admitted["task"] == "reply:prompt"
-    with pytest.raises(EventRefused, match="unknown task 'prompt'"):
-        admitted_event(door, events, {**command, "task": "prompt"})
+    assert command["todo"] == admitted["todo"] == "reply:prompt"
+    with pytest.raises(EventRefused, match="unknown to-do 'prompt'"):
+        admitted_event(door, events, {**command, "todo": "prompt"})
 
 
 @pytest.mark.parametrize("state", ["answered", "withdrawn"])
@@ -534,7 +534,7 @@ def test_user_work_can_stand_on_a_source_after_its_question_ends(state):
     )
     events.append(
         {
-            "kind": "task",
+            "kind": "todo",
             "author": "agent",
             "owner": "user",
             "title": "Check rollout numbers",
@@ -544,7 +544,7 @@ def test_user_work_can_stand_on_a_source_after_its_question_ends(state):
     reading = model.reading(documents, events)
     revision = 1 if state == "answered" else 2
     assert questions(reading, revision)["all"][0]["status"] == state
-    assert reading["tasks"][0]["title"] == "Check rollout numbers"
+    assert reading["todos"][0]["title"] == "Check rollout numbers"
 
 
 def test_repicking_a_withdrawn_request_records_provenance_without_reclosing_thread():

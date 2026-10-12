@@ -150,7 +150,16 @@ def registry_path(registry: dict, path: str):
 def reference_relation_error(
     reference: dict, registry: dict, declarations: dict
 ) -> str | None:
-    """Why one `{via, where}` target relation cannot name a declared widget."""
+    """Why one `{via, where}` or `{tag, key}` target relation cannot name a declared
+    widget. A keyed relation needs its key declared unique on the member, which also
+    supplies the owner it resolves within, so one reference names at most one member."""
+    if member := reference.get("tag"):
+        key = reference["key"]
+        if member not in declarations:
+            return f"names unknown element declaration <{member}>"
+        if key not in declarations[member].get("x-unique", {}):
+            return f"names <{member}> by `{key}`, which <{member}> does not declare in x-unique"
+        return None
     via = reference.get("via")
     if via is None:
         return None
@@ -216,27 +225,54 @@ def declares_string(field_schema) -> bool:
     return allowed == {"string"}
 
 
+# A position record's rank: a base-36 fraction written as its digits after the point,
+# never ending in 0, so string order is numeric order. The runtime's
+# `projection/model.js` owns the reasoning and computes the keys between neighbours;
+# this rule is the one both runtimes must read the same way, and
+# `tests/rank_cases.json` holds both runtimes to the same cases.
+RANK = "[0-9a-z]*[1-9a-z]"
+_IDENTITY = {"type": "string", "minLength": 1}
+
+
 def detail_schema(entry: dict, spec: dict) -> dict:
     """The event payload contract: an effect's fixed fields or custom command data.
 
     Recorded values use `value`; positions add `unit` and `rank`, and a report
     declaring `report` adds required nonempty `text`. Attribute values inherit
-    the destination's exact schema. Derived schemas are readings, never inserted
-    into the registry beside the effect that owns them.
+    the destination's exact schema. Every identity the event depends on
+    (`event_meaning.direct_dependencies`) is a nonempty string: a custom verb's
+    fold unit, and an attribute set's or position's ids. Derived schemas are
+    readings, never inserted into the registry beside the effect that owns them.
     """
     record = spec.get("record")
     if record is None:
-        return spec["detail"]
+        detail, unit = spec["detail"], spec["unit"]
+        if unit == "widget":
+            return detail
+        # Into the unit's own declaration rather than an `allOf` around the detail,
+        # which would move the base a `#/properties/…` reference inside it resolves on.
+        properties = detail.get("properties", {})
+        declared = properties.get(unit, {})
+        return {
+            **detail,
+            "properties": {
+                **properties,
+                unit: {**declared, "minLength": max(declared.get("minLength", 0), 1)},
+            },
+        }
     kind = record["kind"]
     if kind == "value":
         value = entry["properties"][record["attr"]]
     elif kind == "attribute":
-        value = {"type": "array", "items": {"type": "string"}, "uniqueItems": True}
+        value = {"type": "array", "items": _IDENTITY, "uniqueItems": True}
     else:
-        value = {"type": "string"}
+        value = _IDENTITY
     properties = {"value": value}
     if kind == "position":
-        properties.update(unit={"type": "string"}, rank={"type": "string"})
+        properties.update(
+            unit=_IDENTITY,
+            rank={"type": "string", "pattern": f"^(?:{RANK})$"},
+        )
     if spec.get("report"):
         properties["text"] = {"type": "string", "minLength": 1}
     return {

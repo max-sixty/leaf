@@ -3,7 +3,6 @@
 from playwright.sync_api import expect
 from render_harness import panel_settled
 from test_render_read_state import (
-    SAMPLE_READER,
     _message_body,
     _open_first_unread,
     _read_by_the_sample,
@@ -34,39 +33,6 @@ def test_narrowing_a_partially_clipped_sample_does_not_acknowledge_hidden_words(
 
     page.locator("#clip").evaluate("clip => clip.style.width = '950px'")
     _read_by_the_sample(page, child)
-
-
-def test_a_passive_sample_shows_threads_without_acknowledging_them(browser, serve):
-    page, _, _ = _sample_reading_page(
-        browser, serve, "<h1>Passive exposure</h1>{sample}", ""
-    )
-    page.evaluate(
-        """async id => {
-          const {mountSample} = await window.__lfRuntimeImport('/runtime/sample.js');
-          const sample = document.querySelector('#read-practice');
-          const frame = document.createElement('iframe');
-          frame.id = 'passive-frame';
-          frame.style.cssText = 'position:fixed;top:120px;left:120px;width:950px;height:700px';
-          sample.before(frame);
-          const host = mountSample(frame, {template:'read-source',passive:true,window:true});
-          window.passiveHost = host;
-          await host.ready;
-          await host.showThread(id, {surface:'panel',signal:new AbortController().signal});
-        }""",
-        SAMPLE_READER,
-    )
-    child = page.locator("#passive-frame").element_handle().content_frame()
-    expect(_message_body(child)).to_be_visible()
-    child.locator(".lf-threads-toggle").evaluate(
-        "toggle => toggle.focus({preventScroll: true})"
-    )
-    assert child.evaluate("!document.hasFocus()")
-    assert child.evaluate("document.body.inert")
-    expect(child.locator(".lf-first-unread")).to_be_visible()
-    state = page.request.get(f"{child.url}api/state").json()
-    (thread,) = state["browser"]["thread"]["threads"]
-    assert thread["unread"] == [{"message": SAMPLE_READER, "version": SAMPLE_READER}]
-    page.evaluate("passiveHost.destroy()")
 
 
 def test_sample_admission_follows_parent_inertness_and_native_modal(browser, serve):

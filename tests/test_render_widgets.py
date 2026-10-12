@@ -330,7 +330,7 @@ def test_a_bounded_document_reader_chains_wheel_at_its_edge(browser, serve, capt
 def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fit(
     browser, serve
 ):
-    """The workspace Layout takes the whole window, wider than the wide page's capped
+    """The workspace Layout takes the whole window, wider than a sidebar page's capped
     frame, and its height below the banner: each pane's body scrolls on its own. Its
     header is one row, the title with the status beside it, so the panes keep the
     window. A window too short to hold it hands the scroll to the page."""
@@ -344,7 +344,7 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     declared = open_page(
         browser,
         serve(
-            WORKSPACE_PAGE.replace('class="layout-workspace"', 'class="layout-wide"')
+            WORKSPACE_PAGE.replace('class="layout-workspace"', 'class="layout-sidebar"')
         ),
     )
     resized(declared, 1920, 720)
@@ -1101,10 +1101,10 @@ def test_page_tabs_mark_only_the_selected_name_in_forced_colors(browser, serve):
 
 
 def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
-    """Page tabs are sections of one page: on a wide page the header, the strip and the
-    open panel share main's left edge and the panel takes main's width."""
+    """Page tabs are sections of one page: on a sidebar page the header, the strip and
+    the open panel share main's left edge and the panel takes main's width."""
     source = ROOT_TABS_PAGE.read_text().replace(
-        '<main class="layout-column">', '<main class="layout-wide">', 1
+        '<main class="layout-column">', '<main class="layout-sidebar">', 1
     )
     page = open_page(browser, serve(source))
     resized(page, 1440, 900)
@@ -1137,7 +1137,7 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     assert boxes["title"]["left"] == boxes["content"]["left"], boxes
 
 
-@pytest.mark.parametrize("layout", ["column", "wide", "workspace"])
+@pytest.mark.parametrize("layout", ["column", "sidebar", "workspace"])
 def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
     browser, serve, layout
 ):
@@ -1145,24 +1145,35 @@ def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
     open panel takes the box and the column widths its twin outside the set takes: at
     first paint, before the runtime has drawn the strip, then at a desktop window, with
     the thread panel open over it, and on a phone. A boxed set's panel draws a frame,
-    so the same table there stays inside it."""
+    so the same table there stays inside it. Each table has twelve columns, so on a
+    column page, where a table granted room takes what its columns need, it needs the
+    room."""
 
     def tables(where):
+        heads = "".join(f"<th>Case {i}</th>" for i in range(12))
+        cells = "<td>Result</td>" * 12
         return "".join(
-            f'<table id="{where}-{space}" data-width="{space}"><thead><tr><th>Case</th>'
-            "<th>Result</th></tr></thead><tbody><tr><td>One</td><td>Two</td></tr>"
-            "</tbody></table>"
+            f'<table id="{where}-{space}" data-width="{space}"><thead><tr>{heads}'
+            f"</tr></thead><tbody><tr>{cells}</tr></tbody></table>"
             for space in ("wide", "available")
         )
 
-    source = leaf_page(
-        "Evidence in page tabs",
+    content = (
         f'<h1 id="t">Evidence in page tabs</h1><p id="prose">Prose.</p>{tables("out")}'
         f'<lf-tabs id="root-tabs"><lf-tab id="compare" label="Compare">{tables("in")}'
         '</lf-tab><lf-tab id="notes" label="Notes"><p>Notes.</p></lf-tab></lf-tabs>'
         f'<section><lf-tabs id="boxed"><lf-tab id="boxed-open" label="Boxed">{tables("boxed")}'
         '</lf-tab><lf-tab id="boxed-other" label="Other"><p>Other.</p></lf-tab></lf-tabs>'
-        "</section>",
+        "</section>"
+    )
+    # A sidebar page with no aside holds one flow: the page's own CSS gives each block
+    # the row, and the tab set stays root, a direct child of main.
+    source = leaf_page(
+        "Evidence in page tabs",
+        content,
+        head="<style>main > * { flex-basis: 100%; }</style>"
+        if layout == "sidebar"
+        else "",
         layout=layout,
     )
     boot = []
@@ -7269,7 +7280,7 @@ def test_clearing_an_answer_reopens_its_ask_and_shuts_the_approval_gate(browser,
     expect_asks_answered(page, "0/1")
     expect(approve).to_be_disabled()
     expect(approve).to_have_attribute(
-        "title", "Answer every Question before approving this work"
+        "title", "Answer every ask before approving this work"
     )
 
 
@@ -8346,7 +8357,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_contain_text(
-        "thread, to-do or update to send again waiting on you"
+        "thread, to-do or resend waiting on you"
     )
     page.keyboard.press("Escape")
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("questions")
@@ -9760,7 +9771,7 @@ def test_a_change_says_which_of_the_three_it_is(browser, serve):
 
     banner_control(page, ".lf-queue").click()
     expect(page.locator(".lf-queue-panel")).to_be_visible()
-    rows = [row for row in page.evaluate(QUEUE_ROW_SAYS) if row["kind"] == "question"]
+    rows = [row for row in page.evaluate(QUEUE_ROW_SAYS) if row["kind"] == "ask"]
 
     assert {r["at"]: r["word"] for r in rows} == {
         "widget:sug-rewrite": "Rewrite",
@@ -9810,7 +9821,7 @@ def test_the_questions_control_opens_open_and_answered_asks(browser, serve):
         ("widget:honored", "done"),
     ]
     for row in rows:
-        assert row["kind"] == "question", row
+        assert row["kind"] == "ask", row
         assert row["word"] == (
             "Rewrite" if row["at"] == "widget:sug-refill" else "Options"
         ), row
@@ -9831,9 +9842,7 @@ def test_the_questions_control_opens_open_and_answered_asks(browser, serve):
     # The pick is a move the agent now owes a reply, which is its row and not the Ask's.
     page.locator("#lq-token").click()
     expect_asks_answered(page, "2/5")
-    expect(page.locator("button.lf-queue-row[data-lf-kind='question']")).to_have_count(
-        5
-    )
+    expect(page.locator("button.lf-queue-row[data-lf-kind='ask']")).to_have_count(5)
     answered = {r["at"]: r for r in page.evaluate(QUEUE_ROW_SAYS)}
     assert answered["widget:live-question"]["list"] == "done", answered
     assert answered["widget:live-question"]["where"].startswith(
@@ -10020,7 +10029,7 @@ def test_pending_action_waits_for_the_ask_list_paint_before_retiring(
     banner_control(page, ".lf-queue").click()
     row = page.locator('button.lf-queue-row[data-lf-at="widget:storage-options"]')
     expect(row).to_have_count(1)
-    expect(row).to_have_attribute("data-lf-kind", "question")
+    expect(row).to_have_attribute("data-lf-kind", "ask")
     expect(page.locator("[data-lf-queue='you'] .lf-queue-row")).to_have_count(1)
     page.evaluate(
         """async () => {
@@ -10070,7 +10079,7 @@ def test_the_queue_clock_owns_held_paint_failure_and_retry(browser, serve):
     task = append_carried_log_record(
         serve.page_dir,
         {
-            "kind": "task",
+            "kind": "todo",
             "author": "agent",
             "agent": "Agent",
             "session": "queue-clock",
@@ -10082,11 +10091,11 @@ def test_the_queue_clock_owns_held_paint_failure_and_retry(browser, serve):
     append_carried_log_record(
         serve.page_dir,
         {
-            "kind": "task_end",
+            "kind": "todo_end",
             "author": "agent",
             "agent": "Agent",
             "session": "queue-clock",
-            "task": task["id"],
+            "todo": task["id"],
             "outcome": "done",
         },
     )
@@ -11557,25 +11566,35 @@ def test_a_closed_diff_file_reads_current_evidence_across_source_forms(
     assert code.evaluate("node => node.scrollLeft") == 200
 
 
-def test_a_diff_recovers_when_a_failed_manifest_file_is_repaired(browser, serve):
-    """A failed render cannot authorize reuse of the evidence its error removed."""
+def test_a_diff_recovers_from_each_failure_on_the_next_good_source(browser, serve):
+    """A diff shows each failure, a failed file's or the whole patch's, where the reader
+    is looking, inside its shadow stage, and the next good source replaces it. A failed
+    render cannot authorize reuse of the evidence its error removed."""
     url = serve(LONG_LINE_DIFF_PAGE)
     good = patch_manifest(MULTI_HUNK_PATCH)
     data_model.cmd_data_set(serve.page_dir, "review-patch", good)
     page = open_page(browser, url)
-    bad = patch_manifest(MULTI_HUNK_PATCH)
-    bad["files"][0]["patch"] = "invalid diff"
-    data_model.cmd_data_set(serve.page_dir, "review-patch", bad)
-    told(page)
-    rendered(page)
-    expect(page.locator("lf-diff .lf-error")).to_be_visible()
-    data_model.cmd_data_set(serve.page_dir, "review-patch", good)
-    told(page)
-    rendered(page)
-    expect(page.locator("lf-diff .lf-error")).to_have_count(0)
-    expect(
-        page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",2]\']')
-    ).to_contain_text("new first")
+    failed_file = patch_manifest(MULTI_HUNK_PATCH)
+    failed_file["files"][0]["patch"] = "invalid diff"
+    repeated_path = MULTI_HUNK_PATCH + MULTI_HUNK_PATCH
+    error = page.locator("lf-diff .lf-error")
+    for bad in (failed_file, repeated_path, repeated_path):
+        data_model.cmd_data_set(serve.page_dir, "review-patch", bad)
+        told(page)
+        rendered(page)
+        expect(error).to_have_count(1)
+        expect(error).to_be_visible()
+        # Dressed as the failure box in the document is, not as plain text.
+        expect(error).to_have_css("border-top-style", "solid")
+        data_model.cmd_data_set(serve.page_dir, "review-patch", good)
+        told(page)
+        rendered(page)
+        expect(error).to_have_count(0)
+        expect(
+            page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",2]\']')
+        ).to_contain_text("new first")
+    errors = consume_browser_errors(page, "failed: unified diff repeats file path")
+    assert len(errors) == 2, errors
 
 
 @pytest.mark.parametrize("manifest", [False, True])

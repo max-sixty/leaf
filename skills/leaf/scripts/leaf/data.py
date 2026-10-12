@@ -245,19 +245,13 @@ def deferred_value(
     spec = deferred_records(value, reading["contract"], registry)
     if spec is None:
         raise DataError(f"data source {source!r} defers no record field")
-    matches = [
-        item
-        for item in value[spec["items"]]
-        if isinstance(item, dict) and item.get(spec["key"]) == key
-    ]
-    if len(matches) != 1:
-        reason = "unknown" if not matches else "duplicate"
-        raise DataError(f"{reason} record key {key!r} in data source {source!r}")
-    item = matches[0]
-    if spec["deferred"] not in item:
-        raise DataError(
-            f"record {key!r} in data source {source!r} has no deferred value"
-        )
+    # `read_source` judged the value by its contract (`payload_error`): every record
+    # is an object with a unique key and the deferred field.
+    item = next(
+        (item for item in value[spec["items"]] if item[spec["key"]] == key), None
+    )
+    if item is None:
+        raise DataError(f"unknown record key {key!r} in data source {source!r}")
     return {
         "source": source,
         "contract": reading["contract"],

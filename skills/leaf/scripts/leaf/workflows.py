@@ -15,13 +15,10 @@ an owed update holds the agent's turn is `activity.turn_obligations`'s to say.
 Answers are one of:
 
 - `{"kind": "reply", "to": <message>, "for": <event>}` — a thread message, or an
-  action in an answered Question in frozen thread markup, answered through its exact delivery reference by `leaf response reply`;
-  Final-message custody is independent of the operation: `activity` adds
-  `writer: "turn"` and its attempt while the provider's reply binding stands.
-  Delivery captures the same writer policy ahead of that binding, and emits an
-  exact response reference. Direct commands and provider finals resolve that
-  reference through the same rich reply writer; only the bound attempt may
-  commit while its provider owns the final.
+  action in an answered Question in frozen thread markup. The agent answers it with
+  `leaf response reply <answer.ref>`. While a reply reservation (`delivery`'s
+  header) stands on it, `activity` adds `writer: "turn"` and the reservation's
+  attempt.
 - `{"kind": "markup", "action": <action>}` — a page action that is part of its
   widget's answered Question and the authored markup does not yet record, answered by
   a stamped version that writes it in.
@@ -69,12 +66,12 @@ from .tasks import (
 
 
 def obligation_reading(readings) -> dict:
-    """The outstanding Questions and explicit tasks on the user, answers and work in hand a
-    gesture can change.
+    """The outstanding asks and to-dos on the user, answers and work in hand a gesture
+    can change.
 
     Delivery progress, receipt-only updates and presentation are absent. Work in hand,
-    an update the agent started or a task it opened on a thread or widget, also holds the
-    standing widget inputs on its subject, even while a Question is being composed:
+    an update the agent started or a to-do it opened on a thread or widget, also holds the
+    standing widget inputs on its subject, even while an ask is being composed:
     changing a pick under ongoing work changes that work before Done. Admission
     compares this reading on either side of the append and stores the result.
     """

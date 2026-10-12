@@ -1,16 +1,13 @@
 """Shared interaction browser-integration cases and readings."""
 
 import json
-import re
 from datetime import datetime, timedelta
 
-import tinycss2
 from browser_sources import browser_source
 from interact_support import add_test_widget, append_carried_log_record, append_command
 from leaf.schema import ELEMENT_ID
 from render_harness import (
     EXAMPLES,
-    FEATURE_GALLERY,
     TOKEN,
     leaf_page,
 )
@@ -289,17 +286,6 @@ CHIP_PAGE = leaf_page(
 </lf-options></lf-ask>
 <dl class="facts"><dt>Owner</dt><dd id="owner-fact"><span class="tag">finch</span></dd></dl>
 """,
-)
-PAINTED_PAGE = leaf_page(
-    "painted",
-    """
-<h1 id="h">What the paint says</h1>
-<lf-test-signal id="painted" status="blocked"><strong>Fit squirrel baffles</strong>
-  Waiting on the brackets.</lf-test-signal>
-""",
-).replace(
-    "</head>",
-    "<style>lf-test-signal[status=blocked] { color: #9d2525; }</style></head>",
 )
 SETTLED_ASK_PAGE = ASK_PAGE.replace(
     '<lf-options id="jobs" choose multiple>',
@@ -1521,76 +1507,3 @@ WORKSHOP_THREAD_EVENTS = tuple(
         },
     )
 )
-
-
-GALLERY_THREAD_TEXT = "Gallery thread: I moved the practice exercise before lunch"
-
-
-def serve_interaction_gallery(serve):
-    """Serve the feature gallery's interaction runner and only what it reads.
-
-    The runner's subject is its own section, so the rest of the gallery, a thousand
-    elements and nine other live samples, is load these tests pay for nothing. The
-    section is read from the gallery's source, so the replays are the gallery's own,
-    and it stands in a page view behind another one, as it does there: a view
-    selected or scrolled to is the crossing the runner plays from. The first view
-    holds the paragraph the Send-a-comment and Threads replays import their thread
-    from, with that thread seeded on it. The stage's size and scale, which every
-    replay's geometry rests on, are the gallery's own rules, so they come along: each
-    top-level rule or block of its style sheet, as tinycss2 parses it, that names an
-    interaction class. An `@import` has no block, so the gallery's theme stays behind.
-    """
-    source = FEATURE_GALLERY.read_text(encoding="utf-8")
-    section = re.search(
-        r'<section\s+class="interaction-gallery".*?</section>', source, re.DOTALL
-    )
-    assert section is not None, "the feature gallery lost its interaction section"
-    sheet = re.search(r"<style>(.*?)</style>", source, re.DOTALL)[1]
-    rules = "\n".join(
-        tinycss2.serialize([rule])
-        for rule in tinycss2.parse_stylesheet(
-            sheet, skip_comments=True, skip_whitespace=True
-        )
-        if rule.type in {"qualified-rule", "at-rule"}
-        and rule.content is not None
-        and "interaction" in tinycss2.serialize([rule])
-    )
-    assert ".interaction-frame[data-interaction-ready]" in rules, rules
-    html = leaf_page(
-        "Interaction gallery",
-        head=f"<style>{rules}</style>",
-        body=f"""
-<h1>Interaction gallery</h1>
-<lf-tabs id="bg-gallery-tabs">
-  <lf-tab id="bg-view-threads" label="Threads">
-    <p id="bg-thread-text">The sample agenda has room for one more topic.</p>
-  </lf-tab>
-  <lf-tab id="bg-view-interactions" label="Interactions">{section[0]}</lf-tab>
-</lf-tabs>
-""",
-    )
-    return serve(
-        html,
-        events=[
-            {
-                "kind": "comment",
-                "author": "agent",
-                "agent": "Codex",
-                "revision": 1,
-                "text": f"{GALLERY_THREAD_TEXT} and left the rest of the fictional "
-                "agenda unchanged. React to this reply or answer with a note.",
-                "anchor": {
-                    "section": "bg-thread-text",
-                    "quote": "The sample agenda has room for one more topic.",
-                },
-                "id": PHOTO_THREAD,
-            },
-            {
-                "kind": "thread_title",
-                "author": "agent",
-                "agent": "Codex",
-                "thread": PHOTO_THREAD,
-                "title": "Workshop room photo",
-            },
-        ],
-    )

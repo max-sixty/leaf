@@ -12,8 +12,9 @@
 @scope (.lf-chrome) {
   html[data-lf-floating-chrome] :scope {
     /* A passing notice is said in the panel's empty field (floating-panel.js), so the
-       foot's status line keeps only a walk's position, which stands at the window's head,
-       centred: the panel's foot is where the user is writing, and its height changes. */
+       foot's status line keeps only a walk's position (chrome.css), which stands at the
+       window's head, centred: the panel's foot is where the user is writing, and its
+       height changes. */
     --lf-notice-seat: panel;
     .lf-banner,
     .lf-shortcut-bar {
@@ -25,16 +26,6 @@
       right: auto;
       left: 50%;
       translate: -50% 0;
-    }
-    @container style(--lf-notice-seat: panel) {
-      .lf-bottom-status:not(
-        :has(> .lf-go-to-status:not([hidden]), > .lf-walk-position:not([hidden]))
-      ) {
-        display: none;
-      }
-      .lf-bottom-status > .lf-notice {
-        display: none;
-      }
     }
   }
   :is(.lf-floating-panel, .lf-fp-ground) {

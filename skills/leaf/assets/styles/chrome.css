@@ -1620,7 +1620,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     .lf-bottom-status:has(> .lf-notice.show) > :is(.lf-go-to-status, .lf-walk-position) {
       display: none; }
   }
-  @container style(--lf-notice-seat: banner) {
+  /* A notice seated elsewhere (the banner, or the floating panel's field) leaves the
+     foot only a walk's position. */
+  @container style(--lf-notice-seat: banner) or style(--lf-notice-seat: panel) {
     .lf-bottom-status:not(:has(> .lf-go-to-status:not([hidden]),
         > .lf-walk-position:not([hidden]))) { display: none; }
   }

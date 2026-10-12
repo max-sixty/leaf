@@ -14,14 +14,6 @@
       left: 50%;
       translate: -50% 0;
     }
-    @container style(--lf-notice-seat: panel) {
-      .lf-bottom-status:not(:has(> .lf-go-to-status:not([hidden]), > .lf-walk-position:not([hidden]))) {
-        display: none;
-      }
-      .lf-bottom-status > .lf-notice {
-        display: none;
-      }
-    }
   }
   :is(.lf-floating-panel, .lf-fp-ground) {
     --lf-fp-surface: light-dark( var(--paper), color-mix(in srgb, var(--paper) 95%, white) );
@@ -3000,7 +2992,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
       display: none;
     }
   }
-  @container style(--lf-notice-seat: banner) {
+  @container style(--lf-notice-seat: banner) or style(--lf-notice-seat: panel) {
     .lf-bottom-status:not(:has(> .lf-go-to-status:not([hidden]), > .lf-walk-position:not([hidden]))) {
       display: none;
     }

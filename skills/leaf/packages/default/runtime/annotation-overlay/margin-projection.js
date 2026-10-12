@@ -126,7 +126,7 @@ import { createMarginClusterViews } from "./margin-cluster-view.js";
 
 import { bannerControlDoor } from "/runtime/banner-toolbar.js";
 
-import { seenRect, shownWindow, skipped } from "/runtime/geometry.js";
+import { seenRect, shownWindow, skipped, watchRoom } from "/runtime/geometry.js";
 
 import { hostIn, under } from "/runtime/shadow.js";
 import { retainUserIntent } from "/runtime/user-intent.js";
@@ -1806,10 +1806,7 @@ export function createMarginProjection({
       },
       { capture: true },
     );
-    document.addEventListener("scroll", () => scheduleRoving(), {
-      capture: true,
-      passive: true,
-    });
+    watchRoom(() => scheduleRoving());
     window.addEventListener("resize", () => scheduleWidthRender());
     renderAnnotations();
     // The card anchors to its row (floating.js), which an anchor may do only to a box

@@ -26,7 +26,7 @@ RUN ln -s /codex-bin/rg /usr/local/bin/rg
 
 # Leaf and its website server come from the installation `leaf-dev site` built its pages
 # with, a prepared one, so a revision a hosted session writes carries the same compiled
-# kernel as a consumer install.
+# kernel as the published pages.
 COPY .tmp/site-install/ ./
 # Install the complete prepared plugin before uv creates an environment in this
 # payload: Codex's native installer copies it into the ordinary plugin cache.

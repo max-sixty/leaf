@@ -9,7 +9,7 @@
 // re-places document-attached paint without re-running chrome reservation.
 //
 // `syncLayout` measures only chrome whose placement or reservation depends on rendered
-// chrome, and writes only chrome boxes. A window resize runs `syncLayout` synchronously,
+// chrome, and writes only chrome boxes. A window resize lays the chrome out synchronously,
 // after restating the edges and auxiliary modality, so they follow a live drag in the same
 // frame. `layoutSizes` watches `document.body`'s content-box size without deriving a
 // posture from it. A width change also schedules `syncLayout` and page repaint in the
@@ -39,29 +39,16 @@
 // Application composition supplies feature-local geometry. This owner cannot open
 // auxiliary surfaces, send commands, or reconcile thread DOM.
 import { sizeObserver } from "./rendering.js";
-import { drawnEdge } from "./drawn-edge.js";
+import { landEdgesWith, restateEdges, sideEdge } from "./drawn-edge.js";
 import { standsBeside } from "./auxiliary-surfaces.js";
 import { layoutWindow, rightCover } from "./geometry.js";
 import { scheduleResidency } from "./content-layout.js";
 import { syncLayoutRegion } from "./reading-regions.js";
 
-// The stylesheet owns the panel's initial width, including first paint. The edge
-// separately owns the user's chosen width and publishes its current allocation.
-// Opening or closing an auxiliary surface calls its state setter and schedules layout.
-// How narrow they may draw it in. 320 is the narrowest window the panel is held to
-// standing up in (test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote),
-// so it is the narrowest width anything has laid a thread's reply box and its two
-// actions out at; below it nothing says they still fit. Wanting the panel gone is what
-// closing it is for, and narrowing it to nothing is not the same wish.
-const THREAD_PANEL_MIN = 320;
-// Where the standing width is written, and where the cascade reads it.
-const THREAD_PANEL_PROP = "--lf-thread-panel-width";
-
 export function createChromeLayout({
   panelIsOpen,
   elements: { panel, closeBtn, panelFoot, threadsBox, shortcutBarEl, bottomStatusEl },
   scheduleThreadPreviewPosition,
-  restateDrawerEdge,
   syncAuxiliarySurfaces,
   syncReactLayout,
   refreshFab,
@@ -74,10 +61,17 @@ export function createChromeLayout({
   // less than a usable page, the rule every surface that may stand beside the page shares
   // (`standsBeside`).
   const panelCovers = () => panelIsOpen() && !standsBeside();
+  // The edges restated, then the chrome laid out. The restatement runs on every pass
+  // because the side panel's default width is the page stylesheet's to change. A change of
+  // an edge's width or of the window's restates the edges itself, then the auxiliary
+  // modality that reads them, then calls `layOut` alone.
+  function syncLayout() {
+    restateEdges();
+    layOut();
+  }
   // Every writer here is a writer of the chrome, so nothing this function does resizes the
   // box it reads.
-  function syncLayout() {
-    commentsEdge.state();
+  function layOut() {
     syncLayoutRegion();
     scheduleResidency();
     scheduleThreadPreviewPosition?.();
@@ -85,7 +79,7 @@ export function createChromeLayout({
     // window all the way to its foot. Cap the line's room at its edge rather than letting
     // a long hint cross into it, so swapping the two views moves nothing in the bar.
     const sideLive = standsBeside() && rightCover() !== Infinity;
-    const panelRoom = (sideLive ? commentsEdge.width() : 0) + "px";
+    const panelRoom = (sideLive ? sideEdge.width() : 0) + "px";
     shortcutBarEl.style.setProperty("--lf-shortcut-bar-right", panelRoom);
     bottomStatusEl.style.setProperty("--lf-shortcut-bar-right", panelRoom);
     // Over a live page the right edge's surface, Threads or Questions, stands over the
@@ -184,16 +178,15 @@ export function createChromeLayout({
   // Mount only after chrome is attached. Constructors perform no observation or
   // listener installation, so importing the public widget API cannot start layout.
   function mountLayoutObservers() {
-    commentsEdge.handle(panel, () => closeBtn);
+    sideEdge.handle(panel, () => closeBtn);
     // A window resize restates both edges' caps, then the auxiliary modality that reads
     // them, then layout, during the event rather than a frame later, so a live window
     // drag clamps an edge and turns a beside surface into a covering one in the same
     // frame. page-geometry.js's resize door re-places page paint for the same event.
     addEventListener("resize", () => {
-      commentsEdge.state();
-      restateDrawerEdge();
+      restateEdges();
       syncAuxiliarySurfaces();
-      syncLayout();
+      layOut();
     });
     layoutSizes.observe(document.body);
     layoutSizes.observe(panelFoot);
@@ -201,40 +194,16 @@ export function createChromeLayout({
     layoutSizes.observe(bottomStatusEl);
   }
 
-  // The side panel's edge, on the right, which Threads and Questions share, and the
-  // pages drawer's, on the left. Each keeps
-  // the user's choice in their own store rather than the tab's, because where a user
-  // keeps their threads, and how much of the page they will give a drawer, is the
-  // chrome they arrange and expect to find arranged wherever they are reading (see
-  // `userStore`). Live activation keeps the edges themselves; document travel and reload
-  // restore the same choices, so no revision or visit asks the user to draw them again.
-  // An edge's new width moves only its region: the page beneath it keeps its geometry.
-  // What the width changes is whether the region still leaves a usable page beside it.
-  function landEdge(state) {
+  // An edge's new width, from a drag or an arrow, lands the same way.
+  landEdgesWith((state) => {
     state();
     syncAuxiliarySurfaces();
-    syncLayout();
-  }
-  const commentsEdge = drawnEdge({
-    side: "right",
-    noun: "side panel",
-    defaultWidth: () =>
-      parseFloat(
-        getComputedStyle(document.documentElement).getPropertyValue(
-          "--lf-thread-panel-default-width",
-        ),
-      ),
-    min: THREAD_PANEL_MIN,
-    prop: THREAD_PANEL_PROP,
-    key: "lf-thread-panel-width",
-    land: landEdge,
+    layOut();
   });
 
   return {
     syncLayout,
     syncBottomStatus,
     mountLayoutObservers,
-    landEdge,
-    commentsEdge,
   };
 }

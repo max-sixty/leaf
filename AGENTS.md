@@ -35,8 +35,9 @@ primitive must give the user something that site would not:
 - **Presentation craft.** Layout, type, and composition that hold at every
   width and beside every open panel, improved once and inherited by every
   page. A bespoke site starts from nothing each time.
-- **Self-checks.** A check the agent runs on its own page, so a mistake reaches
-  the agent rather than the user.
+- **Self-checks.** `page check` finds what would break a page, such as a widget
+  missing an attribute it needs, so the agent fixes it before the user sees the
+  page.
 
 Leaf standardizes reading, commenting, and actions across sessions and agents.
 Page content and composition remain the agent's and user's choices.
@@ -182,11 +183,11 @@ ready assets. Consumers run no browser build.
 
 ### The install runs this tree
 
-Consumer installers follow the CI-built `prepared` Git branch. The browser kernel
-is compiled there; development branches keep its source modules. The leaf.page
-container runs the same preparation, which `leaf-dev site` builds beside the site. Installation,
-page authoring, custom packages, and export require no browser build or npm command.
-`dev/leaf_dev/distribution.py` owns preparation and publication.
+Consumer installers follow `main` and serve the browser runtime's source modules.
+The leaf.page container instead installs a tree with the runtime compiled into one
+kernel, which `leaf-dev site` prepares beside the site (`dev/leaf_dev/distribution.py`).
+Installation, page authoring, custom packages, and export require no browser build or
+npm command.
 
 An install is the tracked tree copied into a harness's plugin cache, and nothing is
 built at install time: `bin/leaf` is `uv run --no-dev` on the tree, so the
@@ -334,23 +335,27 @@ Before finishing a feature:
   "Score an instruction change").
 
 Local compute is often the bottleneck because several sessions share one machine.
-Before widening a local test selection or increasing parallelism, check current
-CPU use, memory pressure, and other running test suites. Weigh the extra evidence
-against the cost to all sessions; on a busy host, favor focused checks and avoid
-redundant overlapping runs. The required landing gates still have to pass.
+Before handing over, run the tests that hold the behavior the change touches, and
+`pnpm run test:runtime` when it reaches the runtime (`tests/AGENTS.md`, "Run what the
+change needs"). A pull request's `test` job and `wt merge`'s pre-merge run the broad
+selection, `uv run pytest tests`, at landing, and report any failure your selection
+missed. Don't run it by hand before then, nor a whole browser test file or a whole
+later tier (`--run-main`, `--run-nightly`, `-m main`, `-m nightly`): each takes minutes
+to over an hour and slows every session on the shared host, however idle it looks. A
+change to code most of the suite runs through still hands over on the tests that
+exercise what it changed, and leaves finding the rest to the gate. Before widening
+your own selection or raising its parallelism, check current CPU use, memory
+pressure, and other running test suites; on a busy host, favor focused checks and
+avoid redundant overlapping runs.
 
-Before handing over, run the tests that hold what the change touches; the broad
-selection, `uv run pytest tests`, and `pnpm run test:runtime` run at landing
-(`tests/AGENTS.md`, "Run what the change needs"). Two TypeScript trees,
-`worker/src/` and `build/browser/`, and the JavaScript lock every committed bundle is built from have gates the suite and
-pre-commit do not reach. Both landing paths run all of them: a pull request in its
-`test` job, and `wt merge` in the pre-merge blocks of `.config/wt.toml`.
-`package.json` owns their shared Node gate list in `check`, which compares every
-committed bundle with a rebuild. `wt hook pre-merge` runs that local gate without
-landing. The website's delivery
-checks — the site build, the Worker's dry-run deploy, and
-`leaf-dev verify-site website-worker` — run on a pull request and in `publish-site` before it
-deploys, not in `wt merge`.
+Two TypeScript trees, `worker/src/` and `build/browser/`, and the JavaScript lock
+every committed bundle is built from have gates the suite and pre-commit do not reach.
+Both landing paths run all of them: a pull request in its `test` job, and `wt merge`
+in the pre-merge blocks of `.config/wt.toml`. `package.json` owns their shared Node
+gate list in `check`, which compares every committed bundle with a rebuild;
+`pnpm run check` runs them without landing. The website's delivery checks — the site
+build, the Worker's dry-run deploy, and `leaf-dev verify-site website-worker` — run
+on a pull request and in `publish-site` before it deploys, not in `wt merge`.
 
 For a change that can alter browser startup, compare base and candidate at the
 boundary it affects: served previews for a runtime change, and

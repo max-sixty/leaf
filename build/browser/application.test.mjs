@@ -1615,7 +1615,11 @@ test("a revision preserves pending delivery while replacing incompatible specula
   app.enqueue({ kind: "undo", undoes: pending.localId, attempt: "undo-old" }, "now");
   const document = structuredClone(app.read().document);
   document.revision = 2;
-  const revisedSpec = { ...spec, writer: "user", record: { kind: "value", attr: "status" } };
+  const revisedSpec = {
+    ...spec,
+    writer: "user",
+    record: { kind: "value", attr: "status" },
+  };
   const declaration = {
     properties: { status: { type: "integer" } },
     "x-state": { decide: revisedSpec },
@@ -1702,7 +1706,11 @@ test("Question contains the local typed answer while completion waits for admiss
 });
 
 test("empty completed answer and wrapper changes preserve Question identity", () => {
-  const choose = { unit: "widget", writer: "user", record: { kind: "attribute", attr: "chosen" } };
+  const choose = {
+    unit: "widget",
+    writer: "user",
+    record: { kind: "attribute", attr: "chosen" },
+  };
   const declared = {
     ...descriptor,
     declaration: {

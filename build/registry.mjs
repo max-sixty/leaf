@@ -44,7 +44,7 @@ const modules = [
         .join("");
       return (
         `export const COLLAPSE = /[${escaped}]+/g;\n` +
-        `export const TEXT_BLOCK = ${JSON.stringify(blocks.join(","))};\n` +
+        `export const TEXT_BLOCK =\n  ${JSON.stringify(blocks.join(","))};\n` +
         `export const CONTEXT = ${context};\n`
       );
     },

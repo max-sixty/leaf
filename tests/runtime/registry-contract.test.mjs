@@ -16,4 +16,3 @@ for (const entry of cases)
     );
     assert.equal(sameStateDefinition(...definitions), entry.same);
   });
-

@@ -296,9 +296,13 @@ def test_product_pages_vendor_the_composed_theme(site, monkeypatch):
         assert (target / "theme.css").read_bytes() == expected_theme, page.name
 
 
-@pytest.mark.parametrize("source", pages_under(DOCS), ids=lambda p: p.stem)
-def test_published_product_page_renders(site, browser, source):
-    product = site_build.product_page(site, source.name)
+@pytest.mark.parametrize("name", ["index", "event-log", "how-it-works"])
+def test_published_product_page_renders(site, browser, name):
+    """The render gate passes the published product pages: the landing page, a
+    reference page of prose, tables, code and a sample, and the page that holds
+    every widget the docs use. The other routes share their sheet and parts, and
+    `test_every_product_route_is_a_live_leaf_page` opens each of them."""
+    product = site_build.product_page(site, f"{name}.html")
     with hosting_model.TemporaryPageServer(product) as server:
         url = f"{server.origin}/versions/v1.html?t={server.token}"
         failures = render_gate_model.render_version(browser, url).failures
@@ -1058,7 +1062,10 @@ def test_freshness_checks_share_session_identity_without_rebroadcasting(
 
 
 def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
-    """Each product route runs the canonical runtime and exposes its page state."""
+    """Each product route runs the canonical runtime and exposes its page state. It
+    takes its paper from the theme in both schemes, and nothing scrolls sideways at
+    390px: the nav wraps, the screenshots scale, and a command too long for the
+    column scrolls inside its own block, as the architecture diagram fits its box."""
     names = list(site_build.PRODUCT_ROUTES)
     page = browser.new_page()
     failed = []
@@ -1070,7 +1077,9 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
             else None
         ),
     )
+    paper = "getComputedStyle(document.body).backgroundColor"
     for name in names:
+        page.set_viewport_size({"width": 1200, "height": 900})
         page.goto(product_url(hosted, name), wait_until="load")
         wait_until_ready(page)
         assert page.evaluate("document.compatMode") == "CSS1Compat", name
@@ -1094,36 +1103,35 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
             "agent": "The agent",
             "install_url": "/#install",
         }
+        if name == "how-it-works.html":
+            diagram = page.locator("#arch")
+            expect(diagram).to_be_visible()
+            width = diagram.evaluate(
+                "element => ({client: element.clientWidth, scroll: element.scrollWidth})"
+            )
+            assert width["scroll"] == width["client"]
+        for scheme in ("dark", "light"):
+            page.emulate_media(color_scheme=scheme)
+            assert page.evaluate(paper) == PAPER[scheme], (name, scheme)
+        page.set_viewport_size(PHONE)
+        wait_until_ready(page)
+        overflow = root_overflow(page)
+        assert overflow == 0, f"{name} scrolls {overflow}px sideways on a phone"
         assert not failed, f"{name}: {failed[:3]}"
-
-
-def test_the_product_diagram_fits_without_its_own_scroll(hosted, browser):
-    """The architecture diagram fits its content box without scrolling sideways."""
-    page = browser.new_page()
-    page.set_viewport_size({"width": 1200, "height": 900})
-    page.goto(product_url(hosted, "how-it-works.html"), wait_until="load")
-    wait_until_ready(page)
-    diagram = page.locator("#arch")
-    expect(diagram).to_be_visible()
-    width = diagram.evaluate(
-        "element => ({client: element.clientWidth, scroll: element.scrollWidth})"
-    )
-    assert width["scroll"] == width["client"]
 
 
 @pytest.fixture
 def staged_site(site, tmp_path):
-    """The module's built site, copied for one test to break one file in.
+    """The module's built site, copied for one test to break files in.
 
     `build` links the vendored layer into every page it publishes rather than
     writing it again, so the site is 18,054 files and 65M on disk. A plain
-    `copytree` copies bytes and breaks every one of those links, so each of the
-    three copies here measured 398M. Sharing the layer the way `build` does, and
-    the way a lent page shares it, brings that to 84M. It buys nothing in time —
-    the two take 3.5s and 3.9s, because the cost is the directory entry rather
-    than the bytes — and everything outside the layer is still copied, so a test
-    rewrites the file it is here to break without that write reaching the build
-    the rest of the module reads.
+    `copytree` copies bytes and breaks every one of those links, so each copy
+    measured 398M. Sharing the layer the way `build` does, and the way a lent page
+    shares it, brings that to 84M. It buys nothing in time — the two take 3.5s and
+    3.9s, because the cost is the directory entry rather than the bytes — and
+    everything outside the layer is still copied, so a test rewrites the file it is
+    here to break without that write reaching the build the rest of the module reads.
     """
     staged = tmp_path / "staged"
 
@@ -1138,63 +1146,54 @@ def staged_site(site, tmp_path):
     return staged
 
 
-def test_a_link_that_reaches_nothing_stops_the_build(staged_site):
-    (site_build.product_page(staged_site, "index.html") / "index.html").write_text(
-        '<a href="whats-new.html">news</a>'
-    )
+def test_a_link_a_host_would_404_stops_the_build(staged_site, hosted):
+    """The build stops on each local link a static host would answer with a 404.
 
-    with pytest.raises(SystemExit) as stopped:
-        site_build.check_links(staged_site)
-    assert "whats-new.html" in str(stopped.value)
+    One copy takes each break in turn and puts it back, and the untouched copy
+    passes first, so each refusal is that break's own."""
 
+    def refusal():
+        with pytest.raises(SystemExit) as stopped:
+            site_build.check_links(staged_site)
+        return str(stopped.value)
 
-@pytest.mark.parametrize(
-    "target", ["/examples/triage-board/events.jsonl", "/_leaf/site.json"]
-)
-def test_a_link_to_a_built_file_the_server_does_not_route_stops_the_build(
-    staged_site, hosted, target
-):
-    """The build holds each page's log and the site's own manifest, but the server
-    routes only a page's document and served resources, so these links 404 live."""
-    assert (staged_site / target.lstrip("/")).is_file()
-    with pytest.raises(urllib.error.HTTPError) as missing:
-        urllib.request.urlopen(f"{hosted}{target}")
-    assert missing.value.code == 404
-    (site_build.product_page(staged_site, "index.html") / "index.html").write_text(
-        f'<a href="{target}">record</a>'
-    )
+    site_build.check_links(staged_site)
+    tour = site_build.product_page(staged_site, "index.html") / "index.html"
+    authored = tour.read_bytes()
 
-    with pytest.raises(SystemExit) as stopped:
-        site_build.check_links(staged_site)
-    assert target in str(stopped.value)
+    tour.write_text('<a href="whats-new.html">news</a>')
+    assert "whats-new.html" in refusal()
 
+    # The build holds each page's log and the site's own manifest, but the server
+    # routes only a page's document and served resources, so these links 404 live.
+    for target in ("/examples/triage-board/events.jsonl", "/_leaf/site.json"):
+        assert (staged_site / target.lstrip("/")).is_file()
+        with pytest.raises(urllib.error.HTTPError) as missing:
+            urllib.request.urlopen(f"{hosted}{target}")
+        assert missing.value.code == 404
+        tour.write_text(f'<a href="{target}">record</a>')
+        assert target in refusal()
+    tour.write_bytes(authored)
 
-def test_a_directory_link_with_no_index_stops_the_build(staged_site):
-    """What a host answers a directory with is its index, so that is what has to be
-    there. An existence check passes on the directory itself and publishes a 404."""
-    (staged_site / "examples" / "triage-board" / "index.html").unlink()
+    # What a host answers a directory with is its index, so that is what has to be
+    # there. An existence check passes on the directory itself and publishes a 404.
+    board = staged_site / "examples" / "triage-board" / "index.html"
+    document = board.read_bytes()
+    board.unlink()
+    assert "triage-board" in refusal()
+    board.write_bytes(document)
 
-    with pytest.raises(SystemExit) as stopped:
-        site_build.check_links(staged_site)
-    assert "triage-board" in str(stopped.value)
-
-
-def test_a_card_image_that_reaches_nothing_stops_the_build(staged_site):
-    """The one broken image a user of the site would never run into.
-
-    A card is fetched by whoever unfurls the link, not by the browser showing the
-    page, so a preview whose bytes moved out from under its content address fails
-    silently everywhere except in a shared link.
-    """
+    # The one broken image a user of the site would never run into. A card is
+    # fetched by whoever unfurls the link, not by the browser showing the page, so a
+    # preview whose bytes moved out from under its content address fails silently
+    # everywhere except in a shared link.
     manifest_path = staged_site / site_build.SITE_MANIFEST
     manifest = json.loads(manifest_path.read_text())
     manifest["pages"]["/examples/triage-board"]["image"] = "/examples/media/gone.jpg"
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-
-    with pytest.raises(SystemExit) as stopped:
-        site_build.check_links(staged_site)
-    assert "og:image" in str(stopped.value)
-    assert "gone.jpg" in str(stopped.value)
+    refused = refusal()
+    assert "og:image" in refused
+    assert "gone.jpg" in refused
 
 
 def test_an_invalid_product_document_stops_the_build(tmp_path, monkeypatch):
@@ -1255,35 +1254,6 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
-
-
-@pytest.mark.parametrize("name", framed_root_examples())
-def test_published_workspaces_keep_their_allocation_without_site_note(
-    hosted, browser, name
-):
-    """A published workspace owns main and keeps its bounded reading regions: the
-    page does not scroll, and each region scrolls on its own, whether that is a pane's
-    body or the workspace's body itself, as where a side-list queue is the body."""
-    page = open_page(browser, f"{hosted}/examples/{name}/")
-    page.set_viewport_size({"width": 1200, "height": 900})
-    expect(page.locator("body > main.layout-workspace")).to_have_count(1)
-    expect(page.locator("body > main .sitenote")).to_have_count(0)
-    page.wait_for_function(
-        """() => {
-          const page = document.documentElement;
-          const main = document.querySelector('body > main.layout-workspace');
-          const pane = '[data-lf-reading-role="pane"]';
-          const bodyOf = (box) =>
-            [...box.children].find(child => !child.matches('header, footer'));
-          const regions = [
-            ...[...main.children].filter(
-              child => !child.matches('header, footer') && !child.matches(pane)),
-            ...[...main.querySelectorAll(pane)].map(bodyOf),
-          ];
-          return page.scrollHeight === page.clientHeight && regions.length > 0
-            && regions.every(region => getComputedStyle(region).overflowY === 'auto');
-        }"""
-    )
 
 
 def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
@@ -2156,14 +2126,20 @@ def test_gallery_reports_sample_document_without_leaf(serve, browser, document_s
     consume_browser_errors(page, "503", "The sample document did not start Leaf")
 
 
-def test_every_published_page_stands_as_a_live_page(served_example, browser):
-    """Every artifact starts through Leaf's own document and state boundaries."""
+def test_every_published_page_stands_as_a_live_page(hosted, browser):
+    """Every artifact starts through Leaf's own document and state boundaries.
+
+    A published workspace owns main and keeps its bounded reading regions: the page
+    does not scroll, and each region scrolls on its own, whether that is a pane's body
+    or the workspace's body itself, as where a side-list queue is the body."""
+    framed = set(framed_root_examples())
     pages = published_pages()
-    _, url = served_example(pages[0].stem)
-    page = open_page(browser, url)
-    for source in pages:
-        if source != pages[0]:
-            _, url = served_example(source.stem)
+    for index, source in enumerate(pages):
+        url = f"{hosted}/examples/{source.stem}/"
+        if index == 0:
+            page = open_page(browser, url)
+            page.set_viewport_size({"width": 1200, "height": 900})
+        else:
             opened(page, url)
         newest = len(example_versions(source))
         expect(page.locator(".lf-banner-menu > .lf-version")).to_have_text(
@@ -2177,6 +2153,28 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
             expect(
                 page.locator("#bg-interactions iframe[data-interaction-ready]")
             ).to_have_count(4, timeout=HANDOVER_DEADLINE_MS)
+        if source.stem in framed:
+            framed.remove(source.stem)
+            expect(page.locator("body > main.layout-workspace")).to_have_count(1)
+            expect(page.locator("body > main .sitenote")).to_have_count(0)
+            page.wait_for_function(WORKSPACE_REGIONS_SCROLL_ALONE)
+    assert not framed, f"framed examples the sweep never opened: {framed}"
+
+
+WORKSPACE_REGIONS_SCROLL_ALONE = """() => {
+  const page = document.documentElement;
+  const main = document.querySelector('body > main.layout-workspace');
+  const pane = '[data-lf-reading-role="pane"]';
+  const bodyOf = (box) =>
+    [...box.children].find(child => !child.matches('header, footer'));
+  const regions = [
+    ...[...main.children].filter(
+      child => !child.matches('header, footer') && !child.matches(pane)),
+    ...[...main.querySelectorAll(pane)].map(bodyOf),
+  ];
+  return page.scrollHeight === page.clientHeight && regions.length > 0
+    && regions.every(region => getComputedStyle(region).overflowY === 'auto');
+}"""
 
 
 def test_an_example_paints_while_every_stage_of_site_startup_is_held(
@@ -2259,7 +2257,8 @@ def test_an_example_paints_while_every_stage_of_site_startup_is_held(
 
 
 def test_a_published_example_has_no_agent_claim(served_example, browser):
-    """A finished public page claims neither an agent nor an active session."""
+    """A finished public page claims neither an agent nor an active session, and its
+    backend answers the exact projection path the runtime asks for."""
     page_dir, url = served_example("triage-board")
     page = open_page(browser, url)
     expect(page.locator(".lf-banner .lf-status-text")).to_have_text(
@@ -2283,6 +2282,22 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
     assert state["session_alive"] is None
     assert not state["listening"]
     assert not (page_dir / "service.json").exists()
+
+    # The page backend answers the exact projection path the runtime asks for.
+    answer = page.evaluate(
+        """async () => {
+              const state = await fetch('api/state').then(response => response.json());
+              const revision = state.active.revision;
+              const through = state.browser.basis.through_seq;
+              const response = await fetch(
+                `api/view?revision=${revision}&through_seq=${through}`,
+              );
+              return {status: response.status, through, body: await response.json()};
+            }"""
+    )
+    assert answer["status"] == 200
+    assert answer["body"]["browser"]["basis"] == {"through_seq": answer["through"]}
+    assert set(answer["body"]["browser"]["views"]) == {"1"}
 
 
 def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
@@ -2339,7 +2354,8 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
 
 
 def test_shipped_data_opens_in_its_package_projection(site, served_example, browser):
-    """The page backend delivers package data through the live state contract."""
+    """The page backend delivers package data through the live state contract, and
+    the page counts every Ask it declares."""
     stored = data_model.source_file(
         site / "examples" / "command-hub", "atlas-worktrees"
     )
@@ -2358,6 +2374,9 @@ def test_shipped_data_opens_in_its_package_projection(site, served_example, brow
             "xpath=following-sibling::dd[1]"
         )
     ).to_have_text("running")
+    # The inventory includes request Decisions beside state Asks.
+    expect_asks_answered(page, "0/5")
+    expect_banner_control_offered(page.locator(".lf-queue"))
 
 
 def test_a_comment_persists_without_inventing_an_agent_reply(served_example, browser):
@@ -2406,15 +2425,6 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
     expect(thread.locator(".lf-msg.agent")).to_have_count(0)
 
 
-def test_the_published_page_counts_every_declared_ask(served_example, browser):
-    """The inventory includes request Decisions beside state Asks."""
-    _, url = served_example("command-hub")
-    page = open_page(browser, url)
-    decisions = page.locator(".lf-queue")
-    expect_asks_answered(page, "0/5")
-    expect_banner_control_offered(decisions)
-
-
 def test_a_published_decision_survives_reload(served_example, browser):
     """A published example uses Leaf's durable log rather than browser-only state."""
     _, url = served_example("heat-loss")
@@ -2432,25 +2442,6 @@ def test_a_published_decision_survives_reload(served_example, browser):
     wait_until_ready(page)
     expect_asks_answered(page, "1/1")
     assert "heat-opt-floor" in page.evaluate(chosen)
-
-
-def test_the_page_backend_answers_the_exact_projection_path(served_example, browser):
-    _, url = served_example("triage-board")
-    page = open_page(browser, url)
-    answer = page.evaluate(
-        """async () => {
-              const state = await fetch('api/state').then(response => response.json());
-              const revision = state.active.revision;
-              const through = state.browser.basis.through_seq;
-              const response = await fetch(
-                `api/view?revision=${revision}&through_seq=${through}`,
-              );
-              return {status: response.status, through, body: await response.json()};
-            }"""
-    )
-    assert answer["status"] == 200
-    assert answer["body"]["browser"]["basis"] == {"through_seq": answer["through"]}
-    assert set(answer["body"]["browser"]["views"]) == {"1"}
 
 
 def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
@@ -2485,24 +2476,3 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     assert page.evaluate("() => document.scrollingElement.scrollTop") == 0, (
         "the second example opened at the offset left on the first"
     )
-
-
-@pytest.mark.parametrize("scheme", ["light", "dark"])
-def test_the_site_takes_its_palette_from_the_theme(site, hosted, browser, scheme):
-    page = browser.new_page(color_scheme=scheme)
-    for name in site_build.PRODUCT_ROUTES:
-        page.goto(product_url(hosted, name), wait_until="load")
-        assert (
-            page.evaluate("getComputedStyle(document.body).backgroundColor")
-            == (PAPER[scheme])
-        ), name
-
-
-def test_the_pages_fit_a_phone(site, hosted, browser):
-    """Nothing scrolls sideways at 390px — the nav wraps, the screenshots scale,
-    and a command too long for the column scrolls inside its own block."""
-    page = browser.new_page(viewport=PHONE)
-    for name in site_build.PRODUCT_ROUTES:
-        page.goto(product_url(hosted, name), wait_until="load")
-        overflow = root_overflow(page)
-        assert overflow == 0, f"{name} scrolls {overflow}px sideways on a phone"

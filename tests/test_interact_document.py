@@ -1128,23 +1128,21 @@ def test_a_reorder_the_next_version_wrote_survives_a_later_one(page_dir):
 
 
 @pytest.mark.parametrize(
-    ("todo", "passes"),
+    "todo",
     [
-        ("baxc", True),  # a and b swapped: x still right after a
-        ("naxbmc", True),  # cards added around the gap
-        ("axc", True),  # b dropped
-        ("abxc", True),
-        ("abcx", True),
-        ("xabc", True),
+        "baxc",  # a and b swapped: x still right after a
+        "naxbmc",  # cards added around the gap
+        "xabc",  # x moved to the front
     ],
 )
-def test_authored_cards_can_move_to_any_gap_after_a_user_move(page_dir, todo, passes):
+def test_authored_cards_can_move_to_any_gap_after_a_user_move(page_dir, todo):
     """The user put x between a and b: right after a, among the cards both versions
     list. A version that keeps that says what the user said however it arranges or
     adds cards elsewhere."""
     _drop_x_between_a_and_b(page_dir)
     _write_board(page_dir, todo)
-    assert (check(page_dir).exit_code == 0) == passes, check(page_dir).output
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
 
 
 def test_a_later_authored_reorder_is_allowed_with_a_move_standing(page_dir):

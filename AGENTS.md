@@ -28,8 +28,7 @@ primitive must give the user something that site would not:
   as text and semantic anchors.
 - **Public website.** Visitors try interactive examples on leaf.page.
 - **Consistency.** One interface across sessions and agents — keybindings,
-  threads, and how a widget answers a move — so the user learns it
-  once.
+  threads, and how a widget answers an action — so the user learns it once.
 - **Trust.** An action records its meaning when taken, so a control does what
   it says and the record shows what the user decided.
 - **Presentation craft.** Layout, type, and composition that hold at every
@@ -70,10 +69,10 @@ obligation. Packages, harnesses, integrations, and consumers of the references a
 all in this tree. When a different contract makes the code simpler, update it
 and every consumer together, including prose that relies on the old shape.
 
-Leaf's own restrictions do not settle what a feature may do either. When a
-content security policy, a validator's refusal, an import allowlist, or a limit
-on what some markup may carry stands between the user and a feature, raise it
-with the user rather than dropping the feature or working around it quietly.
+A restriction Leaf itself imposes does not decide whether a feature is allowed.
+When a content security policy, a validator's refusal, an import allowlist, or a
+limit on what some markup may carry stands between the user and a feature, raise
+it with the user rather than dropping the feature or working around it quietly.
 Name the restriction, what it blocks, what it protects, and what lifting it
 would cost. It may guard something the user values, or it may be a side effect
 nobody chose, and only the user can weigh the feature against it.
@@ -98,13 +97,14 @@ composing the existing API cannot provide; extend the canonical API when its
 existing responsibility is incomplete.
 
 Every change and every review must assess whether the immediate problem is a
-symptom of an underlying problem. Follow its causes until the next boundary is
-right as designed; the wrong boundary below it is where the fix belongs. If the
-current change cannot make that fix, the author or reviewer names and proposes
-it. A passing test for the reported case establishes only that case. A second
-special case, a caller repeating its callee's rule, a guard restating a rule
-the code never states, or a flag passed through a stack to reach one use
-suggests the shared boundary remains unsettled.
+symptom of an underlying problem. Trace the cause upward through each layer
+that produced it. The fix belongs in the highest layer that is wrong, just
+beneath the first one that is correct as designed. If the current change cannot
+make that fix, the author or reviewer names and proposes it. A passing test for
+the reported case establishes only that case. A second special case, a caller
+repeating its callee's rule, a guard restating a rule the code never states, or
+a flag passed through a stack to reach one use suggests the shared boundary
+remains unsettled.
 
 Do not add another patch on top of the ones already there. A change that
 settles the immediate symptom and leaves the code harder to maintain does not
@@ -183,11 +183,11 @@ ready assets. Consumers run no browser build.
 
 ### The install runs this tree
 
-Consumer installers follow the CI-built `prepared` Git branch. The browser kernel
-is compiled there; development branches keep its source modules. The leaf.page
-container runs the same preparation, which `leaf-dev site` builds beside the site. Installation,
-page authoring, custom packages, and export require no browser build or npm command.
-`dev/leaf_dev/distribution.py` owns preparation and publication.
+Consumer installers follow `main` and serve the browser runtime's source modules.
+The leaf.page container instead installs a tree with the runtime compiled into one
+kernel, which `leaf-dev site` prepares beside the site (`dev/leaf_dev/distribution.py`).
+Installation, page authoring, custom packages, and export require no browser build or
+npm command.
 
 An install is the tracked tree copied into a harness's plugin cache, and nothing is
 built at install time: `bin/leaf` is `uv run --no-dev` on the tree, so the
@@ -227,7 +227,7 @@ file over 500 KB.
 
 Authored markup is a page's initial state. The append-only event log records
 transitions. Every current-state projection starts from the markup and
-applies the standing events, those not withdrawn. Add no database, derived
+applies the events still in force, those not withdrawn. Add no database, derived
 current-state file, widget-specific replay list, or DOM-backed authority beside them.
 
 A later version keeps a user decision unless it explicitly retracts what the
@@ -335,23 +335,27 @@ Before finishing a feature:
   "Score an instruction change").
 
 Local compute is often the bottleneck because several sessions share one machine.
-Before widening a local test selection or increasing parallelism, check current
-CPU use, memory pressure, and other running test suites. Weigh the extra evidence
-against the cost to all sessions; on a busy host, favor focused checks and avoid
-redundant overlapping runs. The required landing gates still have to pass.
+Before handing over, run the tests that hold the behavior the change touches, and
+`pnpm run test:runtime` when it reaches the runtime (`tests/AGENTS.md`, "Run what the
+change needs"). A pull request's `test` job and `wt merge`'s pre-merge run the broad
+selection, `uv run pytest tests`, at landing, and report any failure your selection
+missed. Don't run it by hand before then, nor a whole browser test file or a whole
+later tier (`--run-main`, `--run-nightly`, `-m main`, `-m nightly`): each takes minutes
+to over an hour and slows every session on the shared host, however idle it looks. A
+change to code most of the suite runs through still hands over on the tests that
+exercise what it changed, and leaves finding the rest to the gate. Before widening
+your own selection or raising its parallelism, check current CPU use, memory
+pressure, and other running test suites; on a busy host, favor focused checks and
+avoid redundant overlapping runs.
 
-Before handing over, run the tests that hold what the change touches; the broad
-selection, `uv run pytest tests`, and `pnpm run test:runtime` run at landing
-(`tests/AGENTS.md`, "Run what the change needs"). Two TypeScript trees,
-`worker/src/` and `build/browser/`, and the JavaScript lock every committed bundle is built from have gates the suite and
-pre-commit do not reach. Both landing paths run all of them: a pull request in its
-`test` job, and `wt merge` in the pre-merge blocks of `.config/wt.toml`.
-`package.json` owns their shared Node gate list in `check`, which compares every
-committed bundle with a rebuild. `wt hook pre-merge` runs that local gate without
-landing. The website's delivery
-checks — the site build, the Worker's dry-run deploy, and
-`leaf-dev verify-site website-worker` — run on a pull request and in `publish-site` before it
-deploys, not in `wt merge`.
+Two TypeScript trees, `worker/src/` and `build/browser/`, and the JavaScript lock
+every committed bundle is built from have gates the suite and pre-commit do not reach.
+Both landing paths run all of them: a pull request in its `test` job, and `wt merge`
+in the pre-merge blocks of `.config/wt.toml`. `package.json` owns their shared Node
+gate list in `check`, which compares every committed bundle with a rebuild;
+`pnpm run check` runs them without landing. The website's delivery checks — the site
+build, the Worker's dry-run deploy, and `leaf-dev verify-site website-worker` — run
+on a pull request and in `publish-site` before it deploys, not in `wt merge`.
 
 For a change that can alter browser startup, compare base and candidate at the
 boundary it affects: served previews for a runtime change, and

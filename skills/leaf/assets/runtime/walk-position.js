@@ -4,9 +4,10 @@
    reading current from the source's invalidation signal — directly on paint for cheap
    lists, or through a refreshed cache for an expensive source such as the page-text
    index — so a resolved thread, answered Question, disappearing leaf, or replaced version
-   cannot leave a stale denominator behind. Reaching the same destination twice means
-   the walk could not move; that state briefly gives the unchanged ordinal an accent
-   face. Both clamped and cyclic semantic walks use this reading. Native focus traversal
+   cannot leave a stale denominator behind. An end of the list is news, so a landing
+   briefly gives its ordinal an accent face where the walk met one: a clamped walk that
+   reached the same destination twice could not move, and a cyclic walk that came round
+   says so, since "1 of 5" reads the same after 5 as after nothing. Native focus traversal
    and gestures that rearrange state are not walks through a named list. */
 import { scrollIntoView } from "./landing-scroll.js";
 import { clampedRow } from "./keyboard/bindings.js";
@@ -132,7 +133,8 @@ export function rowWalk({
 
 // A keyboard walk has arrived. The caller still owns and announces the motion; this
 // records the owner's live reading so every such walk gets one boundary treatment.
-export function beginWalk(key, noun, read) {
+// `wrapped` is a cyclic walk's word that this step came round an end.
+export function beginWalk(key, noun, read, wrapped = false) {
   const position = read();
   if (!position) {
     clearTimeout(boundaryTimer);
@@ -141,7 +143,8 @@ export function beginWalk(key, noun, read) {
     return null;
   }
   walkPositionLabel(noun, position.position, position.total, position.qualifier);
-  const boundary = walking?.key === key && walking.target === position.target;
+  const boundary =
+    wrapped || (walking?.key === key && walking.target === position.target);
   clearTimeout(boundaryTimer);
   const arrived = {
     boundary,

@@ -4113,7 +4113,7 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
     user walks away and back to that thread with t/T. The walk away closes the card and
     the walk back opens it, and an opening moves every card after it anyway, so the card
     opens with what it held, landed where the newest reply shows. Pressing onto the
-    thread the user already stands in, at the end of the list, moves them nowhere, so
+    thread the user already stands in, the only one the walk has, moves them nowhere, so
     its news stays held; leaving the thread with Shift+Tab and walking back onto its
     card, which stood open throughout ("return"), arrives there, and shows it, as a
     press on its title from there does ("pressed"). One reply fits with the root;
@@ -4124,9 +4124,11 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
     the later publication keeps the choice it sent."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Keep the discussion here.")
-    other = panel_comment(serve.page_dir, "A thread to walk to. " * 30)
-    for n in range(12):
-        panel_comment(serve.page_dir, f"A later thread {n}. " * 8)
+    other = None
+    if walk != "onto":
+        other = panel_comment(serve.page_dir, "A thread to walk to. " * 30)
+        for n in range(12):
+            panel_comment(serve.page_dir, f"A later thread {n}. " * 8)
     context = browser.new_context(
         viewport={"width": 800, "height": 900}, reduced_motion="reduce"
     )
@@ -4136,7 +4138,7 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
     order = page.locator(".lf-threads > .lf-thread").evaluate_all(
         "cards => cards.map(card => card.dataset.id)"
     )
-    assert order[:2] == [root, other]
+    assert order[:2] == ([root, other] if other else [root])
     thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
     summary = thread.locator(".lf-thread-summary")
     if thread.get_attribute("open") is None:

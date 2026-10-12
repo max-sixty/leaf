@@ -36,11 +36,12 @@
    was made on or the element a to-do is on; the page's head for a to-do on the whole
    page. An item with no place on the page, a general thread or one whose passage is
    gone, comes after every placed one in the list's own order, as the t/T walk reaches
-   such threads from its list's ends. The walk is clamped, not wrapped.
+   such threads from its list's ends. A step past either end comes round to the other.
 
    Experimental: the lists and the walk over them are new, and their shape is
    expected to change a lot (notes/what-needs-you/). Change them freely.
 */
+import { cycledRow } from "./keyboard/bindings.js";
 import { pageCommand, pageScope } from "./keyboard/register.js";
 import { documentFocused, paintKeys } from "./keyboard/scopes.js";
 import { coarsePointer } from "./pointer.js";
@@ -181,19 +182,16 @@ export function createQueueWalk({
     );
   }
 
-  // The stop `dir` steps to: off the one the user stands on, else the nearest on that
-  // side of their place, clamped at either end. A stop whose place holds the user's,
-  // such as a thread on the paragraph their caret is in, is the nearest either way,
-  // since they are at it without standing on it. A stop with no place stands after
-  // every placed one, so it is ahead of any place on the page.
+  // The stop `dir` steps to, and whether it came round an end to reach it: off the one
+  // the user stands on, else the nearest on that side of their place, else the far end.
+  // A stop whose place holds the user's, such as a thread on the paragraph their caret
+  // is in, is the nearest either way, since they are at it without standing on it. A
+  // stop with no place stands after every placed one, so it is ahead of any place on
+  // the page.
   function step(list, dir) {
     const standing = standingStop(list);
-    if (standing) {
-      const at = list.indexOf(standing);
-      return list[Math.max(0, Math.min(list.length - 1, at + dir))];
-    }
-    const here = walkOrigin();
-    if (!here) return dir > 0 ? list[0] : list.at(-1);
+    const here = !standing && walkOrigin();
+    if (!here) return cycledRow(list, standing, dir);
     const side =
       dir > 0 ? Node.DOCUMENT_POSITION_FOLLOWING : Node.DOCUMENT_POSITION_PRECEDING;
     const reach = list.filter((stop) => {
@@ -202,7 +200,10 @@ export function createQueueWalk({
       const rel = here.compareDocumentPosition(stop.place);
       return !(rel & Node.DOCUMENT_POSITION_CONTAINS) && rel & side;
     });
-    return dir > 0 ? (reach[0] ?? list.at(-1)) : (reach.at(-1) ?? list[0]);
+    const row = dir > 0 ? reach[0] : reach.at(-1);
+    return row
+      ? { row, wrapped: false }
+      : { row: dir > 0 ? list[0] : list.at(-1), wrapped: true };
   }
 
   // A page widget action handed back to the user, or a to-do on an element or the page, has
@@ -251,14 +252,14 @@ export function createQueueWalk({
   function walk(dir) {
     const list = stops();
     if (!list.length) return;
-    const next = step(list, dir);
+    const { row: next, wrapped } = step(list, dir);
     // The walk reads the standing destination, so begin it once the arrival has moved
     // focus. A failed arrival has not arrived and must not register the prior item as
     // this walk's destination.
     const ready = arriveAt(next).then((arrived) => {
       if (!arrived) return;
       announce(
-        beginWalk("queue", null, position) ??
+        beginWalk("queue", null, position, wrapped) ??
           walkPositionLabel(
             null,
             list.indexOf(next) + 1,

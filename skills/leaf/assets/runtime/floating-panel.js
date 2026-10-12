@@ -56,7 +56,7 @@ import { textField } from "./composing/text-field.js";
 import { queueItemKey, readQueues, watchQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
 import { questionWords } from "./questions/answer.js";
-import { versionPicker } from "./version-picker.js";
+import { versionMenu, versionPicker } from "./version-picker.js";
 import { reducedMotion } from "./motion.js";
 import { pagePresented } from "./page-paint.js";
 import { focusDestination, focused, onStanding, releaseFocus } from "./focus.js";
@@ -256,9 +256,10 @@ export function createFloatingPanel({
     const parent = PARENT[route.view];
     return [...(parent ? pathTo({ view: parent }) : []), route];
   };
-  function open(route, { replace = false } = {}) {
+  function open(route, { replace = false, reopen = false } = {}) {
     const before = trail.at(-1);
     if (before && routeKey(before) === routeKey(route) && !replace) {
+      if (reopen) return;
       close();
       return;
     }
@@ -465,23 +466,56 @@ export function createFloatingPanel({
       )}`;
   }
 
+  // The versions the picker lists, the one shown marked, each a press that travels
+  // there, with Compare where the picker offers it; then the version's approval, where
+  // the page asks for one, with why a press would not approve yet.
   function versionsView() {
-    const { rows: versions, picker } = versionPicker.model;
+    const { rows: versions, picker, selection } = versionPicker.model;
     const approval = approvalReading();
-    return html`${versions.map((entry) =>
-      menuRow(entry.name, entry.current ? "Current" : (entry.note ?? ""), () =>
-        versionPicker.activate(entry),
-      ),
-    )}
-    ${versions.length ? nothing : html`<p class="lf-fp-empty">${picker.token}</p>`}
-    ${
-      approval
-        ? html`<hr />
-            ${menuRow(approval.text, approval.reason ?? "", () => approve(), {
-              disabled: Boolean(approval.reason) && !approval.text.startsWith("✓"),
-            })}`
-        : nothing
-    }`;
+    const approved = approval?.text.startsWith("✓");
+    return html`${repeat(
+        versions,
+        (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
+        (entry) =>
+          html`<div class="lf-fp-version" ?data-current=${entry.current}>
+            ${menuRow(
+              entry.name,
+              entry.current ? "Showing" : (entry.note ?? ""),
+              () => {
+                close();
+                versionPicker.activate(entry);
+              },
+            )}${
+              entry.comparable
+                ? html`<button
+                    type="button"
+                    class="lf-fp-quiet lf-fp-compare"
+                    aria-pressed=${String(selection.on && selection.base === entry.version)}
+                    aria-label=${`Compare with ${entry.name}`}
+                    @click=${() => {
+                      close();
+                      versionPicker.compare(entry.version);
+                    }}
+                  >
+                    Compare
+                  </button>`
+                : nothing
+            }
+          </div>`,
+      )}
+      ${versions.length ? nothing : html`<p class="lf-fp-empty">${picker.token}</p>`}
+      ${
+        approval
+          ? html`<hr />
+              ${menuRow(approval.text, "", () => approve(), {
+                disabled: Boolean(approval.reason) && !approved,
+              })}${
+                approval.reason
+                  ? html`<p class="lf-fp-reason">${approval.reason}</p>`
+                  : nothing
+              }`
+          : nothing
+      }`;
   }
 
   function threadsView() {
@@ -1007,7 +1041,30 @@ export function createFloatingPanel({
     // its settled position").
     const questions = questionCount();
     const news = newCount();
-    render(
+    // The next step of what the user is doing now, such as leaving Draw mode or
+    // commenting on the words a finger selected, stands in the counts' place while that
+    // gesture holds it, as it stands on the banner's row (banner-toolbar.js, `gesture`).
+    const steps = rows().filter((entry) => entry.gesture);
+    keeps(quick, "data-steps", steps.length ? "" : null);
+    if (steps.length) {
+      render(
+        html`${repeat(
+          steps,
+          (entry) => entry.key,
+          (entry) =>
+            html`<button
+              type="button"
+              class="lf-fp-chip lf-fp-step"
+              ?disabled=${entry.disabled}
+              @mousedown=${(event) => event.preventDefault()}
+              @click=${() => entry.press()}
+            >
+              ${entry.label}
+            </button>`,
+        )}`,
+        quick,
+      );
+    } else render(
       html`<button
           type="button"
           class="lf-fp-chip lf-fp-questions"
@@ -1130,6 +1187,14 @@ export function createFloatingPanel({
       },
       { capture: true },
     );
+
+  // Version travel (Shift+V, `g V`, the picker's own press) opens the versions menu,
+  // whichever route asks; in this chrome that opening is the panel's Versions view.
+  versionMenu.addEventListener("beforetoggle", (event) => {
+    if (event.newState !== "open") return;
+    event.preventDefault();
+    open({ view: "versions" }, { reopen: true });
+  });
 
   // The page's comment box in this chrome, as `c` and Resume writing find it
   // (composing/surface.js, `commentDestination`).

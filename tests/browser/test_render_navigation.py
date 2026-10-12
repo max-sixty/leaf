@@ -485,7 +485,9 @@ def test_the_thread_panel_and_a_page_thread_carry_names(browser, serve):
     page = open_page(browser, serve(READING_REGIONS_PAGE))
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.get_by_role("dialog", name="Threads", exact=True)).to_be_visible()
+    dialog = page.get_by_role("dialog", name="Threads", exact=True)
+    expect(dialog).to_have_attribute("open", "")
+    expect(dialog.locator(".lf-thread-panel")).to_be_visible()
     page.keyboard.press("Escape")
 
     page.keyboard.press("/")

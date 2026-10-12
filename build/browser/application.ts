@@ -314,9 +314,6 @@ interface WireQueues {
   questions: QueueItem[];
   tasks: QueueItem[];
   done: DoneItem[];
-  /** Open asks no one owes now, such as a resolved thread's, which a reopening gives
-   * back. */
-  held: QueueItem[];
 }
 
 export interface SemanticDocument {
@@ -513,39 +510,6 @@ function normalizedAsks(
   return { all, user: selection("user"), unanswered: selection("unanswered") };
 }
 
-/* While a gesture of this tab's is pending in a thread, the user owes the asks in it
- * that the server read that gesture leaving them (`Thread.owed`, from `after`), and no
- * others; every other ask stands as admitted. An ask the user owes is open, so one
- * the gesture reopens, as taking back the reaction that answered it does, stands
- * unanswered again. */
-function askAttention(asks: WireAsks, threads: Pick<Thread, "id" | "owed">[]): WireAsks {
-  const owing = new Map(threads.flatMap((thread) =>
-    thread.owed ? [[thread.id, new Set(thread.owed)] as const] : []));
-  const pending = (ask: AskRecord) =>
-    ask.thread === null ? undefined : owing.get(ask.thread);
-  const all = asks.all.map((ask): AskRecord => {
-    const owed = pending(ask);
-    if (!owed) return ask;
-    if (owed.has(ask.id))
-      return ask.next_actor === "user"
-        ? ask
-        : { ...ask, status: "open", answer: null, next_actor: "user" };
-    return ask.next_actor === "user" ? { ...ask, next_actor: null } : ask;
-  });
-  const admitted = (kind: "user" | "unanswered") =>
-    new Set(asks[kind].map((ask) => ask.id));
-  const user = admitted("user");
-  const unanswered = admitted("unanswered");
-  return {
-    all,
-    user: all.filter((ask) =>
-      pending(ask) ? ask.next_actor === "user" : user.has(ask.id)),
-    unanswered: all.filter((ask) =>
-      unanswered.has(ask.id) ||
-      (pending(ask)?.has(ask.id) ?? false)),
-  };
-}
-
 /* To-dos, open and ended, including Done this tab is sending or undoing. A to-do the
  * user is ending stands ended in the gesture's own turn, and one whose Done they are
  * undoing stands open again; a refused gesture leaves the ledger and so puts the to-do
@@ -585,18 +549,17 @@ function localTodos(
   };
 }
 
-const NO_QUEUES: WireQueues = { questions: [], tasks: [], done: [], held: [] };
+const NO_QUEUES: WireQueues = { questions: [], tasks: [], done: [] };
 
 /* What is on the user (Questions), what is on the agent (Tasks), and what is done:
  * the view's served lists (`served_state.queues`), with this tab's unresolved sends
- * placed against them. A send moves an item the server listed when it changes that
- * item's record: a Done or its undo moves a to-do between its list and done, an
- * approval or its undo moves the approval ask, and prose sent in a thread, or settling
- * it, takes that thread's ask and its resend off the user, and one reopening a resolved
- * thread puts a held ask its record now gives the user back on. It adds only the items
- * it alone implies: the answer a pending send is owed, and the resend a refused one
- * leaves. A pending send also stands for the response the thread was already owed.
- * Nothing here selects a list again. */
+ * placed against them. A send moves an item the server listed only where the item is
+ * its own subject: a Done or its undo moves a to-do between its list and done, and an
+ * approval or its undo moves the approval ask. What a send leaves anything else, such
+ * as which asks in its thread it answers, waits for the server's reading of it. This
+ * adds only the items a send alone implies: its own answer owed, which stands for the
+ * response its thread was already owed, and the resend a refused one leaves. Nothing
+ * here selects a list again. */
 function localQueues(
   served: WireQueues,
   threads: readonly Pick<Thread, "id" | "resolved" | "attention">[],
@@ -683,7 +646,6 @@ function localQueues(
   return {
     questions: [
       ...served.questions.filter(standsOpen).map(current),
-      ...served.held.filter(standsOpen).map(current),
       ...reopenedFor("user").map(asOpen),
       ...threads.flatMap((thread) =>
         retrying(thread.id)
@@ -930,21 +892,16 @@ export function createSemanticApplication({
             : [],
     );
     const folded = ready
-      ? foldThreads(
-          view?.thread.threads ?? [],
-          gestures,
-          (token) => Boolean(document.registry.$reactions?.tokens?.[token]?.settles),
-        )
+      ? foldThreads(view?.thread.threads ?? [], gestures)
       : [];
     const widgets = foldWidgetStates(document.authored, projection);
-    const admittedAsks = ready
+    const asks = ready
       ? normalizedAsks(view, widgets, document, projection, local)
       : NO_ASKS;
     const todos = ready ? localTodos(state, local) : { open: [], ended: [] };
-    // Thread attention is the server's reading, and two local facts adjust it. A
-    // pending gesture takes the attention the server read it leaving (`after`, which
-    // `foldThreads` reads). A refused send hands a thread the server left with the
-    // agent back to the user, whose Retry it is.
+    // Thread attention is the server's reading, and one local fact adjusts it: a
+    // refused send hands a thread the server left with the agent back to the user,
+    // whose Retry it is.
     // The thread a gesture stands in. A message stands in the thread that draws it,
     // under its pending id or, once the log has it, its attempt. Until one does, a
     // comment opens the thread its own id names, and a reply joins the thread holding
@@ -1080,7 +1037,6 @@ export function createSemanticApplication({
       markingRead,
       ready,
     );
-    const asks = askAttention(admittedAsks, obligated);
     const selectedQueues = localQueues(
       ready ? (view?.queues ?? NO_QUEUES) : NO_QUEUES,
       threads,

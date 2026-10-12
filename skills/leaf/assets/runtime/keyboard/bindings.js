@@ -56,7 +56,7 @@
    - `run` performs one result. A run-less row names a press it does not make: the
      platform's own on a link, or one another scope's row already runs.
    - `touch` is the words of the banner control that stands in for a press under a
-     finger, or a function when state chooses them, on a page command or a scope's row
+     finger, or a function when state chooses them, on a page command or a page-scope row
      a finger has no other way to reach (keyboard/AGENTS.md, "Touch routes"). A row with
      `routes` makes a different press per route, so its words go on each route that needs
      a control, and the row's own `touch` can only be `false`. Every page command

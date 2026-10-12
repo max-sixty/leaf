@@ -5612,20 +5612,20 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     with page.expect_request("**/api/event"):
         page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-send').click()
     holding(page, held, 1, "the answer to the prose Ask")
-    expect(
-        page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-status')
-    ).to_have_text("Sending")
-    expect(page.locator('[data-filter-value="user"]')).to_have_text("You (0)")
-    # The answer takes the thread off the user, and the user goes with it out of
-    # "Waiting on you" (thread-card.js, `#speak`).
-    expect(page.locator('[data-filter-value="user"]')).to_have_attribute(
-        "aria-pressed", "false"
-    )
-    expect(page.locator(f'.lf-thread[data-id="{asked}"]')).to_be_visible()
+    # The answer shows as sent at once; whether it answers the Ask is the server's
+    # reading, so the thread stays on the user until that arrives.
+    status = page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-status')
+    expect(status).to_have_attribute("title", "On you to answer · Sending")
     expect(reply).to_have_js_property("value", "")
     held.pop().continue_()
     page.unroute("**/api/event")
     round_trip(page)
+    # The reading takes the thread off the user, and the user goes with it out of
+    # "Waiting on you" (thread-card.js, `#speak`).
+    expect(page.locator('[data-filter-value="user"]')).to_have_text("You (0)")
+    expect(page.locator('[data-filter-value="user"]')).to_have_attribute(
+        "aria-pressed", "false"
+    )
     expect(page.locator(".lf-needs")).to_have_text("You (0)")
     expect(page.locator(f'.lf-thread[data-id="{asked}"]')).to_be_visible()
 
@@ -5694,8 +5694,8 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     )
 
     # The thread's recovery `attention` is the user filter's authority, though no
-    # question or Ask is left open on it. A held resend hands the thread to
-    # Sending immediately; refusal restores the same recovery and draft.
+    # question or Ask is left open on it. A held resend shows as sending while the
+    # recovery stands until the server reads it; refusal restores the draft.
     page.locator(".lf-thread-filter-toggle").click()
     recovery = page.locator('[data-filter-value="user"]')
     expect(recovery).to_be_enabled()
@@ -5711,14 +5711,13 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     with page.expect_request("**/api/event"):
         card.get_by_role("button", name="Send", exact=True).click()
     holding(page, held, 1, "the recovery resend")
-    expect(status).to_have_text("Sending")
-    expect(recovery).to_have_text("You (0)")
-    # The resend takes the thread off the user, and the user goes with it (#46).
-    expect(recovery).to_have_attribute("aria-pressed", "false")
+    expect(status).to_have_attribute(
+        "title", "On you to resend · Not answered · Sending"
+    )
+    expect(draft).to_have_js_property("value", "")
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
     expect(status).to_have_text("On you to resend")
     expect(recovery).to_have_text("You (1)")
-    expect(recovery).to_have_attribute("aria-pressed", "true")
     expect(recovery).to_be_enabled()
     expect(draft).to_have_js_property("value", "Try the south pair again.")
     page.unroute("**/api/event")

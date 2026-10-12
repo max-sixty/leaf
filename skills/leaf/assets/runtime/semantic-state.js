@@ -39,40 +39,8 @@ export const attachApplicationPresentation = (region, renderer) =>
 const widgetRegion = (widget, kind) => `widget:${widget}:${kind}`;
 const widgetRegions = (widget) =>
   ["render", "preparation"].map((kind) => widgetRegion(widget, kind));
-// A widget preparation is work a widget declared it is still doing in a promise, such
-// as lf-diff loading a file the reader opened, which the rendering loop cannot see.
-// Observers hear each declaration as it is made ("begin") and once the coordinator has
-// settled its completion ("settle"), in the task that committed it, under one frozen
-// identity naming the widget. The declaration runs synchronously in the callback that
-// declared it,
-// so a render check can carry that callback's exact source by this identity across
-// native awaits: the input owns its preparation's landing, and no waiting time.
-const preparationObservers = new Set();
-/** Observe each widget preparation from its declaration to its settlement. */
-export function observeWidgetPreparations(observer) {
-  preparationObservers.add(observer);
-  return () => preparationObservers.delete(observer);
-}
-export const attachWidgetPresentation = (widget, kind, renderer) => {
-  const handle = presentation.attach(widgetRegion(widget, kind), renderer);
-  if (kind !== "preparation") return handle;
-  return Object.freeze({
-    present(value, failSoft) {
-      const presenting = handle.present(value, failSoft);
-      const observers = [...preparationObservers];
-      if (observers.length) {
-        const preparation = Object.freeze({ widget });
-        for (const observer of observers) observer("begin", preparation);
-        const settle = () => {
-          for (const observer of observers) observer("settle", preparation);
-        };
-        presenting.ready.then(settle, settle);
-      }
-      return presenting;
-    },
-    disconnect: handle.disconnect,
-  });
-};
+export const attachWidgetPresentation = (widget, kind, renderer) =>
+  presentation.attach(widgetRegion(widget, kind), renderer);
 
 // Where a document-wide renderer stands in one presentation pass. The projection
 // materializes provenance words and coordinate chrome inside authored elements, the

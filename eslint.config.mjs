@@ -1435,7 +1435,7 @@ export default [
         "error",
         {
           // The owner of every focus event.
-          "skills/leaf/assets/runtime/focus.js": ["focusin", "focusout"],
+          "skills/leaf/assets/runtime/focus.js": ["focus", "focusin", "focusout"],
           // Records the raw events of a session for the interaction log, the one
           // exception that is not one element's or one subtree's own question: it is a
           // recorder of events, and reads no standing from them.

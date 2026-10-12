@@ -2109,7 +2109,7 @@ def suggestion_owner(suggestion_id: str) -> str:
 
 
 def draft_control(scope, key: str, draft_id: str, *, visible=True):
-    """A draft's local command button (edit, save, cancel, close or retry)."""
+    """A draft's local command button (edit, save, cancel or retry)."""
     action = "save" if key == "retry" else key
     return scope.locator(
         f'lf-draft[id="{draft_id}"] [data-lf-draft-action="{action}"]'

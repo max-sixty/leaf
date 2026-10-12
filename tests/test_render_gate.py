@@ -145,8 +145,8 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
   </div>
   <footer>End of queue</footer>
 """,
-    head="<style>#gate-split { display: grid; grid-template-columns: 1fr 1fr; "
-    "}</style>",
+    head="<style>#gate-split { display: grid; grid-template-columns: 1fr 1fr; } "
+    "@media (width < 720px) { #gate-split { grid-template-columns: 1fr; } }</style>",
     layout="workspace",
 )
 
@@ -548,28 +548,20 @@ def test_a_screen_region_that_runs_past_its_room_gets_advice(browser, serve):
     )
 
 
-STACK = "{ #regions { grid-template-columns: 1fr; } }"
-SPLIT = "{ #regions { grid-template-columns: 1fr 1fr; } }"
-
-
-@pytest.mark.parametrize(
-    ("columns", "media"),
-    [
-        ("1fr 2fr", f"(width < 720px) {STACK}"),
-        ("1fr", f"(width >= 1800px) {SPLIT}"),
-    ],
-    ids=[
-        "stacks-where-the-layout-flows",
-        "rows-then-columns-when-ultrawide",
-    ],
-)
-def test_workspace_panes_can_follow_the_authored_grid(browser, serve, columns, media):
-    """Workspace panes can stay in rows or share columns as the authored grid changes:
-    side by side at the desktop and stacked where the layout flows, or in rows at the
-    desktop, as the panes of a workspace that never splits are, and side by side only
-    past it."""
+def test_workspace_panes_can_follow_the_authored_grid(browser, serve):
+    """Workspace panes can stay in rows at the desktop, as the panes of a workspace
+    that never splits are, and share columns only past it. Panes side by side at the
+    desktop that stack where the layout flows are
+    `test_the_render_gate_reads_content_through_bounded_pane_regions`'s."""
     reading = render_gate_model.render_version(
-        browser, serve(_pane_regions(columns, media), packages=())
+        browser,
+        serve(
+            _pane_regions(
+                "1fr",
+                "(width >= 1800px) { #regions { grid-template-columns: 1fr 1fr; } }",
+            ),
+            packages=(),
+        ),
     )
 
     assert reading.failures == []
@@ -1066,7 +1058,10 @@ def test_the_pre_upgrade_proof_holds_its_entry_route_past_the_load_event(
 
 def test_the_render_gate_reads_content_through_bounded_pane_regions(browser, serve):
     """Pane bounds are real scroll bounds, so content past a pane's first fold remains
-    reachable without being exempted from the ordinary geometry checks."""
+    reachable without being exempted from the ordinary geometry checks. The panes
+    stand side by side at the desktop and stack where the layout flows, which the
+    sweep's stacked-panes reading must not mistake for a workspace losing its
+    columns while the Layout still fills the window."""
     assert (
         render_gate_model.render_version(
             browser, serve(BOUNDED_WORKSPACE_PAGE)

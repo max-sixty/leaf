@@ -28,7 +28,9 @@ export function clockValue(read) {
 // ignored: its presenter owns completion and failure; the clock owns direct paints.
 // The paint's time readings follow its owner's lifetime (`watchOwner`): they pause
 // while it is away and its return puts them back on the clock, so the next tick
-// repaints what aged. `stop()` takes the paint off the clock until it paints again.
+// repaints what aged. `stop()` takes the paint off the clock and retires its lifetime
+// until it paints again. The lifetime is held from construction, so a first paint
+// made while its owner's subscriptions are connecting starts no subscription of its own.
 export function clocked(owner, paint, invalidate) {
   let args;
   let painted = false;
@@ -49,6 +51,18 @@ export function clocked(owner, paint, invalidate) {
     if (standing && reads.length) clockPaints.add(entry);
     else clockPaints.delete(entry);
   };
+  const follow = () =>
+    watchOwner(owner, {
+      connect() {
+        standing = true;
+        listen();
+      },
+      disconnect() {
+        standing = false;
+        listen();
+      },
+    });
+  stopLifetime = follow();
   function render(...next) {
     const painting = ++generation;
     args = next;
@@ -62,17 +76,7 @@ export function clocked(owner, paint, invalidate) {
       clockReads = outer;
       if (painting === generation) {
         reads = nextReads;
-        if (reads.length)
-          stopLifetime ??= watchOwner(owner, {
-            connect() {
-              standing = true;
-              listen();
-            },
-            disconnect() {
-              standing = false;
-              listen();
-            },
-          });
+        stopLifetime ??= follow();
         listen();
       }
     }

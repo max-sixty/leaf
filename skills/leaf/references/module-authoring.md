@@ -928,8 +928,8 @@ before `watchData` so they stand when its callback runs.
 `watchData`, the projection subscriptions and a `widgetController` subscription
 pause while their owner is away. On return a subscription calls its callback, and the
 controller its `renderState`, again only when its reading changed while the owner was
-away, or when a callback's returned promise had not settled while the owner stood. A finished rendering, a failure included, stands, so a refusal is
-reported once. So return the promise of any paint that finishes later, abandon
+away, or when a callback's returned promise had not settled while the owner stood. A
+finished rendering, a failure included, stands, so a refusal is reported once. So return the promise of any paint that finishes later, abandon
 unfinished work on departure, keep finished nodes where they are, and have `start`
 restore whatever its cleanup cleared. A `HeldReading` built with its widget,
 `new HeldReading(this, region, changed)`, keeps waiting across a return itself.
@@ -996,9 +996,8 @@ grace, the same bound the page's own activity reads. For another
 rounded time reading, use `clockValue((now) => reading)`, whose `now` argument is the
 calibrated server-now value in milliseconds. For a paint outside these
 subscriptions, wrap it with `clocked(element, paint)` and call the returned function
-where state changes. Its readings pause while the element is away and tick again when it
-returns. If painting is scheduled by a
-presenter, pass its synchronous claim as the third argument,
+where state changes. Its readings pause while the element is away and tick again
+when it returns. If painting is scheduled by a presenter, pass its synchronous claim as the third argument,
 `clocked(element, paint, invalidate)`. A clock change calls `invalidate`; the scheduled
 pass calls the function returned by `clocked`, capturing fresh time readings.
 The claim's return is ignored; the presenter owns its completion and failure. Until that paint runs,

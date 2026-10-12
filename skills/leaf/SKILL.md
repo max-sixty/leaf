@@ -129,9 +129,9 @@ Where a view's point has a shape, it shows the point in a picture and uses words
 for what the picture cannot say; `references/page-authoring.md`, "Draw the
 subject", says which points have one.
 The visible page follows the subject's shape: prose read in order, regions read side
-by side on a wide page, or a workspace, a screen the user moves through rather than
+by side on a sidebar page, or a workspace, a screen the user moves through rather than
 scrolls. A Layout class
-on `main` or a block arranges each of these, and the page's own CSS adjusts it;
+on `main` sets each of these shapes, and the page's own CSS adjusts it;
 `references/page-authoring.md`, "Composing a page", owns the concrete choices, and
 `references/authoring-questions.md` owns where each ask goes.
 

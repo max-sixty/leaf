@@ -20,6 +20,8 @@ Rendering work that reaches a resting state uses `nextRender`, `nextFrame` and
 when the element leaves ("Connection lifetimes"). Continuous mechanical motion, such as recording playback, uses
 `nextAnimation` and `cancelAnimation`: it schedules browser frames without holding
 page readiness open. Cancel it when the motion stops or its owner leaves.
+Work that races its own cancellation awaits `aborted(signal)`, which resolves once the
+signal aborts: `Promise.race([work, aborted(signal)])`.
 
 `/runtime/widget-api.js` is the whole Leaf API a behavior module gets: a module imports
 only that public helper surface, and does not reach into the runtime's private owners,
@@ -160,6 +162,8 @@ that box. It also supports native recovery and repeated failures.
 `shadowStage(host, nodes)` owns the shadow root's structure and styles. For a
 template, stage a concrete container with `shadowStage(host, [container])` and
 call `render(template, container)`. Retain that container on later stage updates.
+`failSoft` on a staged host stages its error box in place of your nodes; your next
+`shadowStage` call replaces it.
 
 ## What a behavior module owes
 
@@ -447,9 +451,10 @@ A widget's own layer, such as a list it opens over its contents, records where i
 opened from with `openLayer(layer)` as it opens, which reads where the user stands.
 Open a native modal dialog or popover with `showNativeLayer(layer, {source})`;
 `modal: false` opens a nonmodal dialog. It suppresses the native opening's automatic
-focus inside a sample; use `focusDestination` for the intended arrival. Close a
-native dialog or popover with `closeNativeLayer(layer)`, which prevents the native
-return from taking input from the containing page. A layer
+focus inside a sample; use `focusDestination` for the intended arrival. A popover keeps
+its `source` when the runtime re-seats it, as it does when a panel starts or stops
+covering the page. Close a native dialog or popover with `closeNativeLayer(layer)`,
+which prevents the native return from taking input from the containing page. A layer
 closes with `closeLayer(close, land)`: `close` hides it, and `land` puts a user who stood
 in it where the close takes them, usually `handBack(openerOf(layer))`, which lets go onto
 the page where the opener is gone. Readers of where the user stands hear only where they
@@ -915,7 +920,8 @@ resources. An actual departure aborts the signal and calls that cleanup, and a f
 permanently retires the subscription and releases active resources. Call it when the
 element no longer needs them, as a widget that fails soft from a paint it cannot
 repeat does, so a return does not start them again. Register dependent resources
-before `watchData` so they stand when its initial or resumed callback runs.
+before `watchData` so they stand when its callback runs. A return repaints only data
+that changed, so `start` restores whatever its cleanup cleared.
 
 ```js
 schedulePaint = frameFor(this, () => this.paint());
@@ -960,8 +966,12 @@ source's contract, publication, or validity changes. An incompatible contract or
 value delivers `null`, clearing the previous rendering. The subscription stays
 active and recovers when a readable value returns. `page state` and `page check`
 report invalid values; an incompatible subscriber reports the contract it requires.
-Register once for the element. Leaf pauses the subscription when its owner leaves and
-delivers the newest snapshot when it returns, even if its revision is unchanged.
+Register once for the element. Leaf pauses the subscription when its owner leaves. On
+return it delivers the newest snapshot only when that reading differs from the last
+one delivered or the departure interrupted a callback whose returned promise had not
+settled. A finished rendering, a failure included, stands. So return the promise of
+any paint that finishes later, abandon unfinished work on departure, and keep
+finished nodes where they are.
 Moving the owner within one DOM mutation batch retains the subscription. The returned
 cleanup function ends it permanently when the module explicitly stops watching.
 Its `refresh()` repaints the last delivered snapshot through the same clock
@@ -979,7 +989,8 @@ grace, the same bound the page's own activity reads. For another
 rounded time reading, use `clockValue((now) => reading)`, whose `now` argument is the
 calibrated server-now value in milliseconds. For a paint outside these
 subscriptions, wrap it with `clocked(element, paint)` and call the returned function
-where state changes; call its `.stop()` on disconnect. If painting is scheduled by a
+where state changes; call its `.stop()` when the owner leaves and its `.resume()` when
+it returns, which keeps the last painting's readings ticking. If painting is scheduled by a
 presenter, pass its synchronous claim as the third argument,
 `clocked(element, paint, invalidate)`. A clock change calls `invalidate`; the scheduled
 pass calls the function returned by `clocked`, capturing fresh time readings.

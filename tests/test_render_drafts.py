@@ -6255,14 +6255,10 @@ def test_draft_comparison_detects_format_changes_but_not_the_same_standing_edit(
     expect(page.locator("#source .lf-draft-body strong")).to_have_text("edit")
 
 
-@pytest.mark.parametrize(
-    "action, edge",
-    [("edit", "left"), ("save", "right"), ("cancel", "left"), ("close", "right")],
-)
-def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(
-    browser, serve, action, edge
-):
-    """Raw pointer down must not move the button before the matching up arrives."""
+def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(browser, serve):
+    """Raw pointer down must not move the button before the matching up arrives. Either
+    edge detects a button that moves under the press, so each action, pressed in turn
+    on one draft, takes one."""
     page = open_page(
         browser,
         serve(
@@ -6273,43 +6269,57 @@ def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(
         ),
     )
     draft = page.locator("#note")
-    if action != "edit":
-        draft_control(page, "edit", "note").click()
-        write(draft.locator("leaf-text"), "Keep `the corrected` note.")
-    page.get_by_role("heading", name="Release note").click()
-    rendered(page)
-    controls = draft.locator("[data-lf-draft-action]:visible")
-    before = controls.evaluate_all(
-        "ns => ns.map(n=>({action:n.dataset.lfDraftAction,box:n.getBoundingClientRect().toJSON()}))"
-    )
-    button = draft_control(page, action, "note")
-    box = button.bounding_box()
-    x = box["x"] + (2 if edge == "left" else box["width"] - 2)
-    page.mouse.move(x, box["y"] + box["height"] / 2)
-    page.mouse.down()
-    expect(button).to_be_focused()
-    rendered(page)
-    assert (
-        controls.evaluate_all(
+    # Save keeps its words; cancel and close discard theirs.
+    saved = "Keep this note."
+    for action, edge in (
+        ("edit", "left"),
+        ("save", "right"),
+        ("cancel", "left"),
+        ("close", "right"),
+    ):
+        if action != "edit":
+            draft_control(page, "edit", "note").click()
+            write(
+                draft.locator("leaf-text"),
+                f"Keep `the corrected` note before {action}.",
+            )
+        page.get_by_role("heading", name="Release note").click()
+        rendered(page)
+        controls = draft.locator("[data-lf-draft-action]:visible")
+        before = controls.evaluate_all(
             "ns => ns.map(n=>({action:n.dataset.lfDraftAction,box:n.getBoundingClientRect().toJSON()}))"
         )
-        == before
-    )
-    page.mouse.up()
-    if action == "edit":
-        expect(draft.locator("leaf-text")).to_be_focused()
-    else:
-        expect(draft.locator("leaf-text")).to_have_count(0)
-        expect(draft.locator(".lf-draft-body")).to_have_text(
-            "Keep the corrected note." if action == "save" else "Keep this note."
-        )
+        button = draft_control(page, action, "note")
+        box = button.bounding_box()
+        x = box["x"] + (2 if edge == "left" else box["width"] - 2)
+        page.mouse.move(x, box["y"] + box["height"] / 2)
+        page.mouse.down()
+        expect(button).to_be_focused()
+        rendered(page)
+        assert (
+            controls.evaluate_all(
+                "ns => ns.map(n=>({action:n.dataset.lfDraftAction,box:n.getBoundingClientRect().toJSON()}))"
+            )
+            == before
+        ), action
+        page.mouse.up()
+        if action == "edit":
+            expect(draft.locator("leaf-text")).to_be_focused()
+            page.keyboard.press("Escape")
+            expect(draft.locator("leaf-text")).to_have_count(0)
+        else:
+            expect(draft.locator("leaf-text")).to_have_count(0)
+            round_trip(page)
+        if action == "save":
+            saved = "Keep the corrected note before save."
+        expect(draft.locator(".lf-draft-body")).to_have_text(saved)
         round_trip(page)
         edits = [
             e
             for e in events_model.read_events(serve.page_dir)
             if e.get("action") == "edit"
         ]
-        assert len(edits) == (1 if action == "save" else 0)
+        assert len(edits) == (0 if saved == "Keep this note." else 1), action
 
 
 def test_a_delayed_draft_close_yields_to_a_newer_page_selection(browser, serve):

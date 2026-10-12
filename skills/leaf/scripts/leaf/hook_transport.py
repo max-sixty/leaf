@@ -28,11 +28,14 @@ and its reader confirms nothing. So it hands an envelope over inline only once i
 has confirmed every batch: an inline envelope it could not confirm would leave its
 input pending, and every later hook and watch would offer it again as new. A
 batch's receipt can be refused for good, as when this Leaf may not write a log
-another Leaf vendored (`layer.foreign_event_contract`), so whatever the hook could
-not confirm goes as a pointer, whose reader's explicit `leaf delivery ack` either
-confirms it or shows the refusal. Claude Code cuts context over a limit to a
-preview (`HOOK_CONTEXT_LIMIT`), so a delivery that large goes as a pointer too,
-unconfirmed, as do pointers Codex's tool hook offers.
+another Leaf vendored (`event_contracts.write_refusal`), so whatever the hook
+could not confirm goes as a pointer, whose reader's explicit `leaf delivery ack`
+either confirms it or shows the refusal. The plan reads that refusal once per
+page: the hook then records no other pickup there and names the refusal in the
+turn's attention, so it never fails on a page it cannot write. Claude Code cuts
+context over a limit to a preview (`HOOK_CONTEXT_LIMIT`), so a delivery that
+large goes as a pointer too, unconfirmed, as do pointers Codex's tool hook
+offers.
 
 A harness reads a hook's output only once it exits, and discards it for a hook it
 times out, so the hook confirms only by a deadline well inside its timeout
@@ -57,6 +60,7 @@ from .delivery import (
     receive_held,
     record_pickup,
 )
+from .event_contracts import write_refusal
 from .harness import Harness, claim_harness
 from .schema import (
     ANSWER_ASK_INSTRUCTION,
@@ -99,6 +103,8 @@ class PagePlan:
     Pending and recovery batches, response debt and watcher readiness come from
     one log, cursor, status and ownership snapshot. Planning never records a
     pickup. The caller selects which pending batches its transport can hand over.
+    `unwritable` says why this Leaf may record no pickup there, or is None
+    (`event_contracts.write_refusal`).
     """
 
     page: Path
@@ -113,6 +119,7 @@ class PagePlan:
     acknowledged: list[dict]
     watched: bool
     preview: bool
+    unwritable: str | None
 
 
 def read_plans(session_id: str) -> list[PagePlan]:
@@ -164,6 +171,7 @@ def read_plans(session_id: str) -> list[PagePlan]:
                         acknowledged_obligations(state),
                         watched,
                         (page_dir / PREVIEW_FILE).exists(),
+                        write_refusal(page_dir),
                     )
                 )
         except FileNotFoundError:
@@ -207,6 +215,8 @@ def remedies(
     }
     reasons = []
     for plan in plans:
+        if plan.unwritable:
+            reasons.append((plan.unwritable, None))
         if plan.owed:
             reasons.append(
                 (
@@ -246,9 +256,10 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
 
     A later receipt revalidates captured identities independently. This pickup
     likewise checks generation and turn after reacquiring the page transaction.
+    A page this Leaf may not write records none; `remedies` tells the turn why.
     """
     for plan in plans:
-        if not plan.acknowledged:
+        if not plan.acknowledged or plan.unwritable:
             continue
         try:
             with (

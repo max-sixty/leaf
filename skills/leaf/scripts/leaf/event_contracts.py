@@ -8,6 +8,8 @@ This module selects each kind's gates. Their implementations stay with their
 domains: undo in `events` and widget meaning in `event_meaning`.
 """
 
+from pathlib import Path
+
 from leaf.event_log import EventRefused, new_event_id
 from leaf.event_meaning import (
     AdmissionReadings,
@@ -863,6 +865,19 @@ def admitted_event(view, events: list, event: dict) -> dict:
     return event
 
 
+def write_refusal(page_dir: Path) -> str | None:
+    """Why this Leaf may write no event to the page, or None where it may: the
+    page's layer came from another Leaf (`layer.foreign_event_contract`). A writer
+    that must not fail on a page it cannot write, such as a hook, asks this first."""
+    try:
+        layer = layer_metadata(page_dir)
+    except RegistryError:
+        # A broken or missing candidate registry does not invalidate an active
+        # revision's captured vocabulary. Admission will read that vocabulary.
+        return None
+    return foreign_event_contract(page_dir, layer)
+
+
 def append_admitted(page, event: dict, *, view=None) -> dict:
     """Admit one event and append it, under the page transaction's log lease.
 
@@ -877,13 +892,7 @@ def append_admitted(page, event: dict, *, view=None) -> dict:
     # have moved past admitting it.
     if accepted := page.matching_attempt(event):
         return accepted
-    try:
-        layer = layer_metadata(page.page_dir)
-    except RegistryError:
-        # A broken or missing candidate registry does not invalidate an active
-        # revision's captured vocabulary. Admission will read that vocabulary.
-        layer = None
-    if layer is not None and (refusal := foreign_event_contract(page.page_dir, layer)):
+    if refusal := write_refusal(page.page_dir):
         raise EventRefused(refusal)
     return page._append_record(
         admitted_event(

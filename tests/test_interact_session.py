@@ -19549,6 +19549,7 @@ def test_a_hook_hands_input_it_cannot_confirm_to_its_reader(claimed, capsys):
 
     handed = prompt()
     assert not handed.startswith(hook_transport_model.INLINE_DELIVERY)
+    assert "vendored from another Leaf" in handed
     [delivery_id] = re.findall(r"`leaf delivery read (\w+)`", handed)
     assert events_model.read_cursor(claimed) < comment["seq"]
     refused = CliRunner().invoke(cli_model.cli, ["delivery", "ack", delivery_id])
@@ -19560,6 +19561,32 @@ def test_a_hook_hands_input_it_cannot_confirm_to_its_reader(claimed, capsys):
     assert confirmed.exit_code == 0, confirmed.output
     assert events_model.read_cursor(claimed) >= comment["seq"]
     assert not hook_transport_model.hands_delivery(prompt())
+
+
+def test_a_prompt_reminds_of_debt_on_a_page_its_leaf_cannot_write(claimed, capsys):
+    """A prompt records the entry of acknowledged, unanswered updates into its turn
+    as a pickup. On a page another Leaf vendored, which this Leaf may not write, it
+    records nothing and still reminds the turn of what it owes, naming why, rather
+    than failing the hook and handing the turn nothing."""
+    asked = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "still working?"}
+    )
+    receive_through(claimed, last_deliverable_seq(claimed))
+    cleanup_model.close_session_turn("s1")
+    vendored_by_another_leaf(claimed)
+    logged = events_model.read_events(claimed)
+
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    assert "vendored from another Leaf" in context
+    [reminder] = re.findall(r'<leaf-delivery id="(\w+)"', context)
+    [batch] = delivery_model.read_delivery(reminder)["batches"]
+    assert [event["id"] for event in batch["events"]] == [asked["id"]]
+    assert events_model.read_events(claimed) == logged
 
 
 def test_a_hook_waits_on_no_receipt_lock_past_its_deadline(

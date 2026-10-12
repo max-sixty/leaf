@@ -14,8 +14,12 @@
  * `inlineComparison` / `toggleInlineComparison` disclose a block's text diff on
  * request. `comparisonBase` names the standing base. `comparisonChanges(owner)` selects
  * changed descendants from the same comparison reading; `watchComparison(owner,
- * callback)` reads on connection and each comparison change, pauses while detached,
- * and returns a function that ends the subscription.
+ * callback)` reads it on each comparison change and on the microtask after a
+ * connection, pauses while detached, and returns a function that ends the subscription.
+ * Each announced change advances the comparison's generation, which keys the reading,
+ * so a return reads again by the one return rule (`readingPaint` in presence.js): only
+ * a comparison that changed while away is read, and a reading that threw stands
+ * without ending the subscription.
  *
  * Executable identity selects the install. An unchanged registry, module graph, and
  * inline module bodies permit an in-place patch; changed executable inputs require a
@@ -66,6 +70,7 @@
  */
 import { nextRender } from "./rendering.js";
 import { whileConnected } from "./arrivals.js";
+import { readingPaint } from "./presence.js";
 import { LIVE_ROOT, layerRoot, pageUrl, revisionLabel, runtime } from "./context.js";
 import {
   documentWidgetDigests,
@@ -92,6 +97,7 @@ import {
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { focusedInView } from "./user-place.js";
 import { patchTree, patchRetains } from "./dom-children.js";
+import { move } from "./dom-move.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
 import { commandShortcut } from "./keyboard/control-keys.js";
 import { keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
@@ -454,6 +460,8 @@ const diffOpaqueSel = () =>
 // owns the marked identities; the CSS marks are only their rendering.
 let diffOn = false;
 let diffBase = null;
+// Advanced with each announced change, so a watcher knows which reading it painted.
+let comparisonGeneration = 0;
 let diffPendingBase = null;
 const diffMarked = new Set();
 // What each marked block said in the base version, and which of those readings the
@@ -541,9 +549,7 @@ async function baseReading(baseRevision, throughSeq) {
   });
   const res = await fetch(pageUrl(`api/view?${params}`));
   if (!res.ok) throw new Error(`couldn't project revision r${baseRevision}`);
-  const answer = await res.json();
-  if (!answer.browser) throw new Error(`revision r${baseRevision} has no projection`);
-  return answer.browser;
+  return (await res.json()).browser;
 }
 // The longest run of `after` that keeps the order `before` gave the same units:
 // the units that did not move.
@@ -567,10 +573,7 @@ function inOrder(before, after) {
   return kept;
 }
 function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
-  const baseRevision = stamped(baseVersion)?.revision;
-  if (baseRevision == null) throw new Error(`version v${baseVersion} has no revision`);
-  const baseView = baseReading?.views?.[String(baseRevision)];
-  if (!baseView) throw new Error(`revision r${baseRevision} has no projection`);
+  const baseView = baseReading.views[String(stamped(baseVersion).revision)];
   // The base version's widget state, folded as the publisher folds the current one:
   // its authored values, staged before its Markdown was formatted, under the
   // projection the server read for it. A report standing at the base painted there
@@ -697,14 +700,14 @@ function pointAt(target, reading, offset) {
 function insertAt(target, reading, offset, node) {
   const point = pointAt(target, reading, offset);
   if (point.node.nodeType === Node.ELEMENT_NODE) {
-    point.node.insertBefore(node, point.node.childNodes[point.offset] ?? null);
+    move(point.node, node, point.node.childNodes[point.offset] ?? null);
     return;
   }
   const text = point.node;
-  if (point.offset === 0) text.parentNode.insertBefore(node, text);
+  if (point.offset === 0) move(text.parentNode, node, text);
   else if (point.offset === text.data.length)
-    text.parentNode.insertBefore(node, text.nextSibling);
-  else text.parentNode.insertBefore(node, text.splitText(point.offset));
+    move(text.parentNode, node, text.nextSibling);
+  else move(text.parentNode, node, text.splitText(point.offset));
 }
 
 function rangeAt(reading, start, end) {
@@ -815,7 +818,7 @@ export function toggleInlineComparison(target) {
   const said = inlineOpen.has(target)
     ? closeInlineComparison(target)
     : openInlineComparison(target);
-  document.dispatchEvent(new CustomEvent("lf-comparison"));
+  announceComparison();
   return said;
 }
 
@@ -848,6 +851,10 @@ function setDiff(on, base, pendingBase = null) {
   presentPicker();
   // Consumers read the settled comparison projection: on/off and its marks move
   // together, rather than announcing an applied DOM diff before it is standing.
+  announceComparison();
+}
+function announceComparison() {
+  comparisonGeneration += 1;
   document.dispatchEvent(new CustomEvent("lf-comparison"));
 }
 // The one way a comparison starts, from a row's press, from the walk through the menu,
@@ -881,8 +888,6 @@ async function showComparison(base) {
   try {
     while (mine === diffRequest) {
       const throughSeq = runtime.lastEventSeq;
-      if (!Number.isInteger(throughSeq))
-        throw new Error("the current reading has no log sequence");
       [doc, reading] = await Promise.all([
         documentRequest,
         baseReading(baseRevision, throughSeq),
@@ -933,16 +938,17 @@ export function comparisonChanges(owner = null) {
 }
 
 export function watchComparison(owner, callback) {
-  if (!(owner instanceof Element))
-    throw new TypeError("A comparison watcher needs an Element owner");
-  if (typeof callback !== "function")
-    throw new TypeError("A comparison watcher needs a callback");
-  // Each watcher holds its own listener, so one callback can serve two subscriptions.
-  const read = () => callback();
-  return whileConnected(owner, (signal) => {
+  const paint = readingPaint(owner, () => callback());
+  const read = () => paint(comparisonGeneration);
+  const stop = whileConnected(owner, (signal) => {
     document.addEventListener("lf-comparison", read, { signal });
-    read();
+    // Read outside the connection, so a reading that throws ends no subscription.
+    queueMicrotask(() => signal.aborted || read());
   });
+  return () => {
+    stop();
+    paint.stop();
+  };
 }
 
 // ---------- another version's document ----------
@@ -955,8 +961,6 @@ async function authoredDocument(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`couldn't load ${url} (${response.status})`);
   const doc = new DOMParser().parseFromString(await response.text(), "text/html");
-  if (doc.querySelectorAll("body > main").length !== 1)
-    throw new Error(`${url} has no single authored main`);
   // First-paint delivery wrappers have no place in the authored revision.
   return restoreInitialSource(doc);
 }

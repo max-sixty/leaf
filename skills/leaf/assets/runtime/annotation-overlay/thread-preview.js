@@ -41,6 +41,7 @@ import { TEXT_FIELD } from "../control-selectors.js";
 import { closeControl, el, offer } from "../widget-elements.js";
 import { keeps, keepsHidden, keepsText, layoutPx } from "../keeps.js";
 import { setChildren } from "../dom-children.js";
+import { move } from "../dom-move.js";
 import { effectiveScroller, registerReadingRegion } from "../reading-regions.js";
 import { declareOffFlowSurface } from "../off-flow.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
@@ -856,7 +857,7 @@ export function createThreadPreview({
           "nearest",
         ),
     });
-    chromeRoot.insertBefore(preview, chromeForeground);
+    move(chromeRoot, preview, chromeForeground);
     previewRegionMounted = true;
     if (previewSession) syncPreviewTranscript();
   }

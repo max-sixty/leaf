@@ -83,6 +83,7 @@ from render_harness import (
     open_versions,
     panel_settled,
     post_event,
+    reported_browser_errors,
     resized,
     scroll_settled,
     select,
@@ -1615,7 +1616,7 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     assert "copy code" in shortcut_bar_text(page)
     page.keyboard.press("Tab")
     expect(page.locator("#code-link")).to_be_focused()
-    # The block's Copy answers on the block alone; its link keeps Enter.
+    # A link inside the block keeps its Enter from the block's Copy.
     on_link = shortcut_bar_text(page)
     assert "Follow" in on_link and "copy code" not in on_link, on_link
     page.keyboard.press("Enter")
@@ -6604,15 +6605,16 @@ def test_a_deferred_diff_tracks_each_write_and_retries_a_failed_file(browser, se
     def refuse_once(route):
         if not refused:
             refused.append(True)
-            route.fulfill(status=200, json={"revision": -1})
+            route.fulfill(status=500, json={"error": "the patch is unavailable"})
         else:
             route.continue_()
 
     page.route("**/api/deferred*", refuse_once)
     summary.click()
     expect(page.locator("lf-diff .lf-error")).to_contain_text(
-        "deferred value response does not match its request"
+        "the patch is unavailable"
     )
+    consume_browser_errors(page, "500 http")
     summary.click()
     summary.click()
     expect(
@@ -6768,7 +6770,7 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
 
     def refuse(route):
         requests.append(True)
-        route.fulfill(status=200, json={"revision": -1})
+        route.fulfill(status=500, json={"error": "the patch is unavailable"})
 
     page = open_page(browser, url)
     page.route("**/api/deferred*", refuse)
@@ -6777,10 +6779,11 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
     page.locator(".lf-thread-summary").click()
     page.locator(".lf-threads > .lf-thread .lf-quote").click()
     expect(page.locator("lf-diff .lf-error")).to_contain_text(
-        "deferred value response does not match its request"
+        "the patch is unavailable"
     )
     page.wait_for_timeout(250)
     assert len(requests) == 1, "thread hydration retried without another user gesture"
+    consume_browser_errors(page, "500 http")
 
     summary = page.locator("lf-diff summary")
     summary.click()
@@ -6791,9 +6794,12 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
     # them over is not the page's to state and not this test's to depend on. The
     # fulfilled response exists only because the handler ran, so it is the fact this
     # count is made of.
-    with page.expect_response(lambda response: "/api/deferred" in response.url):
+    with page.expect_response(
+        lambda response: "/api/deferred" in response.url
+    ) as retried:
         summary.click()
     assert len(requests) == 2
+    reported_browser_errors(page, f"500 {retried.value.url}")
 
 
 def test_shadow_staging_replaces_all_nodes_without_disturbing_a_retained_editor(

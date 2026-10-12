@@ -10,11 +10,13 @@ import {
   activateContributionControl,
   clearContributionControls,
   materializeContributionControls,
+  presentContributionReceipts,
 } from "./contribution-controls.js";
 import { compareContributions, spokenSubject } from "./contribution-model.js";
 import { addressableWord } from "./addressable-names.js";
 import { inChrome } from "./passages.js";
 import { holdFocus } from "./focus.js";
+import { move } from "./dom-move.js";
 import { el } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
 
@@ -77,18 +79,19 @@ export function createInlineContributions({ targetPath }) {
             );
             return offered.reading.entries
               .filter((entry) => entry.visible)
-              .map((entry) => materialized.get(entry.key));
+              .map((entry) => {
+                const control = materialized.get(entry.key);
+                presentContributionReceipts(control, entry.workflowReceipt, false);
+                return control;
+              });
           });
       const nodes = [...controls("before"), ...controls("after")];
       for (const node of nodes) node.removeAttribute("data-lf-margin-entry-primary");
       const restoreFocus = holdFocus(host);
       setChildren(host, nodes);
       restoreFocus?.();
-      if (target.nextSibling !== host) {
-        const keepFocus = holdFocus(host);
-        target.after(host);
-        keepFocus?.();
-      }
+      if (target.nextSibling !== host)
+        move(target.parentNode, host, target.nextSibling);
     }
   }
   return Object.freeze({ present });

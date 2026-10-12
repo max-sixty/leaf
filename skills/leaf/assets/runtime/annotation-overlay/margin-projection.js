@@ -56,7 +56,7 @@ import {
   contributionEntrySource,
   presentContributionEntry,
   activateContributionControl as activateSharedContribution,
-  syncContributionAgentWorkflow,
+  presentContributionReceipts,
   syncContributionSelection,
   syncContributionUnread,
 } from "../contribution-controls.js";
@@ -83,6 +83,7 @@ import {
 } from "../margin-model.js";
 
 import { mapButton } from "../page-map-dialog.js";
+import { move } from "../dom-move.js";
 
 import {
   declareRelease,
@@ -188,7 +189,6 @@ export function createMarginProjection({
   });
   const preview = card.element;
   const previewOpen = card.isOpen;
-  let workflowCarriers = new Set();
   let selectedReadingCarriers = new Set();
   const readingMarginEntries = new Map();
   const hosts = new Map();
@@ -370,7 +370,6 @@ export function createMarginProjection({
       anchor: () => targetFor(row.lfEntry),
       point: () => entryPoint(row.lfEntry),
       order,
-      move: (into) => moveHost(row, into),
       fold: {
         able: () =>
           canFold(row.lfEntry, {
@@ -840,15 +839,11 @@ export function createMarginProjection({
         rank: "reading",
         state: readingState(choice),
         count: items.length,
-        workflowReceipt: workflowReceipt(items),
         accessibleLabel,
       }),
-      {
-        writesRelation: false,
-        writesSeat,
-        awaitsUser: awaitingUser(items),
-      },
+      { writesRelation: false, writesSeat },
     );
+    presentContributionReceipts(node, workflowReceipt(items), awaitingUser(items));
     syncReadingRelation(node, choice);
     syncContributionUnread(node, unreadIn(items));
     return behavior;
@@ -957,16 +952,6 @@ export function createMarginProjection({
         clusterMarginEntries(host)[0],
       );
     }
-    return primary;
-  }
-
-  // Moving a focused cluster between lanes, when its target's scroller changes, blurs
-  // it to the body; the hold puts the user back in the same script, which no reader of
-  // where they stand hears as their leaving it (focus.js, `onStanding`).
-  function moveHost(host, move) {
-    const restoreFocus = holdFocus(host);
-    move();
-    restoreFocus?.();
   }
 
   function unfoldOpenThreadOwner(entry) {
@@ -986,7 +971,8 @@ export function createMarginProjection({
     transferThreadFocus = false;
     // Before the card, which anchors to its rows (`mount`).
     if (!nav.isConnected)
-      chromeRoot.insertBefore(
+      move(
+        chromeRoot,
         nav,
         preview.parentNode === chromeRoot ? preview : chromeForeground,
       );
@@ -1012,7 +998,6 @@ export function createMarginProjection({
         host.remove();
         hosts.delete(key);
       }
-    const nextWorkflowCarriers = new Set();
     pageInventory.forEach((entry, order) => {
       if (!entryHasMarginHost(entry)) return;
       let host = hosts.get(entry.key);
@@ -1076,7 +1061,8 @@ export function createMarginProjection({
       // Insert in inventory order; the theme keeps the row unpainted and measurable
       // until the layout pass assigns its anchored posture.
       if (!host.isConnected)
-        toolbar.insertBefore(
+        move(
+          toolbar,
           host,
           pageInventory
             .slice(order + 1)
@@ -1102,16 +1088,8 @@ export function createMarginProjection({
         expandedOptionsKey = null;
         expandedOptionsOwner = null;
       }
-      const primary = presentCluster(host, marker, more, entry, projection, focus);
-      if (primary && entry.workflowCarrier) {
-        syncContributionAgentWorkflow(primary, entry.workflowReceipt);
-        nextWorkflowCarriers.add(primary);
-      }
+      presentCluster(host, marker, more, entry, projection, focus);
     });
-    for (const control of workflowCarriers)
-      if (!nextWorkflowCarriers.has(control))
-        syncContributionAgentWorkflow(control, null);
-    workflowCarriers = nextWorkflowCarriers;
     nameMarkers(readSpokenPositions(pageInventory));
     keepsHidden(nav, pageInventory.length === 0);
     keeps(nav, "aria-label", `Page Map, ${pageInventory.length} locations`);
@@ -1813,7 +1791,7 @@ export function createMarginProjection({
     renderAnnotations();
     // The card anchors to its row (floating.js), which an anchor may do only to a box
     // laid out before it: the margin comes first.
-    chromeRoot.insertBefore(nav, chromeForeground);
+    move(chromeRoot, nav, chromeForeground);
   }
   return {
     pageMapActive: () => availableRows().includes(focused()),

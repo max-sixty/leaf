@@ -11,17 +11,12 @@ export function summaryRanges(messages, summaries = []) {
   const covered = new Set();
 
   for (const summary of summaries) {
-    // Reaction replies belong to the server's complete range but are already omitted
-    // from the visible turns. Place the remaining originals around that intentional
-    // absence rather than treating the canonical range as malformed.
-    const visible = summary.covers?.filter((id) => index.has(id)) ?? [];
-    const positions = visible.map((id) => index.get(id));
-    if (
-      !positions.length ||
-      positions.some((at, offset) => at !== positions[0] + offset)
-    )
-      continue;
-    byStart.set(positions[0], summary);
+    // The server's range is contiguous in message order, and reaction replies belong to
+    // it though the visible turns omit them, so the originals still shown stay
+    // contiguous around that intentional absence.
+    const visible = summary.covers.filter((id) => index.has(id));
+    if (!visible.length) continue;
+    byStart.set(index.get(visible[0]), summary);
     for (const id of visible) covered.add(id);
   }
 

@@ -133,6 +133,7 @@ export {
 export {
   contributionEntry,
   presentContributionEntry,
+  presentContributionReceipts,
 } from "./contribution-controls.js";
 export { registerContribution } from "./contributions.js";
 export {
@@ -170,7 +171,14 @@ export {
 export { announce, notice } from "./notifications.js";
 export { alignText, alignedNodes } from "./text-alignment.js";
 export { inChrome, renderRetired, says, textNodesUnder, wrote } from "./passages.js";
-export { ago, clocked, clockValue, quietSince, shortAgo } from "./presence.js";
+export {
+  ago,
+  clocked,
+  clockValue,
+  quietSince,
+  readingPaint,
+  shortAgo,
+} from "./presence.js";
 export { shadowStage } from "./shadow-stage.js";
 export { inBaseLayer } from "./stylesheets.js";
 export { revisionLabel } from "./context.js";

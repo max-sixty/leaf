@@ -42,10 +42,6 @@ const INPUTS = [
 const inputs = () => INPUTS.map(({ value }) => value()).join(" ");
 
 export function watchProjection(owner, read, ready = null) {
-  if (!(owner instanceof Element))
-    throw new TypeError("A projection watcher needs an Element owner");
-  if (typeof read !== "function")
-    throw new TypeError("A projection watcher needs a reading function");
   // Every route, including the shared clock, checks this synchronous proof.
   const paint = readingPaint(owner, () =>
     ready !== null && !ready() ? paint.forget() : read(),

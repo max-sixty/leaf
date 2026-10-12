@@ -15,8 +15,6 @@ export const queueItemKey = (item) => JSON.stringify([item.kind, item.id]);
 export const readQueues = () => readApplication().effective.queues;
 
 export function watchQueues(owner, callback) {
-  if (typeof callback !== "function")
-    throw new TypeError("A queue watcher needs a callback");
   return watchProjection(owner, () => callback(readQueues()));
 }
 

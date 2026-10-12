@@ -5092,8 +5092,8 @@ def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
     ), "the thread after the one that resolved was reinserted under the typing"
 
 
-def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve):
-    """A failed child paint restores the retained card before retrying its reading."""
+def test_a_failed_thread_list_update_keeps_one_coherent_reading(browser, serve):
+    """A failed child paint restores the retained card until the next reading paints."""
     url = serve(LONG_PAGE, comments=2)
     roots = [
         event["id"]
@@ -5131,23 +5131,6 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
             }
             return node;
           };
-          const presentList = list.present.bind(list);
-          let release;
-          const held = new Promise(done => { release = done; });
-          list.present = async model => {
-            const candidate = model.rows.find(row =>
-              row.kind === 'thread' && row.descriptor.id === id)?.descriptor;
-            if (window.threadChildFailed && candidate?.resolved &&
-                !window.threadRetryReleased) {
-              window.threadRetryHeld = true;
-              await held;
-            }
-            return presentList(model);
-          };
-          window.releaseThreadRetry = () => {
-            window.threadRetryReleased = true;
-            release();
-          };
           window.threadListPresentation = presentation;
           window.committedThread = document.querySelector(
             `.lf-thread[data-id="${id}"]`
@@ -5172,7 +5155,7 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
         root,
     )
     page.wait_for_function(
-        "() => window.threadChildFailed && window.threadRetryHeld && "
+        "() => window.threadChildFailed && "
         "window.threadListPresentation.readApplicationPresentation().pending"
         ".includes('thread')",
     )
@@ -5201,8 +5184,15 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
+    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
+        "leaf: Presentation failed: injected thread-card failure"
+    ]
 
-    page.evaluate("window.releaseThreadRetry()")
+    holding(page, held_events, 2, "the gesture and the page's report of its failure")
+    for route in held_events:
+        route.continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
     page.wait_for_function(
         "() => !window.threadListPresentation.readApplicationPresentation().pending.length"
     )
@@ -5214,17 +5204,9 @@ def test_a_failed_thread_list_update_retries_one_coherent_reading(browser, serve
         'id => document.querySelector(`.lf-thread[data-id="${id}"]`) '
         "=== window.committedThread",
         root,
-    ), "successful retry replaced the retained card"
+    ), "the next reading replaced the retained card"
     expect(page.locator(".lf-thread-view-summary")).to_have_text("0 open threads")
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
-    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
-        "leaf: Presentation failed: injected thread-card failure"
-    ]
-    holding(page, held_events, 2, "the gesture and the page's report of its failure")
-    for route in held_events:
-        route.continue_()
-    page.unroute("**/api/event")
-    round_trip(page)
 
 
 def test_a_failed_narrowing_restore_has_one_owned_presentation_error(browser, serve):
@@ -5338,10 +5320,7 @@ def test_a_failed_narrowing_view_restores_its_committed_list_and_keeps_the_input
         }"""
     )
     assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
-        (
-            "leaf: Presentation failed: Thread list presentation retry failed: "
-            "injected narrowing-view failure; injected narrowing-view failure"
-        )
+        "leaf: Presentation failed: injected narrowing-view failure"
     ]
 
     find.fill("")
@@ -5378,19 +5357,12 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
         """() => {
           const list = document.querySelector('leaf-thread-list');
           const render = list.render.bind(list);
-          let failures = 2;
+          let failures = 1;
           list.render = () => {
             const row = list.model.rows.find(({kind}) => kind === 'thread');
             if (row?.descriptor.visible && failures-- > 0)
               throw new Error('deliberate reveal failure');
             return render();
-          };
-          const retain = list.retainCommitted.bind(list);
-          let retentions = 0;
-          list.retainCommitted = (...args) => {
-            if (++retentions === 2)
-              throw new Error('deliberate retry retention failure');
-            return retain(...args);
           };
         }"""
     )
@@ -5404,13 +5376,7 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
           return readApplicationPresentation().pending.includes('thread');
         }"""
     )
-    expected = [
-        (
-            "leaf: Presentation failed: Thread list presentation and retention failed: "
-            "Thread list presentation retry failed: deliberate reveal failure; "
-            "deliberate reveal failure; deliberate retry retention failure"
-        )
-    ]
+    expected = ["leaf: Presentation failed: deliberate reveal failure"]
     assert [error.splitlines()[0] for error in take_browser_errors(page)] == expected
 
     routes = {route.request.post_data_json["kind"]: route for route in held}
@@ -11302,8 +11268,16 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
     expect(thread.locator(".lf-msg", has_text="Half tr a thought")).to_be_visible()
 
 
+@pytest.mark.parametrize(
+    "patch",
+    [
+        SEAT_DIFF + "@@ -9 +9 @@\n-old = 1\n+new = 1\n",
+        SEAT_DIFF.replace('+return "new"', '+return "newer"'),
+    ],
+    ids=["elsewhere", "on-the-line"],
+)
 def test_a_comment_being_written_on_a_diff_line_stays_in_hand_across_a_new_patch(
-    browser, serve
+    browser, serve, patch
 ):
     """The same drop one surface over: the comment box a diff seats on a line went
     with the rebuilt diff, and the user was left on the page. The draft stays about
@@ -11329,29 +11303,69 @@ def test_a_comment_being_written_on_a_diff_line_stays_in_hand_across_a_new_patch
     box = page.locator(".lf-fab-input")
     expect(page.locator("lf-diff .lf-diff-thread-outlet .lf-fab-input")).to_be_focused()
     write(box, "Half a thought")
-    box.evaluate("box => box.setSelectionRange(4, 4)")
-    # Whether the page, at any task after the box leaves, holds the user nowhere: a
-    # key arriving then would run as a page command.
-    page.evaluate(
-        """() => {
-          window.__strandedAt = [];
-          document.addEventListener('focusout', () => setTimeout(() => {
-            if (document.activeElement === document.body)
-              window.__strandedAt.push(performance.now());
-          }), true);
-        }"""
-    )
-    data_model.cmd_data_set(
-        serve.page_dir, "review-patch", SEAT_DIFF + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
-    )
+    box.evaluate("""box => {
+      box.setSelectionRange(4, 4);
+      window.blurs = 0;
+      box.addEventListener('blur', () => window.blurs++);
+    }""")
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     told(page)
+    expect(page.locator("lf-diff .lf-diff-thread-outlet")).to_have_count(0)
     expect(box).to_be_focused()
     expect(box).to_have_js_property("value", "Half a thought")
     assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [4, 4]
-    assert page.evaluate("() => window.__strandedAt") == []
+    # The editor never leaves the document, so nothing has to put the user back.
+    assert page.evaluate("window.blurs") == 0
     page.keyboard.type(" tr")
     expect(box).to_have_js_property("value", "Half tr a thought")
     expect(box).to_be_focused()
+
+
+@pytest.mark.parametrize("native_move", [True, False])
+def test_the_comment_box_keeps_the_user_typing_as_it_takes_its_seat_again(
+    browser, serve, native_move
+):
+    """Opening the folded file seats the comment box being written back on its diff
+    line, and the user goes on typing in it at the same caret. Where the browser has
+    `moveBefore` the move never blurs the editor, as `append` did, and the caret
+    survives the native selection the move collapses."""
+    url = serve(
+        leaf_page(
+            "diff",
+            f'<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'
+            f"<pre></pre></lf-diff>{SEAT_FILLER}",
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+    page = open_page(browser, url)
+    if not native_move:
+        page.evaluate("() => { Element.prototype.moveBefore = undefined; }")
+    page.locator(
+        'lf-diff [data-line-type="change-addition"][data-lf-datum=\'["app.py","new",1]\']'
+    ).hover()
+    page.get_by_role(
+        "button", name="Comment on app.py · new line 1", exact=True
+    ).click()
+    seated = page.locator("lf-diff .lf-diff-thread-outlet .lf-fab-input")
+    expect(seated).to_be_focused()
+    box = page.locator(".lf-fab-input")
+    write(box, "Half a thought")
+    details = page.locator("lf-diff details").first
+    details.evaluate("details => { details.open = false; }")
+    expect(seated).to_have_count(0)
+    expect(box).to_be_focused()
+    rendered(page)
+    box.evaluate("""box => {
+      box.setSelectionRange(4, 4);
+      window.blurs = 0;
+      box.addEventListener('blur', () => window.blurs++);
+    }""")
+    details.evaluate("details => { details.open = true; }")
+    expect(seated).to_be_focused()
+    page.keyboard.type(" tr")
+    expect(seated).to_have_js_property("value", "Half tr a thought")
+    if native_move:
+        assert page.evaluate("window.blurs") == 0
 
 
 def test_a_wheel_during_a_resolution_fold_outranks_the_landing_after_it(browser, serve):

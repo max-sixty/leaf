@@ -1191,7 +1191,7 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
    declare: "60" and "60 sessions" are one shape and two different things, and a
    pass that read the text would be guessing at the difference. */
 th.num, td.num { text-align: right; }
-ol.steps { list-style: none; counter-reset: step; padding-left: 0; }
+ol.steps { list-style: none; counter-reset: step; padding-inline-start: 0; }
 ol.steps > li { counter-increment: step; position: relative; padding-left: 34px;
                 margin: 10px 0; }
 /* The step's own number, off the ladder for the reason the ladder states: it is set

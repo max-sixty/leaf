@@ -388,6 +388,8 @@ keeps its own test says why beside it. Rows marked *lint* are enforced in
 | --- | --- |
 | Where the user stands: focus inside open shadow trees, or a label press holding them | `focus.js` `focused` |
 | Put the user on an element, saying what moved them | `focus.js` `focusDestination(node, cause)` (*lint*) |
+| Place a node that may already stand somewhere, keeping the user's place in it | `dom-move.js` `move(parent, node, before)` (*lint*) |
+| Make a list of nodes, some already placed, a parent's children | `dom-children.js` `setChildren` |
 | Whether a control takes typed letters | `focus.js` `typesText`, `takesLetters` |
 | Which focused control counts as the user's place: shown, and not under a stuck box | `user-place.js` `focusedInView` |
 | Whether a click came from the keyboard | `pointer.js` `pressIsKeyboardActivation` |
@@ -498,7 +500,7 @@ boolean only when false has one clear meaning; otherwise declare named values.
 The Python reader models only transformations the registry declares. A module that
 changes text in a way the file cannot reproduce is fenced: browser capture stops at the
 fence, so a selection crossing it never becomes a quote the file cannot confirm.
-Declare modelable words with `x-says`, `x-paints`, or the content key, and keep a
+Declare modelable words with `x-says` or the content key, and keep a
 widget fenced when its transformation cannot be represented.
 
 ## Render gates

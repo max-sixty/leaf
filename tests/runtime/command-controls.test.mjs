@@ -827,7 +827,7 @@ test("a template scope refused on re-render withdraws its shortcuts, and its ali
           {
             id: "probe.first",
             keys: ["y"],
-            contextKeys: ["Enter"],
+            contextKeys: ["1"],
             title: "a",
             run() {},
           },
@@ -840,7 +840,7 @@ test("a template scope refused on re-render withdraws its shortcuts, and its ali
   reflectFirstScopes();
   reflectKeys();
   const element = root.querySelector("button");
-  assert.equal(element.getAttribute("aria-keyshortcuts"), "y Enter");
+  assert.equal(element.getAttribute("aria-keyshortcuts"), "y 1");
   paint("Second", false);
   reflectFirstScopes();
   assert.deepEqual(
@@ -853,6 +853,33 @@ test("a template scope refused on re-render withdraws its shortcuts, and its ali
   reflectKeys();
   assert.equal(commandsWithin(root).length, 0);
   assert.equal(element.getAttribute("aria-keyshortcuts"), null);
+  root.remove();
+});
+
+test("a template scope's rows read the element the template renders", async () => {
+  const { html, render } = await import("/vendor/browser-runtime.js");
+  const { DISCLOSE } =
+    await import("../../skills/leaf/assets/runtime/keyboard/disclosure.js");
+  const root = document.createElement("section");
+  document.body.append(root);
+  render(
+    html`<details>
+      <summary
+        ${commandsOn("Disclosure", (summary) => [
+          { id: "probe.disclose", keys: () => DISCLOSE(summary), title: "toggle" },
+        ])}
+      ></summary>
+    </details>`,
+    root,
+  );
+  reflectFirstScopes();
+  reflectKeys();
+  const summary = root.querySelector("summary");
+  assert.match(summary.getAttribute("aria-keyshortcuts"), /ArrowRight/);
+  summary.parentElement.open = true;
+  paintKeys();
+  reflectKeys();
+  assert.match(summary.getAttribute("aria-keyshortcuts"), /ArrowLeft/);
   root.remove();
 });
 

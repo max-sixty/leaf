@@ -9199,7 +9199,6 @@ RING_CASES = (
                 (".lf-find-box input", "text-entry"),
                 (".lf-thread-panel leaf-text", "text-box"),
             ),
-            "command-hub": ((".lf-code-copy:visible button", "code-copy"),),
             "feature-gallery": (
                 ("lf-option > .lf-pick", "options-row"),
                 (
@@ -9785,9 +9784,6 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 expected = {expected} if isinstance(expected, str) else set(expected)
                 if selector:
                     target = page.locator(selector).first
-                    if name == "command-hub" and scope == "the page":
-                        page.locator("#ledger-fixture pre").scroll_into_view_if_needed()
-                        rendered(page)
                     # A sample can stand inside a container that is closed on arrival —
                     # the corpus holds each example in a tab, and only one panel is open.
                     # Nothing inside a hidden panel is focusable, so the ring would read
@@ -9810,17 +9806,8 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                     )
                     rendered(page)
                     open_containing_thread(target)
-                    if name == "command-hub" and scope == "the page":
-                        # A code block lends the keyboard an Enter route to its
-                        # copy control. Tab from elsewhere can scroll the source
-                        # away and withdraw that conditional control.
-                        source = page.locator("#ledger-fixture pre")
-                        source.scroll_into_view_if_needed()
-                        source.focus()
-                        source.press("Enter")
-                    else:
-                        page.keyboard.press("Tab")
-                        target.focus()
+                    page.keyboard.press("Tab")
+                    target.focus()
                     # A note on the details shelf is reached from the element that
                     # names it (details-shelf.js), never by Tab, and is focused here as
                     # a screen reader moving to it would focus it.
@@ -10489,39 +10476,6 @@ def test_retained_moves_keep_native_editor_and_frame_state(
             assert page.evaluate("window.blurs") > 0
 
 
-def test_editor_caret_hold_releases_after_unchanged_selection(browser, serve):
-    page = open_page(
-        browser,
-        serve(leaf_page("Editor caret", "<h1>Editor caret</h1><div id='seat'></div>")),
-    )
-    page.evaluate("""() => {
-      const field = document.createElement('leaf-text');
-      field.value = 'Intentional selection';
-      document.querySelector('#seat').append(field);
-      field.focus();
-      field.setSelectionRange(4, 4);
-    }""")
-    field = page.locator("#seat leaf-text")
-    expect(field).to_be_focused()
-    # Exercise the reconnect path after the initial focus events have settled.
-    field.evaluate(
-        "node => { node.setSelectionRange(4, 4); node.connectedCallback(); }"
-    )
-    # The first selectionchange leaves the held caret intact. It still consumes
-    # the hold, so a later programmatic change belongs to its caller.
-    page.evaluate("""() => new Promise(resolve => {
-      document.addEventListener('selectionchange', () => queueMicrotask(resolve), {once: true});
-      document.dispatchEvent(new Event('selectionchange'));
-    })""")
-    assert field.evaluate("node => node.selectionStart") == 4
-    field.evaluate("node => node.setSelectionRange(9, 9)")
-    page.evaluate("""() => new Promise(resolve => {
-      document.addEventListener('selectionchange', () => queueMicrotask(resolve), {once: true});
-      document.dispatchEvent(new Event('selectionchange'));
-    })""")
-    assert field.evaluate("node => [node.selectionStart, node.selectionEnd]") == [9, 9]
-
-
 def test_unfocused_editor_move_leaves_later_selection_alone(browser, serve):
     page = open_page(
         browser,
@@ -10544,7 +10498,7 @@ def test_unfocused_editor_move_leaves_later_selection_alone(browser, serve):
       const field = document.querySelector('#first leaf-text');
       field.blur();
       const unfocused = !field.matches(':focus');
-      document.querySelector('#second').append(field);
+      document.querySelector('#second').moveBefore(field, null);
       return [field.selectionStart, unfocused];
     }""")
     assert held == [4, True]

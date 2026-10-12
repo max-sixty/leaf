@@ -18,9 +18,10 @@
    opened from, its `source`: a declarative opening's (`popovertarget`, `commandfor`) as
    the toggle names it, and a scripted one's from the `showPopover` call itself, since
    the event retargets a source inside a shadow root to its host and goes unheard from a
-   root nobody staged. Dismissal stays each layer's own `popover` or `closedby` value. A popover opened declaratively inside a shadow root nobody staged
-   fires a `toggle` this module cannot hear, so it never reaches the stack; `shadowStage`
-   is the declared route for a widget's shadow tree.
+   root nobody staged. Dismissal stays each layer's own `popover` or `closedby` value. A
+   popover opened declaratively inside a shadow root nobody staged fires a `toggle` this
+   module cannot hear, so it never reaches the stack; `shadowStage` is the declared route
+   for a widget's shadow tree.
 
    Every read prunes first, and an entry whose surface no longer stands is removed
    wherever it sits, so a dialog closed by script beneath another layer cannot linger as

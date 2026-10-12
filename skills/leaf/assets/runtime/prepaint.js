@@ -544,19 +544,26 @@
     // before upgrade the same attributes already provide the final authored box.
     return true;
   };
-  // How far each breakout's holder stands in from the column on each side
-  // (`--lf-indent-l`, `--lf-indent-r`), which the breakout's room counts as its own
-  // (layouts.css): a list item, a list the page resets, a page's own indented block,
-  // whatever moved it, read off the boxes rather than declared by each kind of holder.
+  // How far the block each breakout is laid out in stands in from the column on each
+  // side (`--lf-indent-l`, `--lf-indent-r`), which the breakout's room counts as its own
+  // (layouts.css): a list item, a list the page resets, a page's own indented block, a
+  // cell of the page's own grid, whatever moved it, read off the boxes rather than
+  // declared by each kind of holder. The block is the one the breakout's margins and
+  // percentages resolve against, and a breakout whose width follows it, as every one
+  // but a table's does, spans exactly that block once its margins are counted back, in
+  // a holder's flow, a grid area or a flex line alike: so it is read off the breakout's
+  // own box, which its margins never move. A table's width is its columns', so its box
+  // says nothing of the block's far edge; it reads its holder's content box instead,
+  // which is its block in a holder's flow and is taken for it in a grid or flex holder.
   // Only a column grows a breakout past its holder, so a page whose `main` requests no
   // column shell (`seat`) carries no reading, and a breakout inside another takes its
   // holder's width and none of this room. A breakout the browser is not drawing, such
   // as one in a tab not chosen, is not read, since reading skipped content forces its
   // style and layout: it keeps its last reading, and one never read stands as if its
-  // holder were the column. Every edge is read before any is written, so the page is
+  // block were the column. Every edge is read before any is written, so the page is
   // laid out once however many breakouts it holds. Read with the column, so a breakout
-  // parsed before first paint is placed before it paints; one inserted or revealed
-  // later is read as it arrives (content-layout.js).
+  // parsed before first paint is placed before it paints; one inserted, revealed or
+  // moved later is read as it arrives or moves (content-layout.js).
   const contentEdges = (element) => {
     const box = element.getBoundingClientRect();
     const style = getComputedStyle(element);
@@ -565,6 +572,14 @@
         box.left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft),
       right:
         box.right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight),
+    };
+  };
+  const marginEdges = (element) => {
+    const box = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return {
+      left: box.left - parseFloat(style.marginLeft),
+      right: box.right + parseFloat(style.marginRight),
     };
   };
   const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
@@ -577,14 +592,16 @@
     while (holder !== main && getComputedStyle(holder).display === "contents");
     return holder;
   };
-  // Returns whether any breakout's indent changed, and the holders it measured, each
-  // with its content box's width and the breakouts it holds, for content-layout.js to
-  // watch: a class or style that pads a holder moves its breakout without inserting
-  // anything. The reading keeps none of them.
+  // Returns whether any breakout's indent changed, every breakout it answers for, and
+  // the holders it measured, each with its content box's edges and width and the
+  // breakouts it holds, for content-layout.js to watch: a class or style that pads a
+  // holder changes its blocks without inserting anything, and a block that moves moves
+  // its breakout. The reading keeps none of them.
   const indents = () => {
     const holders = new Map();
+    const breakouts = [];
     const main = document.querySelector("body > main");
-    if (!main) return { changed: false, holders };
+    if (!main) return { changed: false, breakouts, holders };
     const grows = document.body.hasAttribute("data-lf-column-shell");
     const readings = [];
     let column = null;
@@ -594,21 +611,21 @@
         readings.push([breakout, 0, 0]);
         continue;
       }
+      breakouts.push(breakout);
       if (!breakout.checkVisibility()) continue;
       column ??= contentEdges(main);
       const holder = holderOf(breakout, main);
-      const edges = contentEdges(holder);
+      if (!holders.has(holder)) {
+        const edges = contentEdges(holder);
+        holders.set(holder, { edges, width: edges.right - edges.left, breakouts: [] });
+      }
       const held = holders.get(holder);
-      if (held) held.breakouts.push(breakout);
-      else
-        holders.set(holder, {
-          width: edges.right - edges.left,
-          breakouts: [breakout],
-        });
+      held.breakouts.push(breakout);
+      const block = breakout.localName === "table" ? held.edges : marginEdges(breakout);
       readings.push([
         breakout,
-        Math.max(0, Math.round(edges.left - column.left)),
-        Math.max(0, Math.round(column.right - edges.right)),
+        Math.max(0, Math.round(block.left - column.left)),
+        Math.max(0, Math.round(column.right - block.right)),
       ]);
     }
     let changed = false;
@@ -625,12 +642,12 @@
         else removeRuntimeRootStyle(breakout, property);
         changed = true;
       }
-    return { changed, holders };
+    return { changed, breakouts, holders };
   };
   const residency = () => {
     const seated = seat();
-    const { changed, holders } = indents();
-    return { changed: changed || seated, holders };
+    const reading = indents();
+    return { ...reading, changed: reading.changed || seated };
   };
 
   // The id a URL fragment spells, for location.hash and for a link's href alike, from

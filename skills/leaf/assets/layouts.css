@@ -284,9 +284,12 @@
      * starts at its holder's inline start and a translation moves it from there, the
      * larger of the two offsets that rule gives, each in the box's own width (the
      * percentage) and the column's (`--lf-width`) less how far the holder stands in from
-     * it (`--lf-indent-l`, `--lf-indent-r`, measured by the runtime). Wider than its
-     * holder, the box is over-constrained, and the browser keeps the margin at the
-     * holder's inline start, so the translation's sign follows the direction. Where the
+     * it (`--lf-indent-l`, `--lf-indent-r`, measured by the runtime). A box with a width
+     * of its own is over-constrained, and the browser keeps the margin at the holder's
+     * inline start, so the translation's sign, and which margin is the end one below,
+     * follow the holder's direction rather than the table's own: keyed to the table's,
+     * a right-to-left table in a left-to-right page stood at 555..1664, not 165..1275.
+     * Where the
      * margins are uneven, beside a contents map's spine or a column moved over for a
      * sidenote, the even span is twice the narrower side's room, so a grid wider than it
      * wraps or scrolls that much sooner: 48px sooner beside a map's spine at 1440px.
@@ -295,10 +298,17 @@
      * left edge and grows right, in either direction, since the sidebar stands on the
      * left in both.
      *
-     * The box's width is its content's, so it gives up the size containment above:
-     * inside a box that sizes itself to what it holds, such as a page's own grid track
-     * at its content's minimum, the table can widen it, as any table without a width of
-     * its own can. Nor is the table the container its caption reads its width from
+     * The box's width is its content's, so it gives up the size containment above, which
+     * is what keeps every other breakout's width out of its holder's. A holder that sizes
+     * itself to what it holds, such as a page's own grid track at its content's minimum,
+     * took the table's whole width instead: the track beside it shrank to 30px and the
+     * page scrolled sideways. The margin at the holder's inline end takes that width back,
+     * as much as the table can be wide (the span). The browser ignores that margin in
+     * placing an over-constrained box, and a holder sizing itself to what it holds counts
+     * it, so the table asks nothing of its holder and overflows into the room it was
+     * granted, as any breakout does. As an item of a flex row, whose end margin does
+     * place what follows, the table would stand under its next sibling. Nor is the table
+     * the container its caption reads its width from
      * (reading.css), so the caption is held to the span, which is the box's width
      * wherever the columns scroll. Only where the room is the page's: in a frame or
      * inside another breakout, the table fills or starts at its holder as every table
@@ -315,7 +325,8 @@
         width: max-content;
         min-width: 100%;
         max-width: var(--lf-table-span);
-        margin-inline: 0;
+        margin-left: 0;
+        margin-right: calc(-1 * var(--lf-table-span));
         translate: min(0px, max(
           calc(var(--lf-width) - var(--lf-indent-l) - var(--lf-indent-r) - 100%),
           calc(var(--lf-width) / 2 - var(--lf-indent-l) - 50%))) 0;
@@ -326,8 +337,11 @@
         --lf-table-span: min(var(--wide),
           var(--lf-width) + 2 * min(var(--lf-free-l), var(--lf-free-r)));
       }
-      main.layout-column table:is([data-lf-space="wide"], [data-lf-space="available"]):dir(rtl):not(
+      :is(main.layout-column, main.layout-column *):dir(rtl)
+        > table:is([data-lf-space="wide"], [data-lf-space="available"]):not(
         :is([data-lf-space="wide"], [data-lf-space="available"]) table) {
+        margin-left: calc(-1 * var(--lf-table-span));
+        margin-right: 0;
         translate: max(0px, min(
           calc(100% - var(--lf-width) + var(--lf-indent-l) + var(--lf-indent-r)),
           calc(50% - var(--lf-width) / 2 + var(--lf-indent-r)))) 0;
@@ -345,8 +359,9 @@
         :is([data-lf-space="wide"], [data-lf-space="available"]) table) {
         --lf-table-span: min(var(--wide), var(--lf-width) + var(--lf-free-r));
       }
-      main.layout-column[data-lf-margin~="sidebar"]
-        table:is([data-lf-space="wide"], [data-lf-space="available"]):dir(rtl):not(
+      :is(main.layout-column[data-lf-margin~="sidebar"],
+        main.layout-column[data-lf-margin~="sidebar"] *):dir(rtl)
+        > table:is([data-lf-space="wide"], [data-lf-space="available"]):not(
         :is([data-lf-space="wide"], [data-lf-space="available"]) table) {
         translate: max(0px, calc(100% - var(--lf-width) + var(--lf-indent-r))) 0;
       }

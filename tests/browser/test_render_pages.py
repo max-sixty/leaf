@@ -1486,21 +1486,35 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
     stands in the left margin the room is all on the right, so the table starts at the
     prose's left edge and grows right. In a right-to-left page the same holds with the
     narrow table at the prose's right edge, where its text starts; the sidebar stands
-    on the left there too."""
+    on the left there too.
+
+    The table breaks out of its holder and nothing else: in a cell of the page's own
+    two-track grid it stands where the one in the flow does, and the grid keeps its
+    tracks even, where its natural width had widened its own track and crushed the
+    other to 30px. A table written in the other direction from its holder stands there
+    too, since the browser keeps an over-wide box at its holder's start, not its own."""
     head = "".join(f"<th>Column {i}</th>" for i in range(8))
     row = "".join(f"<td>measured value {i}</td>" for i in range(8))
+    grid = f"<thead><tr>{head}</tr></thead><tbody><tr>{row}</tr></tbody>"
+    other = "rtl" if direction == "ltr" else "ltr"
     body = (
         f"{resident}<h1>Tables</h1>"
         '<p id="prose">A paragraph at the measure, long enough to fill the column it '
         "stands in from one edge to the other.</p>"
-        f'<table id="wide" data-width="available"><thead><tr>{head}</tr></thead>'
-        f"<tbody><tr>{row}</tr></tbody></table>"
+        f'<table id="wide" data-width="available">{grid}</table>'
         '<table id="narrow" data-width="available"><tr><th>Plan</th><td>60</td></tr>'
         "</table>"
+        f'<table id="turned" dir="{other}" data-width="available">{grid}</table>'
+        '<div class="pair"><div id="beside"><p>Left cell.</p></div>'
+        f'<div id="cell"><p>Right cell.</p><table id="celled" data-width="available">'
+        f"{grid}</table></div></div>"
     )
-    source = leaf_page("Tables granted room", body).replace(
-        '<html lang="en">', f'<html lang="en" dir="{direction}">', 1
-    )
+    source = leaf_page(
+        "Tables granted room",
+        body,
+        head="<style>.pair { display: grid; grid-template-columns: 1fr 1fr; "
+        "gap: 16px; }</style>",
+    ).replace('<html lang="en">', f'<html lang="en" dir="{direction}">', 1)
     page = open_page(browser, serve(source))
     resized(page, 1440, 900)
     margins_laid_out(page)
@@ -1515,6 +1529,10 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
         prose: edges(document.getElementById('prose')),
         wide: grid('wide'),
         narrow: grid('narrow'),
+        turned: grid('turned'),
+        celled: grid('celled'),
+        beside: edges(document.getElementById('beside')),
+        cell: edges(document.getElementById('cell')),
       };
     }""")
     if posture != "even":
@@ -1527,6 +1545,14 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
         assert at["wide"]["left"] == pytest.approx(prose["left"], abs=1), at
     else:
         assert at["wide"]["centre"] == pytest.approx(prose["centre"], abs=1), at
+    for placed in ("turned", "celled"):
+        for edge in ("left", "right"):
+            assert at[placed][edge] == pytest.approx(at["wide"][edge], abs=1), (
+                placed,
+                at,
+            )
+    width = lambda box: box["right"] - box["left"]  # noqa: E731
+    assert width(at["beside"]) == pytest.approx(width(at["cell"]), abs=1), at
     assert root_overflow(page) == 0
 
 
@@ -1597,9 +1623,15 @@ INDENTED_PAGE = leaf_page(
     "</li></ol></li></ul>"
     + f'<ol class="steps"><li id="steps">A step{_indented("steps")}</li></ol>'
     + f'<ul class="plain"><li id="plain">An item{_indented("plain")}</li></ul>'
-    + f'<div class="inset" id="inset">An indented block{_indented("inset")}</div>',
+    + f'<div class="inset" id="inset">An indented block{_indented("inset")}</div>'
+    # Breakouts that are themselves items of the page's own grid, in its second track.
+    + '<div class="pair" id="gridded"><i class="gutter"></i>'
+    '<div id="gridded-wide" data-width="wide">Wide.</div>'
+    '<div id="gridded-available" data-width="available">Available.</div></div>',
     head="<style>ul.plain { padding: 0; list-style: none; }"
-    " .inset { padding-left: 40px; }</style>",
+    " .inset { padding-left: 40px; }"
+    " .pair { display: grid; grid-template-columns: 1fr 1fr; column-gap: 16px; }"
+    " .pair > .gutter { grid-row: span 2; }</style>",
 )
 
 
@@ -1614,7 +1646,9 @@ def test_a_breakout_in_an_indented_holder_measures_its_room_from_the_column(
     block. The runtime reads how far each holder stands in rather than each kind of
     holder declaring it, so a wide or available block in any of them takes the same box
     as one in the page's flow, on the prose axis, beside a contents map and with a
-    sidebar in the margin as on a plain column, and on a phone. A table wider than its
+    sidebar in the margin as on a plain column, and on a phone. So does one that is
+    itself an item in the second track of the page's own grid, whose block is that
+    track rather than the grid's content box. A table wider than its
     holder stands where one in the page's flow does: centred on the prose axis, or from
     the prose's left edge beside a margin sidebar. One that fits its holder stays with
     it, starting where the holder's text starts."""
@@ -1666,6 +1700,10 @@ def test_a_breakout_in_an_indented_holder_measures_its_room_from_the_column(
           narrow: edges(document.querySelector(`#${name}-narrow tr`)),
           text: textStart(document.getElementById(`${name}-narrow`).parentElement),
         };
+      reading.gridded = {
+        wide: edges(document.getElementById('gridded-wide')),
+        available: edges(document.getElementById('gridded-available')),
+      };
       return reading;
     }""",
         direction,
@@ -1675,13 +1713,17 @@ def test_a_breakout_in_an_indented_holder_measures_its_room_from_the_column(
     control, prose = at["control"], at["prose"]
     start = "left" if direction == "ltr" else "right"
     assert abs(at["nested"]["text"] - control["text"]) >= 70, at
-    for name in ("nested", "steps", "plain", "inset"):
+    for name in ("nested", "steps", "plain", "inset", "gridded"):
         holder = at[name]
         for block in ("wide", "available", "table"):
+            if block not in holder:
+                continue
             for edge in ("left", "right"):
                 assert holder[block][edge] == pytest.approx(
                     control[block][edge], abs=1
                 ), (name, block, edge, at)
+        if name == "gridded":
+            continue
         assert holder["narrow"][start] == pytest.approx(holder["text"], abs=1), (
             name,
             at,
@@ -1848,6 +1890,64 @@ def test_a_breakout_moved_in_after_load_re_lands_before_it_paints(browser, serve
         assert page.evaluate(
             "() => [window.lfReadings, window.lfRemovedHolder.deref() === undefined]"
         ) == [1, True]
+
+
+MOVED_PAGE = leaf_page(
+    "Moved holders",
+    '<h1>Holders</h1><p id="prose">A paragraph at the measure, long enough to fill '
+    "the column it stands in from one edge to the other.</p>"
+    '<div id="control" data-width="wide">Wide.</div>'
+    '<div class="fixed" id="shift"><p>A holder of its own width.</p>'
+    '<div id="shift-wide" data-width="wide">Wide.</div></div>'
+    '<div class="inset gone" id="reveal"><p>A holder the page shows later.</p>'
+    '<div id="reveal-wide" data-width="wide">Wide.</div></div>',
+    head="<style>.fixed { width: 600px; } .fixed.moved { margin-left: 80px; }"
+    " .inset { padding-left: 60px; } .gone { display: none; }</style>",
+)
+
+
+@pytest.mark.parametrize("how", ["shift", "reveal"])
+def test_a_breakout_whose_block_moves_re_lands(browser, serve, how):
+    """A block can move with nothing inserted, no attribute Leaf knows changed and its
+    holder no wider or narrower: a class gives a holder of fixed width a margin, which
+    carries its breakout 80px across, or stops hiding a holder, which draws a breakout
+    never read before. Either breakout stands back on the prose axis, beside one in the
+    page's flow, with every frame callback held, so neither the margin pass nor a
+    resize read it."""
+    page = open_page(browser, serve(MOVED_PAGE))
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    off = """(how) => {
+      const box = document.getElementById(`${how}-wide`).getBoundingClientRect();
+      const control = document.getElementById('control').getBoundingClientRect();
+      return Math.max(Math.abs(box.left - control.left),
+        Math.abs(box.right - control.right));
+    }"""
+    with held_frames(page):
+        moved = page.evaluate(
+            f"""async (how) => {{
+          // Frame callbacks are held, so after one rendering update and a task none the
+          // runtime asked for before the change is left to run after it.
+          await new Promise((resolve) => {{
+            const observer = new ResizeObserver(() => {{
+              observer.disconnect();
+              setTimeout(resolve);
+            }});
+            observer.observe(document.body);
+          }});
+          const lf = document.documentElement.lfInitial;
+          const read = lf.residency;
+          window.lfPasses = 0;
+          lf.residency = () => (window.lfPasses++, read());
+          if (how === 'shift') document.getElementById('shift').classList.add('moved');
+          else document.getElementById('reveal').classList.remove('gone');
+          return ({off})(how);
+        }}""",
+            how,
+        )
+        assert moved >= 20, ("the change did not move the breakout", moved)
+        page.wait_for_function(f"(how) => ({off})(how) < 1", arg=how, polling=50)
+        assert page.evaluate("window.lfPasses") == 0
 
 
 def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):

@@ -528,7 +528,7 @@ class SourceDocument:
             if reference.startswith(("/page/", "page/", "./page/"))
         )
 
-        if tag == "noscript" or (tag == "template" and "data-sample" not in attrs):
+        if tag == "noscript":
             self.errors.append(
                 f"<{tag}> at line {line}: the browser renders none of its content; "
                 "write it plainly or leave it out"

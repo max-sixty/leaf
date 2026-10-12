@@ -1184,6 +1184,25 @@ def test_check_refuses_noscript_words_the_browser_never_renders(page_dir):
     assert "the browser renders none of its content" in result.output
 
 
+def test_check_admits_a_template_whose_words_no_anchor_reaches(page_dir):
+    """A page module may clone a template, so check admits one. The browser and
+    the file parser both keep its contents out of the tree, so no anchor reaches
+    its words."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            '<h2>Plan</h2><template id="row"><p>Cloned words.</p></template>',
+        )
+    )
+    result = check(page_dir)
+    assert result.exit_code == 0, result.output
+    text = passages_model.page_passages(
+        structure_model.SourceDocument((page_dir / "index.html").read_text()), {}
+    ).text
+    assert "Plan" in text
+    assert "Cloned words." not in text
+
+
 def test_check_rejects_widget_violations(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace(
@@ -2729,61 +2748,18 @@ def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
     )
 
 
-@pytest.mark.parametrize(
-    ("stored", "message"),
-    [
-        ("null", "data must be an object with only sources"),
-        ('{"revision":1,"sources":{}}', "data must be an object with only sources"),
-        (
-            '{"sources":{"builds":{"contract":"Bad Contract"}}}',
-            "source 'builds' must record only a contract",
-        ),
-        (
-            '{"sources":{"builds":{"contract":"build-map","revision":1}}}',
-            "source 'builds' must record only a contract",
-        ),
-    ],
-)
-def test_the_contract_index_refuses_anything_but_contracts(page_dir, stored, message):
-    """data.json records only which contract each source id was bound to."""
-    (page_dir / "data.json").write_text(stored)
-
-    with pytest.raises(data_contracts_model.DataError, match=message):
-        read_page_data(page_dir)
-
-
-def test_the_contract_index_wraps_invalid_utf8_at_its_boundary(page_dir):
-    (page_dir / "data.json").write_bytes(b"\xff")
-
-    with pytest.raises(data_contracts_model.DataError, match="invalid JSON"):
-        read_page_data(page_dir)
-
-
-@pytest.mark.parametrize(
-    ("value", "message"),
-    [
-        (b"\xff", "is not JSON"),
-        (b"[NaN]", "NaN is not JSON"),
-        (b"[]", "must hold a publication"),
-        (
-            b'{"run":"bad","updated":"2026-01-01T00:00:00Z","value":[]}',
-            "must hold a publication",
-        ),
-        (
-            b'{"run":"11111111111111111111111111111111","updated":"yesterday","value":[]}',
-            "must hold a publication",
-        ),
-    ],
-)
-def test_a_corrupted_publication_reads_as_that_sources_error(page_dir, value, message):
-    """External corruption never becomes data or a fabricated publication receipt."""
+def test_a_value_an_earlier_leaf_wrote_reads_as_that_sources_error(page_dir):
+    """A Leaf before publications wrote the bare value, so a page it fed names the
+    rewrite rather than reading that value as a publication."""
     declare_data_input(page_dir, "builds", {"type": "array"}, contract="build-map")
     data_model.cmd_data_set(page_dir, "builds", [])
-    data_model.source_file(page_dir, "builds").write_bytes(value)
+    data_model.source_file(page_dir, "builds").write_bytes(b"[]")
 
     source = read_page_data(page_dir)["sources"]["builds"]
     assert "value" not in source
-    assert message in source["error"]
+    assert source["error"] == (
+        "source 'builds' holds no publication; write it again with leaf data set"
+    )
 
 
 def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir):

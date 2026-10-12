@@ -614,9 +614,9 @@ Each source is one JSON publication at `data/<source>.json`, holding its opaque
 `run` receipt, `updated` instant, and complete `value`; `data.json` records its
 contract. Write a value through `leaf data set`, which checks the binding, validates
 the value and replaces the publication atomically. A rejected value leaves it
-untouched. Every reading validates the publication and value against the contract,
-so corrupted data reaches users as that source's error, and `page check` and
-`page state` report it. Tabs hear a new publication as they hear any page change.
+untouched. Every reading validates the value against the contract the source is
+bound to now, so a value that no longer fits it reaches users as that source's error,
+and `page check` and `page state` report it. Tabs hear a new publication as they hear any page change.
 
 A contract that carries media URLs declares `resources`, a list of
 [JMESPath expressions](https://jmespath.org/tutorial.html) selecting each URL string
@@ -643,7 +643,7 @@ to be derived from a file — a text excerpt, a patch split into files — is th
 producer's to build, and a contract that needs more than `jq` says how in its
 producer `instructions`. A package may ship that tool
 as a Python file under `scripts/`, declaring its dependencies in inline script metadata
-(PEP 723) with floors and no cap. `leaf package run NAME SCRIPT [ARGS]...` finds the
+(PEP 723). `leaf package run NAME SCRIPT [ARGS]...` finds the
 package by the name `--package` selects it by, bundled or installed, and runs the
 script with `uv run --script` in the environment its header declares, apart from
 Leaf's own. The script owns stdin, stdout, and the exit status, so the instructions state the
@@ -654,11 +654,10 @@ git diff main... | leaf package run diff patch_manifest.py | leaf data set PAGE 
 ```
 
 `package check` and `package install` refuse a `scripts/*.py` without that header,
-since uv would run it in whatever project the caller's directory reaches, and refuse a
-constraint other than a `>=` floor. A subdirectory of `scripts/` holds helpers and is
-not checked or run. A page never vendors `scripts/`. When a producer upstream of `data set` fails and
-writes nothing, `data set` refuses the empty input and points back at that producer's
-own error.
+since uv would run it in whatever project the caller's directory reaches. A
+subdirectory of `scripts/` holds helpers and is not checked or run. A page never
+vendors `scripts/`. When a producer upstream of `data set` fails and writes nothing,
+`data set` refuses the empty input and points back at that producer's own error.
 
 A revision may replace a source's contract, including its schema, record declaration,
 and resource selectors. `data set` validates against the current binding and replaces

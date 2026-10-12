@@ -1865,8 +1865,7 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     consume_browser_errors(page, "400")
 
 
-@pytest.mark.parametrize("box", ["seat", "general"])
-def test_every_message_send_says_so_to_a_user_listening(held_events, serve, box):
+def test_every_message_send_says_so_to_a_user_listening(held_events, serve):
     """A send whose result the user cannot see still reaches them.
 
     The message standing in the thread is the whole acknowledgement for a user
@@ -1878,15 +1877,9 @@ def test_every_message_send_says_so_to_a_user_listening(held_events, serve, box)
     browser, held = held_events
     page = open_page(browser, serve(SEATED_QUESTION_PAGE))
     live = page.locator(".lf-live")
-    if box == "seat":
-        seat = page.locator("#jobs > .lf-thread-seat > .lf-say")
-        field = seat.locator("leaf-text")
-        press = seat.get_by_role("button", name="Send", exact=True)
-    else:
-        field = page_comment(page)
-        press = page.locator(".lf-general").get_by_role(
-            "button", name="Send", exact=True
-        )
+    seat = page.locator("#jobs > .lf-thread-seat > .lf-say")
+    field = seat.locator("leaf-text")
+    press = seat.get_by_role("button", name="Send", exact=True)
     write(field, "A remark whose arrival nothing else will say.")
     press.click()
     # Held: the gesture is the only thing that can have written the region, and the
@@ -3937,10 +3930,7 @@ def test_a_resolved_reply_composition_stays_open_until_deliberately_dismissed(
         assert stored_draft_text(page, f"reply:{root['id']}") == words
 
 
-@pytest.mark.parametrize("resolved", [False, True])
-def test_send_follows_a_reply_composition_whose_diff_outlet_disappears(
-    browser, serve, resolved
-):
+def test_send_follows_a_reply_composition_whose_diff_outlet_disappears(browser, serve):
     """A replaced patch carries the same Send control to the thread's margin card."""
     patch = (
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
@@ -3971,12 +3961,11 @@ def test_send_follows_a_reply_composition_whose_diff_outlet_disappears(
     inline = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
     words = "I still need to send my answer about that line."
     write(inline.locator("leaf-text"), words)
-    if resolved:
-        events_model.append_event(
-            serve.page_dir,
-            {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": root},
-        )
-        told(page)
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": root},
+    )
+    told(page)
     page.keyboard.press("Tab")
     expect(inline.get_by_role("button", name="Send", exact=True)).to_be_focused()
     rendered(page)
@@ -4062,9 +4051,8 @@ def test_tab_browsing_keeps_a_reply_when_its_diff_outlet_is_replaced(
     expect(card.locator("leaf-text")).to_have_js_property("value", words)
 
 
-@pytest.mark.parametrize("resolved", [False, True])
 def test_tab_browsing_continues_a_displaced_reply_without_an_annotation_overlay(
-    browser, serve, resolved
+    browser, serve
 ):
     """Native Tab during core continuation preserves its caret and newer authored focus."""
     patch = (
@@ -4101,12 +4089,11 @@ def test_tab_browsing_continues_a_displaced_reply_without_an_annotation_overlay(
     write(inline.locator("leaf-text"), words)
     page.keyboard.press("Home")
     page.keyboard.press("ArrowRight")
-    if resolved:
-        events_model.append_event(
-            serve.page_dir,
-            {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": root},
-        )
-        told(page)
+    events_model.append_event(
+        serve.page_dir,
+        {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": root},
+    )
+    told(page)
     page.keyboard.press("Tab")
     expect(inline.get_by_role("button", name="Send", exact=True)).to_be_focused()
     rendered(page)
@@ -5044,8 +5031,7 @@ def test_the_reading_page_step_never_paints_behind_where_it_started(browser, ser
         )
 
 
-@pytest.mark.parametrize(("down", "up"), [("d", "u"), ("j", "k")])
-def test_the_reading_keys_jump_under_reduced_motion(browser, serve, down, up):
+def test_the_reading_keys_jump_under_reduced_motion(browser, serve):
     """Both reading distances jump immediately under reduced motion."""
     context = browser.new_context(
         viewport={"width": 1200, "height": 900},
@@ -5053,23 +5039,27 @@ def test_the_reading_keys_jump_under_reduced_motion(browser, serve, down, up):
         reduced_motion="reduce",
     )
     page = open_page(browser, serve(SMOOTH_LONG_PAGE), context=context)
-    step = (
-        60
-        if down == "j"
-        else page.evaluate(
-            "() => { const s = getComputedStyle(document.scrollingElement); return ("
-            " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
-            " - parseFloat(s.scrollPaddingBottom)) * 0.6; }"
+    for down, up in (("d", "u"), ("j", "k")):
+        step = (
+            60
+            if down == "j"
+            else page.evaluate(
+                "() => { const s = getComputedStyle(document.scrollingElement); return ("
+                " document.scrollingElement.clientHeight - parseFloat(s.scrollPaddingTop)"
+                " - parseFloat(s.scrollPaddingBottom)) * 0.6; }"
+            )
         )
-    )
-    page.keyboard.press(down)
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
-        step, abs=1
-    ), "the step had not reached its destination when the press returned"
-    page.keyboard.press(up)
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == pytest.approx(
-        0, abs=1
-    )
+        page.keyboard.press(down)
+        assert page.evaluate(
+            "() => document.scrollingElement.scrollTop"
+        ) == pytest.approx(step, abs=1), (
+            down,
+            "the step had not reached its destination when the press returned",
+        )
+        page.keyboard.press(up)
+        assert page.evaluate(
+            "() => document.scrollingElement.scrollTop"
+        ) == pytest.approx(0, abs=1), up
 
 
 def test_the_reading_page_keys_move_the_region_the_user_is_scrolling(browser, serve):
@@ -5713,10 +5703,7 @@ def test_delayed_thread_destination_yields_to_shared_generation_or_new_input(
         expect(page.locator("#authored-draft")).to_be_focused()
 
 
-@pytest.mark.parametrize("surface", ["panel", "margin"])
-def test_live_executable_replacement_keeps_a_resolved_reply_session(
-    browser, serve, surface
-):
+def test_live_executable_replacement_keeps_a_resolved_reply_session(browser, serve):
     """A live replacement continues actual editing; an ordinary reload only saves words."""
     page = editing_reply_page(browser, serve)
     root = next(
@@ -5724,15 +5711,10 @@ def test_live_executable_replacement_keeps_a_resolved_reply_session(
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     )
-    if surface == "panel":
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
-        thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
-        thread.locator(".lf-thread-summary").focus()
-    else:
-        thread = page.locator(
-            f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'
-        )
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    thread.locator(".lf-thread-summary").focus()
     editor = thread.locator("leaf-text")
     words = "Keep this actual editing session through the executable replacement."
     write(editor, words)

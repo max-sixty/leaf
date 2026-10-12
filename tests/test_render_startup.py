@@ -4085,11 +4085,18 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(workflows).to_have_count(1)
 
 
-def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve):
-    """The gallery's injected-chrome case exercises the external state it cannot
-    author: exact delivery keeps its workflow while page work retains the independently
-    declared overall state, then falls back to generic work when that declaration waits."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
+def test_a_workflow_and_the_banner_share_agent_activity(browser, serve):
+    """Exact delivery keeps its workflow while page work retains the independently
+    declared overall state, then falls back to generic work when that declaration
+    waits. The page's open Ask ends the banner's disclosure, after the activity it
+    shares."""
+    source = LONG_PAGE.replace(
+        "</main>",
+        "<lf-ask id='ship-ask'><h2>Ship now?</h2><lf-options id='ship' choose>"
+        "<lf-option id='ship-now'>Now</lf-option>"
+        "<lf-option id='ship-later'>Later</lf-option></lf-options></lf-ask></main>",
+    )
+    page = open_page(browser, serve(source))
     page_dir = serve.page_dir
     comment = append_carried_log_record(
         page_dir,
@@ -4100,7 +4107,7 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
             "text": "Does the banner agree with this workflow?",
         },
     )
-    record_claim(page_dir, id="gallery", pid=os.getpid(), agent="Claude")
+    record_claim(page_dir, id="workflow", pid=os.getpid(), agent="Claude")
     declare_work(page_dir, "Writing the page")
     with service_model.PageTransaction(page_dir) as transaction:
         delivery_model.record_pickup(transaction, [comment])
@@ -4111,7 +4118,6 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
         f'.lf-thread[data-id="{comment["id"]}"] .lf-msg[data-mid="{comment["id"]}"] > .lf-msg-head .lf-msg-sending'
     )
     expect(workflow).to_have_text("Picked up")
-    # The gallery's own queues end the disclosure, after the activity it shares.
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(
             r"^\s*Claude is working — Writing the page \(just now\)\. Waiting on you"
@@ -4119,7 +4125,7 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
     )
 
     end_work(page_dir)
-    session_model.cmd_waiting(page_dir, "review the gallery")
+    session_model.cmd_waiting(page_dir, "review the page")
     told(page)
     expect(workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(

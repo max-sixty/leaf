@@ -46,9 +46,10 @@
    Boot supplies composer, travel, and mode commands to one surface owner. Its
    constructor binds no document listeners; mount installs the selection gesture
    lifecycle and field-focus tracking after all capabilities have been composed. */
+import { addressableWord } from "../addressable-names.js";
 import {
-  addressableWord,
   anchoringIsReady,
+  lightSeat,
   resolveAnchor,
   visualAt,
 } from "../anchor-resolution.js";
@@ -76,7 +77,7 @@ import {
   commandReferenceOpen,
 } from "../keyboard/command-reference.js";
 
-import { paintReactionStanding } from "../reaction-standing.js";
+import { paintBarReactions } from "../reactions.js";
 import { threadInput, standingThread } from "../thread/landing.js";
 import { replyDraftContext } from "../thread/replies.js";
 import { activeCommandLabel } from "../keyboard/dispatch.js";
@@ -92,7 +93,6 @@ import {
   closestAcross,
   inChrome,
   pageRange,
-  pageText,
   pageWords,
   programmaticSelection,
   selectEnds,
@@ -117,15 +117,12 @@ import {
   closeLayer,
 } from "../focus.js";
 import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
-import { shadowHost, under, upFrom } from "../shadow.js";
+import { under, upFrom } from "../shadow.js";
 import { nativeLayers } from "../keyboard/layer-stack.js";
 import { heldQuestion } from "../standing-target.js";
 
 import { coarsePointer, pointerAt } from "../pointer.js";
 import { anchorLabel } from "../thread/messages.js";
-
-import { reactionsAt } from "../thread/model.js";
-import { allThreads } from "../thread/state.js";
 
 import { standingPoint } from "../pointed-place.js";
 import { keeps } from "../keeps.js";
@@ -312,7 +309,7 @@ export function createResponseSurface({
   // Asked of a stored anchor from outside a live response transaction, where the composer
   // is down and there is no native selection to read the passage off.
   const anchorStands = (anchor) =>
-    Boolean(anchor) && standsIn(anchor, resolveAnchor(anchor, pageText()));
+    Boolean(anchor) && standsIn(anchor, resolveAnchor(anchor));
   const fabPointIn = (target) =>
     fabAnchor?.quote ? null : standingPoint(target, fabPoint);
   const placement =
@@ -425,9 +422,7 @@ export function createResponseSurface({
       const label = anchorLabel(fabAnchor, pendingAbout).replace(/^§\s*/, "");
       keeps(fabBar, "aria-label", label ? `Respond to ${label}` : "Respond");
       keeps(fabInput, "aria-label", label ? `Comment on ${label}` : "Comment");
-      // The tokens already standing on this very anchor read pressed, and a press on one
-      // takes it back (reactHere): the bar is the strip's shape on the page.
-      paintReactionStanding(fabBar, reactionsAt(allThreads(), fabAnchor));
+      paintBarReactions(fabAnchor);
       // A margin control can name an item whose rendered box is currently off
       // screen. `e` still needs the durable anchor so it can extend that existing item;
       // in that route the floating bar is never painted and placement is deliberately
@@ -491,31 +486,30 @@ export function createResponseSurface({
     return false;
   }
   // The durable anchor names the authored coordinate an event can replay, while the
-  // margin needs the rendered block the gesture is visibly on. Those are deliberately
+  // margin needs the rendered seat the gesture is visibly on. Those are deliberately
   // different for selected words inside a paragraph without an ID: the event names its
-  // enclosing section, but both the temporary picker and the standing receipt sit at
-  // the paragraph. Match seatReactions' shadow-boundary rule so live and replay agree.
+  // enclosing section, but the bar, margin row, note and reaction receipt all stand at
+  // the resolved `place`, lifted out of a shadow root by `lightSeat`.
   //
   // Asked of any anchor rather than only of the standing one: a draft the composer put
   // away carries its own anchor and nothing else in the runtime can say which block that
   // draft is about, which is what the route back to it has to travel to.
   const anchorTargetAt = (anchor) => {
     if (!anchor) return null;
-    const found = resolveAnchor(anchor, pageText());
+    const found = resolveAnchor(anchor);
     if (!found) return null;
     if (!anchor.quote) return targetElement(found);
-    const place = targetPlace(found);
-    if (!place) return null;
-    return shadowHost(place.getRootNode()) ?? place;
+    return lightSeat(targetPlace(found));
   };
   const anchorTravelAt = (anchor) =>
-    (anchor?.quote && targetRange(resolveAnchor(anchor, pageText()))) ||
-    anchorTargetAt(anchor);
+    (anchor?.quote && targetRange(resolveAnchor(anchor))) || anchorTargetAt(anchor);
   const fabTargetAt = () => anchorTargetAt(fabAnchor);
   const fabReturnPlaces = () => returnPlaces(fabAnchor);
 
   // Opening Comment is an overlay gesture. Any visible part of its subject is
-  // enough to open it: the physical presenter owns its attachment and measure.
+  // enough to open it: the physical presenter owns its attachment and measure, so
+  // this asks only whether any of it is seen, not whether a landing would show more
+  // (landing-scroll.js, `alreadyShown`, which a short subject cut by an edge is not).
   // Only stale standing or a resumed draft whose subject is wholly out of view needs
   // travel (including revealing a closed ancestor), before placement measures it.
   function bringForward(addressable) {

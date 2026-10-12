@@ -26,8 +26,11 @@ from .harness import Harness, claim_harness, session_harness
 from .leases import release_lease, take_lease, waiter_lease_path
 from .locations import path_location, paths_same
 from .machine import state_home
+from .presence import nudge_unwatched
+from .refusals import Refused
 from .schema import (
     ANSWER_ASK_INSTRUCTION,
+    MESSAGE_KINDS,
     SERVICE_FILE,
     VIEWED_FILE,
 )
@@ -54,17 +57,17 @@ STOP_HOOK_S = 20
 
 def cmd_waiting(page_dir: Path, detail: str) -> tuple[dict, list[dict]]:
     """Declare the page waiting on its user, putting down every start that stands
-    (`tasks.put_down`), and return the declaration, with the user moves still owed an
+    (`tasks.put_down`), and return the declaration, with the updates still owed an
     answer, which the page goes on showing over it."""
     from .revisioning import activate_source
-    from .served_state.work import live_work
+    from .served_state.context import read_page
     from .tasks import put_down
 
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, transaction=page)
         put_down(page)
         status = page.set_status("waiting", detail)
-        return status, live_work(page_dir, page.events).obligations
+        return status, read_page(page_dir, page.events).work.obligations
 
 
 def cmd_idle(page_dir: Path, detail: str) -> dict:
@@ -75,18 +78,18 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
     owed one — unread, or read and left. The watcher's whole batch, not the
     user-facing count, so a worker's report cannot be left standing as
     provisional state forever either. The answers it holds the page for are
-    `activity.blocking_obligations`, a started move's included: the Stop hook lets
+    `activity.blocking_obligations`, a started update's included: the Stop hook lets
     the turn that started one end over it, but closing the page answers nothing. It
     holds the page for every open task too, which only its ending discharges.
     The check and the transition share the log lock, so an event arriving
     or an acknowledgement advancing the cursor orders against them."""
     from .activity import blocking_obligations, unanswered
-    from .served_state.work import live_work
+    from .served_state.context import read_page
     from .tasks import put_down
 
     with PageTransaction(page_dir) as page:
         events = page.events
-        work = live_work(page_dir, events)
+        work = read_page(page_dir, events).work
         state = {**work.presence, "activity": work.activity}
         claim = page.active_claim
         harness = claim_harness(claim) if claim is not None else None
@@ -97,7 +100,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
                 if harness
                 else "`leaf wait` prints them."
             )
-            sys.exit(
+            raise Refused(
                 f"{pending} event{'s' if pending != 1 else ''} nobody has picked up, "
                 f"so the page cannot idle yet. {remedy}"
             )
@@ -107,7 +110,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
             and harness.watcher_live(listening=state["listening"]),
         )
         if owed:
-            sys.exit(
+            raise Refused(
                 f"{unanswered(owed, 'acknowledged')}; answer before idling. "
                 + ANSWER_ASK_INSTRUCTION
             )
@@ -115,7 +118,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
         # standing on a page nobody holds.
         if tasks := work.durable.log.owed:
             named = "; ".join(f"{task['id']} ({task['title']})" for task in tasks)
-            sys.exit(
+            raise Refused(
                 f"{len(tasks)} open task{'s' if len(tasks) != 1 else ''}: {named}. "
                 "End each before idling with "
                 '`leaf task end <page> <id> done "<where the result is>"`, or '
@@ -151,7 +154,7 @@ class Watch:
     `watch_state` is ownership/lifetime; `lost` separately says the server is
     down with nothing left to bring it back: never served, or dead after a
     revival that did not hold. A stopped service is not lost: `server stop` is
-    the agent's own move, and `page init` stops a served page to re-vendor it and
+    the agent's own choice, and `page init` stops a served page to re-vendor it and
     starts it again, so the wait watches a disabled service without reviving it.
 
     Between passes native subscriptions follow this session's claim partition,
@@ -422,7 +425,7 @@ def wait_acknowledgement(harness: Harness | None) -> Callable[[str], str]:
     def acknowledge(delivery_id: str) -> str:
         return (
             "Whoever ran the `leaf wait` that printed this delivery acknowledges "
-            "it; until then the user's moves read Sent rather than Picked up. If "
+            "it; until then the user's updates read Sent rather than Picked up. If "
             f"the output was cut off, reread it with `leaf delivery read {delivery_id}`. "
             "Follow any `next` commands before confirming. If you handle it, "
             "acknowledge before any other "
@@ -602,19 +605,19 @@ def wake_inputs(page: PageTransaction, batch: list[dict]) -> list[dict]:
     workflow. A completed receipt advances the cursor, so handed input is already
     absent from this unreceived batch. An opened record without the completed
     cursor write does not prove delivery. Other admitted attention (including
-    reports, errors, reactions and widget moves) remains
+    reports, errors, reactions and widget actions) remains
     transport input, independent of whether it carries a response obligation.
     """
-    from .served_state.work import live_work
+    from .served_state.context import read_page
 
     agent_inputs = {
         item["input"]
-        for item in live_work(page.page_dir, page.events).durable.workflows
+        for item in read_page(page.page_dir, page.events).work.durable.workflows
         if item["next_actor"] == "agent"
     }
     pending = []
     for event in batch:
-        if event["kind"] in {"comment", "reply"} and event["id"] not in agent_inputs:
+        if event["kind"] in MESSAGE_KINDS and event["id"] not in agent_inputs:
             continue
         pending.append(event)
     return pending
@@ -679,7 +682,5 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
     for page_dir in owned_pages(harness.session):
         with contextlib.suppress(FileNotFoundError), PageTransaction(page_dir) as page:
             if wake_inputs(page, unacknowledged(page.events, page.cursor)):
-                from .event_endpoint import nudge_unwatched
-
                 nudge_unwatched(page)
     return None

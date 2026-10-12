@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  endsByDone,
+  queueOffers,
   selectDone,
   selectQueues,
   taskNoun,
@@ -44,7 +44,7 @@ test("a follow-up sent in a thread replaces its accepted response obligation", (
   ];
   assert.deepEqual(kinds(selectQueues({ ...served, workflows }).onAgent), [
     ["answer", "pending:a3"],
-    ["task", "e6"],
+    ["task", "e5"],
   ]);
 });
 
@@ -73,10 +73,9 @@ test("Question rows select the canonical next actor without becoming Tasks", () 
 });
 
 test("Question and response rows keep their domain names", () => {
-  assert.equal(taskNoun({ kind: "question", ends: "widget" }), "question");
-  assert.equal(taskNoun({ kind: "question", ends: "reply" }), "question");
+  assert.equal(taskNoun({ kind: "question" }), "question");
   assert.equal(taskNoun({ kind: "answer", answer: { kind: "reply" } }), "reply");
-  assert.equal(taskNoun({ kind: "task", ends: "done" }), "task");
+  assert.equal(taskNoun({ kind: "task" }), "task");
 });
 
 test("Done lists completed Questions and explicit Tasks through their own records", () => {
@@ -96,5 +95,12 @@ test("only an explicit user Task offers Done", () => {
   const question = onYou.find((item) => item.kind === "question");
   const task = onYou.find((item) => item.kind === "task");
   const agentTask = onAgent.find((item) => item.kind === "task");
-  assert.deepEqual([question, task, agentTask].map(endsByDone), [false, true, false]);
+  assert.deepEqual(
+    [
+      queueOffers(question, true, true).done,
+      queueOffers(task, true, true).done,
+      queueOffers(agentTask, true, false).done,
+    ],
+    [false, true, false],
+  );
 });

@@ -85,20 +85,26 @@ _FAILED_LOAD = re.compile(
 )
 
 
-def console_problem(message) -> str | None:
-    """A console entry that says the page did not load cleanly.
+def console_error(message) -> str | None:
+    """A console error, as what the page reported failing.
 
     A response with an error status is reported as its status and URL. The console
     entry is the browser's one report of it, from the page and every frame in it, so
     nothing listens to responses for it: a response listener has every request of a
     load — a few hundred modules — sent to and built in this process."""
-    if message.type == "error":
-        if failed := _FAILED_LOAD.fullmatch(message.text):
-            return f"{failed[1]} {message.location['url']}"
-        return message.text
+    if message.type != "error":
+        return None
+    if failed := _FAILED_LOAD.fullmatch(message.text):
+        return f"{failed[1]} {message.location['url']}"
+    return message.text
+
+
+def console_problem(message) -> str | None:
+    """A console entry that says the page did not load cleanly: an error, or a
+    warning."""
     if message.type == "warning":
         return f"warning: {message.text}"
-    return None
+    return console_error(message)
 
 
 def _exception_text(error) -> str:
@@ -117,6 +123,17 @@ def _exception_text(error) -> str:
 def collect_page_exceptions(page, errors: list[str]) -> None:
     """Collect native exceptions from every document without discarding stacks."""
     page.on("pageerror", lambda error: errors.append(_exception_text(error)))
+
+
+def collect_page_errors(page, errors: list[str]) -> None:
+    """Collect the page's console errors and native exceptions, from every document."""
+
+    def heard(message):
+        if (error := console_error(message)) is not None:
+            errors.append(error)
+
+    page.on("console", heard)
+    collect_page_exceptions(page, errors)
 
 
 INTERCEPTION_ARM = "**/__leaf_arms_interception__"
@@ -336,10 +353,8 @@ def _render_scheme(
         return probe_failure(error)
     # The served documents every reading below is asked against, read once each
     # (`served` says why they are read from out here rather than fetched inside
-    # the page). The registry alone used to be fetched seven times a scheme, to
-    # answer seven questions about one document. What the readings get now is
-    # data, so most of them are plain synchronous DOM walks with nothing left in
-    # them to await, let alone hang in.
+    # the page). The readings get data rather than fetching it, so most of them
+    # are plain synchronous DOM walks with nothing in them to await or hang in.
     try:
         registry = served_here("/registry.json").json()
         # The readings in the page consume element declarations, so they are handed

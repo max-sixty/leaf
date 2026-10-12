@@ -1,11 +1,10 @@
-#!/usr/bin/env node
 /**
  * What every third-party bundle Leaf commits must be, and what it must carry.
  *
- * Both builders consume this module: `build.mjs` for the browser framework and Lit,
- * `build/vendor.py` for every other bundle, including the files it copies as
- * published. So one parser decides whether an output loads in an export, and one
- * writer states the licenses of the packages that reached it.
+ * Every bundle passes through this module: `build.mjs`'s browser framework and Lit,
+ * and each of `build/vendor.mjs`'s, including the files it copies as published. So
+ * one parser decides whether an output loads in an export, and one writer states the
+ * licenses of the packages that reached it.
  *
  * An export loads only the modules it embeds, and a module it cannot embed is one
  * careless import away: a bundler splits a chunk out behind every `import()`, and a
@@ -17,14 +16,9 @@
  * A static import may name only a local path. Whether its target exists is a fact of
  * the served layout rather than of the bundle, and capturing a revision refuses a
  * missing one (`revision_artifact.captured_imports`).
- *
- * Run as `node build/browser/shipped.mjs METAFILE NOTICES [MODULE...]` from the
- * build's working directory: it refuses the first module an export cannot load, then
- * writes NOTICES from the packages METAFILE (esbuild's) says reached the bundle.
  */
-import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { parse } from "acorn";
 
 const LOCAL = /^(?:\/(?!\/)|\.{1,2}\/)/;
@@ -98,64 +92,41 @@ const NOTICE = /^(?:notice|third[-_]party[-_]notices)(?:\.|$)/i;
  * The license text of each package, and every other notice it ships to be passed on.
  *
  * A package's license file comes first under its name, version, and declared license.
+ * Package sections sort by name and version, independent of installation paths.
  * Further documents follow under their path: a second license file, an Apache NOTICE,
  * and a renderer's own `THIRD_PARTY_NOTICES` with the texts it keeps in `LICENSES/`.
  */
 export function licenseNotices(title, packageRoots) {
-  const sections = packageRoots.map((root) => {
-    const manifest = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
-    const files = readdirSync(root)
-      .filter((file) => statSync(path.join(root, file)).isFile())
-      .sort();
-    const [license, ...licenses] = files.filter((file) => LICENSE.test(file));
-    if (license === undefined)
-      throw new Error(`no license file shipped by ${manifest.name}`);
-    const bundled = path.join(root, "LICENSES");
-    const documents = [
-      ...licenses,
-      ...files.filter((file) => NOTICE.test(file)),
-      ...(statSync(bundled, { throwIfNoEntry: false })?.isDirectory()
-        ? readdirSync(bundled)
-            .sort()
-            .map((file) => `LICENSES/${file}`)
-        : []),
-    ];
-    const text = (file) =>
-      readFileSync(path.join(root, file), "utf8").replaceAll("\r\n", "\n").trim();
-    return [
-      `===== ${manifest.name} ${manifest.version} (${manifest.license}) =====\n${text(license)}`,
-      ...documents.map(
-        (file) => `===== ${manifest.name}: ${file} =====\n${text(file)}`,
-      ),
-    ].join("\n\n");
-  });
+  const sections = packageRoots
+    .map((root) => {
+      const manifest = JSON.parse(
+        readFileSync(path.join(root, "package.json"), "utf8"),
+      );
+      const files = readdirSync(root)
+        .filter((file) => statSync(path.join(root, file)).isFile())
+        .sort();
+      const [license, ...licenses] = files.filter((file) => LICENSE.test(file));
+      if (license === undefined)
+        throw new Error(`no license file shipped by ${manifest.name}`);
+      const bundled = path.join(root, "LICENSES");
+      const documents = [
+        ...licenses,
+        ...files.filter((file) => NOTICE.test(file)),
+        ...(statSync(bundled, { throwIfNoEntry: false })?.isDirectory()
+          ? readdirSync(bundled)
+              .sort()
+              .map((file) => `LICENSES/${file}`)
+          : []),
+      ];
+      const text = (file) =>
+        readFileSync(path.join(root, file), "utf8").replaceAll("\r\n", "\n").trim();
+      return [
+        `===== ${manifest.name} ${manifest.version} (${manifest.license}) =====\n${text(license)}`,
+        ...documents.map(
+          (file) => `===== ${manifest.name}: ${file} =====\n${text(file)}`,
+        ),
+      ].join("\n\n");
+    })
+    .sort();
   return `Third-party licenses for ${title}\n\n${sections.join("\n\n")}\n`;
-}
-
-function main([metafilePath, notices, ...modules]) {
-  if (!metafilePath || !notices)
-    throw new Error(
-      "Usage: node build/browser/shipped.mjs METAFILE NOTICES [MODULE...]",
-    );
-  for (const module of modules) checkModule(readFileSync(module, "utf8"), module);
-  const metafile = JSON.parse(readFileSync(metafilePath, "utf8"));
-  writeFileSync(
-    notices,
-    licenseNotices(
-      path.basename(notices, ".LICENSES.txt"),
-      bundledPackages(metafile, process.cwd()),
-    ),
-  );
-}
-
-if (
-  process.argv[1] &&
-  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
-) {
-  try {
-    main(process.argv.slice(2));
-  } catch (error) {
-    console.error(error.message);
-    process.exitCode = 1;
-  }
 }

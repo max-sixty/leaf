@@ -29,7 +29,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 def test_selection_snap_stops_at_explicit_table_line_break(browser, serve):
@@ -76,7 +76,7 @@ def test_short_inline_code_selection_offers_comment(browser, serve):
         page.get_by_text(term, exact=True).select_text()
         expect(page.get_by_role("button", name="Comment on selection")).to_be_visible()
         assert page.evaluate("() => getSelection().toString()") == term
-        expect(page.locator(".lf-fab-input")).not_to_be_focused()
+        expect(page.locator(".lf-fab-input:focus")).to_have_count(0)
 
     page.keyboard.press("c")
     field = page.locator(".lf-fab-input")
@@ -583,7 +583,8 @@ def test_a_passage_still_offers_suggest_when_the_layer_has_no_reactions(browser,
     prose.select_text()
     field = page.locator(".lf-fab-input")
     expect(page.get_by_role("button", name="Comment on selection")).to_be_visible()
-    expect(field).not_to_be_focused()
+    # The composer has not opened, so its field is not on the page to hold focus.
+    expect(page.locator(".lf-fab-input:focus")).to_have_count(0)
     page.keyboard.press("c")
     expect(field).to_be_focused()
     expect(page.locator(".lf-fab-bar .lf-react")).to_have_count(0)

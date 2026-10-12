@@ -29,7 +29,7 @@
    method. They preserve one admitted action per widget rather than recording a second
    page-wide answer. */
 
-import { scrollIntoView } from "../landing-scroll.js";
+import { landingRoom, scrollIntoView } from "../landing-scroll.js";
 import { landingBand, shownBox, shownParts } from "../geometry.js";
 import { createQuestionBannerControls } from "./banner-controls.js";
 import { decisionControls } from "../keyboard/bindings.js";
@@ -242,11 +242,7 @@ export function createQuestionView({
   // inventory: the source or unambiguous context holding where `node` stands
   // (standing-target.js). DOM containment says where focus is; it never decides whether
   // the Question belongs to that inventory.
-  const questionAt = (questions, node) =>
-    questionHolding(
-      questions.filter((question) => question.source.kind === "widget"),
-      placeOf(node),
-    );
+  const questionAt = (questions, node) => questionHolding(questions, placeOf(node));
   // The question the user is standing in: the one holding the focus, or the one a control
   // hoisted into the margin decides, or the one a thread about it holds the focus for.
   //
@@ -327,14 +323,9 @@ export function createQuestionView({
   // Tab, a click on one of its controls — left the ring somewhere else entirely, so the
   // same place was marked or not by how the user had reached it.
   //
-  // TODO(2026-09-06): Keep the Question-wide location ring for keyboard navigation and
-  // Queue-directed focus without painting it after an ordinary pointer click inside the
-  // Question. On a large interactive widget, that click currently leaves a prominent ring
-  // around the entire surface even though the focused control already shows the action.
-  //
-  // Keyed on focus and not on :focus-visible, which is a claim about the last input rather
-  // than about where the user is: a Questions panel row's press lands the focus by script
-  // after a click, and the question it brought the user to would wear nothing at all.
+  // Pointer and keyboard arrivals share this location reading, as they share the
+  // focused control's ring. A Questions panel row's press lands the focus by script
+  // after a click, and the question it brought the user to must show where they are.
   //
   // The question wears it, and so does every box it shows through (shownParts): the question is
   // what carries the id captureView writes down and the place the queue walk measures from,
@@ -447,18 +438,13 @@ export function createQuestionView({
   // that fits keeps the landing this walk always gave it. That bound is what lets the
   // widest candidate go first: a heading a long way up fails to fit, rather than needing a
   // rule about how far up is too far.
-  function arrivalRegion(question, box, context, standing) {
+  function arrivalRegion(question, context, standing) {
     // A unique declared context names the region even when taller than the screen:
     // the reader arrives at its opening and reads down to the answering controls.
     // Shared context must fit above this source; otherwise use its nearby words.
     // With only the default source target, infer the words preceding it instead.
     const declared = context && registry[context.localName]?.["x-question-context"];
     if (declared && context === standing) return context;
-    // The screen the user can use is the scroller's landing band: clear of the banner
-    // over its top and the bottom bar over its bottom, so a question's foot that fits is one
-    // the user can read rather than one under the shortcut bar.
-    const band = landingBand(box);
-    const room = band.bottom - band.top;
     // A region has to be somewhere the user can be taken. An element generating no box
     // measures (0,0) at the document's origin, which is not a degenerate answer but a
     // wrong one naming the top of the page (geometry.js says so at shownBox): a hidden
@@ -468,12 +454,18 @@ export function createQuestionView({
     // starting below would be a region the change is not in. Document order alone does
     // not promise that — a preceding block can be painted lower — and the span such a
     // region measures is negative, which fits every screen there is.
+    // The screen the user can use is the room a landing at the region's start leaves
+    // for the run down to the question's foot (landing-scroll.js, `landingRoom`): clear
+    // of the banner over its top and the bottom bar over its bottom, so a question's foot
+    // that fits is one the user can read rather than one under the shortcut bar.
     const fits = (region) => {
       if (!region) return false;
       const start = shownBox(region);
       const target = shownBox(question);
       return (
-        start.height > 0 && start.top <= target.top && target.bottom - start.top <= room
+        start.height > 0 &&
+        start.top <= target.top &&
+        target.bottom - start.top <= landingRoom(region, question).height
       );
     };
     // The blocks before this one that are about the same part of the document: the two
@@ -590,7 +582,7 @@ export function createQuestionView({
         target,
         source,
         box,
-        region: box && arrivalRegion(source, box, context, target),
+        region: box && arrivalRegion(source, context, target),
       };
     };
     const initial = destination();

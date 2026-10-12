@@ -75,9 +75,28 @@ def catalog_sources() -> list[Path]:
     return catalog.sources
 
 
+# An authored source's companions, named beside it whether or not it has each
+# (examples/AGENTS.md): its seeded history, its data values, and its page-owned files.
+def seed_log(source: Path) -> Path:
+    return source.with_suffix(".jsonl")
+
+
+def data_file(source: Path) -> Path:
+    return source.with_suffix(".data.json")
+
+
+def page_files(source: Path) -> Path:
+    return source.with_suffix(".page")
+
+
 # A prior version ships under the source directory's versions/, so a builder's
 # top-level `*.html` glob never reads one as a page of its own.
 PRIOR_VERSION = re.compile(r"\.v([1-9][0-9]*)$")
+
+
+def prior_version_files(source: Path) -> list[Path]:
+    """The files under `versions/` named as one source's earlier versions, unchecked."""
+    return list((source.parent / "versions").glob(f"{source.stem}.v*.html"))
 
 
 def example_versions(source: Path) -> list[Path]:
@@ -90,7 +109,7 @@ def example_versions(source: Path) -> list[Path]:
     marks, and a thread opened against the document before the revision.
     """
     priors = sorted(
-        (source.parent / "versions").glob(f"{source.stem}.v*.html"),
+        prior_version_files(source),
         key=lambda path: int(PRIOR_VERSION.search(path.stem).group(1)),
     )
     # The published number is the position in this list, so a gap in the file names
@@ -146,7 +165,7 @@ def captured_value(file: Path, spec: dict):
 
 def data_companion(source: Path) -> dict:
     """The example's `.data.json` companion, or nothing when it has none."""
-    companion = source.with_suffix(".data.json")
+    companion = data_file(source)
     if not companion.exists():
         return {}
     return json.loads(companion.read_text(encoding="utf-8"))

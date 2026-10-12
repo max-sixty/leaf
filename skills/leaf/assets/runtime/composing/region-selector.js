@@ -6,16 +6,16 @@
  * instructions and errors belong to the shared controls and notice line. Pointer
  * drags set a rectangle; arrows move it and
  * Shift+arrows resize it, so capturing never requires a drag. The selected pixels stay
- * in viewport coordinates until confirmation, when SnapDOM takes a document-coordinate
- * crop of the live DOM, excluding the selector and shortcut bar. SnapDOM owns cloning,
- * shadow trees, styles, fonts, SVG and rasterization; Leaf owns no renderer.
- * The crop is approximate browser rendering, not privileged access to screen pixels.
- * Known missing images refuse capture instead of attaching a placeholder.
+ * in viewport coordinates until confirmation, when `pageImage` draws that
+ * document-coordinate crop, excluding the selector, banner and shortcut bar. The crop
+ * is approximate browser rendering, not privileged access to screen pixels.
  *
  * The closest containing semantic target at the rectangle's center anchors its comment.
  * A canceled or superseded capture cannot create an attachment. Failed rasterization
- * leaves the rectangle available to retry. Image upload and draft ownership remain the
- * composition input's, including its protection against a draft changing mid-upload.
+ * leaves the rectangle available to retry; a part that could not be drawn attaches the
+ * image anyway, with a notice naming what may be missing. Image upload and draft
+ * ownership remain the composition input's, including its protection against a draft
+ * changing mid-upload.
  */
 import { el } from "../widget-elements.js";
 import { paintKeys } from "../keyboard/scopes.js";
@@ -24,7 +24,9 @@ import { keeps, keepsText } from "../keeps.js";
 import { runtime } from "../context.js";
 import { nextRender } from "../rendering.js";
 import { clamp } from "../rect.js";
+import { layoutWindow } from "../geometry.js";
 import { notice } from "../notifications.js";
+import { pageImage } from "./page-image.js";
 
 const MIN_SIZE = 8;
 const STEP = 10;
@@ -35,8 +37,7 @@ export function createRegionSelector({
   openComposerWithMedia,
   returnTo = null,
 }) {
-  let settled;
-  const done = new Promise((resolve) => (settled = resolve));
+  const { promise: done, resolve: settled } = Promise.withResolvers();
   const standing = focused();
   const origin = standing === document.body ? returnTo : standing;
   const overlay = el("div", "lf-ui lf-region-capture");
@@ -48,11 +49,12 @@ export function createRegionSelector({
   const status = el("p", "lf-live lf-region-status");
   status.setAttribute("role", "status");
   overlay.append(selection, status);
+  const { right: width, bottom: height } = layoutWindow();
   let box = {
-    x: Math.round(innerWidth * 0.2),
-    y: Math.round(innerHeight * 0.2),
-    width: Math.round(innerWidth * 0.6),
-    height: Math.round(innerHeight * 0.5),
+    x: Math.round(width * 0.2),
+    y: Math.round(height * 0.2),
+    width: Math.round(width * 0.6),
+    height: Math.round(height * 0.5),
   };
   let drag = null;
   let busy = false;
@@ -70,10 +72,11 @@ export function createRegionSelector({
 
   function fit() {
     if (ended) return;
-    box.width = clamp(box.width, MIN_SIZE, innerWidth);
-    box.height = clamp(box.height, MIN_SIZE, innerHeight);
-    box.x = clamp(box.x, 0, innerWidth - box.width);
-    box.y = clamp(box.y, 0, innerHeight - box.height);
+    const { right, bottom } = layoutWindow();
+    box.width = clamp(box.width, MIN_SIZE, right);
+    box.height = clamp(box.height, MIN_SIZE, bottom);
+    box.x = clamp(box.x, 0, right - box.width);
+    box.y = clamp(box.y, 0, bottom - box.height);
     paint();
   }
 
@@ -101,8 +104,9 @@ export function createRegionSelector({
     const dx = key === "ArrowLeft" ? -STEP : key === "ArrowRight" ? STEP : 0;
     const dy = key === "ArrowUp" ? -STEP : key === "ArrowDown" ? STEP : 0;
     if (resizing) {
-      box.width = clamp(box.width + dx, MIN_SIZE, innerWidth - box.x);
-      box.height = clamp(box.height + dy, MIN_SIZE, innerHeight - box.y);
+      const { right, bottom } = layoutWindow();
+      box.width = clamp(box.width + dx, MIN_SIZE, right - box.x);
+      box.height = clamp(box.height + dy, MIN_SIZE, bottom - box.y);
     } else {
       box.x += dx;
       box.y += dy;
@@ -144,21 +148,9 @@ export function createRegionSelector({
     keepsText(status, "Capturing…");
     paintKeys();
     try {
-      const { snapdom } = await import("../../vendor/snapdom.esm.js");
-      if (ended || ticket !== attempt) return;
-      const image = await snapdom(document.body, {
-        clip,
-        dpr: window.devicePixelRatio,
-        exclude: ".lf-region-capture, .lf-shortcut-bar, .lf-banner",
-        excludeMode: "remove",
-        invalidate: true,
-        reconcile: true,
+      const { blob, warnings } = await pageImage(clip, {
+        exclude: [".lf-region-capture", ".lf-shortcut-bar", ".lf-banner"],
       });
-      const blob = await image.toBlob({ format: "png" });
-      if (image.warnings.some(({ code }) => code === "image-fallback"))
-        throw new Error(
-          "An image in this area could not be captured. Try another area or paste a screenshot.",
-        );
       if (ended || ticket !== attempt) return;
       if (revision !== runtime.currentRevision)
         throw new Error("The page changed. Select the area again.");
@@ -167,6 +159,8 @@ export function createRegionSelector({
         adding = openComposerWithMedia(anchor, [blob]);
       });
       await adding;
+      // The attachment stands; the notice says what it may be missing.
+      if (warnings.length) notice(`Captured — ${warnings.join(" ")}`);
     } catch (error) {
       if (ended || ticket !== attempt) return;
       busy = false;

@@ -9,14 +9,11 @@
    hears the same words. It is text rather than a control: what a notice names, the
    banner's own buttons reach. There is no second surface for news, so nothing floats in
    a corner to become a stale pointer target. */
-import { nothing, render } from "../vendor/browser-runtime.js";
-
 import { el } from "./widget-elements.js";
 import { afterScript } from "./rendering.js";
 
 export const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
-render(nothing, liveEl);
 
 // How long a notice holds the status line before the line's own words come back: long
 // enough to read a recorded acknowledgement, short enough that the state behind it is
@@ -57,13 +54,11 @@ const presentNotice = (message, visible) => {
 
 export function announce(msg) {
   // Removing and restoring the text node makes repeated identical announcements a
-  // fresh live-region change rather than a value Lit can correctly leave untouched.
-  render(nothing, liveEl);
+  // fresh live-region change, including when two arrivals' delays overlap.
+  if (liveEl.firstChild) liveEl.replaceChildren();
   setTimeout(() => {
-    // Each arrival owns a fresh insertion, including two equal announcements whose
-    // delays overlap. Lit would otherwise correctly reuse the first callback's text.
-    render(nothing, liveEl);
-    render(msg, liveEl);
+    if (liveEl.firstChild) liveEl.replaceChildren();
+    liveEl.append(msg);
   }, 30);
 }
 
@@ -137,21 +132,25 @@ export function notice(
     if (userContext || userHoldTimer || noticeVisible()) return queueBackground(entry);
     return showBackground(entry);
   }
-  if (!background && showingBackground) queueBackground(showingBackground, true);
+  if (showingBackground) queueBackground(showingBackground, true);
   showNotice(msg);
+}
+
+// Take the notice down for something the user asked for, putting a background notice
+// it was showing back at the front of the queue. Unlike the notice's own timer, which
+// retires it, this keeps the news for later.
+function yieldNotice() {
+  if (showingBackground) queueBackground(showingBackground, true);
+  clearTimeout(noticeTimer);
+  presentNotice(noticePresentation.message, false);
+  showingBackground = null;
 }
 
 // A semantic walk is an immediate user command even though its feedback is the live
 // ordinal rather than a timed notice. Hold arriving news for one boundary interval;
 // beginWalk calls this only for gestures, so ordinary repaints never restart the hold.
 export function holdStatus(ms) {
-  if (noticeVisible()) {
-    if (showingBackground) queueBackground(showingBackground, true);
-    clearTimeout(noticeTimer);
-    noticeTimer = 0;
-    presentNotice(noticePresentation.message, false);
-    showingBackground = null;
-  }
+  if (noticeVisible()) yieldNotice();
   clearTimeout(userHoldTimer);
   userHoldTimer = setTimeout(() => {
     userHoldTimer = 0;
@@ -164,18 +163,8 @@ export function holdStatus(ms) {
 // A foreground notice may still replace the context briefly, then the context returns.
 export function setNoticeContext(active) {
   userContext = active;
-  if (active && showingBackground) {
-    queueBackground(showingBackground, true);
-    clearTimeout(noticeTimer);
-    noticeTimer = 0;
-    presentNotice(noticePresentation.message, false);
-    showingBackground = null;
-  } else if (
-    !active &&
-    !userHoldTimer &&
-    waitingBackground.length &&
-    !noticeVisible()
-  ) {
+  if (active && showingBackground) yieldNotice();
+  else if (!active && !userHoldTimer && waitingBackground.length && !noticeVisible()) {
     showBackground(waitingBackground.shift());
   }
 }

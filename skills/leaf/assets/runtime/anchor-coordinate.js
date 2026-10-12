@@ -4,18 +4,23 @@
 // subject, source_revision and datum describe the observed rendering; identity names
 // the subject across replacements. Every other field still distinguishes coordinates:
 // a whole visual is not its part, and one quoted passage is not another.
-export const sameAnchor = (a, b) => {
-  if (a === b) return true;
-  if (!a || !b) return false;
-  const identified = typeof a.identity === "string" && typeof b.identity === "string";
-  const keys = (anchor) =>
-    Object.keys(anchor)
-      .filter((key) => !identified || (key !== "source_revision" && key !== "datum"))
-      .sort();
-  const left = keys(a);
-  const right = keys(b);
-  return (
-    left.length === right.length &&
-    left.every((key, index) => key === right[index] && a[key] === b[key])
+//
+// `anchorKey` is that identity as one string, the primitive fields in key order, so
+// whatever keys a record by its anchor agrees with `sameAnchor`. Null keys as the empty
+// record.
+const RENDERING = new Set(["source_revision", "datum"]);
+const PRIMITIVE = new Set(["string", "number", "boolean"]);
+export const anchorKey = (anchor) => {
+  const identified = typeof anchor?.identity === "string";
+  return JSON.stringify(
+    Object.entries(anchor ?? {})
+      .filter(
+        ([key, value]) =>
+          PRIMITIVE.has(typeof value) && !(identified && RENDERING.has(key)),
+      )
+      .sort(([left], [right]) => left.localeCompare(right)),
   );
 };
+
+export const sameAnchor = (a, b) =>
+  a === b || (Boolean(a) && Boolean(b) && anchorKey(a) === anchorKey(b));

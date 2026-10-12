@@ -1,4 +1,4 @@
-/* Generated from skills/leaf/packages/diff/styles/shadow.css by npm run build:styles. */
+/* Generated from skills/leaf/packages/diff/styles/shadow.css by build/styles.mjs. */
 /* skills/leaf/packages/diff/styles/palette.css */
 :where(:scope, :scope:host) {
   --lf-code-add-fill: color-mix(in srgb, var(--ok) 16%, var(--pre-bg));
@@ -22,6 +22,9 @@
   font-family: var(--sans);
   color: var(--code-ink);
   background: var(--code-chrome);
+}
+:scope:host(.lf-rendered) .lf-diff-fold > .lf-error {
+  padding: 10px;
 }
 :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary {
   display: flex;
@@ -58,11 +61,17 @@
   display: none;
 }
 .lf-diff-head .lf-diff-dir {
-  flex: 1 1 0;
+  flex: 0 1 auto;
   min-width: 0;
   max-width: max-content;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.lf-diff-head .lf-diff-dir-ancestor {
+  flex: 1 1 0;
+}
+.lf-diff-head :is(.lf-diff-source-path, .lf-diff-destination-path) .lf-diff-dir {
+  flex: 1 1 0;
 }
 .lf-diff-head .lf-diff-dir::before {
   content: "…" / "";
@@ -80,27 +89,30 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.lf-diff-head > .lf-diff-path > .lf-diff-base {
+  flex-shrink: 0;
+}
 .lf-diff-head > .lf-diff-stat {
   flex: none;
 }
 :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary {
   position: relative;
 }
-.lf-diff-file:has(> .lf-diff-fold > .lf-diff-head[data-path-cut]:is([data-lf-held-word], :focus-visible, .lf-focus-visible)) {
+.lf-diff-file:has(> .lf-diff-fold > .lf-diff-head[data-path-cut]:is([data-lf-held-word], [data-lf-focus])) {
   z-index: 4;
 }
-.lf-diff-fold:has(> .lf-diff-head[data-path-cut]:is([data-lf-held-word], :focus-visible, .lf-focus-visible)) {
+.lf-diff-fold:has(> .lf-diff-head[data-path-cut]:is([data-lf-held-word], [data-lf-focus], [data-lf-focus])) {
   overflow: visible;
 }
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary[data-path-cut]:is([data-lf-held-word], :focus-visible, .lf-focus-visible) {
+:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary[data-path-cut]:is([data-lf-held-word], [data-lf-focus]) {
   overflow: visible;
   border-start-start-radius: calc(var(--r) - 1px);
   border-start-end-radius: calc(var(--r) - 1px);
 }
-.lf-diff-fold:not([open]) > .lf-diff-head[data-path-cut]:is([data-lf-held-word], :focus-visible, .lf-focus-visible) {
+.lf-diff-fold:not([open]) > .lf-diff-head[data-path-cut]:is([data-lf-held-word], [data-lf-focus]) {
   border-radius: calc(var(--r) - 1px);
 }
-.lf-diff-head[data-path-cut]:is([data-lf-held-word], :focus-visible, .lf-focus-visible) > .lf-diff-path::after {
+.lf-diff-head[data-path-cut]:is([data-lf-held-word], [data-lf-focus]) > .lf-diff-path::after {
   content: attr(data-path) / "";
   position: absolute;
   z-index: 3;
@@ -114,7 +126,7 @@
   overflow-wrap: anywhere;
   pointer-events: none;
 }
-.lf-diff-head[data-lf-held-word]:not(:focus-visible, .lf-focus-visible) > .lf-diff-path::after {
+.lf-diff-head[data-lf-held-word]:not([data-lf-focus]) > .lf-diff-path::after {
   animation: lf-diff-held-word 1ms 300ms backwards;
 }
 @keyframes lf-diff-held-word {
@@ -193,7 +205,7 @@
 .lf-diff-file-comment {
   --lf-icon-action-hit: var(--lf-diff-action-h);
 }
-.lf-diff-file-comment:is(:hover, :focus-visible, .lf-focus-visible) {
+.lf-diff-file-comment:is(:hover, [data-lf-focus]) {
   background: var(--chip);
   color: var(--ink);
 }
@@ -230,23 +242,23 @@
 }
 [data-gutter] > :hover > .lf-diff-line-comment,
 [data-gutter] > .lf-diff-line-hover > .lf-diff-line-comment,
-.lf-diff-line-comment:is(:focus-visible, .lf-focus-visible) {
+.lf-diff-line-comment[data-lf-focus] {
   opacity: 1;
 }
 .lf-diff-filtered {
   display: none !important;
 }
-.lf-diff-comment:is(:focus-visible, .lf-focus-visible) {
+.lf-diff-comment[data-lf-focus] {
   outline: var(--focus-ring);
   --lf-focus-ring: diff-tools;
   outline-offset: 1px;
 }
-:scope:host(.lf-rendered) .lf-diff-file > details > summary:is(:focus-visible, .lf-focus-visible) {
+:scope:host(.lf-rendered) .lf-diff-file > details > summary[data-lf-focus] {
   outline: var(--focus-ring);
   --lf-focus-ring: code-summary;
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
-:scope:host(.lf-rendered) [data-content] > [data-line]:is(:focus-visible, .lf-focus-visible) {
+:scope:host(.lf-rendered) [data-content] > [data-line][data-lf-focus] {
   outline: var(--focus-ring);
   --lf-focus-ring: code-line;
   outline-offset: calc(-1 * var(--focus-ring-w));
@@ -328,7 +340,7 @@
   overflow-x: auto;
   color: var(--code-ink);
 }
-:scope:host(.lf-rendered) code[data-code]:is(:focus-visible, .lf-focus-visible) {
+:scope:host(.lf-rendered) code[data-code][data-lf-focus] {
   outline: var(--focus-ring);
   --lf-focus-ring: code-pre-shadow;
   outline-offset: calc(-1 * var(--focus-ring-w));

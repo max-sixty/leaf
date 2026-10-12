@@ -29,6 +29,7 @@
           height: var(--lf-icon-action-hit); min-width: var(--lf-icon-action-hit);
           min-height: var(--lf-icon-action-hit); padding: 0; display: grid;
           place-items: center; border-radius: var(--r); }
+.lf-icon-action[hidden] { display: none; }
 .lf-action-icon { position: relative; z-index: 1; inline-size: 16px; block-size: 16px;
           overflow: visible; pointer-events: none; fill: none; stroke: currentColor; stroke-width: 1.6;
           stroke-linecap: round; stroke-linejoin: round; }
@@ -41,19 +42,26 @@
    on hover. The hit box around the disc is the icon-action floor above. The glyph's
    ink outranks the .lf-ui face by coming later. Reopen standing in Resolve's place
    is the same glyph drawn done, on every surface that seats a thread. */
-.lf-compose-submit, :is(.lf-resolve, .lf-reopen).lf-icon-action { border: 0;
+:is(.lf-compose-submit, .lf-compose-dictate), :is(.lf-resolve, .lf-reopen).lf-icon-action { border: 0;
           background: transparent; box-shadow: none; }
-:is(.lf-compose-submit, .lf-resolve.lf-icon-action, .lf-reopen.lf-icon-action)::before {
+:is(.lf-compose-submit, .lf-compose-dictate, .lf-resolve.lf-icon-action, .lf-reopen.lf-icon-action)::before {
           content: "";
           position: absolute; box-sizing: border-box; inline-size: 28px; block-size: 28px;
           border-radius: var(--r); background: transparent; }
-:is(.lf-compose-submit, .lf-resolve.lf-icon-action, .lf-reopen.lf-icon-action):hover {
+:is(.lf-compose-submit, .lf-compose-dictate, .lf-resolve.lf-icon-action, .lf-reopen.lf-icon-action):hover {
           background: transparent; box-shadow: none; }
-.lf-compose-submit { position: absolute; z-index: 1; inset-inline-end: 6px;
+:is(.lf-compose-submit, .lf-compose-dictate) { position: absolute; z-index: 1; inset-inline-end: 6px;
           inset-block-end: 6px; color: var(--accent); }
-.lf-compose-submit:not(:disabled, [aria-disabled="true"]):hover::before {
+:is(.lf-compose-submit, .lf-compose-dictate):not(:disabled, [aria-disabled="true"]):hover::before {
           background: var(--accent-tint); }
-.lf-compose-submit:is(:disabled, [aria-disabled="true"]) { opacity: 1; color: var(--muted); }
+:is(.lf-compose-submit, .lf-compose-dictate):is(:disabled, [aria-disabled="true"]) { opacity: 1; color: var(--muted); }
+.lf-compose-dictate { color: var(--muted); }
+.lf-compose-dictate:hover { color: var(--ink); }
+.lf-compose-dictate:is([data-dictation="starting"], [data-dictation="listening"]) { color: var(--accent); }
+.lf-compose-dictate[data-dictation="listening"]::before { background: var(--accent-tint); }
+.lf-compose-dictate[data-dictation="failed"] { color: var(--danger-ink); }
+.lf-compose-dictate[data-dictation="failed"]:hover::before { background: var(--danger-tint); }
+.lf-compose-dictate:not([data-dictation="failed"]) .lf-mic-slash { display: none; }
 :is(.lf-resolve, .lf-reopen).lf-icon-action { position: relative; flex: none;
           margin-inline-start: auto; color: var(--ink); }
 .lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover { color: var(--ok-ink); }
@@ -82,7 +90,7 @@
   border: 0; border-radius: var(--r); background: transparent; color: inherit;
   font: inherit; }
 button.lf-media-open { cursor: zoom-in; }
-.lf-media-open:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+.lf-media-open[data-lf-focus] { outline: var(--focus-ring);
   --lf-focus-ring: media; outline-offset: 2px; }
 .lf-composer-media-open { width: 68px; height: 52px; overflow: hidden;
   border: 0; border-radius: 0; align-self: center; }
@@ -102,29 +110,32 @@ button.lf-media-open { cursor: zoom-in; }
   border-inline-start: 1px solid var(--border-2); background: transparent;
   color: var(--ink-2); cursor: pointer; }
 .lf-composer-media-item > button:not(.lf-media-open):hover { color: var(--accent); background: var(--chip); }
-.lf-composer-media-item > button:not(.lf-media-open):is(:focus-visible, .lf-focus-visible) {
+.lf-composer-media-item > button:not(.lf-media-open)[data-lf-focus] {
   outline: var(--focus-ring); --lf-focus-ring: composer-media;
   outline-offset: calc(-1 * var(--focus-ring-w)); }
 .lf-composer-media-item > button:not(.lf-media-open) > svg { inline-size: 14px; block-size: 14px; }
-.lf-composer-media-item > .lf-media-open:is(:focus-visible, .lf-focus-visible) {
+.lf-composer-media-item > .lf-media-open[data-lf-focus] {
   outline-offset: calc(-1 * var(--focus-ring-w)); }
 
-/* Standard comment boxes share one frame around their editor and Send. Other
-   uses of the shared editor plumbing, such as option entry and the extended
-   anchored response control, supply their own face. Containers place comment
-   boxes; they do not supply a second frame. */
-.lf-comment-box > .lf-compose-field {
+/* Comment boxes and anchored response controls share their frame and focus paint.
+   Other uses of the editor plumbing, such as option entry, supply their own face.
+   Containers place comment boxes; they do not supply a second frame. */
+.lf-comment-box > .lf-compose-field, .lf-response-control {
           border: 1px solid var(--border-2);
           border-radius: var(--r); background: var(--card); }
-.lf-comment-box > .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus)) {
+.lf-comment-box > .lf-compose-field:has(> leaf-text[data-lf-focus]),
+.lf-response-control[data-lf-focus] {
           outline: var(--focus-ring); --lf-focus-ring: text-box;
           outline-offset: 0; border-color: transparent; }
+/* Floating comment surfaces have one elevation. The page card reserves the ring's
+   room inside its scrollport; a filter lets its shadow extend beyond that clip. */
+.lf-page-comment-card, .lf-response-control { filter: drop-shadow(0 2px 4px var(--shade)); }
 .lf-comment-box > .lf-compose-field > leaf-text {
           padding: var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);
           border: 0; border-radius: 0; background: transparent;
           color: var(--ink); font: var(--t-5)/1.5 var(--sans);
           max-height: 50vh; overflow-y: auto; }
-.lf-comment-box > .lf-compose-field > leaf-text:is(:focus, .lf-focus) { outline: none; }
+.lf-comment-box > .lf-compose-field > leaf-text[data-lf-focus] { outline: none; }
 .lf-thread-reply { display: block; margin-top: var(--sp-3); min-width: 0; }
 :is(.lf-thread-reply, .lf-fab-bar) .lf-compose-field {
           --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px); }
@@ -140,14 +151,14 @@ button.lf-media-open { cursor: zoom-in; }
           inset: -4px 0 -4px calc(-1 * var(--lf-thread-text-inset));
           border: 1px solid var(--border-2); border-radius: var(--r); background: var(--card);
           pointer-events: none; }
-.lf-msg-editor > .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus))::before {
+.lf-msg-editor > .lf-compose-field:has(> leaf-text[data-lf-focus])::before {
           outline: var(--focus-ring); --lf-focus-ring: text-box;
           outline-offset: calc(-1 * var(--focus-ring-w)); border-color: transparent; }
 .lf-msg-editor > .lf-compose-field > leaf-text:not(.lf-fab-input) { display: block;
           min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0;
           background: transparent; color: var(--ink); font: inherit;
           max-height: none; overflow: visible; --lf-field-end-room: 0px; }
-.lf-msg-editor > .lf-compose-field > leaf-text:is(:focus, .lf-focus) { outline: none; }
+.lf-msg-editor > .lf-compose-field > leaf-text[data-lf-focus] { outline: none; }
 /* Its foot stands for its last line, whose height a reveal clears above it. */
 .lf-msg-edit-foot { display: block; block-size: 0; scroll-margin-block-start: 1lh; }
 /* Cancel and Save take the message's head while it is open, where its Edit control stood
@@ -182,34 +193,21 @@ button.lf-media-open { cursor: zoom-in; }
     --lf-compose-pad-block: calc(var(--lf-thread-text-pad-block) - 1px);
   }
   /* The field and its choices are one anchored response control. This primitive owns
-     their height, vertical padding, type, border, corners, and elevation. Tab extends
+     their height, vertical padding and type. Tab extends
      the control at its trailing edge without replacing or moving the field.
      The field can grow with its words without changing its corner. The shared UI
      supplies the thread’s 14px face and line height; vertical padding keeps
      that face in the 32px resting box. */
   .lf-response-control { box-sizing: border-box; min-height: var(--lf-response-height);
-    border: 1px solid var(--border-2); background: var(--card);
-    border-radius: var(--r);
     color: var(--ink-2); font-weight: 400; line-height: inherit;
-    padding-block: var(--lf-compose-pad-block);
-    box-shadow: 0 2px 8px var(--shade); }
-  /* The bar keeps one silhouette through every state it has, so the focus ring is cast
-     as a shadow beside the lift rather than drawn as an outline the corner would have
-     to be re-stated for. It is still the layer's band (--focus-shadow, theme.css), and
-     the name goes with it: this rule takes the outline off the pressables the bar holds,
-     so without one they would credit the floor's `pressable` for a ring the floor is no
-     longer drawing. */
-  .lf-response-control:is(:focus, :focus-visible, .lf-focus, .lf-focus-visible) {
-    outline: none; --lf-focus-ring: response-control;
-    border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
-    box-shadow: var(--focus-shadow), 0 2px 8px var(--shade); }
+    padding-block: var(--lf-compose-pad-block); }
   /* The physical response presentation allocates the field's box. The host is
      the editor's scrollport; its content-sized editor keeps native caret reveals. */
   leaf-text.lf-fab-input { width: 100%; min-width: 0;
     padding-inline: var(--lf-compose-pad-inline-start) calc(var(--lf-comment-text-pad-end) - 1px);
     --lf-field-end-room: var(--lf-comment-send-room);
     overflow-y: auto; }
-  .lf-fab-bar .lf-compose-submit {
+  .lf-fab-bar :is(.lf-compose-submit, .lf-compose-dictate) {
     inset-inline-end: var(--lf-comment-send-inset);
     inset-block-end: var(--lf-comment-send-inset); }
   .lf-response-action { min-width: max(30px, var(--aim-floor)); padding-inline: 9px;
@@ -260,6 +258,8 @@ button.lf-media-open { cursor: zoom-in; }
           > :not(.lf-compose-field, .lf-composer-media) { display: none !important; }
 .lf-fab-bar[data-lf-presentation="inline"] leaf-text.lf-fab-input {
   display: block; max-width: none; max-height: 50vh; margin: 0; }
+.lf-fab-bar[data-lf-presentation="inline"].lf-response-open > .lf-response-options {
+  flex-basis: 100%; }
 .lf-fab-bar .lf-composer-media {
           flex: none; max-width: 148px; padding: 0; }
 .lf-fab-bar .lf-composer-media:has(> .lf-composer-drawing) {
@@ -277,7 +277,7 @@ button.lf-media-open { cursor: zoom-in; }
 /* Forced-colour palettes suppress elevation shadows. The same control keeps a
  * visible platform ring when seated outside the private chrome scope as well. */
 @media (forced-colors: active) {
-  .lf-response-control:is(:focus, :focus-visible, .lf-focus, .lf-focus-visible) {
-    outline: var(--focus-ring-w) solid Highlight; outline-offset: 2px; box-shadow: none;
+  .lf-response-control[data-lf-focus] {
+    outline: var(--focus-ring-w) solid Highlight; outline-offset: 2px; filter: none;
   }
 }

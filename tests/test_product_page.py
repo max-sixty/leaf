@@ -12,6 +12,7 @@ import click
 import pytest
 from click.testing import CliRunner
 from jsonschema import Draft202012Validator
+from leaf import __main__ as leaf_entry
 from leaf import cli as cli_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
@@ -19,7 +20,7 @@ from leaf import layer as layer_model
 from leaf import service as service_model
 from leaf.registry import validation as registry_validation
 from leaf.structure import SourceDocument
-from leaf.validation import compatibility as validation_model
+from leaf.validation import composition as validation_model
 from leaf_dev import record_demo
 from leaf_dev import site as site_model
 from leaf_dev.page_fixtures import source_packages
@@ -198,11 +199,7 @@ def test_package_catalog_routes_every_optional_package_to_inspectable_content():
     )
     declared = json.loads((EXAMPLES / "layer.json").read_text())
 
-    # Gallery is the core page's own browser-test package rather than a product
-    # package. Every package a user can opt into gets one catalog entry.
-    assert [name.casefold().replace(" ", "-") for _, name in catalog] == [
-        name for name in declared if name != "gallery"
-    ]
+    assert [name.casefold().replace(" ", "-") for _, name in catalog] == declared
     for href, _ in catalog:
         if href.startswith("/examples/"):
             assert href.endswith("/")
@@ -364,7 +361,7 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
             command = {k: record[k] for k in command_fields if k in record}
             if "undoes" in record:
                 command["undoes"] = ids[record["undoes"]]
-            accepted = event_contracts_model.append_admitted(
+            accepted, _ = event_contracts_model.append_admitted(
                 page, {**command, "author": "user"}
             )
             ids[record["id"]] = accepted["id"]
@@ -494,7 +491,8 @@ def test_every_command_the_docs_show_is_one_leaf_has():
     to every other gate here, so a stale command would go on being published
     indefinitely. The names are resolved against click's own tree rather than listed
     in this file, because a list here is a second copy of the command surface and goes
-    stale the same way the page does.
+    stale the same way the page does; the harness entries, which no click group holds,
+    are read from the application entry that routes them.
     """
 
     def shown_in(text):
@@ -521,7 +519,10 @@ def test_every_command_the_docs_show_is_one_leaf_has():
     )
 
     def named(tokens):
-        """The subcommand path these tokens walk, greedily, from the root group."""
+        """The subcommand path these tokens walk, greedily, from the root group, or
+        the harness entry the application routes before the group loads."""
+        if tokens[:1] and tokens[0] in leaf_entry.HARNESS_ENTRIES:
+            return tokens[:1]
         command, path = cli_model.cli, []
         for token in tokens:
             if not isinstance(command, click.Group):
@@ -562,7 +563,7 @@ def test_demo_waiter_preserves_the_reason_a_wait_delivered_nothing():
         waiter.receive()
 
 
-@pytest.mark.nightly
+@pytest.mark.main
 def test_demo_recording_drives_the_browser_journey(tmp_path):
     output = tmp_path / "demo"
     # Not check=True: with the streams captured, the CalledProcessError it raises

@@ -11,7 +11,10 @@ from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import ASK_PAGE
 from render_harness import (
+    INPUT_WORK_WATCH_SOURCE,
+    WATCH_PLATFORM_SOURCE,
     consume_browser_errors,
+    holding,
     judge_watches,
     leaf_page,
     open_page,
@@ -1029,10 +1032,10 @@ def test_nested_shadow_regions_keep_enclosing_guarantees_at_source_cap(
         consume_browser_errors(page, "moved without input")
 
 
-@pytest.mark.nightly
+@pytest.mark.main
 @pytest.mark.watch_shifts
-def test_a_nightly_page_watches_typing_and_unasked_shifts(browser):
-    """Nightly opt-in uses the same sensor: growing a field is allowed, carrying it
+def test_a_marked_page_watches_typing_and_unasked_shifts(browser):
+    """A marked tier's opt-in uses the same sensor: growing a field is allowed, carrying it
     without input is reported, and typing that carries it is reported too."""
     page = field_page(browser, "grow")
     page.locator("#field").fill("a")
@@ -1154,6 +1157,343 @@ def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve, wo
     rendered(page)
     judge_watches()
     consume_browser_errors(page, "button#control moved without input")
+
+
+@pytest.mark.parametrize("route", ["pointer", "keyboard"])
+def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(
+    browser, serve, route
+):
+    """A press's declared widget preparation is its result, however late it lands, and
+    the press owns nothing while it waits.
+
+    Opening a closed lf-diff file loads its evidence in a promise the widget presents
+    (`present`). Holding the grammar keeps complete rendering pending while its
+    counted queue rests, as a loaded machine does."""
+    patch = "".join(
+        f"diff --git a/{name}.md b/{name}.md\n--- a/{name}.md\n+++ b/{name}.md\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+        for name in ("first", "second")
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Preparation",
+                f'<lf-diff id="patch" collapsed><pre>{escape(patch)}</pre></lf-diff>'
+                '<button id="control">Keep this control usable</button>',
+            )
+        ),
+    )
+    held = []
+    page.route("**/vendor/syntax/markdown.js", lambda route: held.append(route))
+    first = page.locator("#patch .lf-diff-file").first
+    control = page.locator("#control")
+    if route == "pointer":
+        first.locator(".lf-diff-head").click()
+    else:
+        first.locator(".lf-diff-head").focus()
+        page.keyboard.press("Enter")
+    holding(page, held, 1, "the markdown grammar")
+    rendered(page, facts=("updatesSettled",))
+    assert not page.evaluate(
+        "document.querySelector('script[data-lf-entry]').lfRenderingState().preparationsSettled"
+    )
+    assert (
+        page.evaluate(
+            "document.querySelector('script[data-lf-entry]').lfReadiness(null, 'presented')"
+        )
+        == "presented"
+    )
+    # While the preparation waits, the press owns no other movement on the page.
+    control.evaluate("node => node.style.marginTop = '40px'")
+    rendered(page, facts=("updatesSettled",))
+    judge_watches()
+    consume_browser_errors(page, "button#control moved without input")
+
+    # Its landing moves the files and the control after it, for the press.
+    before = control.bounding_box()["y"]
+    held[0].continue_()
+    expect(first.locator("[data-line]").last).to_contain_text("new")
+    rendered(page)
+    assert control.bounding_box()["y"] > before
+    judge_watches()
+    assert page.lf_errors == []
+
+    # Once it has landed, the press owns nothing further. (The watch names each node
+    # once, so this move is the diff's own, which the landing moved for the press.)
+    page.locator("#patch").evaluate("node => node.style.marginTop = '40px'")
+    rendered(page)
+    judge_watches()
+    moved = consume_browser_errors(page, "moved without input")
+    assert any("in shadow of lf-diff#patch" in error for error in moved), moved
+
+
+@pytest.mark.parametrize(
+    "input_at",
+    ["outside", "same-widget", "same-disclosure", "same-disclosure-attr-node"],
+)
+def test_a_preparation_no_input_began_lands_passive(browser, serve, input_at):
+    """Overlapping an input's rendering or widget does not make its preparation input's.
+
+    A press outside the diff, on its second file's header, or a prevented press on the
+    first keeps counted work running until a response requested before the press opens
+    the first file. Its passive landing moves the control once the press settles."""
+    patch = "diff --git a/first.md b/first.md\n--- a/first.md\n+++ b/first.md\n"
+    patch += "@@ -1 +1 @@\n-old\n+new\n"
+    patch += (
+        "diff --git a/second.txt b/second.txt\n--- a/second.txt\n+++ b/second.txt\n"
+    )
+    patch += "@@ -1 +1 @@\n-old\n+new\n"
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Passive preparation",
+                '<button id="press">Elsewhere</button>'
+                f'<lf-diff id="patch" collapsed><pre>{escape(patch)}</pre></lf-diff>'
+                '<button id="control">Keep this control usable</button>',
+            )
+        ),
+    )
+    answer, grammar = [], []
+    page.route("**/held-answer", lambda route: answer.append(route))
+    page.route("**/vendor/syntax/markdown.js", lambda route: grammar.append(route))
+    page.evaluate(
+        """async inputAt => {
+      const {nextFrame} = await window.__lfRuntimeImport('/runtime/rendering.js');
+      const root = document.querySelector('#patch').shadowRoot;
+      const details = root.querySelector('details');
+      const opens = () => {
+        if (inputAt === 'same-disclosure-attr-node')
+          details.setAttributeNode(document.createAttribute('open'));
+        else if (inputAt === 'same-disclosure') details.setAttribute('open', '');
+        else details.open = true;
+      };
+      fetch('/held-answer').then(opens, opens);
+      const press = inputAt === 'outside' ? document.querySelector('#press')
+        : root.querySelectorAll('.lf-diff-head')[inputAt === 'same-widget' ? 1 : 0];
+      press.addEventListener('click', event => {
+        if (inputAt.startsWith('same-disclosure')) event.preventDefault();
+        let after = 0;
+        const work = () => { if (!details.open || ++after < 3) nextFrame(work); };
+        nextFrame(work);
+      }, {once: true});
+    }""",
+        input_at,
+    )
+    holding(page, answer, 1, "the page's own request")
+    if input_at == "outside":
+        page.locator("#press").click()
+    else:
+        page.locator("#patch .lf-diff-head").nth(
+            1 if input_at == "same-widget" else 0
+        ).click()
+    if input_at.startswith("same-disclosure"):
+        assert not page.locator("#patch details").first.evaluate("node => node.open")
+    answer[0].fulfill(status=204)
+    holding(page, grammar, 1, "the markdown grammar")
+    rendered(page, facts=("updatesSettled",))
+    judge_watches()
+    assert page.lf_errors == []
+
+    grammar[0].continue_()
+    expect(
+        page.locator("#patch .lf-diff-file").first.locator("[data-line]").last
+    ).to_contain_text("new")
+    rendered(page)
+    judge_watches()
+    moved = consume_browser_errors(page, "moved without input")
+    assert any(error.startswith("button#control ") for error in moved), moved
+
+
+@pytest.fixture
+def input_work_page(browser):
+    """Isolate the source sensor from subscriber listeners; the browser owns contexts."""
+    errors = []
+
+    def open_page(markup):
+        context = browser.unwatched.new_context()
+        page = context.new_page()
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.on(
+            "console",
+            lambda message: (
+                errors.append(message.text)
+                if message.type in {"error", "warning"}
+                else None
+            ),
+        )
+        page.add_init_script(
+            script=f"{WATCH_PLATFORM_SOURCE.read_text()}\n"
+            "window.nativeWatchListen = EventTarget.prototype.addEventListener;\n"
+            f"{INPUT_WORK_WATCH_SOURCE.read_text()}"
+        )
+        page.goto("data:text/html," + quote(markup))
+        return page
+
+    yield open_page
+    assert errors == [], errors
+
+
+@pytest.mark.parametrize("route", ["pointer", "keyboard", "passive"])
+def test_disclosure_dispatch_carries_source_without_click_listeners(
+    input_work_page, route
+):
+    """Native activation and callback forms share the dispatch's exact source."""
+    page = input_work_page(
+        """<button id="press">Open</button>
+      <details ontoggle="window.inlineSource = lfInputWork.current()?.event.type ?? null">
+      <summary>Fold</summary>Content</details>"""
+    )
+    page.evaluate("""() => {
+      document.querySelector('details').addEventListener('toggle', () => {
+        window.registeredSource = lfInputWork.current()?.event.type ?? null;
+      });
+      document.querySelector('#press').addEventListener('keydown', event => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        document.querySelector('summary').click();
+      });
+    }""")
+    if route == "pointer":
+        page.locator("summary").click()
+    elif route == "keyboard":
+        page.locator("#press").focus()
+        page.keyboard.press("Enter")
+    else:
+        page.evaluate("document.querySelector('summary').click()")
+    page.wait_for_function(
+        "window.registeredSource !== undefined && window.inlineSource !== undefined"
+    )
+    source = {"pointer": "click", "keyboard": "keydown", "passive": None}[route]
+    assert page.evaluate("[window.inlineSource, window.registeredSource]") == [
+        source,
+        source,
+    ]
+
+
+@pytest.mark.parametrize("kind", ["synthetic-click", "native-toggle"])
+def test_redispatching_an_event_uses_the_new_dispatch_source(input_work_page, kind):
+    """An Event object can be reused; its old dispatch cannot own passive work."""
+    page = input_work_page(
+        '<button id="press">Dispatch</button>'
+        '<button id="result">Result</button>'
+        "<details><summary>Fold</summary>Content</details>"
+    )
+    page.evaluate(
+        """kind => {
+      window.readings = [];
+      const details = document.querySelector('details');
+      const result = document.querySelector('#result');
+      const native = kind === 'native-toggle';
+      window.dispatchOwner = native ? details : result;
+      window.reusedEvent = native ? null : new MouseEvent('click', {bubbles:true, composed:true});
+      dispatchOwner.addEventListener(native ? 'toggle' : 'click', event => {
+        reusedEvent ??= event;
+        readings.push(lfInputWork.current()?.event.type ?? null);
+      });
+      document.querySelector('#press').addEventListener('keydown', event => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        if (native) details.querySelector('summary').click();
+        else result.dispatchEvent(reusedEvent);
+      });
+    }""",
+        kind,
+    )
+    page.locator("#press").focus()
+    page.keyboard.press("Enter")
+    page.wait_for_function("window.readings.length === 1")
+    page.evaluate("dispatchOwner.dispatchEvent(reusedEvent)")
+    assert page.evaluate("readings") == ["keydown", None]
+
+
+def test_a_delivered_disclosure_toggle_releases_its_input_source(input_work_page):
+    """Native delivery retires input ownership even without a wrapped page listener."""
+    page = input_work_page("<details><summary>Open</summary>Content</details>")
+    page.evaluate("""() => {
+      window.nativeToggles = 0;
+      nativeWatchListen.call(document.querySelector('details'), 'toggle', () => nativeToggles++);
+    }""")
+    page.locator("summary").click()
+    page.wait_for_function("window.nativeToggles === 1")
+    page.evaluate("""() => {
+      const details = document.querySelector('details');
+      details.ontoggle = () => {
+        window.propertyToggleSource = lfInputWork.current()?.event.type ?? null;
+      };
+      details.addEventListener('toggle', () => {
+        window.passiveToggleSource = lfInputWork.current()?.event.type ?? null;
+      });
+      details.attributes.removeNamedItem('open');
+    }""")
+    page.wait_for_function("window.passiveToggleSource !== undefined")
+    assert page.evaluate(
+        "[window.passiveToggleSource, window.propertyToggleSource]"
+    ) == [None, None]
+
+
+@pytest.mark.parametrize("cancelled", [True, False], ids=["cancelled", "closed again"])
+def test_an_activation_that_opens_nothing_leaves_a_later_open_passive(
+    browser, serve, cancelled
+):
+    """A summary press that leaves its file shut gives a later opening no input.
+
+    Enter on a file's header either has its click cancelled, so no toggle comes, or
+    has the click's own listener open the file before the activation shuts it again,
+    so the one toggle that comes announces it closed. A script opening the file after
+    either is no input's, and its landing moves the control after it passively."""
+    patch = "diff --git a/first.md b/first.md\n--- a/first.md\n+++ b/first.md\n"
+    patch += "@@ -1 +1 @@\n-old\n+new\n"
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Shut activation",
+                f'<lf-diff id="patch" collapsed><pre>{escape(patch)}</pre></lf-diff>'
+                '<button id="control">Keep this control usable</button>',
+            )
+        ),
+    )
+    grammar = []
+    page.route("**/vendor/syntax/markdown.js", lambda route: grammar.append(route))
+    page.evaluate(
+        """cancelled => {
+      const details = document.querySelector('#patch').shadowRoot.querySelector('details');
+      window.toggles = [];
+      details.addEventListener('toggle', (event) => toggles.push(event.newState));
+      details.querySelector('summary').addEventListener('click', (event) => {
+        if (cancelled) event.preventDefault();
+        else details.open = true;
+      }, {once: true});
+    }""",
+        cancelled,
+    )
+    head = page.locator("#patch .lf-diff-head")
+    head.focus()
+    head.press("Enter")
+    if not cancelled:
+        page.wait_for_function("toggles.length === 1")
+        assert page.evaluate("toggles") == ["closed"]
+    rendered(page)
+    assert page.locator("#patch details").get_attribute("open") is None
+    judge_watches()
+    if not cancelled:
+        # The click's listener restates `open` the activation then takes back.
+        consume_browser_errors(page, "unchanged write: open on details")
+    assert page.lf_errors == []
+
+    page.evaluate(
+        "document.querySelector('#patch').shadowRoot.querySelector('details').open = true"
+    )
+    holding(page, grammar, 1, "the markdown grammar")
+    paint(page)
+    grammar[0].continue_()
+    expect(page.locator("#patch [data-line]").last).to_contain_text("new")
+    rendered(page)
+    judge_watches()
+    moved = consume_browser_errors(page, "moved without input")
+    assert any(error.startswith("button#control ") for error in moved), moved
 
 
 def test_shift_judgement_waits_for_paint_instead_of_a_time_cap(browser):
@@ -1443,7 +1783,7 @@ def test_a_resize_owns_its_layout_before_its_event_dispatches(browser):
 # boundary: native height-induced sibling flow has no exact translation proof.
 # The matched marginTop arm proves press/news ownership with supported displacement.
 NEWS = """<!doctype html><body style="margin:0">
-<script data-lf-entry>document.currentScript.lfRenderingSettled = () => false;</script>
+<script data-lf-entry>document.currentScript.lfRenderingState = () => ({updatesSettled: false, preparationsSettled: true});</script>
 <button id="press">Press</button>
 <div id="bar"></div><div id="above"></div><div id="below">Below.</div>
 <script>
@@ -1459,7 +1799,7 @@ NEWS = """<!doctype html><body style="margin:0">
     const until = performance.now() + Number(document.body.dataset.work);
     while (performance.now() < until) {}
     frames(3, () => {
-      document.body.dataset.inputHeld = String(!document.querySelector('script[data-lf-entry]').lfRenderingSettled());
+      document.body.dataset.inputHeld = String(!document.querySelector('script[data-lf-entry]').lfRenderingState().updatesSettled);
       document.body.setAttribute("data-lf-reading", "news");
       if (motion() === "news") slide();
       if (!motion()) document.getElementById("above").style.height = "40px";
@@ -2474,7 +2814,9 @@ def test_gesture_close_does_not_own_future_or_local_motion(browser, fault):
 @pytest.mark.parametrize(
     "guard_mode, destination", [("typing", "window"), ("passive", "page")]
 )
-@pytest.mark.parametrize("fault", ["", "holder_x", "holder_y", "child_x", "child_y"])
+@pytest.mark.parametrize(
+    "fault", ["", "holder_x", "holder_y", "child_x", "child_y", "inset_y"]
+)
 def test_real_floating_plane_retains_local_motion(
     browser, serve, fault, guard_mode, destination
 ):
@@ -2526,10 +2868,10 @@ def test_real_floating_plane_retains_local_motion(
           holder.style.removeProperty('visibility');
           const original = selection();
           window.planeControl = {
-            to:async destination => {plane=destination; await place();},
+            to:async destination => {plane=destination; await place(); window.injectPlaneFault?.();},
             read:() => {
               const current = selection();
-              return {plane:current.plane, sameSubject:current.subject===original.subject,
+              return {plane:current.plane, edge:current.edges.top, sameSubject:current.subject===original.subject,
                 sameAnchor:current.anchor===original.anchor, sameTenure:current.tenure===original.tenure,
                 expected:{x:answer.x,y:answer.y}};
             },
@@ -2558,7 +2900,7 @@ def test_real_floating_plane_retains_local_motion(
       })))).observe({type:'layout-shift'});
     }""")
     page.evaluate(
-        """([fault,destination])=>{
+        """fault=>{
           window.planeChanges=0;
           const holder=document.querySelector('#holder');
           let previous=holder.dataset.lfPlane;
@@ -2566,18 +2908,22 @@ def test_real_floating_plane_retains_local_motion(
             if(holder.dataset.lfPlane===previous) return;
             previous=holder.dataset.lfPlane;
             planeChanges++;
-            if(previous===destination) {
-              if(fault==='holder_x') holder.style.transform='translateX(80px)';
-              if(fault==='holder_y') holder.style.transform='translateY(80px)';
-              if(fault==='child_x') document.querySelector('#field').style.transform='translateX(80px)';
-              if(fault==='child_y') document.querySelector('#field').style.transform='translateY(80px)';
-              // Transform-only faults need a native paint signal; this extra source
-              // cannot establish the independently asserted field displacement.
-              if(fault) document.querySelector('#evidence').style.marginLeft='30px';
-            }
           }).observe(holder,{attributes:true,attributeFilter:['data-lf-plane']});
+          window.injectPlaneFault = () => {
+            if(fault==='holder_x') holder.style.transform='translateX(80px)';
+            if(fault==='holder_y') holder.style.transform='translateY(80px)';
+            if(fault==='child_x') document.querySelector('#field').style.transform='translateX(80px)';
+            if(fault==='child_y') document.querySelector('#field').style.transform='translateY(80px)';
+            if(fault==='inset_y') {
+              const edge=planeControl.read().edge;
+              holder.style[edge]=`calc(${edge==='top'?80:-80}px + ${holder.style[edge]})`;
+            }
+            // Transform-only faults need a native paint signal; this extra source
+            // cannot establish the independently asserted field displacement.
+            if(fault) document.querySelector('#evidence').style.marginLeft='30px';
+          };
         }""",
-        [fault, destination],
+        fault,
     )
     if guard_mode == "typing":
         field.evaluate(
@@ -2608,7 +2954,8 @@ def test_real_floating_plane_retains_local_motion(
     for axis in ["x", "y"]:
         shifted = 80 if fault.endswith("_" + axis) else 0
         assert holder_after[axis] == pytest.approx(
-            state["expected"][axis] + (shifted if fault.startswith("holder") else 0),
+            state["expected"][axis]
+            + (shifted if fault.startswith("holder") or fault == "inset_y" else 0),
             abs=1,
         )
         assert after[axis] == pytest.approx(
@@ -2875,7 +3222,7 @@ def test_new_anchor_relation_cannot_credit_scroll_before_activation(browser, mod
     assert any(expected in error for error in errors), errors
 
 
-@pytest.mark.parametrize("fault", ["", "holder", "child"])
+@pytest.mark.parametrize("fault", ["", "holder", "child", "missing-source"])
 def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, fault):
     source = leaf_page(
         "Floating tenure",
@@ -2910,6 +3257,14 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
         "newStoppedTenure": True,
         "sameStoppedSubject": True,
     }, state
+    if fault == "missing-source":
+        # A source measurement may be absent: preserve the rejected inputs without
+        # granting motion credit merely because the surface still has an owner.
+        page.evaluate("""() => {
+          const entry = document.querySelector('script[data-lf-entry]');
+          const readings = entry.lfFloatingSelections;
+          entry.lfFloatingSelections = () => readings().map(s => ({...s, scrollOffsets:null}));
+        }""")
     paint(page)
     assert page.locator("#holder").bounding_box() == initial
     judge_watches()
@@ -2918,7 +3273,7 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
     paint(page)
     if fault:
         page.evaluate(
-            """fault=>{document.querySelector(fault==='holder'?'#holder':'#field').style.marginLeft='80px';document.querySelector('#evidence').style.marginLeft='40px'}""",
+            """fault=>{document.querySelector(fault==='child'?'#field':'#holder').style.marginLeft='80px';document.querySelector('#evidence').style.marginLeft='40px'}""",
             fault,
         )
         page.screenshot()
@@ -2928,6 +3283,24 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
         assert any("textarea#field moved without input" in error for error in errors), (
             errors
         )
+        if fault == "missing-source":
+            error = next(e for e in errors if "textarea#field moved without input" in e)
+            evidence = shift_evidence(error)
+            assert any(
+                not comparison["scroll_terms"]
+                and any(
+                    attachment["owner"] == "div#holder"
+                    and attachment["before"]["plane"] == "window"
+                    and attachment["after"]["plane"] == "window"
+                    and attachment["before"]["scrollOffsets"] is None
+                    and attachment["after"]["scrollOffsets"] is None
+                    and attachment["after_surface"]["left"]
+                    - attachment["before_surface"]["left"]
+                    == 80
+                    for attachment in comparison["scroll_attachments"]
+                )
+                for comparison in evidence["comparisons"]
+            ), evidence
     else:
         assert errors == [], errors
 
@@ -3025,7 +3398,7 @@ def test_a_delayed_native_frame_keeps_the_typing_origins_camera(browser, fault, 
     page.goto(
         "data:text/html,"
         + quote("""<!doctype html><body style="margin:0">
-<script data-lf-entry>document.currentScript.lfRenderingSettled = () => false;</script>
+<script data-lf-entry>document.currentScript.lfRenderingState = () => ({updatesSettled: false, preparationsSettled: true});</script>
 <div id="bar"><div id="above"></div><textarea id="field"></textarea></div>
 <p id="evidence" style="position:absolute;top:200px">Paint evidence</p>
 <script>field.addEventListener('beforeinput', () => {
@@ -3325,7 +3698,17 @@ def test_viewport_constrained_attachment_credits_only_its_source_scroll(
 
 @pytest.mark.parametrize(
     "case",
-    ["root", "scaled", "fixed-both", "sticky", "fixed-fault", "clamp", "clamp-fault"],
+    [
+        "root",
+        "window",
+        "edge",
+        "scaled",
+        "fixed-both",
+        "sticky",
+        "fixed-fault",
+        "clamp",
+        "clamp-fault",
+    ],
 )
 def test_observed_attachment_credits_only_the_measured_scroll_placement(
     browser, serve, case
@@ -3376,7 +3759,7 @@ def test_observed_attachment_credits_only_the_measured_scroll_placement(
             "node => node.style.top = `${node.getBoundingClientRect().top - 10}px`"
         )
     page.evaluate(
-        """async clamp => {
+        """async ({clamp, wanted}) => {
       const module = await window.__lfRuntimeImport('/runtime/annotation-overlay/floating.js');
       const ui = await module.floatingUi();
       const subject = document.querySelector('#subject'), holder = document.querySelector('#holder');
@@ -3388,14 +3771,17 @@ def test_observed_attachment_credits_only_the_measured_scroll_placement(
         owner.begin();
         const answer = await owner.position(ui.computePosition, reference,
           {placement:'right-start',middleware:clamp ? [ui.shift({crossAxis:true,padding:0})] : []},
-          ()=>'page', subject);
+          () => wanted === 'edge' ? {edge:'top',at:0} : wanted, subject);
         if (answer) owner.stand(answer);
       }
       owner.watch(subject,reference,ui.autoUpdate);
       await place();
       holder.style.removeProperty('visibility');
     }""",
-        case.startswith("clamp"),
+        {
+            "clamp": case.startswith("clamp"),
+            "wanted": case if case in {"window", "edge"} else "page",
+        },
     )
     expect(page.locator("#holder")).to_have_attribute("data-lf-plane", "window")
     paint(page)

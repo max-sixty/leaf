@@ -27,3 +27,138 @@ lf-atlas-worker > details > summary { min-block-size: 44px; display: list-item; 
 .atlas-tree pre { max-inline-size: 100%; overflow: auto; }
 .atlas-overview output { font-variant-numeric: tabular-nums; }
 .atlas-stopped { margin-block-start: 1rem; }
+
+@layer lf-base {
+  @scope (lf-margin-entry-gallery) {
+    /* The gallery lays the runtime's own margin entry anatomy out for comparison. The page
+     * owns only the sample labels and grid; margin-projection.js and chrome.css remain the
+     * sole owners of each margin entry's circle, icon, tone, rank, and workflow paint. */
+    :scope:is(lf-margin-entry-gallery) {
+      display: block;
+      margin-block: var(--sp-4);
+      /* The sample rows stack from the room the gallery has. A gallery in a narrow
+       * column or beside an open drawer has less than the page shell does. */
+      container: lf-margin-entry-gallery / inline-size;
+    }
+
+    .margin-entry-gallery-group {
+      display: grid;
+      grid-template-columns: minmax(7.5rem, .7fr) minmax(0, 3fr);
+      gap: var(--sp-3);
+      align-items: start;
+      padding-block: var(--sp-3);
+      border-block-start: 1px solid var(--rule);
+    }
+
+    .margin-entry-gallery-heading {
+      color: var(--ink);
+      font: 650 var(--t-5)/1.3 var(--sans);
+    }
+
+    .margin-entry-gallery-summary {
+      display: block;
+      margin-block-start: var(--sp-1);
+      color: var(--muted);
+      font: 450 var(--t-6)/1.35 var(--sans);
+    }
+
+    .margin-entry-gallery-items {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(7.75rem, 1fr));
+      gap: var(--sp-3) var(--sp-2);
+      min-width: 0;
+    }
+
+    .margin-entry-gallery-item {
+      display: grid;
+      grid-template-columns: max-content minmax(0, 1fr);
+      gap: var(--sp-2);
+      align-items: center;
+      min-width: 0;
+    }
+
+    .margin-entry-gallery-copy {
+      min-width: 0;
+      font-family: var(--sans);
+    }
+
+    .margin-entry-gallery-name,
+    .margin-entry-gallery-detail {
+      display: block;
+      overflow-wrap: anywhere;
+    }
+
+    .margin-entry-gallery-name {
+      color: var(--ink);
+      font-size: var(--t-5);
+      font-weight: 650;
+      line-height: 1.25;
+    }
+
+    .margin-entry-gallery-detail {
+      margin-block-start: 2px;
+      color: var(--muted);
+      font-size: var(--t-6);
+      line-height: 1.3;
+    }
+
+    /* The nearby words expose each fixed sample, so its transient hover label would say
+     * the same thing over the next cell. The two live discovery samples opt back into
+     * that label. Suppress only the rest without changing the canonical label and accessible
+     * name the margin entry factory gives each control. */
+    :scope:is(lf-margin-entry-gallery)
+      .margin-entry-gallery-item
+      .lf-margin-entry:not([data-margin-entry-label-live])
+    > .lf-margin-entry-label {
+      display: none;
+    }
+
+    .margin-entry-gallery-disclosure {
+      grid-column: 2;
+      color: var(--muted);
+      font: 450 var(--t-6)/1.3 var(--sans);
+    }
+
+    .margin-entry-gallery-projection {
+      display: grid;
+      grid-template-columns: minmax(7.5rem, .7fr) minmax(0, 3fr);
+      gap: var(--sp-3);
+      align-items: start;
+      padding-block: var(--sp-3);
+      border-block-start: 1px solid var(--rule);
+      border-block-end: 1px solid var(--rule);
+    }
+
+    .margin-entry-gallery-projection > .margin-entry-gallery-summary {
+      margin-block-start: 0;
+    }
+
+    .margin-entry-gallery-projection-guide,
+    .margin-entry-gallery-projection-result {
+      grid-column: 2;
+      margin: 0;
+      color: var(--ink-2);
+      font: 450 var(--t-5)/1.45 var(--sans);
+    }
+
+    .margin-entry-gallery-projection-result {
+      padding-inline-start: var(--sp-2);
+      border-inline-start: 2px solid var(--accent);
+    }
+
+    @container lf-margin-entry-gallery (width <= 36rem) {
+      .margin-entry-gallery-group {
+        grid-template-columns: 1fr;
+      }
+
+      .margin-entry-gallery-projection {
+        grid-template-columns: 1fr;
+      }
+
+      .margin-entry-gallery-projection-guide,
+      .margin-entry-gallery-projection-result {
+        grid-column: 1;
+      }
+    }
+  }
+}

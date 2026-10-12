@@ -8,6 +8,85 @@ import click
 import pytest
 import yaml
 from leaf_dev.eval import catalog, native_provider, prepare, select_cases
+from leaf_dev.review_detection_eval import grading, summarize
+
+
+@pytest.mark.usefixtures("codex_cli")
+def test_ui_review_judge_has_no_run_wide_evidence_grant(tmp_path, monkeypatch):
+    """Only the assertion's per-sample profile grants evidence access."""
+    login = tmp_path / "login"
+    login.mkdir()
+    (login / "auth.json").write_text('{"fixture": "local-login"}')
+    monkeypatch.setenv("CODEX_HOME", str(login))
+    output = tmp_path / "run"
+    output.mkdir()
+    settings = grading(output, tmp_path / "judge")["metadata"]
+    provider = settings["graderProvider"]["config"]
+    profile = (Path(provider["cli_env"]["CODEX_HOME"]) / "config.toml").read_text()
+    assert [line for line in profile.splitlines() if line.endswith('"read"')] == [
+        '":minimal" = "read"',
+        f'"{provider["codex_path_override"]}" = "read"',
+    ]
+    assert str(output) not in profile
+
+
+def test_ui_review_summary_keeps_execution_and_grading_failures_unscored(tmp_path):
+    """Promptfoo errors must not become misses or inflate control denominators."""
+    rows = []
+    for variant, detection, alarm, error in (
+        ("timeline-defect", 2, None, None),
+        ("shift-defect", 0, None, None),
+        ("timeline-control", None, 0, None),
+        ("shift-control", None, 1, None),
+        ("timeline-defect", None, None, "provider transport failed"),
+        ("timeline-control", None, None, "invalid judge JSON"),
+    ):
+        grade = {
+            "scorable": True,
+            "target_detection": detection,
+            "target_false_alarm": alarm,
+            "unsupported_observations": [],
+        }
+        rows.append(
+            {
+                "testCase": {
+                    "metadata": {
+                        "privateCase": "recording-times"
+                        if variant.startswith("timeline")
+                        else "recording-stepping",
+                        "privateVariant": variant,
+                    }
+                },
+                "provider": {"label": "anonymous/no-tools"},
+                "response": {"metadata": {"evidenceDir": "sample"}},
+                "gradingResult": {
+                    "componentResults": []
+                    if error
+                    else [{"metadata": {"grade": grade}}]
+                },
+                "error": error,
+            }
+        )
+    (tmp_path / "results.json").write_text(json.dumps({"results": {"results": rows}}))
+    summary = summarize(tmp_path)
+    assert {key: value for key, value in summary.items() if key != "rows"} == {
+        "samples": 6,
+        "scored": 4,
+        "unscored": 2,
+        "defects": 2,
+        "detected": 1,
+        "concerns": 0,
+        "missed": 1,
+        "controls": 2,
+        "target_false_alarms": 1,
+        "unsupported_observations": 0,
+    }
+    assert [row["grade"] for row in summary["rows"][-2:]] == [None, None]
+    assert [row["error"] for row in summary["rows"][-2:]] == [
+        "provider transport failed",
+        "invalid judge JSON",
+    ]
+    assert json.loads((tmp_path / "grading-summary.json").read_text()) == summary
 
 
 @pytest.fixture
@@ -15,7 +94,9 @@ def codex_cli(monkeypatch):
     """Use the eval dependency's real CLI for model-free installation checks;
     the suite otherwise puts a failing harness stub ahead of installed programs."""
     programs = Path(__file__).parents[1] / "node_modules/.bin"
-    assert (programs / "codex").is_file(), "Install eval dependencies with npm ci"
+    assert (programs / "codex").is_file(), (
+        "Install eval dependencies with pnpm install --frozen-lockfile"
+    )
     monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
 
 
@@ -49,7 +130,8 @@ def test_library_cases_supply_a_task_and_native_promptfoo_assertions(address):
     assert all(assertion["type"] and assertion["value"] for assertion in case["assert"])
 
 
-def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch, codex_cli):
+@pytest.mark.usefixtures("codex_cli")
+def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch):
     login = tmp_path / "harness-login"
     login.mkdir()
     (login / "auth.json").write_text('{"fixture": "local-login"}')
@@ -116,8 +198,9 @@ def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch, code
         "visible-outcome-before-handoff/shared-identity",
     ],
 )
+@pytest.mark.usefixtures("codex_cli")
 def test_internal_instruction_cases_receive_their_arms_source(
-    tmp_path, monkeypatch, codex_cli, address
+    tmp_path, monkeypatch, address
 ):
     login = tmp_path / "login"
     login.mkdir()
@@ -151,8 +234,9 @@ def test_internal_instruction_cases_receive_their_arms_source(
     assert config["tests"][0]["vars"]["prompt"] == catalog()[address]["vars"]["prompt"]
 
 
+@pytest.mark.usefixtures("codex_cli")
 def test_native_codex_discovers_the_complete_arm_with_root_relative_access(
-    tmp_path, monkeypatch, codex_cli
+    tmp_path, monkeypatch
 ):
     """Use Codex's real installer without running a model. A skill-only symlink
     hides the registry from ordinary discovery and loses its plugin-root launcher."""

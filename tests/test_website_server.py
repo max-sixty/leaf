@@ -47,6 +47,7 @@ from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
 from leaf.leases import take_lease, waiter_lease_path
 from leaf.machine import pid_alive
+from leaf.refusals import Refused
 from leaf.render_checks import rendered
 from leaf.revision_artifact import capture_artifact
 from leaf.revision_delivery import compose_document
@@ -54,7 +55,7 @@ from leaf.served_state import page as served_page
 from leaf.service import delivery_reply_attempt
 from leaf.state import flocked, open_session_turn, session_record, start_session_turn
 from leaf.structure import SourceDocument
-from leaf.thread import cmd_resolve, post_reply
+from leaf.thread import ProviderFinal, cmd_resolve, post_reply
 from leaf_dev import example_previews, journey, startup, verify_site
 from playwright.sync_api import expect
 from render_harness import (
@@ -865,6 +866,46 @@ def test_a_follower_that_faults_still_hands_the_page_on(page_dir, monkeypatch):
     assert "hosted-thread" not in harness.following_threads
 
 
+def test_a_refused_correction_receipt_still_hands_the_page_on(
+    page_dir, monkeypatch, capsys
+):
+    """A correction turn that cannot restart receipts what it owed, and the page can
+    refuse that receipt while a reply is still held. The refusal is recorded and
+    the page's next move is still started."""
+    comment = append_event(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "edit the page"},
+    )
+    harness = website_server.WebsiteCodexHarness("codex")
+    harness.following_threads.add("hosted-thread")
+    turn = unfollowed_turn(harness, page_dir)
+    turn.correction = {"source": "index.html"}
+
+    def no_server():
+        raise RuntimeError("no App Server")
+
+    def refused_receipt():
+        raise Refused("failure receipts wait for this turn to release the answer")
+
+    continued = []
+    monkeypatch.setattr(harness, "_ensure_server", no_server)
+    monkeypatch.setattr(turn, "_receipt_unanswered", refused_receipt)
+    monkeypatch.setattr(
+        harness, "attach", lambda target, event_id: continued.append(event_id)
+    )
+    harness._run_follow_turn(turn)
+
+    assert continued == [comment["id"]]
+    [record] = [
+        json.loads(line)
+        for line in capsys.readouterr().out.splitlines()
+        if json.loads(line)["event"] == "turn_receipt_refused"
+    ]
+    assert (
+        record["detail"] == "failure receipts wait for this turn to release the answer"
+    )
+
+
 def test_an_ending_on_an_unopenable_page_still_answers_every_move(
     page_dir, monkeypatch
 ):
@@ -1043,10 +1084,7 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
                 "approvalPolicy": "never",
                 "sandbox": "danger-full-access",
                 "developerInstructions": website_server.CODEX_INSTRUCTIONS,
-                "config": {
-                    **website_server.LEAF_THREAD_CONFIG,
-                    "model_reasoning_effort": "low",
-                },
+                "config": {"model_reasoning_effort": "low"},
             },
         )
     ]
@@ -1130,12 +1168,44 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
         "site = Path(sys.argv[sys.argv.index('--output') + 1]) / '_leaf'\n"
         "site.mkdir(parents=True)\n"
         "(site / 'site.json').write_text('{\"release\": \"' + 'a' * 40 + '\"}')\n"
+        "install = site.parent.with_name(site.parent.name + '-install')\n"
+        "(install / '.agents/plugins').mkdir(parents=True)\n"
+        "(install / '.agents/plugins/marketplace.json').write_text('{\"name\": \"leaf\"}')\n"
+        "(install / '.venv').mkdir()\n"
         "print('built the site')\n"
     )
+    codex = tmp_path / "codex"
+    codex.write_text(
+        f"#!{sys.executable}\n"
+        "import json, os, sys\n"
+        "from pathlib import Path\n"
+        "home = Path(os.environ['CODEX_HOME'])\n"
+        "assert (home / 'auth.json').read_text() == '{\"test\": \"login\"}'\n"
+        "assert (home / 'config.toml').read_text() == 'model = \"test\"'\n"
+        "assert os.environ.get('LEAF_CODEX_APP_SERVER') is None\n"
+        "record = home / 'plugin-install.jsonl'\n"
+        "args = sys.argv[1:]\n"
+        "if args[:3] == ['plugin', 'marketplace', 'add']:\n"
+        "    assert args[-1] == '--json'\n"
+        "    plugin = Path(args[3])\n"
+        "    assert plugin.parent == home.parent\n"
+        "    assert json.loads((plugin / '.agents/plugins/marketplace.json').read_text())['name'] == 'leaf'\n"
+        "    assert not (plugin / '.venv').exists()\n"
+        "    assert not record.exists()\n"
+        "else:\n"
+        "    assert args == ['plugin', 'add', 'leaf@leaf', '--json']\n"
+        "    assert len(record.read_text().splitlines()) == 1\n"
+        "with record.open('a') as output:\n"
+        "    output.write(json.dumps(args) + '\\n')\n"
+        "print(json.dumps({'installed': args}, indent=2))\n"
+    )
+    codex.chmod(0o755)
     serve_site = tmp_path / "serve_site.py"
     serve_site.write_text(
         "import json, os\n"
+        "from pathlib import Path\n"
         "from http.server import BaseHTTPRequestHandler, HTTPServer\n"
+        "assert len((Path(os.environ['CODEX_HOME']) / 'plugin-install.jsonl').read_text().splitlines()) == 2\n"
         "class Handler(BaseHTTPRequestHandler):\n"
         "    def do_GET(self):\n"
         "        self.send_response(200)\n"
@@ -1151,6 +1221,7 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
         verify_site, "serve_site", lambda install: [sys.executable, str(serve_site)]
     )
     monkeypatch.setenv("CODEX_HOME", str(host_home))
+    monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.setenv("LEAF_CODEX_APP_SERVER", "unix:///another-session.sock")
     with (
         pytest.raises(RuntimeError, match="journey failed"),
@@ -1177,6 +1248,20 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
         ).read_bytes()
         assert (private_home / "auth.json").stat().st_mode & 0o777 == 0o600
         assert (private_home / "config.toml").read_text() == 'model = "test"'
+        installed = [
+            json.loads(line)
+            for line in (private_home / "plugin-install.jsonl").read_text().splitlines()
+        ]
+        assert installed == [
+            [
+                "plugin",
+                "marketplace",
+                "add",
+                str(private_home.parent / "leaf-plugin"),
+                "--json",
+            ],
+            ["plugin", "add", "leaf@leaf", "--json"],
+        ]
         assert private_site != root / ".tmp" / "site"
         assert (private_site / "_leaf" / "site.json").exists()
         raise RuntimeError("journey failed")
@@ -1370,7 +1455,7 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
 
 
 def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatch):
-    """A hosted task must not discover or initialize another plugin environment."""
+    """A hosted task inherits the installed Leaf CLI and selects its App Server contract."""
     site_root = tmp_path / "site"
     site_root.mkdir()
     monkeypatch.setenv("LEAF_SITE_ROOT", str(site_root))
@@ -1409,7 +1494,7 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     assert "LEAF_REPLY" not in launched["options"]["env"]
     assert "LEAF_REPLY_TOKEN" not in launched["options"]["env"]
     assert launched["options"]["cwd"] == str(site_root)
-    assert "LEAF_SKILL_DIR" not in launched["options"]["env"]
+    assert launched["options"]["env"][website_server.APP_SERVER_ENV] == harness.endpoint
     assert launched["command"] == [
         "codex",
         "app-server",
@@ -1815,13 +1900,11 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
     competing_writer_rejected = []
 
     def refuse(*args, **kwargs):
-        with pytest.raises(SystemExit, match="answered by this turn's messages"):
+        with pytest.raises(Refused, match="answered by this turn's messages"):
             post_reply(
                 page_dir,
-                comment["id"],
+                {"to": comment["id"], "for": comment["id"]},
                 "Competing tool reply",
-                "",
-                for_event=comment["id"],
                 identity={"agent": "Codex", "session": "hosted-thread"},
             )
         competing_writer_rejected.append(True)
@@ -3168,10 +3251,21 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     assert watcher is not None
     request.addfinalizer(watcher.close)
     thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
-    # An active editor holds the turn's update so this journey exercises the receipt
-    # beside held news; an idle panel thread now shows the update immediately.
+    # An active editor holds the turn's opening so this journey exercises the receipt
+    # beside held news; an idle panel thread streams it immediately. The reply joins
+    # the thread with its first words, not when the turn opens its seat.
     thread.locator("leaf-text").focus()
     turn.begin()
+    turn.reply_stream.update(
+        {
+            "message": {
+                "item": "msg-0",
+                "phase": "commentary",
+                "text": "Looking at the page.",
+                "complete": False,
+            }
+        }
+    )
     # Present the accepted turn before resolving it: coalescing these server writes
     # would never exercise a workflow receipt disappearing beside the news control.
     told(page)
@@ -3361,12 +3455,10 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     assert (
         post_reply(
             page_dir,
-            comment["id"],
+            {"to": comment["id"], "for": comment["id"]},
             "deployment verified",
-            "",
-            for_event=comment["id"],
+            settlement=ProviderFinal("test-final"),
             attempt=answer["attempt"],
-            when_settled="post",
             identity={"session": "hosted-thread"},
         )
         == answer
@@ -3421,10 +3513,8 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
     accept_in_turn("hosted-thread")
     post_reply(
         page_dir,
-        comment["id"],
+        {"to": comment["id"], "for": comment["id"]},
         "Done.",
-        "",
-        for_event=comment["id"],
         identity={"agent": "The agent", "session": "leaf-website-agent"},
     )
     with website_server.PageTransaction(page_dir) as page:
@@ -4395,7 +4485,7 @@ def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
         "reply => window.__leafVerifier.replyShownAt(reply)", arg=reply
     )
     shown = page.evaluate("window.__leafVerifier.replyShownAt", reply)
-    assert shown["by"] == "message"
+    assert shown["by"] == "message" and shown["message"] == shown["at"]
     assert before <= shown["at"] <= page.evaluate("Date.now()")
 
 
@@ -5263,6 +5353,34 @@ class _Text:
         return self.text
 
 
+def test_release_verifier_waits_for_the_revision_to_finish_presenting(browser):
+    """The revision marker can advance while the live document patch is pending."""
+    page = browser.unwatched.new_page()
+    page.route(
+        "http://release-verifier.test/",
+        lambda route: route.fulfill(
+            content_type="text/html",
+            body=(
+                "<!doctype html><head><meta name='lf-revision' content='2'>"
+                "<script data-lf-entry></script></head><body data-lf-presented='1'>"
+                "<main>Previous release</main></body>"
+            ),
+        ),
+    )
+    page.add_init_script(path=verify_site.VERIFIER_SCRIPT)
+    page.goto("http://release-verifier.test/")
+    page.evaluate(
+        "document.querySelector('script[data-lf-entry]').lfReadiness = "
+        "() => 'presented'"
+    )
+    assert not page.evaluate("window.__leafVerifier.revisionAtLeast(2)")
+    page.evaluate(
+        "document.querySelector('main').textContent = 'Release 3531f4e6'; "
+        "document.querySelector('script[data-lf-entry]').lfReadiness = () => null"
+    )
+    assert page.evaluate("window.__leafVerifier.revisionAtLeast(2)")
+
+
 class _DeployedPage:
     """The page the agent pass opens, reloads after its turn, and reads back."""
 
@@ -5274,6 +5392,7 @@ class _DeployedPage:
         reload_ok: bool = True,
         banner: str | None = None,
         follows_revision: bool = False,
+        presentation_pending: bool = False,
         initial_presented_at: float | None = None,
     ):
         self.recorded = recorded
@@ -5282,6 +5401,7 @@ class _DeployedPage:
         self.reload_ok = reload_ok
         self.banner = banner
         self.follows_revision = follows_revision
+        self.presentation_pending = presentation_pending
         self.initial_presented_at = (
             presented_at if initial_presented_at is None else initial_presented_at
         )
@@ -5309,7 +5429,7 @@ class _DeployedPage:
     ) -> None:
         assert expression == "window.__leafVerifier.revisionAtLeast" and arg is not None
         self.revision_waits.append((arg, timeout))
-        if self.revision >= arg:
+        if self.revision >= arg and not self.presentation_pending:
             return
         if self.follows_revision:
             self.revision = arg
@@ -5328,7 +5448,7 @@ class _DeployedPage:
         if script == "window.__leafVerifier.startVisibleReplyClock":
             return 100.0
         if script == "window.__leafVerifier.replyShownAt":
-            return {"at": 12_600.0, "by": "message"}
+            return {"at": 12_600.0, "by": "message", "message": 12_600.0}
         if script == "window.__leafStartup.reading":
             presented_at = (
                 self.presented_at
@@ -5357,6 +5477,8 @@ class _DeployedPage:
             return self.presented_at
         if script == "window.__leafVerifier.revision":
             return str(self.revision)
+        if script == "window.__leafVerifier.revisionAtLeast":
+            return self.revision >= arg and not self.presentation_pending
         if script == "window.__leafVerifier.status":
             return self.banner
         return []
@@ -5746,6 +5868,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             "sinceSendMs": {
                 "acknowledged": [250.0],
                 "responseVisible": 12500.0,
+                "responseMessageVisible": 12500.0,
             },
             "responseShownBy": "message",
             "activity": [
@@ -5798,6 +5921,20 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
         )
     assert refused.presentation_waits == [30_000]
     assert refused.revision_waits == []
+
+    pending = _DeployedPage(
+        recorded, revision=2, presented_at=28444.0, presentation_pending=True
+    )
+    with pytest.raises(RuntimeError, match="did not finish presenting it"):
+        run_browser_journey(
+            journey.website_session(
+                _DeployedSite(_DeployedContainer(release, pending)),
+                release,
+                origin="https://leaf.page",
+                direct_agent=False,
+            )
+        )
+    assert pending.revision_waits == [(2, journey.TURN_PRESENTATION)]
 
 
 def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(

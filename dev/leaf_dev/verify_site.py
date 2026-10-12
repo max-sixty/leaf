@@ -1,12 +1,17 @@
 """Verify that leaf.page serves one exact, coherent release in a real browser.
 
-    uv run leaf-dev verify-site [TARGET] [--release RELEASE]
+    uv run leaf-dev verify-site [TARGET] [--release RELEASE] [--wait SECONDS]
 
 The release pass loads three pages, holds each to the release `leaf-dev site` built
 (or `--release`), and prints their startup profile. `website-worker` runs it against
 the built site through the local Worker and its page container, printing the Worker's
 log beside a failure; `.github/workflows/publish-site.yaml` runs it there before deploying
 and again against the deployed release.
+
+A deployment activates the Worker at once and rolls its containers out one allocation
+at a time, so a deployed release verifies only once the rollout reaches every page the
+pass reads. `--wait` owns that wait for every deploy: it reruns the whole pass until
+one verifies or its seconds run out, and the last failure is the report.
 
 This module also owns reaching the website for `leaf-dev journey`: a user session
 whose private container serves the release (`agent_session`), the website's adapter
@@ -32,12 +37,20 @@ from urllib.parse import urlencode, urljoin, urlsplit
 
 import click
 import psutil
-from leaf.render_gate.scheme import collect_page_exceptions
+from leaf.render_gate.scheme import collect_page_errors
 from playwright.sync_api import APIResponse, BrowserContext, Page
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf_dev import ROOT
-from leaf_dev.arms import codex_home, copy_working, environment, run_directory
+from leaf_dev.arms import (
+    codex_home,
+    codex_program,
+    copy_working,
+    environment,
+    install_codex_plugin,
+    run_directory,
+)
 from leaf_dev.browser import chrome
 from leaf_dev.site import asset_site, install_tree
 from leaf_dev.startup import observe_startup as record_startup
@@ -102,13 +115,7 @@ def observe_startup(page: Page) -> list[str]:
     record_startup(page)
     page.add_init_script(path=VERIFIER_SCRIPT)
     failures: list[str] = []
-    page.on(
-        "console",
-        lambda message: (
-            failures.append(message.text) if message.type == "error" else None
-        ),
-    )
-    collect_page_exceptions(page, failures)
+    collect_page_errors(page, failures)
     return failures
 
 
@@ -271,7 +278,7 @@ def verify_page(
         f"{state_url} left the edge before interaction",
     )
     activation = activation_url(url, passive_response.json())
-    # No wait here: `publish-site` reruns the whole pass until the release verifies.
+    # No wait here: `--wait` reruns the whole pass until the release verifies.
     activation_response = activation_read(context, activation)
     check(activation_response is not None, f"{activation} {STILL_STARTING}")
     check(
@@ -585,7 +592,8 @@ def ready_origin(log: Path, event: str, path: str) -> str | None:
 @contextmanager
 def local_adapter() -> Iterator[tuple[str, str]]:
     """Build the site and serve it with the website adapter under a temporary copy of
-    the host's Codex login, removed with the adapter's pages and task history."""
+    the host's Codex login and a normal Leaf plugin installation, removed with the
+    adapter's pages and task history."""
     out = run_directory(ROOT / ".tmp" / "verify-site")
     log = out / "website-adapter.log"
     with (
@@ -606,17 +614,31 @@ def local_adapter() -> Iterator[tuple[str, str]]:
             check=True,
         )
         release = json.loads((site / "_leaf" / "site.json").read_text())["release"]
+        child_env = environment(
+            CODEX_HOME=str(home),
+            LEAF_SITE_ROOT=str(site),
+            XDG_STATE_HOME=str(root / "state"),
+        )
+        # Building the pages ran this installation's launcher and created its
+        # environment. Native marketplace installation copies the whole payload,
+        # so give it only the prepared plugin, as the container image does.
+        plugin = root / "leaf-plugin"
+        shutil.copytree(
+            install_tree(site),
+            plugin,
+            ignore=shutil.ignore_patterns(".venv", "__pycache__"),
+        )
+        with logged(out / "plugin-install.log") as install_output:
+            install_codex_plugin(
+                codex_program(), plugin, cwd=ROOT, env=child_env, output=install_output
+            )
         with serving(
             [*serve_site(install_tree(site)), "--port", "0"],
             output,
             lambda: ready_origin(log, "container_http_ready", "/health"),
             30,
             cwd=ROOT,
-            env=environment(
-                CODEX_HOME=str(home),
-                LEAF_SITE_ROOT=str(site),
-                XDG_STATE_HOME=str(root / "state"),
-            ),
+            env=child_env,
         ) as origin:
             yield origin, release
 
@@ -645,8 +667,10 @@ def local_worker() -> Iterator[tuple[str, str]]:
             copy_working(
                 [
                     "Dockerfile.website",
+                    "Dockerfile.website.dockerignore",
                     "package.json",
-                    "package-lock.json",
+                    "pnpm-lock.yaml",
+                    "pnpm-workspace.yaml",
                     "worker/codex-config.toml",
                 ],
                 context,
@@ -715,9 +739,30 @@ def built_release() -> str:
     "--release",
     help="Require this release (default: the one `leaf-dev site` built).",
 )
-def verify_site(target: str, release: str | None) -> None:
+@click.option(
+    "--wait",
+    type=int,
+    default=0,
+    metavar="SECONDS",
+    help="Rerun a failed pass until one verifies or SECONDS pass, as a rollout takes.",
+)
+def verify_site(target: str, release: str | None, wait: int) -> None:
     """Verify a release at TARGET: an origin, or `website-worker` for the built site
     through the local Worker. `leaf-dev journey` runs the agent at either."""
+    deadline = time.monotonic() + wait
+    while True:
+        try:
+            verify_target(target, release)
+            return
+        except (RuntimeError, PlaywrightError) as error:
+            if time.monotonic() >= deadline:
+                raise
+            print(f"Not verified yet, retrying: {error}", flush=True)
+            time.sleep(10)
+
+
+def verify_target(target: str, release: str | None) -> None:
+    """One release pass at TARGET."""
     if target == "website-worker":
         with local_worker() as (origin, built):
             run_verification(

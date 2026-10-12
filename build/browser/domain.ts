@@ -7,7 +7,7 @@ import type {
   BrowserCommand,
   CompleteUnion,
 } from "./event-contract.js";
-export type { Event, EventMap, BrowserCommand };
+export type { Event, BrowserCommand };
 import type { Immutable } from "./snapshot.ts";
 export type StateRecord =
   | { kind: "body" }
@@ -17,7 +17,7 @@ export interface ActionSpec {
   unit: string;
   record?: StateRecord;
   writer?: "user" | "agent";
-  update?: boolean;
+  report?: boolean;
   creates?: { child: string; [key: string]: unknown };
   detail?: object | boolean;
 }
@@ -31,7 +31,7 @@ export interface ContentVersion {
   message: string;
   version: string;
 }
-export type MessageEvent = CompleteUnion<EventMap["comment"] | EventMap["reply"]>;
+type MessageEvent = CompleteUnion<EventMap["comment"] | EventMap["reply"]>;
 export type LocalMessage = Extract<Command, { kind: "comment" | "reply" }> & {
   id: string;
   author: string;
@@ -39,9 +39,11 @@ export type LocalMessage = Extract<Command, { kind: "comment" | "reply" }> & {
   pending: true;
   plainText: string;
 };
-export type StreamingMessage = {
+type StreamingMessage = {
   id: string;
   attempt: string;
+  key: string;
+  provisional: true;
   kind: "reply";
   addressable: false;
   author: "agent";
@@ -69,6 +71,8 @@ export type ThreadGesture =
   | Settlement
   | Extract<Command, { kind: "undo" }>;
 export type Message = CompleteUnion<MessageEvent | LocalMessage | StreamingMessage> & {
+  // The name it is drawn under where the server gives one (`thread.messageKey`).
+  key?: string;
   agent?: string | null;
   pending?: boolean;
   edited?: { id: string; seq?: number; ts: string; was: string; pending?: true };

@@ -8,7 +8,8 @@ from ..files import stamped_version
 from ..gesture_words import GestureWords, RevisionReader
 from ..history import history, wants_history
 from ..passages import SourceReading
-from ..projection import FrozenThreadReading, canonical_updates, page_reading
+from ..projection import FrozenThreadReading, canonical_reports, page_reading
+from ..schema import WIDGET_KINDS
 from .context import PageRead
 from .document import browser_document, browser_undo_candidates
 from .thread import browser_thread
@@ -198,7 +199,7 @@ def browser_state(
         }
         coverage = []
         for event in events:
-            if event["kind"] in {"action", "report"}:
+            if event["kind"] in WIDGET_KINDS:
                 classified_entry = classified.get(event["id"])
             elif event["kind"] == "undo":
                 classified_entry = classified.get(event["undoes"])
@@ -223,7 +224,7 @@ def browser_state(
         views[str(revision)] = {
             "basis": {"revision": revision, "through_seq": through_seq},
             "document": document,
-            "updates": canonical_updates(projection),
+            "reports": canonical_reports(projection),
             "undo": browser_undo_candidates(
                 events,
                 reading,

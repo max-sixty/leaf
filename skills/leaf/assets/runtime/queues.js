@@ -5,10 +5,10 @@
 import { awaitsUser } from "./thread/model.js";
 import { atWork } from "./thread/workflow.js";
 
-export const endsByDone = (item) => item.ends === "done";
+// The tasks on the user's queue are those the agent opened on them.
 export const queueOffers = (item, ready, onYou) => ({
   open: ready,
-  done: ready && onYou && item.kind === "task" && endsByDone(item),
+  done: ready && onYou && item.kind === "task",
 });
 
 export const taskNoun = (item) =>
@@ -24,36 +24,39 @@ const taskItem = (task) => ({
   running: task.running,
   agent: task.agent,
   session: task.session,
-  ends: task.ends,
 });
 
-export const questionItem = (question) => ({
-  kind: "question",
-  id: question.id,
-  owner: "user",
-  subject:
-    question.source.kind === "widget"
-      ? { kind: "widget", id: question.source.id }
-      : question.source.kind === "approval"
-        ? { kind: "page" }
-        : { kind: "thread", id: question.thread },
-  thread: question.thread,
-  title: question.prompt.text,
-  running: null,
-  agent: null,
-  session: null,
-  ends:
-    question.source.kind === "widget"
-      ? "widget"
-      : question.source.kind === "approval"
-        ? "approval"
-        : "reply",
-  question,
-});
+// What a Question is about, by where it was asked.
+const questionSubject = (question) => {
+  switch (question.source.kind) {
+    case "widget":
+      return { kind: "widget", id: question.source.id };
+    case "approval":
+      return { kind: "page" };
+    default:
+      return { kind: "thread", id: question.thread };
+  }
+};
+
+const questionItem = (question) => {
+  const subject = questionSubject(question);
+  return {
+    kind: "question",
+    id: question.id,
+    owner: "user",
+    subject,
+    thread: question.thread,
+    title: question.prompt.text,
+    running: null,
+    agent: null,
+    session: null,
+    question,
+  };
+};
 
 export function selectQueues({ threads, workflows, tasks, questions }) {
   const onYou = [
-    ...(questions?.user ?? []).map(questionItem),
+    ...questions.user.map(questionItem),
     ...tasks.filter((task) => task.owner === "user").map(taskItem),
   ];
   for (const thread of threads)
@@ -96,7 +99,7 @@ export function selectQueues({ threads, workflows, tasks, questions }) {
 
 export function selectDone({ tasks, questions }) {
   return [
-    ...(questions?.all ?? [])
+    ...questions.all
       .filter((question) => question.status !== "open")
       .map((question) => ({
         ...questionItem(question),

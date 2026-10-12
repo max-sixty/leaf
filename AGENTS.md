@@ -127,9 +127,10 @@ install the tracked tree whole. Read the scoped `AGENTS.md` before changing its 
 - `skills/leaf/packages/`: the bundled packages (`skills/leaf/packages/AGENTS.md`);
 - `skills/leaf/references/`: contracts for page authors, package authors, and harnesses;
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary;
-- `hooks/`: each harness's registrations of the `leaf hook` entry: `hooks.json`
-  for Claude Code, with `claude-code.ts`, the opt-in hooks module that keeps its
-  watch, `codex.json` for Codex, and `pi.ts`, the Pi extension;
+- `hooks/`: each harness's registrations of the `leaf hook` entry (`hooks.json`
+  for Claude Code, `codex.json` for Codex) and the scripts they run, and the
+  modules that keep a session's watch between turns: `claude-code.ts`, the opt-in
+  Claude Code hooks module, and `pi.ts`, the Pi extension, which share `watch.ts`;
 - `evals/`: cases a headless agent answers, scoring the shipped instructions;
 - `examples/`: the pages the site publishes, which are also the render corpus
   (`examples/AGENTS.md`);
@@ -163,6 +164,11 @@ docstring, and how a rule was found in the commit message. A header also records
 product decisions its module embodies and the alternatives they rejected; a change
 that reverses one rewrites that record and says so in its commit. A workflow for one
 kind of task goes in `/developing-leaf`.
+
+Describe a set in prose by what its members share, such as "a directory under
+`build/` named after a row of `vendor.mjs`'s `bundles`", so a new member needs no edit. Where the prose must
+list them, a test holds the list to the machine's copy (`tests/AGENTS.md`, "Put
+each assertion at the boundary that owns it").
 
 ### Use dependencies
 
@@ -334,14 +340,14 @@ against the cost to all sessions; on a busy host, favor focused checks and avoid
 redundant overlapping runs. The required landing gates still have to pass.
 
 Before handing over, run the tests that hold what the change touches; the broad
-selection, `uv run pytest tests`, and `npm run test:runtime` run at landing
+selection, `uv run pytest tests`, and `pnpm run test:runtime` run at landing
 (`tests/AGENTS.md`, "Run what the change needs"). Two TypeScript trees,
 `worker/src/` and `build/browser/`, and the JavaScript lock every committed bundle is built from have gates the suite and
 pre-commit do not reach. Both landing paths run all of them: a pull request in its
 `test` job, and `wt merge` in the pre-merge blocks of `.config/wt.toml`.
-`package.json` owns their shared Node gate list in `check` and their earlier
-bundle rebuild in `check:bundles`. `wt hook pre-merge` runs that local gate without landing, on a committed
-tree, since the bundle check fails on any uncommitted change. The website's delivery
+`package.json` owns their shared Node gate list in `check`, which compares every
+committed bundle with a rebuild. `wt hook pre-merge` runs that local gate without
+landing. The website's delivery
 checks — the site build, the Worker's dry-run deploy, and
 `leaf-dev verify-site website-worker` — run on a pull request and in `publish-site` before it
 deploys, not in `wt merge`.
@@ -357,5 +363,6 @@ loaded module, a vendored file, or the install's size, are not on their own a re
 for a change.
 
 Land through a pull request or with `wt merge`, which squash-merges to `main`.
-`/developing-leaf` covers landing with a red gate; Tend sessions follow
+A failing check the change doesn't cause blocks nothing (`tests/AGENTS.md`, "Run
+what the change needs"). Tend sessions follow
 **Landing** in `.claude/skills/running-tend/SKILL.md`.

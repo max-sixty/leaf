@@ -43,7 +43,7 @@ const threadOffers = (thread, ready) => ({
 /** @template {Pick<Message, "id" | "author" | "parent" | "token" | "addressable" | "agent"> & {key: string}} T
  * @param {{key: string, resolved: Thread["resolved"], msgs: T[]}} thread
  * @param {T} message
- * @param {Record<string, {glyph: string, means?: string}>} tokens
+ * @param {Record<string, {glyph: string}>} tokens
  */
 function reactionChoices(thread, message, tokens) {
   if (
@@ -64,14 +64,24 @@ function reactionChoices(thread, message, tokens) {
     message: message.key,
     latest: latest?.id === message.id,
     agent: message.agent,
-    choices: Object.entries(tokens).map(([name, entry]) => ({
-      name,
-      glyph: entry.glyph,
-      label: entry.means ? `${name} — ${entry.means}` : name,
-      standing: standing.find((item) => item.token === name) ?? null,
-    })),
+    choices: tokenChoices(tokens, standing),
   };
 }
+
+// The declared reaction tokens as choices on one target, each with the standing reaction
+// a press takes back. The bar, a reply's strip and the margin form render these; each
+// surface keeps its own face, and the token names the control on all of them.
+/** @template {{token?: string}} S
+ * @param {Record<string, {glyph: string}>} tokens
+ * @param {S[]} standing
+ */
+export const tokenChoices = (tokens, standing) =>
+  Object.entries(tokens).map(([name, entry]) => ({
+    name,
+    glyph: entry.glyph,
+    label: name,
+    standing: standing.find((item) => item.token === name) ?? null,
+  }));
 /** @param {Thread} thread */
 const spoken = (thread) => thread.msgs.filter((message) => !isReaction(message));
 /** @template {{id: string, token?: string}} T @param {{msgs: T[], root: {id: string}}} thread */
@@ -86,6 +96,12 @@ export const turns = (thread) =>
 // answers.
 /** @param {Thread} thread */
 export const threadKey = (thread) => thread.root.attempt ?? thread.id;
+// The name a message is drawn under, which the log's answer does not change: the
+// server's `key` where it names one, as it does for an agent's answer to an input and
+// the provisional reply that stood for it (`served_state/thread.py`), else the user's
+// own attempt for a message this tab sent, else the id the log gave it.
+/** @param {Pick<Message, "id" | "key" | "attempt">} message */
+export const messageKey = (message) => message.key ?? message.attempt ?? message.id;
 
 // Every name that reaches a thread: its own id, the id of each message in it, which a
 // reply or settlement names as its `parent`, and the pending id a message this tab sent
@@ -212,7 +228,10 @@ export function foldThreads(threads, gestures) {
     } else if (gesture.kind === "reply") {
       const thread = byName.get(gesture.parent);
       if (!thread) continue;
-      thread.msgs.push(gesture);
+      // A reply still streaming stands last, where the log will take its answer, so the
+      // user's message joins the thread above it and its acceptance moves nothing.
+      const streaming = thread.msgs.at(-1)?.provisional ? 1 : 0;
+      thread.msgs.splice(thread.msgs.length - streaming, 0, gesture);
       if (isReaction(gesture)) continue;
       thread.resolved = null;
       thread.attention = turnAttention(thread, gesture);
@@ -382,10 +401,10 @@ export function readThreadRecords(
       return {
         ...record,
         unread: unreadMessages.has(message.id),
-        key: message.attempt ?? message.id,
+        key: messageKey(message),
         body,
         // The message's own inputs, its first words and each rewrite of them, and the
-        // moves on widgets frozen into it, in the published order `strongestWorkflow`
+        // actions on widgets frozen into it, in the published order `strongestWorkflow`
         // reads.
         workflows: workflows.filter(
           (workflow) =>

@@ -46,7 +46,7 @@ export function threadFocusDestination(thread, { part = "reply" } = {}) {
 
 // An inline thread root may itself hold focus. A control inside it keeps its own
 // command scope, while panel summaries are mapped by focusedThreadTarget below.
-export function focusedThread() {
+function focusedThread() {
   const active = focused();
   return active?.matches?.(THREAD) ? active : null;
 }

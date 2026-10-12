@@ -12,7 +12,7 @@ turn's own connection to its end (`CarriedTurn`), the writers that put those
 readings on a claimed page, and the durable records a delivery passes through.
 
 A delivery record under the state home is the handoff between Leaf capturing a
-user's moves and a transport taking them. One record is offered once, accepted once,
+user's updates and a transport taking them. One record is offered once, accepted once,
 and receipted per page batch, whichever transport carried it — an App Server turn or
 the `codex queue` command, or a tool or Stop hook — so preparing, accepting, opening
 and abandoning one live here rather than beside either client. The immutable
@@ -70,6 +70,7 @@ from .delivery import (
 from .files import read_json
 from .harness import Harness
 from .leases import sessions_home
+from .refusals import Refused
 from .service import (
     PageTransaction,
     delivery_reply_attempt,
@@ -92,33 +93,6 @@ START_TIMEOUT = 20
 # Names the App Server a task runs on to the `leaf` commands it runs, so they hand
 # its pages to that server (`private_app_server`, `leaf codex start`).
 APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
-# The `config` of a thread Leaf starts, less what Codex loads by default and no such
-# thread uses: the skills list, plugin and app suggestions, other agents, memories,
-# browser and computer use, image generation and web search. Each is context the
-# model reads on every request, and web search reaches the network the hosted task
-# is told to stay off.
-LEAF_THREAD_CONFIG = {
-    "features": {
-        feature: False
-        for feature in (
-            "apps",
-            "browser_use",
-            "computer_use",
-            "goals",
-            "image_generation",
-            "in_app_browser",
-            "memories",
-            "multi_agent",
-            "plugins",
-            "skill_mcp_dependency_install",
-            "skill_search",
-            "tool_suggest",
-            "workspace_dependencies",
-        )
-    },
-    "skills": {"include_instructions": False},
-    "web_search": "disabled",
-}
 # A collecting record holds captured events in the delivery's own shape, so the
 # version moves with it; a record of another version is ignored, and the events
 # its page has not acknowledged are captured afresh.
@@ -152,16 +126,16 @@ def app_server_socket_path(endpoint: str) -> Path | None:
         parsed = urlsplit(endpoint)
         hostname = parsed.hostname
     except ValueError as error:
-        raise RuntimeError("--app-server needs a valid local endpoint") from error
+        raise Refused("--app-server needs a valid local endpoint") from error
     if parsed.query or parsed.fragment or parsed.username or parsed.password:
-        raise RuntimeError("--app-server needs a local WebSocket or Unix endpoint")
+        raise Refused("--app-server needs a local WebSocket or Unix endpoint")
     if parsed.scheme == "ws" and hostname in {"127.0.0.1", "::1", "localhost"}:
         return None
     if parsed.scheme == "unix" and not parsed.netloc and parsed.path:
         path = Path(parsed.path)
         if path.is_absolute():
             return path
-    raise RuntimeError(
+    raise Refused(
         "--app-server needs a local loopback ws:// endpoint or an absolute "
         "unix:/// socket"
     )
@@ -218,9 +192,9 @@ def _wait_for_app_server(path: Path, process: subprocess.Popen, log) -> None:
         if process.poll() is not None:
             log.seek(0)
             detail = log.read().decode(errors="replace").strip()
-            raise RuntimeError(detail or "Codex App Server exited before it was ready")
+            raise Refused(detail or "Codex App Server exited before it was ready")
         time.sleep(0.05)
-    raise RuntimeError("Codex App Server did not become ready")
+    raise Refused("Codex App Server did not become ready")
 
 
 @contextmanager
@@ -1004,7 +978,7 @@ class AppServerReplyStream:
         """Commit only a completed final, retaining rejected or partial text.
 
         A completed answer retains its delivered response address even when that
-        move was settled during the turn. The reply reopens the thread.
+        update was settled during the turn. The reply reopens the thread.
 
         A commit appends the reply, then clears its binding and draft in a
         separate transaction. Every other way out releases the binding, including
@@ -1020,7 +994,7 @@ class AppServerReplyStream:
                     self._commit(completed_text)
                     committed = True
                     return None
-                except (OSError, RuntimeError, SystemExit, ValueError) as error:
+                except (OSError, Refused) as error:
                     self._set_state("failed", completed_text)
                     return error
             self._set_state(
@@ -1149,7 +1123,7 @@ class TurnFold:
     session generation; an old fold cannot clear or close a newer lifetime that
     reuses the provider ID. Historical answer settlement borrows no live authority.
     `close` closes only that generation and id; delivery acceptance only records which turn
-    took the moves. A client opens a fold's turn only while it runs, so a turn
+    took the updates. A client opens a fold's turn only while it runs, so a turn
     read back from a snapshot after it ended is committed without reopening it.
 
     What differs between clients is only how notifications reach the fold.
@@ -2171,8 +2145,8 @@ def finish_abandoned_batch(path: Path, batch_index: int, batch: dict) -> None:
         _receipt_completed(path, batch_index)
 
 
-def delivery_owed_moves(payload: dict) -> list[dict]:
-    """Every move in one delivery that was owed an answer when it was captured,
+def delivery_owed_updates(payload: dict) -> list[dict]:
+    """Every update in one delivery that was owed an answer when it was captured,
     whatever answer it takes."""
     return [
         {"page": batch["page"], "responds": event["id"]}

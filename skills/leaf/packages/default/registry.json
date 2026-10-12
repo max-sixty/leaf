@@ -57,7 +57,7 @@
   },
   "lf-num": {
     "description": "A measured scalar embedded in prose, tied to the snapshot that established it.",
-    "x-instructions": "Write the displayed value with its unit as the element text. Bind source to the repeatable measurement feed and set at to the updated instant leaf data set printed for that snapshot. Read authoring-evidence.md, Measured facts, for measurement and staleness checks. Use via when the source id alone leaves the command or query unclear.",
+    "x-instructions": "Write the displayed value with its unit as the element text. Bind source to the repeatable measurement feed and use the run receipt returned by leaf data set. Use via when the source id alone leaves the command or query unclear.",
     "type": "object",
     "properties": {
       "id": {
@@ -68,16 +68,16 @@
         "type": "string",
         "pattern": "^[a-z][a-z0-9-]*$"
       },
-      "at": {
+      "run": {
         "type": "string",
-        "format": "date-time"
+        "minLength": 1
       },
       "via": {
         "type": "string",
         "minLength": 1
       }
     },
-    "required": ["source", "at"],
+    "required": ["source", "run"],
     "additionalProperties": false,
     "x-content": "markup",
     "x-data": {
@@ -89,10 +89,10 @@
     "x-inline": true,
     "x-measured": {
       "input": "measurement",
-      "at": "at"
+      "run": "run"
     },
     "x-upgrade": false,
-    "x-example": "The import now takes <lf-num source=\"import-latency\" at=\"2026-08-27T09:00:00Z\" via=\"uv run bench-import\">184 ms</lf-num> at p95."
+    "x-example": "The import now takes <lf-num source=\"import-latency\" run=\"a41f103e236c985b\" via=\"uv run bench-import\">184 ms</lf-num> at p95."
   },
   "lf-text-document": {
     "description": "A file-backed text document with optional syntax coloring and rendered Markdown or HTML previews.",
@@ -133,19 +133,6 @@
     "x-upgrade": true,
     "x-example": "<lf-text-document id=\"leaf-skill\" source=\"leaf-skill\" language=\"markdown\"></lf-text-document>"
   },
-  "lf-annotation-rail": {
-    "description": "An authored-flow rail for Threads, Questions, action and status contributions, updates, and the active comment editor.",
-    "x-instructions": "Select data-annotations=page on body. When the task needs conversations and actions in an independent reading region, place one empty rail with a stable id; page-authoring.md, Bounds and widths, guides that choice. Allocate its width and height in page CSS; it scrolls within that box. Omit it to use the core Threads panel. Native disclosures retain their open state and the shared Thread renderer owns conversations and replies.",
-    "type": "object",
-    "properties": {
-      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
-    },
-    "required": ["id"],
-    "additionalProperties": false,
-    "x-content": "empty",
-    "x-upgrade": true,
-    "x-example": "<lf-annotation-rail id=\"page-annotations\"></lf-annotation-rail>"
-  },
   "lf-toc": {
     "description": "An outline of the document’s h2–h6 headings for navigating its sections and showing the reader’s position.",
     "x-instructions": "Set max-level when deeper headings are local detail rather than navigation destinations; omit it to include h2–h6. Use stable authored section, title-group, or heading ids for links that must keep their target across versions; generated heading ids are not addresses for comments or page state. Write the element empty with a stable id.",
@@ -163,6 +150,7 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "empty",
+    "x-resident": "map",
     "x-upgrade": true,
     "x-example": "<h1>Migration plan</h1>\n<aside class=\"sidebar\" id=\"plan-sidebar\">\n  <lf-toc id=\"plan-contents\"></lf-toc>\n</aside>\n<section><h2>Prepare</h2><p>Take a snapshot.</p><h3>Check capacity</h3><p>Leave headroom for the copy.</p></section>\n<section><h2>Move</h2><p>Shift one cohort at a time.</p></section>"
   },
@@ -188,7 +176,7 @@
   "lf-options": {
     "description": "Alternatives the user can choose individually or as a set to answer a question.",
     "x-space": "column",
-    "x-instructions": "Keep shared premises and evidence with the group; lf-ask can frame its question and context. Keep each alternative's case and decision-relevant evidence inside its lf-option. Use multiple for one answer containing a set of selections; leave it off for mutually exclusive alternatives. Read references/authoring-questions.md to separate independently answerable proposals. The built-in Another option field accepts unlisted answers, so author the alternatives you mean without a catch-all option. Use for only to select sections or work items that exist independently of the decision; do not create sections solely to hold alternatives. To incorporate a user-added option into a revision, keep its id and words as an ordinary lf-option. A multiple-choice Question still needs the user's Done even when chosen is authored. Use settled to collapse a retired decision while preserving its options and anchors.",
+    "x-instructions": "Keep shared premises and evidence with the group; lf-ask can frame its question and context. Keep each alternative's case and decision-relevant evidence inside its lf-option. Use multiple when the selections form one answer because they depend on each other, such as a limit on how many; leave it off for mutually exclusive alternatives. Items each answerable on its own are separate Questions (references/authoring-questions.md). The built-in Another option field accepts unlisted answers, so author the alternatives you mean without a catch-all option. Use for only to select sections or work items that exist independently of the decision; do not create sections solely to hold alternatives. To incorporate a user-added option into a revision, keep its id and words as an ordinary lf-option. A multiple-choice Question still needs the user's Done even when chosen is authored. Use settled to collapse a retired decision while preserving its options and anchors.",
     "type": "object",
     "properties": {
       "id": {
@@ -222,6 +210,7 @@
         "choose": [true],
         "settled": [false]
       },
+      "retired": "settled",
       "answered": {
         "choose": {
           "when": {

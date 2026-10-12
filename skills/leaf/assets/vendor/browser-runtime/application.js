@@ -4,7 +4,7 @@
  * readings. The existing pure folds derive every published projection synchronously.
  * Promises, rendering instances, and proof of presentation stay outside this owner.
  */
-import { createApplicationPublisher } from "./snapshot.js";
+import { createApplicationPublisher,                } from "./snapshot.js";
 import {
   foldProjection,
   foldedValue,
@@ -134,6 +134,21 @@ const UNPRESENTED = new Set              (["sending:logged", "accepted:logged"])
 
 
 
+
+// The log's id for a gesture this tab sent: its ledger entry's while it stands, its
+// receipt's once released.
+function admittedId(
+  attempt                           ,
+  unresolved                                   ,
+  receipts                             ,
+) {
+  if (!attempt) return null;
+  return (
+    unresolved.find((entry) => entry.event.attempt === attempt)?.admitted?.id ??
+    receipts.find((receipt) => receipt.attempt === attempt)?.id ??
+    null
+  );
+}
 
 // `entry` after `signal`, or null once it leaves the ledger.
 function advance(
@@ -337,8 +352,6 @@ function advance(
 
 
 
-
-
 /** A server view with its basis, the transport identity, left off. */
 
 
@@ -353,7 +366,7 @@ function normalizedProjection(
   const desiredIds = [];
   for (const projection of [view?.document.projection, thread?.projection]) {
     if (!projection) continue;
-    for (const wire of projection.entries ?? []) {
+    for (const wire of projection.entries) {
       const e = wire.event;
       const descriptor = descriptors?.get(e.widget);
       const currentSpec = descriptor && eventSpec(descriptor.declaration, e);
@@ -382,9 +395,9 @@ function normalizedProjection(
             : wire.value,
       });
     }
-    actionIds.push(...(projection.actions ?? []));
-    reportIds.push(...(projection.reports ?? []));
-    desiredIds.push(...(projection.desired ?? []));
+    actionIds.push(...projection.actions);
+    reportIds.push(...projection.reports);
+    desiredIds.push(...projection.desired);
   }
   return { entries, actionIds, reportIds, desiredIds, coverage: view?.coverage ?? [] };
 }
@@ -667,14 +680,6 @@ export function createSemanticApplication({
     const receipts = state?.browser.receipts ?? [];
     const local = unresolved.filter((entry) => DRAWN_LOCALLY.has(entry.state));
     const refused = unresolved.filter((entry) => entry.state === "refused");
-    // An undo withdraws its target by the log's id once the log has named it: the
-    // target entry's while it stands in the ledger, its receipt's once released.
-    const namedTarget = (attempt               ) => {
-      const target = unresolved.find((entry) => entry.event.attempt === attempt);
-      return target
-        ? (target.admitted?.id ?? null)
-        : (receipts.find((receipt) => receipt.attempt === attempt)?.id ?? null);
-    };
     // A revision may reuse a widget/verb with a different operation. Keep its
     // pending delivery, but stop drawing it against that new declaration. The
     // server validates durable payloads; speculative state waits for its receipt
@@ -684,12 +689,12 @@ export function createSemanticApplication({
       const descriptor = document.descriptors.get(operation.e.widget);
       if (!descriptor) return false;
       const currentSpec = eventSpec(descriptor.declaration, operation.e);
+      if (!currentSpec) return false;
+      const recorded = operation.e.meaning?.state                                    ;
+      const current = stateDefinition(descriptor.tag, descriptor.declaration, currentSpec);
       return (
-        currentSpec &&
-        sameStateDefinition(
-          operation.e.meaning?.state,
-          stateDefinition(descriptor.tag, descriptor.declaration, currentSpec),
-        )
+        sameStateOperation(recorded, current) &&
+        sameStateDefinition(recorded?.detail, current.detail)
       );
     };
     const localProjections = local.flatMap((entry) => {
@@ -697,7 +702,7 @@ export function createSemanticApplication({
       if (!projection || !compatiblePending(projection)) return [];
       return [
         projection.kind === "undo"
-          ? { ...projection, targetId: namedTarget(entry.undoTarget) }
+          ? { ...projection, targetId: admittedId(entry.undoTarget, unresolved, receipts) }
           : projection,
       ];
     });
@@ -914,7 +919,7 @@ export function createSemanticApplication({
         done: contextual(selectDone({ tasks: tasks.ended, questions })),
       },
       // Inside the publication signature, so a read that changes only the view's
-      // updates, publication time, or undo list still reaches its watchers.
+      // reports, publication time, or undo list still reaches its watchers.
       view,
       // The attempts still waiting for their POST's answer, in ledger order.
       sending: unresolved
@@ -1000,6 +1005,10 @@ export function createSemanticApplication({
 
   const entry = (attempt        ) =>
     publisher.read().unresolved.find((item) => item.event.attempt === attempt);
+  const ledgerAndReceipts = () => {
+    const { unresolved, authoritative } = publisher.read();
+    return [unresolved, authoritative?.browser.receipts ?? []]         ;
+  };
   const update = (attempt        , change                                     ) =>
     publish({
       unresolved: publisher
@@ -1321,16 +1330,11 @@ export function createSemanticApplication({
     // A gesture naming a message this tab sent, by its pending id, names it by the id
     // the log gave it once the log has answered: a reply's `parent`, or the revision an
     // edit is written over (`base`), as a second rewrite over a first still sending is.
-    nameParent(attempt        , receipts         ) {
-      const admitted = (pending         ) => {
-        if (typeof pending !== "string" || !pending.startsWith(PENDING)) return null;
-        const pendingAttempt = pending.slice(PENDING.length);
-        return (
-          entry(pendingAttempt)?.admitted?.id ??
-          receipts.find((receipt) => receipt.attempt === pendingAttempt)?.id ??
-          null
-        );
-      };
+    nameParent(attempt        ) {
+      const admitted = (pending         ) =>
+        typeof pending === "string" && pending.startsWith(PENDING)
+          ? admittedId(pending.slice(PENDING.length), ...ledgerAndReceipts())
+          : null;
       const item = entry(attempt);
       const parent = item?.event.parent;
       const named = admitted(parent);
@@ -1352,12 +1356,10 @@ export function createSemanticApplication({
             : item,
         );
     },
-    nameUndo(attempt        , receipts         ) {
+    nameUndo(attempt        ) {
       const item = entry(attempt);
       if (item?.event.kind !== "undo" || !item.undoTarget) return true;
-      const named =
-        entry(item.undoTarget)?.admitted?.id ??
-        receipts.find((receipt) => receipt.attempt === item.undoTarget)?.id;
+      const named = admittedId(item.undoTarget, ...ledgerAndReceipts());
       if (!named) return false;
       update(attempt, (item) =>
         item.event.kind === "undo"
@@ -1368,4 +1370,4 @@ export function createSemanticApplication({
     },
   });
 }
-// Generated from build/browser/application.ts by npm run build:browser.
+// Generated from build/browser/application.ts by build/browser/build.mjs.

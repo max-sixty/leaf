@@ -35,7 +35,7 @@ def history(directory: str, fixture: str) -> None:
     texts, anchor, revision = json.loads(fixture)
     page_dir = Path(directory)
     with PageTransaction(page_dir) as page:
-        first = append_admitted(
+        first, _ = append_admitted(
             page,
             {
                 "kind": "comment",
@@ -47,7 +47,7 @@ def history(directory: str, fixture: str) -> None:
         )
         latest = first
         for n, text in enumerate(texts[1:]):
-            latest = append_admitted(
+            latest, _ = append_admitted(
                 page,
                 {
                     "kind": "reply",

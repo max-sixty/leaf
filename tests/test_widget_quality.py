@@ -12,23 +12,15 @@ import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import SKILL_ROOT
-from known_widget_findings import KNOWN
+from known_widget_findings import KNOWN, PACKAGES
 from leaf import cli as cli_model
 from leaf import exporting as exporting_model
-from leaf import schema as schema_model
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate.widget_quality import widget_findings
 from leaf.revision_delivery import json_script
 from model_folds import leaf_page
 from playwright.sync_api import expect
-from render_harness import consume_browser_errors, displayed
-
-# The base layer's two halves and every bundled package, each reported on its own
-# widgets as a package author's `package check --render` would.
-PACKAGES = [
-    schema_model.ASSETS,
-    *sorted(path for path in (SKILL_ROOT / "packages").iterdir() if path.is_dir()),
-]
+from render_harness import ROOT, consume_browser_errors, displayed
 
 
 def test_every_known_finding_names_a_bundled_package():
@@ -72,6 +64,27 @@ customElements.define(
 """
 
 
+def keyed(tag: str, badge: str) -> str:
+    """A widget module that declares a command with a context key on its element, and
+    `badge` as the command's `bindingBadge` field, verbatim."""
+    return f"""\
+import {{ commands, once }} from "/runtime/widget-api.js";
+
+customElements.define(
+  "{tag}",
+  class extends HTMLElement {{
+    connectedCallback() {{
+      if (!once(this)) return;
+      commands(this, "Keyed", [
+        {{ id: "{tag[3:]}.go", keys: [], contextKeys: ["1"], control: this,
+          title: "Go", run: () => {{}}{badge} }},
+      ]);
+    }}
+  }},
+);
+"""
+
+
 def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shell):
     """`package check --render` names each finding by tag, check and measured fact,
     and still exits 0. `lf-grow` adds 40px at upgrade, on its own and inside two
@@ -79,9 +92,32 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     it is not named beside it, and `lf-fixed` because it sets its own height 40px
     taller, so it is. `lf-word` is inline and doubles its type, and since no size
     puts an inline box's lines back, the line holding it is named beside it. `lf-bare`
-    has no worked example."""
+    has no worked example.
+
+    `lf-pinned` keeps a height its theme sets and scrolls inside it, so it is named for
+    not growing with its content even though its one line fits. `lf-declared` keeps the
+    same height and says so with `--lf-holds-height: 1`, `lf-sideways` keeps it but asks
+    to scroll only sideways, and `lf-roomy` asks to scroll but grows past its minimum
+    height, so none of them is. `lf-shallow` asks only for sideways scrolling, but its
+    line runs past its height, so it scrolls vertically and is named.
+
+    `lf-keyed` declares a context key with no `bindingBadge`, so the page never shows
+    it and it is named; `lf-badged` asks for a corner badge, so it is not."""
     package = tmp_path / "package"
-    for widget in ("lf-grow", "lf-holder", "lf-fixed", "lf-word", "lf-bare"):
+    for widget in (
+        "lf-grow",
+        "lf-holder",
+        "lf-fixed",
+        "lf-word",
+        "lf-bare",
+        "lf-pinned",
+        "lf-declared",
+        "lf-sideways",
+        "lf-roomy",
+        "lf-shallow",
+        "lf-keyed",
+        "lf-badged",
+    ):
         made = CliRunner().invoke(
             cli_model.cli, ["package", "init", str(package), "--widget", widget]
         )
@@ -92,11 +128,20 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     )
     (widgets / "lf-fixed.js").write_text(grows_at_upgrade("lf-fixed", "height: 140px"))
     (widgets / "lf-word.js").write_text(grows_at_upgrade("lf-word", "font-size: 32px"))
+    (widgets / "lf-keyed.js").write_text(keyed("lf-keyed", ""))
+    (widgets / "lf-badged.js").write_text(keyed("lf-badged", ", bindingBadge: null"))
     # An element the theme does not style is inline, whose box a padding would not
     # grow the way a block's grows.
     (package / "theme.css").write_text(
         ":scope:is(lf-grow, lf-holder, lf-fixed) { display: block; }\n"
         ":scope:is(lf-fixed) { height: 100px; }\n"
+        ":scope:is(lf-pinned, lf-declared, lf-sideways) { display: block; "
+        "block-size: 100px; }\n"
+        ":scope:is(lf-pinned) { overflow: auto; }\n"
+        ":scope:is(lf-declared) { overflow: auto; --lf-holds-height: 1; }\n"
+        ":scope:is(lf-sideways) { overflow-x: auto; }\n"
+        ":scope:is(lf-roomy) { display: flex; min-block-size: 100px; overflow: auto; }\n"
+        ":scope:is(lf-shallow) { display: block; block-size: 10px; overflow-x: auto; }\n"
     )
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
@@ -122,7 +167,7 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     assert ran.returncode == 0, ran.stderr
     lines = ran.stdout.splitlines()
     assert lines[1] == (
-        f"widget quality: 8 finding(s) for 5 widget(s) in {headless_shell}, "
+        f"widget quality: 11 finding(s) for 12 widget(s) in {headless_shell}, "
         "advice for the widgets' author:"
     ), ran.stdout
     assert lines[2] == "  · <lf-bare> example: no worked example shows it"
@@ -130,7 +175,27 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
         r"  · <(lf-[a-z]+) id='(\w+)'> keeps-first-box: "
         r"first painted (\d+)x(\d+), (\d+)x(\d+) once presented"
     )
-    readings = [finding.fullmatch(line) for line in lines[3:]]
+    advice = (
+        "and scrolls inside it; let it grow with its content, or declare "
+        "--lf-holds-height: 1 where the task needs its own scroll"
+    )
+    assert lines[-3:] == [
+        (
+            "  · <lf-keyed id='keyed'> shows-context-keys: keyed.go declares "
+            "context keys and no bindingBadge, so its key works with nothing on the "
+            "page showing it; lend the command a face, or request a corner badge "
+            "with bindingBadge: null"
+        ),
+        (
+            "  · <lf-pinned id='pinned'> grows-with-content: <lf-pinned id=pinned> "
+            f"holds 100px {advice}"
+        ),
+        (
+            "  · <lf-shallow id='shallow'> grows-with-content: <lf-shallow id=shallow> "
+            f"holds 10px {advice}"
+        ),
+    ], ran.stdout
+    readings = [finding.fullmatch(line) for line in lines[3:-3]]
     assert all(readings), lines
     grown = {reading[2]: int(reading[6]) - int(reading[4]) for reading in readings}
     assert all(grown.pop(word) > 0 for word in ("word", "spoken", "line")), lines
@@ -307,8 +372,19 @@ def test_a_widget_first_paints_the_box_it_presents(browser, serve, case):
         page.unroute_all(behavior="wait")
 
 
+@pytest.fixture
+def gallery_page_files():
+    """Keep the gallery's initial-paint tests on its actual page-owned assets."""
+    companion = ROOT / "examples/developer/feature-gallery.page"
+    return {
+        path.relative_to(companion).as_posix(): path.read_text(encoding="utf-8")
+        for path in companion.rglob("*")
+        if path.is_file()
+    }
+
+
 def test_an_export_first_paints_its_widgets_at_their_presented_boxes(
-    browser, serve, tmp_path
+    browser, serve, tmp_path, gallery_page_files
 ):
     """An export runs the runtime, so its widgets take the boxes their modules will
     draw from the first paint, as a served page's do; it draws no live chrome, so it
@@ -322,7 +398,9 @@ def test_an_export_first_paints_its_widgets_at_their_presented_boxes(
             + INITIAL_DRAWING_PAGE.replace('id="title"', 'id="drawing-title"').replace(
                 'id="after"', 'id="drawing-after"'
             ),
-        )
+            head='<link rel="stylesheet" href="/page/theme.css">',
+        ),
+        page_files=gallery_page_files,
     )
     exported = tmp_path / "exported.html"
     exporting_model.cmd_export(serve.page_dir, exported, None)
@@ -429,7 +507,7 @@ INITIAL_DRAWING_NODES = """lf-playground, lf-playground-control,
 
 @pytest.mark.parametrize("width", [1200, 390])
 def test_initial_drawings_keep_their_nodes_and_wrapped_geometry_on_upgrade(
-    browser, serve, width
+    browser, serve, width, gallery_page_files
 ):
     """Hold the full entry module to observe the actual parser-closing drawing.
     The default and a restored longer instruction keep the same control and gallery
@@ -440,10 +518,14 @@ def test_initial_drawings_keep_their_nodes_and_wrapped_geometry_on_upgrade(
         leaf_page(
             "First drawing",
             INITIAL_DRAWING_PAGE,
-            head="<style>:root { --sans: Georgia, serif; --mono: Courier, monospace; }</style>"
-            if width == 390
-            else "",
-        )
+            head='<link rel="stylesheet" href="/page/theme.css">'
+            + (
+                "<style>:root { --sans: Georgia, serif; --mono: Courier, monospace; }</style>"
+                if width == 390
+                else ""
+            ),
+        ),
+        page_files=gallery_page_files,
     )
     page = browser.new_page(
         viewport={"width": width, "height": 900}, has_touch=width == 390

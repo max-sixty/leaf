@@ -7,6 +7,12 @@
  * private port; an ordinary reload reconnects with a fresh presentation promise.
  * An opaque parent cannot classify a later document which has no Leaf bootstrap.
  * Departed ports cannot settle the replacement's calls.
+ * `ready` and calls reject with `AbortError` only when the host's owner cancels
+ * them, by destroying the host or resetting its allocation. When the child document
+ * departs, through an authored navigation or a reload, they reject with
+ * `SampleDepartedError`; a reload then reconnects and announces `loading` with a
+ * fresh `ready`, and whatever the owner applied to the departed document it
+ * applies again to the new one.
  * A block follows the child's reported height; a window keeps its own viewport.
  * A reading step the child's scroll chain spent goes on from the frame here, as the
  * wheel's scroll chains out of a frame (navigation.js, `stepAlong`).
@@ -72,6 +78,9 @@ async function loadWithinLimit(work, signal) {
   }
 }
 
+// The child document left; a reload announces its successor with `loading`.
+const departure = (message) => new DOMException(message, "SampleDepartedError");
+
 const mounted = new Map();
 export const isSampleFrame = (node) => mounted.has(node);
 // A crop in the frame's viewport coordinates.
@@ -107,6 +116,8 @@ export function mountSample(
   let operation = null;
   let closing = null;
   let channel = null;
+  // Why the last channel closed: what a call aimed at its document rejects with.
+  let lost;
   let nextId = 0;
   let readyResolve;
   let readyReject;
@@ -190,6 +201,7 @@ export function mountSample(
   function disconnect(reason) {
     channel?.close();
     channel = null;
+    lost = reason;
     connectedNonce = null;
     for (const { reject } of pending.values()) reject(reason);
     pending.clear();
@@ -210,11 +222,11 @@ export function mountSample(
     try {
       return await work;
     } catch (error) {
-      // Native navigation cancels the private presentation, while the browser
-      // keeps its destination. Reset and destroy retire allocations themselves.
-      if (error.name !== "AbortError") {
+      // A departed document leaves the browser's destination in the frame. Reset
+      // and destroy retire allocations themselves.
+      if (error.name !== "AbortError" && error.name !== "SampleDepartedError") {
         recordFailure(error);
-        await retire("failure");
+        await retire("failure", error);
       }
       throw error;
     }
@@ -266,7 +278,7 @@ export function mountSample(
         for (const candidate of candidates) candidate.close();
         candidates.clear();
         const reloading = hasConnected;
-        disconnect(new DOMException("sample document replaced", "AbortError"));
+        disconnect(departure("sample document replaced"));
         channel = port;
         connectedNonce = nonce;
         hasConnected = true;
@@ -284,7 +296,7 @@ export function mountSample(
       if (channel !== port) return;
       if (data.type === "departed") {
         record("departed");
-        const error = new DOMException("sample document navigated", "AbortError");
+        const error = departure("sample document navigated");
         disconnect(error);
         if (presenting) readyReject(error);
         else begin(Promise.reject(error));
@@ -373,7 +385,9 @@ export function mountSample(
   });
   lifetime.observe(document, { childList: true, subtree: true });
 
-  function retire(reason) {
+  // What a pending call rejects with: the failure that retires the allocation, or
+  // else the owner's cancellation.
+  function retire(reason, cause = new DOMException("sample replaced", "AbortError")) {
     if (!current) return;
     const retiringDocument = connectedNonce;
     const previous = current;
@@ -381,11 +395,10 @@ export function mountSample(
     current = null;
     samplePage = null;
     hasConnected = false;
-    const cancelled = new DOMException("sample replaced", "AbortError");
-    disconnect(cancelled);
+    disconnect(cause);
     for (const port of candidates) port.close();
     candidates.clear();
-    readyReject?.(cancelled);
+    readyReject?.(cause);
     const parent = frame.parentNode;
     const next = frame.nextSibling;
     frame.remove();
@@ -470,8 +483,7 @@ export function mountSample(
     call(method, detail = {}) {
       const ready = host.ready;
       return ready.then(() => {
-        if (ready !== host.ready || !channel)
-          throw new DOMException("sample unavailable", "AbortError");
+        if (ready !== host.ready || !channel) throw lost;
         const id = ++nextId;
         return new Promise((resolve, reject) => {
           pending.set(id, { resolve, reject });

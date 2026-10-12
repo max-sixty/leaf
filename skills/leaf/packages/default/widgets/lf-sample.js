@@ -127,6 +127,8 @@ customElements.define(
       widgetController(this).present(this.#track(ready).catch(() => {}));
     }
 
+    // Removal closes a modal Full view at once, so the view returns to its embedded
+    // posture in the same task rather than at the arrival batch.
     disconnectedCallback() {
       if (this.#view?.getAttribute("role") === "dialog") this.#embed();
     }
@@ -231,8 +233,9 @@ customElements.define(
       else this.#scheduleFit();
     }
 
+    // Cancellation is this widget's own, and the departed notice draws a departure.
     #failure(error) {
-      if (error.name === "AbortError") return;
+      if (error.name === "AbortError" || error.name === "SampleDepartedError") return;
       keepsText(this.#status, error.message);
       keeps(this.#reset, "aria-disabled", null);
     }

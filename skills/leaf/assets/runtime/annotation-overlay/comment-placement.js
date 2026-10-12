@@ -24,6 +24,9 @@
    The semantic comment anchor remains the original target. A caller requesting
    window placement without a visible attachment supplies `clear: null` and stands
    at its upper inline edge through the same sizing and placement machinery.
+   An existing target with no drawn part has no attachment: seated surfaces withhold
+   their native editing state until it returns. An explicit open can request the
+   unanchored window posture while retaining the hidden subject as its semantic anchor.
    The editing surface uses this solver for its initial attachment, then retains
    browser-owned following (`composing/floating-response.js`).
 
@@ -98,6 +101,7 @@
    scale, and `fit` is handed lengths in that space, as CSS sizes the surface in it. */
 
 import { scrollAxes } from "../element-frame.js";
+import { drawn } from "../focus.js";
 import {
   shellRight,
   shownWindow,
@@ -144,6 +148,12 @@ export function commentAttachment({
       scroller: effectiveScroller(element),
     };
   }
+  // The margin may offer a different mechanical seat, but the comment still belongs
+  // to its semantic target. If that target has no drawn part, a seated editor or card
+  // must withhold until the target returns; an explicit Resume can request the window
+  // posture above without changing that target.
+  const targetParts = shownParts(target).filter(drawn);
+  if (!targetParts.length) return null;
   const margin = marginSpot(target, point);
   const external = margin?.attachment && margin.attachment !== target;
   const attachment = external ? margin.attachment : target;

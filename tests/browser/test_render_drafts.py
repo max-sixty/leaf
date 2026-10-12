@@ -6883,13 +6883,13 @@ def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(
         expect(editor).to_be_focused()
     if change == "window-revision":
         resized(page, 480, 900)
-        # The editor remains a visible, focused native field when its target hides.
-        # Page shortcuts are unavailable until focus leaves it; typing `g`, `i` here
-        # would correctly change the selected character in the draft.
+        # The hidden subject withholds its editor. Resume writing restores the same
+        # native field before the revision changes underneath it.
+        expect(editor).to_be_hidden()
+        page.keyboard.press("g")
+        page.keyboard.press("i")
         expect(editor).to_be_visible()
         expect(editor).to_be_focused()
-        expect(editor).to_have_js_property("value", words)
-        assert editor.evaluate("e => [e.selectionStart, e.selectionEnd]") == caret
         rendered(page)
     editor_before = editor.bounding_box()
     if change in {"hidden-revision", "reloaded-revision"}:

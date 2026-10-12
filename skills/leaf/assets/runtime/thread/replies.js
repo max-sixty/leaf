@@ -10,8 +10,9 @@
    Tab preserves the row's session independently of focus. The complete presentation
    carries its detached native owner through a complete commit, then hands the
    session to the current same-key route. The owner's row is the session's, not its
-   view's: the route's view puts it in place of its own row (`carry`), so the editor
-   moves with the thread, its caret and undo history with it. A view that cannot draw
+   view's: the route's view puts it in place of its own row (`carry`), taking it from a
+   view that holds it out of sight, as a closed margin card does, so the editor moves
+   with the thread, its caret and undo history with it. A view that cannot draw
    another row, a package mirror, takes the session and caret into its own. */
 import {
   captureDraftEditing,
@@ -166,15 +167,27 @@ export const dismissReplyAt = (node) => {
   if (context !== null) dismissContext(context);
 };
 
-// Once no view holds the session's row, the view now drawing its thread puts that row
+// Once no view shows the session's row, the view now drawing its thread puts that row
 // in place of its own, and the user goes on in their own editor, with its undo history.
-// A view that cannot draw another row, a package mirror, keeps its own.
+// A view holding the row out of sight, as a closed margin card does, gives it up and
+// draws a fresh one. A view that cannot draw another row, a package mirror, keeps its
+// own.
 function carry(target, owner) {
-  if (target === owner || owner.binding || owner.retired || !target.binding?.take)
+  const giver = owner.binding;
+  if (
+    target === owner ||
+    owner.retired ||
+    !target.binding?.take ||
+    (giver && (!giver.give || owner.row.checkVisibility()))
+  )
     return target;
   const session = compositions.get(owner.context);
   if (session && session.owner !== owner && session.owner !== target) return target;
+  // The giver lets go before the taker attaches, and draws its fresh row only once the
+  // taker has moved this one out, so the row never leaves the document between them.
+  const redrawGiver = giver?.give();
   target.binding.take(owner);
+  redrawGiver?.();
   if (session) session.owner = owner;
   return owner;
 }
@@ -353,16 +366,26 @@ export function createReplyView(
     redraw = null,
   } = {},
 ) {
-  const row = offer("div", "lf-thread-reply");
-  const input = offer(TEXT_FIELD);
-  input.name = "reply";
-  const send = offer("button", "lf-btn lf-thread-send", "Send");
-  row.append(input, send);
-  let composition = wireReply(key, row, input, send, commands.wireInput);
+  const fresh = () => {
+    const row = offer("div", "lf-thread-reply");
+    const input = offer(TEXT_FIELD);
+    input.name = "reply";
+    const send = offer("button", "lf-btn lf-thread-send", "Send");
+    row.append(input, send);
+    return wireReply(key, row, input, send, commands.wireInput);
+  };
+  let composition = fresh();
   const binding = { ...commands, onChange, editLast, reveal, sizes };
   let detach = attach(composition, binding);
-  // A view that draws its row again on `redraw` can take the session's in its place.
-  if (redraw)
+  // A view that draws its row again on `redraw` can take the session's in its place,
+  // and give its own up for a fresh one (`carry`), drawn by the step it returns.
+  if (redraw) {
+    binding.give = () => {
+      detach();
+      composition = fresh();
+      detach = attach(composition, binding);
+      return redraw;
+    };
     binding.take = (owner) => {
       // The row going holds no place of the user's: whoever carries the owner's row
       // puts them in it (focus.js, `replyDestination`), not the redraw's focus hold.
@@ -374,6 +397,7 @@ export function createReplyView(
       detach = attach(composition, binding);
       redraw();
     };
+  }
   return {
     get node() {
       return composition.row;

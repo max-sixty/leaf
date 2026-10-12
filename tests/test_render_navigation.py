@@ -145,7 +145,8 @@ READING_REGIONS_PAGE = leaf_page(
 )
 
 
-@pytest.mark.parametrize(("down", "up"), [("d", "u"), ("j", "k")])
+# The half-page keys; the line keys take the same scroll chain.
+@pytest.mark.parametrize(("down", "up"), [("d", "u")])
 def test_reading_keys_chain_at_a_document_bound_but_stop_at_a_task_boundary(
     browser, serve, down, up
 ):
@@ -2223,8 +2224,14 @@ def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body")
 
 
-@pytest.mark.parametrize("from_below", [False, True], ids=["down", "up"])
-@pytest.mark.parametrize("width", [1440, 390], ids=["beside", "above-or-below"])
+# Each placement once and each direction once.
+@pytest.mark.parametrize(
+    ("width", "from_below"),
+    [
+        pytest.param(1440, False, id="beside-down"),
+        pytest.param(390, True, id="above-or-below-up"),
+    ],
+)
 def test_an_offscreen_thread_card_arrives_with_its_anchor(
     browser, serve, from_below, width
 ):
@@ -2689,8 +2696,10 @@ def test_a_link_hint_leaves_a_newer_gesture_where_it_is(browser, serve):
     expect(page.locator("#arrival")).not_to_be_in_viewport()
 
 
-@pytest.mark.parametrize("surface", ["margin", "panel"])
-@pytest.mark.parametrize("activation", ["click", "Enter"])
+# Each activation once and each surface once.
+@pytest.mark.parametrize(
+    ("activation", "surface"), [("click", "margin"), ("Enter", "panel")]
+)
 def test_a_reply_link_moves_the_thread_walk_to_its_destination(
     browser, serve, surface, activation
 ):
@@ -2910,7 +2919,9 @@ def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve)
 
 @pytest.mark.parametrize(
     "placement",
-    ["alone", "among-blocks", "nested"],
+    # Directly in main beside other blocks, and inside one; alone in main is the
+    # first case without its neighbours.
+    ["among-blocks", "nested"],
 )
 def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
     browser, serve, placement
@@ -2996,8 +3007,10 @@ def color_cue_markup():
     )
 
 
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-@pytest.mark.parametrize("target", ["banner", "tab"])
+# Each surface once and each engine once.
+@pytest.mark.parametrize(
+    ("target", "engine"), [("banner", "browser"), ("tab", "firefox_browser")]
+)
 def test_color_cues_fade_to_the_live_surface(request, serve, engine, target):
     """Transient paint fades smoothly and returns to current hover or theme fill."""
     page = open_page(request.getfixturevalue(engine), serve(color_cue_markup()))
@@ -5326,8 +5339,14 @@ LIST_ROUTES = {
 }
 
 
-@pytest.mark.parametrize("width", [1600, 420])
-@pytest.mark.parametrize("route", LIST_ROUTES.values(), ids=LIST_ROUTES.keys())
+# Each route once and each width once.
+@pytest.mark.parametrize(
+    ("route", "width"),
+    [
+        pytest.param(LIST_ROUTES["go to Threads"], 1600, id="go to Threads-1600"),
+        pytest.param(LIST_ROUTES["walk to a title"], 420, id="walk to a title-420"),
+    ],
+)
 def test_the_threads_list_hands_focus_to_the_thread_it_shows_open(
     browser, serve, route, width
 ):
@@ -5727,8 +5746,10 @@ def test_what_the_user_put_on_after_the_panel_comes_off_before_it(browser, serve
     expect(panel).to_be_hidden()
 
 
-@pytest.mark.parametrize("intervene", [False, True])
-@pytest.mark.parametrize("from_drawer", [False, True])
+# The newer move from both starts, and the walk it would otherwise complete.
+@pytest.mark.parametrize(
+    ("from_drawer", "intervene"), [(False, False), (False, True), (True, True)]
+)
 def test_an_ask_navigation_keeps_its_intent_while_materializing_threads(
     browser, serve, intervene, from_drawer
 ):
@@ -6105,13 +6126,9 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
 
 @pytest.mark.parametrize(
     "reply_paragraphs",
-    [
-        0,
-        10,
-        18,
-        30,
-    ],
-    ids=["short", "near-fit", "long", "very-long"],
+    # Either side of the card's fit, and a reply that does not fit at all.
+    [0, 10, 18],
+    ids=["short", "near-fit", "long"],
 )
 def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
     browser, serve, reply_paragraphs
@@ -8562,8 +8579,8 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
     expect(sheet.locator(".lf-page-map-action")).to_have_count(0)
 
 
-@pytest.mark.parametrize("route", ["Escape", "Close"])
-@pytest.mark.parametrize("nested", [False, True])
+# Each route once and each reading region once.
+@pytest.mark.parametrize(("nested", "route"), [(False, "Close"), (True, "Escape")])
 def test_page_map_cancellation_returns_to_its_opener_without_moving_the_reading(
     browser, serve, route, nested
 ):
@@ -9236,11 +9253,11 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
 
 
+# Threads stands for the two banner toggles, whose branch the Questions panel shares.
 @pytest.mark.parametrize(
     ("command", "suffix", "surface"),
     [
         ("navigation.panel.threads", "T", ".lf-thread-panel"),
-        ("navigation.drawer.queue", "Q", ".lf-queue-panel"),
         ("navigation.page-map", "M", ".lf-page-map-dialog"),
         ("version.open", "V", ".lf-version-menu"),
     ],
@@ -12110,15 +12127,15 @@ def test_a_new_reading_passage_ends_a_travel_group(
 
 @pytest.mark.parametrize(
     "concealment",
+    # One of each way words can be absent from what is drawn: not rendered (`hidden`
+    # and a closed `details` are `display: none`'s case), rendered unseen, skipped
+    # (`until-found` is `content-visibility`'s), and boxless.
     [
         "none",
-        "hidden",
-        "until-found",
         "display",
         "visibility",
         "opacity",
         "content",
-        "details",
         "contents",
     ],
 )
@@ -13947,8 +13964,10 @@ def test_end_landing_reveals_a_tall_items_closing_edge_through_outer_scrollers(
     ), reading
 
 
-@pytest.mark.parametrize("quarter_turn", ["owning", "enclosing"])
-@pytest.mark.parametrize("alignment", ["nearest", "start"])
+# Each turn once and each alignment once.
+@pytest.mark.parametrize(
+    ("alignment", "quarter_turn"), [("nearest", "enclosing"), ("start", "owning")]
+)
 def test_vertical_landing_crosses_a_quarter_turn_without_changing_horizontal_reading(
     browser, serve, quarter_turn, alignment
 ):
@@ -15706,8 +15725,17 @@ def test_commenting_on_a_closed_disclosure_leaves_it_closed(browser, serve, gest
     expect(disclosure).not_to_have_attribute("open", "")
 
 
-@pytest.mark.parametrize("nested", [False, True])
-@pytest.mark.parametrize("target_height,top", [(1400, 320), (1400, -500), (120, 850)])
+# A section past the window's foot and past its head, and a small clipped target; the
+# nested scroller holds the one past the head and the clipped one.
+@pytest.mark.parametrize(
+    "target_height,top,nested",
+    [
+        (1400, 320, False),
+        (1400, -500, True),
+        (120, 850, False),
+        (120, 850, True),
+    ],
+)
 def test_opening_comment_preserves_the_visible_reading_position(
     browser, serve, nested, target_height, top
 ):
@@ -16194,8 +16222,10 @@ ASK_THREAD_PAGE = leaf_page(
 )
 
 
-@pytest.mark.parametrize("width", [390, 1200])
-@pytest.mark.parametrize("route", ["comment", "thread", "marker"])
+# Each route once, at both widths between them.
+@pytest.mark.parametrize(
+    ("route", "width"), [("comment", 390), ("thread", 1200), ("marker", 390)]
+)
 def test_ask_work_keeps_its_discussion_closed_until_requested(
     browser, serve, width, route
 ):

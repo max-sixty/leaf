@@ -10392,6 +10392,50 @@ def test_codex_ignores_delivery_records_from_the_previous_id_vocabulary(state):
     assert codex_model.delivery_records("codex-thread") == []
 
 
+def test_codex_retires_a_receipt_on_a_page_its_leaf_cannot_write(codex_claimed_page):
+    """A Codex receipt on a page vendored at another protocol retires its batch, as
+    one whose page went or changed hands does, rather than failing every retry: the
+    input stays unpicked on the page, so a Leaf that can write it delivers it again
+    once `leaf page init` re-vendors the page."""
+    page = codex_claimed_page
+    append_carried_log_record(
+        page, {"kind": "comment", "id": "asked", "author": "user", "text": "Why?"}
+    )
+    (event,) = events_model.read_events(page)[-1:]
+    with service_model.PageTransaction(page) as transaction:
+        batch = delivery_model.batch_data(page, transaction, [event])
+    delivery_model.freeze_delivery([batch], delivery_id="bbbbbbbb")
+    directory = codex_state_model.delivery_dir("codex-thread")
+    directory.mkdir(parents=True)
+    cleanup_model.write_json(
+        directory / "bbbbbbbb.json",
+        {
+            "format": codex_model.RECORD_FORMAT,
+            "state": "queued",
+            "created_at": 1,
+            "pending": [0],
+            "batches": [
+                {
+                    "page": str(page),
+                    "session": "codex-thread",
+                    "threads": [],
+                    "events": [event],
+                }
+            ],
+        },
+    )
+    vendored_at_another_protocol(page)
+
+    assert codex_model.recover_codex_receipt("codex-thread")
+    assert not codex_model.recover_codex_receipt("codex-thread")
+    assert not [
+        recorded
+        for recorded in events_model.read_events(page)
+        if recorded["kind"] == "pickup"
+    ]
+    assert events_model.read_cursor(page) < event["seq"]
+
+
 def test_codex_recovers_page_receipts_in_sequence_order(codex_claimed_page):
     page = codex_claimed_page
     for event_id in ("first", "second"):
@@ -19453,42 +19497,27 @@ def test_a_hook_confirms_nothing_into_a_turn_that_replaced_its_own(
     assert all(e["kind"] != "pickup" for e in events_model.read_events(claimed))
 
 
-def test_a_hook_hands_input_it_cannot_confirm_to_its_reader(claimed, capsys):
-    """An envelope the hook hands over inline says the hook confirmed it, so its
-    reader runs no acknowledgement. A hook whose Leaf may not write the page's log,
-    as after an update that changed the page protocol, cannot confirm it;
-    handed over inline, the input stayed pending and every later turn offered it
-    again as new. It goes as a pointer instead, and the reader's acknowledgement
-    either shows the refusal or, run by a Leaf that may write the log, confirms it,
-    after which the next turn is offered nothing."""
-    stamp = claimed / "registry.json"
-    vendored = stamp.read_text(encoding="utf-8")
-    comment = append_carried_log_record(
+def test_a_watch_delivers_nothing_from_a_page_its_leaf_cannot_write(claimed):
+    """Input on a page vendored at another protocol waits for a Leaf that can write
+    the page: no receipt could be recorded for it here, so a watch that delivered it
+    woke the session again on every pass, and a Codex watch offered it as a new turn
+    each time. The prompt still names the page and the re-vendor that frees it."""
+    append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Please answer"}
     )
     vendored_at_another_protocol(claimed)
 
-    def prompt() -> str:
-        hooks_model.cmd_hook(
-            "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
-        )
-        out = capsys.readouterr().out
-        return json.loads(out)["hookSpecificOutput"]["additionalContext"] if out else ""
+    def delivered(reading):
+        pytest.fail(f"{reading.page_dir} delivered input its Leaf cannot receipt")
 
-    handed = prompt()
-    assert not handed.startswith(hook_transport_model.INLINE_DELIVERY)
-    assert "page protocol" in handed
-    [delivery_id] = re.findall(r"`leaf delivery read (\w+)`", handed)
-    assert events_model.read_cursor(claimed) < comment["seq"]
-    refused = CliRunner().invoke(cli_model.cli, ["delivery", "ack", delivery_id])
-    assert refused.exit_code == 1
-    assert "page protocol" in refused.output
-
-    cleanup_model.write_json(stamp, json.loads(vendored))
-    confirmed = CliRunner().invoke(cli_model.cli, ["delivery", "ack", delivery_id])
-    assert confirmed.exit_code == 0, confirmed.output
-    assert events_model.read_cursor(claimed) >= comment["seq"]
-    assert not hook_transport_model.hands_delivery(prompt())
+    watch = session_model.Watch(harness_model.session_harness())
+    try:
+        assert watch.acquire()
+        ticks = list(watch.tick())
+        session_model.read_watch_pass(watch, None, delivered)
+    finally:
+        watch.release()
+    assert [tick.batch for tick in ticks if tick.page_dir == claimed] == [[]]
 
 
 def test_a_prompt_reminds_of_debt_on_a_page_its_leaf_cannot_write(claimed, capsys):
@@ -19515,6 +19544,38 @@ def test_a_prompt_reminds_of_debt_on_a_page_its_leaf_cannot_write(claimed, capsy
     [batch] = delivery_model.read_delivery(reminder)["batches"]
     assert [event["id"] for event in batch["events"]] == [asked["id"]]
     assert events_model.read_events(claimed) == logged
+
+
+def test_a_prompt_offers_no_new_input_from_a_page_its_leaf_cannot_write(
+    claimed, capsys
+):
+    """A prompt hands over no delivery of fresh input on a page vendored at another
+    protocol, whose receipt this Leaf would refuse: a pointer to it could never be
+    confirmed, so every later prompt or Stop offered the same input again. It names
+    the page protocol and the re-vendor instead, and the input waits on the page for
+    the first prompt after the page is writable again."""
+    stamp = claimed / "registry.json"
+    vendored = stamp.read_text(encoding="utf-8")
+    comment = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "Please answer"}
+    )
+    vendored_at_another_protocol(claimed)
+
+    def prompt() -> str:
+        hooks_model.cmd_hook(
+            "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+        )
+        out = capsys.readouterr().out
+        return json.loads(out)["hookSpecificOutput"]["additionalContext"] if out else ""
+
+    refused = prompt()
+    assert "page protocol" in refused
+    assert not hook_transport_model.hands_delivery(refused)
+    assert events_model.read_cursor(claimed) < comment["seq"]
+
+    cleanup_model.write_json(stamp, json.loads(vendored))
+    assert hook_transport_model.hands_delivery(prompt())
+    assert events_model.read_cursor(claimed) >= comment["seq"]
 
 
 def test_a_hook_waits_on_no_receipt_lock_past_its_deadline(

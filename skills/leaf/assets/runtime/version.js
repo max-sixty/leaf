@@ -2011,7 +2011,11 @@ export function createVersionController({
     if (readingContinuityInstalled) return;
     readingContinuityInstalled = true;
     watchReadingRegionTransitions(readingRegionTransition);
-    document.addEventListener("scroll", queueRecord, { capture: true, passive: true });
+    // A scroll's end is the reader's choice (scrolling.js), and a reading taken before
+    // it would read as older than that choice. WebKit, and Chromium for touch, end a
+    // scroll frames after its last scroll event, so the end takes a reading of its own.
+    for (const type of ["scroll", "scrollend"])
+      document.addEventListener(type, queueRecord, { capture: true, passive: true });
     // Arriving or editing changes the reading place even when no scroller moves.
     // Keep the intact place now: an immediate resize can invalidate geometry before
     // the queued record runs. Record again after any seat or layout commits.

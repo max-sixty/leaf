@@ -9,14 +9,16 @@
    reader has chosen for since its reading (`chosenSince`).
 
    The platform draws the line: a scroll sequence ends with `scrollend`, whoever started
-   it, and layout's moves start none (Chromium, measured). So a `scrollend` on a box is
-   a choice, with two exceptions. A place keeper's write returns the reader to a place
-   they already had (reading-place.js, `restorePlace`; user-place.js, `placeKeeper`), so
-   it says where it left each box (`placeKept`), and a sequence ending there is the
-   keeper's. A landing in motion counts from its start (`chooseScroll`), since layout it
-   caused can be announced before its sequence ends. Like continuity's record of the
-   reader's place, this listens on the document, which a scroll inside a shadow root
-   does not reach. */
+   it, and layout's moves start none (measured in Chromium and WebKit). So a `scrollend`
+   on a box is a choice, with two exceptions. A place keeper's write returns the reader
+   to a place they already had (reading-place.js, `restorePlace`; user-place.js,
+   `placeKeeper`; continuity's move of the page with its band), so it says where it
+   left each box (`placeKept`), and a sequence ending there is the keeper's. A landing
+   in motion counts from its start (`chooseScroll`), since layout it caused can be
+   announced before its sequence ends. A sequence can end frames after its last
+   `scroll` event, as WebKit's do, so continuity takes a reading at the end too. Like
+   that record, this listens on the document, which a scroll inside a shadow root does
+   not reach. */
 
 // The browser's document scrollport. Keeping the platform's root as the one page
 // scroller lets fragment links, history restoration, wheel/touch input, and browser UI

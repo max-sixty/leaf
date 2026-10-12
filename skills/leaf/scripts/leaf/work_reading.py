@@ -30,7 +30,6 @@ class WorkReading:
         within=None,
         thread=None,
         log=None,
-        document=None,
     ):
         self.registry_for_revision = registry_for_revision
         self.available_revisions = frozenset(available_revisions)
@@ -44,29 +43,6 @@ class WorkReading:
         )
         self.log = log or TaskReading(events)
         self._thread = thread
-        self._document = document
-
-    def supposing(self, gestures: list[dict]) -> "WorkReading":
-        """This reading with `gestures` appended to its log, for asking what they would
-        leave in the threads they stand in. They carry no markup and name no task, so
-        the frozen thread document is this reading's own, and so is the task log
-        unless one takes a message back, which changes what the log has withdrawn.
-        The page document is this reading's own too: what they could change there, a
-        page Ask seated in a thread they reopen, stands in no thread's reading."""
-        events = [*self.events, *gestures]
-        return WorkReading(
-            events,
-            self.registry,
-            self.page,
-            registry_for_revision=self.registry_for_revision,
-            available_revisions=self.available_revisions,
-            within=self.within,
-            thread=self.thread,
-            log=self.log
-            if not any(gesture.get("undoes") for gesture in gestures)
-            else TaskReading(events),
-            document=self.document,
-        )
 
     def viewing(self, page) -> "WorkReading":
         """This log read beside another revision's document, as a view pinned to that
@@ -78,15 +54,20 @@ class WorkReading:
         if page is self.page:
             return self
         return WorkReading(
-            self.events, page.registry, page,
+            self.events,
+            page.registry,
+            page,
             registry_for_revision=self.registry_for_revision,
             available_revisions=self.available_revisions,
-            within=self.within, log=self.log
+            within=self.within,
+            log=self.log,
         )
 
     @cached_property
     def threads(self) -> dict:
-        return build_threads(self.effective_events, self.within, withdrawn=self.log.withdrawn)
+        return build_threads(
+            self.effective_events, self.within, withdrawn=self.log.withdrawn
+        )
 
     @cached_property
     def thread(self):
@@ -167,8 +148,6 @@ class WorkReading:
 
     @cached_property
     def document(self):
-        if self._document is not None:
-            return self._document
         return read_document(self.page, self.threads) if self.page is not None else None
 
     @cached_property

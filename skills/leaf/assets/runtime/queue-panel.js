@@ -15,8 +15,9 @@
    `queues.questions` and `queues.tasks` (the server's `served_state.queues`, with this
    tab's sends placed against it), the same lists the `q` walk steps through and the
    banner counts; what is done is `done`, served beside them from ended to-dos and
-   answered or withdrawn asks. So a reply the user sends leaves Questions and joins
-   Tasks in the turn it is sent, as it leaves the banner's count.
+   answered or withdrawn asks. So a reply the user sends joins Tasks in the turn it
+   is sent, and leaves Questions when the server's reading of it arrives, as the
+   banner's counts do.
 
    Each row says what kind of item it is, the item's title or opening words, and where it
    is: the passage or section it stands at, and its age, stage or outcome. A press or

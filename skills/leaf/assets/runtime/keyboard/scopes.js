@@ -49,7 +49,7 @@ import {
   word,
 } from "./bindings.js";
 import { nativeClaimAt } from "./text-entry.js";
-import { focused, onLabelPress } from "../focus.js";
+import { focused } from "../focus.js";
 import { hostIn, renderedParent } from "../shadow.js";
 import { repaint } from "../repaint.js";
 import { keeps } from "../keeps.js";
@@ -698,10 +698,7 @@ function reflectElementShortcuts(element) {
       ),
     ),
   ].join(" ");
-  if (shortcuts) {
-    if (element.getAttribute("aria-keyshortcuts") !== shortcuts)
-      element.setAttribute("aria-keyshortcuts", shortcuts);
-  } else element.removeAttribute("aria-keyshortcuts");
+  keeps(element, "aria-keyshortcuts", shortcuts || null);
 }
 // Ahead of standing content, so an ambiguous declaration is refused under its own title
 // rather than under whichever surface reads its rows first.
@@ -760,28 +757,6 @@ const spoken = (row) => {
     return active.map(spokenBinding).join(" or ");
   return word(row.label) ?? active.map(spokenBinding).join(" or ");
 };
-
-const FOCUS = "lf-focus";
-const FOCUS_VISIBLE = "lf-focus-visible";
-const FOCUS_WITHIN = "lf-focus-within";
-// A press on a label holds the user on the element they stood on until it lands
-// (focus.js, `focused`). The element keeps the focus pseudo-classes' paint for that
-// press, as classes, since DOM focus has moved through the label's in-between nodes.
-let painted = [];
-onLabelPress((held) => {
-  for (const node of painted) node.classList.remove(FOCUS, FOCUS_VISIBLE, FOCUS_WITHIN);
-  painted = [];
-  if (!held) {
-    repaint();
-    return;
-  }
-  held.classList.add(FOCUS);
-  if (held.matches(":focus-visible")) held.classList.add(FOCUS_VISIBLE);
-  for (let node = held; node; node = renderedParent(node)) {
-    node.classList.add(FOCUS_WITHIN);
-    painted.push(node);
-  }
-});
 
 // Document readings want the host of a control staged in a shadow tree. Retarget the
 // logical reading every time, so a label transaction and an ordinary shadow focus take

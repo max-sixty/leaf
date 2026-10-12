@@ -47,16 +47,21 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 import pytest
 from browser_sources import browser_function
 from click.testing import CliRunner
+from conftest import tier
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
+    declare_work,
     package_path,
+    record_claim,
     wait_for,
 )
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
+from leaf import leases as leases_model
+from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
@@ -1185,33 +1190,37 @@ def draft_key(page, ctx: str) -> str:
     )
 
 
-_STORED_DRAFT_TEXT = """key => {
-  try {
-    const record = JSON.parse(localStorage.getItem(key));
-    return record && !record.settled ? record.text : null;
-  } catch { return null; }
-}"""
-_STORED_DRAFT_SETTLED = """key => {
-  try {
-    return JSON.parse(localStorage.getItem(key))?.settled === true;
-  } catch { return false; }
-}"""
+def stored_draft(page):
+    """The page's own reader of stored drafts (`storedDraft`, runtime/drafts.js)."""
+    return page.evaluate_handle(
+        """async () => (await window.__lfRuntimeImport('/runtime/drafts.js'))
+          .storedDraft"""
+    )
 
 
 def stored_draft_text(page, ctx: str) -> str | None:
     """The words storage holds for the draft at `ctx`, or None once it is settled or
     absent: what another tab or a reload would find, whatever this tab shows."""
-    return page.evaluate(_STORED_DRAFT_TEXT, draft_key(page, ctx))
+    return page.evaluate(
+        """([read, ctx]) => {
+          const record = read(ctx);
+          return record && !record.settled ? record.text : null;
+        }""",
+        [stored_draft(page), ctx],
+    )
+
+
+_STORED_DRAFT_SETTLED = "([read, ctx]) => read(ctx)?.settled === true"
 
 
 def stored_draft_settled(page, ctx: str) -> bool:
     """Whether storage holds the draft at `ctx` as settled (its tombstone)."""
-    return page.evaluate(_STORED_DRAFT_SETTLED, draft_key(page, ctx))
+    return page.evaluate(_STORED_DRAFT_SETTLED, [stored_draft(page), ctx])
 
 
 def until_draft_settled(page, ctx: str) -> None:
     """Wait until storage holds the draft at `ctx` as settled."""
-    page.wait_for_function(_STORED_DRAFT_SETTLED, arg=draft_key(page, ctx))
+    page.wait_for_function(_STORED_DRAFT_SETTLED, arg=[stored_draft(page), ctx])
 
 
 _BROWSER_PROBLEM_LISTS = None
@@ -1219,14 +1228,11 @@ _TEST = None
 
 
 def watches_shifts(test):
-    """Ordinary tests watch shifts; surveyed nightly journeys opt in explicitly.
+    """Unmarked tests watch shifts; surveyed journeys in a marked tier opt in.
 
     This selection does not lift the watcher's first-presentation exemption.
     """
-    return (
-        test.get_closest_marker("nightly") is None
-        or test.get_closest_marker("watch_shifts") is not None
-    )
+    return tier(test) is None or test.get_closest_marker("watch_shifts") is not None
 
 
 @contextmanager
@@ -1317,7 +1323,9 @@ def _judge_frame_watches(frame):
             break
         if time.monotonic() >= deadline:
             raise PlaywrightTimeout(f"health sensors did not drain: {frame.url}")
-        page.wait_for_timeout(100)
+        # Judgement usually completes within a frame or two; a 100ms poll cost most
+        # browser tests a tenth of a second.
+        page.wait_for_timeout(10)
     frame.evaluate("delete window.lfWatchJudgement")
 
 
@@ -1961,6 +1969,68 @@ def held_events(browser):
         page.route("**/api/event", lambda route: held.append(route))
 
     return primed(browser, prepare), held
+
+
+@pytest.fixture
+def one_user(browser):
+    """A browser context two pages can share, which is what makes them tabs.
+
+    `Browser.new_page` opens each page in a context of its own, so two of them are two
+    users with no storage between them — and a draft lives in the user's store now,
+    which is the whole of what these tests are about."""
+    return browser.new_context(
+        viewport={"width": 1200, "height": 900}, color_scheme="light"
+    )
+
+
+@pytest.fixture
+def live_leaf(tmp_path, monkeypatch):
+    """Stands up a live leaf for the banner's panel to find: published, served by
+    a real handler, and written down under the state home the way `server run` writes
+    it — which is the whole of how one page learns another exists. Each claims to be
+    working, freshly, so its row has a judged state to show. A factory rather than one
+    fixture, because a drawer is a list and a walk down it needs somewhere to walk to."""
+    monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
+    served = []
+    waiters = []
+
+    def go(name, title):
+        d = machine_model.state_home() / "pages" / name
+        result = CliRunner().invoke(cli_model.cli, ["page", "init", str(d)])
+        assert result.exit_code == 0, result.output
+        stamp_page(
+            d,
+            LONG_PAGE.replace("<title>long</title>", f"<title>{title}</title>"),
+            "t",
+        )
+        declare_work(d, "running the suite")
+        # A live leaf has a session behind it, and what the drawer's hover says about a
+        # page is the work that session is doing it for — so the fixture's pages come
+        # out of somewhere nameable rather than out of nowhere.
+        record_claim(
+            d,
+            id=f"s-{name}",
+            cwd=str(tmp_path / f"{name}-work"),
+        )
+        waiters.append(
+            leases_model.take_lease(leases_model.waiter_lease_path(d, f"s-{name}"))
+        )
+        # Use the durable server's maintenance loop: the row remains canonical
+        # even while no browser has visited this neighboring page.
+        url = hosting_model.start_server(d, standing=True, harness=None).url
+        served.append(d)
+        return url.split("?")[0].rstrip("/"), d
+
+    yield go
+    for directory in served:
+        hosting_model.cmd_stop(directory)
+    for waiter in waiters:
+        leases_model.release_lease(waiter)
+
+
+@pytest.fixture
+def other_leaf(live_leaf):
+    return live_leaf("other", "The other leaf")
 
 
 def margins_laid_out(page):

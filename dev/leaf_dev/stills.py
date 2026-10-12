@@ -11,9 +11,8 @@ only the runtime, theme and server differ between the two stills of a state. Wit
 changes to page markup are visible as well. Each
 capture starts with a fresh authored fixture and event log, so a prior gesture cannot
 change another state's initial condition.
-Message delivery belongs to thread_journey and test_render_thread_snapshots: its
-held checkpoints replace the former panel/card sent stills, whose unrestricted
-POSTs could complete before capture.
+Message delivery belongs to thread_journey and test_render_thread_snapshots, whose
+held checkpoints capture a send before its POST completes; a still cannot hold one.
 
 A state is an example, a viewport, a color scheme and a pointer, and the input that
 brings a fresh tab there (`DRIVERS`, which `leaf-dev probe --do drive:NAME` also runs).
@@ -191,13 +190,18 @@ def card_more_room(page: Page) -> None:
     page.set_viewport_size({"width": 1440, "height": 600})
 
 
-def card_reply(page: Page) -> None:
-    """The first margin card with a reply being typed."""
+def card_reply_empty(page: Page) -> None:
+    """The first margin card's empty reply, ready for typing or dictation."""
     card_by_keyboard(page)
     page.keyboard.press("Enter")
     page.wait_for_function(
         "() => document.activeElement?.matches('.lf-margin-preview leaf-text')"
     )
+
+
+def card_reply(page: Page) -> None:
+    """The first margin card with a reply being typed."""
+    card_reply_empty(page)
     page.keyboard.insert_text("A reply being drafted, long enough to wrap onto a line")
 
 
@@ -319,8 +323,8 @@ def panel_by_keyboard(page: Page) -> None:
     )
 
 
-def composer(page: Page) -> None:
-    """A comment being typed on a passage selected by pointer."""
+def composer_resting(page: Page) -> None:
+    """An empty anchored comment opened by selecting a passage, without focus."""
     box = page.locator("#triage-lede").bounding_box()
     y = box["y"] + 10
     page.mouse.move(box["x"] + 2, y)
@@ -331,9 +335,35 @@ def composer(page: Page) -> None:
     # arrives on a later frame, so the pointer decides, not whether it is there yet.
     if page.evaluate("matchMedia('(pointer: coarse)').matches"):
         page.get_by_role("button", name="Comment on selection").click()
+
+
+def composer_empty(page: Page) -> None:
+    """An empty comment on a passage selected by pointer, with its field focused."""
+    composer_resting(page)
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer leaf-text").focus()
+
+
+def composer(page: Page) -> None:
+    """A comment being typed on a passage selected by pointer."""
+    composer_empty(page)
     page.keyboard.insert_text("A comment being drafted on the selected words")
+
+
+def page_comment_empty(page: Page) -> None:
+    """The page comment card's empty field and trailing action."""
+    page.keyboard.press("c")
+    expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
+
+
+def page_comment_resting(page: Page) -> None:
+    """The page comment's empty hint and resting frame after tabbing out."""
+    page_comment_empty(page)
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
+    page.wait_for_function(
+        "() => !document.querySelector('.lf-page-comment-card').matches(':focus-within')"
+    )
 
 
 def composer_space(page: Page) -> None:
@@ -485,7 +515,7 @@ def theme_hierarchy(page: Page) -> None:
     summary = page.locator("#bg-theme-support summary")
     for _ in range(12):
         page.keyboard.press("Tab")
-        if summary.evaluate("el => el.matches(':focus-visible')"):
+        if summary.evaluate("el => el.matches(':focus')"):
             break
     else:
         raise AssertionError("Tab did not reach the supporting disclosure")
@@ -554,7 +584,7 @@ def code_copy_by_pointer(page: Page) -> None:
 
 
 def code_copy_by_keyboard(page: Page) -> None:
-    """Code's corner control with the keyboard focus ring visible."""
+    """Code's corner control focused from the keyboard."""
     code_note(page)
     page.keyboard.press("Tab")
     page.locator("lf-code .lf-code-copy").first.get_by_role("button").focus()
@@ -1101,9 +1131,53 @@ STATES = (
         "plan-panel-reply-long-dark", "review-a-plan", panel_reply_long, scheme="dark"
     ),
     State("plan-page-comment-long", "review-a-plan", page_comment_long),
+    State(
+        "plan-page-comment-empty",
+        "review-a-plan",
+        page_comment_empty,
+        region=".lf-page-comment-card",
+    ),
+    State(
+        "plan-page-comment-resting",
+        "review-a-plan",
+        page_comment_resting,
+        region=".lf-page-comment-card",
+    ),
+    State(
+        "plan-page-comment-resting-dark",
+        "review-a-plan",
+        page_comment_resting,
+        scheme="dark",
+        region=".lf-page-comment-card",
+    ),
+    State(
+        "plan-card-reply-empty",
+        "review-a-plan",
+        card_reply_empty,
+        region=".lf-margin-preview .lf-thread-reply",
+    ),
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
     State("triage", "triage-board", at_rest),
     State("triage-composer", "triage-board", composer),
+    State(
+        "triage-composer-empty",
+        "triage-board",
+        composer_empty,
+        region=".lf-composer .lf-compose-field",
+    ),
+    State(
+        "triage-composer-resting",
+        "triage-board",
+        composer_resting,
+        region=".lf-fab-bar",
+    ),
+    State(
+        "triage-composer-resting-dark",
+        "triage-board",
+        composer_resting,
+        scheme="dark",
+        region=".lf-fab-bar",
+    ),
     State("triage-composer-space", "triage-board", composer_space, viewport=(362, 900)),
     State("triage-composer-long", "triage-board", composer_long),
     State("triage-composer-long-dark", "triage-board", composer_long, scheme="dark"),

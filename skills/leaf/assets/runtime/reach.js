@@ -6,6 +6,7 @@ import { LENT_REACH_STOP, TEXT_BOX } from "./control-selectors.js";
 import { scrollsBy, skipped, userScrollport } from "./geometry.js";
 import { afterScript, nextFrame, nextRender, sizeObserver } from "./rendering.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
+import { SCROLL_SLACK, atScrollEnd } from "./scrolling.js";
 import { shadowRootsIn, upFrom } from "./shadow.js";
 import { LAYOUT } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
@@ -23,7 +24,7 @@ import { keeps } from "./keeps.js";
 // that content when layout changes: an initially empty Page Map list must give up its
 // container stop once actions arrive inside it.
 //
-// Two things every caller owes it, both learned by getting them wrong. It runs after a
+// Every caller owes it two things. It runs after a
 // widget has rendered rather than as one stages, because the look a scroll box has is
 // the theme's `:host(.lf-rendered)` rule and a widget adds that class once its render
 // returns — so a sweep at `shadowStage` time reads a box the stylesheet has not reached
@@ -178,10 +179,7 @@ function paintReadingReach(el) {
     if (!downwards.has(el) || unpainted(el)) return;
     const style = getComputedStyle(el);
     const scrolling = userScrollport(style.overflowY);
-    el.toggleAttribute(
-      PAGE_PAINT_ATTRIBUTE.moreBelow,
-      scrolling && el.scrollTop + el.clientHeight < el.scrollHeight - 1,
-    );
+    el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.moreBelow, scrolling && !atScrollEnd(el));
   });
 }
 
@@ -385,10 +383,13 @@ function paintSidewaysReach(el) {
     const raw = Math.abs(el.scrollLeft);
     const position = Math.min(maximum, Math.max(0, raw));
     keeps(el, PAGE_PAINT_ATTRIBUTE.scrollDirection, scrolling ? style.direction : null);
-    el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.moreBefore, scrolling && position > 1);
+    el.toggleAttribute(
+      PAGE_PAINT_ATTRIBUTE.moreBefore,
+      scrolling && position > SCROLL_SLACK,
+    );
     el.toggleAttribute(
       PAGE_PAINT_ATTRIBUTE.moreAfter,
-      scrolling && position < maximum - 1,
+      scrolling && position < maximum - SCROLL_SLACK,
     );
   });
 }
@@ -408,6 +409,11 @@ function gone(el) {
 // is painted as it registers, and a block can register in a hidden panel (bounds.js).
 const unpainted = (el) => gone(el) || skipped(el);
 function paintReach() {
+  // A retained widget can resize its scroller through several intermediate boxes in
+  // one script. Lend or return its keyboard stop from the final box only.
+  afterScript(paintReachNow);
+}
+function paintReachNow() {
   for (const el of waiting) if (!unpainted(el)) sweep(el);
   // A box holding a scroller that takes a stop holds a stop, so an outer box's answer
   // waits on its inner boxes': the deepest are asked first, and each box is written once.

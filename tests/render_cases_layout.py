@@ -8,15 +8,8 @@ import struct
 import zlib
 from types import SimpleNamespace
 
-import pytest
 from axe_playwright_python.sync_playwright import Axe
 from browser_sources import browser_function
-from click.testing import CliRunner
-from interact_support import declare_work, record_claim
-from leaf import cli as cli_model
-from leaf import hosting as hosting_model
-from leaf import leases as leases_model
-from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
 from leaf.registry import storage as registry_storage
 from leaf.registry.contract import element_declarations
@@ -32,7 +25,6 @@ from render_harness import (
     SHELL_BOX,
     banner_control,
     leaf_page,
-    stamp_page,
 )
 
 CUSTOM_WIDGET_PAGE = leaf_page(
@@ -1280,56 +1272,6 @@ def mark_edges(page, ident, ink):
     }
 
 
-@pytest.fixture
-def live_leaf(tmp_path, monkeypatch):
-    """Stands up a live leaf for the banner's panel to find: published, served by
-    a real handler, and written down under the state home the way `server run` writes
-    it — which is the whole of how one page learns another exists. Each claims to be
-    working, freshly, so its row has a judged state to show. A factory rather than one
-    fixture, because a drawer is a list and a walk down it needs somewhere to walk to."""
-    monkeypatch.chdir(tmp_path)  # keep the project layer out of the overlay
-    served = []
-    waiters = []
-
-    def go(name, title):
-        d = machine_model.state_home() / "pages" / name
-        result = CliRunner().invoke(cli_model.cli, ["page", "init", str(d)])
-        assert result.exit_code == 0, result.output
-        stamp_page(
-            d,
-            LONG_PAGE.replace("<title>long</title>", f"<title>{title}</title>"),
-            "t",
-        )
-        declare_work(d, "running the suite")
-        # A live leaf has a session behind it, and what the drawer's hover says about a
-        # page is the work that session is doing it for — so the fixture's pages come
-        # out of somewhere nameable rather than out of nowhere.
-        record_claim(
-            d,
-            id=f"s-{name}",
-            cwd=str(tmp_path / f"{name}-work"),
-        )
-        waiters.append(
-            leases_model.take_lease(leases_model.waiter_lease_path(d, f"s-{name}"))
-        )
-        # Use the durable server's maintenance loop: the row remains canonical
-        # even while no browser has visited this neighboring page.
-        url = hosting_model.start_server(d, standing=True, harness=None).url
-        served.append(d)
-        return url.split("?")[0].rstrip("/"), d
-
-    yield go
-    for directory in served:
-        hosting_model.cmd_stop(directory)
-    for waiter in waiters:
-        leases_model.release_lease(waiter)
-
-
-@pytest.fixture
-def other_leaf(live_leaf):
-    return live_leaf("other", "The other leaf")
-
-
 # Twenty-four things waiting, which is more than any shipped example asks and the point: the
 # room a list reserves at its foot is invisible until the list is longer than the drawer.
 MANY_ASKS_PAGE = leaf_page(
@@ -1540,7 +1482,7 @@ BADGE_CHROME = """      const row = document.createElement("div");
 # refused at the header, which is where the widget fails soft on any page, gated or not.
 UNPARSABLE_DIAGRAM = LONG_PAGE.replace(
     "</main>",
-    "<lf-diagram id='d-broken'><pre>\nsankey-beta\n  Ada,Review,3\n</pre></lf-diagram>\n</main>",
+    "<lf-diagram id='d-broken'><pre>\nleaf-unsupported\n  Ada,Review,3\n</pre></lf-diagram>\n</main>",
 )
 # The thread list is reconciled, not rebuilt, and the tests below are its faces: a
 # send is a gesture and reveals what it made; an arrival is news and moves nothing; a

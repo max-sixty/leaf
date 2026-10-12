@@ -92,7 +92,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 def test_column_width_does_not_clear_a_sidenote(browser, serve):
@@ -797,7 +797,7 @@ def test_a_margin_entry_label_starts_at_its_settled_place(browser, serve):
             control = page.get_by_role("button", name=f"Read {behavior}", exact=True)
             expect(control).to_be_visible()
             page.wait_for_function(
-                "document.querySelector('script[data-lf-entry]').lfRenderingSettled()"
+                "Object.values(document.querySelector('script[data-lf-entry]').lfRenderingState()).every(Boolean)"
             )
             reading = control.evaluate(
                 """async control => {
@@ -6029,6 +6029,49 @@ def test_floating_thread_chains_scrolling_to_its_page(browser, serve, long):
         expect(card).to_be_visible()
 
 
+@pytest.mark.parametrize("long", [False, True], ids=["fitting", "overflowing"])
+def test_floating_thread_pages_on_to_its_page(browser, serve, long):
+    """With a floating thread focused, d/u page its turns, then the document at
+    either edge, as the wheel does."""
+    source = leaf_page(
+        "Page through a contextual thread",
+        '<div style="height: 80vh"></div>'
+        '<p id="open">Review the open questions.</p>'
+        '<div style="height: 180vh"></div>',
+    )
+    page = open_page(
+        browser, serve(source, events=LONG_THREAD if long else [LONG_THREAD_ROOT])
+    )
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1440, 900)
+    page.locator("#open").scroll_into_view_if_needed()
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    expect(card.locator(".lf-page-thread")).to_be_focused()
+    transcript = card.locator(".lf-thread-transcript")
+    assert (
+        transcript.evaluate("box => box.scrollHeight - box.clientHeight") > 0
+    ) == long
+
+    for key, edge in (("u", "0"), ("d", "box.scrollHeight")):
+        transcript.evaluate(f"box => box.scrollTop = {edge}")
+        if long:
+            transcript.evaluate(
+                "box => box.scrollTop = (box.scrollHeight - box.clientHeight) / 2"
+            )
+            before = transcript.evaluate("box => box.scrollTop")
+            page_at = page.evaluate("scrollY")
+            page.keyboard.press(key)
+            assert transcript.evaluate("box => box.scrollTop") != before
+            assert page.evaluate("scrollY") == page_at
+            transcript.evaluate(f"box => box.scrollTop = {edge}")
+        page_at = page.evaluate("scrollY")
+        page.keyboard.press(key)
+        moved = page.evaluate("scrollY") - page_at
+        assert moved > 20 if key == "d" else moved < -20
+        expect(card).to_be_visible()
+
+
 def open_long_thread(browser, serve, height=900):
     """The long thread's margin card, which opens on its latest message, scrolled
     partway back up."""
@@ -7891,7 +7934,7 @@ def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):
 
 # Where a card and its reply stand: the card's edges, the first turn's top, the reply's
 # edges and scroll (its first line stands at its top only while it is unscrolled), and
-# Send's top, beside the window's foot the card stops at.
+# The visible action's top, beside the window's foot the card stops at.
 CARD_AND_REPLY = """async () => {
   const card = document.querySelector('.lf-margin-preview');
   const box = card.getBoundingClientRect();
@@ -7901,7 +7944,7 @@ CARD_AND_REPLY = """async () => {
   return {cardTop: box.top, cardBottom: box.bottom,
           turn: card.querySelector('.lf-msg').getBoundingClientRect().top,
           editorTop: reply.top, editorBottom: reply.bottom, scrolled: editor.scrollTop,
-          send: card.querySelector('.lf-thread-reply .lf-compose-submit')
+          send: card.querySelector('.lf-thread-reply .lf-compose-field > button:not([hidden])')
             .getBoundingClientRect().top,
           placement: card.dataset.lfThreadPlacement,
           foot: geometry.shownWindow({gap: 8}).bottom};
@@ -8000,7 +8043,7 @@ def test_margin_card_holds_its_top_as_a_turn_arrives_and_as_a_reply_wraps(
     rendered(page)
     expect(preview.locator(".lf-page-thread")).to_be_focused()
     expect(preview).to_be_visible()
-    assert send.evaluate(
+    assert preview.locator(".lf-compose-field > button:visible").evaluate(
         "button => button.getBoundingClientRect().top"
     ) == pytest.approx(pressed, abs=0.5)
     sent = page.evaluate(CARD_AND_REPLY)
@@ -8553,7 +8596,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     assert len(selected) > 10 and selected in words.inner_text(), selected
 
     thread.get_by_role("textbox", name="Reply", exact=True).click()
-    send = preview.get_by_role("button", name="Send")
+    send = preview.locator(".lf-compose-field > button:visible")
     send.focus()
     page.evaluate("() => dispatchEvent(new Event('resize'))")
     expect(send).to_be_focused()
@@ -10050,13 +10093,13 @@ def test_a_heading_that_paints_its_box_keeps_a_pin_off_its_empty_end(browser, se
     assert stands == {False: True, True: False}, stands
 
 
-@pytest.mark.parametrize("target", ["rn-console-shot", "rn-sug-window"])
-def test_a_widget_s_declared_face_is_room_for_its_own_pin(browser, serve, target):
+def test_a_widget_s_declared_face_is_room_for_its_own_pin(browser, serve):
     """A painted box inside a pin's target counts whole, as an option card does inside a
     choice, unless the target's declaration names it as the target's own face
-    (`x-face`): a screenshot's caption rail, a suggestion's tinted slot. On
-    release-notes at 390px under a finger, each pin stands on its own target's face,
-    over none of the page's words, rather than over the words at its corner."""
+    (`x-face`): a suggestion's tinted slot. On release-notes at 390px under a
+    finger, its pin stands on its own face, over none of the page's words, rather
+    than over the words at its corner."""
+    target = "rn-sug-window"
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )

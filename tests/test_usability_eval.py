@@ -3,8 +3,9 @@
 import json
 
 import pytest
-from leaf.delivery import record_pickup
+from leaf.delivery import DELIVERY_FORMAT, record_pickup
 from leaf.event_log import read_cursor, read_events
+from leaf.hook_transport import INLINE_DELIVERY
 from leaf.service import PageTransaction
 from leaf_dev import ROOT
 from leaf_dev.usability_eval import (
@@ -107,7 +108,8 @@ def test_fixture_builds_through_current_leaf_admission(tmp_path, case):
             {"type": "result"},
             {"type": "eval_post", "round": 1},
             {"type": "system", "subtype": "hook_response",
-             "output": 'leaf-delivery-v {"elided":{"messages":16}}'},
+             "output": json.dumps({"format": DELIVERY_FORMAT,
+                                   "elided": {"messages": 16}})},
             {"type": "eval_received", "round": 1},
             read_premise,
             {"type": "result"},
@@ -410,7 +412,7 @@ def test_live_rounds_use_confirmed_receipts_before_successful_response():
 
     trace = [
         {"type": "eval_post", "round": 1},
-        {"type": "system", "subtype": "hook_response", "output": "leaf-delivery-v"},
+        {"type": "system", "subtype": "hook_response", "output": INLINE_DELIVERY},
         {"type": "result", "is_error": False},
     ]
     assert live_rounds(trace)[0]["end"] is None

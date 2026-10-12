@@ -42,6 +42,7 @@ import {
   motionPreview,
   scrollerFor,
   PRESS,
+  rowArrows,
   onMotionPreferenceChange,
   rankAt,
   reducedMotion,
@@ -283,13 +284,17 @@ customElements.define(
           title: "move",
           when: held,
           repeat: true,
-          run: (binding) =>
+          // Columns run the way the page's words do, so left is the previous column
+          // only in left-to-right text.
+          run: (binding) => {
+            const [back, ahead] = rowArrows(this);
             this.#step(
               card,
               grip,
-              { ArrowLeft: -1, ArrowRight: 1 }[binding] ?? 0,
+              { [back]: -1, [ahead]: 1 }[binding] ?? 0,
               { ArrowUp: -1, ArrowDown: 1 }[binding] ?? 0,
-            ),
+            );
+          },
         },
         {
           id: "board.drop",
@@ -439,8 +444,7 @@ customElements.define(
     }
 
     // The one writer of "no card is held", so the grip's rows change back here and nowhere
-    // else — a drop and a cancel each used to restate it, and a third way out would have
-    // had to remember.
+    // else: a drop, a cancel, and any later way out of a grab all end through it.
     #release() {
       this.#grabbed.card.classList.remove("lf-lift");
       this.#grabbed = null;

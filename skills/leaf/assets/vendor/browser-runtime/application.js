@@ -352,8 +352,6 @@ function advance(
 
 
 
-
-
 /** A server view with its basis, the transport identity, left off. */
 
 
@@ -691,12 +689,12 @@ export function createSemanticApplication({
       const descriptor = document.descriptors.get(operation.e.widget);
       if (!descriptor) return false;
       const currentSpec = eventSpec(descriptor.declaration, operation.e);
+      if (!currentSpec) return false;
+      const recorded = operation.e.meaning?.state                                    ;
+      const current = stateDefinition(descriptor.tag, descriptor.declaration, currentSpec);
       return (
-        currentSpec &&
-        sameStateDefinition(
-          operation.e.meaning?.state,
-          stateDefinition(descriptor.tag, descriptor.declaration, currentSpec),
-        )
+        sameStateOperation(recorded, current) &&
+        sameStateDefinition(recorded?.detail, current.detail)
       );
     };
     const localProjections = local.flatMap((entry) => {

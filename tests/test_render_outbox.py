@@ -76,7 +76,7 @@ DRAG_HELD = (
     "'/runtime/widget-elements.js')).dragHeld()"
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 def test_a_refused_message_cannot_present_before_its_thread_reconciles(

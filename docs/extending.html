@@ -49,7 +49,7 @@
         letter-spacing: 0.035em;
         text-transform: uppercase;
       }
-      .package-card:is(:hover, :focus-visible) {
+      .package-card:is(:hover, [data-lf-focus]) {
         border-color: var(--accent);
       }
       @media (max-width: 640px) {

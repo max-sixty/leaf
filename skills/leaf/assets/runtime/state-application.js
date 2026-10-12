@@ -11,8 +11,7 @@
    install returns only its immutable document capture and a mechanical landing. After
    adoption, optional interface installation and the canonical document proof both
    finish before that landing; declining stale focus never retracts accepted truth. */
-import { LIVE_ROOT } from "./storage.js";
-import { runtime } from "./context.js";
+import { LIVE_ROOT, runtime } from "./context.js";
 import {
   applicationState,
   whenDocumentPresented,

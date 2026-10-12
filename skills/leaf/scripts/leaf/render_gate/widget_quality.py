@@ -30,6 +30,11 @@ Each check has one name in `CHECKS`, which a finding carries:
   `render-checks/widgets.js`, which names a box that scrolls vertically now, or that
   asks to and overflows once a tall block is added to it. It writes the page, so it is
   taken after `changedBoxes`, last on the page.
+- `shows-context-keys`: a command that declares context keys, the aliases a widget
+  offers for pressing a control from elsewhere, also declares a `bindingBadge`, so the
+  page shows the key it adds (`../../references/module-authoring.md`, "Commands and
+  keyboard routes"). Its reading is `unshownContextKeys` in `render-checks/widgets.js`,
+  which reads the declarations rather than the keys reachable now.
 """
 
 import re
@@ -62,7 +67,7 @@ from .scheme import (
     start_with_pre_upgrade_proof,
 )
 
-CHECKS = ("example", "keeps-first-box", "grows-with-content")
+CHECKS = ("example", "keeps-first-box", "grows-with-content", "shows-context-keys")
 
 MEDIA_REFERENCE = re.compile(f"/{MEDIA_DIR}/{DIR_FILES[MEDIA_DIR]}")
 
@@ -147,9 +152,12 @@ def _size(box: dict) -> str:
     return f"{round(box['width'])}x{round(box['height'])}"
 
 
-def _readings(browser, url: str, tags: list[str]) -> tuple[list[dict], list[dict]]:
+def _readings(
+    browser, url: str, tags: list[str]
+) -> tuple[list[dict], list[dict], list[dict]]:
     """Each widget on the served page whose box changed from first paint to presented,
-    and each box in `tags`' widgets that holds its own height and scrolls inside it."""
+    each command in `tags`' widgets whose context keys the page never shows, and each
+    box in `tags`' widgets that holds its own height and scrolls inside it."""
     from playwright.sync_api import Error as PlaywrightError
 
     page = browser.new_page(viewport=RENDER_VIEWPORT)
@@ -161,7 +169,8 @@ def _readings(browser, url: str, tags: list[str]) -> tuple[list[dict], list[dict
         wait_until_ready(page, served(page, url, "/api/state").json())
         wait_for_probe(page, "pageSettled")
         changed = evaluate_probe(page, "changedBoxes")
-        return changed, evaluate_probe(page, "heldScrollers", tags)
+        unshown = evaluate_probe(page, "unshownContextKeys", tags)
+        return changed, unshown, evaluate_probe(page, "heldScrollers", tags)
     except (PlaywrightError, RuntimeError, TimeoutError) as error:
         raise UnreadablePage(str(error).strip()) from error
     finally:
@@ -171,7 +180,8 @@ def _readings(browser, url: str, tags: list[str]) -> tuple[list[dict], list[dict
 def _page_findings(
     browser, composition: LayerComposition, pages: list[SourceDocument], tags: list[str]
 ) -> list[Finding]:
-    """`keeps-first-box` and `grows-with-content` over each page of examples, served
+    """`keeps-first-box`, `shows-context-keys` and `grows-with-content` over each page
+    of examples, served
     from a page vendored with the package's layer and thrown away after."""
     findings = []
     with tempfile.TemporaryDirectory(prefix="leaf-widgets-") as temporary:
@@ -200,7 +210,7 @@ def _page_findings(
             except ArtifactError as error:
                 raise UnreadablePage(str(error)) from error
             with preview_server(page_dir, document, 1, artifact=artifact) as url:
-                changed, held = _readings(browser, url, tags)
+                changed, unshown, held = _readings(browser, url, tags)
             findings += [
                 Finding(
                     box["tag"],
@@ -211,6 +221,17 @@ def _page_findings(
                 )
                 for box in changed
                 if box["tag"] in tags
+            ]
+            findings += [
+                Finding(
+                    command["tag"],
+                    "shows-context-keys",
+                    f"{command['command']} declares context keys and no bindingBadge, "
+                    "so its key works with nothing on the page showing it; lend the "
+                    "command a face, or request a corner badge with bindingBadge: null",
+                    command["id"],
+                )
+                for command in unshown
             ]
             findings += [
                 Finding(

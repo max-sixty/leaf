@@ -99,7 +99,7 @@ def _caller():
 
 
 @pytest.hookimpl(wrapper=True)
-def pytest_runtest_protocol(item, nextitem):
+def pytest_runtest_protocol():
     global _calls
     _calls = {}
     try:
@@ -295,7 +295,10 @@ def report_stacks(path: Path, rate: float, top: int) -> None:
 
 def _command(line: str) -> str:
     """A command line without its paths: the program's name and the words before its
-    first path argument, so every run of one command groups together."""
+    first path argument, so every run of one command groups together. py-spy records
+    some processes with an empty line."""
+    if not line.split():
+        return "(no command line)"
     program, *words = line.split()
     kept = [Path(program).name]
     for word in words:

@@ -4,7 +4,7 @@ import { html, nothing, render } from "../vendor/browser-runtime.js";
 import { JUST_NOW, ago, clocked } from "./presence.js";
 import { el, offer, reserve } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
-import { runtime, runtimeResource } from "./context.js";
+import { SHARE_ROOT, runtime, runtimeResource, shareUrl } from "./context.js";
 import {
   BANNER_CONTROL_RANK,
   bannerActions,
@@ -33,7 +33,6 @@ import { declareBanner } from "./geometry.js";
 import { agentName, watchSemantic } from "./semantic-state.js";
 import { taskNoun } from "./queues.js";
 import { readQueues } from "./queue-api.js";
-import { SHARE_ROOT, shareUrl } from "./storage.js";
 
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
@@ -268,7 +267,7 @@ function paintTab() {
   const url = iconUrl(getComputedStyle(bannerStatus.dot).backgroundColor);
   // Written only on change: an unchanged poll must not hand the browser its icon again
   // every two seconds.
-  if (tabLink.getAttribute("href") !== url) tabLink.setAttribute("href", url);
+  keeps(tabLink, "href", url);
 }
 // Summary and explanation share the canonical activity reading. The complete wording
 // remains available to pointer, keyboard, and touch through the native disclosure;

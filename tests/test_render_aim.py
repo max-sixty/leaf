@@ -109,7 +109,7 @@ from render_harness import (
     write,
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 # One page for each reason an aimed press can still reach the page underneath it. The
@@ -736,11 +736,11 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
 
 # Where the side comment and what it holds stand: the bar's edges, the field's top and
 # its scroll (the first line stands at that top only while the field is unscrolled), and
-# Send's top.
+# The visible action's top.
 SIDE_COMMENT = """() => {
   const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
   const field = document.querySelector('.lf-fab-input');
-  const send = document.querySelector('.lf-fab-bar .lf-compose-submit');
+  const send = document.querySelector('.lf-fab-bar .lf-compose-field > button:not([hidden])');
   return {top: bar.top, bottom: bar.bottom, field: field.getBoundingClientRect().top,
           height: field.getBoundingClientRect().height, scrolled: field.scrollTop,
           send: send.getBoundingClientRect().top};

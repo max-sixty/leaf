@@ -123,7 +123,7 @@ DRAG_HELD = (
     "'/runtime/widget-elements.js')).dragHeld()"
 )
 
-pytestmark = pytest.mark.nightly
+pytestmark = pytest.mark.main
 
 
 def test_a_source_widget_releases_its_fallback_face_when_it_renders(browser, serve):
@@ -5163,9 +5163,7 @@ def test_board_moves_preserve_live_sample_and_control_state(browser, serve, rout
     assert not [
         url
         for url in requests
-        if "/runtime/" in url
-        or url.rstrip("/") == sample_url
-        or url.rstrip("/").endswith("/api/samples")
+        if url.rstrip("/") == sample_url or url.rstrip("/").endswith("/api/samples")
     ]
 
 
@@ -6708,6 +6706,9 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     reserved_width = copy_width("Copy instruction")
     copy.click()
     assert copy_width("Copied") == reserved_width
+    # A changed accessible name is not news to a screen reader; the live region is.
+    live = page.locator(".lf-live")
+    expect(live).to_have_text("Instruction copied")
     expect(copy).to_have_css(
         "color",
         page.evaluate(
@@ -6776,6 +6777,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     )
     copy.click()
     assert copy_width("Copy failed") == reserved_width
+    expect(live).to_have_text("Could not copy the instruction")
     resized(page, 420, 760)
     assert page.evaluate("document.documentElement.scrollWidth") == 420
     assert " " not in playground.evaluate(
@@ -8420,7 +8422,6 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
         """() => {
           const ask = document.getElementById('storage-decision').getBoundingClientRect();
           const options = document.getElementById('storage-options').getBoundingClientRect();
-          // Below the banner, and the room the Ask's ring takes above it.
           const clear = parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)
             + parseFloat(getComputedStyle(document.getElementById('storage-decision'))
               .scrollMarginTop);
@@ -12850,7 +12851,11 @@ def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
     # band stays inside the pane: the pane draws it inset over the body's cell
     # (theme.css), where outset on the body the workspace body clipped its right and
     # lower runs.
-    page.evaluate("() => document.querySelector('lf-diff').focus()")
+    # The selected row retargets document focus to this host. Leave it first so
+    # focusing the host itself publishes a new standing and its pane band.
+    host = page.locator("lf-diff")
+    host.evaluate("node => { node.blur(); node.focus(); }")
+    expect(host).to_have_attribute("data-lf-focus", "")
     host_ring = page.evaluate(
         """() => {
           const host = document.querySelector('lf-diff');
@@ -13135,8 +13140,7 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
         "a label the page wrote answers the pointer as though it were a control"
     )
 
-    # The keyboard. Reached by a real Tab, because :focus-visible is a fact about how
-    # focus arrived and element.focus() alone draws no ring at all.
+    # A real Tab verifies the keyboard route as well as the shared focus treatment.
     mark.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
@@ -13328,8 +13332,9 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
     """A file's row gives way from its folders, and its title reaches only a pointer
     resting on it. The keyboard standing on the row, and a finger held on it, read the
     whole path in a box under the row, a folded file's too, over the next file's row.
-    Releasing the hold folds the file, as a tap does, and a tap shows nothing. A row
-    that shows its whole path at the width it has now shows no box and has no title."""
+    Releasing the hold folds the file, as a tap does. Touch focus keeps the path
+    visible until it leaves. A row that shows its whole path at the width it has
+    now shows no box and has no title."""
     path = "plugins/worktrunk/skills/worktrunk/reference/config/deeply/nested/file.md"
     patch = "".join(
         f"diff --git a/{name} b/{name}\n--- a/{name}\n+++ b/{name}\n"
@@ -13418,11 +13423,19 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
     touch("touchEnd")
     rendered(page)
     assert head.evaluate(read)["open"] is False, "the release folds the file"
+    expect(head).to_be_focused()
+    expect(head).to_have_attribute("data-lf-focus", "")
+    assert head.evaluate(read)["word"] == whole
+    page.evaluate(RELEASE_FOCUS)
     assert head.evaluate(read)["word"] is None
 
     page.touchscreen.tap(point["x"], point["y"])
     rendered(page)
     assert head.evaluate(read)["open"] is True, "a tap unfolds it"
+    expect(head).to_be_focused()
+    expect(head).to_have_attribute("data-lf-focus", "")
+    assert head.evaluate(read)["word"] == whole
+    page.evaluate(RELEASE_FOCUS)
     assert head.evaluate(read)["word"] is None
 
     # A row that shows its whole path shows no box and has no title, and a row's box

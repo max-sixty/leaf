@@ -93,7 +93,7 @@ import { applicationPresented } from "./semantic-state.js";
 import { reportPageError } from "./layer-client.js";
 import { activityTransitionAt } from "./presence.js";
 import { watchArrivals } from "./arrivals.js";
-import { renderingSettled } from "./rendering.js";
+import { renderingState } from "./rendering.js";
 import { highlightBlocks } from "./syntax.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 import { keeps } from "./keeps.js";
@@ -171,7 +171,7 @@ const READINESS = [
   ],
   ["presented", () => pagePresented() && applicationPresented()],
   ["arrived", () => arriving.size === 0],
-  ["rendering", () => renderingSettled()],
+  ["rendering", () => Object.values(renderingState()).every(Boolean)],
 ];
 const READINESS_STAGES = new Set(READINESS.map(([stage]) => stage));
 
@@ -181,7 +181,7 @@ const READINESS_STAGES = new Set(READINESS.map(([stage]) => stage));
     The stages: `upgraded`; `log`, some log coverage applied; `state`, the answer the
     reader holds applied; `presented`, the initial milestone and the coordinator's
     current reading; `arrived`, nothing deferred past presentation still outstanding;
-    `rendering`, nothing queued for a rendering update. A reading is a digest with no
+    `rendering`, no finite preparation or queued rendering update remains. A reading is a digest with no
     order, and the server may move past the answer held — a source rewritten, a claim
     aged, a neighbour started — so a page that applied an answer the server took later
     has caught up with it too. A reading names files and presence, not the activity the
@@ -321,11 +321,7 @@ function withoutToken(value, token, insensitive = false) {
     .join(" ");
 }
 function writeLinkAttributes(link, values) {
-  for (const [name, value] of Object.entries(values)) {
-    if (link.getAttribute(name) === value) continue;
-    if (value === null) link.removeAttribute(name);
-    else link.setAttribute(name, value);
-  }
+  for (const [name, value] of Object.entries(values)) keeps(link, name, value);
 }
 function rememberExternalLinkChanges(link, state) {
   if (!state.painted) return;

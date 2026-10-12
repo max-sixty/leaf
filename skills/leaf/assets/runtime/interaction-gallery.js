@@ -2,7 +2,8 @@
  * sample runs in an opaque sandbox: scenarios, illustrative pointer,
  * and production transitions belong to its child document. The gallery exchanges
  * cloneable configuration, commands and state notices over the sample bridge. It
- * never reads a child DOM or calls functions across browsing contexts. */
+ * never reads a child DOM or calls functions across browsing contexts. Sample
+ * AbortError means cancellation, including departure before nodes disconnect. */
 
 import { afterScript } from "./rendering.js";
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
@@ -74,7 +75,7 @@ class Demo {
 
   command(method, detail) {
     return this.sample.call(`gallery.${method}`, detail).catch((error) => {
-      if (!this.figure.isConnected && error.name === "AbortError") return;
+      if (error.name === "AbortError") return;
       reportPageError(error, `interaction demo ${method} failed`);
       this.setState("error");
     });
@@ -326,7 +327,7 @@ export function installInteractionGallery() {
       demo
         .load()
         .catch((error) => {
-          if (!demo.figure.isConnected && error.name === "AbortError") return;
+          if (error.name === "AbortError") return;
           reportPageError(error, "interaction demo failed to load");
           demo.loadState = "error";
           demo.setState("error");

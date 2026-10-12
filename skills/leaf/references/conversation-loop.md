@@ -123,7 +123,7 @@ User input comes before the work in hand, in this order:
    the last step before the interruption.
 
 Then do the work, and reply once its revision passes `leaf page check`, the only
-check the main skill's "Operate", step 3, asks before a reply.
+check the main skill's "Quick pages and records" step asks before a reply.
 
 ## Status and handoff
 
@@ -252,9 +252,9 @@ Page state contains separate canonical `questions` and explicit `tasks`; its
 `queues.on_you` and `queues.on_agent` select those records with response obligations
 and delivery retries for the panel. `jq` only selects these fields; do not reconstruct
 membership from events or widget state. Each queue item names its `id`, `kind`,
-`subject`, and `thread`; work items also say how they end (`ends`). A Question contains
-its prompt, typed answer and lifecycle; widget state owns its answer. Read a thread
-with `leaf page state <page> <message-id>` for its messages. For a page widget, read
+`subject`, and `thread`. A Question contains its prompt, typed answer and lifecycle;
+widget state owns its answer. Read a thread with `leaf page state <page> <message-id>`
+for its messages. For a page widget, read
 `leaf page state <page>`'s `active.file` and the identified widget in that HTML;
 the widget-specific state command reports its state and metadata. The reading
 covers the active document and admitted log, not unsent browser drafts or a tab

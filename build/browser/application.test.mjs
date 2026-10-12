@@ -1472,7 +1472,7 @@ test("a reaction root is not a spoken turn awaiting the user", () => {
 test("a Done this tab sends ends its task at once, and its undo puts the task back", () => {
   // The task the agent put on the user, as the server serves it.
   const task = servedReading("queues on both sides").tasks.find(
-    (candidate) => candidate.ends === "done",
+    (candidate) => candidate.owner === "user",
   );
   const onYou = (app) => app.read().effective.queues.onYou.map(({ id }) => id);
   const done = (app) =>
@@ -1799,6 +1799,45 @@ test("pending undo removes completed empty Question values and refusal restores 
     app.refuse("undo-empty");
     assert.deepEqual(app.read().effective.questions.all[0].answer.value, value);
   }
+});
+
+test("pending undo withdraws a decision an earlier Leaf recorded with another field", () => {
+  const declared = {
+    ...descriptor,
+    declaration: {
+      ...descriptor.declaration,
+      "x-awaits": { value: "decide", answered: { decide: {} } },
+    },
+  };
+  const app = capture([[declared.id, declared]]);
+  // Before #2329 the recorded definition carried `update`, since renamed `report`.
+  const accepted = {
+    ...action("decided"),
+    id: "e1",
+    seq: 1,
+    meaning: {
+      state: {
+        ...stateDefinition("lf-choice", descriptor.declaration, spec),
+        update: false,
+      },
+    },
+  };
+  const reading = state(2, [accepted]);
+  reading.browser.views[1].document.questions = {
+    all: [
+      {
+        ...wireQuestion("choice", "lf-choice"),
+        status: "answered",
+        next_actor: null,
+        answer: { value: { outcome: "accept" }, event: accepted },
+      },
+    ],
+    user: [],
+    unanswered: [],
+  };
+  app.adopt(reading);
+  app.enqueue({ kind: "undo", undoes: accepted.id, attempt: "undo-earlier" }, "now");
+  assert.equal(app.read().effective.questions.all[0].answer, null);
 });
 
 test("pending undo removes a custom Question answer before authoritative completion changes", () => {

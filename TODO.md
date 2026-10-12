@@ -402,15 +402,12 @@ on 2026-10-07.
   into a page by hand. It is an experiment: the alternative is for the command to
   print the samples' rows and leave the chart to the agent writing the page. Keep it
   if it gets used for later readings; otherwise reduce it to the rows.
-- **Consider bundling the browser runtime.** A navigation loads about 220 JS modules
-  over HTTP/1.1's six connections. A prototype bundling `leaf.js` with esbuild cut a
-  widgetless page from 217 requests to 38 and its open from 332–483 ms to 238–258 ms,
-  roughly 10% of browser-test time. The bundle would hold `assets/runtime/` and Leaf's
-  own packages; custom packages stay unbuilt and import only `/runtime/widget-api.js`,
-  a bundle entry, which `page check` would then enforce, since any other runtime import
-  loads a second runtime. **Unconfirmed:** it needs automatic rebuilds on preview, test
-  and merge, since a committed bundle would conflict across concurrent runtime PRs.
-  Untested alternative: `modulepreload` hints.
+- **Consider loading the compiled kernel in previews and tests.** Installs and the
+  website load the kernel `leaf_dev.distribution` compiles, but development previews
+  and the browser tests still load about 220 source modules over HTTP/1.1's six
+  connections. A prototype bundle cut a widgetless page from 217 requests to 38 and
+  its open from 332–483 ms to 238–258 ms, roughly 10% of browser-test time. Untested
+  alternative: `modulepreload` hints.
 
 ## Etc
 
@@ -422,10 +419,6 @@ Revisit these when their stated trigger becomes real; they are not an active que
   repository and revision, offer a GitHub source link for a filename such as
   `AGENTS.md` rather than treating it as a web domain. Establish how that context
   reaches Markdown before inferring a destination from the filename alone.
-
-- **Learn how users prefer to dictate comments.** Observe whether people use
-  browser dictation, OS dictation, or their own dictation app. Defer a microphone
-  button until an unmet need justifies the extra visual noise in Leaf's text boxes.
 
 - **Assess whether automatic measurement freshness is useful (#7 in the simplification audit).**
   Keep the current `lf-num` source/write-time reminder for now. Look for cases where
@@ -557,6 +550,12 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **#6 — Codex supervision:** separate hosted and local turn supervision only
   if hosted delivery becomes a product priority; the App Server protocol is
   already shared.
+- **Make a leaf.page dispatch survive its container.** The Worker acknowledges an
+  accepted event and hands its Codex turn to `waitUntil` (`worker/src/index.ts`,
+  `dispatchAgentTask`). Nothing records the event and turn identity in the
+  container's Durable Object, and nothing recovers a dispatch whose container
+  disappears or outlives the `waitUntil` window. Trigger: a hosted answer lost that
+  way.
 - **#7 — Runtime fold tests:** add focused Node tests as rules change; extend
   `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding

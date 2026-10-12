@@ -74,6 +74,7 @@ import {
 import { scrollerFor } from "/runtime/reading-regions.js";
 import { boundedBlockOf } from "/runtime/bounds.js";
 import { pageScroller } from "/runtime/scrolling.js";
+import { pageDocument } from "/runtime/passages.js";
 import { arrivals, packRows, rowPosture, seatRows } from "./margin-placement.js";
 import { overlaps } from "/runtime/rect.js";
 import { pointBand } from "/runtime/pointed-place.js";
@@ -275,7 +276,7 @@ function scrollSources(node) {
 }
 
 // The margin follows `main` or, on a page without one, the body.
-export const marginColumn = () => document.querySelector("main") || document.body;
+export const marginColumn = () => pageDocument() || document.body;
 
 const railStands = (main) =>
   (main.getAttribute("data-lf-margin") ?? "").split(" ").includes("rail");
@@ -369,7 +370,7 @@ export function syncMarginResidency(changed) {
 }
 function paintPins() {
   if (!residencyStarted()) return;
-  const main = document.querySelector("main");
+  const main = pageDocument();
   layer?.root
     .closest(".lf-chrome")
     .toggleAttribute("data-lf-pins", !main || !railStands(main));
@@ -446,7 +447,7 @@ function placeMarginEntryLabel(control) {
 }
 
 const REVEALS_LABEL =
-  ':is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"]), [data-lf-held-word]';
+  ':is(:hover, [data-lf-focus]):not([aria-expanded="true"]), [data-lf-held-word]';
 let labelPlacementFrame = 0;
 export function scheduleMarginEntryLabels() {
   if (labelPlacementFrame) return;

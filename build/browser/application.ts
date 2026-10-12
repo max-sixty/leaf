@@ -277,8 +277,6 @@ interface WireTask {
   agent: string | null;
   session: string | null;
   outcome: { id?: string; ts: string | null; detail?: string | null } | null;
-  /** Explicit work ends through its agent, or the user's Done. */
-  ends: "agent" | "done";
 }
 
 export interface SemanticDocument {
@@ -691,12 +689,12 @@ export function createSemanticApplication({
       const descriptor = document.descriptors.get(operation.e.widget);
       if (!descriptor) return false;
       const currentSpec = eventSpec(descriptor.declaration, operation.e);
+      if (!currentSpec) return false;
+      const recorded = operation.e.meaning?.state as { detail?: unknown } | undefined;
+      const current = stateDefinition(descriptor.tag, descriptor.declaration, currentSpec);
       return (
-        currentSpec &&
-        sameStateDefinition(
-          operation.e.meaning?.state,
-          stateDefinition(descriptor.tag, descriptor.declaration, currentSpec),
-        )
+        sameStateOperation(recorded, current) &&
+        sameStateDefinition(recorded?.detail, current.detail)
       );
     };
     const localProjections = local.flatMap((entry) => {

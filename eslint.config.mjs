@@ -11,6 +11,7 @@ const runtimePrimitives = [
   "dom-move.js",
   "focus.js",
   "control-selectors.js",
+  "shadow-tree.js",
   "keeps.js",
   "rendering.js",
   "sample-visibility.js",

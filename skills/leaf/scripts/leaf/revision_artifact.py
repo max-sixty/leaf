@@ -46,7 +46,7 @@ import tinycss2
 import tree_sitter_javascript
 import turbohtml
 from tinycss2.serializer import serialize_string_value
-from tree_sitter import Language, Parser
+from tree_sitter import Language, Parser, Query, QueryCursor
 
 from leaf.files import file_stamp, latest_revision, list_revisions, revision_path
 from leaf.page_memory import Slot, memo
@@ -74,6 +74,21 @@ RESOURCE_TYPES = {
     ".otf": "font/otf",
 }
 _JAVASCRIPT = Language(tree_sitter_javascript.language())
+# The nodes `javascript_imports` reads, matched in the parser's own code rather than
+# by visiting every node of a vendored bundle in Python.
+_JSX_KINDS = sorted(
+    kind
+    for kind_id in range(_JAVASCRIPT.node_kind_count)
+    if (kind := _JAVASCRIPT.node_kind_for_id(kind_id))
+    and kind.startswith("jsx_")
+    and _JAVASCRIPT.node_kind_is_named(kind_id)
+)
+_IMPORT_NODES = Query(
+    _JAVASCRIPT,
+    "(import_statement) @node (export_statement) @node "
+    "(call_expression function: (import)) @node "
+    + " ".join(f"({kind}) @node" for kind in _JSX_KINDS),
+)
 JAVASCRIPT_SUFFIXES = frozenset(
     suffix
     for suffix, mime in RESOURCE_TYPES.items()
@@ -272,12 +287,16 @@ def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | 
     return resolved
 
 
-def javascript_imports(data: bytes, path: str):
-    """Yield exact string-literal spans of static exports/imports and import().
+@lru_cache(maxsize=512)
+def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ...]:
+    """The exact string-literal spans of static exports/imports and import().
 
     A computed import() binds when it runs, so capture neither follows nor refuses it:
     a CDN module named that way loads, and a page file it names is in the revision
-    only if something imports it literally."""
+    only if something imports it literally.
+
+    A layer's modules are the same bytes in every page that selects them, and parsing
+    a vendored bundle takes about a second, so a process reads each module once."""
     try:
         data.decode("utf-8")
     except UnicodeDecodeError as error:
@@ -293,9 +312,14 @@ def javascript_imports(data: bytes, path: str):
                 )
             pending.extend(reversed(node.children))
         raise ArtifactError(f"{path}: invalid JavaScript")
-    pending = [tree.root_node]
-    while pending:
-        node = pending.pop()
+    # Document order, a node before the nodes it holds, as a walk of the tree meets
+    # them, so the first problem in the file is the one reported.
+    nodes = sorted(
+        QueryCursor(_IMPORT_NODES).captures(tree.root_node).get("node", []),
+        key=lambda node: (node.start_byte, -node.end_byte),
+    )
+    imports = []
+    for node in nodes:
         if node.type.startswith("jsx_"):
             raise ArtifactError(
                 f"{path}:{node.start_point[0] + 1}: JSX is not executable JavaScript"
@@ -318,12 +342,14 @@ def javascript_imports(data: bytes, path: str):
                 raise ArtifactError(
                     f"{path}:{literal.start_point[0] + 1}: module URLs must be unescaped string literals"
                 )
-            yield (
-                literal.start_byte,
-                literal.end_byte,
-                data[literal.start_byte + 1 : literal.end_byte - 1].decode("utf-8"),
+            imports.append(
+                (
+                    literal.start_byte,
+                    literal.end_byte,
+                    data[literal.start_byte + 1 : literal.end_byte - 1].decode("utf-8"),
+                )
             )
-        pending.extend(reversed(node.named_children))
+    return tuple(imports)
 
 
 def _css_meaningful(tokens) -> list:
@@ -860,8 +886,22 @@ def artifact_name(revision: int, artifact: RevisionArtifact) -> str:
     return f"r{revision}-{artifact.digest.removeprefix('sha256:')[:16]}"
 
 
+class Disposable:
+    """Whether Leaf built this page for itself and deletes it, as a sample's child
+    (`samples`), so nothing reads its revisions after a crash and staging and
+    publishing them skip every fsync.
+
+    The builder sets it in the memory it holds for the page's life
+    (`page_memory.memory_of`). A page whose memory never held the mark, or dropped
+    it, is written durably, so losing the mark costs time and never a revision."""
+
+    held = False
+
+
 def stage_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) -> str:
-    """Make exact immutable inputs durable, without making a revision discoverable."""
+    """Make exact immutable inputs durable, unless the page is `Disposable`, without
+    making a revision discoverable."""
+    durable = not memo(page_dir, Disposable).held
     revisions = page_dir / "revisions"
     revisions.mkdir(exist_ok=True)
     if revision in list_revisions(page_dir):
@@ -880,28 +920,31 @@ def stage_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) ->
                 ("index.html", artifact.html),
                 ("manifest.json", artifact.manifest),
             ):
-                written.append(_write_durably(staged / relative, data))
+                written.append(_write(staged / relative, data, durable))
             for path, resource in artifact.resources.items():
                 target = staged / ("resources" + path)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 earlier = captured.get(resource.digest)
                 if earlier is None or not _linked(earlier, target):
-                    _write_durably(target, resource.data)
+                    _write(target, resource.data, durable)
                 written.append(target)
-            fsync_parents(written + list(staged.rglob("*")))
+            if durable:
+                fsync_parents(written + list(staged.rglob("*")))
             os.rename(staged, destination)
-            fsync_parents([destination])
+            if durable:
+                fsync_parents([destination])
     elif (destination / "manifest.json").read_bytes() != artifact.manifest:
         raise ArtifactError(f"{destination}: immutable artifact digest collision")
     return name
 
 
-def _write_durably(target: Path, data: bytes) -> Path:
+def _write(target: Path, data: bytes, durable: bool) -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("xb") as stream:
         stream.write(data)
-        stream.flush()
-        os.fsync(stream.fileno())
+        if durable:
+            stream.flush()
+            os.fsync(stream.fileno())
     return target
 
 
@@ -951,7 +994,8 @@ def publish_artifact(page_dir: Path, name: str, reading: SourceReading) -> Path:
     destination = page_dir / "revisions" / name
     marker = destination.with_name(f"{name}.html")
     os.link(destination / "index.html", marker)
-    fsync_parents([marker])
+    if not memo(page_dir, Disposable).held:
+        fsync_parents([marker])
     marker = marker.absolute()
     memo(page_dir, _Readings).hold(
         marker, file_stamp(marker), RevisionReading(marker, reading)

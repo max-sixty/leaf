@@ -17,9 +17,11 @@
 // inline or in their tree's own rules, retain that scroller too; nested CSS
 // expressions, ambiguous names and rules that disagree receive no inferred ownership.
 //
-// Each trusted gesture owns its counted rendering until declared completion: the
-// rendering loop settled and the current publication presented, widget preparations
-// included.
+// Each trusted gesture owns its counted rendering until declared completion. A widget
+// preparation it began (`observeWidgetPreparations`) works on in a promise the loop
+// cannot see; the gesture owns that preparation's landing, as a rendering from the
+// task that settles it until the loop settles again, and nothing while it waits. It
+// began one only when its declaration carries that input's exact callback source.
 // Native effects it began retain only their sampled displacement within their
 // own subtree; their continued lifetime never owns unrelated page movement.
 // Native scroll effects belong to their retained scroll source, regardless of the
@@ -132,18 +134,11 @@
   // Native media sources and nodes detached during a reading can have no computed
   // length. Keep that absence stable; NaN would disagree with itself every frame.
   const pixels = (value) => (/^-?[\d.]+px$/.test(value) ? parseFloat(value) : null);
-  // The page has answered the input so far: its rendering loop is quiet, and it has
-  // presented its current publication, including every preparation a widget declared
-  // pending (`present`), such as a closed lf-diff file loading on open. The loop alone
-  // cannot see work held in a promise (runtime/rendering.js), so reading it alone ends
-  // the gesture while its declared result is still on the way (`pageReadiness`).
-  const settled = () => {
-    const entry = document.querySelector("script[data-lf-entry]");
-    return (
-      (entry?.lfReadiness?.(null, "presented") ?? null) === null &&
-      (entry?.lfRenderingSettled?.() ?? true)
-    );
-  };
+  // A preparation owns only its source-bound landing below. Waiting for its full
+  // settlement here would give the input every unrelated move while it waits.
+  const settled = () =>
+    document.querySelector("script[data-lf-entry]")?.lfRenderingState?.()
+      .updatesSettled ?? true;
   // An animation that can move a box: one of its keyframes sets a geometric property.
   const moves = (animation) =>
     animation.effect
@@ -1147,6 +1142,7 @@
   // and of each element holding it at the key; the animations already moving any of
   // them; and until when the typing rule reads it.
   const renderings = [];
+  const inputRenderings = new WeakMap();
   let open = null;
   // The typing rule stops reading the open rendering, which runs on.
   const unwatch = () => {
@@ -1162,7 +1158,7 @@
     }
     open = null;
   };
-  const begin = (start, typing = null, own = new Set()) => {
+  const begin = (start, typing = null, own = new Set(), event = null) => {
     end();
     open = {
       start,
@@ -1172,9 +1168,52 @@
       told: false,
       last: false,
       typing,
+      event,
     };
     renderings.push(open);
+    if (event) inputRenderings.set(event, open);
   };
+  // The renderings preparations' landings opened, each running until the loop settles
+  // as an input's own does. The canonical callback source identifies the input that
+  // began each preparation; sharing a widget or overlapping its rendering is no cause.
+  const landing = new Set();
+  const preparing = new WeakMap();
+  const prepared = (phase, preparation) => {
+    if (phase === "begin") {
+      const source = window.lfInputWork.current();
+      const owner = source && inputRenderings.get(source.event);
+      if (owner) preparing.set(preparation, owner);
+      return;
+    }
+    const owner = preparing.get(preparation);
+    if (!owner) return;
+    preparing.delete(preparation);
+    const rendering = {
+      start: nativePerformance.now(),
+      first: true,
+      through: Infinity,
+      own: owner.own,
+      told: false,
+      last: false,
+      typing: owner.typing,
+      event: owner.event,
+    };
+    landing.add(rendering);
+    renderings.push(rendering);
+  };
+  // The runtime publishes its observer on its entry script after this script runs.
+  Object.defineProperty(HTMLScriptElement.prototype, "lfObserveWidgetPreparations", {
+    configurable: true,
+    set(observe) {
+      Object.defineProperty(this, "lfObserveWidgetPreparations", {
+        value: observe,
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
+      observe(prepared);
+    },
+  });
   // Shifts whose frame has no reading after it yet.
   const waiting = [];
   const tick = (time) => {
@@ -1190,13 +1229,20 @@
       // callbacks may still move a box, so the rendering runs through the next.
       else open.last = settled();
     }
+    for (const rendering of landing) {
+      if (!rendering.told)
+        for (const animation of begun(rendering.start)) rendering.own.add(animation);
+      if (rendering.last) landing.delete(rendering);
+      else rendering.last = settled();
+    }
     // A gesture owns its counted rendering until canonical completion. News seals
     // that credit; continuing motion retains its separate ownership below. A newer
     // input still leaves the prior gesture its first two frame readings.
     for (const rendering of renderings) {
       if (
         !rendering.first &&
-        (rendering.through === Infinity || (rendering === open && !rendering.told))
+        (rendering.through === Infinity ||
+          ((rendering === open || landing.has(rendering)) && !rendering.told))
       )
         rendering.through = at;
       rendering.first = false;
@@ -1210,31 +1256,36 @@
     nativeFrame(tick);
   };
   nativeFrame(tick);
-  window.lfInputWork.subscribeEdits(({ node: field }) => {
+  window.lfInputWork.subscribeEdits(({ node: field, event }) => {
     const holding = [];
     for (let at = field; at instanceof Element; at = up(at)) holding.push(at);
     const start = nativePerformance.now();
     const at = read(start, false);
-    begin(start, {
-      field,
-      at,
-      found: boxes(
-        holding.filter((node) => {
-          const paint = paintAt(node, at);
-          return (
-            node === field ||
-            paint.reading ||
-            paint.control ||
-            paint.reflow ||
-            paintedHolder(node)
-          );
-        }),
-      ),
-      moving: holding
-        .flatMap((node) => node.getAnimations())
-        .filter((animation) => animation.playState === "running" && moves(animation)),
-      until: Infinity,
-    });
+    begin(
+      start,
+      {
+        field,
+        at,
+        found: boxes(
+          holding.filter((node) => {
+            const paint = paintAt(node, at);
+            return (
+              node === field ||
+              paint.reading ||
+              paint.control ||
+              paint.reflow ||
+              paintedHolder(node)
+            );
+          }),
+        ),
+        moving: holding
+          .flatMap((node) => node.getAnimations())
+          .filter((animation) => animation.playState === "running" && moves(animation)),
+        until: Infinity,
+      },
+      new Set(),
+      event,
+    );
   });
   // A viewport resize is input, and its new size is the fact. Chrome lays out the
   // resized viewport before dispatching resize, which precedes the frame's callbacks,
@@ -1255,6 +1306,7 @@
   new MutationObserver(() => {
     unwatch();
     if (open) open.told = true;
+    for (const rendering of landing) rendering.told = true;
   }).observe(document, { subtree: true, attributeFilter: ["data-lf-reading"] });
   // Press, drag, release and native activation are phases of one pointer gesture.
   // Each phase keeps its own paint boundary while sharing the effects that press
@@ -1264,7 +1316,12 @@
   const heard = (event) => {
     if (!event.isTrusted || (event.type === "pointermove" && !event.buttons)) return;
     if (event.type === "pointerdown") presses.set(event.pointerId, new Set());
-    begin(nativePerformance.now(), null, presses.get(event.pointerId) ?? new Set());
+    begin(
+      nativePerformance.now(),
+      null,
+      presses.get(event.pointerId) ?? new Set(),
+      event,
+    );
     if (event.type === "click") presses.delete(event.pointerId);
   };
   for (let view = window; ; view = view.parent) {
@@ -2345,6 +2402,7 @@
       const rendering = renderings[i];
       if (
         rendering !== open &&
+        !landing.has(rendering) &&
         rendering.through < retainedFrom &&
         (rendering.typing?.until ?? -Infinity) < retainedFrom &&
         ![...rendering.own].some(({ playState }) => playState === "running")

@@ -63,7 +63,7 @@
  */
 import { nextRender } from "./rendering.js";
 import { whileConnected } from "./arrivals.js";
-import { pageUrl, revisionLabel, runtime } from "./context.js";
+import { LIVE_ROOT, layerRoot, pageUrl, revisionLabel, runtime } from "./context.js";
 import {
   documentWidgetDigests,
   servedExecutable,
@@ -98,6 +98,7 @@ import {
   authored,
   elementById,
   inChrome,
+  pageDocument,
   readingFrom,
   TEXT_BLOCK,
   textNodesUnder,
@@ -122,7 +123,7 @@ import {
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
-import { LIVE_ROOT, PAGE_SCOPE, layerRoot, tabStore } from "./storage.js";
+import { PAGE_SCOPE, tabStore } from "./storage.js";
 import { initialOrigin, restoreInitialSource, unmarkedCopy } from "./initial-render.js";
 import { alignInlineText } from "./text-alignment.js";
 import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
@@ -262,7 +263,7 @@ const pairSources = (source, live, pairs) => {
   }
   return pairs;
 };
-const servedMain = document.querySelector("body > main");
+const servedMain = pageDocument();
 const initialDocument = {
   authoredBodyAttributes: authoredAttributes(document.body),
   authoredHeadNodes: new Set([...document.head.children].filter(versionedHeadNode)),
@@ -1315,7 +1316,7 @@ export function createVersionController({
   // equality. A retained subject is proved through every containing owner, not by an
   // id or a matching digest alone.
   function patchRules(doc) {
-    const source = doc.querySelector("body > main");
+    const source = pageDocument(doc);
     const arrivingWidgets = documentWidgetDigests(doc);
     const arrivingRoot = layerRoot(doc);
     const heldKeys = widgetKeys(authoredSource);
@@ -1395,10 +1396,10 @@ export function createVersionController({
     // authored page changes, then restore that base against the arriving revision.
     const comparedFrom = selectedBase();
     if (comparedFrom !== null) setDiff(false);
-    const live = document.querySelector("body > main");
+    const live = pageDocument();
     // Capture before replacing nodes, using the outgoing source as the baseline.
     const carry = captureCarry(live, authoredSource);
-    const source = doc.querySelector("body > main");
+    const source = pageDocument(doc);
     const arrivingWidgets = documentWidgetDigests(doc);
     const arrivingRoot = layerRoot(doc);
     const rules = patchRules(doc);
@@ -1607,7 +1608,7 @@ export function createVersionController({
       // spends nothing on a fetch while the user is looking at the page. Inside this
       // try, because the loader keeps a rejected import: one 404 on a module an arriving
       // revision introduces would otherwise reject every later state read for good.
-      await preloadWidgets(doc.querySelector("body > main"));
+      await preloadWidgets(pageDocument(doc));
     } catch (error) {
       reportPageError(error, `revision ${target.revision} failed to load`);
       return null;
@@ -1620,12 +1621,7 @@ export function createVersionController({
             // Installation closes inline comparisons, which can own the comment’s
             // rendered subject independently of the authored patch.
             selectedBase() === null &&
-            patchRetains(
-              authoredSource,
-              doc.querySelector("body > main"),
-              node,
-              patchRules(doc),
-            ),
+            patchRetains(authoredSource, pageDocument(doc), node, patchRules(doc)),
         ),
       install: () => {
         forceActivation = false;
@@ -1649,8 +1645,7 @@ export function createVersionController({
         view,
         retainedStanding: captureRetainedStanding(),
         ...editingContinuity,
-        carry: captureCarry(document.querySelector("body > main"), authoredSource)
-          .records,
+        carry: captureCarry(pageDocument(), authoredSource).records,
         comparison: selectedBase(),
         pointer: pointerAt(),
       }),
@@ -1754,7 +1749,7 @@ export function createVersionController({
   // reads no text at all. `moved` names the scrollers that moved; none names every one.
   function recordRegions(moved = null) {
     dropGoneRegions();
-    const main = document.querySelector("body > main");
+    const main = pageDocument();
     const shown = readingRegions().filter(
       (region) =>
         under(region.host, main) &&
@@ -1926,7 +1921,7 @@ export function createVersionController({
     // the queued record runs. Record again after any seat or layout commits.
     const recordStanding = () => {
       const at = focused();
-      if (at && under(at, document.querySelector("body > main"))) {
+      if (at && under(at, pageDocument())) {
         if (!compositionChanges.size && regionsSettled()) recordRegions();
         queueRecord();
       }

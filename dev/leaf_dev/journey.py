@@ -92,7 +92,7 @@ from contextlib import ExitStack, contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import NamedTuple
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urljoin
 
 import click
 from leaf.delivery import pickup_receipts
@@ -1303,9 +1303,7 @@ def local_session(browser, url: str) -> Session:
     response = page.goto(url, wait_until="load", timeout=120_000)
     check(response is not None and response.ok, f"{url} did not load")
     await_presentation(page, url, failures)
-    parts = urlsplit(url)
-    token = re.search(r"[?&]t=([^&]+)", url)[1]
-    state_url = f"{parts.scheme}://{parts.netloc}/api/state?t={token}"
+    state_url = PageClient(url).state_url
     state = answered(context.request.get(state_url), state_url).json()
     return Session(context, page, failures, url, state_url, state, {}, None)
 

@@ -1,7 +1,12 @@
-/* Leaf's one rendering loop, and the one settled reading for the page's chrome and
-   geometry: no registered preparation or queued rendering update is still waiting, and the
-   last update produced no size change a Leaf observer heard. A reader outside the page
-   waits on it after a gesture rather than guessing a number of frames.
+/* Leaf's one rendering loop and structured renderingState for chrome and geometry.
+   updatesSettled says no queued update is waiting and the last update produced no
+   size change a Leaf observer heard. preparationsSettled says no registered finite
+   preparation is waiting. Full rendering readiness requires both; an observer of
+   intermediate paint can read updatesSettled while preparation remains pending.
+   Each field is true when that axis is settled. Hidden documents read true on
+   both axes because they owe no visible paint until they become visible again.
+   A reader outside the page waits on those facts after a gesture rather than
+   guessing a number of frames.
 
    Leaf's rendering callbacks and size observers go through this module: `nextRender`,
    `nextFrame` and `cancelRender` for settling work, `nextAnimation` and
@@ -205,7 +210,13 @@ export function sizeObserver(callback, { counted = true } = {}) {
   });
 }
 
-export const renderingSettled = () => (quiet && preparations === 0) || !rendered();
+export const renderingState = () => {
+  const visible = rendered();
+  return {
+    updatesSettled: quiet || !visible,
+    preparationsSettled: preparations === 0 || !visible,
+  };
+};
 
 function rendered() {
   if (document.hidden) return false;

@@ -136,20 +136,18 @@ def append_carried_log_record(page_dir, event):
     """Seed already-interpreted input for a storage or transport test.
 
     These tests declare input the transport must deliver, without a document that
-    could decide its meaning. Semantic attention cases use `append_command`.
+    could decide its meaning, so user input that admission would weigh against the
+    page's obligations is taken to change them. Semantic attention cases use
+    `append_command`.
     A raw fixture can explicitly declare `attention=False` for quiet input.
     """
-    from leaf.registry.kernel import bookkeeping_kinds
+    from leaf.registry.kernel import kernel_event_kinds
 
+    attention = event_contracts_model.settled_attention(
+        event, kernel_event_kinds().get(event["kind"], {})
+    )
     return events_model.append_event(
-        page_dir,
-        {
-            "attention": (
-                event["author"] == "user" and event["kind"] not in bookkeeping_kinds()
-            )
-            or event["kind"] in {"report", "error"},
-            **event,
-        },
+        page_dir, {"attention": attention is not False, **event}
     )
 
 
@@ -285,7 +283,7 @@ def spawn_probe(spawn, page_dir, body, **environment):
     )
 
 
-STATED_TIMEOUT = 60
+STATED_TIMEOUT = 120
 """How long a pure-Python wait gives another thread or process to state its fact.
 
 The deadline separates a product that never states the fact from a machine that
@@ -505,15 +503,23 @@ PAGE = """<!doctype html>
       </lf-option>
     </lf-options>
   </lf-ask>
-  <lf-diagram id="flow"><pre>
-graph LR
-  A --> B
-  </pre></lf-diagram>
 </section>
 </main>
 </body>
 </html>
 """
+# PAGE places no widget whose module only a browser can judge, so `page check` on it
+# and on the versions built from it never starts one (`needs_browser`). A test about a
+# data widget's body, its visual parts, or the section one supplies starts from
+# FLOW_PAGE, which closes the Plan section with a diagram.
+FLOW_PAGE = PAGE.replace(
+    "</section>",
+    """  <lf-diagram id="flow"><pre>
+graph LR
+  A --> B
+  </pre></lf-diagram>
+</section>""",
+)
 
 
 def package_path(path: Path) -> str:
@@ -524,7 +530,7 @@ def package_path(path: Path) -> str:
 def page_packages() -> tuple[str, ...]:
     """The integration page's package selection, resolved where it is initialized.
 
-    PAGE holds an lf-diagram, and the interact suite borrows lf-diagram and
+    FLOW_PAGE holds an lf-diagram, and the interact suite borrows lf-diagram and
     lf-diff declarations from the vendored registry.
     """
     return (package_path(COMMAND_HUB_PACKAGE), "diagram", "diff")
@@ -715,7 +721,6 @@ def record_claim(page, /, harness="claude-code", **fields):
         "agent": "Claude",
         "cwd": str(Path.cwd()),
         "ts": "t",
-        "released": None,
         "turn": observed["turn"] if observed else "turn-1",
         "turn_opened": observed["turn_opened"] if observed else cleanup_model.now_iso(),
         "turn_closed": observed["turn_closed"] if observed else None,
@@ -1204,11 +1209,8 @@ def trial_page(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
     page = tmp_path / "page"
-    # The version is built out of PAGE, which holds an lf-diagram; the project package
-    # under test is explicitly selected beside it.
     initialized = CliRunner().invoke(
-        cli_model.cli,
-        ["page", "init", "--package", "diagram", "--package", "./.leaf", str(page)],
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page)]
     )
     assert initialized.exit_code == 0, initialized.output
     (page / "index.html").write_text(trial_version(TRIAL_CACHE, TRIAL_LOG, PILOT_PURGE))
@@ -1284,9 +1286,8 @@ def fetch(url, data=None, token=TOKEN, layer=None, headers=None):
 HELD_LEASES = []
 
 
-def serving(directory, port: int, lifetime: str = "standing") -> None:
-    """Hold the serving incarnation lease of a live `server run`."""
-    directory.mkdir(parents=True, exist_ok=True)
+def fixture_service(directory, port: int, lifetime: str = "standing") -> dict:
+    """Record the desired service of a `server run` on `port`, as it records its own."""
     service = {
         "host": "127.0.0.1",
         "bind": "127.0.0.1",
@@ -1296,12 +1297,17 @@ def serving(directory, port: int, lifetime: str = "standing") -> None:
         "server_id": "fixture-server",
     }
     cleanup_model.write_json(directory / "service.json", service)
-    handle = open(directory / "server.lock", "a+b")  # noqa: SIM115 - test lease
-    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    handle.truncate(0)
-    handle.write(service["server_id"].encode())
-    handle.flush()
-    HELD_LEASES.append(handle)
+    return service
+
+
+def serving(directory, port: int, lifetime: str = "standing") -> None:
+    """Hold the serving incarnation lease of a live `server run`, taken as it takes it."""
+    directory.mkdir(parents=True, exist_ok=True)
+    service = fixture_service(directory, port, lifetime)
+    lease = hosting_model._take_server_lease(directory)
+    lease.write(service["server_id"].encode())
+    lease.flush()
+    HELD_LEASES.append(lease)
 
 
 def available_loopback_port() -> int:
@@ -1434,21 +1440,10 @@ def neighbour_page(directory, title=None, dead=False, published=True, port=59999
                 "text": "t",
             },
         )
-    record = {"port": port}
     if dead:
-        cleanup_model.write_json(
-            directory / "service.json",
-            {
-                "host": "127.0.0.1",
-                "bind": "127.0.0.1",
-                "port": port,
-                "enabled": True,
-                "lifetime": "standing",
-                "server_id": "fixture-server",
-            },
-        )
+        fixture_service(directory, port)
     else:
-        serving(directory, record["port"])
+        serving(directory, port)
     server_rows_model.RowPublisher(directory, "fixture-server").refresh()
     return server_model.page_url("127.0.0.1", port, server_model.host_key())
 
@@ -2130,11 +2125,11 @@ SnapshotHandlerRegistry.add_handler(
 def consume_pending_input(session_id):
     """Hand the session its pending input as a hook does inline: one complete
     envelope, confirmed as it is handed over."""
-    from leaf import delivery
+    from leaf import delivery, state
 
     batches = delivery.pending_batches(session_id)
     if not batches:
         return None
     payload = delivery.freeze_delivery(batches)
-    delivery.receive_held(payload, session_id)
+    delivery.receive_held(payload, session_id, state.session_record(session_id))
     return payload

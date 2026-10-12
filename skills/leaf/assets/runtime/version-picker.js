@@ -14,7 +14,7 @@ import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import { dismissBannerControls } from "./banner-toolbar.js";
 import { el } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
-import { focusDestination, canPlaceFocus } from "./focus.js";
+import { focusDestination, canPlaceFocus, inputCount } from "./focus.js";
 import { scrollIntoView } from "./landing-scroll.js";
 
 const LATEST_FAILED = "Latest edit couldn't be shown";
@@ -51,6 +51,7 @@ class VersionPickerView {
   #latest = null;
   #model = INITIAL;
   #toggle = null;
+  #openingInput = null;
 
   constructor() {
     this.button = el("button", "lf-btn lf-version");
@@ -68,7 +69,10 @@ class VersionPickerView {
     this.button.setAttribute("popovertarget", this.menu.id);
     this.menu.lfInvoker = this.button;
     this.menu.addEventListener("beforetoggle", (event) => {
-      if (event.newState === "open") dismissBannerControls();
+      if (event.newState === "open") {
+        this.#openingInput = inputCount();
+        dismissBannerControls();
+      }
     });
     this.menu.addEventListener("toggle", (event) => {
       this.#presentDisclosure();
@@ -76,11 +80,14 @@ class VersionPickerView {
         // The platform has now opened the popover and completed its autofocus.
         // Arrive on the selected row without revealing an outer sample frame.
         const arrival = this.#selectedRow();
-        if (arrival && canPlaceFocus()) {
+        // The toggle event is deferred. A key can move the user inside the open
+        // menu first; its arrival wins over the picker's initial placement.
+        if (arrival && canPlaceFocus() && inputCount() === this.#openingInput) {
           focusDestination(arrival, "move");
           scrollIntoView(arrival, { block: "nearest" });
         }
       } else {
+        this.#openingInput = null;
         this.#displayedRows = this.#model.rows;
         this.#renderMenu();
       }

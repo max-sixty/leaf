@@ -300,8 +300,8 @@ def presence_with_activity(
         "turn_takes_input": bool(active and claim_harness(active).turn_takes_input()),
         # When a browser last had the page visible (the server bumps viewed.json,
         # throttled, while a visible tab asks for news), or None for a page
-        # nobody has ever viewed — which used to be indistinguishable from one the
-        # user studied and left. Hidden tabs stop their freshness reads, so this records
+        # nobody has ever viewed, which keeps it distinct from one the user studied
+        # and left. Hidden tabs stop their freshness reads, so this records
         # user attention rather than tab lifetime.
         "viewed": _viewed_at(page_dir),
         # Where the claimant is working (claim_page), for the drawer's hover: what

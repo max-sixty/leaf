@@ -201,7 +201,7 @@ its schema. An ordinary vocabulary entry's `x-instructions` is one non-empty str
 
 ```bash
 leaf page instructions PAGE | jq 'keys'
-leaf page instructions PAGE --use lf-options --use .eyebrow | jq -er '.author'
+leaf page instructions PAGE --use lf-options --use .eyebrow | jq -r '.author // empty'
 leaf page instructions PAGE --contract unified-diff | jq -er '.producer'
 ```
 
@@ -703,10 +703,11 @@ and a blank image stands in for any media an example names. The checks:
   still arriving; the widget first appears with its complete real structure and values.
   The parser opens that template only while scripts run; a scripts-disabled reading
   keeps the single original authored host, with no generated drawing or copied fallback.
-  `render(host, {tabStore, offer, offerElement})` builds the drawing and returns the
-  node references and mechanical state its behavior module needs. It may move
+  `render(host, {tabStore, offer, offerElement, keeps})` builds the drawing and returns
+  the node references and mechanical state its behavior module needs. It may move
   authored nodes within its host; Leaf retains their original source and node routes
-  for semantic intake, anchoring fences, and version comparison. The producer does
+  for semantic intake, anchoring fences, and version comparison. Its `keeps` is the
+  helper surface's attribute door, for a later pass over nodes already drawn. The producer does
   no asynchronous or network work and consumes no log-derived state. The module
   calls `initialRender(host)` from the helper surface:
   that call adopts the existing drawing, or produces it for a later revision or
@@ -741,6 +742,12 @@ and a blank image stands in for any media an example names. The checks:
   (`--lf-full-height`) declares it on that part too, though this check never sees
   that part scroll, since a worked example stands outside a workspace. A box that
   asks to scroll only sideways is named only while its content runs past its height.
+- `shows-context-keys`: a command declares `contextKeys` and no `bindingBadge`, so its
+  key works with nothing on the page showing it. Lend the
+  command a face, or ask for a corner badge with `bindingBadge: null`
+  (module-authoring.md, "Commands and keyboard routes"). The check reads the commands
+  the example declares, so a command only another state declares, such as a
+  multiple-choice Question's Done, needs an example in that state to be read.
 
 After `leaf page init` re-vendors the page (`serving-pages.md`, "Re-vendoring and
 layer epochs"), run `leaf page check <page> --render` on the version that uses

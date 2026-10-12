@@ -12,6 +12,7 @@ import shutil
 import signal
 import subprocess
 import threading
+import traceback
 import weakref
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
@@ -21,6 +22,7 @@ import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import (
+    FLOW_PAGE,
     OPTIONS,
     PAGE,
     SHIPPED_PACKAGES,
@@ -66,6 +68,7 @@ from leaf import publishing as publishing_model
 from leaf import revision_artifact as artifact_model
 from leaf import revision_delivery as revision_delivery_model
 from leaf import revisioning as revisioning_model
+from leaf import samples as samples_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
@@ -251,6 +254,65 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     assert historical.resources["/leaf.js"].data == artifact.resources["/leaf.js"].data
 
 
+def test_a_revision_keeps_its_bytes_when_a_layer_file_is_edited_in_place(page_dir):
+    """A page's layer files are the user's to edit, in place if their editor does,
+    so a revision holds its own copy of each and never shares one's inode."""
+    first = revisioning_model.activate_source(page_dir)
+    assert first.error is None, first.error
+    captured = (
+        files_model.revision_path(page_dir, first.revision).with_suffix("")
+        / "resources"
+    )
+    for layer_file in ("leaf.js", "theme.css", "runtime/layer-generation.js"):
+        assert (captured / layer_file).stat().st_ino != (
+            page_dir / layer_file
+        ).stat().st_ino, layer_file
+    theme = (captured / "theme.css").read_bytes()
+    with (page_dir / "theme.css").open("r+b") as stream:
+        stream.write(b"/* edited in place */")
+    assert (captured / "theme.css").read_bytes() == theme
+
+
+def test_a_sample_child_stages_its_revision_without_fsync(page_dir, monkeypatch):
+    """A sample's child is Leaf's own and deleted on release, so nothing reads its
+    revision after a crash and staging it pays for no fsync, while a page's own
+    revision is still made durable."""
+    template = (
+        '<template id="practice" data-sample><h1>Practice</h1>'
+        "<p>Child text.</p></template>"
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", template + "</main>"))
+    synced = []
+    fsync = os.fsync
+
+    def recording(descriptor):
+        if any(
+            frame.filename.endswith("revision_artifact.py")
+            for frame in traceback.extract_stack()
+        ):
+            synced.append(descriptor)
+        return fsync(descriptor)
+
+    monkeypatch.setattr(os, "fsync", recording)
+    parent = revisioning_model.activate_source(page_dir)
+    assert parent.error is None, parent.error
+    assert synced, "a page's own revision is made durable"
+
+    synced.clear()
+    artifact = artifact_model.read_artifact(page_dir, parent.revision)
+    document = artifact_model.read_revision(page_dir, parent.revision).document
+    samples = samples_model.Samples()
+    identity = samples.create(
+        page_dir, artifact, document, [], {"sources": {}}, "practice", False, None
+    )
+    try:
+        child = samples.pages[identity].directory
+        assert files_model.latest_revision(child) == 1
+        assert synced == []
+    finally:
+        samples.close()
+
+
 def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     """What a standing document cannot take on in place, and nothing else.
 
@@ -396,7 +458,7 @@ def test_the_captured_widget_digests_say_which_widgets_a_user_may_keep(page_dir)
     owns every widget's children. Digested from the parsed tree, so two revisions of one
     widget differ where the author changed it and nowhere else.
     """
-    document = PAGE
+    document = FLOW_PAGE
 
     def activate():
         (page_dir / "index.html").write_text(document)
@@ -2321,7 +2383,7 @@ def test_response_address_survives_its_delivery_turn_closing(page_dir):
             session=claim["id"],
             turn=claim["turn"],
         )
-        page.close_turn(claim["id"], claim["turn"])
+        cleanup_model.close_session_turn(claim["id"], claim["turn"])
 
     result = CliRunner().invoke(
         cli_model.cli,
@@ -2873,10 +2935,10 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
         path = page_dir / "index.html"
         path.write_text(
             path.read_text().replace(
-                '<lf-diagram id="flow">',
+                "</section>",
                 '<lf-board id="rollout"><lf-column id="now" label="Now">'
                 '<lf-card id="rollout-card"><strong>Ship</strong></lf-card>'
-                '</lf-column></lf-board><lf-diagram id="flow">',
+                "</lf-column></lf-board></section>",
             )
         )
 
@@ -5500,6 +5562,50 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
     )
 
 
+def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir):
+    """An action admitted by an earlier Leaf keeps standing, and keeps its Question
+    answered, under a Leaf that records the same operation's definition with other
+    fields. Before #2329 the definition carried `update`, the flag that became
+    `report`; matching every recorded field dropped each decision on a page that
+    Leaf version had served."""
+    source = page_dir / "index.html"
+    source.write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            "<h2>Plan</h2>"
+            + OPTIONS.format(a="", b="", chip="", shim="Fast.", stage="Two."),
+        )
+    )
+    publish(page_dir)
+    picked = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "g1",
+            "action": "choose",
+            "detail": {"value": ["o-shim"]},
+        },
+    )
+    log = page_dir / "events.jsonl"
+    earlier = []
+    for line in log.read_text().splitlines():
+        event = json.loads(line)
+        if event["id"] == picked["id"]:
+            recorded = event["meaning"]["state"]
+            recorded["update"] = recorded.pop("report", False)
+        earlier.append(json.dumps(event))
+    log.write_text("\n".join(earlier) + "\n")
+
+    reading = state_json(page_dir)
+    [standing] = [item for item in reading["state"] if item["action"] == "choose"]
+    assert standing["detail"] == {"value": ["o-shim"]}
+    [question] = reading["questions"]
+    assert question["status"] == "answered"
+    assert question["answer"]["event"]["id"] == picked["id"]
+
+
 def test_revisions_change_edited_drafts_without_retracting_the_user_edit(page_dir):
     v2 = _decided(page_dir, "Ship the flag dark, then backfill.")
     v2("A new authored draft.")
@@ -5570,7 +5676,7 @@ def test_transition_attributes_do_not_require_earned_or_first_version_retraction
 def test_revisions_drop_anchored_sections_and_relocate_lost_visual_parts(page_dir):
     source = page_dir / "index.html"
     source.write_text(
-        PAGE.replace(
+        FLOW_PAGE.replace(
             '<lf-diagram id="flow">', '<lf-diagram id="flow" parts="node:A node:B">'
         )
     )
@@ -5591,7 +5697,7 @@ def test_revisions_drop_anchored_sections_and_relocate_lost_visual_parts(page_di
     assert stamp(page_dir, "revise drawing").exit_code == 0
     [thread] = state_json(page_dir)["threads"]
     assert thread["anchor"] == {"section": "flow"}
-    source.write_text(PAGE.replace('id="flow"', 'id="new-flow"'))
+    source.write_text(FLOW_PAGE.replace('id="flow"', 'id="new-flow"'))
     assert stamp(page_dir, "replace drawing").exit_code == 0
     [thread] = state_json(page_dir)["threads"]
     assert thread["anchor"] is None

@@ -976,6 +976,7 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
     }""")
     # The bar the last drag raised stands over the line this one starts on.
     page.locator("#t").click()
+    page.locator("#p2").scroll_into_view_if_needed()
     select(page, spot("#p2", "flagged", 3), spot("#p2", "them", 1))
     assert captured() == "flagged between them"
 

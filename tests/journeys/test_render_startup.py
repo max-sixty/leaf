@@ -1082,3 +1082,54 @@ customElements.define('lf-probe',class extends HTMLElement {connectedCallback(){
     write(page_comment(page), "Still usable.")
     expect(page_comment(page)).to_have_js_property("value", "Still usable.")
     page.close()
+
+
+@pytest.mark.parametrize("answer", ["ready", "offline"])
+@pytest.mark.parametrize("focus", ["sample", "chrome"])
+def test_first_history_answer_keeps_an_open_quote_draft(browser, serve, answer, focus):
+    """Presentation applies saved facts without re-deciding the user's open composer."""
+    source = leaf_page(
+        "Uninterrupted draft",
+        '<h1>Uninterrupted draft</h1><p id="passage">The prototype needs a mobile check.</p>'
+        '<lf-sample id="practice" label="Practice" window>'
+        '<template id="practice-source" data-sample>'
+        '<h1>Practice</h1><button id="inspect">Inspect</button>'
+        "</template></lf-sample>",
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.set_default_timeout(8_000)
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
+    page.goto(serve(source), wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+    select_words(page, "#passage")
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.keyboard.press("c")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused(timeout=3_000)
+    write(field, "Keep these words.")
+    field.evaluate("field => field.setSelectionRange(7, 7)")
+    if focus == "sample":
+        child = page.locator("#practice iframe").element_handle().content_frame()
+        child.locator("#inspect").click()
+    else:
+        page.locator(".lf-status-button").focus()
+        page.evaluate("getSelection().removeAllRanges()")
+    expect(field).to_be_visible(timeout=3_000)
+    page.unroute("**/api/state*")
+    for route in held:
+        if answer == "ready":
+            route.continue_()
+        else:
+            route.abort("internetdisconnected")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(field).to_be_visible(timeout=3_000)
+    expect(field).to_have_js_property("value", "Keep these words.")
+    assert field.evaluate("field => [field.selectionStart, field.selectionEnd]") == [
+        7,
+        7,
+    ]
+    expect(page.get_by_role("status").filter(has_text="Draft kept")).to_have_count(0)
+    if answer == "offline":
+        consume_browser_errors(page, "net::ERR_INTERNET_DISCONNECTED")
+    page.close()

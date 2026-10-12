@@ -1001,7 +1001,6 @@ async function presentPage() {
     document.dispatchEvent(new Event(PRESENTATION));
     return;
   }
-  responseSurface.updateFab();
   auxiliarySurfaces.present();
   presentLeaves();
   paintKeys();

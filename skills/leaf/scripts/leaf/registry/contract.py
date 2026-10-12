@@ -220,7 +220,8 @@ def declares_string(field_schema) -> bool:
 # never ending in 0, so string order is numeric order. The runtime's
 # `projection/model.js` owns the reasoning and computes the keys between neighbours;
 # this rule is the one both runtimes must read the same way, and
-# `tests/rank_cases.json` holds both runtimes to the same cases.
+# `tests/rank_cases.json` holds both runtimes to the same cases. The schema ends it with
+# a lookahead rather than `$`, which Python's `re` lets match before a final newline.
 RANK = "[0-9a-z]*[1-9a-z]"
 _IDENTITY = {"type": "string", "minLength": 1}
 
@@ -255,7 +256,8 @@ def detail_schema(entry: dict, spec: dict) -> dict:
     properties = {"value": value}
     if kind == "position":
         properties.update(
-            unit=_IDENTITY, rank={"type": "string", "pattern": f"^(?:{RANK})$"}
+            unit=_IDENTITY,
+            rank={"type": "string", "pattern": f"^(?:{RANK})(?![\\s\\S])"},
         )
     if spec.get("report"):
         properties["text"] = {"type": "string", "minLength": 1}

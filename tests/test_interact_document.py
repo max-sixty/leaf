@@ -75,7 +75,8 @@ from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf.refusals import Refused
-from leaf.registry.contract import RANK
+from leaf.registry.contract import RANK, detail_schema
+from leaf.registry.schema import schema_error
 from leaf.registry.storage import read_page_registry, require_registry
 from leaf.render_gate import readings as render_gate_readings
 from leaf.served_state.context import read_page
@@ -956,6 +957,12 @@ def test_rank_rules_match_the_browser_cases():
         assert re.fullmatch(RANK, rank)
     assert all(re.fullmatch(RANK, r) for r in RANK_CASES["valid"])
     assert not any(re.fullmatch(RANK, r) for r in RANK_CASES["invalid"])
+    # The append door reads the rank through the detail schema, whose `pattern`
+    # searches rather than fully matches, so it must refuse the same cases.
+    board = model_layer()["lf-board"]
+    rank = detail_schema(board, board["x-state"]["move"])["properties"]["rank"]
+    assert not any(schema_error(rank, r) is None for r in RANK_CASES["invalid"])
+    assert all(schema_error(rank, r) is None for r in RANK_CASES["valid"])
 
 
 @pytest.mark.parametrize(

@@ -1,10 +1,8 @@
 # Testing leaf
 
-A test here is evidence about behavior a user depends on. The suite's quality varies:
-agents wrote most of it, and many tests assert the shape the code had when they were
-written rather than that behavior. Under root `AGENTS.md`'s **Stage**, the suite does
-not constrain new code: rewriting or deleting an overfit test is an ordinary part of a
-change, and the commit says which behavior moved.
+Root `AGENTS.md`'s **Stage** says what a test here protects and when to rewrite or
+delete one. Agents wrote most of this suite, and many of its tests assert the shape the
+code had when they were written rather than the behavior a user depends on.
 
 Prove each contract at the lowest boundary that preserves it, and keep a browser test
 only where it proves boundaries working together. Before adding cases or steps, choose
@@ -12,9 +10,17 @@ the smallest set that exposes distinct plausible failures beyond existing covera
 Retain a broad sweep only when its extra samples catch a failure that representative
 states or transitions miss; an investigation's sampling grid is not itself a regression
 requirement. Every run pays for the test's compute, so weigh the additional cost against
-the additional coverage. Each CI `test` job's summary says where its run's time went, by
-file, phase, Playwright call and the suite's own functions; `leaf-dev suite-profile`
-prints the same from the job's `pytest-results-*` artifact. When a high-level browser test is slow, or fails on timing or
+the additional coverage.
+
+Measure the suite's cost in CPU time. It is what a run consumes, it is recorded for
+each test, and the runner time CI bills follows from it through how many workers share
+the runner: CPU a change saves becomes runner time saved once more workers use it. A test's
+time beyond its CPU is waiting, on a fixed delay, a deadline, or other workers' CPU;
+added workers fill those waits only while CPU is spare, so remove a fixed delay rather
+than relying on parallelism to absorb it.
+Each CI `test` job's summary says where its run's CPU and time went, by file, phase,
+Playwright call and the suite's own functions; `leaf-dev suite-profile` prints the same
+from the job's `pytest-results-*` artifact. When a high-level browser test is slow, or fails on timing or
 geometry outside its contract, repair its arrangement or move its contract to the lower
 boundary.
 
@@ -111,10 +117,9 @@ so a red main is no reason to widen a change, its gate, or its test selection. O
 push suite always runs while newer commits land, and each new commit replaces the run
 waiting behind it, which GitHub records as cancelled; the daily run has a queue of its
 own. That is the design working: a suite per merge would report each commit slightly
-sooner at up to twenty times the CI usage. Don't run the broad selection,
-`--run-main`, `--run-nightly`, `-m main`, `-m nightly`, or a whole browser file
-locally outside a landing: each takes minutes to over an hour and slows every other
-session on the machine. To learn what main fails, read that job's run, and reproduce a failure it
+sooner at up to twenty times the CI usage. Root `AGENTS.md`, "Working on the
+repository", says which runs not to start by hand before landing. To learn what main
+fails, read that job's run, and reproduce a failure it
 names by node id. `tend-ci-fix` sees only that run, so a failure on main that it does
 not show, such as one only macOS reproduces, is left to a local session. Check whether
 a live session, worktree or open pull request already covers it; if none does, start a

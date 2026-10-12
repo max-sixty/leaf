@@ -4083,10 +4083,72 @@ def test_every_more_row_wears_one_face_and_rings_inside_the_menu(browser, serve)
     assert ring["matches"] and ring["clear"] >= 2, ring
 
 
+def test_send_returns_to_more_when_a_gesture_step_displaced_the_comment_control(
+    browser, serve
+):
+    """Send closes the page comment card onto the control that opened it, and where a
+    gesture step has taken that control's place on the row, onto More, the door that
+    still reaches it (`bannerControlDoor`). A task on the user puts its Done step on
+    the row in the reading loop's place."""
+    url = serve(
+        leaf_page(
+            "Task on you",
+            '<section id="plan"><h2>Plan</h2>'
+            "<p>Ship it on Tuesday, after the backfill.</p></section>"
+            '<p id="tail">Nothing else is planned.</p>',
+        )
+    )
+    page = open_page(browser, url)
+    resized(page, 1280, 800)
+    actions = page.locator(".lf-banner-actions")
+    comment = actions.locator(".lf-page-comment")
+    done = actions.get_by_role("button", name="Done", exact=True)
+    more = page.locator(".lf-banner-more")
+    field = page.get_by_role("textbox", name="Comment on the page", exact=True)
+
+    def send(words):
+        page.evaluate(RELEASE_FOCUS)
+        page.keyboard.press("c")
+        expect(field).to_be_focused()
+        page.keyboard.type(words)
+        with sending(page, words):
+            page.keyboard.press("ControlOrMeta+Enter")
+        expect(page.locator(".lf-page-comment-card")).to_be_hidden()
+
+    # The control: with nothing displacing it, Send lands on the row's Comment.
+    expect(comment).to_be_visible()
+    send("With the row as it was")
+    expect(comment).to_be_focused()
+
+    # A task the agent puts on the user stands its Done step on the row.
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "task",
+            "author": "agent",
+            "agent": "Agent",
+            "session": "displaced-row",
+            "owner": "user",
+            "subject": {"kind": "element", "id": "plan"},
+            "title": "Check the plan",
+        },
+    )
+    told(page)
+    expect(done).to_be_visible()
+    expect(comment).to_be_hidden()
+    send("With the row displaced")
+    expect(more).to_be_focused()
+    assert [
+        event["text"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ] == ["With the row as it was", "With the row displaced"]
+
+
 def test_share_copies_access_after_a_bare_reload(browser, serve):
     """The copied address opens the viewed version and passage in a fresh browser."""
-    url = serve(FEATURE_GALLERY)
-    page = open_page(browser, url + "&view=reading#bg-share-guide")
+    url = serve(LONG_PAGE)
+    page = open_page(browser, url + "&view=reading#p30")
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     expect(page).not_to_have_url(re.compile(r"[?&]t="))
     page.reload()
@@ -4114,7 +4176,7 @@ def test_share_copies_access_after_a_bare_reload(browser, serve):
         "view": ["reading"],
     }
     assert urlsplit(copied).path == urlsplit(url).path
-    assert urlsplit(copied).fragment == "bg-share-guide"
+    assert urlsplit(copied).fragment == "p30"
     expect(copy).to_be_focused()
     page.keyboard.press("Escape")
     expect(
@@ -4122,15 +4184,26 @@ def test_share_copies_access_after_a_bare_reload(browser, serve):
     ).to_be_focused()
     with browser.new_context() as context:
         recipient = open_page(browser, copied, context=context)
-        expect(recipient.locator("#bg-share-guide")).to_be_visible()
+        expect(recipient.locator("#p30")).to_be_in_viewport()
         expect(recipient).not_to_have_url(re.compile(r"[?&]t="))
     resized(page, 390, 844)
     page.get_by_role("button", name=re.compile(r"^More page controls")).click()
     page.evaluate("navigator.clipboard.writeText('before sharing')")
     share.click()
+    # The copy button ignores a press during its second of success feedback, which a
+    # quick journey reaches before the first copy's feedback ends.
+    expect(page.locator(".lf-share .lf-banner-copy")).to_have_js_property(
+        "isCopying", False
+    )
     copy.click()
+    # The first copy's notice can still stand, so the clipboard says when this one
+    # has landed.
+    wait_for(
+        lambda: page.evaluate("navigator.clipboard.readText()"),
+        lambda text: text == copied,
+        failure="the second copy never reached the clipboard",
+    )
     expect(page.locator(".lf-notice")).to_have_text("Link copied")
-    assert page.evaluate("navigator.clipboard.readText()") == copied
     # Plain HTTP outside loopback has no clipboard API; the link remains usable.
     page.add_init_script(
         "Object.defineProperty(navigator, 'clipboard', {value: undefined})"
@@ -9665,6 +9738,9 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 expected = {expected} if isinstance(expected, str) else set(expected)
                 if selector:
                     target = page.locator(selector).first
+                    if name == "command-hub" and scope == "the page":
+                        page.locator("#ledger-fixture pre").scroll_into_view_if_needed()
+                        rendered(page)
                     # A sample can stand inside a container that is closed on arrival —
                     # the corpus holds each example in a tab, and only one panel is open.
                     # Nothing inside a hidden panel is focusable, so the ring would read
@@ -9687,8 +9763,17 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                     )
                     rendered(page)
                     open_containing_thread(target)
-                    page.keyboard.press("Tab")
-                    target.focus()
+                    if name == "command-hub" and scope == "the page":
+                        # A code block lends the keyboard an Enter route to its
+                        # copy control. Tab from elsewhere can scroll the source
+                        # away and withdraw that conditional control.
+                        source = page.locator("#ledger-fixture pre")
+                        source.scroll_into_view_if_needed()
+                        source.focus()
+                        source.press("Enter")
+                    else:
+                        page.keyboard.press("Tab")
+                        target.focus()
                     # A note on the details shelf is reached from the element that
                     # names it (details-shelf.js), never by Tab, and is focused here as
                     # a screen reader moving to it would focus it.

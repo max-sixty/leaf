@@ -86,6 +86,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
       var(--lf-comment-frame-bottom);
     pointer-events: none;
   }
+  /* Floating, the bar shows once its placement stands it, and not while it waits for room
+     (floating-response.js). Inline, its outlet shows it. */
+  .lf-fab-bar:not([data-lf-presentation="inline"]):is(:not([data-lf-placement]), [data-lf-withheld]) {
+    visibility: hidden; }
   .lf-fab-bar > * { pointer-events: auto; }
   .lf-fab-bar { position: fixed; width: max-content;
     align-items: flex-end; gap: 4px; white-space: nowrap;

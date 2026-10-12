@@ -322,6 +322,8 @@ export function mountSample(
       } else if (data.type === "ready") {
         record("presented");
         readyResolve(data.detail);
+        // A loop told before the child's runtime listened never reached it.
+        looped = null;
         visibility();
       } else if (data.type === "error") {
         failure(

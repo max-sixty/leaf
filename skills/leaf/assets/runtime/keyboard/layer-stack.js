@@ -339,18 +339,24 @@ export function enterLoop(backward) {
   const stops = loop ? tabStops(loop.region) : [];
   if (stops.length) enter(backward ? stops.at(-1) : stops[0], backward);
 }
-// Whether `frame` stands in the loop around the user here.
+// Whether `frame` is a stop of the loop around the user here.
 export function inLoop(frame) {
   const loop = currentLoop();
-  return Boolean(loop) && renderedUnder(frame, loop.region);
+  return (
+    Boolean(loop) &&
+    renderedUnder(frame, loop.region) &&
+    tabStops(loop.region).includes(frame)
+  );
 }
-// The user Tabbed past an end of `frame`'s document: they move on past the frame.
+// The user Tabbed past an end of `frame`'s document: they move on past the frame. A
+// frame that left the loop's stops since its document heard otherwise has no neighbour,
+// so the user goes to the loop's near end rather than nowhere.
 export function movePast(frame, backward) {
   const loop = currentLoop();
   if (!loop) return;
   const stops = tabStops(loop.region);
   const at = stops.indexOf(frame);
-  if (at >= 0) step(loop, stops, at, backward);
+  step(loop, stops, at >= 0 ? at : backward ? stops.length : -1, backward);
 }
 
 // Where Tab would leave the loop around the user, the loop moves them instead: round to

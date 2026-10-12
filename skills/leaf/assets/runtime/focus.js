@@ -78,11 +78,20 @@ function* renderedElements(node) {
   }
 }
 const SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
+// A radio group with a checked member is one stop, at that member.
+function passedRadio(node) {
+  if (node.type !== "radio" || !node.name || node.checked) return false;
+  const scope = node.form ?? node.getRootNode();
+  return [...scope.querySelectorAll("input[type=radio]:checked")].some(
+    (radio) => radio.name === node.name && radio.form === node.form,
+  );
+}
 // The stops Tab walks inside `root` right now, in the order it walks them: the candidates
 // above, and the embedded documents and players Tab also enters, that are in the order,
 // enabled, and drawn, through open shadow trees as rendered. A host that delegates its
 // focus is no stop of its own, since Tab enters its tree, and a box `visibility: hidden`
-// keeps its place but no stop. The modal Tab loop reads this (layer-stack.js).
+// keeps its place but no stop. Positive `tabindex` ordering is not modelled. The modal
+// Tab loop reads this (layer-stack.js).
 export const tabStops = (root) =>
   [...renderedElements(root)].filter(
     (node) =>
@@ -91,6 +100,7 @@ export const tabStops = (root) =>
       !node.shadowRoot?.delegatesFocus &&
       !node.matches(":disabled") &&
       !node.inert &&
+      !passedRadio(node) &&
       node.checkVisibility({ visibilityProperty: true }),
   );
 

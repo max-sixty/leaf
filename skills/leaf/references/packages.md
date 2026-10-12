@@ -133,6 +133,8 @@ unlayered stylesheet outrank these defaults. Within a tier, specificity, native 
 proximity, then source order decide. `!important` reverses layer priority, and inline
 styles outrank ordinary stylesheet declarations; neither is a customization API.
 Runtime chrome and annotation marks remain unlayered and own their apparatus paint.
+The generic indication contour is a default in `lf-base`, so a widget can style its
+indicated parts in its own sheets.
 `page-authoring.md`, "Theme and vocabulary", describes how page selectors opt into
 Leaf controls; broad content selectors leave that apparatus alone. Inherited theme
 inputs are the supported way to change its shared colors and type.

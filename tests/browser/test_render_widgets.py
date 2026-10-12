@@ -11261,6 +11261,9 @@ print(bracket(3))
     expect(indicated).to_have_count(2)
     assert marked() == [3, 4]
     expect(page.locator("#walk .lf-code-line.hi")).to_have_count(1)
+    assert indicated.evaluate_all(
+        "ls => ls.map(l => getComputedStyle(l).outlineStyle)"
+    ) == ["none", "none"], "code indicates its lines through the gutter and tint"
 
     append_carried_log_record(
         serve.page_dir,
@@ -11405,6 +11408,7 @@ only
     assert marked.evaluate_all(rows_of) == ["1507", "1508-1549", "1550"]
     assert page.evaluate("document.querySelector('#film').point('1520')") is True
     assert marked.evaluate_all(rows_of) == ["1508-1549"]
+    assert marked.evaluate("l => getComputedStyle(l).outlineStyle") == "none"
     assert page.evaluate("document.querySelector('#film').point('3')") is False
     expect(marked).to_have_count(0)
 

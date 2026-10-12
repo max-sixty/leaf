@@ -184,8 +184,8 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
 # outrank a package's default box and a Layout's arrangement. The page's own sheet
 # stays unlayered above these tiers, and inline widget motion outranks them too.
 # The page's rules reach Leaf's own controls only where they name them
-# (runtime/page-sheets.js). The chrome and marks sheets stay unlayered,
-# since their paint must beat page and widget alike (chrome.css).
+# (runtime/page-sheets.js). Chrome and apparatus marks stay unlayered to beat page
+# and widget alike; runtime/stylesheets.js owns their precedence and defaults.
 CASCADE_LAYERS = ("lf-reset", "lf-base", "lf-layouts", "lf-shadow", "lf-state")
 
 

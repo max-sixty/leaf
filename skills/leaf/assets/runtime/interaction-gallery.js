@@ -76,8 +76,11 @@ class Demo {
 
   async configure() {
     this.markLoading();
+    const ready = this.sample.ready;
     try {
-      await this.sample.ready;
+      await ready;
+      // A newer document's `loading` notice configures that document itself.
+      if (ready !== this.sample.ready) return;
       await this.sample.call("gallery.configure", {
         name: this.figure.dataset.interactionDemo,
         target: this.figure.dataset.interactionTarget,

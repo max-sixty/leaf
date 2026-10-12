@@ -226,7 +226,7 @@ export function mountSample(
       // and destroy retire allocations themselves.
       if (error.name !== "AbortError" && error.name !== "SampleDepartedError") {
         recordFailure(error);
-        await retire("failure");
+        await retire("failure", error);
       }
       throw error;
     }
@@ -385,7 +385,9 @@ export function mountSample(
   });
   lifetime.observe(document, { childList: true, subtree: true });
 
-  function retire(reason) {
+  // What a pending call rejects with: the failure that retires the allocation, or
+  // else the owner's cancellation.
+  function retire(reason, cause = new DOMException("sample replaced", "AbortError")) {
     if (!current) return;
     const retiringDocument = connectedNonce;
     const previous = current;
@@ -393,11 +395,10 @@ export function mountSample(
     current = null;
     samplePage = null;
     hasConnected = false;
-    const cancelled = new DOMException("sample replaced", "AbortError");
-    disconnect(cancelled);
+    disconnect(cause);
     for (const port of candidates) port.close();
     candidates.clear();
-    readyReject?.(cancelled);
+    readyReject?.(cause);
     const parent = frame.parentNode;
     const next = frame.nextSibling;
     frame.remove();

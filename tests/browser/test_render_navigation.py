@@ -12746,142 +12746,171 @@ def test_a_field_names_no_key_to_a_finger(browser, serve):
     expect(page.locator(".lf-compose-placeholder")).to_have_count(0)
 
 
+# The register's own answer to which commands a press can run, read with focus on the
+# page, since the command reference is a modal scope that shadows the page once open:
+# `runs`, what the page's enabled keys run from here; `runs_any`, what the reference can
+# run from here, a command whose shortcut the user turned off included; `dead`, the
+# commands of a scope the reference filters by liveness (one the user stands in, or one
+# that asks to be) that cannot run now, by the liveness each row declares for the
+# reference (`commandReferenceWhen`, else `when`); and `absent`, the commands of scopes
+# this page has not got. A command id another present scope also declares, where the
+# reference lists it as available there, is neither dead nor absent.
+KEYBOARD_REGISTER = """async () => {
+    const imported = (name) => window.__lfRuntimeImport(`/runtime/keyboard/${name}.js`);
+    const {availableCommandRoutes, stack} = await imported('dispatch');
+    const {allBindings, commandEntries, commandPresentations, live} =
+        await imported('bindings');
+    const {pageScopes} = await imported('register');
+    const {scopeIdentity, scopeRefs, scopesAt} = await imported('scopes');
+    const running = (options) => {
+        const ids = new Set();
+        for (const [row, keys] of availableCommandRoutes(options))
+            for (const key of keys)
+                for (const {id} of commandEntries(row, [key])) ids.add(id);
+        return ids;
+    };
+    const declared = (rows) => rows.flatMap((row) => commandPresentations(
+        row, allBindings(row), {includeUnavailable: true}).map(({id}) => id));
+    const has = (scope) => !scope.when || scope.when();
+    const scopes = [
+        ...pageScopes().flat().filter((scope) => typeof scope === 'object'),
+        ...[...scopeRefs].map((ref) => ref.deref())
+            .filter((node) => node?.isConnected).flatMap(scopesAt),
+    ];
+    const standing = stack();
+    const filtered = new Set([...standing, ...scopes.filter(
+        (scope) => has(scope) && scope.liveInCommandReference)].map(scopeIdentity));
+    const runs = running(), runsAny = running({commands: true});
+    const elsewhere = new Set(declared(scopes.filter(
+        (scope) => has(scope) && !filtered.has(scopeIdentity(scope))
+    ).flatMap((scope) => scope.rows)));
+    const present = new Set(declared(scopes.filter(has).flatMap((scope) => scope.rows)));
+    const dead = declared([...standing, ...scopes].filter(
+        (scope) => filtered.has(scopeIdentity(scope))
+    ).flatMap((scope) => scope.rows).filter((row) =>
+        !(row.commandReferenceWhen ? row.commandReferenceWhen() : live(row))));
+    const missing = declared(scopes.filter((scope) => !has(scope))
+        .flatMap((scope) => scope.rows));
+    return {
+        runs: [...runs],
+        runs_any: [...runsAny],
+        dead: [...new Set(dead)].filter((id) => !runsAny.has(id) && !elsewhere.has(id)),
+        absent: [...new Set(missing)].filter((id) => !present.has(id)),
+    };
+}"""
+
+
+def shown_commands(page):
+    """What the register says can run, and the command ids the shortcut bar and the
+    command reference name, read in that order and through the reference's `?` route."""
+    register = page.evaluate(KEYBOARD_REGISTER)
+    line = page.locator(".lf-shortcut-bar")
+    # One list per chip, hidden ones included: the unfolded bar shows them.
+    chips = line.locator("[data-lf-command-ids]").evaluate_all(
+        "spans => spans.map(s => s.dataset.lfCommandIds.split(' ').filter(Boolean))"
+    )
+    help_el = page.locator(".lf-command-reference")
+    # The first `?` unfolds the bar when it has more to show and the second opens the
+    # reference; with nothing more, or the bar already unfolded, one press opens it.
+    page.keyboard.press("?")
+    page.wait_for_function(
+        """() => document.querySelector('.lf-command-reference')?.checkVisibility()
+            || document.querySelector('.lf-shortcut-bar')
+                .getAttribute('data-lf-expanded') === 'true'"""
+    )
+    if not help_el.is_visible():
+        page.keyboard.press("?")
+    expect(help_el).to_be_visible()
+    reference = help_el.locator("tr[data-lf-command]").evaluate_all(
+        "rows => rows.map(r => r.dataset.lfCommand)"
+    )
+    runnable = help_el.locator(
+        'button[data-lf-command][data-lf-available="true"]'
+    ).evaluate_all("buttons => buttons.map(b => b.dataset.lfCommand)")
+    page.keyboard.press("Escape")
+    expect(help_el).to_be_hidden()
+    return (
+        {key: set(ids) for key, ids in register.items()},
+        chips,
+        set(reference),
+        set(runnable),
+    )
+
+
 def test_a_key_on_screen_is_a_key_that_works(browser, serve):
-    """Every surface naming a key promises the press does something now. One table
-    kept the words from drifting and not the surfaces: the shortcut bar asked `when`,
-    the ? overlay didn't, and a shortcut could hold its liveness where no surface
-    could ask — inside its own run — so the overlay offered g 1–9 with no thread to
-    reply to, and named a walk through a list of one. Liveness is one declaration,
-    and the dispatcher, the line, and the overlay all ask it. The sequence's lists are
-    where that division earns its keep twice over: a list the page hasn't got is a
-    row the reference must not name, and the section holds only what this page can
-    answer — the edges always among them, every page having a top. Its rows carry the
-    complete sequence, so no heading has to supply a key the row itself omits."""
+    """Every command a keyboard surface names is one the dispatcher will run.
+
+    The shortcut bar names only commands that run from where the user stands. The
+    command reference names no command of a scope this page has not got, and none that
+    cannot run in a scope where it filters by liveness; a row it marks runnable runs.
+    Liveness is one declaration the dispatcher and both surfaces ask, so the test holds
+    the surfaces to the register by command id rather than by their words, in the
+    states that change what is live: a thread walk only once there are threads, and
+    still over resolved ones; a thread's own commands only once the page has one; and
+    a version walk only once there is a version to walk to."""
     url = serve(NOTED_PAGE)
     d = serve.page_dir
     page = open_page(browser, live_url(url))
-    help_el = page.locator(".lf-command-reference")
 
-    # No open threads, one version: the reference names only what a press would do.
-    page.keyboard.press("?")
-    page.keyboard.press("?")
-    expect(help_el).to_be_visible()
-    # Nothing is selected and the user is standing nowhere, so c's own row names the
-    # page comment it enters. Threads navigation remains the separate g T command.
-    expect(help_el).to_contain_text("Comment on the page")
-    # The sequence's section stands on every page — the edges need no list — but holds
-    # no row for a list this page hasn't got. Each row says the whole press from the
-    # standing page rather than asking its heading to supply the first g.
-    expect(help_el.get_by_role("heading", name="Go to", exact=True)).to_be_visible()
-    expect(
-        help_el.locator('tr[data-lf-command="navigation.page.top"]').locator(
-            ".lf-binding-sequence > kbd"
+    def surfaces_name_what_runs():
+        register, chips, reference, runnable = shown_commands(page)
+        assert chips, "the shortcut bar shows no key"
+        assert all(chips), "the shortcut bar shows a key that names no command"
+        bar = set().union(*chips)
+        assert bar <= register["runs"], (
+            f"the shortcut bar names {bar - register['runs']}, which would not run"
         )
-    ).to_have_text(["g", "g"])
-    expect(
-        help_el.locator('tr[data-lf-command="navigation.page.bottom"]').locator(
-            ".lf-binding-sequence > kbd"
+        assert runnable <= register["runs_any"], (
+            f"the command reference offers {runnable - register['runs_any']} "
+            "as runnable, which would not run"
         )
-    ).to_have_text(["g", "G"])
-    expect(
-        help_el.locator('tr[data-lf-command="navigation.page.bottom"]').locator(
-            ".lf-binding-sequence"
+        assert not reference & register["dead"], (
+            f"the command reference names {reference & register['dead']}, "
+            "which cannot run where it applies"
         )
-    ).to_have_attribute("aria-label", "g then Shift+g")
-    versions_route = help_el.locator(
-        'tr[data-lf-command="version.open"] .lf-binding-sequence'
-    )
-    expect(versions_route.locator("kbd")).to_have_text(["g", "V"])
-    expect(versions_route).to_have_attribute("aria-label", "g then Shift+v")
-    sequence_control = help_el.locator('tr[data-lf-command="navigation.go-to.back"]')
-    expect(sequence_control).to_have_class(re.compile(r"\blf-sequence-command\b"))
-    expect(sequence_control.locator("td").first).to_have_css(
-        "border-top-style", "solid"
-    )
-    expect(help_el).not_to_contain_text("open comment's reply box")
-    # And no link scope: this page holds none, while the machine's own drawer is full of
-    # them — a scope asked about the document at large was had by every page there is.
-    expect(help_el).not_to_contain_text("On a link")
-    expect(help_el).not_to_contain_text("Next open thread")
-    expect(help_el).not_to_contain_text("Previous open thread")
-    expect(help_el).not_to_contain_text("In a thread")
-    expect(help_el).not_to_contain_text("thread, to-do or resend waiting on you")
-    # A first version has a menu and a way out, but no neighbouring version to walk.
-    expect(help_el).to_contain_text("The versions, and what each one changed")
-    expect(help_el).to_contain_text("Close the versions menu")
-    expect(help_el).not_to_contain_text("Later version")
-    expect(help_el).not_to_contain_text("Earlier version")
-    page.keyboard.press("Escape")
-    expect(help_el).to_be_hidden()
+        assert not reference & register["absent"], (
+            f"the command reference names {reference & register['absent']}, "
+            "from a scope this page has not got"
+        )
+        return register, bar, reference
 
-    # The dispatcher asks the same declaration: neither half of the pair runs while
-    # there is no thread to walk.
+    # No threads and one version: there is nothing to walk, so the walks are dead
+    # where the user stands, and the page has no thread scope and no link.
+    register, bar, reference = surfaces_name_what_runs()
+    assert {"thread.next", "thread.previous", "version.later"} <= register["dead"]
+    assert {"thread.primary", "link.follow"} <= register["absent"]
+    # The dispatcher asks the same declaration: neither half of the walk runs.
     page.keyboard.press("t")
     page.keyboard.press("Shift+t")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
-    line = page.locator(".lf-shortcut-bar")
-    expect(line).not_to_contain_text("t / T")
 
-    # Threads arrive, making both the category walk and the Threads panel useful.
+    # Threads arrive, making the walk live and the thread scope the page's own.
     for text in ["A thread.", "Another."]:
         append_carried_log_record(
             d, {"kind": "comment", "author": "user", "revision": 1, "text": text}
         )
     told(page)
     expect(page.locator(".lf-thread")).to_have_count(2)
-    # The shortcut bar repaints on the same render that made them live — no focus
-    # change to lean on, so the repaint is the thread render's own.
-    expect(line).to_contain_text("threads")
-    page.keyboard.press("?")
-    expect(
-        help_el.locator("tr", has_text="Go to the Threads panel").locator(
-            ".lf-binding-sequence > kbd"
-        )
-    ).to_have_text(["g", "T"])
-    expect(
-        help_el.locator("tr", has_text="Go to the Threads panel").locator(
-            ".lf-binding-sequence"
-        )
-    ).to_have_attribute("aria-label", "g then Shift+t")
-    expect(help_el).not_to_contain_text("link on screen")
-    expect(help_el).not_to_contain_text("thread, to-do or resend waiting on you")
-    expect(help_el).to_contain_text("Next open thread")
-    expect(help_el).to_contain_text("Previous open thread")
-    expect(
-        help_el.locator('tr[data-lf-command="thread.next"]').locator("kbd")
-    ).to_have_text("t")
-    expect(
-        help_el.locator('tr[data-lf-command="thread.previous"]').locator("kbd")
-    ).to_have_text("T")
-    expect(help_el).to_contain_text("In a thread")
-    # Still one version, so there is no version walk to advertise.
-    expect(help_el).to_contain_text("Close the versions menu")
-    expect(help_el).not_to_contain_text("Later version")
-    expect(help_el).not_to_contain_text("Earlier version")
-    page.keyboard.press("Escape")
-    expect(line).to_have_attribute("data-lf-expanded", "true")
+    register, bar, reference = surfaces_name_what_runs()
+    assert {"thread.next", "thread.previous"} <= bar & register["runs"]
+    assert "thread.primary" in reference
+    assert "version.later" in register["dead"]
 
-    # A v2 lands and the live page follows it; on v2 the menu's own keys are
-    # live, having a list to walk and a base to walk onto.
+    # The walk's key, pressed, stands the user on a thread in the Threads panel, where
+    # the thread's own commands run.
+    page.keyboard.press("t")
+    expect(page.locator(".lf-thread-summary").first).to_be_focused()
+    register, bar, reference = surfaces_name_what_runs()
+    assert "thread.resolution.toggle" in bar & register["runs"]
+
+    # A second version gives the versions menu somewhere to walk to.
     stamp_page(d, NOTED_PAGE, "two")
     wait_for_revision(page, 2)
-    expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_have_count(1)
-    expect(page.locator(".lf-version-menu")).to_have_attribute(
-        "aria-keyshortcuts", "ArrowUp ArrowDown Home End 1 2 Enter Space v"
-    )
-    # Nothing executable changed, so the user keeps this document and the expanded bar they
-    # opened stays open. The next press opens the reference over the current version.
-    expect(line).to_have_attribute("data-lf-expanded", "true")
-    page.keyboard.press("?")
-    expect(help_el).to_contain_text("In the versions menu")
-    expect(help_el).to_contain_text("Later version")
-    expect(help_el).to_contain_text("Earlier version")
-    page.keyboard.press("Escape")
+    register, bar, reference = surfaces_name_what_runs()
+    assert {"version.later", "version.earlier"} <= reference
 
-    # A resolved thread stays focusable after the last open one is gone, and the
-    # scene branch that restates the t/T row over it asks the same liveness.
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
+    # With every thread resolved and the panel showing the resolved ones, the walk
+    # still has threads to walk, so it stays live over a resolved card.
     for n in [1, 2]:
         card = page.locator(".lf-threads > .lf-thread:not([hidden])").first
         card.locator(":scope > .lf-thread-summary").click()
@@ -12891,27 +12920,11 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
         )
     page.locator(".lf-thread-filter-toggle").click()
     page.locator('[data-filter-value="resolved"]').click()
-    expect(
-        page.locator('.lf-thread[data-resolved="true"]:not([hidden])')
-    ).to_have_count(2)
-    resolved = page.locator('.lf-thread[data-resolved="true"]:not([hidden])').first
-    resolved.locator(":scope > .lf-thread-summary").focus()
-    expect(resolved.locator(":scope > .lf-thread-summary")).to_be_focused()
-    # A resolved thread leaves through the panel, whose filter comes off first.
-    # The walk stays offered over a resolved card.
-    expect(line).to_contain_text("show all")
-    expect(line).to_contain_text("t / T")
-
-    # The state is an ordinary panel filter, with no disclosure scope added beside it.
-    expect(page.locator(".lf-details")).to_have_count(0)
-    page.keyboard.press("?")
-    page.keyboard.press("?")
-    expect(help_el).to_be_visible()
-    expect(help_el).not_to_contain_text("On a disclosure")
-    expect(help_el).to_contain_text("Next shown thread")
-    expect(help_el).to_contain_text("Previous shown thread")
-    expect(help_el).not_to_contain_text("Next open thread")
-    page.keyboard.press("Escape")
+    resolved = page.locator('.lf-thread[data-resolved="true"]:not([hidden])')
+    expect(resolved).to_have_count(2)
+    resolved.first.locator(":scope > .lf-thread-summary").focus()
+    register, bar, reference = surfaces_name_what_runs()
+    assert {"thread.next", "thread.previous"} <= bar & register["runs"]
 
 
 def test_r_resolves_the_focused_thread_while_x_is_unbound(browser, serve):

@@ -5379,22 +5379,122 @@ def test_a_hidden_scroller_is_reached_once_it_is_shown(browser, serve, shape):
     assert reached == {"scrolls": True, "tab": 0, "sideways": True}, reached
 
 
-def test_the_render_gate_reports_content_set_past_the_column(browser, serve):
-    """The reading neither of the gate's older ones can give. The window is the
-    wider of the two boxes — 1200px against a 720px column — so content can stand
-    out in the margin with the document still not scrolling sideways, and the
-    static lint reads pinned pixels, which a vw width is not. The failure names
-    the element and how far out it is, because "something overflows" sends its
-    reader back to the browser to find out what."""
-    failures = render_gate_model.render_version(browser, serve(SPILLING_PAGE)).failures
+def _added(page: str) -> str:
+    """What a LONG_PAGE variant adds at the end of its main."""
+    head, tail = LONG_PAGE.split("</main>")
+    return page.removeprefix(head).removesuffix("</main>" + tail)
 
-    assert [
-        f
-        for f in failures
-        if "<div id=too-wide> is set" in f and "px past the column" in f
-    ]
-    assert not [f for f in failures if "scrolls sideways" in f], (
-        "the window absorbed it, which is what leaves this reading the only one that sees it"
+
+def test_the_render_gate_tells_what_a_column_loses_from_what_stands_beside_it(
+    browser, serve
+):
+    """The column's readings, put on one page beside their controls.
+
+    Content set past the column: the window is the wider of the two boxes, 1200px
+    against a 720px column, so content can stand out in the margin with the document
+    still not scrolling sideways, and the static lint reads pinned pixels, which a vw
+    width is not. The failure names the element and how far out it is.
+
+    Floats: what tells a margin resident from a spill is where its box sits, clear of
+    the column on the side it floats to or across the edge it started inside.
+    Exempting floats outright would retire the check for every element that happens to
+    carry one. Both readings run up the ancestors, because a resident answers for what
+    it holds, and the side is resolved rather than string-matched, so `inline-start`
+    is the same left edge. A float carried off the window's leading edge is drawn
+    outside the root scrollport, which never scrolls before that edge, so only the
+    clipping reading sees it. Fixed placement answers for a box wholly outside the
+    column, not one crossing it; only the desktop leaves an outer gutter wider than
+    the 174px the fixed resident takes.
+
+    Words no mark can be shown on: an element with `display: contents` generates no
+    box, and the runtime hangs a mark on the boxes it shows through instead. `#veiled`
+    has one; `#ghost` has none, which reached a user as `d` appearing to do nothing.
+    TINY_BOXES cannot take this reading, since checkVisibility() is false for an
+    element with no box.
+
+    A scrolled box, which the runtime scrolls to bring an anchor into view, is read
+    from its content rather than from rects that say where it is scrolled to; the
+    stand-in `primed` holds the scroll each frame for the whole of the gate's read.
+    A right-margin resident would shift the column and carry the left-margin floats
+    off the window, so the clipped sidenote has a page of its own."""
+    fixed = """
+<style>
+#fixed-margin { position: fixed; top: 80px; left: 24px; width: 150px; }
+#fixed-half { position: fixed; top: 500px; left: 180px; width: 180px; }
+@media (max-width: 1199px) {
+  #fixed-margin, #fixed-half { display: none; }
+}
+</style>
+<div id="fixed-margin">A stable route in the margin.</div>
+<div id="fixed-half">A route crossing into the argument.</div>
+"""
+    source = LONG_PAGE.replace(
+        "</main>",
+        "".join(
+            _added(page)
+            for page in (
+                SPILLING_PAGE,
+                FLOATING_PAGE,
+                UNMARKABLE_PAGE,
+                SCROLLED_CONTAINER.replace("width: 900px", "width: 100%"),
+            )
+        )
+        + fixed
+        + "</main>",
+    )
+
+    def scroll_it(page):
+        page.add_init_script(
+            "addEventListener('DOMContentLoaded', () => {"
+            "  const hold = () => {"
+            "    const box = document.getElementById('rolled');"
+            "    const content = document.getElementById('riding');"
+            "    if (content) content.style.width = '900px';"
+            "    if (box) box.scrollLeft = 400;"
+            "    requestAnimationFrame(hold);"
+            "  };"
+            "  hold();"
+            "});"
+        )
+
+    url = serve(source)
+    failures = render_gate_model.render_version(
+        primed(browser, scroll_it), url
+    ).failures
+
+    def reported(*parts):
+        return [f for f in failures if all(part in f for part in parts)]
+
+    assert reported("<div id=too-wide> is set", "px past the column"), failures
+    assert not reported("scrolls sideways"), (
+        "the window absorbed it, which is what leaves the column reading the only one "
+        f"that sees it: {failures}"
+    )
+    assert reported("<div id=half-out> is set", "past the column"), failures
+    assert not [f for f in failures if "in-the-margin" in f or "logical" in f], (
+        "a float whose own margin carried it clear of the column is where it meant to be"
+    )
+    assert not reported("inner-word"), (
+        "a resident's own words were named for standing where their parent put them"
+    )
+    assert reported("<div id=off-window> is drawn", "outside <root scrollport>"), (
+        f"a float carried off the edge of the window went out with the handover: {failures}"
+    )
+    assert not reported("fixed-margin"), (
+        f"the fixed margin resident was reported for standing where it was put: {failures}"
+    )
+    assert reported("<div id=fixed-half> is set", "past the column"), (
+        f"a fixed box crossing the column escaped the gate: {failures}"
+    )
+    assert reported("<div id='ghost'>", "no box to mark"), (
+        f"the gate said nothing about words no mark can be shown on: {failures}"
+    )
+    assert not [f for f in failures if "veiled" in f or "seen" in f], (
+        "a wrapper whose words are in a box of their own is what every suggestion is, "
+        f"and the gate reported it: {failures}"
+    )
+    assert not [f for f in failures if "riding" in f or "rolled" in f], (
+        f"a scrolled box was read as having lost what it was scrolled past: {failures}"
     )
 
 
@@ -5442,74 +5542,6 @@ def test_misplaced_boxes_checks_page_overflow_but_not_an_authored_scroller(
     assert overflow > 1, "the true page spill did not reach the root scrollport"
 
 
-def test_the_render_gate_reports_words_no_mark_can_be_shown_on(browser, serve):
-    """An element the user can see and no mark can be drawn on, which the gate reads
-    without pressing a key.
-
-    The marks are the Ask walk's ring and an element-anchored comment's outline, and both
-    need a box. An element with `display: contents` generates none, so its own rect is the
-    empty one every rect starts as — zero-sized at the document's origin — and the runtime
-    hangs the mark on the boxes the element shows through instead. `#veiled` has one and
-    is fine. `#ghost` has none, and there the paint has nowhere to land: this is the fault
-    that reached a user as `d` appearing to do nothing at all, on a page whose remaining
-    decisions were all suggestions, while the gate rendered it green.
-
-    TINY_BOXES stands next to this reading and cannot take it: `checkVisibility()` is false
-    for an element with no box, so it filters out exactly the elements at issue."""
-    failures = render_gate_model.render_version(
-        browser, serve(UNMARKABLE_PAGE)
-    ).failures
-
-    assert [f for f in failures if "<div id='ghost'>" in f and "no box to mark" in f], (
-        f"the gate said nothing about words no mark can be shown on: {failures}"
-    )
-    assert not [f for f in failures if "veiled" in f or "seen" in f], (
-        "a wrapper whose words are in a box of their own is what every suggestion is, "
-        f"and the gate reported it: {failures}"
-    )
-
-
-def test_the_render_gate_tells_a_float_in_the_margin_from_one_spilling_out_of_it(
-    browser, serve
-):
-    """What tells a margin resident from a spill is where its box sits: clear of the
-    column on the side it floats to, or across the edge it started inside. Both halves
-    are load-bearing, and the second is the one a shortcut drops — exempting floats
-    outright would retire this check for every element that happens to carry one, and
-    the gate reads `position` alone no longer, a sidenote being a float.
-
-    Both readings run up the ancestors, because a resident answers for what it holds. A
-    sidenote is prose and carries the code, links and emphasis prose carries; asking
-    only the element itself named every one of them as spilling out of a column it was
-    never in, which is a handover refused over the words the idiom exists to hold.
-
-    And the side is resolved rather than string-matched: `float` computes to whichever
-    of its four values was written, so `inline-start` — the same left edge — read as
-    neither 'left' nor 'right' and failed the page for it."""
-    failures = render_gate_model.render_version(browser, serve(FLOATING_PAGE)).failures
-
-    assert [
-        f
-        for f in failures
-        if "<div id=half-out> is set" in f and "past the column" in f
-    ]
-    assert not [f for f in failures if "in-the-margin" in f or "logical" in f], (
-        "a float whose own margin carried it clear of the column is where it meant to be"
-    )
-    assert not [f for f in failures if "inner-word" in f], (
-        "a resident's own words were named for standing where their parent put them"
-    )
-    # Clear of the column and clear of the window with it. The root scrollport never
-    # scrolls before its leading edge, so the sideways reading is blind to this one and
-    # the margin exemption would carry it straight through. The probe follows Leaf's
-    # canonical page scroller and names that role instead of its current platform tag.
-    assert [
-        f
-        for f in failures
-        if "<div id=off-window> is drawn" in f and "outside <root scrollport>" in f
-    ], "a float carried off the edge of the window went out with the handover"
-
-
 def test_the_render_gate_measures_sideways_room_at_the_root_scrollport(browser, serve):
     """A narrow authored body is not the page's viewport. Its child can be wider than
     that body while still fitting on screen, so measuring body would invent sideways
@@ -5537,45 +5569,6 @@ body { width: 40vw; }
     failures = render_gate_model.render_version(browser, url).failures
 
     assert not [f for f in failures if "page scrolls sideways" in f], failures
-
-
-def test_the_render_gate_tells_a_fixed_margin_resident_from_a_fixed_spill(
-    browser, serve
-):
-    """Fixed placement answers for a box wholly outside the column, not one crossing it.
-
-    The first shape is the roomy sidebar posture: it starts in the outer gutter and never
-    moves beneath the pointer. The second differs only in its horizontal position and
-    straddles the readable column, so exempting fixed boxes outright would make the gate
-    blind to the same spill it catches in flow and in floats. Only the desktop viewport
-    leaves an outer gutter wider than the 174px the margin resident takes."""
-    source = leaf_page(
-        "fixed margin residents",
-        """
-<style>
-#fixed-margin { position: fixed; top: 80px; left: 24px; width: 150px; }
-#fixed-half { position: fixed; top: 500px; left: 180px; width: 180px; }
-@media (max-width: 1199px) {
-  #fixed-margin, #fixed-half { display: none; }
-}
-</style>
-<h1>Migration plan</h1>
-<div id="fixed-margin">A stable route in the margin.</div>
-<div id="fixed-half">A route crossing into the argument.</div>
-<p>Move one cohort at a time while keeping the old readers available.</p>
-""",
-    )
-
-    failures = render_gate_model.render_version(browser, serve(source)).failures
-
-    assert not [f for f in failures if "fixed-margin" in f], (
-        f"the fixed margin resident was reported for standing where it was put: {failures}"
-    )
-    assert [
-        f
-        for f in failures
-        if "<div id=fixed-half> is set" in f and "past the column" in f
-    ], f"a fixed box crossing the column escaped the gate: {failures}"
 
 
 def test_a_change_level_with_a_note_is_decided_on_the_change(browser, serve):
@@ -5637,50 +5630,6 @@ def test_the_covered_words_gate_still_reads_a_control_in_the_flow(browser, serve
     assert [f for f in covered if "id=under" in f and "id=over" in f], (
         f"a control the page put in the flow covered a paragraph unreported: {covered}"
     )
-
-
-def test_the_render_gate_reports_a_sidenote_a_box_clips_away(browser, serve):
-    """A choose group clips its own box, so a note pulled into the page's margin from
-    inside one is painted nowhere. Every other reading calls that well — the column
-    check excuses a margin resident, checkVisibility() is true of a clipped box so
-    screen and print agree, and the copy, which withholds the clip, shows the words the
-    live page dropped — so the user is the only party who loses them, and a reviewer
-    proofing the export sees a note that never reached anybody.
-
-    The question is put to every box rather than to floats alone, since the excuse the
-    note is claiming — my container took my overflow, so it answers for me — is granted
-    to whatever stands inside one. And the boxes that clip are the minority: a section,
-    a tab panel and a disclosure all pass a note through to the margin. So the gate
-    names the one that doesn't, at handover, to the one party who can still move it."""
-    url = serve(SIDENOTE_IN_A_WIDGET)
-    page = open_page(browser, url)
-    # elementFromPoint answers about the viewport, so the question can only be put to a
-    # note that is in it — LONG_PAGE puts this one four thousand pixels down. The group
-    # is what gets scrolled to, never the note: `overflow: hidden` refuses a user and
-    # not a script, so scrolling to the clipped element hands the group's own box
-    # sideways until the note is inside it, and the test then measures a page it made.
-    page.locator("#where").scroll_into_view_if_needed()
-    seen = page.evaluate("""() => {
-        const n = document.getElementById('boxed-note');
-        const b = n.getBoundingClientRect();
-        const mid = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
-        // The note or something of its own, never an ancestor: a clipped note leaves
-        // the point to <body>, which contains it and paints none of it.
-        return {painted: !!mid && (n === mid || n.contains(mid)),
-                at: mid && mid.tagName};
-    }""")
-    failures = render_gate_model.render_version(browser, url).failures
-    page.close()
-
-    assert not seen["painted"], (
-        f"nothing clipped the note, so this proves nothing about the gate: {seen}"
-    )
-    assert [
-        f
-        for f in failures
-        if "<aside id=boxed-note> is drawn" in f
-        and "outside <lf-options id=where>" in f
-    ], f"a note the user never sees went out with the handover: {failures}"
 
 
 def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
@@ -5759,40 +5708,48 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     assert not [f for f in failures if "(#clean-drawing-control)" in f], failures
 
 
-def test_the_render_gate_reads_a_scrolled_container_from_its_content(browser, serve):
-    """A scroller's rects say where it is scrolled to, not how far its content reaches,
-    and the gate reads a page the user has already worked: the runtime scrolls a
-    board or a table sideways to bring a comment's anchor into view. Read off the rects,
-    every box at the content's start then sits left of the container drawing it and
-    reports as lost out of a box showing it perfectly — a handover refused over a page
-    that is exactly as its author left it.
+def test_the_render_gate_reports_a_sidenote_a_box_clips_away(browser, serve):
+    """A choose group clips its own box, so a note pulled into the page's margin from
+    inside one is painted nowhere. Every other reading calls that well — the column
+    check excuses a margin resident, checkVisibility() is true of a clipped box so
+    screen and print agree, and the copy, which withholds the clip, shows the words the
+    live page dropped — so the user is the only party who loses them, and a reviewer
+    proofing the export sees a note that never reached anybody.
 
-    The stand-in `primed` supplies this setup because the scroll is test state rather
-    than page behavior. It is re-applied each frame so it stands for the whole of the
-    gate's read."""
+    The question is put to every box rather than to floats alone, since the excuse the
+    note is claiming — my container took my overflow, so it answers for me — is granted
+    to whatever stands inside one. And the boxes that clip are the minority: a section,
+    a tab panel and a disclosure all pass a note through to the margin. So the gate
+    names the one that doesn't, at handover, to the one party who can still move it."""
+    url = serve(SIDENOTE_IN_A_WIDGET)
+    page = open_page(browser, url)
+    # elementFromPoint answers about the viewport, so the question can only be put to a
+    # note that is in it — LONG_PAGE puts this one four thousand pixels down. The group
+    # is what gets scrolled to, never the note: `overflow: hidden` refuses a user and
+    # not a script, so scrolling to the clipped element hands the group's own box
+    # sideways until the note is inside it, and the test then measures a page it made.
+    page.locator("#where").scroll_into_view_if_needed()
+    seen = page.evaluate("""() => {
+        const n = document.getElementById('boxed-note');
+        const b = n.getBoundingClientRect();
+        const mid = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+        // The note or something of its own, never an ancestor: a clipped note leaves
+        // the point to <body>, which contains it and paints none of it.
+        return {painted: !!mid && (n === mid || n.contains(mid)),
+                at: mid && mid.tagName};
+    }""")
+    failures = render_gate_model.render_version(browser, url).failures
+    page.close()
 
-    def scroll_it(page):
-        page.add_init_script(
-            "addEventListener('DOMContentLoaded', () => {"
-            "  const hold = () => {"
-            "    const box = document.getElementById('rolled');"
-            "    const content = document.getElementById('riding');"
-            "    if (content) content.style.width = '900px';"
-            "    if (box) box.scrollLeft = 400;"
-            "    requestAnimationFrame(hold);"
-            "  };"
-            "  hold();"
-            "});"
-        )
-
-    url = serve(SCROLLED_CONTAINER.replace("width: 900px", "width: 100%"))
-    failures = render_gate_model.render_version(
-        primed(browser, scroll_it), url
-    ).failures
-
-    assert not [f for f in failures if "riding" in f or "rolled" in f], (
-        f"a scrolled box was read as having lost what it was scrolled past: {failures}"
+    assert not seen["painted"], (
+        f"nothing clipped the note, so this proves nothing about the gate: {seen}"
     )
+    assert [
+        f
+        for f in failures
+        if "<aside id=boxed-note> is drawn" in f
+        and "outside <lf-options id=where>" in f
+    ], f"a note the user never sees went out with the handover: {failures}"
 
 
 def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser, serve):

@@ -79,6 +79,7 @@ import {
   awaitingUser,
   unreadIn,
   readingContext,
+  spokenContext,
   clusterProjection,
 } from "../margin-model.js";
 
@@ -122,8 +123,7 @@ import { closestAcross, inChrome } from "../passages.js";
 import { visualAt } from "../anchor-resolution.js";
 import { paintTrace } from "../target-paint.js";
 
-import { allThreads } from "../thread/state.js";
-import { threadNames } from "../thread/model.js";
+import { threadNamed } from "../thread/state.js";
 import { carryingReply } from "../thread/focus.js";
 
 import { claimed, revealHeld } from "../thread/surfaces.js";
@@ -414,8 +414,7 @@ export function createMarginProjection({
     const face = markerFace(entry).face;
     const count = choice?.items.length ?? 0;
     const items = choice?.items ?? [];
-    const userContext =
-      awaitingUser(items) || unreadIn(items) ? readingContext(choice) : null;
+    const userContext = spokenContext(choice);
     const reading = `${face.label}${count > 1 ? `s (${count})` : ""}${userContext ? `, ${userContext}` : ""}`;
     const subject =
       count === 1 && choice.items[0].workflowFace ? choice.text : entry.title;
@@ -881,10 +880,7 @@ export function createMarginProjection({
     const face = readingFace(choice);
     const count = choice.items.length;
     const kind = count > 1 ? `${face.label}s` : face.label;
-    const userContext =
-      awaitingUser(choice.items) || unreadIn(choice.items)
-        ? readingContext(choice)
-        : null;
+    const userContext = spokenContext(choice);
     const behavior = presentReading(node, entry, choice, {
       accessibleLabel: `${kind} for ${spokenSubject(entry.title)}${count > 1 ? `, ${count} items` : ""}${userContext ? `, ${userContext}` : ""}`,
     });
@@ -1454,7 +1450,7 @@ export function createMarginProjection({
   // they asked for: it hangs from the cluster's visible marker instead of unfolding the
   // cluster to reach the thread's own entry, so arriving somewhere changes no margin.
   function openInlineThread(id, { transition = null, unfold = true } = {}) {
-    const itemId = marginThreadItem(threadNames(allThreads()).get(id));
+    const itemId = marginThreadItem(threadNamed(id));
     const entry = pageInventory.find((candidate) =>
       candidate.items.some((item) => item.id === itemId),
     );

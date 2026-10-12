@@ -18,6 +18,8 @@ export function createAnchorPlacement() {
   function read({ threads, draft, actionAnchor }) {
     if (!anchoringIsReady()) return null;
     placed.clear();
+    // Names for the threads this read placed, so `placedAt` answers from the same
+    // reading as `placed` until the next read, not from a later publication.
     names = threadNames(threads);
     const readings = [];
     const pointable = [];

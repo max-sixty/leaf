@@ -262,6 +262,16 @@ export function readingContext(choice) {
   return unread ? `${unread} unread` : null;
 }
 
+// The line a reading's name says too: a thread's, which is its word or what it holds
+// unread (`threadMarks`), and an aggregate's turn or unread count. Another reading's
+// line, such as a change's offer, is said by its control.
+export const spokenContext = (choice) => {
+  const items = choice?.items ?? [];
+  return choice?.kind === "comment" || awaitingUser(items) || unreadIn(items)
+    ? readingContext(choice)
+    : null;
+};
+
 function kindsIn(entry, { markerOnly = false } = {}) {
   const counts = new Map();
   for (const item of entry.items) {

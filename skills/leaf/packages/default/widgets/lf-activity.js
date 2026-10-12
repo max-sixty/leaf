@@ -105,7 +105,8 @@ const quoted = (words) => `“${words}”`;
 const named = (words) => quoted(excerptWords(words, NAME));
 
 // The thread's name as Threads states it (`threadSummary`), read from the thread as
-// it stands now, as every way there is.
+// it stands now, as every way there is. A thread Threads does not list, a bare
+// reaction, has no name there and no way to it, so it goes as a thread.
 const topicOf = (served) => {
   const thread = served && readThreads().threads.find(({ id }) => id === served.id);
   return thread ? excerptWords(threadSummary(thread).topic, 48) : "a thread";

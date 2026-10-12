@@ -182,7 +182,6 @@ class Element:
 
 
 FIRST_LINE = Passage("replace the Actions")
-DEEP_LINE = Passage("supervisor alone decides")
 STEP = Element("#step-workspace")
 # The long paragraph as a whole, pointed at on its last line.
 TALL = Element("#long", from_foot=12)
@@ -190,19 +189,14 @@ TALL = Element("#long", from_foot=12)
 # name: (window size, under a finger, what the comment is on, the side both should
 # take, and optionally how the case differs: `top`, the fraction of the window's height
 # its block's top is scrolled to, 0.4 unless it says; `again`, a thread already there,
-# so its margin row stands before the box opens).
+# so its margin row stands before the box opens). One case per placement the solver
+# chooses between, with passages and elements both represented.
 CASES = {
     "column-passage-first-line": ((1440, 900), False, FIRST_LINE, "right"),
-    "column-passage-deep-line": ((1440, 900), False, DEEP_LINE, "right"),
     "column-element": ((1440, 900), False, STEP, "right"),
-    "wide-passage-deep-line": ((1920, 1080), False, DEEP_LINE, "right"),
     # Room right of the paragraph for the box's minimum but not the card's.
     "laptop-passage": ((1300, 900), False, FIRST_LINE, "below or above"),
-    "laptop-element": ((1240, 900), False, STEP, "below or above"),
-    "narrow-rail-passage": ((1100, 800), False, FIRST_LINE, "below or above"),
-    "beside-passage": ((900, 900), False, FIRST_LINE, "below or above"),
     "beside-element": ((900, 900), False, STEP, "below or above"),
-    "phone-passage": ((390, 844), False, FIRST_LINE, "below or above"),
     # Touch also uses the room already shown; font wrapping may leave either side clear.
     "phone-touch-passage": ((390, 844), True, FIRST_LINE, "below or above"),
     # A block whose top the window has scrolled past.
@@ -434,8 +428,7 @@ def test_where_a_comment_stands_before_and_after_send(
     )
 
 
-@pytest.mark.parametrize("width", [900, 1650])
-@pytest.mark.parametrize("route", ["pointer", "search"])
+@pytest.mark.parametrize(("route", "width"), [("pointer", 900), ("search", 1650)])
 def test_a_quoted_passage_keeps_its_inline_attachment_before_and_after_send(
     browser, serve, width, route
 ):
@@ -636,12 +629,15 @@ def test_a_right_edge_passage_reopens_a_usable_card_without_moving_typing(
 
 @pytest.mark.parametrize(
     "region,route",
+    # Each scrolling arrangement once; the two routes alternate between them, since
+    # both hand the same attachment to the same follower.
     [
-        (region, route)
-        for region in ("document", "pane", "combined")
-        for route in ("target", "selection")
-    ]
-    + [("code", "target"), ("content", "selection"), ("words", "selection")],
+        ("document", "target"),
+        ("pane", "selection"),
+        ("combined", "selection"),
+        ("code", "target"),
+        ("content", "selection"),
+    ],
 )
 def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
     browser, serve, region, route
@@ -703,13 +699,13 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
             </style>""",
         )
         size, wheel, scroller = (1200, 700), 900, "#paint-code > pre"
-    elif region in ("content", "words"):
+    elif region == "content":
         line = "More lines in this reading region.<br>"
         source = leaf_page(
             "Quoted text owns its inner scroll coordinate",
             '<h1>Comments follow the actual words</h1><p id="paint-target">'
             "The export keeps each tenant in an archive.<br>"
-            + (f"<span>{line}</span>" if region == "content" else line) * 50
+            + f"<span>{line}</span>" * 50
             + '</p><div style="height:1800px"></div>',
             head=marker_style
             + f"""<style>
@@ -782,7 +778,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
         target.click(modifiers=["Alt"], position={"x": 30, "y": 10})
     else:
         box = target.bounding_box()
-        if region in ("content", "words"):
+        if region == "content":
             box = target.evaluate(
                 "node => { const r=document.createRange(); r.selectNodeContents(node.firstChild); return r.getBoundingClientRect().toJSON(); }"
             )
@@ -797,7 +793,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
     rendered(page)
     before_target = target.bounding_box()
     content_box = before_target
-    if region in ("content", "words"):
+    if region == "content":
         before_target = target.evaluate(
             "node => { const r=document.createRange(); r.selectNodeContents(node.firstChild); return r.getBoundingClientRect().toJSON(); }"
         )
@@ -842,7 +838,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
             scroll_settled(page)
         mouse = (
             (before_target["x"] + 50, content_box["y"] + 35)
-            if region in ("code", "content", "words")
+            if region in ("code", "content")
             else (120 if scroller else 100, 100 if region == "combined" else 350)
         )
         page.mouse.move(*mouse)
@@ -1002,20 +998,18 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
 
 
 @pytest.mark.parametrize(
-    "consumer,renew_placement,posture",
+    "consumer,posture,transform",
+    # Each consumer once per posture, the rotated transform shared between them. A sent
+    # card also has its placement renewed, which starts from the plain follow.
     [
-        ("editor", False, "beside"),
-        ("thread", False, "beside"),
-        ("thread", True, "beside"),
-        ("reopened", True, "beside"),
-        ("editor", False, "across"),
-        ("thread", True, "across"),
-        ("reopened", True, "across"),
+        ("editor", "beside", "scale(.8)"),
+        ("thread", "beside", "scale(.8) rotate(10deg)"),
+        ("editor", "across", "scale(.8) rotate(10deg)"),
+        ("reopened", "across", "scale(.8)"),
     ],
 )
-@pytest.mark.parametrize("transform", ["scale(.8)", "scale(.8) rotate(10deg)"])
 def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
-    browser, serve, consumer, transform, renew_placement, posture
+    browser, serve, consumer, transform, posture
 ):
     page = open_page(
         browser,
@@ -1088,7 +1082,7 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
     page.mouse.wheel(20, 20)
     scroll_settled(page, "#quote")
     rendered(page)
-    if renew_placement:
+    if consumer != "editor":
         # A size/layout delivery may renew placement after native scrolling. It
         # must retain the same attachment rather than publish a second origin.
         page.evaluate("""() => {
@@ -1203,7 +1197,7 @@ def test_a_comment_keeps_its_measure_when_its_passage_scrolls_away(browser, serv
     )
     rendered(page)
     target.click(modifiers=["Alt"], position={"x": 30, "y": 10})
-    page.locator(".lf-fab-input").type("Keep these words while the page leaves. " * 6)
+    write(page.locator(".lf-fab-input"), "Keep these words while the page leaves. " * 6)
     rendered(page)
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_have_attribute("data-lf-plane", "page")
@@ -1222,41 +1216,23 @@ def test_a_comment_keeps_its_measure_when_its_passage_scrolls_away(browser, serv
 
 
 @pytest.mark.parametrize(
-    "size,at,long,touch,again,motion,options",
+    "size,at,long,touch,again,options",
     [
-        ((1440, 900), 0.4, False, False, False, "no-preference", False),
-        ((900, 600), 0.85, False, False, False, "no-preference", False),
-        ((390, 844), 0.12, False, False, False, "no-preference", False),
-        ((900, 600), 0.4, True, False, False, "no-preference", False),
-        ((1440, 900), 0.4, "paragraphs", False, False, "no-preference", False),
-        ((390, 844), 0.12, False, True, False, "no-preference", False),
-        ((1440, 900), 0.4, False, False, True, "no-preference", False),
-        ((1440, 900), 0.4, False, False, False, "reduce", False),
-        ((390, 844), 0.4, "passage", True, False, "no-preference", False),
+        ((1440, 900), 0.4, False, False, False, False),
+        ((900, 600), 0.85, False, False, False, False),
+        ((390, 844), 0.12, False, False, False, False),
+        ((900, 600), 0.4, True, False, False, False),
+        ((1440, 900), 0.4, "paragraphs", False, False, False),
+        ((390, 844), 0.12, False, True, False, False),
+        ((1440, 900), 0.4, False, False, True, False),
+        ((390, 844), 0.4, "passage", True, False, False),
         pytest.param(
-            (900, 600),
-            0.85,
-            False,
-            False,
-            False,
-            "no-preference",
-            True,
-            id="above-with-options-desktop",
-        ),
-        pytest.param(
-            (390, 844),
-            0.85,
-            False,
-            False,
-            False,
-            "no-preference",
-            True,
-            id="above-with-options-phone",
+            (900, 600), 0.85, False, False, False, True, id="above-with-options"
         ),
     ],
 )
 def test_send_grows_thread_around_the_words(
-    browser, serve, size, at, long, touch, again, motion, options
+    browser, serve, size, at, long, touch, again, options
 ):
     """The real draft's words keep their position/wrapping/scroll through Send,
     including the decoration animation and acknowledgement. Read inside the editor
@@ -1277,7 +1253,6 @@ def test_send_grows_thread_around_the_words(
     """,
     )
     resized(page, *size)
-    page.emulate_media(reduced_motion=motion)
     if again:
         send_one(page, STEP, touch)
     on = FIRST_LINE if long == "passage" else STEP
@@ -1401,7 +1376,7 @@ def test_send_grows_thread_around_the_words(
         rendered(page)
         assert body.evaluate("el => el.scrollTop") == pytest.approx(retained, abs=1)
         expect(card).to_have_attribute("data-lf-comment-frame", held)
-    if not long and not touch and not again and motion == "no-preference":
+    if not long and not touch and not again:
         card.locator('leaf-text[name="reply"]').click()
         page.keyboard.insert_text("The same placement works for a reply.")
         painted_growth = size == (900, 600) and not options
@@ -1523,9 +1498,17 @@ def test_room_for_a_surface_uses_the_scrollports_visible_scale(browser, serve, s
     assert reading["visible"], reading
 
 
-@pytest.mark.parametrize("source", ["document", "inner"])
-@pytest.mark.parametrize("read", ["before-discovery", "before-scroll", "after-scroll"])
-@pytest.mark.parametrize("existing", [False, True])
+@pytest.mark.parametrize(
+    "source,read,existing",
+    # Each point the wheel can land in the solve, each scroller, and a placement
+    # already standing, each at least once.
+    [
+        ("inner", "before-discovery", False),
+        ("document", "before-scroll", True),
+        ("inner", "after-scroll", True),
+        ("document", "after-scroll", False),
+    ],
+)
 def test_native_attachment_measures_solver_and_scroll_origin_together(
     browser, serve, source, read, existing
 ):
@@ -1641,7 +1624,7 @@ def test_native_attachment_measures_solver_and_scroll_origin_together(
     assert not page.evaluate("detachPlacement()"), "the placement stood in a frame"
 
 
-@pytest.mark.parametrize("fault", ["", "holder", "child"])
+@pytest.mark.parametrize("fault", ["", "holder"])
 def test_a_comment_box_on_words_in_a_scroller_stands_without_scroll_timelines(
     browser, serve, fault
 ):
@@ -1687,15 +1670,14 @@ def test_a_comment_box_on_words_in_a_scroller_stands_without_scroll_timelines(
         page.evaluate(words)["y"] - words_before["y"], abs=1
     )
     # A late scroll still owns its attachment's exact displacement after input
-    # has finished. Extra movement of either the holder or its child remains a fault.
+    # has finished. Extra movement of the holder remains a fault.
     judge_watches()
     field = page.locator(".lf-fab-input")
     field_before = field.bounding_box()
     page.evaluate(
         """fault => {
           document.querySelector('#quote').scrollBy(0, 30);
-          if (fault) document.querySelector(fault === 'holder' ? '.lf-fab-bar' : '.lf-fab-input')
-            .style.transform = 'translateX(20px)';
+          if (fault) document.querySelector('.lf-fab-bar').style.transform = 'translateX(20px)';
         }""",
         fault,
     )

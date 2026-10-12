@@ -317,9 +317,9 @@ let saidActionableWork;
 // to the disclosure (chrome.css). Its box is reserved for the count it usually reaches,
 // as the Threads control is for "Threads: 999", and only grows, so a count changing
 // moves none of its words. Both are read from the application's publication rather
-// than the state answer: a reply the user sends leaves their count and joins the
-// agent's in the turn it is sent. A press on either opens the Questions panel, which
-// lists both.
+// than the state answer: a reply the user sends joins the agent's count in the turn
+// it is sent, and leaves the user's once the server has read it. A press on either
+// opens the Questions panel, which lists both.
 const QUEUE_WORDS = Object.freeze({
   ask: ["ask", "asks"],
   approval: ["approval", "approvals"],

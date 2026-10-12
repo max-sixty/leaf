@@ -87,13 +87,13 @@ choice depends on purpose or intent the code cannot supply.
 
 A gesture shows what it settles by itself in the turn the user makes it: a
 message in its thread, a widget's new state, a thread the user resolves. Facts
-derived from the rest of the log, such as whose turn a thread is, which asks the
-user owes, and what Questions and Tasks list, come back from the server, which
-usually runs on the user's machine and answers within 100 ms. The browser
-does not anticipate them: a prediction is a second copy of the server's rules,
-and each gesture and subject it misses shows the wrong state until the answer
-lands. Where the server cannot answer within 100 ms, make it faster rather than
-predicting its answer.
+derived from the rest of the log, such as whose turn a thread is and which asks
+the user owes, come back with the server's reading of the gesture. The server
+usually runs on the user's machine, so that reading should be on screen within
+100 ms. The browser does not anticipate it: a prediction is a second copy of the
+server's rules, and each gesture and subject it misses shows the wrong state
+until the reading lands. Where the reading cannot reach the screen within 100 ms,
+make that path faster rather than predicting what it will say.
 
 ### Pages across Leaf updates
 
@@ -287,8 +287,8 @@ a widget's state or the words of a turn the user adds to a thread. Which asks
 the document still holds, which of them the user owes, and whose turn a thread is
 depend on the whole log, so the browser reads them from the server's state and
 waits for its reading of a gesture ("Responsiveness"). It adds only what it decides
-itself: a required-version approval, a to-do the user ends, a thread it opened, and
-the resend a refused send leaves. A refusal restores the authoritative state.
+itself: a required-version approval, a to-do the user ends, a thread it opened, the
+answer a send is owed, and the resend a refused send leaves. A refusal restores the authoritative state.
 
 The active document has one immutable application publication. Only its publisher
 combines authored baselines, the complete admitted server reading, and the ordered

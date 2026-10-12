@@ -156,6 +156,29 @@ shortfall. Add each improvement you make, with its reason.
   for the box back on 11 October. So everything except the resting row follows
   the Leaf arrangement: the mark, its menu, and how everything opens above the
   row.
+- **The box resizes from its foot, one tween.** The card follows its content's
+  height with the Codex panel's 300 ms `cubic-bezier(.23,1,.32,1)`, the row staying
+  put; the leaving view fades out (80 ms) before the arriving one fades in. The
+  prototype's views slid sideways; this reads as one box.
+- **The focused field shows a quiet ground, not a frame.** A dark frame around the
+  field was the previous attempt's "form" look.
+- **While the field holds the caret or words, it takes the whole row,** and the counts
+  stand on the line naming where the words go, as the prototype seats them; a draft
+  keeps that layout when the caret leaves, so nothing moves under the next press.
+- **In a thread the destination line reads "Reply in this thread · to {agent}"**
+  rather than repeating the title the row above already shows.
+- **A short thread reserves its "New reply · Show" slot,** so arriving news moves
+  nothing.
+- **Answers are the widget's own choices** (a multiple-choice ask shows its options and
+  Done), recorded exactly as on the page; Questions has On you / On {agent} / Done.
+- **Messages draw with Leaf's own reader** (the panel is a registered thread
+  presentation), so asks, reactions and HTML replies work in the panel.
+- **The menu carries the banner's whole inventory,** drawn from each contributor's
+  declared row, so Questions, Undo and About this page appear there too.
+- **On a phone, a count at rest is its number beside an icon,** so the agent's status
+  keeps the field ("numbers next to icons rather than saying whole words").
+- **Passing notices stand centred at the window's head,** since the panel's foot is
+  where the user writes and its height changes.
 
 ## What went wrong last time
 

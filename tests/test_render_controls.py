@@ -1399,6 +1399,41 @@ def fail_sample_startup(route):
     )
 
 
+RADIO_DIALOG_PAGE = leaf_page(
+    "Radio dialog",
+    """<p id="intro">A page with its own dialog.</p>
+<dialog id="pick">
+  <button type="button" id="pick-first">First</button>
+  <label><input type="radio" name="size" value="s"> Small</label>
+  <label><input type="radio" name="size" value="l"> Large</label>
+</dialog>""",
+)
+
+
+def test_tab_leaves_a_radio_group_ending_a_modal_for_its_first_stop(browser, serve):
+    """A radio group is one Tab stop, so Tab from any of its members leaves the group.
+    Where the group ends a modal, the browser would carry the user out to its own
+    interface; the modal takes them round to its first stop instead, whether a member
+    is checked or not."""
+    page = open_page(browser, serve(RADIO_DIALOG_PAGE))
+    page.evaluate("() => document.getElementById('pick').showModal()")
+    first = page.locator("#pick-first")
+    small = page.locator("input[value=s]")
+    large = page.locator("input[value=l]")
+    first.focus()
+    page.keyboard.press("Tab")
+    expect(small).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(first).to_be_focused()
+
+    large.check()
+    first.focus()
+    page.keyboard.press("Shift+Tab")
+    expect(large).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(first).to_be_focused()
+
+
 def test_tab_wraps_through_a_full_view_sample(browser, serve):
     """Full view is modal and holds its frame last, and a key pressed in the frame is
     the child's. Shift+Tab from the view's first stop enters the child at its last

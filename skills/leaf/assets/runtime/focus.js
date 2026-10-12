@@ -63,7 +63,7 @@
 import { afterScript, nextRender } from "./rendering.js";
 import { keeps } from "./keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
-import { renderedParent } from "./shadow-tree.js";
+import { renderedParent, upFrom } from "./shadow-tree.js";
 
 // The elements under `node` in the tree as rendered, in order: a host's shadow tree in
 // place of its children, and a slot's assigned elements, or its fallback, in its place.
@@ -78,12 +78,19 @@ function* renderedElements(node) {
   }
 }
 const SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
-// A radio group with a checked member is one stop, at that member.
-function passedRadio(node) {
-  if (node.type !== "radio" || !node.name || node.checked) return false;
-  return [...node.getRootNode().querySelectorAll("input[type=radio]:checked")].some(
+// The radios that share `node`'s group, `node` included, in document order.
+const radioGroup = (node) =>
+  [...node.getRootNode().querySelectorAll("input[type=radio]")].filter(
     (radio) => radio.name === node.name && radio.form === node.form,
   );
+const groupedRadio = (node) => node.type === "radio" && Boolean(node.name);
+// A radio group is one stop: Tab enters it at its checked member, and leaves it from
+// any member. With none checked the group stands at its first member here, though the
+// browser enters it from behind at its last.
+function passedRadio(node) {
+  if (!groupedRadio(node) || node.checked) return false;
+  const group = radioGroup(node);
+  return (group.find((radio) => radio.checked) ?? group[0]) !== node;
 }
 // The stops Tab walks inside `root` right now, in the order it walks them: the candidates
 // above, and the embedded documents and players Tab also enters, that are in the order,
@@ -102,6 +109,18 @@ export const tabStops = (root) =>
       !passedRadio(node) &&
       node.checkVisibility({ visibilityProperty: true }),
   );
+
+// The index of the stop in `stops` the user at `node` stands at, or -1: the innermost
+// stop holding them, so a control in a component's shadow tree stands at the stop its
+// host declares, and a radio stands at its group's one stop.
+export function standingAt(stops, node) {
+  const holds = (stop) => {
+    for (let at = node; at; at = upFrom(at)) if (at === stop) return true;
+    return false;
+  };
+  const group = groupedRadio(node) ? radioGroup(node) : [];
+  return stops.findLastIndex((stop) => holds(stop) || group.includes(stop));
+}
 
 // Put the user on an element, saying what moved them there. Every focus the runtime and
 // the packages place goes through here (the lint `architecture/placements` refuses a

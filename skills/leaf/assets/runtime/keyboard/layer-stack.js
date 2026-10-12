@@ -67,9 +67,10 @@ import {
   focusDestination,
   handBack,
   canPlaceFocus,
+  standingAt,
   tabStops,
 } from "../focus.js";
-import { renderedParent, renderedUnder, under } from "../shadow.js";
+import { renderedParent, renderedUnder } from "../shadow.js";
 
 const entries = [];
 const watchedRoots = new WeakSet();
@@ -315,9 +316,6 @@ function currentLoop() {
   if (modal) return { region: tabRegions.get(modal)?.() ?? modal, outer: null };
   return outerLoop?.standing() ? { region: document.body, outer: outerLoop } : null;
 }
-// The stop the user stands at: the innermost one holding `node`, so a control inside a
-// component's shadow tree stands at the stop its host declares.
-const standingAt = (stops, node) => stops.findLastIndex((stop) => under(node, stop));
 
 // How a frame's owner puts the user inside its document, at its first stop or its last.
 const frameEntries = new WeakMap();

@@ -1348,10 +1348,12 @@ earlier prose prompts and completed asks, and resolves to `false` when that ask 
 unavailable. `questionActions.next({within, dir})` steps to the next ask waiting on the
 user inside the element `within`, or the previous with `dir: -1`, as `q` steps through
 Questions: from the one the user stands on, else from their place in document order,
-entering at the region's edge when they stand outside it, and coming round at either end.
-It resolves to whether it arrived. A control that calls it keeps focus where the user
-stands on a press (`mousedown` default prevented), so a second press steps on. Answering
-uses the source's declared command; asks expose no separate answer API.
+coming round at either end. From outside the region it counts from the last ask the user
+stood on when that ask is in the region, so Tab from an ask to a control above it and
+Enter steps on, and otherwise enters at the region's edge. It resolves to whether it
+arrived. A control that calls it keeps focus where the user stands on a press
+(`mousedown` default prevented), so a second press steps on. Answering uses the source's
+declared command; asks expose no separate answer API.
 
 `readQueues()` and `watchQueues(owner, callback)` supply the immutable
 `{phase, questions, tasks, done}` that the Questions panel and `q` navigation use. Ask rows

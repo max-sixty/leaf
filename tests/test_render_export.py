@@ -1164,7 +1164,8 @@ def test_a_preview_relinquishes_a_service_another_session_claims(
 # ---------- export: the page as one file ----------
 
 OFFLINE_WIDGET = """\
-import { LitElement, html, widgetController } from "/runtime/widget-api.js";
+import { LitElement, html } from "/vendor/browser-runtime.js";
+import { widgetController } from "/runtime/widget-api.js";
 
 customElements.define("lf-offline-test", class extends LitElement {
   controller = widgetController(this);

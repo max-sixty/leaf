@@ -708,7 +708,8 @@ def activation_page(source):
 
 
 PAGE_WIDGET = """\
-import { LitElement, html, keeps, layerFact, once, widgetController } from "/runtime/widget-api.js";
+import { LitElement, html } from "/vendor/browser-runtime.js";
+import { keeps, layerFact, once, widgetController } from "/runtime/widget-api.js";
 
 customElements.define("lf-local", class extends LitElement {
   controller = widgetController(this);

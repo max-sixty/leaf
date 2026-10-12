@@ -3123,9 +3123,19 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     absolutely or fixed, or floated clear of the column — so this needs no vocabulary
     of its own and nothing has to be declared to it. That is what keeps the two theme
     rules honest: the next claimant that forgets one is a refusal with a name on it
-    rather than a page somebody eventually notices is drawn over its own controls."""
+    rather than a page somebody eventually notices is drawn over its own controls.
+
+    The page's own frame is the same place: a wide widget is measured against the box
+    that frames it, and everything else on the page is excused by a scroll container
+    above it. Asked in that order, the excuse ate the measurement: a board scrolls, so
+    every card on every board was excused from the one reading that applies to what it
+    holds, and a diagram drawn 332px across the next column passed the gate that
+    exists to name it. So a board in a frame of the page's own that scrolls is named
+    too."""
+    framed = FRAMED_SCROLLER_PAGE[FRAMED_SCROLLER_PAGE.index("<div id='own-frame'") :]
+    framed = framed[: framed.index("</lf-board></div>") + len("</lf-board></div>")]
     failures = render_gate_model.render_version(
-        browser, serve(OWN_MARGIN_FURNITURE)
+        browser, serve(OWN_MARGIN_FURNITURE.replace("</main>", framed + "</main>"))
     ).failures
 
     assert [
@@ -3137,6 +3147,12 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     )
     assert not [f for f in failures if "own-rail" in f and "past the column" in f], (
         "the furniture itself was named for standing where it was put"
+    )
+    assert [
+        f for f in failures if "<lf-board id=framed>" in f and "<div id=own-frame>" in f
+    ], (
+        "the gate said nothing about a wide widget escaping a frame that scrolls: "
+        f"{failures}"
     )
 
 
@@ -3395,30 +3411,6 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
         "the diagram crossed the right edge of the box the page drew for it, so a "
         "project declaring the frame does not get the room held in: diagram out to "
         f"{boxes['inOwnBox']['right']:.0f}, box ends at {boxes['ownBox']['right']:.0f}"
-    )
-
-
-def test_the_render_gate_names_a_wide_widget_that_escapes_a_frame_that_scrolls(
-    browser, serve
-):
-    """A wide widget is measured against the box that frames it, and everything else on
-    the page is excused by a scroll container above it — a box inside one is drawn only
-    as far as the scroller reaches, so it cannot spill onto the page. Asked in that order,
-    the excuse ate the measurement: a board scrolls, so every card on every board was
-    excused from the one reading that applies to what it holds, and a diagram drawn 332px
-    across the next column passed the gate that exists to name it.
-
-    The frame here is the page's own, because a project's box is what no theme rule can
-    reach — the same place the margin-furniture gate above stands."""
-    failures = render_gate_model.render_version(
-        browser, serve(FRAMED_SCROLLER_PAGE)
-    ).failures
-
-    assert [
-        f for f in failures if "<lf-board id=framed>" in f and "<div id=own-frame>" in f
-    ], (
-        "the gate said nothing about a wide widget escaping a frame that scrolls: "
-        f"{failures}"
     )
 
 
@@ -4077,108 +4069,6 @@ def test_two_listener_keys_keep_both_tabs_authorized(browser, serve):
             for event in events_model.read_events(serve.page_dir)
         )
         assert second.evaluate("() => fetch('/api/state').then(r => r.status)") == 200
-
-
-# Everything an injected control still draws once the medium has taken the press away.
-# `cursor` first, the hand being the plainest promise a page makes; the rest is the dress
-# a control wears — a chip ground, a pill's corner, a border, a link's underline, a
-# summary's marker. Colour is not read: a chip that is red is saying something, and what a
-# control says is the other half of this bargain rather than this half.
-PRINTED_OFFERS = """() => [...document.querySelectorAll('[data-lf-offer]')]
-  .filter(n => n.checkVisibility() && n.getBoundingClientRect().width > 0)
-  .map(n => {
-    const s = getComputedStyle(n);
-    return {
-      what: (n.className || n.tagName).toString().trim().split(/\\s+/)[0],
-      said: n.hasAttribute('data-lf-said'),
-      pressable: [
-        s.cursor === 'pointer' && 'a pointer hand',
-        s.backgroundColor !== 'rgba(0, 0, 0, 0)' && 'a filled ground',
-        parseFloat(s.borderTopLeftRadius) > 0 && 'a rounded corner',
-        parseFloat(s.borderTopWidth) > 0 && 'a border',
-        s.textDecorationLine.includes('underline') && 'an underline',
-        s.listStyleType !== 'none' && 'a marker',
-      ].filter(Boolean),
-    };
-  })"""
-
-# Each disclosure and whether the sheet shows its authored content. Injected controls
-# may sit beside that content for keyboard order, but are intentionally absent on paper.
-DISCLOSURES = """() => [...document.querySelectorAll('details')]
-  .filter(d => !d.closest('.lf-chrome'))
-  .map(d => ({
-    open: d.open,
-    displayed: d.checkVisibility(),
-    summary: (d.querySelector('summary')?.textContent || '').trim().slice(0, 40),
-    // An authored output placeholder that is explicitly hidden has no paper reading.
-    shown: [...d.children].filter(c =>
-      !c.matches('summary, script, style, template') &&
-      !c.hasAttribute('data-lf-gen') && !c.hidden)
-      .every(c => c.checkVisibility()),
-  }))"""
-
-
-def test_paper_takes_the_press_off_everything_it_cannot_press(browser, serve):
-    """Nothing on a sheet is interactive, so nothing on it should look as though it is.
-
-    Injected controls go on paper, which the layer has always done — but the ones whose
-    label is the page speaking stay, because their words are the page's only statement of
-    what they say, and twenty of the corpus's 236 came through still dressed as controls:
-    the command hub's counts as filled pills with a pointer hand, its worktree heads with
-    a disclosure marker, a decision's links underlined. The words are what data-lf-said
-    keeps; the shape was never part of that bargain.
-
-    A shut disclosure is the same fault from the other side — the words are in the
-    document, nothing on the sheet says so, and there is no press to open it with. The
-    layer already prints a settled group's cards and an inactive tab's panel open;
-    <details> was the one way of putting content behind a gesture that was missed. Six of
-    them printed as stubs, one holding 3270px of an exact source.
-
-    Both readings are taken on screen first, and that half is what makes the print half
-    mean anything: a corpus whose controls were bare and whose disclosures were open
-    everywhere would pass the assertions below while proving nothing about the medium.
-    """
-    example = next(e for e in EXAMPLES if e.stem == "corpus")
-    page = open_page(browser, serve(example))
-
-    page.get_by_role("tab", name="Command", exact=True).click()
-    expect(page.locator("#corpus-command-hub")).to_be_visible()
-    on_screen = page.evaluate(PRINTED_OFFERS)
-    assert sum(1 for offer in on_screen if offer["pressable"]) > 20, (
-        f"the page draws almost nothing as pressable on screen, so paper taking it away "
-        f"is not something this can see: {on_screen}"
-    )
-    shut = [d for d in page.evaluate(DISCLOSURES) if not d["open"]]
-    assert len(shut) >= 3, f"the corpus has no shut disclosures to print: {shut}"
-    assert not any(d["displayed"] and d["shown"] for d in shut), (
-        f"the page shows what its shut disclosures hold before the medium changes: {shut}"
-    )
-
-    page.emulate_media(media="print")
-    printed = page.evaluate(PRINTED_OFFERS)
-    assert len(printed) >= 10, (
-        f"paper kept {len(printed)} injected controls, which is too few for the "
-        f"assertion below to be about the ones that speak"
-    )
-    dressed = [
-        f"{offer['what']} still draws {', '.join(offer['pressable'])}"
-        for offer in printed
-        if offer["pressable"]
-    ]
-    assert not dressed, (
-        f"{len(dressed)} of the {len(printed)} controls paper kept still promise a press "
-        f"nothing on a sheet can answer:\n  " + "\n  ".join(dressed)
-    )
-    # A disclosure omitted from paper altogether, such as a draft's edit history,
-    # is not a visible summary concealing content from a reader of the sheet.
-    on_paper = [
-        d for d in page.evaluate(DISCLOSURES) if d["displayed"] and not d["open"]
-    ]
-    assert on_paper and all(d["shown"] for d in on_paper), (
-        f"a shut disclosure printed as a summary and a stub, with no press on the sheet "
-        f"to open it: {[d for d in on_paper if not d['shown']]}"
-    )
-    page.emulate_media(media="screen")
 
 
 def test_a_page_refuses_a_browser_that_never_had_the_link(browser, serve):

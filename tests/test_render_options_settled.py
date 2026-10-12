@@ -114,9 +114,9 @@ def test_a_comparison_mark_that_failed_on_return_keeps_following_the_comparison(
     compare_with(page, 1)
     page.evaluate("() => document.querySelector('main').append(window.detachedViews)")
     expect(page.locator("#transport .lf-settled-diff")).to_have_count(0)
+    # The paint reports the failure, and nothing else does: no uncaught throw.
     errors = consume_browser_errors(page, "the marks failed once")
-    # The page's report and the browser's own record of the one uncaught error.
-    assert len([error for error in errors if error.startswith("leaf:")]) == 1, errors
+    assert len(errors) == 1 and errors[0].startswith("leaf: paint failed"), errors
     compare_with(page, 1)
     expect(page.locator("#transport .lf-settled-diff")).to_have_text("Δ1")
     expect(mark).to_have_text("Δ1")

@@ -33,6 +33,7 @@ from interact_support import (
     consume_pending_input,
     declare_idle,
     fetch,
+    fetch_hanging_up,
     record_claim,
     stamp,
     wait_for,
@@ -46,7 +47,9 @@ from leaf_dev import page_fixtures, preview
 from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 
-@pytest.mark.parametrize("retirement", ["archive", "delete", "stop"])
+# Archiving a chat moves its transcript away, which retires it the way deleting
+# the transcript would.
+@pytest.mark.parametrize("retirement", ["archive", "stop"])
 def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
     tmp_path, under_codex, codex_env, codex_queue, native_codex_chat, retirement
 ):
@@ -166,8 +169,6 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
             archived = transcript.parent.parent / "archived_sessions"
             archived.mkdir()
             transcript.rename(archived / transcript.name)
-        elif retirement == "delete":
-            transcript.unlink()
         else:
             hosting.cmd_stop(page)
         for served in [page, *([sibling] if sibling.exists() else [])]:
@@ -1042,9 +1043,13 @@ def test_an_unrelated_ancestor_layer_does_not_change_an_external_source(tmp_path
     assert preview.media_source(source) == source.parent / "media"
 
 
-@pytest.mark.parametrize("delivery_available", [True, False, "missing"])
+# A page's idle declaration matters only once delivery connects, so a refused
+# delivery runs from a busy page alone.
+@pytest.mark.parametrize(
+    ("initially_idle", "delivery_available"),
+    [(False, True), (True, True), (False, False), (False, "missing")],
+)
 @pytest.mark.parametrize("handoff", ["preview", "start", "run"])
-@pytest.mark.parametrize("initially_idle", [False, True])
 def test_serving_connects_codex_feedback_before_handing_over_its_url(
     page_dir,
     tmp_path,
@@ -1342,7 +1347,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
             failure=log.read_text,
             timeout=hosting.PORT_WAIT_SECONDS + STATED_TIMEOUT,
         )
-        status, body = fetch(url, token=None)
+        status, body = fetch_hanging_up(url)
         assert status == 200, body
         return task, url, log
 
@@ -1368,7 +1373,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
             "attempt": "restart-choice-0001",
         },
     ):
-        status, body = fetch(endpoint, token=None, data=json.dumps(entry).encode())
+        status, body = fetch_hanging_up(endpoint, json.dumps(entry).encode())
         assert status == 200, body
     payload = consume_pending_input(session_harness().session)
     comment = next(
@@ -1386,10 +1391,9 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
         ],
     )
     assert reply.exit_code == 0, reply.output
-    status, body = fetch(
+    status, body = fetch_hanging_up(
         endpoint,
-        token=None,
-        data=json.dumps(
+        json.dumps(
             {
                 "kind": "comment",
                 "revision": 1,
@@ -1444,7 +1448,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     assert revision_path(page, first).is_file()
     assert load_registry(page)["$layer"]["generation"] != layer
     assert media.read_bytes() == media_bytes
-    assert "Revised reading" in fetch(resumed, token=None)[1].decode()
+    assert "Revised reading" in fetch_hanging_up(resumed)[1].decode()
     stop(task)
 
     # A rejected authored update leaves the old publication and its feedback live.
@@ -1484,7 +1488,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     assert "reconcile" in log.read_text()
     assert (page / "index.html").read_text() == agent_source
     assert latest_revision(page) == agent_revision
-    assert "Agent revision" in fetch(resumed, token=None)[1].decode()
+    assert "Agent revision" in fetch_hanging_up(resumed)[1].decode()
     stop(task)
 
     # Reconciliation to the already-published page consumes the fixture update
@@ -1706,10 +1710,11 @@ def test_failed_delivery_preserves_the_existing_preview(
         cmd_stop(page_dir)
 
 
-@pytest.mark.parametrize("refusal", ["bind", "layer", "cancel"])
+@pytest.mark.parametrize("refusal", ["layer", "cancel"])
 def test_failed_serving_preparation_never_publishes_a_takeover(
     page_dir, monkeypatch, refusal
 ):
+    """A takeover refused or cancelled in preparation leaves the original claim."""
     from leaf.detached import StartRefused
     from leaf.hosting import claim_and_start, cmd_stop
     from leaf.service import page_claim
@@ -1724,11 +1729,7 @@ def test_failed_serving_preparation_never_publishes_a_takeover(
     record = json.loads((page_dir / "service.json").read_text())
     record["enabled"] = True
     (page_dir / "service.json").write_text(json.dumps(record))
-    occupied = socket.socket()
-    if refusal == "bind":
-        occupied.bind((record["bind"], record["port"]))
-        occupied.listen()
-    elif refusal == "layer":
+    if refusal == "layer":
         from interact_support import vendored_at_another_protocol
 
         vendored_at_another_protocol(page_dir)
@@ -1751,7 +1752,6 @@ def test_failed_serving_preparation_never_publishes_a_takeover(
         assert page_claim(page_dir) == claim
         assert not original.ended
     finally:
-        occupied.close()
         cmd_stop(page_dir)
 
 

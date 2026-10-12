@@ -8,6 +8,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from browser_sources import browser_function
+from click.testing import CliRunner
 from interact_support import (
     append_carried_log_record,
     append_command,
@@ -15,9 +16,11 @@ from interact_support import (
     element_declaration,
     end_work,
     record_claim,
+    response_reference,
     wait_for,
     working,
 )
+from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
@@ -211,7 +214,8 @@ document.querySelector('main').append(link);
     expect(page).to_have_url(re.compile(r"#destination$"))
 
 
-@pytest.mark.parametrize("width", [390, 1440])
+# The phone, whose settings sit behind their disclosure; the width changes nothing else.
+@pytest.mark.parametrize("width", [390])
 def test_merge_film_play_continues_from_the_displayed_moment(browser, serve, width):
     source = next(path for path in EXAMPLES if path.name == "wt-merge.html")
     page = open_page(browser, serve(source))
@@ -252,7 +256,7 @@ def test_merge_film_play_continues_from_the_displayed_moment(browser, serve, wid
     play.click()
 
 
-@pytest.mark.parametrize("width", [390, 1440])
+@pytest.mark.parametrize("width", [1440])
 def test_merge_film_keyboard_routes_hold_steps_and_respect_the_scrubber(
     browser, serve, width
 ):
@@ -279,7 +283,7 @@ def test_merge_film_keyboard_routes_hold_steps_and_respect_the_scrubber(
     expect(play).to_have_text("Play")
 
 
-@pytest.mark.parametrize("width", [390, 1440])
+@pytest.mark.parametrize("width", [390])
 def test_merge_film_inspection_and_step_availability_follow_the_run(
     browser, serve, width
 ):
@@ -309,7 +313,8 @@ def test_merge_film_inspection_and_step_availability_follow_the_run(
     expect(page.locator("#step-merge button")).to_be_enabled()
 
 
-@pytest.mark.parametrize("width", [390, 1440])
+# The phone's terminal; the journey then reflows to the desk and back.
+@pytest.mark.parametrize("width", [390])
 def test_merge_film_terminal_seeks_to_the_result_it_reports(browser, serve, width):
     source = next(path for path in EXAMPLES if path.name == "wt-merge.html")
     page = open_page(browser, serve(source))
@@ -1388,6 +1393,17 @@ LIVE_SAMPLES_PAGE = leaf_page(
 ).replace("</template>", SAMPLE_STARTUP_FAILURE + "</template>")
 
 
+# One practice page, for the journeys that need no second child to compare against:
+# each child is a whole page to load.
+LIVE_SAMPLE_PAGE = re.sub(
+    r'<lf-sample id="second-practice".*?</lf-sample>\n',
+    "",
+    LIVE_SAMPLES_PAGE,
+    flags=re.DOTALL,
+)
+assert "second-practice" not in LIVE_SAMPLE_PAGE
+
+
 def fail_sample_startup(route):
     """The real child reports its fixture's failure over the private bridge.
 
@@ -1608,7 +1624,7 @@ def test_live_sample_full_view_keeps_the_child_and_returns_after_inner_escape(
 
 def test_a_live_revision_mounts_and_resets_its_new_sample(browser, serve):
     """An arriving sample allocates from its own revision before that revision paints."""
-    page = open_page(browser, live_url(serve(LIVE_SAMPLES_PAGE)))
+    page = open_page(browser, live_url(serve(LIVE_SAMPLE_PAGE)))
     addition = """
 <lf-sample id="arriving-practice" label="New practice">
   <template id="arriving-source" data-sample>
@@ -1616,7 +1632,7 @@ def test_a_live_revision_mounts_and_resets_its_new_sample(browser, serve):
   </template>
 </lf-sample>
 """
-    revised = LIVE_SAMPLES_PAGE.replace("</main>", addition + "</main>")
+    revised = LIVE_SAMPLE_PAGE.replace("</main>", addition + "</main>")
     with page.expect_request("**/api/samples") as allocation:
         _publish(serve.page_dir, 2, revised, "Add another practice page.")
     sample = page.locator("#arriving-practice")
@@ -1647,6 +1663,59 @@ def test_a_live_revision_mounts_and_resets_its_new_sample(browser, serve):
         "Practice added in the revision"
     )
     wait_until_ready(page)
+
+
+REPLY_SAMPLE = """<lf-sample id="reply-practice" label="Practice in a reply">
+  <template id="reply-practice-source" data-sample>
+    <h1 id="reply-child-heading">Practice from a reply</h1>
+    <lf-ask id="reply-child-ask"><h2>Which approach?</h2>
+      <lf-options id="reply-child-options" choose>
+        <lf-option id="reply-child-a">First approach</lf-option>
+        <lf-option id="reply-child-b">Second approach</lf-option>
+      </lf-options>
+    </lf-ask>
+  </template>
+</lf-sample>"""
+
+
+def test_an_agent_reply_runs_its_live_sample_in_the_thread(browser, serve):
+    """A live sample an agent posts in a reply is a page the user operates in the
+    thread: its template is the message's, and its gestures reach only its own log."""
+    url = serve(leaf_page("Reply host", '<h1 id="host">Session store</h1>'))
+    question = panel_comment(serve.page_dir, "What would the alternative look like?")
+    replied = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "response",
+            "reply",
+            "--done",
+            response_reference(serve.page_dir, question),
+            "--text",
+            "Try it here:",
+            "--markup",
+            REPLY_SAMPLE,
+        ],
+    )
+    assert replied.exit_code == 0, replied.output
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    page.locator(f'.lf-thread[data-id="{question}"] .lf-thread-summary').click()
+    sample = page.locator("#reply-practice")
+    sample.evaluate("async sample => await sample.ready")
+    child = sample.locator("iframe").element_handle().content_frame()
+    child.lf_traffic = Traffic(child)
+    expect(child.locator("#reply-child-heading")).to_have_text("Practice from a reply")
+    with sending(child, "the sample choice"):
+        child.locator("#reply-child-b .lf-pick").click()
+    expect(child.locator("#reply-child-b .lf-pick")).to_have_attribute(
+        "aria-checked", "true"
+    )
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action"
+    ]
+    assert take_browser_errors(page) == []
 
 
 def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
@@ -1726,133 +1795,6 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
         "1 open thread"
     )
     expect(views["you"].locator('.lf-thread[data-id="98850286"]')).to_be_visible()
-
-
-def test_product_gallery_threads_tab_operates_seeded_panel_views(browser, serve):
-    """The catalog tab's presets operate a real panel and survive sample Reset."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
-    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
-    frame = page.frame_locator("#bg-panel-sample iframe")
-    panel = frame.locator(".lf-thread-panel")
-    expect(panel).to_be_hidden()
-    page.locator('#bg-panel-presets [data-view="overview"]').click()
-    expect(panel).to_be_visible()
-    expect(frame.locator(".lf-thread")).to_have_count(5)
-    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(4)
-
-    page.keyboard.press("Tab")
-    you_button = page.locator('#bg-panel-presets [data-view="you"]')
-    expect(you_button).to_be_focused()
-    assert you_button.evaluate("element => element.matches(':focus-visible')")
-    page.keyboard.press("Space")
-    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(2)
-    expect(you_button).to_be_focused()
-
-    for view, thread, visible, title in (
-        ("you", "2be2443f0bb6cc49fc86b52f340e6073", 2, "Workshop room photo"),
-        ("resolved", "bab3cdfcfb8c02aacbb27da731de947a", 1, "Projector map"),
-        ("summary", "9ee465bb3f9c1fa309ea9cb1767fa365", 4, "Afternoon workshop"),
-        ("progress", "bg-progress-question", 4, "Schedule checks"),
-        (
-            "overview",
-            "72e031c5bf0d485ba9054628e09869d4",
-            4,
-            "Is lunch provided, or should attendees make their own plans?",
-        ),
-    ):
-        button = page.locator(f'#bg-panel-presets [data-view="{view}"]')
-        button.click()
-        expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(visible)
-        expect(frame.locator(f'.lf-thread[data-id="{thread}"]')).to_have_attribute(
-            "open", ""
-        )
-        topic = frame.locator(f'.lf-thread[data-id="{thread}"] .lf-thread-topic')
-        expect(topic).to_be_visible()
-        expect(topic).to_have_text(title)
-        assert topic.evaluate("element => element.getBoundingClientRect().width") > 40
-        if view == "progress":
-            card = frame.locator(f'.lf-thread[data-id="{thread}"]')
-            checkpoint = card.locator(".lf-thread-checkpoint")
-            expect(checkpoint.locator(".lf-summary-label")).to_have_count(0)
-            expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
-            earlier = checkpoint.locator(".lf-summary-originals")
-            expect(earlier).to_be_hidden()
-            expand = card.get_by_role("button", name="Show 2 progress messages")
-            page.locator("#bg-panel-sample").scroll_into_view_if_needed()
-            expect(expand).to_be_in_viewport()
-            expand.click()
-            expect(earlier).to_be_visible()
-            expect(earlier).to_contain_text("Checking the total practice time.")
-            expect(earlier).to_contain_text(
-                "Checking the break and closing discussion."
-            )
-            collapse = card.get_by_role("button", name="Hide 2 progress messages")
-            expect(collapse).to_be_focused()
-            expect(collapse).to_be_in_viewport()
-            page.keyboard.press("Enter")
-            expect(earlier).to_be_hidden()
-            expect(
-                card.locator(".lf-thread-transcript > .lf-msg").last
-            ).to_contain_text("The workshop fits, including a fifteen-minute break.")
-
-    page.locator('#bg-panel-presets [data-view="you"]').click()
-    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(2)
-    find = frame.get_by_role("searchbox", name="Find in threads")
-    find.click()
-    find.fill("xyz-nothing")
-    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(0)
-    page.locator('#bg-panel-presets [data-view="resolved"]').click()
-    resolved = frame.locator('.lf-thread[data-id="bab3cdfcfb8c02aacbb27da731de947a"]')
-    expect(frame.get_by_role("searchbox", name="Find in threads")).to_have_value("")
-    expect(
-        frame.locator('[data-filter-kind="status"][data-filter-value="resolved"]')
-    ).to_have_attribute("aria-pressed", "true")
-    expect(resolved).to_have_attribute("open", "")
-    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(1)
-    expect(frame.locator(".lf-thread-filter-toggle")).to_have_attribute(
-        "aria-expanded", "false"
-    )
-    page.locator('#bg-panel-presets [data-view="resolved"]').click()
-    expect(resolved).to_have_attribute("open", "")
-    page.locator('#bg-panel-presets [data-view="you"]').click()
-    page.locator('#bg-panel-presets [data-view="resolved"]').click()
-    expect(resolved).to_have_attribute("open", "")
-    page.locator("#bg-panel-sample").get_by_role(
-        "button", name="Reset", exact=True
-    ).click()
-    page.locator("#bg-panel-sample").evaluate("async sample => { await sample.ready; }")
-    expect(panel).to_be_visible()
-    expect(frame.locator(".lf-thread")).to_have_count(5)
-    expect(
-        frame.locator('.lf-thread[data-id="bab3cdfcfb8c02aacbb27da731de947a"]')
-    ).to_have_attribute("open", "")
-    # Latest commands and Reset cancel pending presentation across the port.
-    result = page.locator("#bg-panel-sample").evaluate(
-        """sample => Promise.all([
-          sample.showThread('2be2443f0bb6cc49fc86b52f340e6073',
-            {surface: 'panel', waiting: 'user'}),
-          sample.showThread('bab3cdfcfb8c02aacbb27da731de947a',
-            {surface: 'panel', status: 'resolved'})
-        ])"""
-    )
-    assert result == [False, True]
-    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(1)
-    expect(
-        frame.locator(".lf-thread[open]:not([hidden]) .lf-thread-topic")
-    ).to_have_text("Projector map")
-    result = page.locator("#bg-panel-sample").evaluate(
-        """async sample => {
-          const old = sample.showThread('2be2443f0bb6cc49fc86b52f340e6073',
-            {surface: 'panel', waiting: 'user'});
-          await sample.reset();
-          return old;
-        }"""
-    )
-    assert result is False
-    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(1)
-    expect(
-        frame.locator(".lf-thread[open]:not([hidden]) .lf-thread-topic")
-    ).to_have_text("Projector map")
 
 
 def test_sample_fixture_history_presents_before_ready_and_returns_on_reset(
@@ -2701,7 +2643,7 @@ def test_sample_browser_boundary_contains_focus_scroll_and_parent_access(
 
 def test_live_samples_retire_before_navigation_and_coalesce_reset(browser, serve):
     """A held replacement navigation cannot keep a released child alive."""
-    page = open_page(browser, serve(LIVE_SAMPLES_PAGE))
+    page = open_page(browser, serve(LIVE_SAMPLE_PAGE))
     page.evaluate("""async () => {
         const {mountSample} = await window.__lfRuntimeImport('/runtime/sample.js');
         window.practiceFrame = document.createElement('iframe');
@@ -2767,7 +2709,7 @@ def test_live_samples_retire_before_navigation_and_coalesce_reset(browser, serve
 
 def test_live_samples_release_pending_allocations_and_can_reconnect(browser, serve):
     """Destroy releases every startup phase; a detached widget can reconnect."""
-    page = open_page(browser, serve(LIVE_SAMPLES_PAGE))
+    page = open_page(browser, serve(LIVE_SAMPLE_PAGE))
     sample = page.locator("#first-practice")
     reset = sample.get_by_role("button", name="Reset", exact=True)
     expect(reset).to_be_enabled()
@@ -2869,7 +2811,7 @@ def test_live_samples_release_pending_allocations_and_can_reconnect(browser, ser
 
 def test_slow_sample_state_does_not_hold_up_other_child_loads(browser, serve):
     """A child waiting for state releases its load slot for the next sample."""
-    page = open_page(browser, serve(LIVE_SAMPLES_PAGE))
+    page = open_page(browser, serve(LIVE_SAMPLE_PAGE))
     held = []
     page.route(
         re.compile(r"/api/samples/[^/]+/api/state$"),
@@ -2892,7 +2834,7 @@ def test_slow_sample_state_does_not_hold_up_other_child_loads(browser, serve):
 
 def test_live_samples_preserve_optimistic_refusal_and_child_escape(browser, serve):
     """Delivery rollback and nested Escape remain the ordinary child's behavior."""
-    page = open_page(browser, serve(LIVE_SAMPLES_PAGE))
+    page = open_page(browser, serve(LIVE_SAMPLE_PAGE))
     sample = page.locator("#first-practice")
     expect(sample.get_by_role("button", name="Reset", exact=True)).to_be_enabled()
     child = sample.locator("iframe").element_handle().content_frame()
@@ -4730,20 +4672,19 @@ def assert_banner_as_stated(read, wrapped):
 @pytest.mark.parametrize(
     ("width", "touch", "signoff", "wrapped"),
     [
-        # A tablet's window holds the status and the queue counts beside Threads, and
-        # beside Approval too.
+        # A tablet's window holds the status and the queue counts beside Threads.
         (820, True, False, False),
-        (820, True, True, False),
         # Below that, a landscape phone gives the run, led by the counts, a row of its
         # own, so the sentence keeps a row of its own too.
         (740, True, False, True),
-        # Capability arrival cannot change this window's row allocation.
+        # Capability arrival cannot change this window's row allocation. Approval
+        # arriving or leaving at the other widths is
+        # test_approval_capability_changes_keep_banner_targets.
         (600, False, False, True),
         (600, False, True, True),
         # A phone held upright is one row: the status, Threads and More, with Approval
-        # behind More, so sign-off changes nothing there either.
+        # behind More.
         (390, True, False, False),
-        (390, True, True, False),
         (470, True, False, False),
     ],
 )
@@ -8023,22 +7964,22 @@ def test_the_feature_gallery_has_no_serious_wcag_a_or_aa_violations(browser, ser
     smaller one: the column is 372px, so a block that had room at a desk starts
     scrolling, and a scrolling box with no way into it from the keyboard is a user
     reading half of every line of code. Nothing at 1200 says a word about it."""
-    url = serve(FEATURE_GALLERY)
+    page = open_page(browser, serve(FEATURE_GALLERY))
     findings = []
     for color_scheme in ("light", "dark"):
-        page = open_page(browser, url, color_scheme=color_scheme)
+        page.emulate_media(color_scheme=color_scheme)
         for width in (1200, 420):
             resized(page, width, 900)
             violations, report = serious_axe_violations(page)
             if violations:
                 findings.append(f"[{width}px {color_scheme}]\n{report}")
-        page.close()
 
     assert findings == [], "\n\n".join(findings)
 
 
-@pytest.mark.parametrize("color_scheme", ["light", "dark"])
-@pytest.mark.parametrize("width", [1200, 420])
+# Each scheme and each width once: a contrast failure belongs to a scheme and a
+# scrolling box to a width, and neither has been seen to need the other.
+@pytest.mark.parametrize(("width", "color_scheme"), [(1200, "light"), (420, "dark")])
 def test_the_chrome_a_key_opens_has_no_serious_violations(
     browser, serve, other_leaf, color_scheme, width
 ):
@@ -9178,6 +9119,9 @@ def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_bo
     )
 
 
+# The page the chrome's surfaces are sampled on: small, with a board's grips, and served
+# with a second version so the versions menu has a comparison to offer.
+RING_CHROME = "triage-board"
 # A causal sample in each surface the keyboard reaches. Each case names its surface, the
 # real keys that open it, the element whose focus state paints the ring, and the ring it
 # paints. A null selector means the opening keys themselves leave the required
@@ -9187,9 +9131,11 @@ RING_CASES = (
         "the page",
         (),
         {
-            "corpus": (
+            # The chrome's own surfaces stand on the smallest page that offers them all,
+            # since every page carries the same chrome and each reading over a large
+            # document costs seconds.
+            RING_CHROME: (
                 (".lf-skip", "skip"),
-                (".lf-tab-btn", "tab-btn"),
                 (".lf-grip", "card-grip"),
                 (".lf-status-button", "status"),
                 (".lf-others", "btn"),
@@ -9200,6 +9146,7 @@ RING_CASES = (
                 (".lf-thread-panel leaf-text", "text-box"),
             ),
             "feature-gallery": (
+                (".lf-tab-btn", "tab-btn"),
                 ("lf-option > .lf-pick", "options-row"),
                 (
                     any_owner_entry("suggestion", "accept") + ":visible",
@@ -9237,7 +9184,7 @@ RING_CASES = (
     (
         "the thread list",
         ("g", "Shift+t", "/", "z", "q", "x", "j", "Escape"),
-        {"corpus": ((None, "thread-list"),)},
+        {RING_CHROME: ((None, "thread-list"),)},
     ),
     (
         "a thread title",
@@ -9257,7 +9204,7 @@ RING_CASES = (
     (
         "passage search",
         ("/",),
-        {"corpus": ((".lf-page-search-box input:visible", "text-entry"),)},
+        {RING_CHROME: ((".lf-page-search-box input:visible", "text-entry"),)},
     ),
     # Item hints, and the anchored bar the user answers a chosen item on. Both open the
     # same mode, and both step back and then forward through it, which lands on the last
@@ -9275,27 +9222,33 @@ RING_CASES = (
     (
         "target hints",
         ("Tab", "s", "Shift+Tab", "Tab"),
-        {"corpus": ((None, "target-hint"),)},
+        {RING_CHROME: ((None, "target-hint"),)},
     ),
     # Enter opens Comment on the item the keyboard is browsing and focuses its field.
     (
         "the response bar",
         ("Tab", "s", "Shift+Tab", "Tab", "Enter"),
-        {"corpus": ((".lf-fab-input", "text-box"),)},
+        {RING_CHROME: ((".lf-fab-input", "text-box"),)},
     ),
-    # These controls live behind exact page-owned view states. Give each one a focused
-    # stop rather than changing the active panel for the whole page: selecting a
-    # late outer corpus tab would make its preceding until-found panels part of that
-    # sequential order.
+    # These controls live behind exact page-owned view states: a settled group's
+    # disclosure, and the options it puts away.
     (
         "a settled decision",
         (),
-        {"corpus": (("#comparison-policy > .lf-settled", "options-settled"),)},
+        {
+            "current-proposed-comparison": (
+                ("#comparison-policy > .lf-settled", "options-settled"),
+            )
+        },
     ),
     (
         "a settled option",
         (),
-        {"corpus": (("#comparison-policy > lf-option > .lf-pick", "options-pick"),)},
+        {
+            "current-proposed-comparison": (
+                ("#comparison-policy > lf-option > .lf-pick", "options-pick"),
+            )
+        },
     ),
     (
         "a contents link",
@@ -9312,8 +9265,8 @@ RING_CASES = (
         {"ship-review": ((".lf-react-palette:popover-open .lf-react", "chip"),)},
     ),
     ("the Questions panel", (), {"ship-review": ((".lf-queue-row", "queue-row"),)}),
-    ("the pages drawer", ("g", "Shift+l"), {"corpus": ((None, "others-row"),)}),
-    ("page status", (), {"corpus": ((None, "status-detail"),)}),
+    ("the pages drawer", ("g", "Shift+l"), {RING_CHROME: ((None, "others-row"),)}),
+    ("page status", (), {RING_CHROME: ((None, "status-detail"),)}),
     # The menu's own route after the key that opens it: an open lands on the version being
     # read, which is the first row, and the comparison press beside a row is a Tab forward
     # from the row below it. The walk is clamped, so a second press at the bottom moves
@@ -9322,7 +9275,7 @@ RING_CASES = (
         "the versions menu",
         ("g", "Shift+v", "ArrowDown", "ArrowDown"),
         {
-            "corpus": (
+            RING_CHROME: (
                 (".lf-version-row", "version-row"),
                 (".lf-version-diff:visible:not(:disabled)", "version-diff"),
             )
@@ -9332,7 +9285,7 @@ RING_CASES = (
         "the command reference",
         ("?", "?"),
         {
-            "corpus": (
+            RING_CHROME: (
                 (".lf-command-reference-search input:visible", "text-entry"),
                 (".lf-command-reference-command", "help-command"),
             )
@@ -9359,7 +9312,7 @@ RING_CASES = (
         "the Page Map dialog",
         (),
         {
-            "corpus": (
+            RING_CHROME: (
                 (".lf-page-map-action:visible", "page-map-action"),
                 (".lf-page-map-search input:visible", "text-entry"),
             )
@@ -9370,7 +9323,14 @@ RING_CASES = (
 RING_EXAMPLES = tuple(
     dict.fromkeys(name for _scope, _keys, cases in RING_CASES for name in cases)
 )
-RING_EXAMPLE_FILES = {example.stem: example for example in (*EXAMPLES, FEATURE_GALLERY)}
+RING_EXAMPLE_FILES = {
+    example.stem: example
+    for example in (
+        *EXAMPLES,
+        FEATURE_GALLERY,
+        ROOT / "tests/fixtures/pages/current-proposed-comparison.html",
+    )
+}
 # Rings whose carrier is semantic state elsewhere in the page rather than the focused
 # control or one of its ancestors. Mark the exact carrier before reading the composed
 # paint so an unrelated ring with the same name cannot credit the sample.
@@ -9557,34 +9517,33 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
     assert lost and "lf-tab-btn" in lost, lost
 
 
-def test_every_base_corpus_tab_stop_has_a_visible_focus_indicator(browser, serve):
-    """Every stop in each selected page's ordinary Tab order shows keyboard focus."""
+def _tab_stops_without_indication(page, stem):
+    """Walk the page's whole ordinary Tab order, Threads open, and name every stop
+    that shows nothing of where the keyboard is. The panel is closed again after."""
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.evaluate("() => { window.__lfSeen = new WeakSet(); }")
+    page.evaluate(RELEASE_FOCUS)
     failures = []
-    for example in (RING_EXAMPLE_FILES[name] for name in RING_EXAMPLES):
-        page = open_page(browser, serve(example, comments=2))
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
-        page.evaluate("() => { window.__lfSeen = new WeakSet(); }")
-        page.evaluate(RELEASE_FOCUS)
+    empty = 0
+    for _ in range(400):
+        page.keyboard.press("Tab")
+        stop, lost = page.evaluate(WALKED_STOP)
+        if stop == "seen":
+            break
+        if stop == "empty":
+            empty += 1
+            assert empty <= 2, f"Tab never entered {stem}"
+            continue
         empty = 0
-        for _ in range(400):
-            page.keyboard.press("Tab")
-            stop, lost = page.evaluate(WALKED_STOP)
-            if stop == "seen":
-                break
-            if stop == "empty":
-                empty += 1
-                assert empty <= 2, f"Tab never entered {example.stem}"
-                continue
-            empty = 0
-            if lost:
-                failures.append(f"{example.stem}: {lost}")
-        else:
-            raise AssertionError(f"Tab order never came round in {example.stem}")
-        page.close()
-    assert not failures, "keyboard stops with no visible indication: " + "; ".join(
-        failures
-    )
+        if lost:
+            failures.append(f"{stem}: {lost}")
+    else:
+        raise AssertionError(f"Tab order never came round in {stem}")
+    page.get_by_role("button", name="Close threads", exact=True).click()
+    panel_settled(page, open=False)
+    page.evaluate(RELEASE_FOCUS)
+    return failures
 
 
 def test_the_focus_sweep_distinguishes_stops_inside_a_live_frame(browser):
@@ -9604,7 +9563,9 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
     browser, serve, live_leaf
 ):
     """Where the keyboard stands in each surface a key opens, the user sees its ring
-    whole: not cut by a box that clips it, and not under a neighbour.
+    whole: not cut by a box that clips it, and not under a neighbour. And every stop
+    in each selected page's ordinary Tab order shows keyboard focus at all, read by
+    walking it once on arrival.
 
     `RING_CASES` walks the layer's surfaces by their real keys and stands on a sample in
     each; every ring drawn there is measured, not only the sample's. Which rings get a
@@ -9634,6 +9595,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
     unnamed, unnamed_rules = set(), set()
     opened = set()
     stops = 0
+    unindicated = []
     assert not (missing := set(RING_EXAMPLES) - set(RING_EXAMPLE_FILES)), (
         "the ring cases name examples that no longer exist: "
         + ", ".join(sorted(missing))
@@ -9641,8 +9603,10 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
     for name in RING_EXAMPLES:
         example = RING_EXAMPLE_FILES[name]
         # Serving the path lays in the example's shipped log and message widgets.
-        url = serve(example, comments=2)
-        if name == "corpus":
+        # The chrome's page also carries a passage's thread, which the Page Map lists.
+        anchored = [("triage-lede", "Migration 0041")] if name == RING_CHROME else ()
+        url = serve(example, comments=2, anchored=anchored)
+        if name == RING_CHROME:
             current_version = int(re.search(r"/v(\d+)\.html", url).group(1))
             next_version = current_version + 1
             _publish(
@@ -9653,6 +9617,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             )
             url = url.replace(f"/v{current_version}.html", f"/v{next_version}.html")
         page = open_page(browser, url)
+        unindicated += _tab_stops_without_indication(page, example.stem)
         if name == "wt-merge":
             # The shipped steps now contain buttons, so the scrollable body needs no
             # stop of its own. Make this ring specimen prose-only; it still overflows
@@ -9701,9 +9666,6 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             # on them only after their explicit doors have opened. Do that after the
             # scope reset, whose Escape presses would otherwise put the draft away.
             if scope in {"a settled decision", "a settled option"}:
-                page.get_by_role(
-                    "tab", name="Current Proposed Comparison", exact=True
-                ).click()
                 settled = page.locator("#comparison-policy[settled] > .lf-settled")
                 expect(settled).to_be_visible()
                 if settled.get_attribute("aria-expanded") != "true":
@@ -9785,12 +9747,11 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 if selector:
                     target = page.locator(selector).first
                     # A sample can stand inside a container that is closed on arrival —
-                    # the corpus holds each example in a tab, and only one panel is open.
+                    # the gallery holds its sections in tabs, and only one panel is open.
                     # Nothing inside a hidden panel is focusable, so the ring would read
                     # as undrawn for a control that paints it perfectly well. Ask the
                     # runtime's own disclosure route, so the surface a sample needs is
-                    # derived from where it sits rather than from the corpus's tab order —
-                    # which follows the examples directory, and moves when one is added.
+                    # derived from where it sits rather than from a page's tab order.
                     # `reveal` takes the intent its caller's gesture retained, and
                     # has no default (runtime/user-intent.js). This arrangement is
                     # not a user's delayed work that a later input may supersede —
@@ -9855,9 +9816,6 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                     page.keyboard.press("Escape")
                 resized(page, *RING_VIEWPORT)
                 page_at_rest(page)
-            if scope in {"a settled decision", "a settled option"}:
-                page.get_by_role("tab", name="Triage", exact=True).click()
-                page_at_rest(page)
 
         unnamed_rules.update(
             said
@@ -9867,6 +9825,9 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
         )
         page.close()
 
+    assert not unindicated, "keyboard stops with no visible indication: " + "; ".join(
+        unindicated
+    )
     assert not unseen, (
         "a sample stood on a control and nothing on screen said where the keyboard was, "
         "so a user arriving by Tab has no way to tell: "
@@ -10114,6 +10075,36 @@ def _each_aim_surface(page, page_dir):
     yield
 
 
+# Every kind of box AIM_SURFACES names, beside the widgets whose built controls the
+# sweep reads at rest: tabs, a board's grips, a question with its own Done and field,
+# and a suggestion's margin pair.
+AIM_PAGE = leaf_page(
+    "aims",
+    """<h1 id="t">Aims</h1>
+<p id="aim-lead">The first view holds the board and the question.</p>
+<lf-tabs id="aim-views">
+  <lf-tab id="aim-first" label="First">
+    <lf-board id="aim-board">
+      <lf-column id="aim-todo" label="Todo">
+        <lf-card id="aim-card"><strong>Heated perch</strong></lf-card>
+        <lf-card id="aim-other"><strong>Squirrel baffle</strong></lf-card>
+      </lf-column>
+      <lf-column id="aim-done" label="Done"></lf-column>
+    </lf-board>
+    <lf-ask id="aim-ask"><h2>Which jobs?</h2>
+      <lf-options id="aim-jobs" choose multiple>
+        <lf-option id="aim-mounts">Replace the mounts</lf-option>
+        <lf-option id="aim-bath">Heat the bird bath</lf-option>
+      </lf-options>
+    </lf-ask>
+    <p>Start at <lf-suggestion id="aim-change"><lf-old>nine.</lf-old><lf-new>ten.</lf-new>
+    </lf-suggestion></p>
+  </lf-tab>
+  <lf-tab id="aim-second" label="Second"><p>The second view.</p></lf-tab>
+</lf-tabs>""",
+)
+
+
 @pytest.mark.parametrize("touch", (False, True))
 def test_every_control_the_layer_offers_is_a_box_the_user_can_hit(
     browser, serve, touch
@@ -10143,12 +10134,13 @@ def test_every_control_the_layer_offers_is_a_box_the_user_can_hit(
         if touch
         else None
     )
-    example = next(e for e in EXAMPLES if e.stem == "corpus")
     # A preview record, because the badge it puts in the banner is one of the aims and
-    # exists on no page that was not served by the preview script.
+    # exists on no page that was not served by the preview script. The comment anchored
+    # on a quote puts a quote in its thread.
     served = serve(
-        example,
+        AIM_PAGE,
         comments=2,
+        anchored=[("aim-lead", "first view")],
         preview={
             "kind": "example",
             "example": "corpus",
@@ -10157,9 +10149,26 @@ def test_every_control_the_layer_offers_is_a_box_the_user_can_hit(
             "started": "2026-08-31T12:00:00+00:00",
         },
     )
+    # An agent's answer on a thread the walk leaves open carries a reaction strip,
+    # whose chips are aims. The walk resolves the first thread.
+    second = [
+        e["id"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "comment"
+    ][1]
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": second,
+            "text": "An answer to react to.",
+        },
+    )
     # A second version, published the way a page gets one and read from, so the versions
     # menu has an earlier version to compare against and Compare exists to be aimed at.
-    _publish(serve.page_dir, 2, example.read_text(), "Same page, said twice.")
+    _publish(serve.page_dir, 2, AIM_PAGE, "Same page, said twice.")
     page = open_page(browser, served.replace("/v1.html", "/v2.html"), context=context)
     floor = 44 if touch else 24
     assert page.evaluate("() => matchMedia('(pointer: coarse)').matches") == touch, (

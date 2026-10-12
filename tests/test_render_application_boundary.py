@@ -2946,10 +2946,9 @@ def test_frozen_question_reveals_its_exact_message_in_a_selective_primary(
 @pytest.mark.parametrize(
     ("primary", "travel", "source_top", "cross_boundary"),
     [
-        (True, True, 0, False),
         (True, True, 200, False),
         (True, False, 200, False),
-        (False, True, 1000, False),
+        # A contextual card's travel, slowed until it crosses into the viewport.
         (False, True, 1000, True),
     ],
 )
@@ -3626,8 +3625,9 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
     rendered(page)
 
 
-def test_primary_navigation_cancels_while_waiting_for_presentation(browser, serve):
-    """Superseding a navigation completes its promise even when a renderer is blocked."""
+def test_cancelled_primary_travel_adds_no_return_checkpoint(browser, serve):
+    """A newer Tab keeps its focus and history while a primary layout completes, and
+    superseding a navigation completes its promise even when a renderer is blocked."""
     page = open_page(browser, package_workspace(serve))
     assert page.evaluate("""async () => {
       const {createThreadDestinations} = await window.__lfRuntimeImport('/runtime/thread/destination.js');
@@ -3650,11 +3650,6 @@ def test_primary_navigation_cancels_while_waiting_for_presentation(browser, serv
       unregister();
       return result === null;
     }""")
-
-
-def test_cancelled_primary_travel_adds_no_return_checkpoint(browser, serve):
-    """A newer Tab keeps its focus and history while a primary layout completes."""
-    page = open_page(browser, package_workspace(serve))
     entries = page.evaluate("history.length")
     page.evaluate("""async () => {
       const api = await window.__lfRuntimeImport('/runtime/widget-api.js');

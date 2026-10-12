@@ -1,11 +1,13 @@
 """Initial histories for disposable samples, read from their captured parent.
 
-A template imports live parent thread closures with `data-sample-threads`, or
-names a parent-local inert JSON script with `data-sample-events`. The latter is
-an array of ordinary event commands, admitted against the child's initial
-document and vocabulary before allocation. It never writes the parent log.
-Source validation and allocation use this same construction. Fixtures are
-history, not a second state store: subsequent gestures use the ordinary log.
+A template's holder is the markup it is written in: its parent page's document, or
+the frozen markup of a message in that page's log. A template imports live parent
+thread closures with `data-sample-threads`, or names an inert JSON script in its
+holder with `data-sample-events`. The latter is an array of ordinary event
+commands, admitted against the child's initial document and vocabulary before
+allocation. It never writes the parent log. Source validation, message admission
+and allocation use this same construction. Fixtures are history, not a second
+state store: subsequent gestures use the ordinary log.
 """
 
 import json
@@ -23,7 +25,7 @@ from .registry.kernel import kernel_event_kinds
 from .registry.schema import aware_instant, json_value
 from .state import now_iso
 from .structure import SourceDocument
-from .thread_context import sample_events, thread_structure
+from .thread_context import sample_events, thread_names, thread_structure
 from .validation.admission import message_markup_error
 from .validation.markup import text_media_errors
 
@@ -84,11 +86,15 @@ def initial_sample_events(
     page_dir: Path,
     parent: SourceDocument,
     parent_events: list,
+    holder: SourceDocument,
     template: dict,
     registry: dict,
     contracts: dict,
 ) -> list[dict]:
-    """Construct the child's admitted log without mutating any captured input."""
+    """Construct the child's admitted log without mutating any captured input.
+
+    `parent` is the document `parent_events` is the log of, and `holder` the markup
+    declaring `template`: `parent` itself, or one of its log's messages."""
     attrs = template["attrs"]
     reference = attrs.get("data-sample-events")
     if "data-sample-events" not in attrs:
@@ -105,12 +111,13 @@ def initial_sample_events(
         )
     scripts = [
         script
-        for script in [*parent.inline_scripts, *parent.external_scripts]
+        for script in [*holder.inline_scripts, *holder.external_scripts]
         if script["attrs"].get("id") == reference
     ]
     if not reference or len(scripts) != 1:
         raise ValueError(
-            f"data-sample-events {reference!r} must name one script in its parent document"
+            f"data-sample-events {reference!r} must name one script in the markup "
+            "declaring its template"
         )
     script = scripts[0]
     if (
@@ -186,6 +193,10 @@ def initial_sample_events(
                     child,
                     set(),
                     data_document_errors(readings),
+                    contracts,
+                    event["id"]
+                    if kind == "comment"
+                    else thread_names(events).get(event.get("parent")),
                 ):
                     raise ValueError(error)
                 if collision := fragment.ids & (

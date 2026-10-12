@@ -1,4 +1,4 @@
-# Added when an ephemeral reply to an owed move began taking that move in hand, so
+# Added when an ephemeral reply to an owed update began taking that update in hand, so
 # the user's first sign of the agent is words in their thread rather than a Working
 # label. Two `leaf-dev journey claude-code` runs on 18142adc showed the agent's first command
 # was `leaf task start` and a read of the page, with nothing in the thread until the
@@ -7,6 +7,8 @@
 # It separated the arms: base f5712f3e6 passed 0 of 5 on each harness, the change
 # 5 of 5 on each (the first codex sample counted after its multi-line command was
 # let through the regex).
+# Reworded by #2329 (updates to progress messages); at 3fe3eb0af it passed 1/1 on
+# Claude Code.
 description: first-command-says-what-comes
 metadata:
   purpose: 'Conversation loop: after a delivery whose message asks for work, the first command posts a short progress message in its thread saying what the agent will do, before reading or editing anything; the answer comes later.'
@@ -28,10 +30,6 @@ vars:
     out, in order, each command you would run from now until you have answered the
     comment, including any that read files or the page. Then end your answer.
 assert:
-- type: regex
-  metric: posts-progress-in-the-thread
-  value: >-
-    \bleaf\s+response\s+reply\b(?=(?:[^\n]|\\\n)*--ephemeral\b)(?=(?:[^\n]|\\\n)*5d1e8a42)
 - type: llm-rubric
   metric: judgment
   value: |

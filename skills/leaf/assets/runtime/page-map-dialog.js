@@ -64,6 +64,7 @@ import { versionBtn } from "./version-picker.js";
 import { marginMapGroups } from "./margin-map-model.js";
 
 export const mapButton = el("button", "lf-btn lf-page-map-toggle", "Map");
+let mapCount = 0;
 mapButton.type = "button";
 mapButton.title = "Open Page Map";
 registerBannerControl({
@@ -71,6 +72,11 @@ registerBannerControl({
   control: mapButton,
   rank: BANNER_CONTROL_RANK.map,
   present: false,
+  row: {
+    label: "Page Map",
+    value: () => String(mapCount),
+    group: "navigate",
+  },
 });
 
 const dialog = document.createElement("dialog");
@@ -339,6 +345,7 @@ export function createPageMapDialog({
   function renderPageMapDialog(nextEntries) {
     entries = nextEntries;
     const label = `Map (${entries.length})`;
+    mapCount = entries.length;
     showBannerControl(mapButton, entries.length > 0);
     keepsText(mapButton, label);
     if (dialog.open) renderSheet();

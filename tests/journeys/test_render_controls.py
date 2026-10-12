@@ -1444,6 +1444,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
               key: `test-secondary-${i}`,
               control: button,
               rank: toolbar.BANNER_CONTROL_RANK.blanket + (i + 1) / 10,
+              row: { label: button.textContent, group: "page" },
             });
           }
         }"""

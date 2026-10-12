@@ -547,7 +547,7 @@ export function mountApplication(dependencies) {
       const question = readQuestions().all.find((item) => item.id === id);
       if (!question) return Promise.resolve(false);
       if (question.source.kind === "approval")
-        return queueActions.open(JSON.stringify(["question", question.id]));
+        return queueActions.open(JSON.stringify(["ask", question.id]));
       if (question.source.kind === "reply") {
         showHeld(question.thread);
         return threadDestinations.openPageThread(question.message, {

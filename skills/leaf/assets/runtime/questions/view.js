@@ -285,7 +285,7 @@ export function createQuestionView({
   // relation that maps a margin entry or thread back to its source; the generic
   // compiler retains original command identity and availability.
   const actionsFor = (source) =>
-    decisionControls(commandsWithin(source), `Question ${source.id}`).filter(
+    decisionControls(commandsWithin(source), `Ask ${source.id}`).filter(
       ({ source: commandSource, control }) =>
         ownedQuestionControl(source, commandSource) &&
         control.getAttribute("aria-busy") !== "true",
@@ -650,7 +650,7 @@ export function createQuestionView({
       if (!arrived) return false;
       const state = unansweredIds().has(next.id) ? "waiting on you" : "answered";
       const index = questions.findIndex((question) => question.id === next.id);
-      announce(walkPositionLabel("Question", index + 1, questions.length, state));
+      announce(walkPositionLabel("Ask", index + 1, questions.length, state));
       return true;
     });
     void ready.catch(() => {});

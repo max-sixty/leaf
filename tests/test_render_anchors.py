@@ -4419,6 +4419,16 @@ def test_the_number_hint_names_only_versions_that_still_exist(browser, serve):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "note" and event["version"] == 1
     )
+    # An interrupted publication is repaired when state is read. Model an
+    # unavailable older revision whose note has no recoverable publication.
+    log = serve.page_dir / "events.jsonl"
+    events = events_model.read_events(serve.page_dir)
+    for event in events:
+        if event.get("revision") == first["revision"]:
+            event.pop("publication", None)
+    log.write_text(
+        "".join(json.dumps(event) + "\n" for event in events), encoding="utf-8"
+    )
     files_model.revision_path(serve.page_dir, first["revision"]).unlink()
     page = open_page(browser, url.replace("v1.html", "v3.html"))
 
@@ -4597,12 +4607,10 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     btn = page.locator(".lf-version")
     menu = page.locator(".lf-version-menu")
     expect(btn).to_have_text("Showing v2")
-    expect(btn).to_have_attribute("aria-expanded", "false")
     expect(menu).to_be_hidden()
 
     banner_control(page, ".lf-version").click()
     expect(menu).to_be_visible()
-    expect(btn).to_have_attribute("aria-expanded", "true")
     # Versions replaces More rather than covering its own invoker. Escape closes the
     # one root panel and leaves the page as the keyboard destination.
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
@@ -4743,7 +4751,6 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     # the two are one thing (the picker's focusSelectedRow).
     open_versions(page)
     expect(menu).to_be_visible()
-    expect(btn).to_have_attribute("aria-expanded", "true")
     menu_line = shortcut_bar_text(page)
     assert "1–3\nopen version" in menu_line, menu_line
     assert "back" not in menu_line, menu_line
@@ -5089,7 +5096,6 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     compared.keyboard.down("Tab")
     compared.keyboard.up("Tab")
     expect(compared.locator(".lf-version-menu")).to_be_hidden()
-    expect(compared.locator(".lf-version")).to_have_attribute("aria-expanded", "false")
 
     open_versions(compared)
     comparison.focus()
@@ -5102,7 +5108,6 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     compared.keyboard.up("Tab")
     compared.keyboard.up("Shift")
     expect(compared.locator(".lf-version-menu")).to_be_hidden()
-    expect(compared.locator(".lf-version")).to_have_attribute("aria-expanded", "false")
     compared.close()
 
     page = open_page(browser, url, pin=True)

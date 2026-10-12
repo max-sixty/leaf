@@ -2896,9 +2896,6 @@
 .lf-draft-footer {
   display: none;
 }
-:scope:is(lf-draft):is(:hover, [data-lf-focus-within]) > .lf-code-copy {
-  opacity: 1;
-}
 @media screen {
   @scope (html[data-lf-interactive] :scope) {
     :scope:is(lf-draft):not(:where([data-lf-exhibit], [data-lf-exhibit] *)) {
@@ -2906,10 +2903,8 @@
       grid-template-rows: minmax(min-content, auto) minmax(max(32px, var(--aim-floor)), auto);
       gap: 8px;
     }
-    @media not (pointer: coarse) {
-      :scope:is(lf-draft):not(:where([data-lf-exhibit], [data-lf-exhibit] *)) > :not(.lf-draft-footer, .lf-code-copy) {
-        margin-right: calc(var(--lf-code-copy-size) + var(--lf-code-copy-inset) + 6px - 14px - 1px);
-      }
+    :scope:is(lf-draft):not(:where([data-lf-exhibit], [data-lf-exhibit] *)) > :not(.lf-draft-footer, .lf-code-copy) {
+      margin-right: calc(var(--lf-code-copy-size) + var(--lf-code-copy-inset) + 6px - 14px - 1px);
     }
   }
   :scope:is(lf-draft):has(.lf-draft-edit) {

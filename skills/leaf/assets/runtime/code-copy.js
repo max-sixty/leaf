@@ -8,17 +8,16 @@
    requesting the control.
    Enter on a block the user stands on copies it. That press is a register row
    projected onto the block beside any scope its owner declares, so the shortcut bar, the
-   command reference and `aria-keyshortcuts` name it, and its `touch` words make it the
-   banner's step under a finger (keyboard/AGENTS.md, "Touch routes"). A link or button
-   inside the block keeps its own Enter (`nativeActivationAt`), and a document block's
-   control stays out of the Tab sequence. Focus need not be on the control, so every
-   copy's result also takes the status line.
-   A finger shows no intent before it lands, so a live page never shows the control to
-   one: shown at rest it covered the ends of the first lines, and room made for it would
-   move the page's content (`../AGENTS.md`, "Nothing Leaf draws moves the page's content").
-   Entering the source by touch stands the user on it, and the banner offers its Copy. An
-   export has no banner, so there the control stays shown to a finger and hides while
-   the user stands in the source. */
+   command reference and `aria-keyshortcuts` name it. A link or button inside the block
+   keeps its own Enter (`nativeActivationAt`), and a document block's control stays out
+   of the Tab sequence. Focus need not be on the control, so every copy's result also
+   takes the status line.
+   The control follows the common pattern for code copy: hidden at rest, so it covers no
+   words, and shown while a pointer is over the block or the user stands on it. A finger
+   has no hover, so a tap on the block stands the user on it and shows the control in
+   its corner, the touch form of the same reveal. The control takes no room, since room
+   made for it would move the page's content (`../AGENTS.md`, "Nothing Leaf draws moves
+   the page's content"). */
 import { offer } from "./widget-elements.js";
 import { watchArrivals } from "./arrivals.js";
 import {
@@ -98,7 +97,6 @@ function declareCopy(pre, copy, noun) {
         keys: ["Enter"],
         description: `Copy this block's ${noun} to the clipboard`,
         title: `copy ${noun}`,
-        touch: `Copy ${noun}`,
         run: () => copy.shadowRoot.querySelector("button").click(),
       },
     ]),

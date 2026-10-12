@@ -1225,9 +1225,9 @@ Leaf adds a Copy button to each `pre > code` block in the page document itself. 
 other block of source text a widget draws, such as code in its shadow stage,
 `copyBlock(block, source, noun)` returns a Copy button standing at the block's top right,
 which copies `source()` when pressed; `noun`, such as `"code"`, names what it copies.
-Call it once the styled block is connected, and append the button beside the block or
-inside it. Enter on the block copies too, and under a finger the button stays hidden and
-the banner offers Copy while the user stands in the block.
+Call it once the styled block is connected, and append the button as a child of the
+widget. The button shows while a pointer is over the widget or focus is inside it, which
+a tap on the block gives a finger, and Enter on the block copies too.
 
 ### Text alignment
 

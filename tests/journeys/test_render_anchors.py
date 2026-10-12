@@ -34,7 +34,6 @@ from render_harness import (
     RELEASE_FOCUS,
     command_reference_rows,
     compare_with,
-    hold_selection,
     leaf_page,
     open_page,
     open_versions,
@@ -417,12 +416,6 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             # the block's aria-keyshortcuts.
             pre.focus()
             assert "copy code" in shortcut_bar_text(page)
-            # The corner control serves a pointer, so the banner keeps its own row.
-            expect(
-                page.locator(".lf-banner-actions").get_by_role(
-                    "button", name="Copy code", exact=True
-                )
-            ).to_have_count(0)
             expect(pre).to_have_attribute("aria-keyshortcuts", "Enter")
             page.keyboard.press("?")
             page.keyboard.press("?")
@@ -524,15 +517,14 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
         permissions=["clipboard-read", "clipboard-write"],
     )
     touch = open_page(browser, url, context=touch_context)
-    # A finger has no hover to show intent before it lands, so the corner control never
-    # draws over the code; standing on a block puts its Copy on the banner instead.
+    # A finger shows no intent before it lands, so the corner control stays hidden, and
+    # out of a press's way, until a tap stands the user on the block: the touch form of
+    # hover.
     touch_control = touch.locator(".lf-chrome > .lf-code-copy")
+    touch_button = touch_control.get_by_role("button")
     expect(touch_control).to_have_count(1)
-    expect(touch_control).to_be_hidden()
-    banner_copy = touch.locator(".lf-banner-actions").get_by_role(
-        "button", name="Copy code", exact=True
-    )
-    expect(banner_copy).to_have_count(0)
+    expect(touch_control).to_have_css("opacity", "0")
+    expect(touch_control).to_have_css("pointer-events", "none")
     expect(touch.locator("#plain")).to_have_css("padding-top", "12px")
 
     def copied(expected):
@@ -546,11 +538,15 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     touch_pre.tap(position={"x": 20, "y": 20})
     expect(touch_pre).to_be_focused()
     expect(touch_pre).to_have_attribute("tabindex", "0")
-    banner_copy.tap()
+    expect(touch_control).to_have_css("opacity", "1")
+    hit = touch_button.bounding_box()
+    assert hit and hit["width"] >= 44 and hit["height"] >= 44, hit
+    touch_button.tap()
     expect(touch.locator(".lf-notice")).to_have_text("Code copied")
     copied(plain)
-    expect(touch_pre).to_be_focused()
     assert touch_pre.bounding_box() == frame
+    touch.locator("#title").tap()
+    expect(touch_control).to_have_css("opacity", "0")
 
     # The source owns a finger's horizontal swipe. Focus must not cancel the native
     # scroll.
@@ -574,7 +570,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     scroll_settled(touch)
     touch_pre.evaluate("pre => pre.scrollLeft = pre.scrollWidth")
 
-    def select_suffix():
+    def suffix_uncovered():
         reading = touch_pre.evaluate(
             """(pre, suffix) => {
           const text = pre.querySelector('code').firstChild;
@@ -596,17 +592,15 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
         assert reading["suffix"] == suffix
         assert reading["frame"][0] < reading["start"][0]
         assert reading["end"][0] < reading["frame"][1]
-        hold_selection(touch, reading["start"], reading["end"])
-        assert touch.evaluate("window.getSelection().toString()") == suffix
-        touch.mouse.up()
 
-    select_suffix()
+    # Leaving the block hides the control, and the words beneath it take presses again.
     touch.locator("#title").tap()
-    expect(banner_copy).to_have_count(0)
+    suffix_uncovered()
+    touch.locator("#title").tap()
     expect(touch_pre).to_have_attribute("tabindex", "0")
 
     # A fitting dense line ends where the corner control would stand: its final
-    # characters are readable and selectable on arrival, before any tap.
+    # characters are readable and take presses on arrival, before any tap.
     fitting = touch_pre.evaluate(
         """(pre, suffix) => {
           const code = pre.querySelector('code');
@@ -631,7 +625,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
         "getComputedStyle(document.querySelector('#plain'), '::after').content === 'none'"
     )
     frame = touch_pre.bounding_box()
-    select_suffix()
+    suffix_uncovered()
     touch_pre.tap(position={"x": 20, "y": 20})
     expect(touch_pre).to_be_focused()
     touch.keyboard.press("Enter")
@@ -641,19 +635,21 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     assert touch_pre.bounding_box() == frame
 
     # A wrapping widget's block has no authored stop to retain. Its touch focus is lent
-    # for the reading gesture, carries the same Copy step, and disappears when the user
-    # leaves its source.
+    # for the reading gesture, shows the same corner control, and disappears when the
+    # user leaves its source.
     numbered_pre = touch.locator("#numbered > pre")
+    numbered_control = touch.locator("#numbered > .lf-code-copy")
     assert numbered_pre.get_attribute("tabindex") is None
-    expect(touch.locator("#numbered > .lf-code-copy")).to_be_hidden()
+    expect(numbered_control).to_have_css("opacity", "0")
     numbered_pre.tap(position={"x": 20, "y": 20})
     expect(numbered_pre).to_be_focused()
+    expect(numbered_control).to_have_css("opacity", "1")
     touch.evaluate("navigator.clipboard.writeText('cleared')")
-    banner_copy.tap()
+    numbered_control.get_by_role("button").tap()
     copied(widget)
     touch.locator("#title").tap()
     expect(numbered_pre).not_to_have_attribute("tabindex")
-    expect(banner_copy).to_have_count(0)
+    expect(numbered_control).to_have_css("opacity", "0")
 
 
 def test_a_revised_example_travels_between_its_own_versions(browser, serve):

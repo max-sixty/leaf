@@ -45,6 +45,22 @@ def paint(page):
     page.screenshot()
 
 
+def held_stretch(page):
+    """Idle frames the sensor keeps unchanged readings for, on a CPU as slow as a CI
+    runner's, so a credited move that follows is compared from a held frame
+    (`shift_watch.js`, "Unchanged frames") with the frame timing CI has."""
+    page.context.new_cdp_session(page).send(
+        "Emulation.setCPUThrottlingRate", {"rate": 6}
+    )
+    page.evaluate(
+        """count => new Promise((done) => {
+          const next = () => (--count ? requestAnimationFrame(next) : done());
+          requestAnimationFrame(next);
+        })""",
+        60,
+    )
+
+
 def field_page(browser, key=""):
     page = browser.new_page()
     page.goto("data:text/html," + quote(FIELD))
@@ -2917,6 +2933,61 @@ def test_new_anchor_relation_cannot_credit_scroll_before_activation(browser, mod
         else "textarea#field moved without input"
     )
     assert any(expected in error for error in errors), errors
+
+
+# Each fault runs the clean placement and its quiet judgement first, which is the
+# control a separate faultless case would add.
+@pytest.mark.parametrize("fault", ["holder", "child"])
+def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, fault):
+    source = leaf_page(
+        "Floating tenure",
+        """<p id="subject" style="position:fixed;left:100px;top:100px;width:40px;height:20px;margin:0">Anchor</p><div id="host" style="position:fixed;left:0;top:0;width:600px;height:500px"><div id="holder" style="position:fixed;left:140px;top:100px;width:100px;height:60px"><textarea id="field" style="width:80px;height:20px"></textarea></div></div><div id="evidence" style="position:fixed;left:10px;top:400px;width:300px;height:60px;background:red"></div>""",
+        layout=None,
+    )
+    page = open_page(browser, serve(source))
+    initial = page.locator("#holder").bounding_box()
+    state = page.evaluate("""async()=>{
+      const module=await window.__lfRuntimeImport('/runtime/annotation-overlay/floating.js'); const ui=await module.floatingUi();const holder=document.querySelector('#holder'),subject=document.querySelector('#subject'),host=document.querySelector('#host'); let plane='page';
+      const selected=()=>module.floatingSelections().find(s=>s.floating===holder);
+      const owner=module.floatingPlacement({floating:holder,update:()=>void place()});
+      async function place(){owner.begin();const answer=await owner.position(ui.computePosition,subject,{placement:'right-start',middleware:[]},()=>plane,subject);if(answer)owner.stand(answer);}
+      owner.watch(subject,subject,ui.autoUpdate);await place(); const first=selected();
+      if(!first||first.plane!=='page')throw Error('First placement was not supported page');
+      const original=holder.getBoundingClientRect();host.style.transform='translateX(0)';await place();const unsupported=selected();const nested=holder.getBoundingClientRect();const nativeNonwindow=holder.offsetParent===host;
+      host.style.removeProperty('transform');plane='window';await place();const second=selected();
+      if(!second)throw Error('Supported window placement missing');
+      owner.stop();const stopped=selected();owner.watch(subject,subject,ui.autoUpdate);await place();const third=selected();
+      window.reviewOwner=owner;window.reviewPlace=place;
+      return {absentUnsupported:unsupported===undefined,unchanged:original.x===nested.x&&original.y===nested.y&&original.width===nested.width&&original.height===nested.height,nativeNonwindow,window:second.plane,newTenure:first.tenure!==second.tenure,sameSubject:first.subject===second.subject,sameAnchor:first.anchor===second.anchor,absentStopped:stopped===undefined,newStoppedTenure:second.tenure!==third.tenure,sameStoppedSubject:second.subject===third.subject};
+    }""")
+    assert state == {
+        "absentUnsupported": True,
+        "unchanged": True,
+        "nativeNonwindow": True,
+        "window": "window",
+        "newTenure": True,
+        "sameSubject": True,
+        "sameAnchor": True,
+        "absentStopped": True,
+        "newStoppedTenure": True,
+        "sameStoppedSubject": True,
+    }, state
+    paint(page)
+    assert page.locator("#holder").bounding_box() == initial
+    judge_watches()
+    assert take_browser_errors(page) == []
+    page.keyboard.press("Shift")
+    paint(page)
+    page.evaluate(
+        """fault=>{document.querySelector(fault==='child'?'#field':'#holder').style.marginLeft='80px';document.querySelector('#evidence').style.marginLeft='40px'}""",
+        fault,
+    )
+    page.screenshot()
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert any("textarea#field moved without input" in error for error in errors), (
+        errors
+    )
 
 
 @pytest.mark.parametrize("mode", ["pointer", "keyboard"])

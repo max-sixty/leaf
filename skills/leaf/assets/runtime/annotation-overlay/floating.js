@@ -52,7 +52,7 @@
    after a fetch. */
 
 import { afterPresentation } from "../presentation.js";
-import { keeps, layoutPx as px } from "../keeps.js";
+import { keeps, layoutPx as px, atLayoutPrecision } from "../keeps.js";
 import { anchorElement, anchorFor, anchorHolder, anchorName } from "../css-anchors.js";
 import { move } from "../dom-move.js";
 import { shownBand } from "../geometry.js";
@@ -173,6 +173,13 @@ const held = {
 
 const INSETS = ["left", "right", "top", "bottom"];
 
+// The mechanical owner's last written placement in viewport pixels, relative to
+// its frame, never a rectangle read back from its rendered box. Consumers can
+// distinguish a native plane change from a local child/holder displacement
+// without granting that displacement to the owner.
+const stood = new Map();
+export const floatingSelections = () => [...stood.values()];
+
 const physicalContext = (context) =>
   context instanceof Element ? context : context?.parentElement;
 
@@ -256,6 +263,7 @@ export function floatingPlacement({ floating, update }) {
   let epoch = 0;
   let watched = null;
   let observer = null;
+  let tenure = Object.freeze({});
   let stopWatching = null;
   // Writes the held edges' insets and clears the free ones.
   const inset = (insets) => {
@@ -290,7 +298,7 @@ export function floatingPlacement({ floating, update }) {
     };
   let stand = placedAt;
   let scrollAnimations = [];
-  let plane = null;
+  let placementProof = null;
   let stopScrollInvalidation = null;
   return {
     // `reference` is what `computePosition` receives; `element` is the node it stands
@@ -300,13 +308,14 @@ export function floatingPlacement({ floating, update }) {
       stopWatching?.();
       watched = element;
       observer = autoUpdate;
+      tenure = Object.freeze({});
       stopWatching = autoUpdate(reference, floating, update);
     },
     holdsHome: (home) =>
       frame !== floating && frame.parentElement === home && frame.contains(floating),
     nativeAvailable: () =>
       CSS.supports("anchor-name", "--lf-anchor") && scrollFollows(),
-    follows: () => plane === "page",
+    follows: () => placementProof?.plane === "page",
     begin: () => ++epoch,
     current: (placement) => placement === epoch,
     // Computes the answer, in the window's positioning space, and the constraint
@@ -392,7 +401,7 @@ export function floatingPlacement({ floating, update }) {
         anchoring && offset && physical && typeof wanted === "object"
           ? holderOf(wanted, physical, getOverflowAncestors(physical))
           : null;
-      plane =
+      const plane =
         wanted === "page" && canFollow && offset
           ? "page"
           : holder
@@ -426,10 +435,60 @@ export function floatingPlacement({ floating, update }) {
       for (const animation of previousAnimations)
         if (!scrollAnimations.includes(animation)) animation.cancel();
       stand = frameAnchor ? anchoredAt(frameAnchor, at) : placedAt;
+      // anchorAt proves the solver's containing block is the window. Other
+      // containing blocks have no declared prediction in this selection.
+      placementProof = at
+        ? {
+            subject: watched,
+            anchor,
+            frame: frameAnchor,
+            plane,
+            at,
+          }
+        : null;
       return answer;
     },
     stand(answer) {
       stand(answer);
+      if (!placementProof) {
+        stood.delete(floating);
+        tenure = Object.freeze({});
+        return;
+      }
+      const { edges, width, height, block } = answer.middlewareData.held;
+      const { offset, scale } = answer.middlewareData.anchorAt;
+      const { subject, anchor, frame: frameAnchor, plane, at } = placementProof;
+      const point = {};
+      for (const [axis, start, coordinate, length, extent] of [
+        ["left", "left", "x", width, block.width],
+        ["top", "top", "y", height, block.height],
+      ]) {
+        const fromStart = edges[coordinate] === start;
+        const spot = answer[coordinate];
+        point[axis] = frameAnchor
+          ? fromStart
+            ? atLayoutPrecision(spot - at[coordinate])
+            : -atLayoutPrecision(at[coordinate] - spot - length)
+          : fromStart
+            ? atLayoutPrecision(spot)
+            : extent - atLayoutPrecision(extent - spot - length);
+        point[axis] =
+          (point[axis] - (frameAnchor ? 0 : offset[coordinate])) * scale[coordinate];
+      }
+      stood.set(
+        floating,
+        Object.freeze({
+          floating,
+          subject,
+          anchor,
+          frame: frameAnchor,
+          plane,
+          tenure,
+          edges: Object.freeze({ left: edges.x, top: edges.y }),
+          point: Object.freeze(point),
+          size: Object.freeze({ width: width * scale.x, height: height * scale.y }),
+        }),
+      );
     },
     // Where an answer stands the box, in client coordinates, from the measurement it was
     // solved against rather than read off the box, which may not yet be laid out
@@ -460,7 +519,9 @@ export function floatingPlacement({ floating, update }) {
       stopWatching = null;
       watched = null;
       observer = null;
-      plane = null;
+      tenure = Object.freeze({});
+      placementProof = null;
+      stood.delete(floating);
       if (frame !== floating) {
         if (frame.contains(floating)) move(frame.parentNode, floating, frame);
         frame.remove();

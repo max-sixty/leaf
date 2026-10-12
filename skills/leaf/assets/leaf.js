@@ -211,6 +211,8 @@ const overlaySelected = annotationMode === "overlay";
 const annotationRenderer = overlaySelected
   ? await import("./runtime/annotation-overlay/index.js")
   : null;
+if (validationEntry && annotationRenderer)
+  validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;
 annotationRenderer?.mountAnnotationControls();
 
 const panelElements = createThreadPanelElements({ id: "lf-threads" });

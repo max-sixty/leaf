@@ -13,6 +13,16 @@
 // here: where its motion is native, the general rule already credits it, and where it
 // is scripted, the sensor reports it.
 //
+// Leaf's floating surfaces (floating.js) keep two credits for what their solver still
+// writes, until a native mechanism carries it: the inset an attachment limiter rewrites
+// as an anchored surface's target travels (`native_camera`), and a switch between the
+// page's plane and the window or region edge that holds it in (`floating_plane`). The
+// owner's last-written held-edge point, published as `lfFloatingSelections`, declares
+// each under the same subject, anchor and tenure; its solver dimensions, not the
+// holder's rendered displacement, supply the credit, and a rewrite is credited only
+// within the travel of its source. That travel is read from an independent, unpainted
+// native anchor (a camera), whose point no displacement of the holder moves.
+//
 // Chrome admits painted layout transitions; a retained per-frame ledger supplies
 // their meaning. Source rectangles do not choose which landmarks get examined, so
 // anonymous sources, decorative pseudos and the five-source cap cannot excuse a
@@ -462,6 +472,46 @@
     announce();
     return root;
   };
+  // A zero-sized native anchor independently exposes the compositor source pose
+  // consumed by an anchored floating surface. Its own point stays at the source's
+  // origin, so displacement of the measured holder cannot pick another camera.
+  // Fixed, empty and hidden, it cannot reflow content, paint or receive focus.
+  const cameras = new Map();
+  const cameraNodes = new Set();
+  const readCameras = (selections) => {
+    for (const [owner, camera] of cameras)
+      if (!selections.has(owner) || !owner.isConnected) {
+        camera.remove();
+        cameras.delete(owner);
+        cameraNodes.delete(camera);
+      }
+    const readings = new Map();
+    for (const [owner, selection] of selections) {
+      if (!(selection.frame instanceof Element)) continue;
+      const style = getComputedStyle(owner);
+      if (
+        !["fixed", "absolute"].includes(style.position) ||
+        !getComputedStyle(selection.frame)
+          .anchorName.split(",")
+          .map((name) => name.trim())
+          .includes(style.positionAnchor)
+      )
+        continue;
+      let camera = cameras.get(owner);
+      if (!camera) {
+        camera = document.createElement("lf-shift-camera");
+        camera.style.cssText =
+          "all:initial;position:fixed;left:anchor(left);top:anchor(top);width:0;height:0;margin:0;padding:0;border:0;visibility:hidden;pointer-events:none";
+        cameras.set(owner, camera);
+        cameraNodes.add(camera);
+      }
+      if (camera.style.positionAnchor !== style.positionAnchor)
+        camera.style.positionAnchor = style.positionAnchor;
+      if (camera.parentElement !== owner.parentElement) owner.before(camera);
+      readings.set(owner, camera.getBoundingClientRect());
+    }
+    return readings;
+  };
   const everything = () => {
     const nodes = [...document.querySelectorAll("*")];
     for (const root of roots)
@@ -474,7 +524,7 @@
           !node.matches("script, style"),
       ),
     );
-    return [...nodes, ...words];
+    return [...nodes.filter((node) => !cameraNodes.has(node)), ...words];
   };
   // Each frame keeps its node population; geometry and paint evidence keep changes
   // only. Later hiding, clipping, reparenting or removal cannot erase a sampled box.
@@ -482,6 +532,8 @@
   const placed = new WeakMap();
   const scrolled = new WeakMap();
   const animated = new WeakMap();
+  const floating = new WeakMap();
+  let floatingOwners = new Set();
   const animationProperties = (animation) => [
     ...new Set(
       animation.effect
@@ -751,6 +803,19 @@
     // Poses belong to their synchronous observation time. The native frame start
     // is kept separately to associate Chrome's painted shift with that frame.
     const at = nativePerformance.now();
+    const selections = new Map(
+      (
+        document.querySelector("script[data-lf-entry]")?.lfFloatingSelections?.() ?? []
+      ).map((selection) => [selection.floating, selection]),
+    );
+    for (const owner of new Set([...floatingOwners, ...selections.keys()])) {
+      const readings = floating.get(owner) ?? [];
+      readings.push({ at, selection: selections.get(owner) ?? null });
+      pruneSamples(readings);
+      floating.set(owner, readings);
+    }
+    floatingOwners = new Set(selections.keys());
+    const nativeCameras = readCameras(selections);
     readMotion(at);
     // A running animation changes poses on every frame, and the frame after it stops
     // or leaves the set settles the last of them.
@@ -888,6 +953,11 @@
         appendChildren.every((child, i) => child === last.paint.appendChildren[i])
       )
         appendChildren = last.paint.appendChildren;
+      const selection = selections.get(node);
+      const nativeOrigin =
+        selection?.frame && anchorOf(node, style, anchors) === selection.frame
+          ? (nativeCameras.get(node) ?? {})
+          : {};
       const paint = {
         parent: up(node),
         anchor: range ? null : anchorOf(node, style, anchors),
@@ -899,6 +969,8 @@
           !range &&
           ["fixed", "absolute"].includes(position) &&
           ["top", "bottom"].some((side) => anchoredInset(node, style, side, "top")),
+        nativeLeft: nativeOrigin.left,
+        nativeTop: nativeOrigin.top,
         insetX: range ? null : `${node.style.left}|${node.style.right}`,
         insetY: range ? null : `${node.style.top}|${node.style.bottom}`,
         position,
@@ -992,6 +1064,7 @@
       seen.push({
         at,
         poseAt: sameBox && sameCoordinates ? last.poseAt : at,
+        nativeOrigin,
         rect,
         fragments,
         paint,
@@ -1649,11 +1722,109 @@
     }
     return motion;
   };
+  const writtenPoint = (selection, axis) =>
+    selection.point[axis] -
+    (selection.edges[axis] === axis
+      ? 0
+      : selection.size[axis === "left" ? "width" : "height"]);
   const scrollMotion = (node, from, to) => {
     const motion = nativeScrollMotion(node, from, to);
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
     const anchored = { left: false, top: false };
-    for (const owner of ancestryAt(element, to)) {
+    const ancestors = ancestryAt(element, to);
+    for (const owner of ancestors) {
+      const selections = floating.get(owner);
+      const was = selections?.findLast((reading) => reading.at <= from)?.selection;
+      const now = selections?.findLast((reading) => reading.at <= to)?.selection;
+      const crossesFixed = ancestors
+        .slice(0, ancestors.indexOf(owner))
+        .some(
+          (node) =>
+            paintAt(node, from)?.position === "fixed" ||
+            paintAt(node, to)?.position === "fixed",
+        );
+      const sameAttachment =
+        was &&
+        now &&
+        !crossesFixed &&
+        was.tenure === now.tenure &&
+        was.subject === now.subject &&
+        was.anchor === now.anchor;
+      if (sameAttachment && was.frame && was.frame === now.frame) {
+        const before = readingAt(owner, from)?.nativeOrigin;
+        const after = readingAt(owner, to)?.nativeOrigin;
+        const beforeLayout = layoutAt(was.frame, from);
+        const afterLayout = layoutAt(now.frame, to);
+        for (const axis of ["left", "top"]) {
+          if (
+            !Number.isFinite(before?.[axis]) ||
+            !Number.isFinite(after?.[axis]) ||
+            !beforeLayout ||
+            !afterLayout ||
+            Math.abs(beforeLayout[axis] - afterLayout[axis]) >= 1
+          )
+            continue;
+          // An attachment limiter can release or constrain the same page-plane
+          // surface as its target enters the viewport. Its declared world point
+          // must still follow within the exact native source travel it consumed.
+          const travel = after[axis] - before[axis];
+          const placed = writtenPoint(now, axis) - writtenPoint(was, axis) + travel;
+          if (placed >= Math.min(0, travel) - 1 && placed <= Math.max(0, travel) + 1) {
+            credit(motion, "native_camera", owner, axis, placed, {
+              before,
+              after,
+              before_layout: beforeLayout,
+              after_layout: afterLayout,
+              before_selection: was,
+              after_selection: now,
+              crosses_fixed: crossesFixed,
+              travel,
+              placed,
+            });
+            anchored[axis] = true;
+          }
+        }
+      }
+      if (sameAttachment && was.plane !== now.plane) {
+        // A selection's point is measured from its frame's box: the subject anchor's
+        // in the page's plane, the holding region's in a region's, the window's in
+        // the window's.
+        const origin = (selection, time) => {
+          if (!selection.frame) return { left: 0, top: 0 };
+          const source = boxAt(selection.frame, time);
+          const retained = readingAt(owner, time);
+          return (
+            source && {
+              left: retained?.nativeOrigin?.left ?? source.left,
+              top: retained?.nativeOrigin?.top ?? source.top,
+              camera: retained?.nativeOrigin ?? null,
+              frame: source,
+            }
+          );
+        };
+        const before = origin(was, from),
+          after = origin(now, to);
+        if (before && after) {
+          for (const axis of ["left", "top"]) {
+            if (anchored[axis]) continue;
+            const predicted = (selection, frame) =>
+              writtenPoint(selection, axis) + frame[axis];
+            const beforePoint = predicted(was, before),
+              afterPoint = predicted(now, after);
+            credit(motion, "floating_plane", owner, axis, afterPoint - beforePoint, {
+              before: was,
+              after: now,
+              before_origin: before,
+              after_origin: after,
+              crosses_fixed: crossesFixed,
+              same_attachment: sameAttachment,
+              before_point: beforePoint,
+              after_point: afterPoint,
+            });
+            anchored[axis] = true;
+          }
+        }
+      }
       const prior = paintAt(owner, from),
         next = paintAt(owner, to);
       const anchor = prior?.anchor;

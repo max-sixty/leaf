@@ -402,8 +402,9 @@ the press is held the control has `data-lf-held-word`, and the package's CSS sho
 whole word in that state as it does under keyboard focus.
 
 A widget the user drags calls `dragging(this, true)` as the drag starts and
-`dragging(this, false)` as it ends, is cancelled, or the widget disconnects; Leaf holds
-work that would move what the user holds until the last drag is released. The image that
+`dragging(this, false)` as it ends, is cancelled, or the widget disconnects. While a drag
+is held, Leaf holds new state back from widgets and the page, and paints it once the last
+drag is released, so nothing moves under the pointer. The image that
 follows the pointer is `motionPreview(label)`, an inert box carrying the dragged item's
 label.
 

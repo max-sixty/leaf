@@ -251,6 +251,16 @@ what fails and what still works.
   threads. Selection stays with that allocation until dismissal, another choice,
   a view change, or safe departure. Complete-list rollback restores native content
   and editors from the same committed reading.
+- **Stale native `:focus-within`, observed 2026-10-12 in Playwright's Chromium
+  153.0.8010.12:** a focused element that `moveBefore` carries into a hidden
+  (`display: none`) parent and out again still matches `:focus`, and its new
+  ancestors match `:focus-within`, but the element itself no longer matches
+  `:focus-within`. A reply editor waiting in `thread/replies.js`'s park between a
+  seat and the margin card takes that route. No Leaf style reads it: focus paints
+  through `data-lf-focus-within`, which `focus.js` derives from the rendered
+  ancestry. A selector for the focused editor uses `:focus`. Reproduce with a
+  focused `<input>`, a hidden `<div>` and a visible one, two `moveBefore` calls, and
+  `input.matches(":focus-within")`.
 - **Fallback limit:** insertion blurs a focused descendant and reloads an iframe.
   `move` restores the focus and caret, but cannot preserve iframe documents. The
   native guarantee for Leaf's retained moves is described in the

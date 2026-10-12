@@ -10,10 +10,18 @@
    Tab preserves the row's session independently of focus. The complete presentation
    carries its detached native owner through a complete commit, then hands the
    session to the current same-key route. The owner's row is the session's, not its
-   view's: the route's view puts it in place of its own row (`carry`), taking it from a
-   view that holds it out of sight, as a closed margin card does, so the editor moves
-   with the thread, its caret and undo history with it. A view that cannot draw
-   another row, a package mirror, takes the session and caret into its own. */
+   view's, so the editor moves with the thread, its caret and undo history with it. A
+   view that can draw the thread no more, a seat the thread left or a margin card whose
+   thread left the margin, open or closed, releases the row (`releaseReplies`): to a
+   view that draws the thread now, or else to a parked place, connected and out of
+   sight, until the next view drawing the thread claims it in place of its own row
+   (`claim`). A thread pass releases and claims in one task, so a user writing in the
+   row keeps focus throughout; a row left parked past it keeps its words, caret and
+   history, but not the user. A route's view also puts the row in place of its own
+   (`carry`), taking it from a view that holds it out of sight. A closed card whose
+   thread is still in the margin, and a hidden panel, keep their rows, since the user
+   goes on there when they open again. A view that cannot draw another row, a package
+   mirror, takes the session and caret into its own. */
 import {
   captureDraftEditing,
   loadDraft,
@@ -31,7 +39,9 @@ import { closestAcross } from "../passages.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 import { THREAD, SAY_ROW } from "./selectors.js";
 import { editContext } from "./message-edit.js";
-import { offer } from "../widget-elements.js";
+import { el, offer } from "../widget-elements.js";
+import { move } from "../dom-move.js";
+import { chromeRoot, chromeForeground } from "../chrome.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 
 const REPLY_COMPOSITION = Symbol("reply composition");
@@ -59,6 +69,9 @@ function remember(composition) {
 }
 const compositionOf = (node) => closestAcross(node, SAY_ROW)?.[REPLY_COMPOSITION];
 export const replyDraftContext = (node) => compositionOf(node)?.context ?? null;
+// The `threadKey` of the thread a reply row writes in, wherever the row stands, the park
+// included.
+export const replyThreadKey = (node) => compositionOf(node)?.key ?? null;
 // Capture native owners before preparation can detach their subscriptions. A complete
 // cohort then continues through the core destination policy, independently of its own
 // presentation ticket: revealing that route may need another Thread presentation.
@@ -89,7 +102,7 @@ export function holdReplyCompositions(threads, realize) {
   }
   return async (restore) => {
     for (const [context, session] of retired)
-      if (compositions.get(context) === session) compositions.delete(context);
+      if (compositions.get(context) === session) endSession(context);
     const displaced = retained.filter(
       ({ session, owner, intent }) =>
         !available(owner) && !session.continuing && intent(),
@@ -133,10 +146,16 @@ export const replyDraftsHold = (retains) =>
 
 // A composition is the row's mechanical session, not the saved draft and not focus.
 // Native Tab walks its controls and the surrounding page without dismissing it.
-function dismissContext(context) {
+function endSession(context) {
   const session = compositions.get(context);
-  if (!session) return;
   compositions.delete(context);
+  // A parked row goes with its session; a row a view holds stays that view's.
+  if (session?.owner && !session.owner.binding) session.owner.row.remove();
+  return session;
+}
+function dismissContext(context) {
+  const session = endSession(context);
+  if (!session) return;
   session.owner?.sync.cancelDictation();
   session.owner?.changed();
 }
@@ -167,11 +186,21 @@ export const dismissReplyAt = (node) => {
   if (context !== null) dismissContext(context);
 };
 
+// The giver lets go before the taker attaches, and draws its fresh row only once the
+// taker has moved this one out, so the row never leaves the document between them.
+function handOver(target, owner) {
+  const redrawGiver = owner.binding?.give();
+  target.binding.take(owner);
+  redrawGiver?.();
+  const session = compositions.get(owner.context);
+  if (session) session.owner = owner;
+  return owner;
+}
+
 // Once no view shows the session's row, the view now drawing its thread puts that row
 // in place of its own, and the user goes on in their own editor, with its undo history.
-// A view holding the row out of sight, as a closed margin card does, gives it up and
-// draws a fresh one. A view that cannot draw another row, a package mirror, keeps its
-// own.
+// A view holding the row out of sight gives it up and draws a fresh one. A view that
+// cannot draw another row, a package mirror, keeps its own.
 function carry(target, owner) {
   const giver = owner.binding;
   if (
@@ -183,13 +212,40 @@ function carry(target, owner) {
     return target;
   const session = compositions.get(owner.context);
   if (session && session.owner !== owner && session.owner !== target) return target;
-  // The giver lets go before the taker attaches, and draws its fresh row only once the
-  // taker has moved this one out, so the row never leaves the document between them.
-  const redrawGiver = giver?.give();
-  target.binding.take(owner);
-  redrawGiver?.();
-  if (session) session.owner = owner;
-  return owner;
+  return handOver(target, owner);
+}
+
+// Where a released row waits for the next view of its thread: in the chrome, so a user
+// writing in it keeps the editor, its caret and its undo history through both moves,
+// and hidden. The thread pass that released it puts the thread up again in the same
+// task, where a view drawing it claims the row (`claim`) before the browser drops focus
+// from a hidden node.
+let park = null;
+function parkRow(row) {
+  if (!park) {
+    park = el("div", "lf-reply-park");
+    park.hidden = true;
+  }
+  if (!park.isConnected) move(chromeRoot, park, chromeForeground);
+  move(park, row, null);
+}
+
+// A view that can draw its thread no more (above) releases the session rows it holds
+// within `surface`: each goes to a view drawing that thread now, or to the park.
+export function releaseReplies(surface) {
+  for (const { owner } of compositions.values()) {
+    if (!owner?.binding?.give || !surface.contains(owner.row)) continue;
+    const shown = [...views.get(owner.context)].find(
+      (view) =>
+        view !== owner && view.binding.take && view.controls.input.checkVisibility(),
+    );
+    if (shown) handOver(shown, owner);
+    else {
+      const redrawGiver = owner.binding.give();
+      parkRow(owner.row);
+      redrawGiver();
+    }
+  }
 }
 
 // The producer gives each native control its place in the same row on another view.
@@ -226,6 +282,7 @@ function wireReply(key, row, input, send, wireInput) {
   const draftCtx = replyContext(key);
   const composition = {
     context: draftCtx,
+    key,
     row,
     controls: { input, send },
     binding: null,
@@ -307,8 +364,10 @@ function attach(composition, binding) {
     },
   });
   row.addEventListener("focusin", begin);
-  return () => {
-    sync.cancelDictation();
+  // A row handed on to another view (`give`) keeps its dictation, as it keeps focus,
+  // caret and history; one this view ends with it stops listening.
+  return ({ handingOn = false } = {}) => {
+    if (!handingOn) sync.cancelDictation();
     stopMirror();
     binding.sizes?.unobserve(row);
     delete controls.input.lfRevealReply;
@@ -381,7 +440,7 @@ export function createReplyView(
   // and give its own up for a fresh one (`carry`), drawn by the step it returns.
   if (redraw) {
     binding.give = () => {
-      detach();
+      detach({ handingOn: true });
       composition = fresh();
       detach = attach(composition, binding);
       return redraw;
@@ -406,6 +465,21 @@ export function createReplyView(
       return composition.controls.input;
     },
     cancelDictation: () => composition.sync.cancelDictation(),
+    // A view drawing the thread takes its session's row where no view holds it: one
+    // released to the park, or one whose view went. It does so once it stands in the
+    // document, `shown`, so the move keeps the user in the row (dom-move.js).
+    claim(shown) {
+      const owner = compositions.get(composition.context)?.owner;
+      if (
+        binding.take &&
+        owner &&
+        owner !== composition &&
+        !owner.binding &&
+        !owner.retired &&
+        shown()
+      )
+        binding.take(owner);
+    },
     dispose: () => detach(),
   };
 }

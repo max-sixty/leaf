@@ -69,6 +69,8 @@ import { placeKeeper } from "../user-place.js";
 import { under } from "../shadow.js";
 import { retainUserIntent } from "../user-intent.js";
 import { threadFocusDestination } from "../thread/focus.js";
+import { claimSeatReplies } from "../thread/inline.js";
+import { releaseReplies } from "../thread/replies.js";
 import { keepThreadLanding, showLatestTurn } from "../thread/reply-landing.js";
 import { strongestWorkflow } from "../thread/workflow.js";
 
@@ -657,7 +659,11 @@ export function createThreadPreview({
       keepsText(previewPosition, `${selectedIndex + 1}/${threadItems.length}`);
       previewPrevious.toggleAttribute("disabled", selectedIndex === 0);
       previewNext.toggleAttribute("disabled", selectedIndex === threadItems.length - 1);
-      setChildren(previewList, selected ? [previewItemNode(selected)] : []);
+      const item = selected ? previewItemNode(selected) : null;
+      setChildren(previewList, item ? [item] : []);
+      // The thread renders before the card shows it, and takes the reply being written
+      // in it once it stands in the document (thread/inline.js, `claimSeatReplies`).
+      if (item) claimSeatReplies(item.querySelector(":scope > .lf-margin-thread-body"));
       syncPreviewTranscript();
       // The list holds the one thread the card shows, so a user whose place in a thread
       // the rebuild took lands on that thread; a step button it hid hands them to Close.
@@ -736,6 +742,14 @@ export function createThreadPreview({
     keeps(node, "data-lf-margin-entry", item.id);
     node.lfMarginItem = item.id;
     return node;
+  }
+
+  // The card's threads the margin no longer holds give up the reply being written in
+  // them, whether the card is open or closed (thread/replies.js, `releaseReplies`). A
+  // thread still in the margin keeps it, for the card to show again.
+  function releaseLeft(items) {
+    for (const node of previewList.children)
+      if (!items.has(node.lfMarginItem)) releaseReplies(node);
   }
 
   function selection() {
@@ -868,6 +882,7 @@ export function createThreadPreview({
     selection,
     show,
     refresh,
+    releaseLeft,
     close,
     focusThread,
     focusTarget,

@@ -124,7 +124,7 @@ import { paintTrace } from "../target-paint.js";
 
 import { allThreads } from "../thread/state.js";
 import { threadNames } from "../thread/model.js";
-import { carryingReply } from "../thread/focus.js";
+import { carryingThreadPlace } from "../thread/focus.js";
 
 import { claimed, revealHeld } from "../thread/surfaces.js";
 
@@ -978,6 +978,12 @@ export function createMarginProjection({
         preview.parentNode === chromeRoot ? preview : chromeForeground,
       );
     pageInventory = inventory;
+    // A thread gone from the margin takes the reply being written in it out of the card,
+    // open or closed, to where the thread now stands (thread/replies.js): the card can
+    // draw it no more. Before the card closes, so a user writing there goes on in it.
+    card.releaseLeft(
+      new Set(pageInventory.flatMap((entry) => entry.items.map((item) => item.id))),
+    );
     const liveHosts = new Set(
       pageInventory.filter(entryHasMarginHost).map((entry) => entry.key),
     );
@@ -1232,15 +1238,15 @@ export function createMarginProjection({
   // Closing the card hands a user who stood in it on (focus.js, `closeLayer`). A close
   // aimed at the card itself, its Close or its Escape, hands them back to the margin
   // entry it hangs from (`landOnEntry`); any other, a mode or a rerender, lets them go.
-  // A reply the thread pass is carrying to where its thread now stands is that pass's to
-  // land (thread/focus.js, `carryingReply`), so the close places no one.
+  // A user the thread pass is carrying with its thread to where it now stands is that
+  // pass's to land (thread/focus.js, `carryingThreadPlace`), so the close places no one.
   const landOnEntry = layerLanding((button) =>
     handBack(button, ...(button?.lfEntry ? mapControlPlaces(button.lfEntry) : [])),
   );
   function closePreview(land = letGo) {
     const button = card.selection()?.control;
     const at = focused();
-    const heldInside = preview.contains(at) && !carryingReply(at);
+    const heldInside = preview.contains(at) && !carryingThreadPlace(at);
     closeLayer(() => card.close(), heldInside && (() => land(button)));
     paintKeys();
   }
@@ -1522,6 +1528,11 @@ export function createMarginProjection({
   // cluster; a pointer that lands on a control in a commented block asked for that
   // control, and the mark and the marker are its way to the thread.
   const threadIdOf = (entry) => sourceItem(threadReading(entry).items[0]).thread.id;
+  // The thread a margin entry stands for, the one its card shows first, or null.
+  const entryThread = (node) => {
+    const entry = closestAcross(node, ".lf-margin-entry")?.lfEntry;
+    return entry && threadReading(entry) ? threadIdOf(entry) : null;
+  };
   const threadIdsOf = (entry) =>
     threadReading(entry).items.map((item) => sourceItem(item).thread.id);
   // Only a page-owned seat or an exact widget-local placement takes the thread's
@@ -1824,6 +1835,7 @@ export function createMarginProjection({
     marginEntryKind,
     activateMarginEntry,
     closePreview,
+    entryThread,
     inlineThreadView,
     keyboardRung,
     optionsRung,

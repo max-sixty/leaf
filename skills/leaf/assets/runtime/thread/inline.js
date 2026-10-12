@@ -10,6 +10,7 @@ import { registry } from "../registry.js";
 import { loadDraft } from "../drafts.js";
 import { holdBox } from "./reply-landing.js";
 import { HeldNews, seatNotice } from "./held-news.js";
+import { releaseReplies } from "./replies.js";
 
 const seats = new WeakMap();
 const activeSeats = new Set();
@@ -70,7 +71,14 @@ class ThreadSeat {
       (thread) => !prior.threads.some(({ key }) => key === thread.key),
     );
     const wanted = new Set(shown.threads.map((thread) => thread.key));
-    for (const [key, view] of this.#views) if (!wanted.has(key)) view.retire();
+    // A thread leaving the seat releases the reply being written in it before its card
+    // goes, so the editor goes on where the thread now stands (replies.js), still
+    // listening if the user was dictating; the card retires only what stays with it.
+    for (const [key, view] of this.#views)
+      if (!wanted.has(key)) {
+        releaseReplies(view.node);
+        view.retire();
+      }
     const nodes = shown.threads.map((descriptor) => {
       let view = this.#views.get(descriptor.key);
       if (!view)
@@ -83,6 +91,7 @@ class ThreadSeat {
       return view.node;
     });
     setChildren(this.node, foot ? [...nodes, foot] : nodes);
+    this.claim();
     // The seat's own box gives way to the thread its message started, and the user stands
     // on that thread, where any send leaves them (`landSent`). Threads the seat held back
     // show with the user's, which is the one they stand on.
@@ -92,6 +101,15 @@ class ThreadSeat {
     restoreFocus?.(started && (() => this.#commands?.reply.landSent(started)));
     restoreBox();
     if (!batch) this.commit();
+  }
+
+  // Each thread the seat shows takes the reply being written in it where no view holds
+  // it (replies.js, `claim`), once the seat stands in the document, so the move keeps the
+  // user in the editor. A seat drawn before it is placed, as the margin card's is, claims
+  // once its owner places it (`claimSeatReplies`).
+  claim() {
+    const shown = () => this.node.isConnected;
+    for (const { key } of this.#shown.threads) this.#views.get(key).claimReply(shown);
   }
 
   commit() {
@@ -146,6 +164,8 @@ export function renderThreadSurface(host, threads, commands, response = null) {
     seatReading(threads, "outlet", commands, response),
   );
 }
+
+export const claimSeatReplies = (host) => seats.get(host)?.claim();
 
 export function clearThreadSurface(host) {
   seats.get(host)?.present(EMPTY);

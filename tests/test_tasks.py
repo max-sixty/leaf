@@ -6,6 +6,7 @@ import json
 import pytest
 from click.testing import CliRunner
 from interact_support import (
+    FLOW_PAGE,
     PAGE,
     append_carried_log_record,
     append_command,
@@ -680,7 +681,7 @@ def test_a_thread_task_runs_under_its_start_line(page_dir):
     }
 
 
-WORK_PAGE = PAGE.replace(
+WORK_PAGE = FLOW_PAGE.replace(
     '<lf-diagram id="flow">',
     '<lf-board id="rollout"><lf-column id="rollout-now" label="Now">\n'
     '  <lf-card id="rollout-card"><strong>Ship the rollout</strong> '
@@ -713,7 +714,7 @@ def test_a_widget_task_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
     )
     assert stamp(page_dir, "Elsewhere").exit_code == 0
     assert [item["id"] for item in state_json(page_dir)["tasks"]] == [task["id"]]
-    (page_dir / "index.html").write_text(PAGE)
+    (page_dir / "index.html").write_text(FLOW_PAGE)
     dropped = stamp(page_dir, "Card gone")
     assert dropped.exit_code == 0, dropped.output
     assert [item["id"] for item in state_json(page_dir)["tasks"]] == [task["id"]]

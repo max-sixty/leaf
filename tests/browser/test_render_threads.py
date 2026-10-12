@@ -3998,9 +3998,14 @@ def test_a_reaction_list_opens_from_a_trigger_under_the_thread_panel(browser, se
     resized(page, 1280, 800)
     thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
     expect(thread).to_be_visible()
+    message = thread.locator(".lf-msg.agent")
+    # A resize preserves the page's reading place, which can leave this reply above
+    # the viewport; put its trigger where the panel will cover it.
+    message.locator(".lf-react-trigger").evaluate(
+        "trigger => scrollBy({top: trigger.getBoundingClientRect().top - 400, behavior: 'instant'})"
+    )
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    message = thread.locator(".lf-msg.agent")
     covered = message.locator(".lf-react-trigger").evaluate(
         """trigger => {
           const box = trigger.getBoundingClientRect();

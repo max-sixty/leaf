@@ -9351,8 +9351,8 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
         '<lf-ask id="decision-ledger-fixture-region">',
         '<div id="decision-ledger-fixture-region">',
     ).replace(
-        '</lf-draft>\n              </lf-ask>',
-        '</lf-draft>\n              </div>',
+        "</lf-draft>\n              </lf-ask>",
+        "</lf-draft>\n              </div>",
     )
     assert '<lf-ask id="decision-ledger-fixture-region">' not in honoring
     stamp_page(d, honoring, "input absorbed")

@@ -1,13 +1,13 @@
 name: ci
 
 # Every event runs the runtime, browser-framework and bundle gates; the Python suite's
-# selection follows the test tiers, set by a test's marks and its measured cost
-# (`tests/conftest.py`, `run_tier`):
-# - a pull request runs the first tier, plus the `main` and `nightly` tests it edits,
-#   and the website gate;
-# - a push to main runs the first tier and `main`;
-# - the daily schedule and a manual dispatch run every test, and their junit report is
-#   what `leaf-dev cost-tiers` measures the tiers from.
+# selection follows the test tiers, the directories under `tests/`
+# (`tests/conftest.py`, `TIERS`):
+# - a pull request runs `model`, `process` and `smoke`, plus the `browser` and
+#   `journeys` tests it edits, and the website gate;
+# - a push to main adds `browser`;
+# - the daily schedule and a manual dispatch run every test, and their summary lists
+#   the tests over their directory's budget.
 # Relevant pushes to main run the website gate in publish-site before deploy.
 on:
   push:

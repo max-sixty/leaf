@@ -21,10 +21,15 @@
 
    `arriveBatch(elements)` may replace `arrive` where an owner must read all matching
    elements before writing any of them. Each initial stage and mutation delivery is
-   one batch; an explicit offer is a batch of one.
+   one batch; an explicit offer is a batch of one. `watchArrivals` returns `offer(el)`,
+   which decides one element at once rather than at the next mutation delivery.
 
-   The returned offer function enrolls a connected element synchronously when its
-   resource setup starts before that first mutation delivery.
+   An element's connection lifetime is one such watch over every element:
+   `watchOwner(owner, {connect, disconnect})` connects while the owner stands and
+   disconnects once a batch shows it gone, so a move within one batch keeps it. The
+   runtime's own subscriptions (data, projections, widget controllers) hold it directly.
+   Widgets hold it through `whileConnected`, for resources, and `frameFor`, for
+   scheduled paints, which `widget-api.js` exports in its place.
 
    Standing means in `document.body`, or in a declared shadow stage whose host is
    connected. No observer crosses a shadow boundary on its own, so shadow-stage.js, the
@@ -86,7 +91,7 @@ export function watchOwner(owner, lifecycle) {
     });
   }
   // A synchronous connection can begin and end before the first arrival batch.
-  // Enroll it before setup so that batch still knows its resources must leave.
+  // Offer the owner before setup so that batch still knows its resources must leave.
   if (owner.isConnected) offerOwner(owner);
   subscriptions.add(subscription);
   const stop = () => {

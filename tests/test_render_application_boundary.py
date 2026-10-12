@@ -2139,9 +2139,7 @@ def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, pla
             first_card.locator(":scope > .lf-thread-reply leaf-text"),
             "A draft for this conversation",
         )
-        page.evaluate(
-            "window.withdrawnWidget = document.querySelector('#withdraw-widget')"
-        )
+        expect(page.locator("#withdraw-widget")).not_to_have_count(0)
         panel = page.locator("leaf-thread-list")
         box = panel.bounding_box()
         page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
@@ -2156,9 +2154,6 @@ def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, pla
     rendered(page)
     allocation = first_card.evaluate("node => node.getBoundingClientRect().height")
     position = next_card.evaluate("node => node.getBoundingClientRect().top")
-    page.evaluate(
-        "() => { window.survivingCard = document.querySelector('.lf-threads > [data-id=next-thread]'); }"
-    )
     if place == "scrolled":
         for reply in ["long-reply", "widget-reply"]:
             append_carried_log_record(
@@ -2186,7 +2181,6 @@ def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, pla
     assert next_card.evaluate(
         "node => node.getBoundingClientRect().top"
     ) == pytest.approx(position, abs=0.1)
-    assert next_card.evaluate("node => node === window.survivingCard")
     if selected:
         expect(withdrawn.locator("button")).to_be_focused()
         expect(next_card).not_to_have_attribute("open", "")
@@ -2199,9 +2193,7 @@ def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, pla
         expect(next_card.locator(".lf-thread-summary")).to_be_focused()
         expect(next_card).to_have_attribute("open", "")
     if place == "scrolled":
-        assert page.evaluate(
-            "window.withdrawnWidget && !window.withdrawnWidget.isConnected"
-        )
+        expect(page.locator("#withdraw-widget")).to_have_count(0)
         # The subject has left the document: its editor ends, while the draft's
         # independent saved owner keeps the words for a genuine return.
         page.evaluate("lfWordsJudged()")

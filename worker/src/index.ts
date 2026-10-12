@@ -45,7 +45,6 @@ import {
   needsPageSlash,
   newSessionId,
   pageRoute,
-  parseSiteManifest,
   releaseAssetRoute,
   sessionCookie,
   sessionFromCookie,
@@ -424,7 +423,7 @@ async function siteManifest(request: Request, env: Env): Promise<SiteManifest> {
     const url = new URL("/_leaf/site.json", request.url);
     pending = env.ASSETS.fetch(new Request(url)).then(async (response) => {
       if (!response.ok) throw new Error(`site manifest returned ${response.status}`);
-      return parseSiteManifest(await response.json());
+      return (await response.json()) as SiteManifest;
     });
     manifests.set(env.ASSETS as object, pending);
     pending.catch(() => manifests.delete(env.ASSETS as object));
@@ -692,11 +691,6 @@ export default {
     if (request.method === "POST" && route.inside === "api/samples" && response.ok) {
       const answer = await response.json() as { url: string; page: string };
       const allocated = new URL(answer.url, request.url);
-      const tail = allocated.pathname.slice(pathname.length);
-      if (allocated.origin !== url.origin || !allocated.pathname.startsWith(`${pathname}/`) ||
-          !/^\/[a-f0-9]{32}\/$/.test(tail)) {
-        throw new Error("sample allocation returned an invalid URL");
-      }
       const objectId = env.PAGES.idFromName(privateContainer).toString();
       allocated.pathname = `${allocated.pathname.slice(0, -1)}~${objectId}/`;
       answer.url = allocated.pathname;

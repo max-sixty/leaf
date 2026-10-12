@@ -1,67 +1,67 @@
-"""Tasks, the one item on both queues, and the item the agent has in hand.
+"""To-dos, the one kind of item on both lists, and the item the agent has in hand.
 
-A task is something owed, and its `owner` says by whom: the agent or the user. How
-it ends follows from its owner and what it stands on, so no field records it.
+A to-do is explicit work someone owes, and its `owner` says who: the agent, whose
+to-dos are on Tasks, or the user, whose to-dos are on Questions. How it ends follows
+from its owner and what it stands on, so no field records it.
 
-The agent's tasks are in the log. An item on the agent's queue is either an update
-it owes an answer, whose id is the update's event id (`workflows`), or a task it
-opened. Working always names one of them: `leaf task start` writes a `start` event
-naming the item with the line the banner shows, and the item is in hand, running,
-from then on. An ephemeral reply to an update the agent owes writes the same start, its
-text the line (`take_in_hand`), so the words the user reads in the thread and the
-Working line are one write.
+An item on the agent's Tasks is either an update it owes an answer, whose id is the
+update's event id (`workflows`), or a to-do it opened. Working always names one of
+them: `leaf task start` writes a `start` event naming the item with the line the
+banner shows, and the item is in hand, running, from then on. An ephemeral reply to
+an update the agent owes writes the same start, its text the line (`take_in_hand`),
+so the words the user reads in the thread and the Working line are one write.
 
-The agent's task is work it owes on a thread, a page widget, an element of the page,
-or the page as a whole. `leaf task open` writes a `task` event, and a reply that
-promises work it does not deliver carries the task's title as `task`, opening it on
-the reply's thread under the reply's id (`task_reading`): the message is answered
-and the work stays on the agent in one write. Either stands until a
-`task_end` gives it one outcome, `done`, `failed` or `dropped`, with a detail saying
+The agent's to-do is work it owes on a thread, a page widget, an element of the
+page, or the page as a whole. `leaf task open` writes a `todo` event, and a reply
+that promises work it does not deliver carries the to-do's title as `todo`, opening
+it on the reply's thread under the reply's id (`task_reading`): the message is
+answered and the work stays on the agent in one write. Either stands until a
+`todo_end` gives it one outcome, `done`, `failed` or `dropped`, with a detail saying
 where the result is or why there is none, or until a stamped version that names its
 widget with `--completes` ends it `done`, the note citing that version. A reply, a
 resolution, another version, or the end of the session that opened it leaves it
-open: that is what a task adds over an update, which its answer settles. Work that
+open: that is what a to-do adds over an update, which its answer settles. Work that
 outlasts the turn that took it on, such as a worker's build, a CI wait, or a change
-promised for the next version, so stays on the agent's side: an open task holds its
-thread `waiting` (`served_state.browser`), counts under `on_agent` in `page state`,
-and is named in the banner. Work no update asked for, such as writing or revising
-the page on the agent's own initiative, is a task the agent opens on the page or the
-widget or section it concerns; housekeeping, such as re-vendoring or restarting the
-server, owes the user nothing and is no item.
+promised for the next version, so stays on the agent's side: an open to-do holds its
+thread `waiting` (`served_state.browser`), counts under `queues.tasks` in `page
+state`, and is named in the banner. Work no update asked for, such as writing or
+revising the page on the agent's own initiative, is a to-do the agent opens on the
+page or the widget or section it concerns; housekeeping, such as re-vendoring or
+restarting the server, owes the user nothing and is no item.
 
-Tasks on the user are explicit `task` events opened with `--on user`, ending at
-Done or an agent end. Questions are separate canonical records (`questions`),
-selected directly by work queues, never synthesized into tasks. The existing
-`task_end` write can also withdraw an open prose request by its Question id or
-source-message id; that withdraws the request without recording a user answer.
-A stamped document declaring `lf-review=sign-off` adds an approval Question
-for that exact public version; only its unwithdrawn approval answers it.
+To-dos on the user are `todo` events opened with `--on user`, ending at Done or an
+agent end. Asks are separate canonical records (`questions`), selected directly by
+the lists, never synthesized into to-dos. A `todo_end` can also withdraw an open
+prose ask by its ask id or source-message id; that withdraws the request without
+recording a user answer. A stamped document declaring `lf-review=sign-off` adds an
+approval ask for that exact public version; only its unwithdrawn approval answers
+it.
 
-A start lasts until its item ends: a task's end, or for an update the reply or stamped
-version that answers it (`workflows.canonical_workflows`), and it holds its item
-only for the turn that wrote it. It names that turn, and once the turn ends with the
-item still running, the activity fold reads it stalled (`activity`). A later start on
-the same item replaces it, which is how the next turn takes the item in hand again.
-A `waiting` or `idle` declaration puts down every start written before it: the
-updates those started are no longer in hand, and the tasks stay open with nothing
-running on them. The put-down is a `put_down` event in the log, which `leaf status`
-writes ahead of the declaration whenever a start stands (`put_down`), so admission,
-which reads only the document and the log, sees it as every other reader does. A
-start on a page declared `idle` reopens the page with a bare `waiting` after it,
-which writes no `put_down`.
+A start lasts until its item ends: a to-do's end, or for an update the reply or
+stamped version that answers it (`workflows.canonical_workflows`), and it holds its
+item only for the turn that wrote it. It names that turn, and once the turn ends
+with the item still running, the activity fold reads it stalled (`activity`). A
+later start on the same item replaces it, which is how the next turn takes the item
+in hand again. A `waiting` or `idle` declaration puts down every start written
+before it: the updates those started are no longer in hand, and the to-dos stay
+open with nothing running on them. The put-down is a `put_down` event in the log,
+which `leaf status` writes ahead of the declaration whenever a start stands
+(`put_down`), so admission, which reads only the document and the log, sees it as
+every other reader does. A start on a page declared `idle` reopens the page with a
+bare `waiting` after it, which writes no `put_down`.
 
-The door admits the agent's `task` event on a live page widget that declares
+The door admits the agent's `todo` event on a live page widget that declares
 `x-work` or holds an unsettled action (`work.widget_seat_error`), on any element of
-the page, or on the page, and a task on the user on any of those, a widget needing
-no seat; a start on an open task of the agent's or an update
-the agent owes; and an end of an open task, the user's only of one the agent opened
-on them (`task_error`). `TaskReading` holds the log's tasks, starts and endings
-for one event basis, and `WorkReading.page_tasks` attaches thread and activity
-readings to explicit tasks.
+the page, or on the page, and a to-do on the user on any of those, a widget needing
+no seat; a start on an open to-do of the agent's or an update the agent owes; and an
+end of an open to-do, the user's only of one the agent opened on them
+(`task_error`). `TaskReading` holds the log's to-dos, starts and endings for one
+event basis, and `WorkReading.page_tasks` attaches thread and activity readings to
+to-dos.
 
-Not yet: a task whose session has ended reads open until another session ends it.
+Not yet: a to-do whose session has ended reads open until another session ends it.
 
-Experimental: tasks and the two queues are new, and their shape is expected to
+Experimental: to-dos and the two lists are new, and their shape is expected to
 change a lot (notes/what-needs-you/). Change them freely; nothing outside this
 repository depends on them.
 """
@@ -80,19 +80,19 @@ PAGE_SUBJECT = "page"
 
 
 def task_reading(event: dict, threads: dict[str, str]) -> dict | None:
-    """One task-opening reading, from an explicit task or a reply that carries one.
+    """One to-do-opening reading, from a `todo` event or a reply that carries one.
 
     `threads` is `thread_context.thread_names`, which names the thread a reply's
-    task stands on. A reply's task keeps the reply's identity, as its start does."""
-    if event["kind"] == "task":
+    to-do stands on. A reply's to-do keeps the reply's identity, as its start does."""
+    if event["kind"] == "todo":
         return event if "owner" in event else None
-    if event["kind"] == "reply" and "task" in event:
+    if event["kind"] == "reply" and "todo" in event:
         return {
             **event,
-            "kind": "task",
+            "kind": "todo",
             "owner": "agent",
             "subject": {"kind": "thread", "id": threads[event["id"]]},
-            "title": event["task"],
+            "title": event["todo"],
         }
     return None
 
@@ -146,7 +146,7 @@ def running(start: dict) -> dict:
 
 
 def _outcome(event: dict, detail: str | None) -> dict:
-    """How an event ended a task: which, when, by whom, and the detail it gave."""
+    """How an event ended a to-do: which, when, by whom, and the detail it gave."""
     return {
         "id": event["id"],
         "seq": event["seq"],
@@ -160,7 +160,7 @@ def _outcome(event: dict, detail: str | None) -> dict:
 
 @dataclass(frozen=True)
 class TaskReading:
-    """Task facts for one admitted log. Consumers share this in-memory reading;
+    """To-do facts for one admitted log. Consumers share this in-memory reading;
     no derived state survives the transaction or chooses a different event basis."""
 
     events: list
@@ -216,13 +216,13 @@ def _tasks(events: list, withdrawn: set, standing: dict) -> list[dict]:
                 "outcome": None,
             }
         elif (
-            event["kind"] == "task_end"
-            and event["task"] in tasks
+            event["kind"] == "todo_end"
+            and event["todo"] in tasks
             and event["id"] not in withdrawn
         ):
-            end(tasks[event["task"]], event["outcome"], event, event.get("detail"))
+            end(tasks[event["todo"]], event["outcome"], event, event.get("detail"))
         elif event["kind"] == "note":
-            for identity in note_settlements(event, "task"):
+            for identity in note_settlements(event, "todo"):
                 task = tasks.get(identity)
                 if task is not None and task["state"] == "open":
                     end(task, "done", event, f"v{event['version']}")
@@ -234,17 +234,17 @@ def _tasks(events: list, withdrawn: set, standing: dict) -> list[dict]:
 
 def _ends(events: list, withdrawn: set) -> dict:
     return {
-        event["task"]: {
+        event["todo"]: {
             "state": event["outcome"],
             **_outcome(event, event.get("detail")),
         }
         for event in events
-        if event["kind"] == "task_end" and event["id"] not in withdrawn
+        if event["kind"] == "todo_end" and event["id"] not in withdrawn
     }
 
 
 def owed_tasks(events: list) -> list[dict]:
-    """The agent's tasks nothing has ended: the work it still owes."""
+    """The agent's to-dos nothing has ended: the work it still owes."""
     return TaskReading(events).owed
 
 
@@ -259,17 +259,17 @@ def task_error(
     tasks,
     questions,
 ) -> str | None:
-    """Why the append door refuses a task event, or None.
+    """Why the append door refuses a to-do, start or end event, or None.
 
-    Explicit work stands on an admitted widget, page element or page; work on a
+    A to-do stands on an admitted widget, page element or page; a to-do on a
     thread is opened by the reply that promises it (`task_reading`), which the
-    schema keeps off a `task` event. A start names an open agent task or
-    an owed update. Either side can end explicit work within its ownership rules.
-    An agent end may also withdraw an open prose Question by canonical id or source
-    message id, while widget Questions remain owned by their declared state.
+    schema keeps off a `todo` event. A start names an open agent to-do or an owed
+    update. Either side can end a to-do within its ownership rules. An agent end may
+    also withdraw an open prose ask by canonical id or source message id, while
+    widget asks remain owned by their declared state.
     """
     kind = event["kind"]
-    if kind == "task":
+    if kind == "todo":
         subject = event["subject"]
         if subject["kind"] == "widget":
             return (
@@ -287,12 +287,12 @@ def task_error(
         if item in owed or any(task["id"] == item for task in log.owed):
             return None
         return (
-            f"{item!r} is neither an open task of yours nor an update you owe an answer to; start the "
+            f"{item!r} is neither an open to-do of yours nor an update you owe an answer to; start the "
             "id a delivered update or `leaf task open` gave you"
         )
-    if kind != "task_end":
+    if kind != "todo_end":
         return None
-    identity = event["task"]
+    identity = event["todo"]
     task = next((task for task in tasks() if task["id"] == identity), None)
     if task is None:
         question = next(
@@ -302,31 +302,31 @@ def task_error(
         if question is not None:
             if question["source"]["kind"] == "approval":
                 return (
-                    f"Question {identity!r} requires the user's approval of "
+                    f"ask {identity!r} requires the user's approval of "
                     f"v{question['source']['version']}; it ends at the page's Approval control"
                 )
             if question["source"]["kind"] == "widget":
-                return f"{identity!r} is a widget Question; its source owns the answer, so retire it in the document"
+                return f"{identity!r} is a widget ask; its source owns the answer, so retire it in the document"
             if event["author"] != "agent":
-                return "the user's reply or settling reaction answers a prose Question"
+                return "the user's reply or settling reaction answers a prose ask"
             if question["status"] != "open":
-                return f"Question {identity!r} has already {question['status']}"
+                return f"ask {identity!r} has already {question['status']}"
             return None
         if ended := log.ends.get(identity):
-            return f"task {identity!r} has already ended ({ended['state']})"
-        return f"unknown task {identity!r}"
+            return f"to-do {identity!r} has already ended ({ended['state']})"
+        return f"unknown to-do {identity!r}"
     if task["state"] != "open":
-        return f"task {identity!r} has already ended ({task['state']})"
+        return f"to-do {identity!r} has already ended ({task['state']})"
     if event["author"] == "user" and task["owner"] != "user":
-        return f"task {identity!r} is the agent's; the user ends only a task on them"
+        return f"to-do {identity!r} is the agent's; the user ends only a to-do on them"
     return None
 
 
 def cmd_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
-    """Open a task titled `title`, owed by `owner`, on what `subject` names: a page
+    """Open a to-do titled `title`, owed by `owner`, on what `subject` names: a page
     widget, any other element of the page by its id, or `page` for the page as a
     whole; the record. A thread takes its work from the reply that promises it, and
-    its question for the user from a reply that asks it."""
+    its ask for the user from a reply that asks it."""
     from .event_contracts import append_admitted
     from .harness import message_identity
     from .leases import contract_writer
@@ -352,14 +352,14 @@ def cmd_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
             if named["kind"] == "thread":
                 raise Refused(
                     f"{subject!r} is in a thread, where a reply asks the user "
-                    "(`--question`) or promises your work (`--task <title>`): "
+                    "(`--ask`) or promises your work (`--todo <title>`): "
                     "`leaf response reply <answer.ref>`, or `leaf thread reply "
                     "<page> <thread>` when no answer is owed"
                 )
             record, _ = append_admitted(
                 page,
                 {
-                    "kind": "task",
+                    "kind": "todo",
                     "author": "agent",
                     **message_identity(),
                     "owner": owner,
@@ -419,7 +419,7 @@ def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
 
 
 def cmd_start(page_dir: Path, item: str, text: str) -> dict:
-    """Take `item`, an update's event id or an open task's id, in hand for this turn with
+    """Take `item`, an update's event id or an open to-do's id, in hand for this turn with
     `text` as its line (`take_in_hand`); the record."""
     from .harness import message_identity
     from .leases import contract_writer
@@ -467,10 +467,10 @@ def cmd_end(page_dir: Path, task: str, outcome: str, detail: str | None) -> dict
             record, _ = append_admitted(
                 page,
                 {
-                    "kind": "task_end",
+                    "kind": "todo_end",
                     "author": "agent",
                     **message_identity(),
-                    "task": task,
+                    "todo": task,
                     "outcome": outcome,
                     **({"detail": detail} if detail is not None else {}),
                 },

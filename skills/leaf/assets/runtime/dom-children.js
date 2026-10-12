@@ -1,18 +1,8 @@
 /* Retained DOM child reconciliation. */
 import { diffArrays } from "/vendor/jsdiff.esm.js";
-import { render as renderTemplate } from "/vendor/browser-runtime.js";
-import { holdFocus } from "./focus.js";
 import { move } from "./dom-move.js";
 
 const detach = (node) => node.remove();
-
-// Engines without native state-preserving moves still need their editor restored.
-export function render(value, container, options) {
-  const restore = holdFocus(container);
-  const part = renderTemplate(value, container, options);
-  restore?.();
-  return part;
-}
 
 // Destructive replacement ends any template ownership, including directives. Lit's
 // public RootPart.setConnected(false) disposes that lifetime, but render() has no

@@ -5,7 +5,7 @@ import { createPresentationCoordinator } from "./presentation.ts";
 import { projectionOrigins } from "../../skills/leaf/assets/runtime/projection/model.js";
 import {
   servedGestureSequence,
-  servedQuestionItem,
+  servedAskItem,
   servedReading,
   servedThread,
   servedWorkflow,
@@ -56,8 +56,8 @@ const descriptor = {
   quoted: false,
 };
 const empty = () => ({ entries: [], actions: [], reports: [], desired: [] });
-// The Question reading `served_state` sends, in its own wire spelling.
-const noQuestions = () => ({
+// The ask reading `served_state` sends, in its own wire spelling.
+const noAsks = () => ({
   all: [],
   user: [],
   unanswered: [],
@@ -79,24 +79,19 @@ const wireQuestion = (
   status: "open",
   next_actor: "user",
 });
-// A view's Questions as the served queues list them: each the user owes, and each
-// that is answered or withdrawn, done.
-const questionQueues = (questions) => {
-  const item = (question) =>
-    servedQuestionItem(question, {
-      subject: { kind: "widget", id: question.source.id },
+// A view's asks as the served lists hold them: each the user owes on Questions, and
+// each that is answered or withdrawn, done.
+const askQueues = (asks) => {
+  const item = (ask) =>
+    servedAskItem(ask, {
+      subject: { kind: "widget", id: ask.source.id },
     });
   return {
-    on_you: questions.filter((question) => question.next_actor === "user").map(item),
-    on_agent: [],
-    done: questions
-      .filter((question) => question.status !== "open")
-      .map((question) => ({
-        ...item(question),
-        state: "done",
-        ended: null,
-        detail: null,
-      })),
+    questions: asks.filter((ask) => ask.next_actor === "user").map(item),
+    tasks: [],
+    done: asks
+      .filter((ask) => ask.status !== "open")
+      .map((ask) => ({ ...item(ask), state: "done", ended: null, detail: null })),
   };
 };
 const coordinate = ["choice", "choice", "decide"];
@@ -121,12 +116,12 @@ const state = (taken, events = []) => ({
     basis: { through_seq: events.length },
     receipts: events,
     thread_memberships: {},
-    tasks: [],
-    ended_tasks: [],
+    todos: [],
+    ended_todos: [],
     thread: {
       threads: [],
       projection: empty(),
-      questions: noQuestions(),
+      asks: noAsks(),
       approval_history: [],
     },
     views: {
@@ -136,10 +131,10 @@ const state = (taken, events = []) => ({
         undo: [],
         reports: [],
         published_at: null,
-        queues: { on_you: [], on_agent: [], done: [] },
+        queues: { questions: [], tasks: [], done: [] },
         approval_blocking: [],
         document: {
-          questions: noQuestions(),
+          asks: noAsks(),
           projection: {
             entries: events.map((event) => ({
               event: {
@@ -235,10 +230,6 @@ test("semantic publication opens before subscribers and seals the newest nested 
     ["seal", 0],
   ]);
 
-  let release;
-  const held = new Promise((resolve) => {
-    release = resolve;
-  });
   let presentation;
   let nested = false;
   app
@@ -248,7 +239,7 @@ test("semantic publication opens before subscribers and seals the newest nested 
       nested = true;
       assert.equal(coordinator.read().semanticEpoch, 1);
       const renderer = coordinator.attach("widget", {});
-      presentation = renderer.present("offline", held);
+      presentation = renderer.present("offline");
       app.acceptData({ version: "empty", sources: {} }, 1);
     });
 
@@ -267,8 +258,8 @@ test("semantic publication opens before subscribers and seals the newest nested 
   });
   await Promise.resolve();
   assert.equal(ready, false);
-  release("proof");
-  await presentation;
+  presentation.resolve("proof");
+  await presentation.ready;
   assert.equal(await readiness, "presented");
 });
 
@@ -301,9 +292,8 @@ test("one synchronous immutable reading combines authored, accepted, and later p
 test("the public Thread collection contains conversations while approvals stay page-wide", () => {
   const app = capture();
   const reading = state(1);
-  const question =
-    servedReading("approval").browser.views["1"].document.questions.all[0];
-  reading.browser.views[1].document.questions = {
+  const question = servedReading("approval").browser.views["1"].document.asks.all[0];
+  reading.browser.views[1].document.asks = {
     all: [question],
     user: [question],
     unanswered: [question],
@@ -312,7 +302,7 @@ test("the public Thread collection contains conversations while approvals stay p
 
   const effective = app.read().effective;
   assert.deepEqual(Object.keys(effective.thread.collection), ["phase", "threads"]);
-  assert.deepEqual(effective.questions.all, [question]);
+  assert.deepEqual(effective.asks.all, [question]);
 });
 
 test("one widget selection publishes optimistic state without writable access", () => {
@@ -565,7 +555,7 @@ test("one publication keeps per-input workflows and user-first thread attention"
           text: "Second",
         },
       ],
-      { attention: { kind: "needs_user", reason: "question", workflow: null } },
+      { attention: { kind: "needs_user", reason: "ask", workflow: null } },
     ),
   ];
   reading.workflows = [
@@ -583,7 +573,7 @@ test("one publication keeps per-input workflows and user-first thread attention"
   );
   assert.deepEqual(thread.attention, {
     kind: "needs_user",
-    reason: "question",
+    reason: "ask",
     workflow: null,
   });
   assert.equal(thread.workflows.length, 2);
@@ -626,7 +616,7 @@ test("local delivery supplies and can override non-Ask thread attention", () => 
   app.refuse("local");
   assert.deepEqual(app.read().effective.thread.all[0].attention, {
     kind: "needs_user",
-    reason: "recovery",
+    reason: "resend",
     workflow: "rejected:local",
   });
 
@@ -651,7 +641,7 @@ test("local delivery supplies and can override non-Ask thread attention", () => 
   acceptedApp.refuse("next");
   assert.deepEqual(acceptedApp.read().effective.thread.all[0].attention, {
     kind: "needs_user",
-    reason: "recovery",
+    reason: "resend",
     workflow: "rejected:next",
   });
 });
@@ -812,7 +802,7 @@ test("semantic epochs include visible revision facts but not transport metadata"
   const app = setup();
   const asked = state(2);
   const choice = wireQuestion("choice", "lf-choice");
-  asked.browser.views[1].document.questions = {
+  asked.browser.views[1].document.asks = {
     all: [choice],
     user: [choice],
     unanswered: [choice],
@@ -1248,7 +1238,7 @@ for (const resolved of [null, { author: "user" }]) {
         user_prompt: resolved ? null : { message: root.id, version: root.id },
         attention: resolved
           ? null
-          : { kind: "needs_user", reason: "question", workflow: null },
+          : { kind: "needs_user", reason: "ask", workflow: null },
       }),
     ];
     app.adopt(accepted);
@@ -1308,14 +1298,14 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
     "lf-choice",
     root.id,
   );
-  accepted.browser.thread.questions = {
+  accepted.browser.thread.asks = {
     all: [frozen],
     user: [frozen],
     unanswered: [frozen],
   };
   accepted.browser.thread.threads = [
     servedThread([root], {
-      attention: { kind: "needs_user", reason: "question", workflow: null },
+      attention: { kind: "needs_user", reason: "ask", workflow: null },
     }),
   ];
   app.adopt(accepted);
@@ -1335,7 +1325,7 @@ test("a pending prose reply does not hide a frozen structural Ask", () => {
   const thread = app.read().effective.thread.all[0];
   assert.deepEqual(thread.attention, {
     kind: "needs_user",
-    reason: "question",
+    reason: "ask",
     workflow: null,
   });
 });
@@ -1353,12 +1343,12 @@ test("a thread whose opening message the log lost is known by its id, not its ro
   };
   const served = (asks) => {
     const reading = state(2);
-    reading.browser.thread.questions = { all: asks, user: asks, unanswered: asks };
+    reading.browser.thread.asks = { all: asks, user: asks, unanswered: asks };
     reading.browser.thread.threads = [
       servedThread([kept], {
         id: "lost",
         attention: asks.length
-          ? { kind: "needs_user", reason: "question", workflow: null }
+          ? { kind: "needs_user", reason: "ask", workflow: null }
           : null,
       }),
     ];
@@ -1370,7 +1360,7 @@ test("a thread whose opening message the log lost is known by its id, not its ro
   assert.deepEqual([thread().id, thread().root.id], ["lost", "kept"]);
   assert.deepEqual(thread().attention, {
     kind: "needs_user",
-    reason: "question",
+    reason: "ask",
     workflow: null,
   });
 
@@ -1386,7 +1376,7 @@ test("a thread whose opening message the log lost is known by its id, not its ro
   app.refuse("answer");
   assert.deepEqual(thread().attention, {
     kind: "needs_user",
-    reason: "recovery",
+    reason: "resend",
     workflow: "rejected:answer",
   });
 });
@@ -1405,7 +1395,7 @@ test("a pending resend replaces accepted recovery until refusal", () => {
     servedThread([root], {
       attention: {
         kind: "needs_user",
-        reason: "recovery",
+        reason: "resend",
         workflow: "failed-response",
       },
     }),
@@ -1438,7 +1428,7 @@ test("a pending resend replaces accepted recovery until refusal", () => {
   app.refuse("retry");
   assert.deepEqual(app.read().effective.thread.all[0].attention, {
     kind: "needs_user",
-    reason: "recovery",
+    reason: "resend",
     workflow: "failed-response",
   });
 });
@@ -1449,7 +1439,7 @@ test("the publisher carries the server's Ask reading, page asks before thread as
   // still stands, so neither the wait for that reading nor an offline page lists it.
   for (const phase of ["waiting", "offline"]) {
     app.setPhase(phase);
-    assert.deepEqual(app.read().effective.questions.all, []);
+    assert.deepEqual(app.read().effective.asks.all, []);
   }
 
   const read = state(2);
@@ -1461,12 +1451,12 @@ test("the publisher carries the server's Ask reading, page asks before thread as
     "lf-choice",
     "root-1",
   );
-  read.browser.views[1].document.questions = {
+  read.browser.views[1].document.asks = {
     all: [page],
     user: [page],
     unanswered: [page],
   };
-  read.browser.thread.questions = {
+  read.browser.thread.asks = {
     all: [frozen],
     user: [],
     unanswered: [],
@@ -1474,14 +1464,14 @@ test("the publisher carries the server's Ask reading, page asks before thread as
   app.adopt(read);
 
   const record = page;
-  assert.deepEqual(app.read().effective.questions, {
+  assert.deepEqual(app.read().effective.asks, {
     phase: "ready",
     all: [record, frozen],
     user: [record],
     unanswered: [record],
   });
   assert.throws(() => {
-    app.read().effective.questions.all[0].source.id = "other";
+    app.read().effective.asks.all[0].source.id = "other";
   }, TypeError);
 
   // A local gesture does not edit the reading: the user sees their answer in the
@@ -1489,7 +1479,7 @@ test("the publisher carries the server's Ask reading, page asks before thread as
   // state this POST returns.
   app.enqueue(action("answer"), "now");
   assert.deepEqual(
-    app.read().effective.questions.user.map(({ source }) => source.id),
+    app.read().effective.asks.user.map(({ source }) => source.id),
     ["choice"],
   );
   assert.equal(decision(app), "accept");
@@ -1579,12 +1569,12 @@ test("approval leaves Questions in its sending turn and undo restores the exact 
     return app;
   };
   const app = adopt("approval");
-  const questions = () => app.read().effective.queues.onYou;
-  const record = () => app.read().effective.questions.all[0];
+  const questions = () => app.read().effective.queues.questions;
+  const record = () => app.read().effective.asks.all[0];
   const question = record();
   assert.equal(question.source.kind, "approval");
   assert.equal(questions()[0].id, question.id);
-  assert.equal(questions()[0].kind, "question");
+  assert.equal(questions()[0].kind, "ask");
   assert.equal(questions()[0].offers.done, false);
   app.enqueue({ kind: "done", version: 2, attempt: "other-version" }, "now");
   assert.equal(questions().length, 1);
@@ -1612,17 +1602,17 @@ test("approval leaves Questions in its sending turn and undo restores the exact 
   assert.equal(record().answer, null);
 
   const approved = adopt("approved");
-  const approval = approved.read().effective.questions.all[0].answer.event;
+  const approval = approved.read().effective.asks.all[0].answer.event;
   assert.deepEqual(
     approved.read().effective.thread.approvalHistory.map(({ id }) => id),
     [approval.id],
   );
-  assert.equal(approved.read().effective.queues.onYou.length, 0);
+  assert.equal(approved.read().effective.queues.questions.length, 0);
   approved.enqueue({ kind: "undo", undoes: approval.id, attempt: "undo" }, "now");
-  assert.equal(approved.read().effective.queues.onYou[0].id, question.id);
+  assert.equal(approved.read().effective.queues.questions[0].id, question.id);
   assert.equal(approved.read().effective.queues.done.length, 0);
-  assert.equal(approved.read().effective.questions.all[0].answer, null);
-  assert.equal(approved.read().effective.questions.all[0].status, "open");
+  assert.equal(approved.read().effective.asks.all[0].answer, null);
+  assert.equal(approved.read().effective.asks.all[0].status, "open");
   assert.deepEqual(approved.read().effective.thread.approvalHistory, []);
 });
 
@@ -1738,16 +1728,16 @@ test("Question contains the local typed answer while completion waits for admiss
   const app = capture([[declared.id, declared]]);
   const reading = state(2);
   const question = wireQuestion("choice-context", "lf-context", "choice", "lf-choice");
-  reading.browser.views[1].document.questions = {
+  reading.browser.views[1].document.asks = {
     all: [question],
     user: [question],
     unanswered: [question],
   };
-  reading.browser.views[1].queues = questionQueues([question]);
+  reading.browser.views[1].queues = askQueues([question]);
   app.adopt(reading);
-  assert.equal(app.read().effective.questions.all[0].answer, null);
+  assert.equal(app.read().effective.asks.all[0].answer, null);
   app.enqueue(action("typed"), "now");
-  const pending = app.read().effective.questions;
+  const pending = app.read().effective.asks;
   assert.deepEqual(pending.all[0].answer, {
     value: { outcome: "accept" },
     event: null,
@@ -1755,9 +1745,9 @@ test("Question contains the local typed answer while completion waits for admiss
   assert.equal(pending.all[0].status, "open");
   assert.equal(pending.all[0], pending.user[0]);
   assert.equal(pending.all[0], pending.unanswered[0]);
-  assert.equal(app.read().effective.queues.onYou[0].kind, "question");
+  assert.equal(app.read().effective.queues.questions[0].kind, "ask");
   app.refuse("typed");
-  assert.equal(app.read().effective.questions.all[0].answer, null);
+  assert.equal(app.read().effective.asks.all[0].answer, null);
 });
 
 test("empty completed answer and wrapper changes preserve Question identity", () => {
@@ -1793,22 +1783,22 @@ test("empty completed answer and wrapper changes preserve Question identity", ()
     next_actor: null,
     answer: { value: [], event: null },
   };
-  reading.browser.views[1].document.questions = {
+  reading.browser.views[1].document.asks = {
     all: [question],
     user: [],
     unanswered: [],
   };
-  reading.browser.views[1].queues = questionQueues([question]);
+  reading.browser.views[1].queues = askQueues([question]);
   app.adopt(reading);
-  assert.deepEqual(app.read().effective.questions.all[0].answer.value, []);
-  assert.equal(app.read().effective.queues.onYou.length, 0);
-  assert.equal(app.read().effective.queues.done[0].kind, "question");
+  assert.deepEqual(app.read().effective.asks.all[0].answer.value, []);
+  assert.equal(app.read().effective.queues.questions.length, 0);
+  assert.equal(app.read().effective.queues.done[0].kind, "ask");
   const wrapped = structuredClone(reading);
   wrapped.taken = 3;
-  wrapped.browser.views[1].document.questions.all[0].prompt.target = "new-context";
+  wrapped.browser.views[1].document.asks.all[0].prompt.target = "new-context";
   app.adopt(wrapped);
-  assert.equal(app.read().effective.questions.all[0].id, "widget:choice");
-  assert.equal(app.read().effective.questions.all[0].prompt.target, "new-context");
+  assert.equal(app.read().effective.asks.all[0].id, "widget:choice");
+  assert.equal(app.read().effective.asks.all[0].prompt.target, "new-context");
 });
 
 test("pending undo removes completed empty Question values and refusal restores them", () => {
@@ -1861,20 +1851,20 @@ test("pending undo removes completed empty Question values and refusal restores 
       next_actor: null,
       answer: { value, event: accepted },
     };
-    reading.browser.views[1].document.questions = {
+    reading.browser.views[1].document.asks = {
       all: [question],
       user: [],
       unanswered: [],
     };
-    reading.browser.views[1].queues = questionQueues([question]);
+    reading.browser.views[1].queues = askQueues([question]);
     app.adopt(reading);
-    assert.deepEqual(app.read().effective.questions.all[0].answer.value, value);
+    assert.deepEqual(app.read().effective.asks.all[0].answer.value, value);
     app.enqueue({ kind: "undo", undoes: accepted.id, attempt: "undo-empty" }, "now");
-    assert.equal(app.read().effective.questions.all[0].status, "answered");
-    assert.equal(app.read().effective.questions.all[0].answer, null);
-    assert.equal(app.read().effective.queues.done[0].question.answer, null);
+    assert.equal(app.read().effective.asks.all[0].status, "answered");
+    assert.equal(app.read().effective.asks.all[0].answer, null);
+    assert.equal(app.read().effective.queues.done[0].ask.answer, null);
     app.refuse("undo-empty");
-    assert.deepEqual(app.read().effective.questions.all[0].answer.value, value);
+    assert.deepEqual(app.read().effective.asks.all[0].answer.value, value);
   }
 });
 
@@ -1900,7 +1890,7 @@ test("pending undo withdraws a decision an earlier Leaf recorded with another fi
     },
   };
   const reading = state(2, [accepted]);
-  reading.browser.views[1].document.questions = {
+  reading.browser.views[1].document.asks = {
     all: [
       {
         ...wireQuestion("choice", "lf-choice"),
@@ -1914,7 +1904,7 @@ test("pending undo withdraws a decision an earlier Leaf recorded with another fi
   };
   app.adopt(reading);
   app.enqueue({ kind: "undo", undoes: accepted.id, attempt: "undo-earlier" }, "now");
-  assert.equal(app.read().effective.questions.all[0].answer, null);
+  assert.equal(app.read().effective.asks.all[0].answer, null);
 });
 
 test("pending undo removes a custom Question answer before authoritative completion changes", () => {
@@ -1934,32 +1924,32 @@ test("pending undo removes a custom Question answer before authoritative complet
     next_actor: null,
     answer: { value: { outcome: "accept" }, event: accepted },
   };
-  reading.browser.views[1].document.questions = {
+  reading.browser.views[1].document.asks = {
     all: [question],
     user: [],
     unanswered: [],
   };
-  reading.browser.views[1].queues = questionQueues([question]);
+  reading.browser.views[1].queues = askQueues([question]);
   app.adopt(reading);
-  assert.deepEqual(app.read().effective.questions.all[0].answer.value, {
+  assert.deepEqual(app.read().effective.asks.all[0].answer.value, {
     outcome: "accept",
   });
   app.enqueue({ kind: "undo", undoes: accepted.id, attempt: "undo-answer" }, "now");
-  const pending = app.read().effective.questions.all[0];
+  const pending = app.read().effective.asks.all[0];
   assert.equal(pending.status, "answered");
   assert.equal(pending.answer, null);
-  assert.equal(app.read().effective.queues.done[0].question.answer, null);
+  assert.equal(app.read().effective.queues.done[0].ask.answer, null);
   app.refuse("undo-answer");
-  assert.deepEqual(app.read().effective.questions.all[0].answer.value, {
+  assert.deepEqual(app.read().effective.asks.all[0].answer.value, {
     outcome: "accept",
   });
   app.enqueue(action("re-pick", "reject"), "now");
-  assert.deepEqual(app.read().effective.questions.all[0].answer, {
+  assert.deepEqual(app.read().effective.asks.all[0].answer, {
     value: { outcome: "reject" },
     event: null,
   });
   app.refuse("re-pick");
-  assert.equal(app.read().effective.questions.all[0].answer.event.id, accepted.id);
+  assert.equal(app.read().effective.asks.all[0].answer.event.id, accepted.id);
 });
 
 test("pending prose answer changes next actor without suppressing inventory or settling", () => {
@@ -1985,14 +1975,14 @@ test("pending prose answer changes next actor without suppressing inventory or s
   });
   const current = prose(root, "user");
   const suppressed = prose(earlier, null);
-  reading.browser.thread.questions = {
+  reading.browser.thread.asks = {
     all: [suppressed, current],
     user: [current],
     unanswered: [suppressed, current],
   };
   reading.browser.thread.threads = [
     servedThread([root], {
-      attention: { kind: "needs_user", reason: "question", workflow: null },
+      attention: { kind: "needs_user", reason: "ask", workflow: null },
     }),
   ];
   app.adopt(reading);
@@ -2006,12 +1996,12 @@ test("pending prose answer changes next actor without suppressing inventory or s
     },
     "now",
   );
-  const pending = app.read().effective.questions;
+  const pending = app.read().effective.asks;
   assert.equal(pending.all.length, 2);
   assert.equal(pending.all[1].status, "open");
   assert.equal(pending.all[1].next_actor, "agent");
   assert.deepEqual(pending.user, []);
-  assert.equal(app.read().effective.queues.onYou.length, 0);
+  assert.equal(app.read().effective.queues.questions.length, 0);
   app.refuse("prose-answer");
-  assert.equal(app.read().effective.questions.user[0].id, "reply:prose");
+  assert.equal(app.read().effective.asks.user[0].id, "reply:prose");
 });

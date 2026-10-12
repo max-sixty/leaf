@@ -5842,6 +5842,7 @@ def test_state_definition_identity_ignores_only_annotations(case):
 
 def test_frozen_replies_keep_their_publications_command_and_question_meanings():
     """Old and new renderers can share a tag without changing either reply's answer."""
+    from leaf.events import build_threads
     from leaf.projection import frozen_thread_reading
     from leaf.questions import thread_question_readings
 
@@ -5891,7 +5892,7 @@ def test_frozen_replies_keep_their_publications_command_and_question_meanings():
     def questions():
         return thread_question_readings(
             log,
-            set(),
+            build_threads(log, {}),
             reading=frozen_thread_reading(
                 log, page.registry, available_revisions=page.revisions
             ),

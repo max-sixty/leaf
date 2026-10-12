@@ -48,9 +48,7 @@ const reading = (events) => ({
         coverage: [],
         undo: events.map((event) => ({ event })).reverse(),
         queues: { questions: [], tasks: [], done: [] },
-        closes: {},
         approval_blocking: [],
-        state_definitions: { "lf-choice": { decide: { origin: "lf-choice" } } },
         document: {
           asks: noAsks(),
           projection: {
@@ -78,7 +76,10 @@ test("Undo waits while a logged action is unpresented, whichever answer came fir
   applicationState.identify(1);
   applicationState.captureDocument({
     ...applicationState.read().document,
-    registry: { "lf-choice": { "x-state": { decide: { ...spec, writer: "user" } } } },
+    registry: {
+      "lf-choice": { "x-state": { decide: { ...spec, writer: "user" } } },
+      $states: { "lf-choice": { decide: { writer: "user", definition: {} } } },
+    },
     authored: new Map([
       [
         "choice",

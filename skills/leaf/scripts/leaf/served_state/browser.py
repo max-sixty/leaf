@@ -14,7 +14,6 @@ from ..projection import (
     page_reading,
 )
 from ..questions import approval_blocking, collection
-from ..registry.contract import state_definition, state_specs
 from ..schema import WIDGET_KINDS
 from ..thread_context import thread_memberships
 from .context import PageRead
@@ -102,21 +101,6 @@ def _apply_thread_attention(
             thread["attention"] = None
 
 
-def _state_definitions(registry: dict, records) -> dict[str, dict[str, dict]]:
-    """Each tag among `records` → each verb its user writes → that verb's admitted
-    definition under `registry` (`registry.contract.state_definition`). The browser
-    stamps an action it has not sent yet with its verb's definition, and stops drawing
-    the action once a revision defines that verb differently; it never derives one."""
-    return {
-        tag: {
-            verb: state_definition(tag, registry[tag], spec)
-            for verb, spec in state_specs(registry[tag], writer="user")
-        }
-        for tag in sorted({record["tag"] for record in records})
-        if any(state_specs(registry.get(tag, {}), writer="user"))
-    }
-
-
 def browser_state(
     readings: dict[int, SourceReading],
     events: list,
@@ -164,10 +148,6 @@ def browser_state(
     )
     thread, thread_reading = browser_thread(durable, work.live_reply)
     thread_projection = thread_reading.projection
-    # Frozen markup reads under the active registry for the page's whole lifetime.
-    thread["state_definitions"] = _state_definitions(
-        active_registry, thread_reading.by_id.values()
-    )
 
     views = {}
     documents = {}
@@ -223,9 +203,6 @@ def browser_state(
         )
         views[str(revision)] = {
             "basis": {"revision": revision, "through_seq": through_seq},
-            "state_definitions": _state_definitions(
-                page.registry, page.document.by_id.values()
-            ),
             "document": document,
             "reports": canonical_reports(projection),
             "undo": browser_undo_candidates(

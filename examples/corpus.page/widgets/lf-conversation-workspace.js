@@ -39,9 +39,14 @@ customElements.define(
       );
       this.presentation = registerThreadPresentation(this, {
         render: (collection, parts) => this.present(collection, parts),
-        reveal: (key) => {
+        // A layout that already draws the part asked for keeps it: Shelf draws every
+        // conversation whole, and Feed every message and the selected one's reply box.
+        reveal: (key, { part }) => {
           this.selected = key;
-          this.mode = "Conversation";
+          const drawn =
+            this.mode === "Shelf" ||
+            (this.mode === "Feed" && (part === "message" || part === "reply"));
+          if (!drawn) this.mode = "Conversation";
         },
       });
       this.stopQuestions = watchQuestions(this, () => this.paintObligations());

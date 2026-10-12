@@ -1010,7 +1010,7 @@ resolve:
     kind: resolve
   told:
     - text: >-
-        The user closed the thread. You owe no reply in it; a task you opened on
+        The user closed the thread. You owe no reply in it; a to-do you opened on
         it still stands until you end it.
 
 unresolve:

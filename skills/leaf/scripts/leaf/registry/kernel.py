@@ -1,11 +1,13 @@
-"""Leaf's fixed kernel event contract, read off the kernel's own registry.
+"""Leaf's fixed kernel facts, read off the kernel's own registry.
 
 Every `$events` member but `handling` and `answering` is the transport contract no
-layer can change (`layer.merge_layer_declarations`), so its facts are read from the
-running Leaf's shipped `registry.json` rather than from a page's composed vocabulary,
-which may be another Leaf's at the same `protocol` (`kernel_protocol`). Reading them
-needs no schema validator, and this module imports none: the page service sorts every
-event by these kinds, including in a harness hook that validates nothing."""
+layer can change (`layer.merge_layer_declarations`), and `$passages` is how a page reads
+as text, which the browser's generated copy (`runtime/passage-facts.js`) shares. Both
+are read from the running Leaf's shipped `registry.json` rather than from a page's
+composed vocabulary, which may be another Leaf's at the same `protocol`
+(`kernel_protocol`). Reading them needs no schema validator, and this module imports
+none: the page service sorts every event by these kinds, including in a harness hook
+that validates nothing."""
 
 from functools import cache
 
@@ -14,8 +16,19 @@ from leaf.schema import ASSETS
 
 
 @cache
+def _kernel() -> dict:
+    return read_json(ASSETS / "registry.json")
+
+
 def _kernel_events() -> dict:
-    return read_json(ASSETS / "registry.json")["$events"]
+    return _kernel()["$events"]
+
+
+def kernel_passages() -> dict:
+    """How both readings turn a page into text: the characters a whitespace run is
+    made of (`collapse`), the tags whose text is one block (`blocks`), and the context
+    an anchor starts with on each side of its quote (`context`)."""
+    return _kernel()["$passages"]
 
 
 def kernel_event_kinds() -> dict:

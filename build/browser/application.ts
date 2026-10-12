@@ -14,7 +14,11 @@ import {
   isProjectionEntry,
   stateCoordinate,
 } from "../../skills/leaf/assets/runtime/projection/model.js";
-import { sameStateDefinition } from "../../skills/leaf/assets/runtime/registry-contract.js";
+import {
+  stampedState,
+  sameStateDefinition,
+  sameStateOperation,
+} from "../../skills/leaf/assets/runtime/registry-contract.js";
 import {
   discussed,
   foldThreads,
@@ -26,6 +30,9 @@ import {
   editForAttempt,
   isThreadEvent,
   isTurnEvent,
+  nameAdmitted,
+  namesEvent,
+  namesPending,
   turnMessage,
 } from "../../skills/leaf/assets/runtime/pending/model.js";
 import { PENDING } from "../../skills/leaf/assets/runtime/thread/identity.js";
@@ -313,6 +320,7 @@ export interface SemanticDocument {
     }
   > & {
     $reactions?: { tokens: Record<string, {glyph: string}> };
+    $states: Record<string, Record<string, StampedState>>;
   };
   authored: AuthoredMap;
   descriptors: ReadonlyMap<string, WidgetDescriptor>;
@@ -320,6 +328,12 @@ export interface SemanticDocument {
     string,
     { text: string; document?: { thread: string; message: string } }
   >;
+}
+
+/** One verb's state as composition stamps it (`registry.contract.stamp_states`). */
+interface StampedState {
+  writer: "user" | "agent";
+  definition: unknown;
 }
 
 export interface WidgetDescriptor {
@@ -359,9 +373,6 @@ interface AuthoritativeState {
         queues: WireQueues;
         /** The asks approving this version waits on (`questions.approval_blocking`). */
         approval_blocking: string[];
-        /** Each page tag's user verbs' admitted definitions under this version's
-         * registry (`registry.contract.state_definition`). */
-        state_definitions: Record<string, Record<string, unknown>>;
       }
     >;
     thread: {
@@ -369,8 +380,6 @@ interface AuthoritativeState {
       projection: WireProjection;
       asks: WireQuestions;
       approval_history: Event[];
-      /** The frozen markup's user verbs' definitions, under the active registry. */
-      state_definitions: Record<string, Record<string, unknown>>;
     };
     receipts: Event[];
     /** Every thread whose history each logged event changes
@@ -388,11 +397,14 @@ type ServerView = AuthoritativeState["browser"]["views"][string];
 /** A server view with its basis, the transport identity, left off. */
 type PageView = Omit<ServerView, "basis">;
 
-// The server folded each entry under the registry of the document it read, and
-// carries the admitted meaning and value; the browser draws them as served.
+// The server classifies page entries under the shown revision's registry and thread
+// entries under the active revision's. A pinned earlier revision captured its thread
+// widgets under its own registry, so an entry whose operation that registry does not
+// define is one those widgets cannot draw, and it is left out.
 function normalizedProjection(
   view: PageView | null | undefined,
   thread: AuthoritativeState["browser"]["thread"] | undefined,
+  document?: Pick<SemanticDocument, "registry" | "descriptors">,
 ) {
   const entries = [];
   const actionIds = [];
@@ -400,10 +412,16 @@ function normalizedProjection(
   const desiredIds = [];
   for (const projection of [view?.document.projection, thread?.projection]) {
     if (!projection) continue;
-    for (const wire of projection.entries)
+    for (const wire of projection.entries) {
+      const e = wire.event;
+      const descriptor = document?.descriptors.get(e.widget);
+      const stamp =
+        document && descriptor && stampedState(document.registry, descriptor.tag, e);
+      if (descriptor && !sameStateOperation(e.meaning?.state, stamp?.definition)) continue;
+      const coordinate = stateCoordinate(...wire.coordinate);
       entries.push({
-        coordinate: stateCoordinate(...wire.coordinate),
-        e: wire.event,
+        coordinate,
+        e,
         restated: wire.restated,
         absorbed: wire.absorbed,
         stands: wire.stands,
@@ -412,6 +430,7 @@ function normalizedProjection(
         unit: wire.coordinate[1],
         value: wire.value,
       });
+    }
     actionIds.push(...projection.actions);
     reportIds.push(...projection.reports);
     desiredIds.push(...projection.desired);
@@ -549,22 +568,6 @@ function localTasks(
       })),
     ],
   };
-}
-
-// A user verb's definition as the server admits it where the widget stands: the
-// view's for a page widget, the frozen thread's for one an agent sent.
-function servedDefinition(
-  state: Immutable<AuthoritativeState> | null,
-  view: Immutable<PageView> | null | undefined,
-  descriptor: Immutable<WidgetDescriptor> | undefined,
-  verb: string,
-) {
-  if (!descriptor) return undefined;
-  const definitions =
-    descriptor.document.kind === "thread"
-      ? state?.browser.thread.state_definitions
-      : view?.state_definitions;
-  return definitions?.[descriptor.tag]?.[verb];
 }
 
 const NO_QUEUES: WireQueues = { questions: [], tasks: [], done: [] };
@@ -722,6 +725,7 @@ function widgetReading(
     : undefined;
   const declaration = descriptor.declaration;
   const actionSpecs = declaration["x-state"] ?? {};
+  const states = root.document.registry.$states[descriptor.tag] ?? {};
   const projection = root.effective.projection;
   const classified = [...projection.classified.values()]
     .filter(
@@ -746,7 +750,7 @@ function widgetReading(
   // state and never as a control.
   const actions = Object.fromEntries(
     Object.entries(actionSpecs)
-      .filter(([, spec]) => spec.writer === "user")
+      .filter(([verb]) => states[verb]?.writer === "user")
       .map(([verb]) => [
         verb,
         {
@@ -804,7 +808,7 @@ export function createSemanticApplication({
   const initial = {
     document: {
       revision: null,
-      registry: {},
+      registry: { $states: {} },
       authored: new Map(),
       descriptors: new Map(),
     } as SemanticDocument,
@@ -820,7 +824,7 @@ export function createSemanticApplication({
     effective: derive(
       {
         revision: null,
-        registry: {},
+        registry: { $states: {} },
         authored: new Map(),
         descriptors: new Map(),
       },
@@ -860,38 +864,30 @@ export function createSemanticApplication({
     const view: PageView | null = served
       ? (({ basis: _basis, ...rest }) => rest)(served)
       : null;
-    // A revision may reuse a widget/verb with a different operation, or give the verb
-    // to the agent. Keep its pending delivery, but stop drawing it against that new
-    // declaration: an action draws while the shown version defines its verb as the one
-    // it was made under (the view's `state_definitions`). An undo draws while the
-    // verb it takes back is still the user's; the server already judged its logged
-    // target against the current declaration when it served the projection. The
-    // server validates durable payloads; speculative state waits for its receipt when
-    // a revised payload schema cannot be compared directly.
-    const compatiblePending = (projection: NonNullable<LedgerEntry["projection"]>) => {
-      const operation = projection.kind === "undo" ? projection.target : projection;
-      const current = servedDefinition(
-        state,
-        view,
-        document.descriptors.get(operation.e.widget),
-        operation.e.action,
-      );
-      return (
-        Boolean(current) &&
-        (projection.kind === "undo" ||
-          sameStateDefinition(operation.e.meaning?.state, current))
-      );
+    const admitted = normalizedProjection(view, state?.browser.thread, document);
+    const classifiedIds = new Set(admitted.entries.map(({ e }) => e.id));
+    // A revision may reuse a widget/verb with a different operation. Keep its pending
+    // delivery, but stop drawing it against that new declaration. This tab wrote a
+    // pending action's definition itself, so it draws while the shown declaration
+    // still defines the same one; the server validates the durable payload. An undo
+    // draws while its target draws: in the server's reading of this document, under
+    // the id the log gave it, or as a pending action by the rule above.
+    const drawsAction = (e: ProjectionEntry["e"]) => {
+      const descriptor = document.descriptors.get(e.widget);
+      const state = descriptor && stampedState(document.registry, descriptor.tag, e);
+      return Boolean(state && sameStateDefinition(e.meaning?.state, state.definition));
     };
-    const localProjections = local.flatMap((entry) => {
+    const localProjections = local.flatMap((entry): PendingProjection[] => {
       const projection = entry.projection;
-      if (!projection || !compatiblePending(projection)) return [];
-      return [
-        projection.kind === "undo"
-          ? { ...projection, targetId: admittedId(entry.undoTarget, unresolved, receipts) }
-          : projection,
-      ];
+      if (!projection) return [];
+      if (projection.kind !== "undo") return drawsAction(projection.e) ? [projection] : [];
+      const { target } = projection;
+      const targetId = admittedId(entry.undoTarget, unresolved, receipts);
+      const pending = !Number.isInteger(target.e.seq);
+      const draws =
+        classifiedIds.has(targetId ?? target.e.id) || (pending && drawsAction(target.e));
+      return draws ? [{ ...projection, targetId }] : [];
     });
-    const admitted = normalizedProjection(view, state?.browser.thread);
     const projection = foldProjection({
       ...admitted,
       pendingEntries: localProjections,
@@ -1428,17 +1424,6 @@ export function createSemanticApplication({
         event.kind === "action" && widget
           ? declaration?.["x-state"]?.[event.action]
           : null;
-      // The verb's definition as the shown version admits it, which the action is
-      // drawn under until a revision defines the verb differently.
-      const definition =
-        event.kind === "action"
-          ? servedDefinition(
-              before.authoritative,
-              before.effective.view,
-              before.document.descriptors.get(event.widget),
-              event.action,
-            )
-          : undefined;
       const unit =
         event.kind === "action" && spec
           ? spec.unit === "widget"
@@ -1457,11 +1442,7 @@ export function createSemanticApplication({
               coordinate: target.coordinate,
               localOrder,
             }
-          : event.kind === "action" &&
-              widget &&
-              spec &&
-              definition &&
-              typeof unit === "string"
+          : event.kind === "action" && widget && spec && typeof unit === "string"
             ? {
                 unit,
                 spec,
@@ -1470,7 +1451,12 @@ export function createSemanticApplication({
                 e: {
                   ...event,
                   id: localId,
-                  meaning: { state: definition },
+                  meaning: {
+                    state: structuredClone(
+                      before.document.registry.$states[widget.tag]?.[event.action]
+                        ?.definition,
+                    ),
+                  },
                 },
                 value: spec.record ? foldedValue(event, spec.record) : event.action,
               }
@@ -1500,18 +1486,28 @@ export function createSemanticApplication({
       publish({ unresolved });
     },
     // The POST refused `attempt`, or it can no longer be sent. What depends on it goes
-    // with it: an undo of it, and a reply to its message. Returns those attempts.
+    // with it: every gesture naming it by its pending id (`namesEvent`), such as an undo
+    // of it, a reply to its message or a rewrite written over it, and so on down, since
+    // a rewrite over that rewrite names only the one between. Returns those attempts.
     refuse(attempt: string) {
       const refused = entry(attempt);
       if (!refused) return [];
-      const dependents = publisher
-        .read()
-        .unresolved.filter(
-          (item) =>
-            item.undoTarget === attempt ||
-            (refused.thread && item.event.parent === refused.thread.id),
-        )
-        .map((item) => item.event.attempt);
+      const ledger = publisher.read().unresolved;
+      const gone = [refused.localId];
+      const dependents: string[] = [];
+      for (let grew = true; grew; ) {
+        grew = false;
+        for (const item of ledger)
+          if (
+            item.event.attempt !== attempt &&
+            !dependents.includes(item.event.attempt) &&
+            gone.some((id) => namesEvent(item.event, id))
+          ) {
+            dependents.push(item.event.attempt);
+            gone.push(item.localId);
+            grew = true;
+          }
+      }
       const { unresolved } = transition("refuse", new Map([[attempt, null]]));
       publish({
         unresolved: unresolved.filter(
@@ -1542,46 +1538,28 @@ export function createSemanticApplication({
           ),
       });
     },
-    // A gesture naming a message this tab sent, by its pending id, names it by the id
-    // the log gave it once the log has answered: a reply's `parent`, or the revision an
-    // edit is written over (`base`), as a second rewrite over a first still sending is.
-    nameParent(attempt: string) {
-      const admitted = (pending: unknown) =>
-        typeof pending === "string" && pending.startsWith(PENDING)
-          ? admittedId(pending.slice(PENDING.length), ...ledgerAndReceipts())
-          : null;
+    // Just before a send, a gesture naming one this tab sent, by its pending id, names
+    // it by the id the log gave it once the log has answered, in every field that names
+    // an event (`nameAdmitted`): a reply's `parent`, the revision an edit is written over
+    // (`base`), as a second rewrite over a first still sending is, an undo's target. A
+    // renamed `parent` is kept as `namedParent`, which still finds the thread the reply
+    // was drawn in. Returns false for a gesture that cannot be sent: an undo still naming
+    // a gesture the log never took, since it would take back nothing the log knows.
+    nameEvents(attempt: string) {
       const item = entry(attempt);
-      const parent = item?.event.parent;
-      const named = admitted(parent);
-      if (named && typeof parent === "string")
-        update(attempt, (item) =>
-          item.event.parent
-            ? {
-                ...item,
-                namedParent: parent,
-                event: { ...item.event, parent: named },
-              }
-            : item,
-        );
-      const base = admitted(item?.event.kind === "edit" ? item.event.base : null);
-      if (base)
-        update(attempt, (item) =>
-          item.event.kind === "edit"
-            ? { ...item, event: { ...item.event, base } }
-            : item,
-        );
-    },
-    nameUndo(attempt: string) {
-      const item = entry(attempt);
-      if (item?.event.kind !== "undo" || !item.undoTarget) return true;
-      const named = admittedId(item.undoTarget, ...ledgerAndReceipts());
-      if (!named) return false;
-      update(attempt, (item) =>
-        item.event.kind === "undo"
-          ? { ...item, event: { ...item.event, undoes: named } }
-          : item,
+      if (!item) return true;
+      const event = nameAdmitted(item.event, (pending) =>
+        admittedId(pending, ...ledgerAndReceipts()),
       );
-      return true;
+      if (event !== item.event)
+        update(attempt, (item) => ({
+          ...item,
+          ...(event.parent !== item.event.parent && typeof item.event.parent === "string"
+            ? { namedParent: item.event.parent }
+            : {}),
+          event,
+        }));
+      return !(event.kind === "undo" && namesPending(event));
     },
   });
 }

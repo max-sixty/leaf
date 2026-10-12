@@ -29,7 +29,16 @@
  * an opaque destination cannot be classified from its load event. Retirement
  * records the local realm's destruction, before the allocation release answers.
  * A mounted frame answers for its image: the child draws the requested part of its
- * viewport, which an image of the containing page puts in the frame's place. */
+ * viewport, which an image of the containing page puts in the frame's place.
+ * The frame's sandbox admits scripts, forms, popups that escape it, modals, downloads
+ * and pointer lock, but not the same origin: the child's origin is opaque, so neither
+ * document reaches the other's DOM, storage or runtime, and the child's requests to
+ * other servers follow opaque-origin CORS. Native focus and reveal calls an authored
+ * script makes keep their browser behavior; Leaf's own placements are skipped unless
+ * the child holds focus (focus.js, `canPlaceFocus`), and its reveals stay within its
+ * document. Child-capability responses carry `Referrer-Policy: no-referrer` (http.py,
+ * `_sample_headers`). A failed allocation or admission retires the allocation before
+ * `ready` rejects. */
 import { requestJson } from "./layer-client.js";
 import { pageUrl, runtime } from "./context.js";
 import { dressFor, registerSampleDress } from "./dress.js";

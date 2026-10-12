@@ -93,6 +93,50 @@ user outside it waits on the page rather than on a widget it would have to know 
 A declared `x-shadow` widget gets the same transition protection when it builds its root
 with `shadowStage`.
 
+### First paint
+
+Upgrade should add behavior and move nothing: a widget's box at first paint is the
+box it keeps once the page presents. `leaf package check --render` names a widget that
+moves as `keeps-first-box` ([packages.md, "Seeing it"](packages.md#seeing-it)).
+
+- Size the widget in the package theme under `html[data-lf-interactive]`, as its
+  module will draw it. Leaf sets that attribute before first paint wherever its
+  runtime will run, in a served page or an export.
+- Where the module draws a structure of its own whose shape the log does not change,
+  such as a row of count tiles, declare that structure as `x-prepaint` rather than
+  summing its line heights in the theme. Delivery writes it into each occurrence for
+  the first paint, the browser sizes and wraps it as it will the drawing, and the
+  module removes it (`:scope > [data-lf-prepaint]`) in the same step that draws its
+  replacement.
+- Where the structure depends on the instance's authored members or remembered tab
+  values, declare `x-initial` instead: the rooted path of a classic JavaScript bundle
+  that registers one synchronous producer with
+  `document.documentElement.lfInitial.register(tag, render)`. Delivery draws each
+  host with it as soon as the host's source has arrived, so the widget first appears
+  with its complete structure and values while prose before it can paint; with
+  scripts disabled, the authored host stays as written.
+  `render(host, {tabStore, offer, offerElement, keeps})` builds the drawing and
+  returns the node references and mechanical state the behavior module needs. It may move authored nodes within
+  its host, and Leaf keeps their original source and node routes for passages,
+  anchors and version comparison; `keeps` is the helper surface's own, for a later
+  pass over nodes already drawn. The producer does no asynchronous or network work
+  and reads no log-derived state. The behavior module calls `initialRender(host)`
+  from the helper surface, which adopts the existing drawing or produces it for a
+  later revision or a thread arrival, then adds behavior to those nodes without
+  rebuilding their structure. Leaf loads the declared bundle before the behavior
+  module only if it has not already registered. The theme styles the actual initial
+  layout; neither the producer nor the module reserves an estimated height.
+  `x-initial` requires `x-upgrade: true` and cannot accompany `x-prepaint`. Build its
+  classic bundle during development and commit it; installation, serving, and export
+  run the captured bundle without a compiler.
+- Where the markup cannot say how tall the drawing will be, declare `x-height`, add
+  the class `lf-rendered` once the drawing is in, and draw at the stated height where
+  the drawing can take any. `page check --render` advises a page's author the height
+  to state for a drawing that cannot.
+- Where the widget shows one of its members at a time, declare `x-views`, open on
+  `openingView`'s member, and show only the member marked `data-lf-opening` until the
+  module upgrades the element, as `lf-tabs` does.
+
 ## Template rendering
 
 Paint templates with `render(template, container)`, which lands in the turn that

@@ -7,7 +7,9 @@
 # after `page check` and stamped at sign-off (3 of 3 each). Against base bb97a2801,
 # after the skill's core principles landed, the scores held: base 0 of 3 and the
 # change 3 of 3 on each harness, and the final wording 2 of 2. Base fails the
-# sign-off criterion only because it already stamped before the first reply.
+# sign-off criterion only because it already stamped before the first reply. The
+# split of step 3 into "Check the page" and "Review and stamp a record" held it:
+# base 96100077f and the split each scored 3 of 3 on both harnesses and metrics.
 description: record-reply-before-its-stamp
 metadata:
   purpose: 'Checks and checkpoints: a revision answering a message on a stamped record is checked

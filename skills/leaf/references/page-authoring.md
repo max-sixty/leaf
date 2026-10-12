@@ -637,30 +637,22 @@ child. Reset copies those threads again from the parent; subsequent child
 replies remain independent. A template chooses either `data-sample-events` or
 `data-sample-threads`, never both.
 
-The child is a document of its own: a `<style>` or module script in the template
-applies to the child alone, and the surrounding page's styles and scripts do not
-reach it. The child has an opaque sandbox origin: neither page can access the other's
-DOM, browser storage, or runtime functions. A page module can await the element's
-`ready` promise for its presentation, and await `reset()` to replace it. The bubbling
-`lf-sample-ready` event carries `detail.sample` after each child presents, including Reset, so
-host controls can reapply a selected view without inspecting the Reset button.
-Leaf’s own navigation stays inside the child: focus placement requires the child
-to own input, reveals stop at its document, and native layer transitions prevent
-automatic focus before placing their intended arrival. Scripts and embedded frames
-remain permitted. The sandbox isolates DOM and data; arbitrary scripts calling
-native browser focus or reveal APIs keep those APIs’ browser behavior. Forms, popups,
-downloads and pointer lock keep their native routes. The child's unguessable URL
-authorizes its own document, captured assets and APIs, so native resource loaders and
-module-relative URLs work directly. It grants no parent routes. Child responses
-suppress referrers; external requests retain the browser's opaque-origin CORS rules.
-Reload reconnects the child; Reset replaces it with a fresh copy of its initial state.
-Initial document admission failures reject `ready` after releasing the failed
-allocation; the sample keeps its error and Reset control. Later native navigation
-keeps the destination in the frame and Reset available. Once the child leaves,
-`ready` waits for the next Leaf document, which a reload brings and announces with
-`lf-sample-ready`. The containing page cannot distinguish an external destination
-from a failed reload inside the opaque frame, so that wait lasts until Reset, which
-rejects it with `AbortError`.
+The child is a separate document in a sandbox. A `<style>` or module script in the
+template applies only to the child, and the surrounding page's styles and scripts do
+not reach it; neither page can read the other's DOM, browser storage, or runtime
+functions. Scripts, embedded frames, forms, popups, and downloads work in the child,
+and native resource loaders and module-relative URLs reach its own captured assets. A
+page module can await the element's `ready` promise for the current child's
+presentation; Reset, and the child leaving its page, each replace that promise. `await
+sample.reset()` replaces the child with a fresh copy of its initial state, and a
+reload inside the child reconnects the same child. When the child cannot be loaded,
+`ready` rejects and the sample shows the error with Reset available. The bubbling
+`lf-sample-ready` event carries `detail.sample` after each presentation, including
+Reset and a reload, so host controls can reapply a selected view without inspecting
+the Reset button. Once the child leaves its Leaf page, `ready` waits for the next one,
+which a reload brings. The containing page cannot tell a reload from a link to another
+document, so after such a link the wait lasts until Reset, which rejects it with
+`AbortError`.
 To select a conversation, call `await sample.showThread(id)` with its root event id;
 this shows the same page destination as its marker. To inspect it in Threads,
 call `await sample.showThread(id, {surface: "panel"})`. The panel view accepts
@@ -736,7 +728,7 @@ Longer asides belong in prose, a disclosure, or a sidenote.
 
 ## Pre-handover review
 
-The main skill's "Quick pages and records" step decides when a page takes this review.
+The main skill's "Review and stamp a record" step decides when a page takes this review.
 Every source activation already runs the deterministic markup check; this review adds
 the browser gate and a reading:
 
@@ -771,11 +763,11 @@ oriented and able to continue; compare equivalent moves across the page's views.
 
 For a page with asks, the check also saves the window at each of the first eight
 as `q` reaches it from the top, which is how a user working the page meets each
-question. At each arrival, confirm that the question, shared premise, alternatives,
-and evidence that distinguishes them are visible together, the displayed numbers
-match the available actions, and the next press of `q` reaches the next thing waiting
-on the user (an open ask, a thread whose question is theirs, or an update to send again)
-while the complete page remains visible.
+question (`conversation-loop.md`, "Questions and Tasks"). At each arrival, confirm
+that the question, shared premise, alternatives, and evidence that distinguishes them
+are visible together, the displayed numbers match the available actions, and the next
+press of `q` reaches the next item on Questions while the complete page remains
+visible.
 
 Without a way to inspect the rendered page, read `leaf page state <page>`'s
 `state` and `todos` alongside the active HTML to review the words, evidence, and

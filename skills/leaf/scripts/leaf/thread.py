@@ -368,8 +368,9 @@ def post_reply(
     page log and delivery owner.
 
     A repeated ``attempt`` is matched more loosely than the append door's payload
-    identity: by kind, progress or answer, response address and declaration, so a
-    CLI retry whose text was reworded returns the first reply rather than refusing.
+    identity: by kind, progress, failure receipt or answer, response address and
+    declaration, so a CLI retry whose text was reworded returns the first reply
+    rather than refusing.
 
     ``failure`` records a harness-owned failure code alongside its presentation text;
     ordinary agent answers omit it.
@@ -410,7 +411,13 @@ def post_reply(
                 raise ReceiptRefused("response no longer matches its page log")
         if attempt is not None and (
             repeated := _repeated_reply(
-                page.events, attempt, address, ephemeral, question, task
+                page.events,
+                attempt,
+                address,
+                ephemeral,
+                failure is not None,
+                question,
+                task,
             )
         ):
             return repeated
@@ -449,11 +456,13 @@ def _repeated_reply(
     attempt: str,
     address: dict,
     ephemeral: bool,
+    failed: bool,
     question: bool,
     task: str | None,
 ) -> dict | None:
     """The reply an earlier write with this `attempt` appended, or None; refuses an
-    attempt that named another kind of write."""
+    attempt that named another kind of write: progress, a failure receipt and an
+    answer are each their own."""
     existing = next(
         (event for event in events if event.get("attempt") == attempt), None
     )
@@ -468,6 +477,7 @@ def _repeated_reply(
     if (
         existing["kind"] != "reply"
         or bool(existing.get("ephemeral")) != ephemeral
+        or ("failure" in existing) != failed
         or (to is not None and existing["parent"] != to)
         or not same_scope
     ):
@@ -795,8 +805,11 @@ def post_response(
     if reservation is None and (attempt is not None or not options.get("ephemeral")):
         # Public retry keys identify this addressed author's writes, never a
         # provider's reservation. The disjoint namespace prevents a progress
-        # retry key from consuming its provider final's append identity too.
+        # retry key from consuming its provider final's append identity too, and
+        # a failure receipt's from standing in for a later answer's.
         retry = reference if attempt is None else f"{reference}:{attempt}"
+        if options.get("failure") is not None:
+            retry = f"{retry}:failure"
         attempt = f"leaf-response-{sha256(retry.encode()).hexdigest()}"
     return post_reply(
         Path(address["page"]),

@@ -20537,6 +20537,17 @@ def test_response_api_records_failure_without_reopening_thread(page_dir):
         delivery_model.current_responses(page_dir, events_model.read_events(page_dir))
         == {}
     )
+    # An answer to the same reference is not a retry of the receipt: it is refused
+    # as an answer to a settled input rather than handed the receipt back.
+    answered = CliRunner().invoke(
+        cli_model.cli,
+        ["response", "reply", reference, "--done", "--text", "Here it is."],
+    )
+    assert answered.exit_code != 0
+    assert "no longer requires a reply" in answered.output
+    assert [event["id"] for event in events_model.read_events(page_dir)][-1] == (
+        reply["id"]
+    )
 
 
 def _reserved_author_response(page_dir):

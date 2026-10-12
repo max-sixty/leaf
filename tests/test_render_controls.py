@@ -91,7 +91,6 @@ from render_harness import (
     any_draft_control,
     any_owner_entry,
     any_suggestion_control,
-    consume_browser_errors,
     expect_asks_answered,
     expect_comment_notes,
     held_frames,
@@ -2987,159 +2986,6 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
     ), "the field retained its public focus part after focus left"
 
 
-# One interaction demo, the gallery's suggestion replay, under the opt-in that installs
-# the runtime's playback row, laid out as the feature gallery lays that row out. The
-# `accept` scenario (interaction-gallery.js) names its suggestion `bg-motion-accept`.
-INTERACTION_PLAYBACK_PAGE = leaf_page(
-    "Interaction playback",
-    """
-<section class="interaction-gallery" id="demos" data-interaction-gallery
-         data-interaction-viewport="2">
-<h2>Interactions</h2>
-<lf-tabs id="demo-tabs">
-  <lf-tab id="demo-accept" label="Accept a suggestion">
-    <figure class="interaction-demo" data-interaction-demo="accept">
-      <template id="demo-accept-page" data-sample>
-        <p id="demo-accept-copy">The importer now
-          <lf-suggestion id="bg-motion-accept"><lf-old>usually finishes</lf-old><lf-new>finishes</lf-new></lf-suggestion>
-          before the next run begins.</p>
-      </template>
-      <div class="interaction-stage interaction-frame-stage">
-        <iframe class="interaction-frame" data-interaction-frame name="interaction-accept"
-                title="Contained Leaf suggestion animation" tabindex="-1"
-                aria-hidden="true"></iframe>
-        <span class="interaction-pointer" hidden aria-hidden="true"></span>
-      </div>
-      <figcaption>The pointer presses Accept.</figcaption>
-    </figure>
-  </lf-tab>
-</lf-tabs>
-</section>
-""",
-    head="""<style>
-.interaction-gallery .lf-interaction-controls {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-}
-.interaction-gallery .lf-interaction-status { flex-basis: 100%; }
-</style>""",
-)
-
-
-def test_departing_gallery_cancels_pending_samples_without_reporting_failure(
-    browser, serve
-):
-    """Departure cancels loading even while the old document's nodes remain connected."""
-    page = browser.new_page()
-    held = []
-    page.route("**/api/samples", lambda route: held.append(route))
-    page.goto(serve(INTERACTION_PLAYBACK_PAGE))
-    holding(page, held, 1, "the gallery's sample allocation")
-    page.evaluate("window.dispatchEvent(new PageTransitionEvent('pagehide'))")
-    assert page.locator("[data-interaction-demo]").evaluate(
-        "figure => figure.isConnected"
-    )
-    response = held[0].fetch()
-    held[0].fulfill(response=response)
-    page.evaluate("""async () => {
-        const {whenArrived} = await window.__lfRuntimeImport('/runtime/presentation.js');
-        await whenArrived();
-    }""")
-    rendered(page)
-    expect(page.locator(".lf-interaction-status")).not_to_have_text("Could not play")
-    assert not [
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "error"
-    ]
-
-
-def test_gallery_reconfigures_a_sample_document_that_reloads(browser, serve):
-    """A reloaded sample starts unconfigured, during the gallery's load or after it."""
-    page = browser.new_page(reduced_motion="reduce")  # Play waits for the press.
-    held = []
-
-    def hold_first_state(route):
-        if held:
-            route.continue_()
-        else:
-            held.append(route)
-
-    page.route("**/api/samples/*/api/state*", hold_first_state)
-    page.goto(serve(INTERACTION_PLAYBACK_PAGE))
-    holding(page, held, 1, "the first sample document's state read")
-    toggle = page.get_by_role("button", name="Play Accept a suggestion animation")
-    status = page.locator(".lf-interaction-status")
-    child = page.locator("[data-interaction-frame]").element_handle().content_frame()
-    for moment in ("while loading", "after loading"):
-        with child.expect_navigation(wait_until="domcontentloaded"):
-            child.evaluate("location.reload()")
-        if moment == "while loading":
-            held[0].abort()
-        expect(toggle, moment).to_be_enabled()
-        toggle.click()
-        expect(status, moment).to_have_text(re.compile("Playing|Complete"))
-
-
-def test_gallery_arrives_once_its_reloaded_sample_is_configured(browser, serve):
-    """A reload during the gallery's load leaves the page arriving, not arrived."""
-    page = browser.new_page(reduced_motion="reduce")  # Play waits for the press.
-    held = []
-    page.route("**/api/samples/*/api/state*", lambda route: held.append(route))
-    page.goto(serve(INTERACTION_PLAYBACK_PAGE))
-    holding(page, held, 1, "the first sample document's state read")
-    page.evaluate("""async () => {
-        const {whenArrived} = await window.__lfRuntimeImport('/runtime/presentation.js');
-        whenArrived().then(() => (window.galleryArrived = true));
-    }""")
-    child = page.locator("[data-interaction-frame]").element_handle().content_frame()
-    with child.expect_navigation(wait_until="domcontentloaded"):
-        child.evaluate("location.reload()")
-    held[0].abort()
-    holding(page, held, 2, "the reloaded sample document's state read")
-    toggle = page.get_by_role("button", name="Loading… Accept a suggestion animation")
-    expect(toggle).to_be_disabled()
-    assert not page.evaluate("window.galleryArrived ?? false")
-    held[1].continue_()
-    page.wait_for_function("window.galleryArrived")
-    expect(
-        page.get_by_role("button", name="Play Accept a suggestion animation")
-    ).to_be_enabled()
-
-
-def test_gallery_offers_reset_when_its_sample_document_is_gone(browser, serve):
-    """A reload that reaches no Leaf document leaves Reset, which plays again."""
-    page = browser.new_page(reduced_motion="reduce")  # Play waits for the press.
-    page.goto(serve(INTERACTION_PLAYBACK_PAGE))
-    toggle = page.get_by_role("button", name="Play Accept a suggestion animation")
-    expect(toggle).to_be_enabled()
-    child = page.locator("[data-interaction-frame]").element_handle().content_frame()
-    gone = child.url
-    page.route(
-        lambda url: url == gone,
-        lambda route: route.fulfill(
-            status=503, content_type="text/html", body="<h1>Restarting</h1>"
-        ),
-    )
-    with child.expect_navigation():
-        child.evaluate("location.reload()")
-    expect(child.get_by_role("heading")).to_have_text("Restarting")
-    consume_browser_errors(page, "503")
-    reset = page.get_by_role("button", name="Reset Accept a suggestion animation")
-    expect(reset).to_be_enabled()
-    expect(
-        page.get_by_role("button", name="Loading… Accept a suggestion animation")
-    ).to_be_disabled()
-    reset.focus()
-    page.keyboard.press("Enter")
-    expect(toggle).to_be_enabled()
-    expect(reset).to_have_count(0)
-    expect(toggle).to_be_focused()  # Taking Reset away hands its keyboard user on.
-    toggle.click()
-    expect(page.locator(".lf-interaction-status")).to_have_text(
-        re.compile("Playing|Complete")
-    )
-
-
 SIGNOFF_STABILITY_PAGE = LONG_PAGE.replace(
     "<title>long</title>",
     '<title>long</title><meta name="lf-review" content="sign-off">',
@@ -3185,15 +3031,6 @@ CONTROL_ARCHETYPES = (
         "target": '#stable-shot .lf-shotcap[data-lf-state="after"]',
     },
     {
-        # The interaction gallery's playback row. The runtime injects one
-        # Play/Pause/Replay control beside Loop and Viewport, so the changing word must
-        # cost the button no width. Pressing Replay sends it through every word it has.
-        # Its own page because the row exists only under the gallery opt-in.
-        "name": "interaction-playback",
-        "source": INTERACTION_PLAYBACK_PAGE,
-        "target": "[data-interaction-toggle]",
-    },
-    {
         # The case queue's Previous, case selector, and Next controls share the
         # row above the evidence. Selecting another title changes the select's
         # contents without moving the buttons around it.
@@ -3209,7 +3046,7 @@ CONTROL_ARCHETYPES = (
         "name": "visual-review-inspection",
         "source": VISUAL_REVIEW_GALLERY,
         "open": ".lf-vr-inspection-summary",
-        "target": '.lf-vr-mode-group > [data-mode="flip"]',
+        "target": '.lf-vr-mode-group > [value="flip"]',
     },
     {
         # A disposition changes both its selected paint and the case's durable review

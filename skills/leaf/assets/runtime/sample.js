@@ -20,12 +20,12 @@
  * A block follows the child's reported height; a window keeps its own viewport.
  * A reading step the child's scroll chain spent goes on from the frame here, as the
  * wheel's scroll chains out of a frame (navigation.js, `stepAlong`).
- * Passive demonstrations remain inert. Removing a frame retires its realm before
- * releasing the allocation, including on reset and parent departure. Destruction
- * cancels pending admission and queue waits; an allocation already in flight is
- * allowed to finish so its returned capability can be released. Lifecycle records
- * enter the interaction stream at these decisions, with a host/allocation identity
- * and the connected document nonce. Native load is distinct from Leaf presentation;
+ * Removing a frame retires its realm before releasing the allocation, including on
+ * reset and parent departure. Destruction cancels pending admission and queue
+ * waits; an allocation already in flight is allowed to finish so its returned
+ * capability can be released. Lifecycle records enter the interaction stream at
+ * these decisions, with a host/allocation identity and the connected document
+ * nonce. Native load is distinct from Leaf presentation;
  * an opaque destination cannot be classified from its load event. Retirement
  * records the local realm's destruction, before the allocation release answers.
  * A mounted frame answers for its image: the child draws the requested part of its
@@ -109,10 +109,7 @@ const request = (url, body, headers = {}) =>
     "sample",
   );
 
-export function mountSample(
-  frame,
-  { template, passive = false, window: asWindow = false },
-) {
+export function mountSample(frame, { template, window: asWindow = false }) {
   if (!template) throw new Error("a sample needs an authored template id");
   let revision = runtime.currentRevision;
   for (let owner = frame.parentElement; owner; owner = owner.parentElement) {
@@ -173,12 +170,10 @@ export function mountSample(
     "sandbox",
     "allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-pointer-lock",
   );
-  frame.toggleAttribute("inert", passive);
   frame.toggleAttribute("data-lf-contained", true);
 
   function admitted() {
     return (
-      !passive &&
       document.visibilityState === "visible" &&
       presented(frame) &&
       sampleVisibility()?.visible !== false
@@ -366,7 +361,7 @@ export function mountSample(
       {
         sample: event.data.sample,
         nonce,
-        settings: { passive, window: asWindow, dress: dressFor(frame) ?? undefined },
+        settings: { window: asWindow, dress: dressFor(frame) ?? undefined },
       },
       "*",
       [pair.port2],
@@ -443,7 +438,7 @@ export function mountSample(
         record("allocating");
         const { url, page } = await request(
           pageUrl("api/samples"),
-          { template, passive },
+          { template },
           revision ? { "Leaf-View-Revision": String(revision) } : {},
         );
         current = new URL(url, location.href).href;

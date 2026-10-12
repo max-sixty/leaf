@@ -1954,132 +1954,12 @@
         }
       }
 
-      .interaction-gallery lf-tabs {
-        margin-top: 14px;
-        margin-bottom: 0;
-        box-shadow: 0 18px 46px color-mix(in srgb, var(--ink) 11%, transparent);
-      }
-
       #bg-rollout-tabs {
         max-inline-size: 26rem;
       }
 
-      .interaction-gallery .lf-interaction-controls {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 8px;
-        margin-top: 14px;
-      }
-
-      /* Placement and density only. The runtime gives the playback action the shared
-         lf-btn face; the gallery keeps its changing labels on one stable row. */
-      .interaction-gallery .lf-interaction-control {
-        min-height: var(--aim-floor);
-        padding: 6px 13px;
-        font: 600 var(--t-6) / 1.2 var(--sans);
-      }
-
-      .interaction-gallery .lf-interaction-setting {
-        display: inline-flex;
-        min-height: var(--aim-floor);
-        align-items: center;
-        gap: 6px;
-        color: var(--ink-2);
-        font: var(--t-6) / 1.2 var(--sans);
-      }
-
-      .interaction-gallery .lf-interaction-loop {
-        margin: 0;
-      }
-
-      /* Under the persistent controls rather than beside them, at every width. The
-         runtime rewrites this line as the demo runs, and changing prose on the button's
-         line would move the row while the user is aiming at it. */
-      .interaction-gallery .lf-interaction-status {
-        flex-basis: 100%;
-        color: var(--muted);
-        font: var(--t-6) / 1.4 var(--sans);
-      }
-
-      .interaction-demo {
-        margin: 0;
-      }
-
-      .interaction-stage {
-        position: relative;
-        min-height: 18rem;
-        overflow: visible;
-        padding: clamp(28px, 6vw, 64px);
-        border: 1px solid var(--border-2);
-        border-radius: calc(var(--r) - 2px);
-        background:
-          linear-gradient(
-            120deg,
-            color-mix(in srgb, var(--field) 72%, transparent),
-            transparent 58%
-          ),
-          var(--paper);
-      }
-
-      .interaction-frame-stage {
-        height: 30rem;
-        overflow: hidden;
-        padding: 0;
-      }
-
-      .interaction-suggestion-stage {
-        height: 24rem;
-      }
-
-      .interaction-frame {
-        display: none;
-        width: calc(100% / var(--interaction-page-scale, 0.5));
-        height: calc(100% / var(--interaction-page-scale, 0.5));
-        border: 0;
-        opacity: 0;
-        pointer-events: none;
-        transform: scale(var(--interaction-page-scale, 0.5));
-        transform-origin: top left;
-      }
-
-      .interaction-gallery[data-interaction-viewport="1"] {
-        --interaction-page-scale: 1;
-      }
-
-      .interaction-gallery[data-interaction-viewport="2"] {
-        --interaction-page-scale: 0.5;
-      }
-
-      .interaction-gallery[data-interaction-viewport="4"] {
-        --interaction-page-scale: 0.25;
-      }
-
-      .interaction-frame[data-interaction-ready] {
-        display: block;
-        opacity: 1;
-      }
-
-      .interaction-demo figcaption {
-        max-width: 66ch;
-        margin-top: 13px;
-        color: var(--ink-2);
-        font-size: var(--t-5);
-        line-height: 1.55;
-      }
-
       main:not([data-lf-margin~="map"], [data-lf-margin~="sidebar"]) #bg-sidebar {
         display: none;
-      }
-
-      @media print {
-        .lf-interaction-controls {
-          display: none !important;
-        }
-
-        .interaction-gallery lf-tabs {
-          box-shadow: none;
-        }
       }
 </style>
 <!-- feature-gallery.html authored script -->
@@ -9482,165 +9362,112 @@ switch --readers checkout-api,orders-api</code></pre>
         </lf-tab>
 
         <lf-tab id="bg-view-interactions" label="Interactions">
-          <section
-            class="interaction-gallery"
-            id="bg-interactions"
-            aria-labelledby="bg-interactions-title"
-            data-interaction-gallery
-            data-interaction-viewport="2"
-          >
+          <section id="bg-interactions" aria-labelledby="bg-interactions-title">
             <p class="eyebrow bg-feature-elements">
-              lf-tabs · lf-tab · lf-suggestion · lf-old · lf-new · lf-board · lf-column
-              · lf-card
+              lf-sample · lf-suggestion · lf-old · lf-new · lf-board · lf-column ·
+              lf-card
             </p>
             <h2 id="bg-interactions-title">
               <strong>Interactions</strong
-              ><span class="bg-feature-detail">: motion and input sequences</span>
+              ><span class="bg-feature-detail">: core input sequences to try</span>
             </h2>
             <p id="bg-interactions-guide">
-              Selecting a tab starts its focused sequence against Leaf’s production
-              component and transition code. Each replay runs in a Leaf page inside the
-              preview box, so page-wide controls keep their real margin placement while
-              the gallery stays still. “Viewport” compares the same page at 1×, 2×, or
-              4× its displayed size. Pause, replay, or loop the sequence; none writes to
-              the page’s event log.
+              Each sample below is a complete Leaf page running the production
+              components and transitions. Do what its caption asks and watch the page
+              answer. What you do stays in that sample's own log; “Reset” starts it
+              again, and nothing reaches this page.
             </p>
 
-            <lf-tabs id="bg-interaction-tabs">
-              <lf-tab id="bg-interaction-accept" label="Accept a suggestion">
-                <figure class="interaction-demo" data-interaction-demo="accept">
-                  <template id="bg-motion-accept-page" data-sample>
-                    <p class="eyebrow">proposed release note</p>
-                    <p id="bg-motion-accept-copy">
-                      The importer now
-                      <lf-suggestion id="bg-motion-accept"
-                        ><lf-old>usually finishes</lf-old
-                        ><lf-new>finishes</lf-new></lf-suggestion
+            <section id="bg-interaction-accept">
+              <h3>Accept a suggestion</h3>
+              <p id="bg-interaction-accept-guide">
+                Press the suggestion's Accept check (✓) above the changed words. Leaf
+                folds away the retired wording and leaves the sentence in its settled
+                state.
+              </p>
+              <lf-sample id="bg-motion-accept-sample" label="proposed release note">
+                <template id="bg-motion-accept-page" data-sample>
+                  <p class="eyebrow">proposed release note</p>
+                  <p id="bg-motion-accept-copy">
+                    The importer now
+                    <lf-suggestion id="bg-motion-accept"
+                      ><lf-old>usually finishes</lf-old
+                      ><lf-new>finishes</lf-new></lf-suggestion
+                    >
+                    before the next run begins.
+                  </p>
+                </template>
+              </lf-sample>
+            </section>
+
+            <section id="bg-interaction-move">
+              <h3>Move a card</h3>
+              <p id="bg-interaction-move-guide">
+                Drag the card to “Tried”, or press <kbd>Enter</kbd> on its grip and move
+                it with the arrow keys. Leaf plays the same placement transition for
+                either route.
+              </p>
+              <lf-sample id="bg-motion-board-sample" label="migration checklist">
+                <template id="bg-motion-board-page" data-sample>
+                  <p class="eyebrow">migration checklist</p>
+                  <h1>Schema migration</h1>
+                  <lf-board id="bg-motion-board">
+                    <lf-column id="bg-motion-ready" label="Ready">
+                      <lf-card id="bg-motion-card"
+                        ><strong>Verify migration</strong> Run the schema
+                        sample.</lf-card
                       >
-                      before the next run begins.
-                    </p>
-                  </template>
-                  <div
-                    class="interaction-stage interaction-frame-stage interaction-suggestion-stage"
-                  >
-                    <iframe
-                      class="interaction-frame"
-                      data-interaction-frame
-                      name="interaction-accept"
-                      title="Contained Leaf suggestion animation"
-                      tabindex="-1"
-                      aria-hidden="true"
-                    ></iframe>
-                  </div>
-                  <figcaption>
-                    The pointer presses Accept; Leaf folds away the retired wording and
-                    leaves the sentence in its settled state.
-                  </figcaption>
-                </figure>
-              </lf-tab>
+                    </lf-column>
+                    <lf-column id="bg-motion-tried" label="Tried"></lf-column>
+                  </lf-board>
+                </template>
+              </lf-sample>
+            </section>
 
-              <lf-tab id="bg-interaction-move" label="Move a card">
-                <figure class="interaction-demo" data-interaction-demo="move-card">
-                  <template id="bg-motion-board-page" data-sample>
-                    <p class="eyebrow">migration checklist</p>
-                    <h1>Schema migration</h1>
-                    <lf-board id="bg-motion-board">
-                      <lf-column id="bg-motion-ready" label="Ready">
-                        <lf-card id="bg-motion-card"
-                          ><strong>Verify migration</strong> Run the schema
-                          sample.</lf-card
-                        >
-                      </lf-column>
-                      <lf-column id="bg-motion-tried" label="Tried"></lf-column>
-                    </lf-board>
-                  </template>
-                  <div class="interaction-stage interaction-frame-stage">
-                    <iframe
-                      class="interaction-frame"
-                      data-interaction-frame
-                      name="interaction-move-card"
-                      title="Contained Leaf board animation"
-                      tabindex="-1"
-                      aria-hidden="true"
-                    ></iframe>
-                  </div>
-                  <figcaption>
-                    The pointer finds the card’s grip, then Leaf plays the same
-                    placement transition used after a keyboard or drag move.
-                  </figcaption>
-                </figure>
-              </lf-tab>
+            <section id="bg-interaction-comment">
+              <h3>Send a comment</h3>
+              <p id="bg-interaction-comment-guide">
+                Select the sentence about the agenda, then press <kbd>c</kbd> or click
+                the Comment field that appears. Type a comment and press
+                <kbd>Enter</kbd>: the field becomes an inline thread whose controls grow
+                around your words in their original place.
+              </p>
+              <lf-sample id="bg-motion-comment-sample" label="agenda review note">
+                <template id="bg-motion-comment-page" data-sample>
+                  <p class="eyebrow">review note</p>
+                  <h1>Agenda draft</h1>
+                  <p id="bg-thread-text">
+                    The sample agenda has room for one more topic.
+                  </p>
+                </template>
+              </lf-sample>
+            </section>
 
-              <lf-tab id="bg-interaction-comment" label="Send a comment">
-                <figure
-                  class="interaction-demo"
-                  data-interaction-demo="send-comment"
-                  data-interaction-keypress="Enter"
-                  data-interaction-target="bg-thread-text"
-                  data-interaction-thread-id="2be2443f0bb6cc49fc86b52f340e6073"
+            <section id="bg-interaction-threads">
+              <h3>Open and close Threads</h3>
+              <p id="bg-interaction-threads-guide">
+                Press <strong>Threads</strong> in the sample's top bar to open the
+                Threads panel and read its conversation, then close the panel with its ×
+                button or <kbd>Escape</kbd>.
+              </p>
+              <lf-sample
+                id="bg-motion-threads-sample"
+                label="release notes review"
+                window
+              >
+                <template
+                  id="bg-motion-threads-page"
+                  data-sample
+                  data-sample-threads="2be2443f0bb6cc49fc86b52f340e6073"
                 >
-                  <template
-                    id="bg-motion-comment-page"
-                    data-sample
-                    data-sample-threads="2be2443f0bb6cc49fc86b52f340e6073"
-                  >
-                    <p class="eyebrow">review note</p>
-                    <h1>Agenda draft</h1>
-                    <p id="bg-thread-text">
-                      The sample agenda has room for one more topic.
-                    </p>
-                  </template>
-                  <div class="interaction-stage interaction-frame-stage">
-                    <iframe
-                      class="interaction-frame"
-                      data-interaction-frame
-                      name="interaction-send-comment"
-                      title="Contained Leaf comment animation"
-                      tabindex="-1"
-                      aria-hidden="true"
-                    ></iframe>
-                  </div>
-                  <figcaption>
-                    Leaf’s real response field submits with <kbd>Enter</kbd>, then
-                    becomes the real inline thread, whose controls grow around the words
-                    in their original place. Placement fits that frame before typing. A
-                    seeded comment lets the gallery replay that accepted-send transition
-                    without posting another one.
-                  </figcaption>
-                </figure>
-              </lf-tab>
-
-              <lf-tab id="bg-interaction-threads" label="Open and close Threads">
-                <figure class="interaction-demo" data-interaction-demo="open-threads">
-                  <template
-                    id="bg-motion-threads-page"
-                    data-sample
-                    data-sample-threads="2be2443f0bb6cc49fc86b52f340e6073"
-                  >
-                    <p class="eyebrow">review workspace</p>
-                    <h1>Release notes</h1>
-                    <p id="bg-thread-text">
-                      The sample agenda has room for one more topic.
-                    </p>
-                  </template>
-                  <div class="interaction-stage interaction-frame-stage">
-                    <iframe
-                      class="interaction-frame"
-                      data-interaction-frame
-                      name="interaction-open-threads"
-                      title="Contained Leaf Threads animation"
-                      tabindex="-1"
-                      aria-hidden="true"
-                    ></iframe>
-                  </div>
-                  <figcaption>
-                    The pointer presses the real top-bar control inside a zoomed-out
-                    Leaf page; the production Threads panel opens and closes without
-                    changing this gallery page.
-                  </figcaption>
-                </figure>
-              </lf-tab>
-            </lf-tabs>
+                  <p class="eyebrow">review workspace</p>
+                  <h1>Release notes</h1>
+                  <p id="bg-thread-text">
+                    The sample agenda has room for one more topic.
+                  </p>
+                </template>
+              </lf-sample>
+            </section>
           </section>
         </lf-tab>
       </lf-tabs>

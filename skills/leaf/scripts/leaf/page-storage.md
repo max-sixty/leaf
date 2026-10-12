@@ -204,7 +204,7 @@ document or keeps its widgets (`revision_artifact.py`).
 
 `leaf page state` is an on-demand reading of these authorities. Its
 `layer` object, shared with `/api/state`, reports the vendored generation,
-fingerprint, kernel runtime identity, packages, and producer;
+fingerprint, server identity, packages, and producer;
 `source` names `index.html`, whether that candidate is live, and any validation
 error. `active.file` names the immutable revision the live root actually
 shows when one exists; `data` names the contract file, the value directory, and any source whose

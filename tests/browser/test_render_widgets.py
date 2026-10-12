@@ -8890,6 +8890,16 @@ def test_a_chart_draws_into_the_box_its_data_height_states(browser, serve):
     assert box["height"] == 240, box
     assert box["legends"], box
     assert box["svg"] == box["drawing"] == box["bottom"], box
+    # Until it is drawn again for a narrower room, a frame later, the drawing keeps its
+    # height: scaled with the width, it would move everything below it for that frame.
+    narrowed = page.evaluate(
+        """() => {
+            const el = document.getElementById('c-tall');
+            el.style.width = `${el.clientWidth / 2}px`;
+            return el.getBoundingClientRect().height;
+        }"""
+    )
+    assert narrowed == 240, narrowed
 
 
 def test_a_chart_that_fails_on_a_redraw_stays_failed_when_it_returns(browser, serve):

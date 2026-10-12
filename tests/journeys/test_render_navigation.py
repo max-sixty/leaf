@@ -153,6 +153,9 @@ def test_reading_keys_scroll_drawers_without_moving_the_document(
             )
             assert box.evaluate("box => box.scrollHeight > box.clientHeight")
             panel.get_by_role("button", name=re.compile("^Close ")).focus()
+            # A drawer opening beside the page narrows it, and the page keeps its
+            # reading place on the frame after that layout: read it once it rests.
+            rendered(page)
             document_position = page.evaluate("document.scrollingElement.scrollTop")
             for down, up in (("d", "u"), ("j", "k")):
                 box.evaluate("box => box.scrollTop = 0")

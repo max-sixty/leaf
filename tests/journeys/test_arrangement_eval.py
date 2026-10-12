@@ -358,3 +358,11 @@ def test_reveal_opens_the_named_item_though_its_words_show_elsewhere(tmp_path):
         )
         reveal(view, "ESC-4110", "Route to Sam", arrangement_plain.settle)
         assert view.locator("#t").is_visible()
+        # A link that navigates to the ticket's own page, whose button opens it.
+        (tmp_path / "ticket.html").write_text(
+            '<button onclick="t.hidden=false">ESC-4110 details</button>'
+            '<div id="t" hidden>Route to Sam Okafor.</div>'
+        )
+        view.set_content(f'<a href="{url}ticket.html">ESC-4110</a>')
+        reveal(view, "ESC-4110", "Route to Sam", arrangement_plain.settle)
+        assert view.locator("#t").is_visible()

@@ -28,6 +28,7 @@ import tempfile
 from pathlib import Path
 
 import click
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page
 
 from leaf_dev.arms import (
@@ -153,16 +154,17 @@ def reveal(page: Page, target: str, pattern: str, settled=settle) -> str:
     innermost = drawn.filter(has_not=drawn)
     pressed = []
     for _ in range(6):
-        opener = next(
-            (
+        try:
+            unpressed = [
                 found
                 for found in innermost.element_handles()
-                if not any(
-                    page.evaluate("([a, b]) => a === b", [found, p]) for p in pressed
-                )
-            ),
-            None,
-        )
+                if not found.evaluate("(el, pressed) => pressed.includes(el)", pressed)
+            ]
+        except PlaywrightError:
+            # A press navigated: the controls pressed belong to the last document.
+            pressed = []
+            unpressed = innermost.element_handles()
+        opener = next(iter(unpressed), None)
         if opener is None:
             break
         pressed.append(opener)

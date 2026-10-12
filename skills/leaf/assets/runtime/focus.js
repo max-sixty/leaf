@@ -65,13 +65,30 @@ import { keeps } from "./keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 import { renderedParent } from "./shadow-tree.js";
 
-// The controls inside `root` that take a Tab stop right now: the candidates above that
-// are in the order, enabled, and drawn. Which of them Tab visits, and in what order, is
-// the browser's; nothing here predicts its walk.
+// The elements under `node` in the tree as rendered: a host's shadow tree in place of
+// its children, and a slot's assigned elements, or its fallback, in its place.
+function* renderedElements(node) {
+  const children =
+    node.localName === "slot"
+      ? node.assignedElements({ flatten: true })
+      : (node.shadowRoot ?? node).children;
+  for (const child of children) {
+    yield child;
+    yield* renderedElements(child);
+  }
+}
+const SEQUENTIAL = `${TAB_STOP}, iframe, audio[controls], video[controls]`;
+// The controls inside `root` that take a Tab stop right now, through open shadow trees as
+// rendered: the candidates above and the embedded documents and players Tab enters, in
+// the order, enabled, and drawn. A host that delegates its focus is no stop of its own,
+// since Tab enters its tree. Which of them Tab visits, and in what order, is the
+// browser's; nothing here predicts its walk.
 export const tabStops = (root) =>
-  [...root.querySelectorAll(TAB_STOP)].filter(
+  [...renderedElements(root)].filter(
     (node) =>
+      node.matches(SEQUENTIAL) &&
       node.tabIndex >= 0 &&
+      !node.shadowRoot?.delegatesFocus &&
       !node.matches(":disabled") &&
       !node.inert &&
       node.checkVisibility({ visibilityProperty: true }),

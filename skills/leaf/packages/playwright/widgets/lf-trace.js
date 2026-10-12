@@ -42,6 +42,8 @@
  * Filmstrip frames retain the latest same-page saved checkpoint and its exact
  * comment identity. Saved elements has one stable disclosure; reading restoration
  * respects its current closure, while explicit destination navigation opens it.
+ * The reader's press on it restores that checkpoint's reading; a navigation that
+ * opens it lands on its destination instead.
  */
 import {
   commands,
@@ -514,13 +516,18 @@ export default class extends HTMLElement {
       );
   }
 
-  #treeToggled() {
-    this.#draw();
-    if (this.#tree.value.open)
-      restorePlace(
-        this.#treePlaces.get(this.#treeScope),
-        readingRegion(compoundReadingRegionId(this, "saved-elements")),
-      );
+  // The reader's own press reopens the tree at its reading for this checkpoint. Every
+  // other opening has a destination of its own: a Moment or a thread lands on its row,
+  // and find-in-page on its match. A restore on the toggle event, which arrives a frame
+  // later, would undo such a landing or cut its smooth motion short.
+  #pressTreeSummary(event) {
+    event.preventDefault();
+    const tree = this.#tree.value;
+    if (!tree.toggleAttribute("open")) return;
+    restorePlace(
+      this.#treePlaces.get(this.#treeScope),
+      readingRegion(compoundReadingRegionId(this, "saved-elements")),
+    );
   }
 
   #id(kind, value) {
@@ -532,7 +539,9 @@ export default class extends HTMLElement {
   #pageLabel(id) {
     const index = this.#trace.pages.findIndex((page) => page.id === id);
     const page = this.#trace.pages[index];
-    const stream = this.#trace.streams.findIndex((stream) => stream.id === page.stream);
+    const stream = this.#trace.streams.findIndex(
+      (stream) => stream.id === page.stream,
+    );
     return `Page ${index + 1}${this.#trace.streams.length > 1 ? ` · Stream ${stream + 1}` : ""}`;
   }
   #phaseId(action, phase) {
@@ -543,7 +552,9 @@ export default class extends HTMLElement {
   }
   #includes(stream, pageId) {
     const page = this.#trace?.pages.find((page) => page.id === this.#scope);
-    return page ? stream === page.stream && pageId === page.id : stream === this.#scope;
+    return page
+      ? stream === page.stream && pageId === page.id
+      : stream === this.#scope;
   }
   #actions() {
     return (
@@ -1099,16 +1110,22 @@ export default class extends HTMLElement {
     if (!travel) return;
     await this.#pendingPicture?.ready;
     if (!mayArrive() || this.#chosenBookmark !== bookmark) return;
-    const target = this.#targets.get(id);
-    const destination = target?.node
-      ? this.#inventory.find((part) => part.id === id)?.element
-      : this.#pictureId
-        ? this.#stage.value
-        : null;
-    const shown = destination?.getBoundingClientRect();
-    const view = target?.node ? shown : this.#viewport.value.getBoundingClientRect();
-    if (destination && !(view.top >= 0 && view.bottom <= innerHeight))
-      scrollIntoReadingBand(destination, destination, "center", scrollBehavior());
+    // A saved element's row stands in the tree's own scroll box, which can hide it
+    // inside the window. A nearest landing reveals it there and the tree in the page,
+    // and moves nothing that already shows it.
+    if (this.#targets.get(id)?.node) {
+      const row = this.#inventory.find((part) => part.id === id)?.element;
+      if (row) scrollIntoReadingBand(row, row, "nearest", scrollBehavior());
+      return;
+    }
+    const view = this.#viewport.value.getBoundingClientRect();
+    if (this.#pictureId && !(view.top >= 0 && view.bottom <= innerHeight))
+      scrollIntoReadingBand(
+        this.#stage.value,
+        this.#stage.value,
+        "center",
+        scrollBehavior(),
+      );
   }
 
   #stream() {
@@ -1444,7 +1461,10 @@ export default class extends HTMLElement {
             // Before the browser claims pan-y, even a page swipe can produce
             // horizontal movement. Playback leaves touch movement to the page;
             // a tap pauses for inspection and enables image dragging.
-            if (event.detail.originalEvent?.pointerType === "touch" && this.#playing) {
+            if (
+              event.detail.originalEvent?.pointerType === "touch" &&
+              this.#playing
+            ) {
               event.preventDefault();
               return;
             }
@@ -2014,9 +2034,11 @@ export default class extends HTMLElement {
                 class="lf-trace-tree"
                 ${ref(this.#tree)}
                 @scroll=${() => this.#rememberTreePlace()}
-                @toggle=${() => this.#treeToggled()}
+                @toggle=${() => this.#draw()}
               >
-                <summary>Saved elements</summary>
+                <summary @click=${(event) => this.#pressTreeSummary(event)}>
+                  Saved elements
+                </summary>
                 <p class="lf-trace-tree-clock">
                   ${
                     tree
@@ -2142,7 +2164,9 @@ export default class extends HTMLElement {
               run: () => this.#panPicture(0, 40),
             },
           ]);
-        canvas.addEventListener("pointerdown", () => focusDestination(canvas, "press"));
+        canvas.addEventListener("pointerdown", () =>
+          focusDestination(canvas, "press"),
+        );
         canvas.append(img, status);
         figure.append(canvas);
         this.#images.set(image.id, { figure, canvas, img, status });

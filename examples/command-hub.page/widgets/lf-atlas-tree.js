@@ -18,7 +18,11 @@ export default class extends HTMLElement {
       () => [...this.children],
       () => this.watching.refresh(),
     );
-    whileConnected(this, () => () => this.reading.dispose());
+    // A departure ends the wait for the reader; a return resumes a held reading's.
+    whileConnected(this, () => {
+      if (this.pending) this.watching.refresh();
+      return () => this.reading.dispose();
+    });
     this.watching = watchData(this, "worktrees", (snapshot) => this.show(snapshot));
   }
   showLatest() {

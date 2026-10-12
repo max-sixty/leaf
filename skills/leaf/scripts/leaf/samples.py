@@ -33,7 +33,6 @@ class Sample:
     temporary: TemporaryDirectory
     parent: Path
     layer: dict
-    passive: bool
     asset_root: str | None
     # Held for the sample's life, so the sample keeps its readings however many
     # sibling samples push it out of the process's recent pages (`page_memory`).
@@ -63,7 +62,6 @@ class Samples:
         parent: Path,
         inputs: SampleInputs,
         template_id: str,
-        passive: bool,
         asset_root: str | None,
     ) -> str:
         artifact = inputs.artifact
@@ -177,7 +175,6 @@ class Samples:
                 temporary,
                 parent,
                 artifact.registry["$layer"],
-                passive,
                 asset_root,
                 memory,
             )

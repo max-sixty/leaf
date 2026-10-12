@@ -322,16 +322,22 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     assert reading(diff.locator(".lf-msg-body").first) == physical_reading
 
 
-def test_an_inline_patch_that_failed_stays_failed_when_its_diff_returns(browser, serve):
-    """An inline patch never changes, so a refusal of it stands: a diff that leaves the
-    page and returns, as document reconciliation moves it, renders its patch again only
-    when the departure cut that rendering short, and does not tell the author twice."""
+@pytest.mark.parametrize("bound", [False, True], ids=["inline", "bound"])
+def test_a_patch_that_failed_stays_failed_when_its_diff_returns(browser, serve, bound):
+    """A refusal stands while its patch is unchanged: a diff that leaves the page and
+    returns, as document reconciliation moves it, renders its patch again only when
+    the departure cut that rendering short, and does not tell the author twice. A bound
+    patch returns through its data subscription, an inline one through the widget."""
     one = "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-x\n+y\n"
-    source = leaf_page(
-        "bad diff",
-        f'<h1 id="t">Bad</h1>\n<lf-diff id="d-bad"><pre>\n{one}{one}</pre></lf-diff>',
+    diff = (
+        '<lf-diff id="d-bad" source="bad-patch"><pre></pre></lf-diff>'
+        if bound
+        else f'<lf-diff id="d-bad"><pre>\n{one}{one}</pre></lf-diff>'
     )
-    page = open_page(browser, serve(source))
+    url = serve(leaf_page("bad diff", f'<h1 id="t">Bad</h1>\n{diff}'))
+    if bound:
+        data_model.cmd_data_set(serve.page_dir, "bad-patch", one + one)
+    page = open_page(browser, url)
     expect(page.locator("#d-bad .lf-error")).to_contain_text("repeats file path")
     returned = page.evaluate("""async () => {
         const diff = document.getElementById('d-bad');

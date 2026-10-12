@@ -130,7 +130,9 @@ import {
   moveScrollerBy,
   pageScroller,
   placeKept,
+  SCROLL_SLACK,
   scrollChoices,
+  scrollLimit,
 } from "./scrolling.js";
 import {
   containingReadingRegionFor,
@@ -141,6 +143,7 @@ import {
   readingRegions,
   recentReadingRegion,
   regionsSettled,
+  scrollChainOf,
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
@@ -192,6 +195,7 @@ import {
   rawOffsetFits,
   pageReadingBlock,
   placeNode,
+  placeOffset,
   restorePlace,
   textBlocks,
 } from "./reading-place.js";
@@ -1844,14 +1848,17 @@ export function createVersionController({
   // than the place it restored, and it can fall short of that place, cut off by its
   // box's range, as a pane already at its top cannot lower its words to where the page
   // had them, or a page cannot reach a passage below a widget still drawn at its old
-  // size. So a box the runtime restored holds the place it was given until the user
-  // chooses a scroll there or acts at all: nothing records over it, so the next shift
-  // starts from the words the user read rather than from wherever the runtime left them,
-  // and while the shift's layout settles the place is applied again (`watchHolds`), as a
+  // size. So a box the runtime restored holds the place it was given until someone
+  // moves it (`held`): input the reader aims at the box, or a scroll that carries the
+  // held landmark with it. Nothing records over a held box, so the next shift starts
+  // from the words the user read rather than from wherever the runtime left them, and
+  // while the shift's layout settles the place is applied again (`watchHolds`), as a
   // widget drawing a frame late moves it. A revision ends every hold, since its own
   // handoff places the reader. Between a shift and its restore nothing is recorded,
   // since the shift's own scrolls are no one's place, and a box the reader chose a
-  // scroll in since its place was recorded is left where they chose.
+  // scroll in since its place was recorded is left where they chose. The end of a
+  // scroll a restore started is the runtime's, wherever layout carried the box before
+  // it (`writing`), and input counts for the box it scrolls, not the document.
   //
   // A region can show one subject of several in turn (reading-regions.js,
   // `showReadingSubject`). The place of a subject leaving is kept by subject, and the
@@ -1863,19 +1870,86 @@ export function createVersionController({
   const holds = new Map();
   const subjectPlaces = new Map();
   let reapply = null;
-  // The hold `box` still keeps, or null once the user has moved it.
+  // The hold `box` still keeps, or null once someone has moved it: input aimed at the
+  // box, or a scroll that carried the held landmark with it. Which moved, the box or
+  // what it shows, says whose the move was. A scroll moves the box and the landmark by
+  // the same distance, whoever made it and whether or not its sequence has ended yet.
+  // Layout moves the words, under a box that stays or that anchoring moves to keep
+  // something else still, by a distance of its own, and the next application puts them
+  // back. A scroll and a layout change in one frame read as layout, so the hold stays.
+  // A landmark the box no longer carries ends the hold.
   const held = (box) => {
     const hold = holds.get(box);
-    if (
-      hold &&
-      hold.since === inputCount() &&
-      !chosenSince(box, hold.choices) &&
-      hold.currentIntent() &&
-      regionForBox(box) === hold.region
-    )
-      return hold;
+    if (!hold) return null;
+    const moved = regionForBox(box) === hold.region ? movedAway(box, hold) : "gone";
+    const acted = inputSince(box, hold.since);
+    if (!moved && !acted && hold.currentIntent()) return hold;
     holds.delete(box);
+    // Where the reader acted in the box the restore put them in, that place is theirs,
+    // as if recorded before they acted, so whatever their act moves records over it.
+    // Where a scroll carried the landmark away, the place it left is that scroll's.
+    const region = hold.region;
+    if (moved === "carried" || (!moved && acted))
+      places.set(region ? region.id : PAGE, {
+        reading: moved ? capturePlace(region) : hold.reading,
+        at: ++placeCount,
+        choices: scrollChoices(),
+        inputs: moved ? inputCount() : hold.since,
+      });
     return null;
+  };
+  // Whether the held place still stands in its box: null where it does or layout alone
+  // moved it, "carried" where a scroll took the landmark with the box, "gone" where the
+  // box no longer carries it.
+  const movedAway = (box, hold) => {
+    // A landmark another box now carries, as a pane taking its words from the page, is
+    // no place of this box's to hold.
+    const node = placeNode(hold.reading);
+    if (!node || boxOf(node) !== box) return "gone";
+    const now = placeOffset(hold.reading, hold.region);
+    if (now === null) return "gone";
+    const scrolled = box.scrollTop - hold.top;
+    const shifted = now - hold.offset;
+    if (Math.abs(shifted) <= SCROLL_SLACK) hold.top = box.scrollTop;
+    return Math.abs(scrolled) > SCROLL_SLACK &&
+      Math.abs(shifted + scrolled) <= SCROLL_SLACK
+      ? "carried"
+      : null;
+  };
+  // The input count when the reader last aimed input at each box: a wheel or touch at
+  // the box under it, a key at the box holding focus. A scroll the box passes on to the
+  // one around it is that one's to record when it ends.
+  const touched = new WeakMap();
+  const inputSince = (box, count) => (touched.get(box) ?? 0) > count;
+  // A scroll the runtime's own restore started is the runtime's when it ends, wherever
+  // layout settling carried the box before the end, unless the reader aimed input at
+  // the box meanwhile: the end of a keeper's sequence the layout moved on is no choice
+  // of the reader's (scrolling.js counts it as one). `writing` holds each box a restore
+  // moved until its sequence ends; `ownEnd` the choice count of that end.
+  const writing = new Map();
+  const ownEnd = new WeakMap();
+  const wrote = (box, from) => {
+    if (box.scrollTop !== from) writing.set(box, inputCount());
+  };
+  const readerChose = (box, count) =>
+    chosenSince(box, Math.max(count, ownEnd.get(box) ?? 0));
+  // The box an input scrolls: along the chain native scrolling follows from where it
+  // lands, the first that can still move the wheel's way, so a pane at its end passes
+  // the wheel to the page around it. A wheel nothing can follow, and every other input,
+  // aims at the innermost box.
+  const inputBox = (element, event) => {
+    if (!element) return pageScroller;
+    const chain = [...scrollChainOf(element)];
+    const innermost = chain[0] ?? pageScroller;
+    if (event.type !== "wheel" || !event.deltaY) return innermost;
+    const down = event.deltaY > 0;
+    return (
+      chain.find((box) =>
+        down
+          ? box.scrollTop < scrollLimit(box) - SCROLL_SLACK
+          : box.scrollTop > SCROLL_SLACK,
+      ) ?? innermost
+    );
   };
   // The bounded region scrolling a box, null for the page, undefined for neither.
   const regionForBox = (box) =>
@@ -1907,8 +1981,8 @@ export function createVersionController({
       const before = places.get(region ? region.id : PAGE);
       const acted =
         standing ||
-        chosenSince(box, before?.choices ?? 0) ||
-        (before?.inputs ?? 0) !== inputCount();
+        readerChose(box, before?.choices ?? 0) ||
+        inputSince(box, before?.inputs ?? 0);
       if (before && !acted) continue;
       const reading = capturePlace(region);
       places.set(reading.scroller, {
@@ -1946,8 +2020,10 @@ export function createVersionController({
     if (!currentIntent()) return;
     const page = shifted.find(({ region }) => !region);
     if (page?.band) {
+      const from = pageScroller.scrollTop;
       moveScrollerBy(pageScroller, -page.band);
       placeKept(pageScroller);
+      wrote(pageScroller, from);
     }
     const boxes = new Map(page ? [[pageScroller, new Set()]] : []);
     const returning = new Set();
@@ -1969,13 +2045,16 @@ export function createVersionController({
       const region = regionForBox(box);
       if (region === undefined) continue;
       const place = placeFor(box, recorded, returning.has(box) ? null : before);
-      if (!place || chosenSince(box, place.choices)) continue;
+      if (!place || readerChose(box, place.choices)) continue;
+      const from = box.scrollTop;
       restorePlace(place.reading, region, currentIntent);
+      wrote(box, from);
       holds.set(box, {
         reading: place.reading,
         region,
         since: inputCount(),
-        choices: scrollChoices(),
+        offset: placeOffset(place.reading, region),
+        top: box.scrollTop,
         currentIntent,
       });
     }
@@ -2002,7 +2081,13 @@ export function createVersionController({
       for (const box of [...holds.keys()]) {
         const hold = held(box);
         if (!hold) continue;
+        const now = placeOffset(hold.reading, hold.region);
+        if (now !== null && Math.abs(now - hold.offset) <= SCROLL_SLACK) continue;
+        const from = box.scrollTop;
         restorePlace(hold.reading, hold.region, hold.currentIntent);
+        wrote(box, from);
+        hold.offset = placeOffset(hold.reading, hold.region);
+        hold.top = box.scrollTop;
       }
       if (!holds.size) stopReapplying();
     });
@@ -2171,6 +2256,10 @@ export function createVersionController({
       "scrollend",
       ({ target }) => {
         const box = target === document ? pageScroller : target;
+        if (writing.has(box)) {
+          if (!inputSince(box, writing.get(box))) ownEnd.set(box, scrollChoices());
+          writing.delete(box);
+        }
         nextRender(() => recordPlaces([box]));
       },
       { capture: true, passive: true },
@@ -2193,6 +2282,13 @@ export function createVersionController({
     // when they change no text and produce no input or focus event.
     onUserInput((event) => {
       if (event.type === "keydown" || event.type === "input") recordStanding();
+      if (!["wheel", "touchstart", "keydown", "pointerdown"].includes(event.type))
+        return;
+      const at = event.type === "keydown" ? focused() : event.composedPath()[0];
+      const element = at instanceof Element ? at : at?.parentElement;
+      const box = inputBox(element, event);
+      touched.set(box, inputCount());
+      held(box);
     });
     nextRender(() =>
       recordPlaces([

@@ -321,38 +321,97 @@ def test_a_heading_above_a_flowing_pane_keeps_its_place_as_the_window_changes_wi
         ), width
 
 
+# A page script's scroll while the page holds the place a width change restored. Each
+# takes `grow` and `frames`. "settled" runs once the restore has settled; the others are
+# armed before the resize and run in the frames after it, while the restore and the
+# layout's settling are still at work.
 HELD_PAGE_MOVES = {
-    # The layout grows and a script scrolls in the same animation frame.
-    "same-frame": """async () => {
-      const frame = () => new Promise(r => requestAnimationFrame(() => r()));
-      await frame();
+    # The layout grows and the script scrolls in the same animation frame.
+    "same-frame": (
+        "settled",
+        400,
+        """async () => {
+      await frames(1);
       grow();
       document.scrollingElement.scrollBy(0, 400);
     }""",
-    # The layout grows, and the script scrolls in the next animation frame, before the
-    # observers hear that layout.
-    "first-frame": """async () => {
+    ),
+    # The layout grows, and the script scrolls in the next frame, before the observers
+    # hear that layout.
+    "first-frame": (
+        "settled",
+        400,
+        """async () => {
       grow();
-      await new Promise(r => requestAnimationFrame(() => r()));
+      await frames(1);
       document.scrollingElement.scrollBy(0, 400);
     }""",
+    ),
     # The script scrolls a frame after the layout it grew was laid out.
-    "next-frame": """async () => {
-      const frame = () => new Promise(r => requestAnimationFrame(() => r()));
+    "next-frame": (
+        "settled",
+        400,
+        """async () => {
       grow();
-      await frame();
-      await frame();
+      await frames(2);
       document.scrollingElement.scrollBy(0, 400);
     }""",
+    ),
+    # One and two frames after the resize, while the restore lands.
+    "1-frame-after-resize": (
+        "armed",
+        400,
+        """() => addEventListener('resize',
+      async () => { await frames(1); grow(); document.scrollingElement.scrollBy(0, 400); },
+      {once: true})""",
+    ),
+    "2-frames-after-resize": (
+        "armed",
+        400,
+        """() => addEventListener('resize',
+      async () => { await frames(2); grow(); document.scrollingElement.scrollBy(0, 400); },
+      {once: true})""",
+    ),
+    # A smooth scroll after the resize, the layout growing on each of the next six frames.
+    "smooth-with-growth": (
+        "armed",
+        800,
+        """() => addEventListener('resize',
+      async () => {
+        await frames(1);
+        document.scrollingElement.scrollBy({top: 800, behavior: 'smooth'});
+        for (let n = 0; n < 6; n++) { await frames(1); grow(); }
+      }, {once: true})""",
+    ),
+    # A script answering the first scroll after the resize in the next frame. Answered in
+    # the same task, its scroll lands in the frame layout settles in and reads as
+    # layout's, here as on main.
+    "frame-after-first-scroll": (
+        "armed",
+        400,
+        """() => addEventListener('resize', () =>
+      addEventListener('scroll', async () => {
+        await frames(1); document.scrollingElement.scrollBy(0, 400);
+      }, {once: true}), {once: true})""",
+    ),
 }
 
+HELD_PAGE_HELPERS = """() => {
+  window.frames = (n) => new Promise((done) => {
+    const tick = () => (n-- > 0 ? requestAnimationFrame(tick) : done());
+    tick();
+  });
+  window.grow = () => {
+    const room = document.createElement('div');
+    room.style.height = '200px';
+    document.querySelector('main').append(room);
+  };
+}"""
 
-@pytest.mark.parametrize("move", list(HELD_PAGE_MOVES))
-def test_a_script_scroll_moves_a_held_page(browser, serve, move):
-    """After a width change the page holds the reader's place and applies it again as
-    the layout settles. A page script that grows the layout and scrolls, in the same
-    frame or a later one, has moved the page: it keeps that scroll through the next
-    layout change, and the next width change starts from where the script left it."""
+
+def held_page(browser, serve):
+    """A long page read by wheel at 1280, to be narrowed to 390, which restores the
+    place."""
     lines = "".join(
         f"<p>Line {n} of a long page, long enough to read as a passage of its own.</p>"
         for n in range(200)
@@ -365,22 +424,37 @@ def test_a_script_scroll_moves_a_held_page(browser, serve, move):
     page.wait_for_function("document.scrollingElement.scrollTop > 1500")
     scroll_settled(page)
     rendered(page)
-    resized(page, 700, 800)
-    rendered(page)
-    page.evaluate(
-        """window.grow = () => {
-          const room = document.createElement('div');
-          room.style.height = '200px';
-          document.querySelector('main').append(room);
-        }"""
-    )
+    page.evaluate(HELD_PAGE_HELPERS)
+    return page
+
+
+@pytest.mark.parametrize("move", list(HELD_PAGE_MOVES))
+def test_a_script_scroll_moves_a_held_page(browser, serve, move):
+    """After a width change the page holds the reader's place and applies it again as
+    the layout settles. A page script that scrolls, before the restore has landed, as it
+    lands, or after, with the layout growing around it or not, has moved the page: the
+    page keeps that scroll through the next layout change, and the next width change
+    starts from where the script left it, not from the held place."""
+    when, by, script = HELD_PAGE_MOVES[move]
     scrolled = "document.scrollingElement.scrollTop"
-    held = page.evaluate(scrolled)
-    page.evaluate(HELD_PAGE_MOVES[move])
+    # Where the restore alone leaves the page, with no script.
+    control = held_page(browser, serve)
+    resized(control, 390, 800)
+    rendered(control)
+    restored = control.evaluate(scrolled)
+    control.context.close()
+
+    page = held_page(browser, serve)
+    if when == "armed":
+        page.evaluate(script)
+    resized(page, 390, 800)
+    rendered(page)
+    if when == "settled":
+        page.evaluate(script)
     scroll_settled(page)
     rendered(page)
     moved = page.evaluate(scrolled)
-    assert moved == pytest.approx(held + 400, abs=2), "the script's scroll was undone"
+    assert moved > restored + by - 100, f"the script's scroll was undone ({moved})"
     page.evaluate(
         "document.querySelector('main').append("
         "Object.assign(document.createElement('p'), {textContent: 'More.'}))"

@@ -343,21 +343,34 @@ export function capturePlace(region = null, blocks = textBlocks()) {
   return view;
 }
 
-// The node a place stands on now: the live focused destination, the passage's first
-// drawn word, or the drawn section, found as `restorePlace` finds them. Null where the
-// place has no landmark the page draws, so only its own scroller's offset can take it.
-export function placeNode(view) {
+// What a place stands on now, found as `restorePlace` finds it: the live focused
+// destination, the passage's drawn words, or the drawn section. `node` names it and
+// `top` reads where it stands. Null where the place has no landmark the page draws, so
+// only its own scroller's offset can take it.
+function landmarkOf(view) {
   const live = focusedPlace(view);
-  if (live) return live;
+  if (live) return { node: live, top: () => shownBox(live).top };
   const segments = targetSegments(view.quote && resolveAnchor(view));
   if (
     segments.length &&
     segments.every(({ node }) => drawsLandmark(renderedParent(node)))
   )
-    return segments[0].node;
+    return {
+      node: segments[0].node,
+      top: () => rangeOf(segments).getBoundingClientRect().top,
+    };
   const section =
     view.section && targetElement(resolveAnchor({ section: view.section }));
-  return section && drawsLandmark(section) ? section : null;
+  return section && drawsLandmark(section)
+    ? { node: section, top: () => shownBox(section).top }
+    : null;
+}
+export const placeNode = (view) => landmarkOf(view)?.node ?? null;
+// How far below its box's landing edge a place's landmark stands now, or null.
+export function placeOffset(view, region = null) {
+  const landmark = landmarkOf(view);
+  const box = region ? effectiveScroller(region) : pageScroller;
+  return landmark ? landmark.top() - landingBand(box).top : null;
 }
 
 // A restore jumps rather than glides: a page is free to set scroll-behavior: smooth, and

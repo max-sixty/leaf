@@ -854,6 +854,64 @@ def test_a_passage_read_in_a_flowing_pane_returns_after_the_panes_scroll_alone(
     assert page.evaluate(measure) == pytest.approx(below, abs=2)
 
 
+def test_a_wheel_in_a_box_is_no_choice_of_the_page_around_it(browser, serve):
+    """The reader scrolls the page down to a box that scrolls on its own, turns the wheel
+    in the box, and then layout scrolls the page without them, as content leaving below
+    clamps it. The wheel was the box's, and the clamp no one's. Narrowed, the box flows
+    into the page, as a page's own breakpoint lets it, and the page returns to the
+    passage the reader scrolled the box to, not to where layout left the page."""
+    lines = "".join(
+        f'<p id="log-{n}">Log line {n}, long enough to read as its own passage.</p>'
+        for n in range(60)
+    )
+    opening = "".join(
+        f"<p>Opening paragraph {n} sets the scene before the log.</p>"
+        for n in range(20)
+    )
+    source = leaf_page(
+        "A box in a page",
+        "<style>@media (width < 700px) {"
+        " #log { block-size: auto !important; overflow: visible !important; } }</style>"
+        f'{opening}<div id="log" data-bound="start" style="block-size: 320px">{lines}'
+        "</div><div id='room' style='height: 1200px'></div>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1200, 800)
+    rendered(page)
+    log = page.locator("#log")
+    log.scroll_into_view_if_needed()
+    page.mouse.move(600, 400)
+    page.mouse.wheel(0, 900)
+    page.wait_for_function("document.scrollingElement.scrollTop > 0")
+    scroll_settled(page)
+    rendered(page)
+    box = log.bounding_box()
+    page.mouse.move(box["x"] + 30, box["y"] + 60)
+    page.mouse.wheel(0, 600)
+    page.wait_for_function("document.getElementById('log').scrollTop > 0")
+    scroll_settled(page)
+    rendered(page)
+    read = page.evaluate(
+        """() => {
+          const box = document.getElementById('log').getBoundingClientRect();
+          const line = [...document.querySelectorAll('#log p')]
+            .find(p => p.getBoundingClientRect().top >= box.top);
+          window.__read = line;
+          return line.id;
+        }"""
+    )
+    before = page.evaluate("document.scrollingElement.scrollTop")
+    page.evaluate("document.getElementById('room').style.height = '0px'")
+    page.wait_for_function(
+        f"document.scrollingElement.scrollTop < {before}", timeout=5000
+    )
+    scroll_settled(page)
+    rendered(page)
+    resized(page, 390, 800)
+    rendered(page)
+    expect(page.locator(f"#{read}")).to_be_in_viewport()
+
+
 def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, serve):
     source = READING_REGIONS_PAGE.replace(
         '<footer><button id="left-foot">',

@@ -1822,21 +1822,12 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     min-width: 0;
     min-height: 0;
     overflow: hidden;
-    display: grid;
-    grid-template: minmax(0, 1fr) / minmax(0, 1fr);
-    place-items: center;
     padding: 16px;
     box-sizing: border-box;
     background: transparent;
   }
-  .lf-media-viewer-stage:has(> img) {
+  .lf-media-viewer-stage:has(> .lf-media-viewer-probe) {
     background: color-mix(in srgb, var(--paper) 80%, transparent);
-  }
-  .lf-media-viewer-stage > img {
-    display: block;
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
   }
   .lf-media-viewer-probe {
     position: absolute;
@@ -1853,7 +1844,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     max-width: none;
     max-height: none;
   }
-  .lf-media-viewer-stage > img,
   .lf-media-viewer .pswp__img {
     outline: 1px solid var(--border-2);
     box-shadow: 0 8px 24px var(--shade);

@@ -4517,9 +4517,12 @@ def test_replaced_reply_compositions_keep_their_carets_and_leave_commands(
     told(page)
     expect(after).to_be_focused()
     # One margin card remains the current selection. The other native session keeps
-    # its words and caret until the user selects its next route.
+    # its words and caret until the user selects its next route, so its words are off
+    # the screen meanwhile.
     page.evaluate("() => window.lfWordsJudged()")
-    assert take_browser_errors(page) == []
+    consume_browser_errors(
+        page, f'typed words left the screen without a key or press: "{words[0]}"'
+    )
     for root, word in zip(roots, words):
         box = page.locator(f'.lf-thread[data-id="{root}"] leaf-text')
         expect(box).to_have_js_property("value", word)
@@ -5489,6 +5492,9 @@ def test_the_reading_page_keys_follow_the_user_into_the_panel(browser, serve):
             ".lf-threads > .lf-thread:not([hidden])[open] > .lf-thread-summary"
         )
     ).to_be_focused()
+    # Focus lands as the panel starts its slide in, while the list still stands past the
+    # window's edge; a step there has nothing shown to move.
+    panel_settled(page)
 
     page_was, threads_was = offsets()
     page.keyboard.press("d")

@@ -3182,13 +3182,13 @@ def test_the_ask_walk_position_shares_the_shortcut_line(browser, serve):
     status = page.locator(".lf-bottom-status")
     ordinary = status.evaluate("node => getComputedStyle(node).color")
     page.keyboard.press("q")
-    expect(position).to_have_text("4 of 4 waiting on you · Ask")
+    expect(position).to_have_text("1 of 4 waiting on you · Ask")
     expect(position).to_have_attribute("data-lf-boundary", "")
     assert (
         status.evaluate("node => node.getBoundingClientRect().left")
         == geometry["status"]["left"]
     )
-    # The end of the walk is news, ink where the resting line is muted.
+    # Coming round the end of the walk is news, ink where the resting line is muted.
     assert status.evaluate("node => getComputedStyle(node).color") != ordinary
     assert (
         position.evaluate("node => getComputedStyle(node).backgroundColor")
@@ -3348,7 +3348,12 @@ def test_q_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
     expect(position).to_have_text("2 of 2 waiting on you · Ask")
     expect(page.locator("#channel-ask")).to_be_focused()
     page.keyboard.press("q")
+    expect(position).to_have_text("1 of 2 waiting on you · Thread")
     expect(position).to_have_attribute("data-lf-boundary", "")
+    expect(thread).to_be_focused()
+    page.keyboard.press("Shift+q")
+    expect(position).to_have_text("2 of 2 waiting on you · Ask")
+    expect(page.locator("#channel-ask")).to_be_focused()
     page.keyboard.press("Shift+q")
     expect(position).to_have_text("1 of 2 waiting on you · Thread")
     expect(thread).to_be_focused()
@@ -5565,7 +5570,14 @@ def test_the_page_marks_the_comment_the_user_is_standing_in(browser, serve):
     # wears, so the two kinds of anchor answer one question and not two.
     page.keyboard.press("t")
     wait_standing(page, "", ["fig"])
+    # Past the last comment the walk comes round to the first, and back again.
+    first = page.locator(
+        f'.lf-margin-preview .lf-page-thread[data-thread="{roots[0]}"]'
+    )
     page.keyboard.press("t")
+    expect(first).to_be_focused()
+    wait_standing(page, "bold text")
+    page.keyboard.press("Shift+t")
     expect(
         page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{roots[2]}"]')
     ).to_be_focused()
@@ -5573,11 +5585,6 @@ def test_the_page_marks_the_comment_the_user_is_standing_in(browser, serve):
     page.keyboard.press("Shift+t")
     wait_standing(page, "neighbouring block")
     page.keyboard.press("Shift+t")
-    wait_standing(page, "bold text")
-    page.keyboard.press("Shift+t")
-    first = page.locator(
-        f'.lf-margin-preview .lf-page-thread[data-thread="{roots[0]}"]'
-    )
     expect(first).to_be_focused()
     wait_standing(page, "bold text")
 
@@ -9933,9 +9940,8 @@ def test_the_ask_walk_measures_from_chrome_only_where_the_chrome_holds_an_ask(
     browser, serve
 ):
     """The user's place has to be a place in the walk's own ordered space. The chrome is
-    appended after the whole page, so a user standing on a thread in the panel measures
-    as past every ask there is, and a walk clamped at its edges sends both `q` and `Q` to
-    the last one rather than to the first.
+    appended after the whole page, so a user standing on a thread in the panel would
+    measure as past every ask there is.
 
     The route runs through the chrome all the same: a widget frozen into a reply is an ask
     the walk visits, and a user working its controls is standing in the space the step

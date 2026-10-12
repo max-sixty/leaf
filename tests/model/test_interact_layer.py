@@ -1990,7 +1990,7 @@ def test_page_check_names_an_older_leaf_beside_its_own(page_dir):
         "page": str(page_dir),
     }
     same = json.loads(checked(layer_model.payload_provenance(), "--json"))
-    assert {f["code"] for f in same["findings"]} == {"markup"}, same
+    assert {f["code"] for f in same["findings"]} == {"unpointable"}, same
     assert {f["severity"] for f in same["findings"]} == {"advice"}, same
 
 

@@ -371,7 +371,8 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
     )
     assert refused.exit_code != 0
     assert (
-        "reply markup ids already taken" in refused.output and "flow" in refused.output
+        "ids already taken by the page or an earlier message" in refused.output
+        and "flow" in refused.output
     )
     assert files_model.latest_revision(page_dir) == 1
     assert all(event["kind"] != "reply" for event in events_model.read_events(page_dir))
@@ -465,7 +466,10 @@ def test_a_moving_reply_validates_markup_against_the_prospective_revision(page_d
     )
 
     assert moved.exit_code != 0
-    assert "reply markup ids already taken" in moved.output and "answer" in moved.output
+    assert (
+        "ids already taken by the page or an earlier message" in moved.output
+        and "answer" in moved.output
+    )
     assert all(event["kind"] != "reply" for event in events_model.read_events(page_dir))
     assert files_model.latest_revision(page_dir) == 1
     checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])

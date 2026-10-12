@@ -3,10 +3,10 @@
 import json
 
 import pytest
+from leaf.findings import Finding
 from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.command import BrowserCheck
-from leaf.render_gate.findings import Finding
 
 
 def test_swept_faults_are_reported_by_element_and_by_unbroken_run():

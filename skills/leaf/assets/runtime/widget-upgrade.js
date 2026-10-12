@@ -9,7 +9,6 @@ import { reportPageError } from "./layer-client.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { render } from "../vendor/browser-runtime.js";
 import { shadowStage } from "./shadow-stage.js";
-import { releaseOutlets } from "./thread/surfaces.js";
 
 const initialized = new WeakSet();
 
@@ -75,9 +74,6 @@ function showFailure(el, text, source) {
     pre.textContent = source;
     box.append(pre);
   }
-  // The box replaces whatever thread outlets the widget held, so core's composer, which
-  // the user may be typing in, leaves them first.
-  releaseOutlets(el);
   // An x-shadow widget shows only what its stage holds, so the box stands there, and
   // the widget's next stage replaces it.
   if (el.shadowRoot) {

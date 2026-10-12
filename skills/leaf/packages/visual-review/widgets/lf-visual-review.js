@@ -506,6 +506,7 @@ customElements.define(
         // it rebuilds the cases the failure view discarded.
         this.#sourceReady = false;
         this.#caseEntries.clear();
+        releaseOutlets(this);
         failSoft(this, error);
       } finally {
         resume();

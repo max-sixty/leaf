@@ -1013,7 +1013,9 @@ customElements.define(
         this.diffTools = null;
         this.filesBody = null;
         this.classList.toggle("lf-rendered", false);
-        // The failure box quotes a patch text; a manifest has none to quote.
+        // The failure box quotes a patch text; a manifest has none to quote. It takes
+        // the place of every outlet, which core's composer leaves first.
+        releaseOutlets(this);
         failSoft(this, err, typeof source === "string" ? source : undefined);
         if (snapshot !== undefined) projectData(this, [], { snapshot });
       }
